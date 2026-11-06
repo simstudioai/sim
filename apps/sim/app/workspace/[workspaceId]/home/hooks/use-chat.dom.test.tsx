@@ -33,6 +33,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockChatPlanRequired,
+  mockOutgoingBackoff,
   mockRequestJson,
   mockExecuteWorkflow,
   mockExecuteBrowserToolOnClient,
@@ -40,6 +41,7 @@ const {
 } = vi.hoisted(() => ({
   mockExecuteBrowserToolOnClient: vi.fn(),
   mockExecuteLocalFilesystemTool: vi.fn(),
+  mockOutgoingBackoff: vi.fn<() => number | undefined>(),
   mockRequestJson: vi.fn(),
   mockChatPlanRequired: vi.fn(() => false),
   mockExecuteWorkflow:
@@ -52,6 +54,14 @@ const {
     >(),
 }))
 
+vi.mock('@sim/utils/retry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sim/utils/retry')>()
+  return {
+    ...actual,
+    backoffWithJitter: (...args: Parameters<typeof actual.backoffWithJitter>) =>
+      mockOutgoingBackoff() ?? actual.backoffWithJitter(...args),
+  }
+})
 vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-required', () => ({
   useChatPlanRequired: mockChatPlanRequired,
@@ -669,6 +679,22 @@ function userMessages(result: ReturnType<typeof useChat>): string[] {
 /** Lets `ms` pass, on the fake clock when a test runs one. */
 function elapse(ms: number): Promise<unknown> {
   return vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(ms) : sleep(ms)
+}
+
+/** Far under one read per fake millisecond, and room for the odd unrelated read. */
+const MAX_IDLE_CHAT_READS = 50
+
+/**
+ * How many times the surface reads the cached chat while `ms` passes on the fake
+ * clock. Every delivery pass reads it, so delivery waking on a delay already over
+ * shows as a read per tick, where a surface with nothing due reads next to nothing.
+ */
+async function chatReadsDuring(ms: number): Promise<number> {
+  const read = vi.spyOn(queryClient, 'getQueryData')
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+  return read.mock.calls.length
 }
 
 /** Lets everything already due run: answered requests, their handlers, what those schedule. */
@@ -2153,6 +2179,151 @@ describe('useChat remount send recovery', () => {
     expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('must survive my own teardown')
   })
 
+  describe('a new chat’s messages when its surface unmounts', () => {
+    const idOf = (view: { getResult: () => ReturnType<typeof useChat> }, content: string) =>
+      view.getResult().messages.find((message) => message.content === content)?.id
+
+    /** From here on a send is admitted and opens its chat; its turn ends at once. */
+    function admitSends() {
+      mockRequestJson.mockImplementation(() =>
+        Promise.resolve({
+          chat: {
+            id: DEDUPED_CHAT_ID,
+            mode: 'agent',
+            title: 'Handed off',
+            messages: [],
+            activeStreamId: null,
+            resources: [],
+          } satisfies MothershipChatHistory,
+        })
+      )
+      vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return Promise.resolve(
+          new Response(emptySseResponse().body, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'x-mothership-chat-id': DEDUPED_CHAT_ID,
+            },
+          })
+        )
+      })
+    }
+
+    async function sendTwoDuringAdmission() {
+      const view = renderUseChat()
+      await act(async () => {
+        void view.getResult().sendMessage('First')
+      })
+      await waitFor(() => state.postBodies.length === 1)
+      await act(async () => {
+        void view.getResult().sendMessage('Second')
+        await settle()
+      })
+      return { view, secondId: idOf(view, 'Second') }
+    }
+
+    /** Sent while the first waited on its admission, the second has no chat to wait in. */
+    it('hands off a message sent during the admission, behind the first, from storage', async () => {
+      const { view, secondId } = await sendTwoDuringAdmission()
+      expect(secondId).toBeDefined()
+      view.unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+      expect(handoff?.message).toBe('First')
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage(handoff?.message ?? '', undefined, undefined, {
+          resumeUserMessageId: handoff?.resumeUserMessageId,
+        })
+      })
+      await waitFor(() => state.postBodies.length === 3)
+
+      expect(state.postBodies.slice(1).map((body) => [body.message, body.userMessageId])).toEqual([
+        ['First', handoff?.resumeUserMessageId],
+        ['Second', secondId],
+      ])
+    })
+
+    it('hands off a message sent during the admission to a live replacement', async () => {
+      const replacement = renderHomeLikeSurface()
+      const { view, secondId } = await sendTwoDuringAdmission()
+      admitSends()
+      view.unmount()
+      await waitFor(() => state.postBodies.length === 3)
+
+      expect(replacement.claimedByOwnListener()).toBe(1)
+      expect(state.postBodies[1].message).toBe('First')
+      expect(state.postBodies[2]).toMatchObject({ message: 'Second', userMessageId: secondId })
+      expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
+    })
+
+    /** Its POST came back with no answer, so no send is out to come back withdrawn. */
+    it('hands off what waits on a retry delay when no send is out', async () => {
+      vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true)
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          throw new TypeError('Failed to fetch')
+        }
+        return fetchStub(input, init)
+      })
+      const view = renderUseChat()
+      await act(async () => {
+        void view.getResult().sendMessage('First')
+        await settle()
+      })
+      await act(async () => {
+        void view.getResult().sendMessage('Second')
+        await settle()
+      })
+      const firstId = idOf(view, 'First')
+      const secondId = idOf(view, 'Second')
+      const postsBefore = state.postBodies.length
+
+      view.unmount()
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+      expect(handoff?.resumeUserMessageId).toBe(firstId)
+
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage(handoff?.message ?? '', undefined, undefined, {
+          resumeUserMessageId: handoff?.resumeUserMessageId,
+        })
+      })
+      await waitFor(() => state.postBodies.length >= postsBefore + 2)
+
+      expect(
+        state.postBodies.slice(postsBefore).map((body) => [body.message, body.userMessageId])
+      ).toEqual([
+        ['First', firstId],
+        ['Second', secondId],
+      ])
+    })
+
+    /** What a new send of its own carries is no resume, so it takes nothing behind it. */
+    it('leaves handed-off messages for the surface that resumes the first', async () => {
+      const { view } = await sendTwoDuringAdmission()
+      view.unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      admitSends()
+      const next = renderUseChat()
+      await act(async () => {
+        await next.getResult().sendMessage('Unrelated')
+      })
+      await settle()
+
+      expect(state.postBodies.slice(1).map((body) => body.message)).toEqual(['Unrelated'])
+    })
+  })
+
   describe('retrying a withdrawn send', () => {
     /**
      * The whole point of carrying the id: the server sees one logical send, so
@@ -2401,6 +2572,72 @@ describe('useChat remount send recovery', () => {
         }
         expect(network.acceptedPosts).toBe(1)
         expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    /** Eight unanswered sends leave it not delivered; nothing is due until the user acts. */
+    it('stops waking for a send that ended as not delivered', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const history = idleHistory('chat-unreachable-gave-up')
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        const view = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Sent while Sim is unreachable')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        for (let step = 0; step < 20; step++) {
+          await act(async () => vi.advanceTimersByTimeAsync(30_000))
+        }
+        const message = view.getResult().messages.find((m) => m.role === 'user')
+        expect(message?.delivery).toBe('failed')
+        const attempts = state.postBodies.length
+
+        expect(await chatReadsDuring(5_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
+        expect(state.postBodies).toHaveLength(attempts)
+      } finally {
+        vi.useRealTimers()
+      }
+    }, 30_000)
+
+    /** Its delay ends under a turn it cannot steer: only that turn's end moves it. */
+    it('does not spin on a retry delay that ends while a running turn holds the message', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const history = idleHistory('chat-unconfirmed-under-turn')
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        stubUnreachableSend({ browserStaysOnline: true })
+        const view = renderUseChatInChat(history.id, history)
+        await act(async () => {
+          void view.getResult().sendMessage('May already be a turn')
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(state.postBodies).toHaveLength(1)
+
+        /* Another tab's turn shows up in the chat before this message's retry delay ends. */
+        const fetchUnreachable = globalThis.fetch
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (!String(input).includes('/api/mothership/chat/stream')) {
+            return fetchUnreachable(input, init)
+          }
+          await sleep(50)
+          return Response.json({ success: true, events: [], status: 'active' })
+        })
+        const running = { ...history, activeStreamId: 'run-in-another-tab' }
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: running }))
+        await act(async () => {
+          queryClient.setQueryData(mothershipChatKeys.detail(history.id), running)
+          await vi.advanceTimersByTimeAsync(10)
+        })
+        expect(view.getResult().isReconnecting || view.getResult().isSending).toBe(true)
+
+        await act(async () => vi.advanceTimersByTimeAsync(5_000))
+        expect(await chatReadsDuring(2_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
+        expect(state.postBodies).toHaveLength(1)
+        view.unmount()
       } finally {
         vi.useRealTimers()
       }
@@ -4322,6 +4559,192 @@ describe('useChat remount send recovery', () => {
           await vi.advanceTimersByTimeAsync(1_000)
         })
         expect(state.postBodies.length).toBeGreaterThan(attempts)
+      } finally {
+        vi.useRealTimers()
+      }
+    }, 30_000)
+
+    /** The server saved the turn's answer, after the steering row, before this surface saw it end. */
+    it('shows one answer when a refetch saves it after a steering row mid-turn', async () => {
+      const { view, turn } = await startTurn()
+      const at = '2026-11-05T00:00:00.000Z'
+      const saved: MothershipChatHistory = {
+        ...history,
+        messages: [
+          { id: turn.firstStreamId(), role: 'user', content: 'Count to fifty', timestamp: at },
+          {
+            id: 'steering-row',
+            role: 'user',
+            content: 'Stop at two',
+            timestamp: at,
+            steering: { streamId: turn.firstStreamId() },
+          },
+          {
+            id: 'saved-answer',
+            streamId: turn.firstStreamId(),
+            role: 'assistant',
+            content: '1 2.',
+            timestamp: at,
+          },
+        ],
+      }
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), saved)
+        await settle()
+      })
+
+      expect(view.getResult().isSending).toBe(true)
+      expect(
+        view
+          .getResult()
+          .messages.filter((message) => message.role === 'assistant')
+          .map((message) => message.id)
+      ).toEqual(['saved-answer'])
+    })
+
+    const SUMMARY_SCOPE = { startDate: '2026-11-01T00:00:00.000Z' }
+
+    it('holds a message with a search scope for its own turn, keeping the scope', async () => {
+      const { view, turn } = await startTurn()
+      await act(async () => {
+        await view.getResult().sendMessage('Summarize this', undefined, undefined, {
+          assistantSearch: SUMMARY_SCOPE,
+        })
+        await settle()
+      })
+
+      expect(state.steerBodies).toHaveLength(0)
+      expect(view.getResult().messages.at(-1)).toMatchObject({
+        content: 'Summarize this',
+        delivery: 'waiting',
+      })
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.steerBodies).toHaveLength(0)
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Summarize this',
+        assistantSearch: SUMMARY_SCOPE,
+      })
+    })
+
+    /** A turn this surface did not know of refuses the send; steering it would drop the scope. */
+    it('never steers a message with a search scope into a turn that refused its send', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        let busy = true
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return busy
+              ? Response.json(
+                  { error: 'A response is already in progress.', activeStreamId: 'other-tab-run' },
+                  { status: 409 }
+                )
+              : emptySseResponse()
+          }
+          return fetchStub(input, init)
+        })
+        state.steerDispositions = ['queued', 'queued']
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Summarize this', undefined, undefined, {
+            assistantSearch: SUMMARY_SCOPE,
+          })
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(state.postBodies).toHaveLength(1)
+        expect(state.steerBodies).toHaveLength(0)
+
+        busy = false
+        await act(async () => vi.advanceTimersByTimeAsync(3_000))
+
+        expect(state.steerBodies).toHaveLength(0)
+        expect(state.postBodies.length).toBeGreaterThan(1)
+        expect(state.postBodies.at(-1)).toMatchObject({
+          message: 'Summarize this',
+          assistantSearch: SUMMARY_SCOPE,
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    /** It waits for its marker in the saved transcript, which no timer brings any sooner. */
+    it('stops waking for a message read as applied after an earlier read held it', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const turn = stubRunningTurn()
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Count to fifty')
+        })
+        await waitFor(() => view.getResult().isSending)
+        state.steerDispositions = ['queued', 'queued', 'applied']
+        await act(async () => {
+          await view.getResult().sendMessage('Then summarize')
+        })
+        await waitFor(() => state.steerBodies.length === 1)
+        await turn.end()
+        await waitFor(() => state.steerBodies.length === 3, 20_000)
+        await act(async () => vi.advanceTimersByTimeAsync(10))
+
+        expect(await chatReadsDuring(5_000)).toBeLessThan(MAX_IDLE_CHAT_READS)
+        expect(state.postBodies).toHaveLength(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    }, 30_000)
+
+    /**
+     * Each message's read waits on its own delay. One whose delay ends while another's
+     * read is out was passed over by that pass, and no turn's end is left to wake it.
+     */
+    it('reads a held message whose delay ended during another message’s read', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        const turn = stubRunningTurn()
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Count to fifty')
+        })
+        await waitFor(() => view.getResult().isSending)
+        state.steerDispositions = ['queued', 'queued', 'queued', 'queued', 'applied', 'applied']
+        await act(async () => {
+          await view.getResult().sendMessage('First')
+        })
+        await waitFor(() => state.steerBodies.length === 1)
+        await act(async () => {
+          await view.getResult().sendMessage('Second')
+        })
+        await waitFor(() => state.steerBodies.length === 2)
+
+        const heldRead = createDeferred<void>()
+        const fetchTurn = globalThis.fetch
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const response = await fetchTurn(input, init)
+          if (String(input).includes('/chat/steer') && state.steerBodies.length === 5) {
+            await heldRead.promise
+          }
+          return response
+        })
+        /* The first message's delay outlasts the second's, so the second's read is the one out. */
+        mockOutgoingBackoff.mockReturnValueOnce(5_000).mockReturnValueOnce(1_000)
+        await turn.end()
+        await waitFor(() => state.steerBodies.length === 4)
+        await act(async () => vi.advanceTimersByTimeAsync(1_500))
+        expect(state.steerBodies).toHaveLength(5)
+        expect(state.steerBodies[4].content).toBe('Second')
+
+        await act(async () => vi.advanceTimersByTimeAsync(5_000))
+        await act(async () => {
+          heldRead.resolve()
+          await vi.advanceTimersByTimeAsync(50)
+        })
+
+        expect(state.steerBodies).toHaveLength(6)
+        expect(state.steerBodies[5].content).toBe('First')
       } finally {
         vi.useRealTimers()
       }

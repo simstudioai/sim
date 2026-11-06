@@ -65,7 +65,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
-import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
+import {
+  findLastConversationIndex,
+  findLiveResponseId,
+} from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
@@ -746,6 +749,7 @@ export function MothershipChat({
     }
   }
   const lastIndex = messages.length - 1
+  const lastConversationIndex = findLastConversationIndex(messages)
   const lastRowKey = lastIndex >= 0 ? rowKeyByIndex[lastIndex] : undefined
   useEffect(() => {
     setLastRowAnimating(false)
@@ -975,7 +979,7 @@ export function MothershipChat({
               {virtualItems.map((virtualItem) => {
                 const index = virtualItem.index
                 const msg = messages[index]
-                const isLast = index === lastIndex
+                const isLast = index === lastConversationIndex
                 return (
                   <div
                     key={virtualItem.key}

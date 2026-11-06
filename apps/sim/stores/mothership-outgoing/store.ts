@@ -23,7 +23,10 @@ export interface JournaledOutgoing {
 }
 
 interface MothershipOutgoingState {
-  /** Per chat id, in the order the messages were written. */
+  /**
+   * Per chat id, in the order the messages were written, and per handed-off message
+   * for what the surface that resumes it takes behind it (`handedOffJournalKey`).
+   */
   chats: Record<string, JournaledOutgoing[]>
   /** Replaces what a chat has to deliver; an empty list drops the chat. */
   record: (chatId: string, messages: JournaledOutgoing[]) => void

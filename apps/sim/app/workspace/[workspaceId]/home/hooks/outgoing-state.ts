@@ -126,10 +126,16 @@ export function optimisticUserMessageFor(id: string, payload: SendPayload): Chat
 
 /**
  * Whether a message can be steered: steering carries its files and mentions like a
- * turn, but needs text, so a message of files alone goes out as a turn.
+ * turn, but needs text, so a message of files alone goes out as a turn. It has no
+ * search scope, so a message asking for one (a Summarize of found documents) goes
+ * out as a turn too, rather than running without it.
  */
-function canSteer(payload: SendPayload): boolean {
-  return payload.content.trim().length > 0 && payload.content.length <= MAX_STEERING_CONTENT_LENGTH
+export function canSteer(payload: SendPayload): boolean {
+  return (
+    !payload.assistantSearch &&
+    payload.content.trim().length > 0 &&
+    payload.content.length <= MAX_STEERING_CONTENT_LENGTH
+  )
 }
 
 /** The journal entry an outgoing message is restored from; a steer in flight restores as sent. */
@@ -181,6 +187,29 @@ export function outgoingRetryDelay(attempts: number): number {
     baseMs: OUTGOING_RETRY_BASE_MS,
     maxMs: OUTGOING_RETRY_MAX_MS,
   })
+}
+
+/**
+ * Where the rest of a new chat's messages wait once its surface is gone: the handoff
+ * carries one message, and whichever surface resumes that one takes these behind it.
+ */
+export function handedOffJournalKey(resumedId: string): string {
+  return `handoff:${resumedId}`
+}
+
+/**
+ * What a new chat's message goes on to the next surface as. Nothing took it, since
+ * its chat never existed, so it starts over; one shown as not delivered stays that
+ * way until the user asks.
+ */
+export function toHandedOff(message: OutgoingMessage): JournaledOutgoing {
+  return {
+    id: message.id,
+    payload: message.payload,
+    status: message.status === 'failed' ? 'failed' : 'pending',
+    ...(message.unconfirmed ? { unconfirmed: true } : {}),
+    writtenAt: message.writtenAt,
+  }
 }
 
 type PersistedRow = MothershipChatHistory['messages'][number]
@@ -273,6 +302,7 @@ export function notSteered(streamId: string, turnErrored: boolean): Partial<Outg
     refusedBy: streamId,
     streamId: undefined,
     unconfirmed: false,
+    notBefore: undefined,
   }
 }
 
@@ -283,7 +313,7 @@ export function afterUnsentAttempt(
 ): Partial<OutgoingMessage> {
   const attempts = message.attempts + 1
   if (attempts >= MAX_OUTGOING_DELIVERY_ATTEMPTS) {
-    return { status: 'failed', attempts, unconfirmed: true }
+    return { status: 'failed', attempts, unconfirmed: true, notBefore: undefined }
   }
   return {
     status: 'pending',
@@ -304,13 +334,15 @@ export function afterDispositionRead(
   if (outcome.status === 'applied') {
     return {
       status: 'applied',
+      notBefore: undefined,
       ...(outcome.textOffset !== undefined ? { textOffset: outcome.textOffset } : {}),
     }
   }
   if (outcome.status === 'not_applied') {
+    const refused = notSteered(context.streamId, context.turnErrored || message.noAutoSend === true)
     return {
-      ...notSteered(context.streamId, context.turnErrored || message.noAutoSend === true),
-      ...(message.attempts > 0
+      ...refused,
+      ...(refused.status === 'pending' && message.attempts > 0
         ? { notBefore: context.now + outgoingRetryDelay(message.attempts) }
         : {}),
     }
@@ -319,12 +351,31 @@ export function afterDispositionRead(
      as one whose owner died, does not keep it waiting forever. */
   const reads = message.reads + 1
   return reads >= MAX_DISPOSITION_READS
-    ? { status: 'failed', reads }
+    ? { status: 'failed', reads, notBefore: undefined }
     : {
         reads,
         unconfirmed: outcome.status === 'unknown',
         notBefore: context.now + outgoingRetryDelay(reads),
       }
+}
+
+/**
+ * When a delivery pass next has to run for a chat's messages: the earliest delay
+ * that was still running when the last pass began, so that pass could have skipped
+ * it. A delay already over by then decides nothing: what still waits after it waits
+ * on a turn's end or the network, which wake delivery themselves, and arming for it
+ * would run passes back to back until they do. Infinite when nothing is due.
+ */
+export function nextOutgoingWake(inChat: readonly OutgoingMessage[], passBegan: number): number {
+  return Math.min(
+    ...inChat.flatMap((message) =>
+      (message.status === 'pending' || message.status === 'steered') &&
+      message.notBefore !== undefined &&
+      message.notBefore > passBegan
+        ? [message.notBefore]
+        : []
+    )
+  )
 }
 
 /**
