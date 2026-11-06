@@ -144,8 +144,6 @@ export function Chip({
   status,
   replaceActionOnTouch,
 }: ChipProps) {
-  const external = href && isAbsoluteHref(href)
-  const LinkElement = external ? 'a' : Link
   return (
     <ControlRow
       label={children}
@@ -155,11 +153,17 @@ export function Chip({
       replaceActionOnTouch={replaceActionOnTouch}
       render={
         href ? (
-          <LinkElement
-            href={href}
-            {...(!external ? { onNavigate } : {})}
-            aria-current={selected ? 'page' : undefined}
-          />
+          isAbsoluteHref(href) ? (
+            <a href={href} aria-current={selected ? 'page' : undefined}>
+              {children}
+            </a>
+          ) : (
+            <Link
+              href={href}
+              onNavigate={onNavigate}
+              aria-current={selected ? 'page' : undefined}
+            />
+          )
         ) : (
           <button type='button' aria-pressed={selected} onClick={onClick} />
         )

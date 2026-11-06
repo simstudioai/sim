@@ -14,7 +14,7 @@ interface IntegrationsPageProps {
 export function IntegrationsPage({ back, children }: IntegrationsPageProps) {
   return (
     <DirectoryPage>
-      {back && <DirectoryBack {...back} />}
+      {back && <DirectoryBack href={back.href} label={back.label} onNavigate={back.onNavigate} />}
       {children}
     </DirectoryPage>
   )
