@@ -199,7 +199,7 @@ function ConnectionDetails({
       <SettingsSection title='Tokens'>
         <FieldStack>
           <Muted>Shown once. Keep up to two active tokens for rotation.</Muted>
-          {connection.credentials.length === 0 && <Muted>No tokens yet.</Muted>}
+          {connection.credentials.length === 0 && <EmptyState title='No tokens yet.' />}
         </FieldStack>
         {connection.credentials.map((credential) => (
           <SettingsRow

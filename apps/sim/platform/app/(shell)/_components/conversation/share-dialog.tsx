@@ -16,6 +16,7 @@ import styles from '@/platform/app/(shell)/_components/conversation/conversation
 import { BodyDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import {
   Button,
+  ConfirmDialog,
   CopyButton,
   FieldFrame,
   InlineNotice,
@@ -243,17 +244,13 @@ export function ShareDialog(props: ShareDialogProps) {
         )}
         {!dialog.unshareConfirmOpen && failure}
       </Modal>
-      <Modal
-        variant='confirm'
-        destructive
-        open={dialog.unshareConfirmOpen}
-        onOpenChange={(open) => {
-          if (!pending) dialog.setUnshareConfirmOpen(open)
-        }}
+      <ConfirmDialog
+        target={dialog.unshareConfirmOpen}
+        onClose={() => dialog.setUnshareConfirmOpen(false)}
         title='Unshare file?'
         description='Are you sure you want to unshare this file? Anyone with the link will lose access.'
-        confirmLabel={pending ? 'Unsharing...' : 'Unshare'}
-        confirmDisabled={pending}
+        confirmLabel='Unshare'
+        pendingLabel='Unsharing…'
         pending={pending}
         onConfirm={async () => {
           await dialog.confirmUnshare()
@@ -261,7 +258,7 @@ export function ShareDialog(props: ShareDialogProps) {
         }}
       >
         {failure}
-      </Modal>
+      </ConfirmDialog>
     </BodyDialog>
   )
 }

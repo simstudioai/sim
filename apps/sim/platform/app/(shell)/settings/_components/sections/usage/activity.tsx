@@ -1,6 +1,7 @@
 'use client'
 
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
+import { HeadingRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Avatar,
@@ -123,17 +124,17 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
   return (
     <>
       {workspace && (
-        <div className={styles.toolbar}>
+        <HeadingRow>
           <Button variant='quiet' icon='I093' onClick={toAllWorkspaces}>
             All workspaces
           </Button>
           <span data-type='T067'>{summary.workspaceName ?? 'Workspace activity'}</span>
-        </div>
+        </HeadingRow>
       )}
       <SummaryView summary={summary} />
       <section className={styles.block} aria-label='Breakdown'>
         <h2 data-type='T042'>Breakdown</h2>
-        <div className={styles.toolbar}>
+        <HeadingRow>
           <Select
             label='Group activity by'
             variant='quiet'
@@ -157,7 +158,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
               }
             />
           )}
-        </div>
+        </HeadingRow>
         {breakdown.failed ? (
           <FailureNotice message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
         ) : !breakdown.rows ? (

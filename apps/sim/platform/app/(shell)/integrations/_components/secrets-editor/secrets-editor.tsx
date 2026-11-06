@@ -19,6 +19,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
 import {
   NewRow,
   SavedRow,
@@ -36,8 +37,8 @@ import {
   DraftConflictNotice,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import {
+  AutofillDecoys,
   EmptyState,
   FailureNotice,
   LoadingRows,
@@ -214,29 +215,7 @@ function SecretRows({ back, mode, refreshFailure, variables, save, isSaving }: S
       : undefined
   return (
     <SectionStack>
-      <div className={styles.autofillDecoys} aria-hidden='true'>
-        <input
-          type='text'
-          name='fakeusernameremembered'
-          autoComplete='username'
-          tabIndex={-1}
-          readOnly
-        />
-        <input
-          type='password'
-          name='fakepasswordremembered'
-          autoComplete='current-password'
-          tabIndex={-1}
-          readOnly
-        />
-        <input
-          type='email'
-          name='fakeemailremembered'
-          autoComplete='email'
-          tabIndex={-1}
-          readOnly
-        />
-      </div>
+      <AutofillDecoys />
       <DetailHeader
         backLabel={back.text}
         onBack={() => guard.guardBack(() => router.push(back.href))}

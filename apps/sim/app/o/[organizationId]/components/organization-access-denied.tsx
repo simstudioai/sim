@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
@@ -7,7 +8,7 @@ import { Button } from '@/platform/design-system/components/button/button'
 
 export function OrganizationAccessDenied() {
   return (
-    <main className={`desktop-title-bar-page flex bg-[var(--bg)] ${canvasStyles.canvas}`}>
+    <main className={cn('desktop-title-bar-page flex bg-[var(--bg)]', canvasStyles.canvas)}>
       <DesktopTitleBarLane />
       <RouteStatus
         title='Organization access denied'

@@ -13,6 +13,7 @@ import {
   Button,
   FailureNotice,
   FieldFrame,
+  LoadingRows,
   SegmentedControl,
   StatusTag,
   Tooltip,
@@ -112,7 +113,7 @@ export function ConnectorAccess({
             onRetry={() => void accountsQuery.refetch()}
           />
         ) : accountsQuery.isPending ? (
-          <Muted>Checking Slack setup…</Muted>
+          <LoadingRows label='Checking Slack setup…' rows={1} />
         ) : accountsQuery.isSuccess && !access.configured && scope.kind === 'organization' ? (
           <div>
             <Button

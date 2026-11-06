@@ -39,16 +39,13 @@ import { useOrganizationBillingSummary } from '@/hooks/queries/organization-bill
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { queryView } from '@/platform/lib/data/query-view'
+import { reportFailure } from '@/platform/lib/notices'
 import { formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformBilling')
 
 /** Delay before a usage-limit edit is saved once the viewer stops typing. */
 const AUTOSAVE_DELAY_MS = 1000
-
-function reportFailure(title: string, error: unknown) {
-  toast.error(title, { description: getErrorMessage(error, 'Please try again in a moment.') })
-}
 
 const INVOICE_INTENTS = {
   green: 'success',

@@ -47,20 +47,14 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
       {mine.paused && (
         <InlineNotice message='Your organization has paused new requests. Your request history is still available.' />
       )}
-      <QueryBoundary
-        query={{
-          data: mine.searching || mine.loading || mine.error ? undefined : mine.rows,
-          error: mine.searching || mine.loading ? undefined : mine.error,
-          isFetching: mine.fetching,
-          refetch: mine.retry,
-        }}
-        failure={errorMessageOr('The request is unavailable.')}
-        failureTitle='Unable to load access requests'
-        loadingLabel='Loading access requests'
-      >
-        {() =>
-          view === 'requests' ? (
-            mine.rows.length === 0 ? (
+      {view === 'requests' ? (
+        <QueryBoundary
+          query={mine.rowsRead}
+          failure={errorMessageOr('The request is unavailable.')}
+          failureTitle='Unable to load access requests'
+          loadingLabel='Loading access requests'
+          empty={(rows) =>
+            rows.length === 0 && (
               <EmptyState
                 title={mine.page > 0 ? 'No requests on this page' : 'No requests yet'}
                 description={
@@ -69,40 +63,56 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
                     : 'Requests you send will appear here.'
                 }
               />
-            ) : (
-              <SettingsSurface>
-                {mine.rows.map((row) => (
-                  <SettingsRow key={row.id} label={row.title} description={row.date}>
-                    <span className={styles.controls}>
-                      <StatusTag label={row.status.label} intent={row.status.intent} />
-                      <Button size='compact' variant='quiet' onClick={() => viewRequest(row.id)}>
-                        View
-                      </Button>
-                    </span>
-                  </SettingsRow>
-                ))}
-              </SettingsSurface>
             )
-          ) : !mine.hasOrganization ? (
-            <EmptyState title='Access requests are available in organization workspaces.' />
-          ) : mine.entries.length === 0 ? (
-            <EmptyState
-              title={
-                mine.query
-                  ? 'No matching results'
-                  : mine.page > 0
-                    ? 'No more access to request'
-                    : 'Nothing to request in this organization'
-              }
-              action={
-                mine.query ? (
-                  <Button onClick={() => mine.setSearch('')}>Clear search</Button>
-                ) : undefined
-              }
-            />
-          ) : (
+          }
+        >
+          {(rows) => (
             <SettingsSurface>
-              {mine.entries.map((entry) => (
+              {rows.map((row) => (
+                <SettingsRow key={row.id} label={row.title} description={row.date}>
+                  <span className={styles.controls}>
+                    <StatusTag label={row.status.label} intent={row.status.intent} />
+                    <Button size='compact' variant='quiet' onClick={() => viewRequest(row.id)}>
+                      View
+                    </Button>
+                  </span>
+                </SettingsRow>
+              ))}
+            </SettingsSurface>
+          )}
+        </QueryBoundary>
+      ) : (
+        <QueryBoundary
+          query={mine.entriesRead}
+          failure={errorMessageOr('The request is unavailable.')}
+          failureTitle='Unable to load access requests'
+          loadingLabel='Loading access requests'
+          empty={(entries) =>
+            !mine.hasOrganization ? (
+              <EmptyState title='Access requests are available in organization workspaces.' />
+            ) : (
+              entries.length === 0 && (
+                <EmptyState
+                  title={
+                    mine.query
+                      ? 'No matching results'
+                      : mine.page > 0
+                        ? 'No more access to request'
+                        : 'Nothing to request in this organization'
+                  }
+                  action={
+                    mine.query ? (
+                      <Button onClick={() => mine.setSearch('')}>Clear search</Button>
+                    ) : undefined
+                  }
+                />
+              )
+            )
+          }
+        >
+          {(entries) => (
+            <SettingsSurface>
+              {entries.map((entry) => (
                 <SettingsRow
                   key={entry.key}
                   label={entry.label}
@@ -134,9 +144,9 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
                 </SettingsRow>
               ))}
             </SettingsSurface>
-          )
-        }
-      </QueryBoundary>
+          )}
+        </QueryBoundary>
+      )}
       {(mine.page > 0 || mine.hasMore) && (
         <Pagination
           label='Access requests pages'

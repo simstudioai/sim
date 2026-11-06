@@ -16,6 +16,11 @@ export function SectionStack({ children }: ChildrenProps) {
 }
 
 /** Labeled fields inside a settings surface. */
+/** A heading with what acts on it, end-aligned on the same line where there is room. */
+export function HeadingRow({ children }: ChildrenProps) {
+  return <div className={styles.headingRow}>{children}</div>
+}
+
 export function FieldStack({ children }: ChildrenProps) {
   return <div className={styles.fields}>{children}</div>
 }
@@ -106,7 +111,7 @@ export function DetailHeader({
           {backLabel}
         </Button>
       </div>
-      <div className={styles.detailTitleRow}>
+      <HeadingRow>
         <div className={styles.detailTitle}>
           {pageHeading ? <h1 data-type='T076'>{title}</h1> : <h2 data-type='T093'>{title}</h2>}
           {description && (
@@ -116,7 +121,7 @@ export function DetailHeader({
           )}
         </div>
         {children && <div className={styles.actions}>{children}</div>}
-      </div>
+      </HeadingRow>
     </header>
   )
 }

@@ -161,6 +161,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
                   <Icon name='I032' />
                 </>
               )
+              // Not an ActivityRow: an invoice is several tabular columns, and most but not all open.
               return (
                 <li key={invoice.id}>
                   {invoice.url ? (

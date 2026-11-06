@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import styles from '@/platform/app/(shell)/_components/route-status/route-status.module.css'
 
 interface RouteStatusProps {
@@ -16,20 +16,18 @@ interface RouteStatusProps {
  */
 export function RouteStatus({ title, description, loading, actions }: RouteStatusProps) {
   return (
-    <div className='h-full min-h-0 w-full overflow-y-auto [&>[data-platform-ui]]:h-full'>
-      <RedesignSurface>
-        <div className={styles.frame}>
-          <div className={styles.content}>
-            <div className={styles.copy}>
-              <h1 data-type='T076'>{title}</h1>
-              <p data-type='T048' role={loading ? 'status' : undefined}>
-                {description}
-              </p>
-            </div>
-            {actions && <div className={styles.actions}>{actions}</div>}
+    <RedesignPageSurface>
+      <div className={styles.frame}>
+        <div className={styles.content}>
+          <div className={styles.copy}>
+            <h1 data-type='T076'>{title}</h1>
+            <p data-type='T048' role={loading ? 'status' : undefined}>
+              {description}
+            </p>
           </div>
+          {actions && <div className={styles.actions}>{actions}</div>}
         </div>
-      </RedesignSurface>
-    </div>
+      </div>
+    </RedesignPageSurface>
   )
 }

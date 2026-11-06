@@ -95,7 +95,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
       }}
     >
       <div className={styles.column}>
-        <RedesignSurface>
+        <RedesignSurface canvas>
           <div data-material='shell'>
             {!isPeeking && (
               <div
@@ -171,13 +171,13 @@ export function Sidebar(flags: OrganizationNavFlags) {
         </RedesignSurface>
         <div className={styles.body}>
           {isSettings ? (
-            <RedesignSurface>
+            <RedesignSurface canvas>
               <div className={styles.settingsFrame} data-material='shell'>
                 <SettingsNavigation collapsed={collapsed} />
               </div>
             </RedesignSurface>
           ) : (
-            <RedesignSurface>
+            <RedesignSurface canvas>
               <div className={styles.bodyFrame} data-material='shell'>
                 <nav className={styles.nav} aria-label='Main navigation'>
                   {destinations.map((item) => {
@@ -238,7 +238,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
             </RedesignSurface>
           )}
         </div>
-        <RedesignSurface>
+        <RedesignSurface canvas>
           <div ref={footer} className={styles.footer} data-material='shell'>
             {data.user ? (
               <AccountMenu

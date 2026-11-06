@@ -13,7 +13,7 @@ import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/sectio
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { useChatListActions } from '@/platform/lib/data/chat-list'
 import type { ShellChat, ShellQueryStatus } from '@/platform/lib/data/shell-view'
 import { copyLinkAction, openInNewTabAction } from '@/platform/lib/row-links'
@@ -237,13 +237,12 @@ export function ChatsSection({
         />
       )}
       {removing.length > 0 && (
-        <Modal
-          open
-          onOpenChange={() => setEditing(null)}
-          variant='confirm'
+        <ConfirmDialog
+          target
+          onClose={() => setEditing(null)}
           title={removing.length > 1 ? `Delete ${removing.length} chats` : 'Delete chat'}
           confirmLabel='Delete'
-          destructive
+          pendingLabel='Deleting…'
           onConfirm={() => confirmRemoval(removing)}
         >
           <p data-type='T048'>
@@ -253,7 +252,7 @@ export function ChatsSection({
             You can restore {removing.length === 1 ? 'it' : 'them'} from Recently deleted in
             Settings.
           </p>
-        </Modal>
+        </ConfirmDialog>
       )}
     </>
   )

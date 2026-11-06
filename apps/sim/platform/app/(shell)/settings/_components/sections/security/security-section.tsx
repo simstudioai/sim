@@ -11,6 +11,7 @@ import {
 } from '@/ee/session-policy/hooks/session-policy'
 import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
 import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
+import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
 import {
   DraftConflictNotice,
   FieldStack,
@@ -18,15 +19,15 @@ import {
   SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
   ConfirmDialog,
   CopyField,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
-  LoadingRows,
+  QueryBoundary,
   SaveActions,
   TextField,
 } from '@/platform/design-system/components'
@@ -190,34 +191,40 @@ function SessionPolicySection({
 }
 
 function NetworkSection({ organizationId }: { organizationId: string }) {
-  const { data, error, isPending, isFetching, refetch } = useOrganizationNetwork(organizationId)
+  const network = useOrganizationNetwork(organizationId)
   return (
     <SettingsSection title='Outbound IP addresses'>
       <FieldStack>
-        {isPending ? (
-          <LoadingRows label='Loading network settings…' />
-        ) : error || !data || data.mode === 'unavailable' ? (
-          <FailureNotice
-            message={getErrorMessage(error, 'Could not load network settings')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
-          />
-        ) : data.mode === 'gateway' && data.publicIps.length > 0 ? (
-          <>
-            <Muted>Allowlist every address below for supported HTTPS connections.</Muted>
-            {data.publicIps.map((ip) => (
-              <CopyField key={ip} label={`Outbound IP ${ip}`} value={`${ip}/32`} />
-            ))}
-          </>
-        ) : (
-          <Muted>
-            {data.mode === 'blocked'
-              ? 'Supported HTTPS connections are paused.'
-              : data.mode === 'gateway'
-                ? 'Your outbound IP addresses aren’t available yet.'
-                : 'Outbound IP addresses are not configured for this organization.'}
-          </Muted>
-        )}
+        <QueryBoundary
+          query={network}
+          failure={errorMessageOr('Could not load network settings')}
+          loadingLabel='Loading network settings…'
+        >
+          {(data) =>
+            data.mode === 'unavailable' ? (
+              <FailureNotice
+                message='Could not load network settings'
+                retrying={network.isFetching}
+                onRetry={() => void network.refetch()}
+              />
+            ) : data.mode === 'gateway' && data.publicIps.length > 0 ? (
+              <>
+                <Muted>Allowlist every address below for supported HTTPS connections.</Muted>
+                {data.publicIps.map((ip) => (
+                  <CopyField key={ip} label={`Outbound IP ${ip}`} value={`${ip}/32`} />
+                ))}
+              </>
+            ) : (
+              <Muted>
+                {data.mode === 'blocked'
+                  ? 'Supported HTTPS connections are paused.'
+                  : data.mode === 'gateway'
+                    ? 'Your outbound IP addresses aren’t available yet.'
+                    : 'Outbound IP addresses are not configured for this organization.'}
+              </Muted>
+            )
+          }
+        </QueryBoundary>
       </FieldStack>
     </SettingsSection>
   )

@@ -10,8 +10,10 @@ export function useClipboard() {
     try {
       await navigator.clipboard.writeText(text)
       setCopiedAt(performance.now())
+      return true
     } catch {
       setCopiedAt(null)
+      return false
     }
   }
   return { copied: copiedAt !== null, copy }

@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
+import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
 import {
   hasPermissionConfigChanges,
   type PermissionGroup,

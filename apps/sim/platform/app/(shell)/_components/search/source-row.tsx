@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, type ReactNode, useState } from 'react'
-import { toast, useCopyToClipboard } from '@sim/emcn'
+import { toast } from '@sim/emcn'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
@@ -19,6 +19,7 @@ import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/componen
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useHydrated } from '@/hooks/use-hydrated'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
+import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
@@ -62,7 +63,7 @@ interface SourceActionsProps {
 
 function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
+  const { copied, copy } = useClipboard()
   const simLinkAction = useSimLinkAction(source, menuOpen)
   return (
     <ActionMenu

@@ -14,14 +14,6 @@
   gap: var(--ui-row-gap);
 }
 
-.listHeading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-8);
-}
-
 .filter {
   min-inline-size: var(--spacing-128);
 }

@@ -21,8 +21,10 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   LoadingRows,
+  QueryBoundary,
   RowList,
   SegmentedControl,
 } from '@/platform/design-system/components'
@@ -123,67 +125,67 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
       {/* Hidden tabs stay mounted, so a draft survives switching to Domains to verify one. */}
       <div hidden={tab !== 'sign-in'}>
         <SectionStack>
-          {providers.isLoading ? (
-            <LoadingRows label='Loading identity providers…' />
-          ) : providers.data === undefined && providers.error ? (
-            <FailureNotice
-              message={getErrorMessage(providers.error, 'Failed to load Single Sign-On settings')}
-              retrying={providers.isFetching}
-              onRetry={() => void providers.refetch()}
-            />
-          ) : !creating && !selectedProvider ? (
-            <>
-              <SettingsSection title='Identity providers'>
-                <RowList>
-                  {providerList.map((provider) => {
-                    const providerId = provider.providerId ?? ''
-                    const isMarkedPrimary =
-                      provider.isPrimary &&
-                      (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1
-                    return (
-                      <ActivityRow
-                        density='comfortable'
-                        key={provider.id ?? providerId}
-                        title={providerId}
-                        detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
-                        metadata={isMarkedPrimary ? 'Primary' : undefined}
-                        onOpen={() =>
-                          void setParams({ provider: providerId, createProvider: null })
-                        }
-                      />
+          <QueryBoundary
+            query={providers}
+            failure={errorMessageOr('Failed to load Single Sign-On settings')}
+            loadingLabel='Loading identity providers…'
+          >
+            {() =>
+              !creating && !selectedProvider ? (
+                <>
+                  <SettingsSection title='Identity providers'>
+                    <RowList>
+                      {providerList.map((provider) => {
+                        const providerId = provider.providerId ?? ''
+                        const isMarkedPrimary =
+                          provider.isPrimary &&
+                          (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1
+                        return (
+                          <ActivityRow
+                            density='comfortable'
+                            key={provider.id ?? providerId}
+                            title={providerId}
+                            detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
+                            metadata={isMarkedPrimary ? 'Primary' : undefined}
+                            onOpen={() =>
+                              void setParams({ provider: providerId, createProvider: null })
+                            }
+                          />
+                        )
+                      })}
+                    </RowList>
+                  </SettingsSection>
+                  <RequireSso organizationId={organizationId} />
+                </>
+              ) : selectedProvider ? (
+                <ProviderDetail
+                  key={`provider:${selectedProvider.providerId}`}
+                  organizationId={organizationId}
+                  provider={selectedProvider}
+                  onBack={showList}
+                  onDelete={() => setPendingDeleteId(selectedProvider.providerId ?? null)}
+                  onMakePrimary={
+                    canMakeSelectedPrimary
+                      ? () => setPendingPrimaryId(selectedProvider.providerId ?? null)
+                      : undefined
+                  }
+                />
+              ) : (
+                <ProviderForm
+                  key='create'
+                  organizationId={organizationId}
+                  onOpenDomains={openDomains}
+                  onSaved={(providerId) =>
+                    void setParams(
+                      { provider: providerId, createProvider: null },
+                      { history: 'replace' }
                     )
-                  })}
-                </RowList>
-              </SettingsSection>
-              <RequireSso organizationId={organizationId} />
-            </>
-          ) : selectedProvider ? (
-            <ProviderDetail
-              key={`provider:${selectedProvider.providerId}`}
-              organizationId={organizationId}
-              provider={selectedProvider}
-              onBack={showList}
-              onDelete={() => setPendingDeleteId(selectedProvider.providerId ?? null)}
-              onMakePrimary={
-                canMakeSelectedPrimary
-                  ? () => setPendingPrimaryId(selectedProvider.providerId ?? null)
-                  : undefined
-              }
-            />
-          ) : (
-            <ProviderForm
-              key='create'
-              organizationId={organizationId}
-              onOpenDomains={openDomains}
-              onSaved={(providerId) =>
-                void setParams(
-                  { provider: providerId, createProvider: null },
-                  { history: 'replace' }
-                )
-              }
-              onBack={providerList.length > 0 ? showList : undefined}
-            />
-          )}
+                  }
+                  onBack={providerList.length > 0 ? showList : undefined}
+                />
+              )
+            }
+          </QueryBoundary>
         </SectionStack>
       </div>
 

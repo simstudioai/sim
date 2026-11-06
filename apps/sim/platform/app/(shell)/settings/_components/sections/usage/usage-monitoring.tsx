@@ -7,7 +7,10 @@ import {
   type CreditsTarget,
   ManageCreditsModal,
 } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import {
+  DetailHeader,
+  HeadingRow,
+} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,
@@ -110,7 +113,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
 
   return (
     <>
-      <div className={styles.toolbar}>
+      <HeadingRow>
         <ScrollArea label='Insights views' axis='horizontal'>
           <SegmentedControl
             label='Insights views'
@@ -154,7 +157,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
             Export
           </Button>
         </div>
-      </div>
+      </HeadingRow>
       {isOverview ? (
         <>
           <UsageCredits label='Credits' overview={overview} />

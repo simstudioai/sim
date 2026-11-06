@@ -8,6 +8,7 @@ import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-s
 import { FailureNotice } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Chip } from '@/platform/design-system/components/button/button'
+import { RowList } from '@/platform/design-system/components/settings-section/row-list'
 import { Spinner } from '@/platform/design-system/components/status/status'
 import type { HomeListState, HomeWorkspaceItem } from '@/platform/lib/data/home-view'
 import { formatRelativeTime } from '@/platform/lib/time'
@@ -61,7 +62,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
             />
           )}
           <div className={styles.viewport}>
-            <ul className={styles.entries}>
+            <RowList dividers>
               {state.items.slice(0, visibleCount).map((item) => (
                 <ActivityRow
                   key={item.id}
@@ -72,7 +73,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
                   render={<SettingsGuardedLink href={item.href} />}
                 />
               ))}
-            </ul>
+            </RowList>
             {count > PAGE_SIZE && (
               <Chip onClick={() => setVisibleCount(hasMore ? visibleCount + PAGE_SIZE : PAGE_SIZE)}>
                 {hasMore ? 'See more' : 'See less'}

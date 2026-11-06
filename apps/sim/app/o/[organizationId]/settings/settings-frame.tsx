@@ -22,7 +22,7 @@ function PhoneTitle({ title }: { title: string }) {
   const slot = useContext(MobileTitleSlot)
   if (!slot) return null
   return createPortal(
-    <RedesignSurface>
+    <RedesignSurface canvas>
       <SettingsMobileTitle title={title} />
     </RedesignSurface>,
     slot
@@ -45,14 +45,14 @@ export function SettingsFrame({ children }: SettingsFrameProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
-      <RedesignSurface>
+      <RedesignSurface canvas>
         <SettingsBreadcrumb title={title} />
       </RedesignSurface>
       <PhoneTitle title={title} />
       <div className='relative min-h-0 flex-1'>
         {pending && (
           <div className='absolute inset-0 z-10 grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'>
-            <RedesignSurface>
+            <RedesignSurface canvas>
               <SettingsScreen title={pending.title} description={pending.description} />
             </RedesignSurface>
           </div>

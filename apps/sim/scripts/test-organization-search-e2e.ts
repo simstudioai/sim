@@ -956,7 +956,7 @@ try {
         await capture('search-error-retry')
         unavailable = false
         partial = false
-        await page.getByRole('button', { name: 'Try again', exact: true }).click()
+        await page.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
         await expect(page.getByText('Search couldn’t run.', { exact: true })).toHaveCount(0)
 

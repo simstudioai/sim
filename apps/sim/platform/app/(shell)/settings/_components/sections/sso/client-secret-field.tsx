@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { maskedClientSecret } from '@/ee/sso/lib/provider-form'
 import { ActionRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Button, SecretField, TextField } from '@/platform/design-system/components'
+import { AutofillDecoys, Button, SecretField, TextField } from '@/platform/design-system/components'
 
 interface ClientSecretFieldProps {
   /** A secret is saved, so the field opens as a masked fact rather than an input. */
@@ -53,34 +53,7 @@ export function ClientSecretField({
   }
   return (
     <div className='contents' onFocusCapture={() => setUnlocked(true)}>
-      {/* Offscreen rather than hidden: managers skip hidden fields, so they would fill the real one. */}
-      <input
-        type='text'
-        name='fakeusernameremembered'
-        autoComplete='username'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='password'
-        name='fakepasswordremembered'
-        autoComplete='current-password'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='email'
-        name='fakeemailremembered'
-        autoComplete='email'
-        aria-hidden='true'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
+      <AutofillDecoys />
       <SecretField
         label='Client secret'
         name='sso_client_key'

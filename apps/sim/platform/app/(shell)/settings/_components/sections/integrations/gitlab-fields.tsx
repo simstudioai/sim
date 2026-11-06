@@ -1,5 +1,6 @@
 'use client'
 
+import { saveFile } from '@/lib/core/utils/save-file'
 import {
   GITLAB_CSV_FILES,
   GITLAB_TOKEN_TABS,
@@ -62,12 +63,12 @@ export function GitLabCsvUploads({ form, disabled }: GitLabFieldsProps) {
             <Button
               variant='quiet'
               size='compact'
-              onClick={() => {
-                const link = document.createElement('a')
-                link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(definition.template)}`
-                link.download = definition.filename
-                link.click()
-              }}
+              onClick={() =>
+                saveFile(
+                  new Blob([definition.template], { type: 'text/csv;charset=utf-8' }),
+                  definition.filename
+                )
+              }
             >
               Download template
             </Button>

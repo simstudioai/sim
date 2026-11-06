@@ -6,6 +6,7 @@ import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-hos
 import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { Modal } from '@/platform/design-system/components'
+import { formatTimestamp } from '@/platform/lib/time'
 
 interface BodyDialogProps {
   className?: string
@@ -71,10 +72,7 @@ export function PageContextDialog({
             {hostname}
           </a>
           <time dateTime={snapshot.capturedAt}>
-            {new Date(snapshot.capturedAt).toLocaleString(undefined, {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })}
+            {formatTimestamp(new Date(snapshot.capturedAt).getTime())}
           </time>
         </div>
         {snapshot.truncated && (

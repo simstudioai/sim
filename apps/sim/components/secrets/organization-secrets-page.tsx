@@ -6,7 +6,7 @@ import { readOrganizationSecretSource } from '@/lib/organization-secrets/applica
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { IntegrationsPage } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { SecretsEditor } from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor'
 import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
@@ -48,8 +48,8 @@ export async function OrganizationSecretsPage({
   return mode === 'organization' ? (
     <SettingsSubpageHost section='integrations'>{editor}</SettingsSubpageHost>
   ) : (
-    <IntegrationsHost>
+    <RedesignPageSurface>
       <IntegrationsPage>{editor}</IntegrationsPage>
-    </IntegrationsHost>
+    </RedesignPageSurface>
   )
 }

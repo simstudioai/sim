@@ -33,8 +33,10 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   LoadingRows,
+  QueryBoundary,
   RowList,
   SearchField,
   Tooltip,
@@ -256,57 +258,62 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
           />
         )}
         <SettingsSection title='Connections'>
-          {sources.isError && !sources.isFetchNextPageError ? (
+          {sources.isRefetchError && (
             <FailureNotice
               message={getErrorMessage(sources.error, 'Could not load connections')}
               retrying={sources.isFetching}
               onRetry={() => void sources.refetch()}
             />
-          ) : sources.isPending ? (
-            <LoadingRows label='Loading connections' />
-          ) : (
-            <>
-              <RowList>
-                {listed?.map((source) => (
-                  <ActivityRow
-                    density='comfortable'
-                    key={source.connectorId}
-                    title={source.sourceDescription || meta.name}
-                    detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
-                    href={routes.searchSource(source.connectorId)}
-                  />
-                ))}
-              </RowList>
-              {!listed?.length && !sources.hasNextPage && (
-                <EmptyState
-                  title={
-                    sourceSearch
-                      ? 'No matching connections'
-                      : unavailable
-                        ? `${meta.name} must be configured for this deployment before you can add a connection.`
-                        : !approved
-                          ? 'Activate this integration to add a connection.'
-                          : labels.empty
-                  }
-                />
-              )}
-              {sources.isFetchNextPageError ? (
-                <FailureNotice
-                  message={getErrorMessage(sources.error, 'Could not load more connections')}
-                  retrying={sources.isFetchingNextPage}
-                  onRetry={() => void sources.fetchNextPage()}
-                />
-              ) : sources.hasNextPage ? (
-                <Button
-                  size='compact'
-                  disabled={sources.isFetchingNextPage}
-                  onClick={() => void sources.fetchNextPage()}
-                >
-                  {sources.isFetchingNextPage ? 'Loading' : 'Load more'}
-                </Button>
-              ) : null}
-            </>
           )}
+          <QueryBoundary
+            query={sources}
+            failure={errorMessageOr('Could not load connections')}
+            loadingLabel='Loading connections'
+          >
+            {() => (
+              <>
+                <RowList>
+                  {listed?.map((source) => (
+                    <ActivityRow
+                      density='comfortable'
+                      key={source.connectorId}
+                      title={source.sourceDescription || meta.name}
+                      detail={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
+                      href={routes.searchSource(source.connectorId)}
+                    />
+                  ))}
+                </RowList>
+                {!listed?.length && !sources.hasNextPage && (
+                  <EmptyState
+                    title={
+                      sourceSearch
+                        ? 'No matching connections'
+                        : unavailable
+                          ? `${meta.name} must be configured for this deployment before you can add a connection.`
+                          : !approved
+                            ? 'Activate this integration to add a connection.'
+                            : labels.empty
+                    }
+                  />
+                )}
+                {sources.isFetchNextPageError ? (
+                  <FailureNotice
+                    message={getErrorMessage(sources.error, 'Could not load more connections')}
+                    retrying={sources.isFetchingNextPage}
+                    onRetry={() => void sources.fetchNextPage()}
+                  />
+                ) : sources.hasNextPage ? (
+                  <Button
+                    size='compact'
+                    disabled={sources.isFetchingNextPage}
+                    onClick={() => void sources.fetchNextPage()}
+                  >
+                    {sources.isFetchingNextPage ? 'Loading' : 'Load more'}
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </QueryBoundary>
         </SettingsSection>
         <SlackAccountSetup organizationId={organization.id} isAdmin={viewer.isAdmin} />
         {removingSlackAccounts && group && (

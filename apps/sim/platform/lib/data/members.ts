@@ -32,13 +32,14 @@ import {
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
+import { reportFailure } from '@/platform/lib/notices'
 
 /** Shows a failed background mutation: the row controls have no dialog of their own to hold it. */
-async function reportFailure(work: Promise<unknown>, message: string): Promise<void> {
+async function reportingFailure(work: Promise<unknown>, message: string): Promise<void> {
   try {
     await work
   } catch (error) {
-    toast.error(message, { description: getErrorMessage(error, 'Please try again in a moment.') })
+    reportFailure(message, error)
   }
 }
 
@@ -94,12 +95,12 @@ export function useMembers(organization: PlatformOrganization) {
       invitationPending: updateInvitation.isPending,
       permissionPending: updatePermissions.isPending,
       changeRole: (userId: string, next: 'admin' | 'member') =>
-        reportFailure(
+        reportingFailure(
           updateRole.mutateAsync({ orgId: organizationId, userId, role: next }),
           "Couldn't change the role"
         ),
       changeInvitationRole: (invitationId: string, next: 'admin' | 'member') =>
-        reportFailure(
+        reportingFailure(
           updateInvitation.mutateAsync({ orgId: organizationId, invitationId, role: next }),
           "Couldn't change the invitation"
         ),
@@ -108,7 +109,7 @@ export function useMembers(organization: PlatformOrganization) {
         workspaceId: string,
         permission: WorkspacePermission
       ) =>
-        reportFailure(
+        reportingFailure(
           updateInvitation.mutateAsync({
             orgId: organizationId,
             invitationId,
@@ -117,7 +118,7 @@ export function useMembers(organization: PlatformOrganization) {
           "Couldn't change the invitation"
         ),
       changePermission: (userId: string, workspaceId: string, permissions: WorkspacePermission) =>
-        reportFailure(
+        reportingFailure(
           updatePermissions.mutateAsync({
             workspaceId,
             organizationId,
@@ -126,7 +127,7 @@ export function useMembers(organization: PlatformOrganization) {
           "Couldn't change workspace access"
         ),
       removeFromWorkspace: (userId: string, workspaceId: string) =>
-        reportFailure(
+        reportingFailure(
           removeFromWorkspace.mutateAsync({ userId, workspaceId, organizationId }),
           "Couldn't remove member"
         ),
@@ -141,7 +142,7 @@ export function useMembers(organization: PlatformOrganization) {
         }
       },
       revokeInvitation: (invitationId: string) =>
-        reportFailure(
+        reportingFailure(
           cancelInvitation.mutateAsync({ invitationId, orgId: organizationId }),
           "Couldn't revoke the invite"
         ),

@@ -28,12 +28,12 @@ import {
   withoutOverride,
 } from '@/ee/data-retention/lib/policy-draft'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
 import {
   DraftConflictNotice,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
 import {
