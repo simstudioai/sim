@@ -1,7 +1,8 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable `useFeatureFlag` for `@/app/workspace/[workspaceId]/providers/feature-flags-provider`.
+ * Controllable `useFeatureFlag`, for `@/lib/core/config/feature-flags-context` or a module that
+ * re-exports it, such as `@/app/workspace/[workspaceId]/providers/feature-flags-provider`.
  * Every flag reads as off unless a test says otherwise.
  *
  * @example

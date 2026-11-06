@@ -40,6 +40,8 @@ import {
   menuEntry,
   navigateWithinDocument,
   navLabels,
+  openMenu,
+  openOrgCard,
   openRowMenu,
   orgCard,
   orgChip,
@@ -335,8 +337,7 @@ export async function sidebarChecks() {
       await onHome(MEMBER, async ({ page }) => {
         const chip = orgChip(page)
         await expect(chip).toContainText(ORGANIZATION_NAME)
-        await chip.click()
-        const card = orgCard(page)
+        const card = await openOrgCard(page)
         await expect(card.getByText(/\d+ members?/)).toBeVisible()
         await expect(card.getByRole('button', { name: 'Rename organization' })).toHaveCount(0)
         await expect(card.getByRole('button', { name: 'Change organization logo' })).toHaveCount(0)
@@ -358,7 +359,7 @@ export async function sidebarChecks() {
             return card.getByRole('textbox', { name: 'Organization name' })
           }
           const renamed = `${ORGANIZATION_NAME} Group`
-          await chip.click()
+          await openOrgCard(page)
           const field = await startRename()
           await field.fill('Discarded name')
           await field.press('Escape')
@@ -369,7 +370,7 @@ export async function sidebarChecks() {
           await expect(chip).toContainText(renamed)
           await page.reload()
           await expect(chip).toContainText(renamed)
-          await chip.click()
+          await openOrgCard(page)
           const restore = await startRename()
           await restore.fill(ORGANIZATION_NAME)
           await restore.press('Enter')
@@ -393,7 +394,7 @@ export async function sidebarChecks() {
             : route.continue()
         )
         await page.goto(orgUrl('/home'))
-        await orgChip(page).click()
+        await openOrgCard(page)
         const card = orgCard(page)
         await card.getByRole('button', { name: 'Rename organization' }).click()
         const field = card.getByRole('textbox', { name: 'Organization name' })
@@ -410,7 +411,7 @@ export async function sidebarChecks() {
       () => sql`update organization set logo = null where id = ${ORGANIZATION_ID}`,
       () =>
         onHome(ADMIN, async ({ page }) => {
-          await orgChip(page).click()
+          await openOrgCard(page)
           const card = orgCard(page)
           await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
           const started = page.waitForResponse(
@@ -442,13 +443,13 @@ export async function sidebarChecks() {
   )
   await check('Invite follows the default group, and an admin invites when it allows', async () => {
     await onHome(ADMIN, async ({ page }) => {
-      await orgChip(page).click()
+      await openOrgCard(page)
       await expect(orgCard(page).getByRole('button', { name: 'Invite', exact: true })).toHaveCount(
         0
       )
       await sql`update permission_group set config = config - 'disableInvitations' where id = ${STANDARD_GROUP_ID}`
       await page.reload()
-      await orgChip(page).click()
+      await openOrgCard(page)
       await orgCard(page).getByRole('button', { name: 'Invite', exact: true }).click()
       const modal = dialog(page, 'Invite people')
       await expect(modal).toBeVisible()
@@ -729,8 +730,7 @@ export async function sidebarChecks() {
       const chip = accountChip(page)
       await expect(chip).toContainText(MEMBER.name)
       await expect(chip).toHaveAccessibleName(`${MEMBER.name}, account menu`)
-      await chip.click()
-      const menu = dialog(page, 'Account menu')
+      const menu = await openMenu(chip, dialog(page, 'Account menu'))
       await expect(menu.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await menu.getByRole('button', { name: 'Settings', exact: true }).click()
       await expect(page).toHaveURL(orgUrl('/settings/general'))

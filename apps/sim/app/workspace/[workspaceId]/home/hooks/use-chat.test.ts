@@ -21,10 +21,7 @@ import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 

@@ -17,7 +17,7 @@ import {
   sql,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { expectPageNotFound, orgChip } from '@/scripts/org-redesign-e2e/locators'
+import { expectPageNotFound, openOrgCard, orgChip } from '@/scripts/org-redesign-e2e/locators'
 
 interface StateShot {
   name: string
@@ -90,13 +90,13 @@ const STATE_SHOTS: readonly StateShot[] = [
   {
     name: 'flyout-organization',
     path: 'home',
-    open: (page) => orgChip(page).click(),
+    open: (page) => openOrgCard(page),
     openOnPhone: async (page) => {
       await page
         .getByRole('button', { name: /open (sidebar|menu|navigation)/i })
         .first()
         .click()
-      await orgChip(page).click()
+      await openOrgCard(page)
     },
   },
   {

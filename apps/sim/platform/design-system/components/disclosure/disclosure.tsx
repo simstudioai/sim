@@ -54,7 +54,7 @@ export function Disclosure({
           {title}
         </Collapsible.Trigger>
         {introduction}
-        <Collapsible.Panel className={styles.activityPanel}>{children}</Collapsible.Panel>
+        <Collapsible.Panel>{children}</Collapsible.Panel>
       </Collapsible.Root>
     )
   const disclosure = (

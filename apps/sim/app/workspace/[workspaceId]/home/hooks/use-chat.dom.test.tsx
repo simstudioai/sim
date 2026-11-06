@@ -49,10 +49,7 @@ const {
     >(),
 }))
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
