@@ -149,7 +149,7 @@ const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
 const STREAMED_FAILURE = /Minified React error #419/
 /** The browser's own line for a failed load, which the response and requestfailed listeners judge. */
 const BROWSER_LOAD_FAILURE = /^Failed to load resource/
-const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\//
+const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\/|\/api\/auth\/socket-token/
 
 const browser: Browser = await chromium.launch()
 
@@ -323,6 +323,13 @@ async function sessionCookie(persona: Persona) {
 interface OpenOptions {
   viewport?: Viewport
   theme?: Theme
+  /**
+   * Mints a real socket token. Off by default: every document load mints one against a 30-a-minute
+   * budget per user, which a person reloading by hand never spends and this suite spends in seconds.
+   * Nothing on the organization surface reads the socket, so its token stays unanswered, as on a
+   * slow network, and `realtimeChecks` proves the real path.
+   */
+  realtime?: boolean
 }
 
 async function open(persona: Persona | null, options: OpenOptions = {}): Promise<Session> {
@@ -378,6 +385,7 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
     })
   })
   if (persona) await context.addCookies([await sessionCookie(persona)])
+  if (!options.realtime) await context.route('**/api/auth/socket-token', () => {})
   const session = new Session(context, await context.newPage())
   scope?.sessions.add(session)
   return session
@@ -4156,6 +4164,65 @@ async function blastRadiusChecks() {
   })
 }
 
+async function realtimeChecks() {
+  section('Realtime')
+  /** Socket.IO acknowledges an authenticated connection with a `40` packet. */
+  const trackSocketConnected = (page: Page) => {
+    const connection = { connected: false }
+    page.on('websocket', (socket) => {
+      socket.on('framereceived', ({ payload }) => {
+        if (socket.url().includes('/socket.io/') && String(payload).startsWith('40'))
+          connection.connected = true
+      })
+    })
+    return connection
+  }
+  await check('a signed-in page mints a real token and its socket connects', async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        const connection = trackSocketConnected(page)
+        const minted = page.waitForResponse(
+          (response) => pathOf(response.url()) === '/api/auth/socket-token'
+        )
+        await page.goto(orgUrl('/home'))
+        assert.equal((await minted).status(), 200)
+        await expect.poll(() => connection.connected).toBe(true)
+      },
+      { realtime: true }
+    )
+  })
+  await check(
+    'a refused token waits out its Retry-After, then the socket connects',
+    async () => {
+      await withSession(
+        ADMIN,
+        async ({ page }) => {
+          const connection = trackSocketConnected(page)
+          const attempts: number[] = []
+          await page.route('**/api/auth/socket-token', async (route) => {
+            attempts.push(Date.now())
+            if (attempts.length > 1) return route.fallback()
+            await route.fulfill({
+              status: 429,
+              headers: { 'retry-after': '2' },
+              json: { error: 'Too many requests' },
+            })
+          })
+          await page.goto(orgUrl('/home'))
+          await expect.poll(() => connection.connected).toBe(true)
+          assert(
+            attempts[1] - attempts[0] >= 2_000,
+            `Retried after ${attempts[1] - attempts[0]}ms against a Retry-After of 2s`
+          )
+        },
+        { realtime: true }
+      )
+    },
+    { allow: [refused(429, 'POST', '/api/auth/socket-token')] }
+  )
+}
+
 const PREFETCHED_ON_LAYOUT = [
   { label: 'chat list', pattern: /^\/api\/mothership\/chats\?(?=.*organizationId=)/ },
   { label: 'profile', pattern: /^\/api\/users\/me\/profile/ },
@@ -4663,8 +4730,6 @@ async function stateScreenshots() {
 async function walkRoutes(personas: Persona[]) {
   section('Route walk')
   currentCheck = 'Route walk'
-  // The token route limits per user, and one persona opens a hundred pages here within minutes.
-  allowedFailures = [/429 POST \/api\/auth\/socket-token/]
   const plan = personas.flatMap((persona) =>
     [DESKTOP, PHONE].flatMap((viewport) =>
       (['light', 'dark'] as const).map((theme) => ({ persona, viewport, theme }))
@@ -4760,6 +4825,7 @@ async function run() {
     await settingsChecks()
     await firstPaintChecks()
     await blastRadiusChecks()
+    await realtimeChecks()
     await walkRoutes([MEMBER, ADMIN, OWNER, CONNECTED, NARROW])
     await stateScreenshots()
   }
