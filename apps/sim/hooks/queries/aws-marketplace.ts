@@ -70,12 +70,17 @@ export function useSaveAwsMarketplaceClaimContact() {
 
 /**
  * Whether AWS Marketplace bills this scope: the organization, or with null the viewer's account.
- * A failed read reports false, so a lookup error never blocks a customer who pays through Stripe.
+ * Until `isResolved`, how the scope is billed is unknown, and an unknown state gates plan changes
+ * the same as Marketplace billing does: a failed lookup must not open Stripe checkout to a
+ * customer AWS bills. `retry` reads it again.
  */
 export function useAwsMarketplaceBilling(organizationId: string | null) {
   const licenses = useAwsMarketplaceLicenses(organizationId)
   return {
-    isPending: licenses.isPending,
+    isResolved: licenses.data !== undefined,
+    isError: licenses.isError,
+    isRetrying: licenses.isFetching,
+    retry: () => void licenses.refetch(),
     billedThroughMarketplace:
       licenses.data?.some((license) => license.status !== 'inactive') ?? false,
   }
