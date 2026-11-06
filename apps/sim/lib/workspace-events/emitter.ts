@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@sim/utils/id'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   isSimRuleEventType,
@@ -46,7 +46,7 @@ export async function dispatchSimEvent(
   subscription: SimSubscription,
   payload: SimEventPayload
 ): Promise<void> {
-  const requestId = generateRequestId()
+  const requestId = generateShortId()
   try {
     const { processPolledWebhookEvent } = await import('@/lib/webhooks/processor')
     const result = await processPolledWebhookEvent(

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { findRecentlyRefusedWorkspaces } from '@/lib/webhooks/polling/admission-refusals'
 import { getPollingHandler } from '@/lib/webhooks/polling/registry'
 import type { PollSummary } from '@/lib/webhooks/polling/types'
@@ -47,12 +47,11 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
         return 'skipped'
       }
 
-      // Polls share the tick's request id; the webhook id tells concurrent polls apart.
       return withResourceOutboundScope({ workspaceId: entry.workflow.workspaceId }, () =>
         handler.pollWebhook({
           webhookData: entry.webhook,
           workflowData: entry.workflow,
-          requestId: generateRequestId(),
+          requestId: generateShortId(),
           logger: logger.withMetadata({ webhookId: entry.webhook.id }),
         })
       )
