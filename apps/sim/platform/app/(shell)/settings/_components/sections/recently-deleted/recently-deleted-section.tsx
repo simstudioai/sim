@@ -5,8 +5,8 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import {
   Button,
   EmptyState,
-  FailureNotice,
   Icon,
+  QueryBoundary,
   SectionSearch,
 } from '@/platform/design-system/components'
 import {
@@ -43,22 +43,31 @@ export default function RecentlyDeletedSection({ organization }: SettingsSection
         value={deleted.search}
         onValueChange={deleted.setSearch}
       />
-      {deleted.status === 'error' ? (
-        <FailureNotice
-          message={deleted.error ?? 'Failed to load deleted chats'}
-          onRetry={deleted.retry}
-        />
-      ) : deleted.status === 'pending' ? (
-        <SectionSkeleton title={TITLE} />
-      ) : deleted.chats.length === 0 ? (
-        <EmptyState title={deleted.hasAny ? 'No chats match your search' : 'No deleted chats'} />
-      ) : (
-        <SettingsSection title={TITLE}>
-          {deleted.chats.map((chat) => (
-            <DeletedChatRow key={chat.id} organizationId={organizationId} chat={chat} />
-          ))}
-        </SettingsSection>
-      )}
+      <QueryBoundary
+        query={{
+          data:
+            deleted.status === 'error' || deleted.status === 'pending' ? undefined : deleted.chats,
+          error: deleted.status === 'error',
+          refetch: deleted.retry,
+        }}
+        failure={deleted.error ?? 'Failed to load deleted chats'}
+        loadingLabel={`Loading ${TITLE}`}
+        loading={<SectionSkeleton title={TITLE} />}
+      >
+        {() =>
+          deleted.chats.length === 0 ? (
+            <EmptyState
+              title={deleted.hasAny ? 'No chats match your search' : 'No deleted chats'}
+            />
+          ) : (
+            <SettingsSection title={TITLE}>
+              {deleted.chats.map((chat) => (
+                <DeletedChatRow key={chat.id} organizationId={organizationId} chat={chat} />
+              ))}
+            </SettingsSection>
+          )
+        }
+      </QueryBoundary>
     </>
   )
 }

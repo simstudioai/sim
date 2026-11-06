@@ -7,6 +7,7 @@ import { simLinkOrigin } from '@/lib/sim-links/validation'
 import { LinkEditor } from '@/platform/app/(shell)/links/_components/links-page/link-editor'
 import { LinksFrame } from '@/platform/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
+import { QueryBoundary } from '@/platform/design-system/components'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { Button } from '@/platform/design-system/components/button/button'
 import {
@@ -20,8 +21,6 @@ import { ActionMenu, ContextActionMenu } from '@/platform/design-system/componen
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
-import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
-import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/lib/time'
 
@@ -245,34 +244,48 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       sortLabel={links.sortLabel}
       sortActions={links.sortActions}
     >
-      {links.status === 'error' ? (
-        <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
-      ) : links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0) ? (
-        <LoadingRows label='Loading links' rows={LINK_SKELETON_ROWS} />
-      ) : links.rows.length === 0 ? (
-        links.term ? (
-          <EmptyState
-            title={`No results for “${links.term}”`}
-            description='Searched every link you can see.'
-            action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
-          />
-        ) : (
-          <EmptyState
-            graphic={<Icon name='I041' />}
-            title='No links yet'
-            description='Create short links like handbook for the pages your team opens most.'
-          />
-        )
-      ) : (
-        <LinksTable
-          links={links.rows}
-          loadMore={links.loadMore}
-          asOf={links.asOf}
-          onCopy={links.copy}
-          onEdit={setEditing}
-          onDelete={setDeleting}
-        />
-      )}
+      <QueryBoundary
+        query={{
+          data:
+            links.status === 'error' ||
+            links.status === 'pending' ||
+            (links.isPlaceholder && links.rows.length === 0)
+              ? undefined
+              : links.rows,
+          error: links.status === 'error',
+          refetch: links.retry,
+        }}
+        failure={links.error ?? 'Failed to load links'}
+        loadingLabel='Loading links'
+        rows={LINK_SKELETON_ROWS}
+      >
+        {() =>
+          links.rows.length === 0 ? (
+            links.term ? (
+              <EmptyState
+                title={`No results for “${links.term}”`}
+                description='Searched every link you can see.'
+                action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
+              />
+            ) : (
+              <EmptyState
+                graphic={<Icon name='I041' />}
+                title='No links yet'
+                description='Create short links like handbook for the pages your team opens most.'
+              />
+            )
+          ) : (
+            <LinksTable
+              links={links.rows}
+              loadMore={links.loadMore}
+              asOf={links.asOf}
+              onCopy={links.copy}
+              onEdit={setEditing}
+              onDelete={setDeleting}
+            />
+          )
+        }
+      </QueryBoundary>
       {links.createName !== null && (
         <LinkEditor
           key={links.createName}

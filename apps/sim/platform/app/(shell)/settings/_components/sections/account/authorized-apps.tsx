@@ -8,6 +8,7 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
+  QueryBoundary,
   SectionSearch,
 } from '@/platform/design-system/components'
 import { useAuthorizedAppsList } from '@/platform/lib/data/account'
@@ -35,48 +36,54 @@ export function AuthorizedApps() {
           onRetry={list.retry}
         />
       )}
-      {list.status === 'error' ? (
-        <FailureNotice
-          message={list.error ?? 'Failed to load authorized apps'}
-          onRetry={list.retry}
-        />
-      ) : list.status === 'pending' ? (
-        <SectionSkeleton title={TITLE} rows={2} />
-      ) : list.apps.length === 0 ? (
-        <EmptyState
-          title={
-            list.term
-              ? `No apps found matching "${list.term}"`
-              : 'No apps have access to your account'
-          }
-        />
-      ) : (
-        <DataTable
-          title={TITLE}
-          titleHidden
-          columns={COLUMNS}
-          loadMore={list.loadMore}
-          rows={list.apps.map((app) => ({
-            id: app.id,
-            values: { name: app.name, access: app.access, authorized: app.authorized },
-            action: (
-              <ActionMenu
-                label={`${app.name} actions`}
-                icon='I108'
-                align='end'
-                actions={[
-                  {
-                    id: 'revoke',
-                    label: 'Revoke',
-                    destructive: true,
-                    onSelect: () => setRevoking({ id: app.id, name: app.name }),
-                  },
-                ]}
-              />
-            ),
-          }))}
-        />
-      )}
+      <QueryBoundary
+        query={{
+          data: list.status === 'error' || list.status === 'pending' ? undefined : list.apps,
+          error: list.status === 'error',
+          refetch: list.retry,
+        }}
+        failure={list.error ?? 'Failed to load authorized apps'}
+        loadingLabel={`Loading ${TITLE}`}
+        loading={<SectionSkeleton title={TITLE} rows={2} />}
+      >
+        {() =>
+          list.apps.length === 0 ? (
+            <EmptyState
+              title={
+                list.term
+                  ? `No apps found matching "${list.term}"`
+                  : 'No apps have access to your account'
+              }
+            />
+          ) : (
+            <DataTable
+              title={TITLE}
+              titleHidden
+              columns={COLUMNS}
+              loadMore={list.loadMore}
+              rows={list.apps.map((app) => ({
+                id: app.id,
+                values: { name: app.name, access: app.access, authorized: app.authorized },
+                action: (
+                  <ActionMenu
+                    label={`${app.name} actions`}
+                    icon='I108'
+                    align='end'
+                    actions={[
+                      {
+                        id: 'revoke',
+                        label: 'Revoke',
+                        destructive: true,
+                        onSelect: () => setRevoking({ id: app.id, name: app.name }),
+                      },
+                    ]}
+                  />
+                ),
+              }))}
+            />
+          )
+        }
+      </QueryBoundary>
       <ConfirmDialog
         target={revoking !== null}
         onClose={() => setRevoking(null)}
