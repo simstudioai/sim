@@ -361,6 +361,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Done | "Search mode on Home offers Get started". Completing each step has no live check |
 | Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Open | Chat lane. Needs the block template catalog (337-file closure, banned by the seam) behind a route, and a way to hand a prompt to the composer draft. Recents hold that slot on Platform |
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
+| Home | Workspace status read stays bounded under thousands of time pauses: only the asked workspaces' pauses are read, stopping at the first waiting on a person | `lib/organizations/home/workspace-activity.ts` | Done | `workspace-activity.integration.ts` measures the real plan on real PostgreSQL. No index is needed; a workspace with no match still reads every one of its live pauses |
 
 ## Zone
 

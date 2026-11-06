@@ -54,22 +54,32 @@ export function readRunningWorkflows(
 /**
  * Per workspace, one workflow waiting on a person and the newest retained run. Each is a `LIMIT 1`
  * probe, so many unanswered pauses cost what one does once a match exists. The waiting workflow is
- * therefore any of them rather than the newest. With no match, the probe reads every live pause.
+ * therefore any of them rather than the newest. With no match, the probe reads every live pause of
+ * that workspace.
+ *
+ * The pauses are a lateral of their own so the planner has to start from the workspace's workflows.
+ * It cannot estimate the JSON test, and as a plain join under `LIMIT 1` it expects an early match and
+ * scans the whole table for one, reading every organization's pauses once per workspace.
  */
 export function readReviewAndLastRun(workspaceIds: readonly string[]) {
   const logs = workflowExecutionLogs
-  const waiting = db
-    .select({ workflowName: workflow.name })
-    .from(workflow)
-    .innerJoin(pausedExecutions, eq(pausedExecutions.workflowId, workflow.id))
+  const waitingPause = db
+    .select({ id: pausedExecutions.id })
+    .from(pausedExecutions)
     .where(
       and(
-        eq(workflow.workspaceId, workspace.id),
-        isNull(workflow.archivedAt),
+        eq(pausedExecutions.workflowId, workflow.id),
         inArray(pausedExecutions.status, LIVE_PAUSED_STATUSES),
         sql`jsonb_path_exists(${pausedExecutions.pausePoints}, ${WAITING_ON_A_PERSON})`
       )
     )
+    .limit(1)
+    .as('waiting_pause')
+  const waiting = db
+    .select({ workflowName: workflow.name })
+    .from(workflow)
+    .innerJoinLateral(waitingPause, sql`true`)
+    .where(and(eq(workflow.workspaceId, workspace.id), isNull(workflow.archivedAt)))
     .limit(1)
     .as('waiting')
   const lastRun = db
