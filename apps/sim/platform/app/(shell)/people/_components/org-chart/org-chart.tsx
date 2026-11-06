@@ -21,12 +21,12 @@ import {
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import {
-  isRefusal,
   type SyncSource,
   useOrgChart,
   usePeoplePicker,
   usePeopleViewer,
 } from '@/platform/lib/data/people'
+import { isRefusal } from '@/platform/lib/data/query-view'
 
 function ReportingLinesGraphic() {
   return (

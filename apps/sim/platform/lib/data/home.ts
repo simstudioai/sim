@@ -8,7 +8,6 @@ import {
   isOrganizationSettingsSectionAvailable,
   resolveOrganizationSectionAccess,
 } from '@/components/settings/navigation'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -69,6 +68,7 @@ import {
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
+import { isRefusal } from '@/platform/lib/data/query-view'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
 import { currentMinute, MINUTE_MS } from '@/platform/lib/time'
 import {
@@ -78,7 +78,6 @@ import {
 
 /** How long a day must stay chosen before it is read, so a run of clicks is one read at the provider. */
 const CALENDAR_DAY_SETTLE_MS = 250
-const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
 const NO_WIDGETS: readonly OrganizationHomeWidget[] = []
 
 function subscribeToMinutes(onChange: () => void) {
@@ -93,11 +92,6 @@ function subscribeToMinutes(onChange: () => void) {
 /** Home mounts only after hydration, behind the conversation's own gate, so no markup can disagree. */
 function useMinuteClock(): number {
   return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
-}
-
-/** An answer about the viewer, which retrying cannot change, unlike a failure or a rate limit. */
-function isRefusal(error: unknown) {
-  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 function useHomeIntegrations(organization: OrganizationSurfaceContext) {

@@ -17,6 +17,7 @@ import {
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
@@ -218,5 +219,28 @@ describe('useLiveHome', () => {
     await settle()
 
     expect(result.current.view.workspaces).toEqual({ status: 'ready', items: [] })
+  })
+
+  it.each([
+    [400, 'hidden'],
+    [409, 'hidden'],
+    [429, 'loading'],
+  ])('treats a %i from the activity read as %s', async (status, expected) => {
+    setSession({ user: { id: 'user-1' } })
+    organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+      ...ORGANIZATION,
+      viewer: { ...ORGANIZATION.viewer, isAdmin: true },
+      settingsFeatures: { ...ORGANIZATION.settingsFeatures, hasEnterprisePlan: true },
+    })
+    apiClientRequestMockFns.mockRequestJson.mockImplementation((contract: { path: string }) =>
+      contract.path === '/api/organizations/[id]/usage/activity/summary'
+        ? Promise.reject(new ApiClientError({ status, message: 'no', body: null }))
+        : Promise.resolve(RESPONSES[contract.path] ?? {})
+    )
+    const { result } = await render()
+    await settle()
+
+    const shown = result.current.view.activity.status
+    expect(shown === 'error' ? 'loading' : shown).toBe(expected)
   })
 })
