@@ -3,7 +3,6 @@
 import type { ComponentType } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import type { PlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
@@ -11,6 +10,7 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import hostStyles from '@/platform/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { LoadingRows } from '@/platform/design-system/components'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 import { useSettingRowReveal } from '@/platform/lib/data/settings-search'
 
 /** A tab with its own guide, in the section's one Docs position. */
@@ -165,7 +165,7 @@ export function PlatformSettingsSectionHost({
   const Section = PLATFORM_SECTIONS[section]
   return (
     <div ref={revealRoot} className={hostStyles.host}>
-      <RedesignSurface canvas>
+      <Surface canvas>
         <SettingsScreen
           title={meta?.title ?? 'Settings'}
           description={meta?.description}
@@ -173,7 +173,7 @@ export function PlatformSettingsSectionHost({
         >
           <Section organization={organization} subpath={subpath} query={query} />
         </SettingsScreen>
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }

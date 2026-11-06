@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
@@ -20,6 +19,7 @@ import styles from '@/platform/app/(shell)/_components/conversation/page-compose
 import { SearchInputBar } from '@/platform/app/(shell)/_components/conversation/search-input-bar'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 const PLAN_OPTIONS = [
@@ -32,9 +32,9 @@ const MODEL_SELECTOR_OPTIONS = { showEffortChevron: true } as const
 /** A surface holding only design-system controls, so the legacy field and selector can sit around it. */
 function ControlIsland({ children }: { children: ReactNode }) {
   return (
-    <RedesignSurface>
+    <Surface>
       <div className={styles.controls}>{children}</div>
-    </RedesignSurface>
+    </Surface>
   )
 }
 
@@ -113,9 +113,9 @@ export function PageComposer(props: ConversationComposerProps) {
       )}
     >
       <div className={styles.backdrop} aria-hidden='true'>
-        <RedesignSurface>
+        <Surface>
           <div className={styles.material} data-material='reading' data-elevation='composer' />
-        </RedesignSurface>
+        </Surface>
       </div>
       {imagesOnly ? (
         <SearchInputBar

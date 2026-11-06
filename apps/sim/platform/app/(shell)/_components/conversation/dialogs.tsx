@@ -2,10 +2,10 @@
 
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { Modal } from '@/platform/design-system/components'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 import { formatTimestamp } from '@/platform/lib/time'
 
 interface BodyDialogProps {
@@ -21,7 +21,7 @@ interface BodyDialogProps {
 export function BodyDialog({ className, children }: BodyDialogProps) {
   return createPortal(
     <div className={className ? `${className} ${styles.dialogHost}` : styles.dialogHost}>
-      <RedesignSurface>{children}</RedesignSurface>
+      <Surface>{children}</Surface>
     </div>,
     document.body
   )

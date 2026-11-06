@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 /** Every organization route mounts this provider; only a new-link shortcut needs the form. */
 const LinkEditor = dynamic(() =>
@@ -26,9 +26,9 @@ export function OrganizationSimLinkProvider({
     <SimLinkOrganizationProvider
       organizationId={organizationId}
       renderForm={(form) => (
-        <RedesignSurface>
+        <Surface>
           <LinkEditor {...form} />
-        </RedesignSurface>
+        </Surface>
       )}
     >
       {children}

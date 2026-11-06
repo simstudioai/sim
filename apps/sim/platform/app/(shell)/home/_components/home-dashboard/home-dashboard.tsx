@@ -1,7 +1,6 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
@@ -18,6 +17,7 @@ import { FailureNotice } from '@/platform/design-system/components'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { RecentItems } from '@/platform/design-system/components/recent-items/recent-items'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 import type { HomeActions, HomeView } from '@/platform/lib/data/home-view'
 import { usePlatformNotices } from '@/platform/lib/notices'
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
@@ -69,7 +69,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
   return (
     <main className={styles.scroller}>
       <div className={styles.dashboard}>
-        <RedesignSurface>
+        <Surface>
           <div className={styles.lead}>
             <header className={styles.greeting}>
               <div>
@@ -95,11 +95,11 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
               <Icon name='I113' label='Sim' />
             </span>
           </div>
-        </RedesignSurface>
+        </Surface>
         <section className={styles.composer} aria-label='Start a conversation'>
           {composer}
         </section>
-        <RedesignSurface>
+        <Surface>
           <div className={styles.sections}>
             {view.recents.status === 'loading' && <SkeletonLane label='Loading recents' />}
             {view.recents.status === 'error' && (
@@ -178,7 +178,7 @@ export function HomeDashboard({ view, actions, requestMode, composer }: HomeDash
               </div>
             </div>
           </div>
-        </RedesignSurface>
+        </Surface>
       </div>
     </main>
   )

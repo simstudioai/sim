@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 interface ConversationLandingProps {
   heading: string
@@ -13,11 +13,11 @@ export function ConversationLanding({ heading, children }: ConversationLandingPr
   return (
     <div className={styles.landingScroll}>
       <div className={styles.landing}>
-        <RedesignSurface>
+        <Surface>
           <h1 className={styles.landingHeading} data-type='T076'>
             {heading}
           </h1>
-        </RedesignSurface>
+        </Surface>
         <div className={styles.landingField}>{children}</div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {
@@ -6,6 +5,7 @@ import {
   SkeletonLane,
   WidgetSkeleton,
 } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 interface HomeDashboardSkeletonProps {
   requestMode: 'agent' | 'assistant'
@@ -16,18 +16,18 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
   return (
     <div className={styles.scroller} aria-busy='true'>
       <div className={styles.dashboard}>
-        <RedesignSurface>
+        <Surface>
           <div className={styles.lead}>
             <div className={styles.placeholderGreeting} />
             <div className={styles.placeholderWordmark} />
           </div>
-        </RedesignSurface>
-        <RedesignSurface>
+        </Surface>
+        <Surface>
           <div className={styles.composer}>
             <div className={conversationStyles.placeholderComposer} />
           </div>
-        </RedesignSurface>
-        <RedesignSurface>
+        </Surface>
+        <Surface>
           <div className={styles.sections}>
             <SkeletonLane label='Loading recents' />
             {requestMode === 'assistant' && <div className={styles.placeholderGetStarted} />}
@@ -45,7 +45,7 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
               </div>
             </div>
           </div>
-        </RedesignSurface>
+        </Surface>
       </div>
     </div>
   )

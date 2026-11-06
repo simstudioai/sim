@@ -2,11 +2,11 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
+import { Hydrated } from '@/platform/design-system/components/surface/hydrated'
 import { prefetchHome } from '@/platform/lib/data/prefetch-member-inventory'
 
 export const metadata: Metadata = {

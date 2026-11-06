@@ -1,6 +1,5 @@
 'use client'
 
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
@@ -13,6 +12,7 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { TextArea } from '@/platform/design-system/components/field/inputs'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 const RATINGS = [
   { value: 'up', label: 'Good response', icon: 'I017' },
@@ -27,7 +27,7 @@ const RATINGS = [
 export function ResponseActions(actions: MessageActionsModel) {
   const { rating, requestId } = actions
   return (
-    <RedesignSurface>
+    <Surface>
       <div className={styles.responseActionRow}>
         {actions.canCopy && (
           <IconButton
@@ -94,6 +94,6 @@ export function ResponseActions(actions: MessageActionsModel) {
           </Modal>
         </BodyDialog>
       )}
-    </RedesignSurface>
+    </Surface>
   )
 }

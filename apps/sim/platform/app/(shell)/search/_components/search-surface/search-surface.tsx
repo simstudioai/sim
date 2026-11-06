@@ -1,7 +1,6 @@
 'use client'
 
 import { lazy, Suspense, useRef } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
@@ -26,6 +25,7 @@ import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/s
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 const FIELD_MAX_HEIGHT_PX = 200
 
@@ -140,9 +140,9 @@ function AssistantGetStarted() {
   if (steps.length === 0) return null
   return (
     <div className={conversationStyles.landingGetStarted}>
-      <RedesignSurface>
+      <Surface>
         <GetStarted steps={steps} />
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }
@@ -198,7 +198,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
       }
     >
       <div className={styles.body}>
-        <RedesignSurface>
+        <Surface>
           {query ? (
             <div className={styles.docked}>
               <div className={styles.dockedRow}>
@@ -226,7 +226,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
               </div>
             </div>
           )}
-        </RedesignSurface>
+        </Surface>
       </div>
     </SearchFrame>
   )

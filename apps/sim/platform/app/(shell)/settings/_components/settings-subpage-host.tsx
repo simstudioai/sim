@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import hostStyles from '@/platform/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 interface SettingsSubpageHostProps {
   /** The section this page belongs to, whose heading it keeps. */
@@ -17,11 +17,11 @@ export function SettingsSubpageHost({ section, children }: SettingsSubpageHostPr
   const meta = resolveOrganizationSurfaceHeaderMeta(section)
   return (
     <div className={hostStyles.host}>
-      <RedesignSurface canvas>
+      <Surface canvas>
         <SettingsScreen title={meta?.title ?? 'Settings'} description={meta?.description}>
           {children}
         </SettingsScreen>
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }
