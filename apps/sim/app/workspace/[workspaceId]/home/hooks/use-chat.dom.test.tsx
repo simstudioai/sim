@@ -31,6 +31,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockChatPlanRequired,
   mockRequestJson,
   mockExecuteWorkflow,
   mockExecuteBrowserToolOnClient,
@@ -39,6 +40,7 @@ const {
   mockExecuteBrowserToolOnClient: vi.fn(),
   mockExecuteLocalFilesystemTool: vi.fn(),
   mockRequestJson: vi.fn(),
+  mockChatPlanRequired: vi.fn(() => false),
   mockExecuteWorkflow:
     vi.fn<
       (options: {
@@ -51,6 +53,9 @@ const {
 
 vi.mock('@/lib/core/config/feature-flags-context', () => ({
   useFeatureFlag: () => false,
+}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-required', () => ({
+  useChatPlanRequired: mockChatPlanRequired,
 }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
@@ -3712,6 +3717,29 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies).toHaveLength(2)
       const liveAnswer = getLiveAssistantMessageId(state.steerBodies[0].steeringId)
       expect(view.getResult().messages.some((message) => message.id === liveAnswer)).toBe(false)
+    })
+
+    it('keeps a message that could not go out, shown as not delivered', async () => {
+      mockChatPlanRequired.mockReturnValue(true)
+      try {
+        useMothershipOutgoingStore.getState().record(chatId, [
+          {
+            id: '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9',
+            payload: { content: 'Restored after a reload' },
+            status: 'pending',
+          },
+        ])
+        stubRunningTurn()
+        const view = renderUseChatInChat(chatId, history)
+        await waitFor(() =>
+          view.getResult().messages.some((message) => message.delivery === 'failed')
+        )
+
+        expect(userMessages(view.getResult())).toEqual(['Restored after a reload'])
+        expect(state.postBodies).toHaveLength(0)
+      } finally {
+        mockChatPlanRequired.mockReturnValue(false)
+      }
     })
 
     it('marks only a steered message going out on its own for the server to settle', async () => {
