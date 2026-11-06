@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { LinksSurface } from '@/app/o/[organizationId]/links/links-surface'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { loadSimLinksListView } from '@/app/o/[organizationId]/links/search-params'
 import { LinksPage } from '@/platform/app/(shell)/links/_components/links-page/links-page'
 import { prefetchSimLinks } from '@/platform/lib/data/prefetch'
@@ -34,10 +34,10 @@ export default async function SimLinksPage({ params, searchParams }: SimLinksPag
     loadSimLinksListView(query)
   )
   return (
-    <LinksSurface>
+    <RedesignPageSurface>
       <HydrationBoundary state={state}>
         <LinksPage organizationId={organizationId} />
       </HydrationBoundary>
-    </LinksSurface>
+    </RedesignPageSurface>
   )
 }

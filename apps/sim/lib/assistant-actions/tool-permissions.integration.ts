@@ -25,9 +25,10 @@ import {
 } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { sha256Hex } from '@sim/security/hash'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimOrganizationAssistantAction,
@@ -638,6 +639,56 @@ describe('organization Assistant tool permissions', () => {
       }
     }
   )
+
+  it('reads a run that closes during the review read as nothing to review', async () => {
+    await change(0, 'ask')
+    await prepare()
+    const held = createDeferred<number>()
+    const release = createDeferred<void>()
+    const closing = db.transaction(async (tx) => {
+      const [blocker] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      if (!blocker) throw new Error('Missing closing transaction')
+      await tx.update(copilotChats).set({ conversationId: null }).where(eq(copilotChats.id, chatId))
+      await tx
+        .update(copilotRuns)
+        .set({ status: 'complete', toolAdmissionClosedAt: new Date() })
+        .where(eq(copilotRuns.id, runId))
+      held.resolve(blocker.pid)
+      await release.promise
+    })
+    void closing.catch((error: unknown) => held.reject(error))
+    try {
+      const blockerPid = await held.promise
+      const reading = review()
+      void reading.catch(() => undefined)
+      await vi.waitFor(
+        async () => {
+          const [waiting] = await db.execute<{ pid: number }>(sql`
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND ${blockerPid}::int = ANY(pg_blocking_pids(pid))
+          `)
+          expect(waiting).toBeDefined()
+        },
+        { timeout: 10_000, interval: 25 }
+      )
+      release.resolve()
+      await closing
+      expect(await reading).toEqual({
+        runId: null,
+        streamId: null,
+        actions: [],
+        nextCursor: null,
+      })
+    } finally {
+      release.resolve()
+      await Promise.allSettled([closing])
+      await db
+        .update(copilotChats)
+        .set({ conversationId: streamId })
+        .where(eq(copilotChats.id, chatId))
+    }
+  })
 
   it('pages eligible proposals past expired rows and keeps canonical turn metadata', async () => {
     await change(0, 'ask')
