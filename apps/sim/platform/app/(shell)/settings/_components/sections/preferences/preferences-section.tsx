@@ -13,11 +13,8 @@ import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/sec
 import { FailureNotice, SearchableSelect, Select } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { readAppearance } from '@/platform/design-system/navigation'
-import {
-  useAppearanceSettings,
-  useProfileSettings,
-  useSnapToGridSetting,
-} from '@/platform/lib/data/preferences'
+import { useAppearanceSettings, useSnapToGridSetting } from '@/platform/lib/data/preferences'
+import { useProfileSettings } from '@/platform/shared/preferences'
 
 const THEMES = [
   { value: 'system', label: 'System' },

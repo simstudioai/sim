@@ -6,10 +6,7 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/privacy/cookie-preferences.module.css'
-import {
-  CookieConsentProvider,
-  useCookieCategories,
-} from '@/platform/embedded/lib/data/cookie-consent'
+import { CookieConsentProvider, useCookieCategories } from '@/platform/shared/cookie-consent'
 
 interface CookieListProps<Name extends string> {
   policyHref: string

@@ -16,15 +16,15 @@ import {
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { ExternalLink } from '@/platform/embedded/app/(shell)/people/_components/external-link/external-link'
 import styles from '@/platform/embedded/app/(shell)/people/_components/import/import.module.css'
+import { usePeopleViewer } from '@/platform/embedded/lib/data/people'
 import {
   downloadImportTemplate,
   type ImportBody,
   isApiConflict,
   type PeopleImportResult,
   usePeopleImport,
-  usePeopleViewer,
   useProvisioningConnection,
-} from '@/platform/embedded/lib/data/people'
+} from '@/platform/shared/people'
 import { plural } from '@/platform/shared/plural'
 import { toast } from '@/platform/shared/toast'
 

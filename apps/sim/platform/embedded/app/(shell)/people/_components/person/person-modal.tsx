@@ -2,12 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { DatePicker, Modal, SearchableSelect, TextField } from '@/platform/design-system/components'
-import {
-  type Person,
-  type PersonDraft,
-  useEditPerson,
-  usePeoplePicker,
-} from '@/platform/embedded/lib/data/people'
+import { usePeoplePicker } from '@/platform/embedded/lib/data/people'
+import { type Person, type PersonDraft, useEditPerson } from '@/platform/shared/people'
 
 /** Profile text's server bound; a longer draft would only come back refused. */
 const PROFILE_TEXT_MAX_LENGTH = 200

@@ -1,7 +1,8 @@
 import type { MouseEvent, RefCallback } from 'react'
 import Link from 'next/link'
 import { Button, EmptyState } from '@/platform/design-system/components'
-import { type PersonSummary, personHref, useChartRoots } from '@/platform/embedded/lib/data/people'
+import { personHref } from '@/platform/embedded/lib/data/people'
+import { type PersonSummary, useChartRoots } from '@/platform/shared/people'
 
 interface ChartEmptyStateProps {
   organizationId: string

@@ -33,7 +33,9 @@ const TEXT_FIELDS = [
 export type WhitelabelTextField = (typeof TEXT_FIELDS)[number]
 type WhitelabelText = Record<WhitelabelTextField, string>
 
-type WhitelabelSettings = NonNullable<ReturnType<typeof useWhitelabelSettings>['data']>['settings']
+export type WhitelabelSettings = NonNullable<
+  ReturnType<typeof useWhitelabelSettings>['data']
+>['settings']
 
 function textOf(settings: WhitelabelSettings): WhitelabelText {
   return {
@@ -65,8 +67,14 @@ export function useWhitelabelRead(organizationId: string) {
   }
 }
 
+type UploadWorkspaceLogo = (file: File) => Promise<string>
+
 /** A logo or wordmark's draft: an unsaved upload or removal, over the image it started from. */
-function useBrandImage(initial: string | null, workspaceId: string | undefined) {
+function useBrandImage(
+  initial: string | null,
+  workspaceId: string | undefined,
+  uploadWorkspaceLogo: UploadWorkspaceLogo | undefined
+) {
   const [url, setUrl] = useState(initial)
   const upload = useProfilePictureUpload({
     currentImage: url,
@@ -74,6 +82,7 @@ function useBrandImage(initial: string | null, workspaceId: string | undefined) 
     onError: (message) => toast.error(message),
     context: 'workspace-logos',
     workspaceId,
+    uploadWorkspaceLogo,
   })
   return {
     url: upload.previewUrl || null,
@@ -91,7 +100,8 @@ function useBrandImage(initial: string | null, workspaceId: string | undefined) 
 export function useWhitelabelForm(
   organizationId: string,
   initial: WhitelabelSettings,
-  uploadWorkspaceId: string | undefined
+  uploadWorkspaceId: string | undefined,
+  uploadWorkspaceLogo?: UploadWorkspaceLogo
 ) {
   const update = useUpdateWhitelabelSettings()
   const [text, setText] = useState(() => textOf(initial))
@@ -100,8 +110,8 @@ export function useWhitelabelForm(
     logoUrl: initial.logoUrl ?? null,
     wordmarkUrl: initial.wordmarkUrl ?? null,
   }))
-  const logo = useBrandImage(saved.logoUrl, uploadWorkspaceId)
-  const wordmark = useBrandImage(saved.wordmarkUrl, uploadWorkspaceId)
+  const logo = useBrandImage(saved.logoUrl, uploadWorkspaceId, uploadWorkspaceLogo)
+  const wordmark = useBrandImage(saved.wordmarkUrl, uploadWorkspaceId, uploadWorkspaceLogo)
   const dirty =
     TEXT_FIELDS.some((field) => text[field] !== saved.text[field]) ||
     logo.url !== saved.logoUrl ||

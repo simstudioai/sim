@@ -11,7 +11,7 @@ import {
   CookieConsentProvider,
   cookieChoices,
   useCookieCategories,
-} from '@/platform/lib/data/cookie-consent'
+} from '@/platform/shared/cookie-consent'
 
 interface CookieListProps<Name extends string> {
   policyHref: string

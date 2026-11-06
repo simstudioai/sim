@@ -16,13 +16,13 @@ import {
   Modal,
   StatusTag,
 } from '@/platform/design-system/components'
+import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,
   type SyncSource,
   type SyncStatus,
   useDirectorySync,
-  usePeopleViewer,
-} from '@/platform/lib/data/people'
+} from '@/platform/shared/people'
 
 const PHASE_TITLES = {
   users: 'Reading people',

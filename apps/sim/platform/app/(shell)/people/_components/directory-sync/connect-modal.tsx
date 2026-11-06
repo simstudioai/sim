@@ -11,15 +11,15 @@ import {
   SecretField,
   TextField,
 } from '@/platform/design-system/components'
+import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,
   type SyncDraft,
   type SyncFieldErrors,
   type SyncSource,
   useDirectorySync,
-  usePeopleViewer,
   useProvisioningConnection,
-} from '@/platform/lib/data/people'
+} from '@/platform/shared/people'
 
 const SOURCE_DESCRIPTIONS: Record<SyncSource, string> = {
   okta: 'Keep your org chart current with an hourly directory sync. You can disconnect at any time.',

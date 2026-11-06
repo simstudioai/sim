@@ -13,7 +13,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useDeletedChats, useRestoreChat } from '@/platform/lib/data/recently-deleted'
+import { useDeletedChats, useRestoreChat } from '@/platform/shared/recently-deleted'
 
 const TITLE = 'Deleted chats'
 

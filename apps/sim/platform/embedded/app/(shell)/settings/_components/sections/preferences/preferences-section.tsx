@@ -10,9 +10,9 @@ import {
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   useAppearanceSettings,
-  useProfileSettings,
   useSnapToGridSetting,
 } from '@/platform/embedded/lib/data/preferences'
+import { useProfileSettings } from '@/platform/shared/preferences'
 
 const THEMES = [
   { value: 'system', label: 'System' },

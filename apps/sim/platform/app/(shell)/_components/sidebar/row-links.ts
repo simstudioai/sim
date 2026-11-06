@@ -2,10 +2,10 @@ import type { MenuAction } from '@/platform/design-system/components/menu/action
 import { isAbsoluteHref, publicAssetPath } from '@/platform/design-system/navigation'
 import { createRowLinks } from '@/platform/shared/row-links'
 
-export const { openLinkInNewTab, openInNewTabAction, copyLinkAction } = createRowLinks((href) =>
-  isAbsoluteHref(href) ? href : publicAssetPath(href)
-)
+const links = createRowLinks((href) => (isAbsoluteHref(href) ? href : publicAssetPath(href)))
+
+export const { openLinkInNewTab, openInNewTabAction } = links
 
 export function linkMenuActions(href: string): MenuAction[] {
-  return [openInNewTabAction(href), copyLinkAction(href)]
+  return [openInNewTabAction(href), links.copyLinkAction(href)]
 }

@@ -20,11 +20,8 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  useWhitelabelForm,
-  useWhitelabelRead,
-  type WhitelabelTextField,
-} from '@/platform/lib/data/whitelabeling'
+import { useWhitelabelForm } from '@/platform/lib/data/whitelabeling'
+import { useWhitelabelRead, type WhitelabelTextField } from '@/platform/shared/whitelabeling'
 
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
 

@@ -34,10 +34,10 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { platformHref } from '@/platform/design-system/navigation'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
+import { useBrowserTimezone } from '@/platform/shared/preferences'
 import { toast } from '@/platform/shared/toast'
 
 export type SettingsRoster = OrganizationRoster

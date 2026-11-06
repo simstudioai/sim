@@ -22,7 +22,7 @@ import {
   useWhitelabelForm,
   useWhitelabelRead,
   type WhitelabelTextField,
-} from '@/platform/embedded/lib/data/whitelabeling'
+} from '@/platform/shared/whitelabeling'
 
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
 

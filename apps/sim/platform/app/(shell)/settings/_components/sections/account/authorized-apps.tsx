@@ -10,7 +10,7 @@ import {
   Modal,
   SearchField,
 } from '@/platform/design-system/components'
-import { useAuthorizedAppsList } from '@/platform/lib/data/account'
+import { useAuthorizedAppsList } from '@/platform/shared/account'
 
 const TITLE = 'Authorized apps'
 const COLUMNS = [

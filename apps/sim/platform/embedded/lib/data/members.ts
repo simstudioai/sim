@@ -25,9 +25,9 @@ import {
 } from '@/hooks/queries/organization'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
-import { useBrowserTimezone } from '@/platform/embedded/lib/data/preferences'
 import { reportFailure } from '@/platform/embedded/lib/notices'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
+import { useBrowserTimezone } from '@/platform/shared/preferences'
 import { toast } from '@/platform/shared/toast'
 
 /** Shows a failed background mutation: the row controls have no dialog of their own to hold it. */
