@@ -116,8 +116,10 @@ const {
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
   mockPayerHasPaidAccess,
+  mockScheduleFalAICostSettlement,
 } = vi.hoisted(() => ({
   mockPayerHasPaidAccess: vi.fn(),
+  mockScheduleFalAICostSettlement: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
     acquireKey: vi.fn(),
@@ -181,6 +183,10 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
 
 vi.mock('@/lib/billing/core/chat-access', () => ({
   payerHasPaidAccess: mockPayerHasPaidAccess,
+}))
+
+vi.mock('@/lib/tools/falai-settlement', () => ({
+  scheduleFalAICostSettlement: mockScheduleFalAICostSettlement,
 }))
 
 vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
@@ -6560,6 +6566,74 @@ describe('Hosted Key Injection', () => {
       expect(metered).not.toHaveBeenCalled()
     } finally {
       Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
+  })
+
+  it('schedules the exact-cost settlement for a hosted fal charge estimated at zero', async () => {
+    setEnvFlags({ isHosted: true })
+    mockGetBYOKKey.mockResolvedValue(null)
+    mockRateLimiterFns.acquireKey.mockResolvedValue({
+      success: true,
+      key: 'platform-fixture-key',
+      keyIndex: 0,
+      envVarName: 'FALAI_API_KEY_1',
+    })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null, toRecord: () => ({}) },
+      json: async () => ({ ok: true }),
+      text: async () => '{"ok":true}',
+    })
+    tools.test_fal_zero_estimate = {
+      id: 'test_fal_zero_estimate',
+      name: 'Zero-estimate fal fixture',
+      description: 'Hosted fal charge whose estimate is zero',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+      hosting: {
+        envKeyPrefix: 'FALAI_API_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'falai',
+        exactCostSettlement: 'falai',
+        pricing: {
+          type: 'custom',
+          getCost: () => ({
+            cost: 0,
+            metadata: {
+              endpointId: 'fal-ai/fixture/text-to-video',
+              requestId: 'fal-request-1',
+              source: 'historical_estimate',
+              providerCostDollars: 0,
+              markupMultiplier: 1.5,
+            },
+          }),
+        },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    try {
+      const result = await executeTool(
+        'test_fal_zero_estimate',
+        {},
+        { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+      )
+
+      expect(result.success).toBe(true)
+      expect(mockScheduleFalAICostSettlement).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cost: expect.objectContaining({ requestId: 'fal-request-1', costDollars: 0 }),
+          envVarName: 'FALAI_API_KEY_1',
+          source: 'workflow',
+        })
+      )
+    } finally {
+      Reflect.deleteProperty(tools, 'test_fal_zero_estimate')
       resetEnvFlagsMock()
     }
   })

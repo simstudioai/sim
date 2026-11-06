@@ -64,6 +64,16 @@ export interface FalAICostMetadata {
   error?: string
 }
 
+const FALAI_COST_SOURCES = new Set<string>([
+  'billing_events',
+  'historical_estimate',
+  'fallback_floor',
+])
+
+export function isFalAICostSource(value: unknown): value is FalAICostMetadata['source'] {
+  return typeof value === 'string' && FALAI_COST_SOURCES.has(value)
+}
+
 interface FalAIBillingEvent {
   request_id: string
   endpoint_id: string

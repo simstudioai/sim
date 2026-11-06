@@ -505,6 +505,11 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
    * or a key the user passes still runs; only Sim's own key is refused.
    */
   requiresPaidPlan?: boolean
+  /**
+   * Bills the hosted charge again from the provider's exact receipt once it is recorded, for a
+   * provider whose receipt arrives after the result. `falai` settles through fal's billing events.
+   */
+  exactCostSettlement?: 'falai'
   /** Pricing when using hosted key */
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
