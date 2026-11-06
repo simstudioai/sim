@@ -1,7 +1,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotMessages } from '@sim/db/schema'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -46,6 +46,21 @@ const steeringRow = (chatId: string, messageId: string) =>
     sql`${copilotMessages.content} ? 'steering'`
   )
 
+/** The final disposition a record stored, as the `disposition` field of a record, if any. */
+function readFinalDisposition(stored: unknown): { disposition?: SteeringFinalDisposition } {
+  const disposition = toRecord(stored)
+  if (disposition.status === 'not_applied') return { disposition: { status: 'not_applied' } }
+  if (disposition.status !== 'applied') return {}
+  const { eventSeq, textOffset } = disposition
+  return {
+    disposition: {
+      status: 'applied',
+      ...(typeof eventSeq === 'number' ? { eventSeq } : {}),
+      ...(typeof textOffset === 'number' ? { textOffset } : {}),
+    },
+  }
+}
+
 /** The steering record a chat holds under `messageId`, if that id was sent as steering. */
 export async function loadSteeringRecord(
   chatId: string,
@@ -75,9 +90,7 @@ export async function loadSteeringRecord(
         ? { assistantImages: input.assistantImages as SteerV2Request['assistantImages'] }
         : {}),
     },
-    ...(isRecordLike(steering.disposition)
-      ? { disposition: steering.disposition as unknown as SteeringFinalDisposition }
-      : {}),
+    ...readFinalDisposition(steering.disposition),
   }
 }
 

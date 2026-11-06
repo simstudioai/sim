@@ -17,7 +17,6 @@ async function freshStore() {
 
 describe('useMothershipOutgoingStore', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals()
     window.sessionStorage.clear()
   })
 

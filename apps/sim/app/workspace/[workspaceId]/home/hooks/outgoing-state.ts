@@ -120,7 +120,7 @@ export function optimisticUserMessageFor(id: string, payload: SendPayload): Chat
  * Whether a message can be steered: steering carries its files and mentions like a
  * turn, but needs text, so a message of files alone goes out as a turn.
  */
-export function canSteer(payload: SendPayload): boolean {
+function canSteer(payload: SendPayload): boolean {
   return payload.content.trim().length > 0 && payload.content.length <= MAX_STEERING_CONTENT_LENGTH
 }
 

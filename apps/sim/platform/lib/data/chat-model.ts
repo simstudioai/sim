@@ -39,7 +39,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/parse-blocks'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
-import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import type {
   ChatMessage,
   ChatMessageContext,
@@ -514,6 +513,20 @@ function keepIdentity(message: ChatMessage, next: PlatformTurn): PlatformTurn {
 }
 
 /**
+ * The response a running turn streams into: the last assistant, past messages on their way into it.
+ * A turn's own message after it means this turn has no response yet (a reconnect before its first
+ * event), so the one before belongs to a finished turn.
+ */
+function liveResponseIndex(messages: readonly ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (message.role === 'assistant') return index
+    if (!message.steering && !message.delivery) return -1
+  }
+  return -1
+}
+
+/**
  * The hook's transcript as Platform turns. A pure read of `messages`, so a replay, a reconnect or a
  * reload lands on the same turns, and it keeps the legacy parsers as the only readers of the wire.
  */
@@ -522,7 +535,7 @@ export function toPlatformTurns(
   { streaming, sentAt, now, isPersisted }: ProjectionOptions
 ): PlatformTurn[] {
   const { byIndex, hidden } = pairInteractions(messages)
-  const liveResponseId = findLiveResponseId(messages)
+  const liveIndex = liveResponseIndex(messages)
   let lastUserText = ''
   const turns: PlatformTurn[] = []
   messages.forEach((message, index) => {
@@ -544,7 +557,7 @@ export function toPlatformTurns(
       )
       return
     }
-    const live = streaming && message.id === liveResponseId
+    const live = streaming && index === liveIndex
     const blocks = message.contentBlocks ?? []
     const pairing = byIndex.get(index)
     const pairingKey = pairing ? JSON.stringify(pairing) : ''
