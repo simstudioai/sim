@@ -25,8 +25,12 @@ import type {
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
+import {
+  FALLBACK_PROVIDER_MARK,
+  providerMark,
+} from '@/platform/design-system/components/icon/provider-marks'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { placeMeeting } from '@/platform/shared/calendar-meeting'
 import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {
@@ -165,24 +169,6 @@ export function toEmailItems(email: OrganizationHomeEmail): EmailItem[] {
   }))
 }
 
-const MINUTES_PER_DAY = 24 * 60
-
-export function wallClockMinute(instantMs: number, timeZone: string): number {
-  const { hour, minute } = getWallClockParts(new Date(instantMs), timeZone)
-  return hour * 60 + minute
-}
-
-/** A wall-clock minute of the requested day; an instant outside it clamps to that day's edge. */
-function minuteOfDay(
-  instant: string,
-  window: OrganizationHomeCalendar['window'],
-  timeZone: string
-) {
-  if (instant <= window.startAt) return 0
-  if (instant >= window.endAt) return MINUTES_PER_DAY
-  return wallClockMinute(Date.parse(instant), timeZone)
-}
-
 export function toCalendarDay(
   calendar: OrganizationHomeCalendar,
   day: { date: string; nowMinute: number | null; timeZone: string }
@@ -198,12 +184,10 @@ export function toCalendarDay(
       allDay.push({ id, title: event.title, providerUrl: event.url })
       continue
     }
-    const startMinute = minuteOfDay(event.startAt, calendar.window, day.timeZone)
     meetings.push({
       id,
       title: event.title,
-      startMinute,
-      duration: Math.max(1, minuteOfDay(event.endAt, calendar.window, day.timeZone) - startMinute),
+      ...placeMeeting(event, calendar.window, day.timeZone),
       providerUrl: event.url,
       people: event.people,
     })
@@ -236,7 +220,7 @@ export function toRecentItems(history: SearchHistoryResponse): CollapsedRecent[]
       id: source.url,
       label,
       href: source.url,
-      icon: typeof mark === 'string' ? mark : undefined,
+      icon: typeof mark === 'string' && mark !== FALLBACK_PROVIDER_MARK ? mark : undefined,
       urls,
     }
   })

@@ -54,7 +54,6 @@ import {
   toReadableProviders,
   toRecentItems,
   toTaskPoints,
-  wallClockMinute,
 } from '@/platform/lib/data/home-model'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
@@ -64,6 +63,7 @@ import {
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
+import { wallClockMinute } from '@/platform/shared/calendar-meeting'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { MINUTE_MS } from '@/platform/shared/time'

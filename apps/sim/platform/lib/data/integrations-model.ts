@@ -1,4 +1,3 @@
-import { SIM_DOCS_URL } from '@sim/utils/site'
 import type { AssistantToolPermissionsResponse } from '@/lib/api/contracts/assistant-actions'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
@@ -17,8 +16,7 @@ import {
   memberSecretMetadata,
   providerMetadata,
 } from '@/platform/lib/integrations/metadata.generated'
-
-const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
+import { integrationGuide } from '@/platform/shared/integration-guide'
 
 function availabilityOf(entry: MemberIntegration): OrganizationIntegration['availability'] {
   if (entry.managed) return 'managed'
@@ -49,8 +47,7 @@ function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegr
     icon: entry.icon,
     name: entry.name,
     description: metadata?.description ?? `Connect your ${entry.name} account to use it here`,
-    setupGuideUrl: metadata?.setupGuideUrl ?? CONNECT_ACCOUNT_GUIDE,
-    searchResource: metadata?.searchResource ?? null,
+    ...integrationGuide(entry.provider, metadata),
     searchReads: metadata?.searchReads ?? [],
     requestedScopes: metadata?.requestedScopes ?? null,
     accessDescription: entry.description ?? 'Access follows your account permissions',
