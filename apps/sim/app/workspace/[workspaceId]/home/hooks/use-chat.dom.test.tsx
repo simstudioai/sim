@@ -113,6 +113,7 @@ import {
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
+import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
@@ -3532,8 +3533,12 @@ describe('useChat remount send recovery', () => {
 
     it('still sends a plain message when the journal cannot be written', async () => {
       const view = await restoredChat([])
-      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new DOMException('quota', 'QuotaExceededError')
+      vi.stubGlobal('sessionStorage', {
+        getItem: () => null,
+        removeItem: () => {},
+        setItem: () => {
+          throw new DOMException('quota', 'QuotaExceededError')
+        },
       })
 
       await act(async () => {
@@ -3635,6 +3640,24 @@ describe('useChat remount send recovery', () => {
 
       expect(state.postBodies).toHaveLength(1)
       expect(deliveryOf(view, steeringId)).toBe('failed')
+    })
+
+    it('keeps the running answer live with a message the worker took showing after it', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued']
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      await turn.text('2\n')
+      await act(async () => {
+        await settle()
+      })
+
+      const { messages } = view.getResult()
+      expect(messages.at(-1)).toMatchObject({ role: 'user', content: 'Stop at ten' })
+      expect(messages.at(-1)?.delivery).toBeUndefined()
+      expect(findLiveResponseId(messages)).toBe(messages.at(-2)?.id)
     })
 
     it('tells the desktop a turn is done when the only message on it was applied by the turn', async () => {
