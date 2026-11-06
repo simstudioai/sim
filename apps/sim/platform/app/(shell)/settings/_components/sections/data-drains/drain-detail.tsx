@@ -3,6 +3,16 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
+import type { DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
+import {
+  useDataDrainRuns,
+  useDeleteDataDrain,
+  useRunDataDrainNow,
+  useTestDataDrain,
+  useUpdateDataDrain,
+} from '@/ee/data-drains/hooks/data-drains'
+import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import {
   DetailHeader,
   FieldStack,
@@ -22,19 +32,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CADENCE_LABELS,
-  type DataDrain,
-  type DataDrainRun,
-  DESTINATION_LABELS,
-  formatFileSize,
-  SOURCE_LABELS,
-  useDataDrainRuns,
-  useDeleteDataDrain,
-  useRunDataDrainNow,
-  useTestDataDrain,
-  useUpdateDataDrain,
-} from '@/platform/lib/data/data-drains'
 import { formatTimestamp } from '@/platform/lib/time'
 
 const RECENT_RUN_LIMIT = 10

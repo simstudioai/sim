@@ -3,6 +3,20 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
+import {
+  CREDENTIAL_EXPIRY_OPTIONS,
+  type CredentialExpiry,
+  SETTING_TOGGLES,
+} from '@/ee/scim/components/options'
+import {
+  useConfigureScimConnection,
+  useIssueScimCredential,
+  useReconcileScimConnection,
+  useRevokeScimCredential,
+  useScimActivity,
+  useScimConnection,
+} from '@/ee/scim/hooks/scim'
 import {
   ActionRow,
   FieldStack,
@@ -26,18 +40,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CREDENTIAL_EXPIRY_OPTIONS,
-  type CredentialExpiry,
-  type ScimConnectionView,
-  SETTING_TOGGLES,
-  useConfigureScimConnection,
-  useIssueScimCredential,
-  useReconcileScimConnection,
-  useRevokeScimCredential,
-  useScimActivity,
-  useScimConnection,
-} from '@/platform/lib/data/scim'
 import {
   useSettingsNavigationBlocked,
   useSettingsUnsavedGuard,

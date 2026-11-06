@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
+import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
+import { type CADENCE_TYPES, DESTINATION_TYPES, type SOURCE_TYPES } from '@/lib/data-drains/types'
+import {
+  DESTINATION_SPECS,
+  type DestinationField,
+  type DestinationState,
+} from '@/ee/data-drains/destinations/specs'
+import { useCreateDataDrain } from '@/ee/data-drains/hooks/data-drains'
+import { CADENCE_OPTIONS, DESTINATION_OPTIONS, SOURCE_OPTIONS } from '@/ee/data-drains/labels'
 import {
   ActionRow,
   DetailHeader,
@@ -21,19 +30,6 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CADENCE_OPTIONS,
-  type CADENCE_TYPES,
-  type CreateDataDrainBody,
-  DESTINATION_OPTIONS,
-  DESTINATION_SPECS,
-  DESTINATION_TYPES,
-  type DestinationField,
-  type DestinationState,
-  SOURCE_OPTIONS,
-  type SOURCE_TYPES,
-  useCreateDataDrain,
-} from '@/platform/lib/data/data-drains'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]

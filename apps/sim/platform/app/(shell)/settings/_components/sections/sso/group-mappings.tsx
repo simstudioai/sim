@@ -5,6 +5,28 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
+  useOrganizationWorkspaces,
+  usePermissionGroups,
+} from '@/ee/access-control/hooks/permission-groups'
+import {
+  type MappingTargetKind,
+  PERMISSION_OPTIONS,
+  TARGET_KIND_OPTIONS,
+  type WorkspacePermission,
+} from '@/ee/scim/components/options'
+import {
+  useDeleteScimGroupMapping,
+  useScimGroupMappings,
+  useUpsertScimGroupMapping,
+} from '@/ee/scim/hooks/scim'
+import {
+  automaticMatchWouldRemain,
+  buildScimMappingBody,
+  describeScimMapping,
+  mappingChangesAllMembersPolicy,
+  removeMappingConsequence,
+} from '@/ee/scim/lib/group-mapping-view'
+import {
   ActionRow,
   LoadingState,
   Muted,
@@ -19,22 +41,6 @@ import {
   Select,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  automaticMatchWouldRemain,
-  buildScimMappingBody,
-  describeScimMapping,
-  type MappingTargetKind,
-  mappingChangesAllMembersPolicy,
-  PERMISSION_OPTIONS,
-  removeMappingConsequence,
-  TARGET_KIND_OPTIONS,
-  useDeleteScimGroupMapping,
-  useOrganizationWorkspaces,
-  usePermissionGroups,
-  useScimGroupMappings,
-  useUpsertScimGroupMapping,
-  type WorkspacePermission,
-} from '@/platform/lib/data/scim'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/lib/plural'
 

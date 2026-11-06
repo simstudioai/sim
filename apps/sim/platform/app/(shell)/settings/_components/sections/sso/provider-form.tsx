@@ -3,6 +3,22 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { SsoProviderView } from '@/lib/api/contracts/auth'
+import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { useConfigureSSO } from '@/ee/sso/hooks/sso'
+import {
+  buildSsoRegistrationBody,
+  DEFAULT_SSO_FORM,
+  hasSsoFormErrors,
+  maskedClientSecret,
+  OIDC_DEFAULT_MAPPING,
+  readProviderConfigString,
+  SAML_DEFAULT_MAPPING,
+  SAML_NAMEID_FORMATS,
+  type SsoProviderForm,
+  ssoFormCallbackUrl,
+  validateSsoProviderForm,
+} from '@/ee/sso/lib/provider-form'
 import {
   ActionRow,
   DetailHeader,
@@ -25,23 +41,7 @@ import {
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import {
-  buildSsoRegistrationBody,
-  DEFAULT_SSO_FORM,
-  hasSsoFormErrors,
-  maskedClientSecret,
-  OIDC_DEFAULT_MAPPING,
-  readProviderConfigString,
-  SAML_DEFAULT_MAPPING,
-  SAML_NAMEID_FORMATS,
-  SSO_TRUSTED_PROVIDERS,
-  type SsoProviderForm,
-  type SsoProviderView,
-  ssoFormCallbackUrl,
-  useConfigureSSO,
-  useSsoOrigin,
-  validateSsoProviderForm,
-} from '@/platform/lib/data/sso'
+import { useSsoOrigin } from '@/platform/lib/data/sso/params'
 
 const PROVIDER_TYPE_OPTIONS = [
   { label: 'OIDC', value: 'oidc' },

@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
+import { canMakeProviderPrimary, nextSignInProvider } from '@/ee/sso/lib/provider-form'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import {
   LoadingState,
   ResourceList,
@@ -24,15 +27,7 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  canMakeProviderPrimary,
-  nextSignInProvider,
-  useDeleteSSOProvider,
-  useOrganizationPlanSeats,
-  useSetPrimarySSOProvider,
-  useSSOProviders,
-  useSsoSettingsParams,
-} from '@/platform/lib/data/sso'
+import { useSsoSettingsParams } from '@/platform/lib/data/sso/params'
 
 export default function SsoSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id

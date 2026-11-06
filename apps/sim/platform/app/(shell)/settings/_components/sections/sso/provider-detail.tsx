@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
+import type { SsoProviderView } from '@/lib/api/contracts/auth'
+import { ssoFormFromProvider, ssoProviderCallbackUrl } from '@/ee/sso/lib/provider-form'
 import {
   DetailHeader,
   FieldStack,
@@ -13,12 +15,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  type SsoProviderView,
-  ssoFormFromProvider,
-  ssoProviderCallbackUrl,
-  useSsoOrigin,
-} from '@/platform/lib/data/sso'
+import { useSsoOrigin } from '@/platform/lib/data/sso/params'
 
 interface ProviderDetailProps {
   organizationId: string

@@ -3,6 +3,13 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { OrganizationDomain } from '@/lib/api/contracts/organization'
+import {
+  useAddOrganizationDomain,
+  useOrganizationDomains,
+  useRemoveOrganizationDomain,
+  useVerifyOrganizationDomain,
+} from '@/ee/sso/hooks/domains'
 import {
   ActionRow,
   FieldStack,
@@ -24,13 +31,6 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import {
-  type OrganizationDomain,
-  useAddOrganizationDomain,
-  useOrganizationDomains,
-  useRemoveOrganizationDomain,
-  useVerifyOrganizationDomain,
-} from '@/platform/lib/data/sso'
 
 interface DomainRowProps {
   organizationId: string

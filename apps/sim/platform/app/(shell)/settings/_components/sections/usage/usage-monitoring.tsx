@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react'
 import Link from 'next/link'
+import type { UsageBreakdownDimension } from '@/lib/api/contracts/organization-usage'
 import {
   type CreditsTarget,
   ManageCreditsModal,
@@ -29,7 +30,6 @@ import {
   SECTION_LABELS,
   topRows,
   USAGE_TABS,
-  type UsageBreakdownDimension,
   useUsageBreakdown,
   useUsageOverview,
   useUsageView,

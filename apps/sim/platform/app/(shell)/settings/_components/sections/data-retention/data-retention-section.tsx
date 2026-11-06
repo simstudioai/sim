@@ -3,6 +3,30 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
+import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
+import {
+  type DataRetentionResponse,
+  useOrganizationRetention,
+  useUpdateOrganizationRetention,
+} from '@/ee/data-retention/hooks/data-retention'
+import {
+  buildRetentionUpdate,
+  type EditingPolicy,
+  hoursToDisplayDays,
+  newOverrideDraft,
+  normalizePolicyDraft,
+  orgPolicyDraft,
+  orgPolicySummary,
+  overrideDraft,
+  overridePolicySummary,
+  overrideWorkspaceIds,
+  type PolicyDraft,
+  type RetentionSnapshot,
+  withOrgPolicy,
+  withOverridePolicy,
+  withoutOverride,
+} from '@/ee/data-retention/lib/policy-draft'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import {
   LoadingState,
   ResourceList,
@@ -13,28 +37,6 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
 import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  buildRetentionUpdate,
-  type DataRetentionResponse,
-  type EditingPolicy,
-  hoursToDisplayDays,
-  newOverrideDraft,
-  normalizePolicyDraft,
-  normalizeRuleStages,
-  orgPolicyDraft,
-  orgPolicySummary,
-  overrideDraft,
-  overridePolicySummary,
-  overrideWorkspaceIds,
-  type PolicyDraft,
-  type RetentionSnapshot,
-  useOrganizationRetention,
-  useUpdateOrganizationRetention,
-  useWorkspacesQuery,
-  withOrgPolicy,
-  withOverridePolicy,
-  withoutOverride,
-} from '@/platform/lib/data/data-retention'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {

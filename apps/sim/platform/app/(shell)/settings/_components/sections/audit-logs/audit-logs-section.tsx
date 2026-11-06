@@ -2,6 +2,17 @@
 
 import { useId, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
+import {
+  AUDIT_TIME_RANGE_OPTIONS,
+  describeMetadataValue,
+  formatAuditAction,
+  formatMetadataLabel,
+  formatResourceType,
+  getAuditMetadataEntries,
+  isDestructiveAuditAction,
+} from '@/ee/audit-logs/lib/format'
+import { canExportAuditLogs } from '@/ee/audit-logs/lib/scope'
 import {
   ActionRow,
   LoadingState,
@@ -29,18 +40,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  AUDIT_TIME_RANGE_OPTIONS,
-  canExportAuditLogs,
-  describeMetadataValue,
-  formatAuditAction,
-  formatMetadataLabel,
-  formatResourceType,
-  getAuditMetadataEntries,
-  isDestructiveAuditAction,
-  RESOURCE_TYPE_OPTIONS,
-  useAuditLogFeed,
-} from '@/platform/lib/data/audit-logs'
+import { useAuditLogFeed } from '@/platform/lib/data/audit-logs/feed'
 import { formatTimestamp } from '@/platform/lib/time'
 
 const ALL_TYPES = '__all_types__'

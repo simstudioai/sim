@@ -1,5 +1,6 @@
 'use client'
 
+import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   Avatar,
@@ -19,7 +20,6 @@ import {
   ACTIVITY_DIMENSIONS,
   ACTIVITY_SORTS,
   formatDurationMs,
-  type OrganizationUsageWindowKey,
   useActivityBreakdown,
   useActivitySummary,
   useUsageView,

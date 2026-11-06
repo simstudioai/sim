@@ -1,6 +1,10 @@
 'use client'
 
 import { type ReactNode, useRef, useState } from 'react'
+import type {
+  OrganizationUsageBreakdown,
+  UsageBreakdownDimension,
+} from '@/lib/api/contracts/organization-usage'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
@@ -13,12 +17,7 @@ import {
   TableLabel,
 } from '@/platform/design-system/components'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import {
-  EMPTY_COPY,
-  type OrganizationUsageBreakdown,
-  type UsageBreakdownDimension,
-  type UsageList,
-} from '@/platform/lib/data/usage'
+import { EMPTY_COPY, type UsageList } from '@/platform/lib/data/usage'
 
 type BreakdownRow = OrganizationUsageBreakdown['rows'][number]
 
