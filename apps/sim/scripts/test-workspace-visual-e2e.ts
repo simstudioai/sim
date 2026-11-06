@@ -101,9 +101,13 @@ const SETTLE_MS = 8_000
 const FOCUS_STOPS = 12
 const PAN_STEPS = 60
 
+/** The socket token route allows 30 mints a minute per user, and every document load mints one. */
+const DOCUMENT_LOAD_SPACING_MS = 2_400
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\//
 /** A redirect or not-found is how Next ends those renders, not a failure of them. */
 const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
+/** Consequences of this harness, not of the page: blocked hosts and plain-HTTP origins. */
+const HARNESS_NOISE = /ERR_BLOCKED_BY_CLIENT|Cross-Origin-Opener-Policy header has been ignored/
 const OPEN_LAYER = '[role="dialog"],[role="alertdialog"],[role="menu"]'
 const MASK_ATTRIBUTE = 'data-visual-mask'
 
@@ -137,6 +141,8 @@ interface Cell {
   path: string
   viewports: readonly Viewport[]
   expectedStatus?: number
+  /** An unmatched URL renders the root 404, outside the workspace layout. */
+  outsideShell?: boolean
   /** Asserts the page shows what this state is about; runs before the page has settled. */
   ready: (page: Page) => Promise<void>
   /** Moves a settled page into this state. */
@@ -154,6 +160,8 @@ interface Shot {
   height: number
   finalPath: string
   contentBox: { x: number; y: number; width: number; height: number } | null
+  /** Errors the page itself showed, which a passing shot would otherwise bury in pixels. */
+  alerts: string[]
 }
 
 interface Problem {
@@ -207,6 +215,7 @@ interface RouteFacts {
   }
   keyboard: FocusStop[]
   portals: PortalProbe[]
+  alerts: string[]
   canvas?: {
     framesObserved: number
     meanFrameMs: number
@@ -228,6 +237,8 @@ const shots: Shot[] = []
 const routes = new Map<string, RouteFacts>()
 const determinism: { shot: string; changed: boolean; share: number | null }[] = []
 let clientAddress = 0
+let rateLimitedResponses = 0
+let nextDocumentLoadAt = 0
 let currentSection = 'Setup'
 
 const browser: Browser = await chromium.launch()
@@ -237,6 +248,7 @@ function reportCounts() {
     passed: checks.filter(({ status }) => status === 'passed').length,
     failed: checks.filter(({ status }) => status === 'failed').length,
     shots: shots.length,
+    rateLimitedResponses,
     problems: [...routes.values()].reduce((sum, route) => sum + route.problems.length, 0),
   }
 }
@@ -324,7 +336,7 @@ function isExternalRequest(address: URL) {
 class Session {
   private readonly inflight = new Set<Request>()
   private lastActivity = Date.now()
-  readonly requests: { method: string; path: string; type: string }[] = []
+  readonly requests: { method: string; path: string; type: string; body: string | null }[] = []
   readonly problems: Problem[] = []
 
   constructor(
@@ -332,7 +344,7 @@ class Session {
     readonly page: Page
   ) {
     const problem = (kind: Problem['kind'], detail: string) => {
-      if (HANDLED_RUNTIME.test(detail)) return
+      if (HANDLED_RUNTIME.test(detail) || HARNESS_NOISE.test(detail)) return
       const entry = { kind, detail: truncate(detail, 500) }
       if (!this.problems.some((known) => known.kind === kind && known.detail === entry.detail)) {
         this.problems.push(entry)
@@ -351,6 +363,7 @@ class Session {
           method: request.method(),
           path: pathOf(request.url()),
           type: request.resourceType(),
+          body: request.postData(),
         })
       }
     })
@@ -371,6 +384,7 @@ class Session {
       }
     })
     page.on('response', (response) => {
+      if (response.status() === 429) rateLimitedResponses += 1
       if (response.status() >= 400 && isSameOrigin(response.url())) {
         problem(
           'http',
@@ -551,7 +565,7 @@ async function showCanvas(page: Page) {
 async function openBlockMenu(page: Page) {
   await openContextMenu(
     canvasNode(page, BLOCKS.agent),
-    page.getByRole('menuitem', { name: 'Copy', exact: true })
+    page.getByRole('menuitem', { name: /^Copy/ })
   )
 }
 
@@ -604,7 +618,9 @@ function cell(
   state: CellState,
   path: string,
   ready: Cell['ready'],
-  extra: Partial<Pick<Cell, 'enter' | 'persona' | 'viewports' | 'expectedStatus'>> = {}
+  extra: Partial<
+    Pick<Cell, 'enter' | 'persona' | 'viewports' | 'expectedStatus' | 'outsideShell'>
+  > = {}
 ): Cell {
   const overlay = state === 'modal' || state === 'menu'
   return {
@@ -639,10 +655,15 @@ function resourceListCells(destination: string, firstRow: string): Cell[] {
  * The settings pages shown in full. The rest appear at two widths; their content is a list of
  * rows in the same shell, which `general` and `apikeys` already cover at every width.
  */
-const SECONDARY_SETTINGS: readonly { id: string; title: string; expect?: string }[] = [
+const SECONDARY_SETTINGS: readonly {
+  id: string
+  title: string
+  expect?: string
+  expectField?: string
+}[] = [
   { id: 'billing', title: 'Subscription' },
-  { id: 'teammates', title: 'Teammates', expect: OWNER.name },
-  { id: 'secrets', title: 'Secrets', expect: SECRET_NAMES[0] },
+  { id: 'teammates', title: 'Teammates', expect: OWNER.email },
+  { id: 'secrets', title: 'Secrets', expectField: SECRET_NAMES[0] },
   { id: 'byok', title: 'BYOK' },
   { id: 'sandboxes', title: 'Sandboxes' },
   { id: 'custom-tools', title: 'Custom tools', expect: CUSTOM_TOOL_TITLE },
@@ -656,12 +677,25 @@ const SECONDARY_SETTINGS: readonly { id: string; title: string; expect?: string 
  * Whether a section is open to this viewer is the page gate's decision, and a redirect to General
  * is itself the behavior to record (`finalPath`), so only an unredirected page asserts its content.
  */
-function settingsReady(sectionId: string, title: string, seeded?: string) {
+function settingsReady(sectionId: string, title: string, seeded?: string, seededField?: string) {
   return async (page: Page) => {
     await expect(contentShell(page)).toBeVisible()
     if (!new URL(page.url()).pathname.endsWith(`/settings/${sectionId}`)) return
     await expect(page.getByRole('heading', { name: title, exact: true }).first()).toBeVisible()
     if (seeded) await expect(page.getByText(seeded).first()).toBeVisible()
+    if (seededField) {
+      await expect
+        .poll(() =>
+          page
+            .locator('input')
+            .evaluateAll(
+              (inputs, value) =>
+                inputs.some((input) => (input as HTMLInputElement).value === value),
+              seededField
+            )
+        )
+        .toBe(true)
+    }
   }
 }
 
@@ -671,6 +705,9 @@ const integrationsPath = `${populatedPath}/integrations`
 const gmailPath = `${integrationsPath}/${OAUTH_INTEGRATION_SLUG}`
 const apiKeysPath = `${populatedPath}/settings/apikeys`
 
+const showPageNotFound = async (page: Page) => {
+  await expect(page.getByText('Page not found', { exact: true })).toBeVisible()
+}
 const showIntegrations = async (page: Page) => {
   await expect(page.getByPlaceholder('Search integrations...', { exact: true })).toBeVisible()
 }
@@ -744,10 +781,16 @@ const VISUAL_CELLS: Cell[] = [
     'not-found',
     'populated',
     `${populatedPath}/no-such-destination`,
-    async (page) => {
-      await expect(page.getByText('Page not found', { exact: true })).toBeVisible()
-    },
-    { expectedStatus: 404 }
+    showPageNotFound,
+    { expectedStatus: 404, outsideShell: true }
+  ),
+  cell(
+    'shell',
+    'workspace-not-found',
+    'populated',
+    `${populatedPath}/settings/no-such-section`,
+    showPageNotFound,
+    { expectedStatus: 404, viewports: NARROW_AND_WIDE }
   ),
   cell('integrations', 'integrations', 'populated', integrationsPath, showIntegrations),
   cell('integrations', 'integrations', 'menu', integrationsPath, showIntegrations, {
@@ -758,11 +801,16 @@ const VISUAL_CELLS: Cell[] = [
       ),
   }),
   cell('integrations', 'integration-detail', 'populated', gmailPath, showGmail),
-  cell('integrations', 'integration-detail', 'modal', `${gmailPath}?connect=oauth`, showGmail, {
-    enter: async (page) => {
+  // The deep link opens the modal on load, which hides the page behind it from role queries.
+  cell(
+    'integrations',
+    'integration-detail',
+    'modal',
+    `${gmailPath}?connect=oauth`,
+    async (page) => {
       await expect(openDialog(page)).toBeVisible()
-    },
-  }),
+    }
+  ),
   cell(
     'settings',
     'general',
@@ -785,13 +833,13 @@ const VISUAL_CELLS: Cell[] = [
         openDialog(page)
       ),
   }),
-  ...SECONDARY_SETTINGS.map(({ id, title, expect: seeded }) =>
+  ...SECONDARY_SETTINGS.map(({ id, title, expect: seeded, expectField }) =>
     cell(
       'settings',
       id,
       'populated',
       `${populatedPath}/settings/${id}`,
-      settingsReady(id, title, seeded),
+      settingsReady(id, title, seeded, expectField),
       { viewports: NARROW_AND_WIDE }
     )
   ),
@@ -812,7 +860,16 @@ function shotName(target: Cell, viewport: Viewport, theme: Theme) {
   return `${target.area}__${target.destination}__${target.state}__${viewport.name}__${theme}.png`
 }
 
+/** Spaces loads across workers, so a rate limited token never leaves a shot without its socket. */
+async function waitForDocumentLoadSlot() {
+  const now = Date.now()
+  const slot = Math.max(now, nextDocumentLoadAt)
+  nextDocumentLoadAt = slot + DOCUMENT_LOAD_SPACING_MS
+  if (slot > now) await sleep(slot - now)
+}
+
 async function loadCell(session: Session, target: Cell) {
+  await waitForDocumentLoadSlot()
   const response = await session.page.goto(`${origin}${target.path}`, {
     waitUntil: 'load',
     timeout: 90_000,
@@ -821,7 +878,7 @@ async function loadCell(session: Session, target: Cell) {
   if (target.expectedStatus === undefined) {
     assert(status !== null && status < 400, `${target.path} answered ${status}`)
   }
-  await expect(contentShell(session.page)).toBeVisible()
+  if (!target.outsideShell) await expect(contentShell(session.page)).toBeVisible()
   await expect(session.page.getByText('Application error', { exact: false })).toHaveCount(0)
   await target.ready(session.page)
   await session.settle()
@@ -850,6 +907,14 @@ async function waitForStableCanvases(page: Page) {
     if (next === previous) return
     previous = next
   }
+}
+
+function readAlerts(page: Page) {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role="alert"]'))
+      .map((alert) => (alert.textContent ?? '').trim().slice(0, 200))
+      .filter(Boolean)
+  )
 }
 
 async function markVolatileText(page: Page) {
@@ -898,6 +963,7 @@ async function takeShot(
         theme === 'dark',
         'The page did not follow the requested theme'
       )
+      const alerts = await readAlerts(page)
       await markVolatileText(page)
       const contentBox = await contentShell(page)
         .first()
@@ -923,6 +989,7 @@ async function takeShot(
         height: viewport.height,
         finalPath: pathOf(page.url()),
         contentBox,
+        alerts,
       }
     }
   )
@@ -1080,10 +1147,12 @@ async function probeRoute(target: Cell) {
         )
       )
       const api = session.requests.filter(({ path }) => path.startsWith('/api/'))
-      const seen = new Map<string, number>()
-      for (const { method, path } of api) {
-        const key = `${method} ${path}`
-        seen.set(key, (seen.get(key) ?? 0) + 1)
+      // The same URL with a different body is a different read, as dashboard panels all are.
+      const seen = new Map<string, { label: string; count: number }>()
+      for (const { method, path, body } of api) {
+        const key = `${method} ${path} ${body ?? ''}`
+        const entry = seen.get(key) ?? { label: `${method} ${path}`, count: 0 }
+        seen.set(key, { ...entry, count: entry.count + 1 })
       }
       const known = routes.get(target.destination)
       routes.set(target.destination, {
@@ -1094,14 +1163,15 @@ async function probeRoute(target: Cell) {
         requests: {
           total: session.requests.length,
           api: api.length,
-          duplicates: [...seen]
-            .filter(([, count]) => count > 1)
-            .map(([key, count]) => `${key} x${count}`),
-          paths: [...seen.keys()].sort(),
+          duplicates: [...seen.values()]
+            .filter(({ count }) => count > 1)
+            .map(({ label, count }) => `${label} x${count}`),
+          paths: [...new Set(api.map(({ method, path }) => `${method} ${path}`))].sort(),
         },
         firstPaintMs: paints['first-paint'] ?? null,
         firstContentfulPaintMs: paints['first-contentful-paint'] ?? null,
         transferred: { ...counters },
+        alerts: await readAlerts(session.page),
         keyboard: await probeKeyboard(session.page),
         portals: known?.portals ?? [],
         ...(known?.canvas ? { canvas: known.canvas } : {}),
@@ -1134,6 +1204,7 @@ async function probeOverlay(target: Cell) {
           transferred: emptyTransfer(),
           keyboard: [],
           portals: [probe],
+          alerts: [],
           problems: session.problems,
         })
       }
@@ -1168,7 +1239,9 @@ async function probeCanvasPan(target: Cell) {
         requestAnimationFrame(tick)
         Object.assign(window, { __panProbe: state })
       })
+      let turnaround = before
       for (let step = 0; step < PAN_STEPS; step += 1) {
+        if (step === PAN_STEPS / 2) turnaround = await transform()
         await page.mouse.wheel(step < PAN_STEPS / 2 ? 12 : -12, 0)
         await sleep(16)
       }
@@ -1179,7 +1252,6 @@ async function probeCanvasPan(target: Cell) {
         state.running = false
         return state.samples
       })
-      const after = await transform()
       const sorted = [...samples].sort((left, right) => left - right)
       const mean = sorted.reduce((sum, value) => sum + value, 0) / Math.max(1, sorted.length)
       const canvas = {
@@ -1187,7 +1259,7 @@ async function probeCanvasPan(target: Cell) {
         meanFrameMs: Number(mean.toFixed(2)),
         p95FrameMs: Number((sorted[Math.floor(sorted.length * 0.95)] ?? 0).toFixed(2)),
         maxFrameMs: Number((sorted[sorted.length - 1] ?? 0).toFixed(2)),
-        panned: before !== after,
+        panned: before !== turnaround,
       }
       const known = routes.get(target.destination)
       if (known) known.canvas = canvas

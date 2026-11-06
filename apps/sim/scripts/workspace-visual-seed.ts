@@ -10,6 +10,7 @@ import {
   document,
   folder,
   knowledgeBase,
+  mcpServers,
   member,
   organization,
   permissions,
@@ -31,6 +32,7 @@ import {
   workflowMcpTool,
   workflowSubflows,
   workspace,
+  workspaceBYOKKeys,
   workspaceEnvironment,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -46,6 +48,7 @@ import {
   AGENT_WORKFLOW,
   API_KEYS,
   BLOCKS,
+  BYOK_KEY_NAME,
   CHATS,
   CUSTOM_TOOL_TITLE,
   DASHBOARD_TITLE,
@@ -57,6 +60,7 @@ import {
   FREE_WORKSPACE,
   KNOWLEDGE_BASES,
   LOG_COUNT,
+  MCP_SERVER_NAME,
   ORDERS_TABLE_ID,
   ORGANIZATION_ID,
   ORGANIZATION_NAME,
@@ -218,6 +222,7 @@ const encryptedSecrets = Object.fromEntries(
     )
   )
 )
+const { encrypted: encryptedByokKey } = await encryptSecret('byok-value-for-the-seed')
 const apiKeyRows = await Promise.all(
   API_KEYS.map(async (name, index) => {
     const plain = `sk-sim-workspace-visual-${index}`
@@ -281,12 +286,14 @@ await db.transaction(async (tx) => {
       userId: ownerId,
       organizationId: ORGANIZATION_ID,
       role: 'owner',
+      createdAt: seededAt,
     },
     {
       id: 'workspace-visual-member-teammate',
       userId: TEAMMATE.userId,
       organizationId: ORGANIZATION_ID,
       role: 'member',
+      createdAt: seededAt,
     },
   ])
   await tx.insert(session).values(
@@ -320,6 +327,8 @@ await db.transaction(async (tx) => {
       ownerId,
       billedAccountUserId: ownerId,
       organizationId: ORGANIZATION_ID,
+      createdAt: seededAt,
+      updatedAt: seededAt,
     })
   }
   await tx.insert(project).values({
@@ -333,6 +342,8 @@ await db.transaction(async (tx) => {
     name: FREE_WORKSPACE.name,
     ownerId: FREE.userId,
     billedAccountUserId: FREE.userId,
+    createdAt: seededAt,
+    updatedAt: seededAt,
   })
   await tx.insert(permissions).values(
     (
@@ -348,6 +359,8 @@ await db.transaction(async (tx) => {
       entityType: 'workspace',
       entityId,
       permissionType,
+      createdAt: seededAt,
+      updatedAt: seededAt,
     }))
   )
 
@@ -619,6 +632,29 @@ await db.transaction(async (tx) => {
       },
     },
     code: 'return { order: params.order }',
+    createdAt: seededAt,
+    updatedAt: seededAt,
+  })
+  await tx.insert(workspaceBYOKKeys).values({
+    id: 'workspace-visual-byok-key',
+    workspaceId,
+    providerId: 'openai',
+    encryptedApiKey: encryptedByokKey,
+    name: BYOK_KEY_NAME,
+    createdBy: ownerId,
+    createdAt: seededAt,
+    updatedAt: seededAt,
+  })
+  // Disabled: discovery only dials enabled servers, so the page lists it without a network call.
+  await tx.insert(mcpServers).values({
+    id: 'workspace-visual-mcp-external',
+    workspaceId,
+    createdBy: ownerId,
+    name: MCP_SERVER_NAME,
+    description: 'Parts and pricing from a vendor.',
+    transport: 'streamable-http',
+    url: 'https://mcp.example.com/catalog',
+    enabled: false,
     createdAt: seededAt,
     updatedAt: seededAt,
   })

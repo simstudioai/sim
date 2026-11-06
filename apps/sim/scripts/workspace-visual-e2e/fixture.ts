@@ -14,6 +14,9 @@ export const SEEDED_AT_ISO = '2026-01-15T09:00:00.000Z'
 export const PERIOD_START_ISO = '2026-01-01T00:00:00.000Z'
 export const PERIOD_END_ISO = '2099-01-01T00:00:00.000Z'
 
+const uuid = (digit: string) =>
+  `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
+
 const person = (key: string, name: string) => ({
   key,
   name,
@@ -27,9 +30,10 @@ export const TEAMMATE = person('teammate', 'Theo Teammate')
 export const FREE = person('free', 'Frank Free')
 export const EVERYONE = [OWNER, TEAMMATE, FREE] as const
 
-export const POPULATED_WORKSPACE = { id: 'workspace-visual-populated', name: 'Mill Operations' }
-export const EMPTY_WORKSPACE = { id: 'workspace-visual-empty', name: 'Blank Slate' }
-export const FREE_WORKSPACE = { id: 'workspace-visual-free', name: 'Personal' }
+/** UUIDs: the file route reads a workspace id out of a storage key only in that shape. */
+export const POPULATED_WORKSPACE = { id: uuid('d'), name: 'Mill Operations' }
+export const EMPTY_WORKSPACE = { id: uuid('e'), name: 'Blank Slate' }
+export const FREE_WORKSPACE = { id: uuid('f'), name: 'Personal' }
 export const WORKSPACES = [POPULATED_WORKSPACE, EMPTY_WORKSPACE, FREE_WORKSPACE] as const
 
 export const AGENT_WORKFLOW = { id: 'workspace-visual-workflow-agent', name: 'Order triage' }
@@ -43,9 +47,6 @@ export const BLOCKS = {
   loopChild: 'workspace-visual-block-loop-child',
   note: 'workspace-visual-block-note',
 } as const
-
-const uuid = (digit: string) =>
-  `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
 
 export const CHATS = [
   { id: uuid('a'), title: 'Reorder thresholds' },
@@ -87,6 +88,8 @@ export const LATEST_RELEASE = RELEASES[0].title
 export const LOG_COUNT = 24
 export const API_KEYS = ['Warehouse sync', 'Reporting'] as const
 export const WORKFLOW_MCP_SERVER_NAME = 'Operations tools'
+export const MCP_SERVER_NAME = 'Vendor catalog'
+export const BYOK_KEY_NAME = 'Team OpenAI key'
 export const CUSTOM_TOOL_TITLE = 'lookup_order'
 export const SECRET_NAMES = ['WAREHOUSE_TOKEN', 'REPORTING_TOKEN'] as const
 
