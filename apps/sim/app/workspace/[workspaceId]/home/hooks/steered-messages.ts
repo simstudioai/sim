@@ -16,9 +16,56 @@ export function appliedSteeringIds(
   return into
 }
 
+/** A message on its way into a turn: its bubble, the turn, and where it applied, once known. */
+export interface OutgoingPlacement {
+  message: ChatMessage
+  streamId?: string
+  /** The length of the turn's answer when it applied the message (UTF-16 code units). */
+  textOffset?: number
+}
+
+const isMainText = (block: ContentBlock) => block.type === 'text' && !block.spanId
+
+/**
+ * The blocks with a steering marker for `steeringId` at `textOffset` of their main
+ * answer, splitting the text block that offset falls in. It is where the turn's
+ * own `steering_applied` frame puts the marker (the worker reports the answer's
+ * length at that point), so an `applied` answer places the message before the
+ * frame arrives, and identically.
+ */
+function withSteeringAt(
+  blocks: ContentBlock[],
+  steeringId: string,
+  textOffset: number
+): ContentBlock[] {
+  const marker: ContentBlock = { type: 'steering', steering: { steeringId } }
+  const result: ContentBlock[] = []
+  let seen = 0
+  let placed = false
+  for (const block of blocks) {
+    if (placed || !isMainText(block)) {
+      result.push(block)
+      continue
+    }
+    const text = block.content ?? ''
+    if (seen + text.length < textOffset) {
+      seen += text.length
+      result.push(block)
+      continue
+    }
+    const cut = Math.max(0, textOffset - seen)
+    if (cut > 0) result.push({ ...block, content: text.slice(0, cut) })
+    result.push(marker)
+    if (cut < text.length) result.push({ ...block, content: text.slice(cut) })
+    placed = true
+  }
+  if (!placed) result.push(marker)
+  return result
+}
+
 function mainText(blocks: ContentBlock[]): string {
   return blocks
-    .filter((block) => block.type === 'text' && !block.spanId)
+    .filter(isMainText)
     .map((block) => block.content ?? '')
     .join('')
 }
@@ -32,23 +79,38 @@ function mainText(blocks: ContentBlock[]): string {
  * A steering message not applied yet shows after everything else while it may
  * still be: when it is `outgoing` (this client is still delivering it) or its
  * turn (`streamId`) is one of `liveStreamIds`. Otherwise it is dropped, because
- * a turn that ended without applying it hands it on as an ordinary turn under
- * another id, which shows on its own.
+ * a turn that ended without applying it hands it on as an ordinary turn, which
+ * shows on its own. One the worker said it applied (`textOffset`) is placed in its
+ * turn's answer at that offset until the turn's own marker for it arrives.
  */
 export function placeSteeredMessages(
-  messages: ChatMessage[],
-  outgoing: readonly ChatMessage[],
+  source: ChatMessage[],
+  outgoing: readonly OutgoingPlacement[],
   liveStreamIds: ReadonlySet<string>
 ): ChatMessage[] {
-  if (outgoing.length === 0 && !messages.some((message) => message.steering)) return messages
+  if (outgoing.length === 0 && !source.some((message) => message.steering)) return source
   const steered = new Map<string, ChatMessage>()
-  for (const message of messages) {
+  for (const message of source) {
     if (message.role === 'user' && message.steering) steered.set(message.id, message)
   }
   const outgoingIds = new Set<string>()
-  for (const message of outgoing) {
+  for (const { message } of outgoing) {
     steered.set(message.id, message)
     outgoingIds.add(message.id)
+  }
+  let messages = source
+  for (const { message, streamId, textOffset } of outgoing) {
+    if (!streamId || textOffset === undefined) continue
+    messages = messages.map((candidate) =>
+      candidate.role === 'assistant' &&
+      candidate.streamId === streamId &&
+      !appliedSteeringIds(candidate.contentBlocks).has(message.id)
+        ? {
+            ...candidate,
+            contentBlocks: withSteeringAt(candidate.contentBlocks ?? [], message.id, textOffset),
+          }
+        : candidate
+    )
   }
 
   const placed = new Set<string>()

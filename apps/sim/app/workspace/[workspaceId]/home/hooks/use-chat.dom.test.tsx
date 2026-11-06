@@ -110,6 +110,8 @@ import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
+import type { ChatContext } from '@/stores/panel'
 
 /** Captured before any test fakes timers, so the act budget below runs in real time. */
 const realSetTimeout = globalThis.setTimeout
@@ -178,6 +180,8 @@ interface NetworkState {
    * `409` (no live run took it). Once spent, it answers `409`.
    */
   steerDispositions: Array<'queued' | 'applied' | 'not_applied' | 409>
+  /** The `textOffset` an `applied` disposition reports. */
+  appliedOffset?: number
 }
 
 const state: NetworkState = {
@@ -218,7 +222,13 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     const disposition = state.steerDispositions.shift() ?? 409
     return disposition === 409
       ? Response.json({ error: 'No running turn accepted this message.' }, { status: 409 })
-      : Response.json({ steeringId: body.steeringId, status: disposition })
+      : Response.json({
+          steeringId: body.steeringId,
+          status: disposition,
+          ...(disposition === 'applied' && state.appliedOffset !== undefined
+            ? { eventSeq: 1, textOffset: state.appliedOffset }
+            : {}),
+        })
   }
   if (url.includes('/api/mothership/chat/stop')) {
     state.stopBodies.push(JSON.parse(String(init?.body)))
@@ -662,6 +672,8 @@ describe('useChat remount send recovery', () => {
     mockRequestJson.mockResolvedValue({ chats: [] })
     state.steerBodies = []
     state.steerDispositions = []
+    state.appliedOffset = undefined
+    useMothershipOutgoingStore.getState().reset()
     useExecutionStore.setState({ workflowExecutions: new Map() })
     window.sessionStorage.clear()
     window.localStorage.clear()
@@ -2283,6 +2295,29 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
     })
 
+    it('keeps a message sent while offline across a remount and sends it once back online', async () => {
+      const history = idleHistory('chat-offline-remount')
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      stubUnreachableSend()
+      const first = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        await first.getResult().sendMessage('Written while offline')
+      })
+      await waitFor(() => !first.getResult().isSending)
+      first.unmount()
+
+      const remounted = renderUseChatInChat(history.id, history)
+      expect(userMessages(remounted.getResult())).toEqual(['Written while offline'])
+      network.online = true
+      await act(async () => {
+        window.dispatchEvent(new Event('online'))
+      })
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1].message).toBe('Written while offline')
+      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
+    })
+
     /**
      * A connection can drop while the browser stays online (`ERR_NETWORK_CHANGED`
      * when an interface changes, a proxy that resets), so no `online` event follows
@@ -3460,8 +3495,9 @@ describe('useChat remount send recovery', () => {
       })
     })
 
-    it('sends a message with files as the next turn instead of steering', async () => {
+    it('steers a message with files and mentions, carrying them as a turn would', async () => {
       const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued']
       const attachment = {
         id: 'file-1',
         key: 'uploads/file-1',
@@ -3469,22 +3505,86 @@ describe('useChat remount send recovery', () => {
         media_type: 'application/pdf',
         size: 10,
       }
+      const mention: ChatContext = { kind: 'workflow', workflowId: 'wf-1', label: 'Invoices' }
       await act(async () => {
-        await view.getResult().sendMessage('Use these notes', [attachment])
+        await view.getResult().sendMessage('Use these notes', [attachment], [mention])
       })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      expect(state.steerBodies[0]).toMatchObject({
+        streamId: turn.firstStreamId(),
+        content: 'Use these notes',
+        fileAttachments: [attachment],
+        contexts: [mention],
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(userMessages(view.getResult())).toEqual(['Count to fifty', 'Use these notes'])
+    })
+
+    it('places a message the worker reports applied at its offset, before any frame', async () => {
+      const { turn, view } = await startTurn()
+      await turn.text('2\n3\n')
+      state.steerDispositions = ['applied']
+      state.appliedOffset = 2
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
       await act(async () => {
         await sleep(50)
       })
-      expect(state.steerBodies).toHaveLength(0)
-      expect(state.postBodies).toHaveLength(1)
-      expect(userMessages(view.getResult())).toEqual(['Count to fifty', 'Use these notes'])
 
-      await turn.end()
-      await waitFor(() => state.postBodies.length === 2)
-      expect(state.postBodies[1]).toMatchObject({
-        message: 'Use these notes',
-        fileAttachments: [attachment],
+      const shown = view.getResult().messages
+      expect(shown.map((message) => [message.role, message.content])).toEqual([
+        ['user', 'Count to fifty'],
+        ['assistant', '1\n'],
+        ['user', 'Stop at ten'],
+        ['assistant', '2\n3\n'],
+      ])
+    })
+
+    it('resumes a steered message after a remount and sends it as the next turn once its turn ended without it', async () => {
+      const { view } = await startTurn()
+      state.steerDispositions = ['queued']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
       })
+      await waitFor(() => state.steerBodies.length === 1)
+      const steeringId = state.steerBodies[0].steeringId
+      view.unmount()
+
+      state.steerDispositions = ['not_applied']
+      const remounted = renderUseChatInChat(chatId, history)
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId, steeringId])
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Then summarize',
+        userMessageId: steeringId,
+      })
+      expect(
+        userMessages(remounted.getResult()).filter((text) => text === 'Then summarize')
+      ).toHaveLength(1)
+    })
+
+    it('never sends a remounted steered message as a turn while the worker still holds it', async () => {
+      const { view } = await startTurn()
+      state.steerDispositions = ['queued']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      view.unmount()
+
+      state.steerDispositions = ['queued', 'queued', 'queued']
+      const remounted = renderUseChatInChat(chatId, history)
+      await waitFor(() => state.steerBodies.length === 2)
+      await act(async () => {
+        await sleep(100)
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(userMessages(remounted.getResult())).toContain('Then summarize')
     })
 
     it('sends a message still unapplied when the user stops the turn as the next turn', async () => {
