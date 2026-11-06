@@ -56,7 +56,8 @@ export function ModalBody({ children, label, inactive, onInput }: ModalBodyProps
 }
 
 interface ModalFooterProps {
-  confirmLabel: string
+  /** Absent for a dialog whose rows act on their own, which only closes. */
+  confirmLabel?: string
   onPrevious?: () => void
   cancelLabel?: string
   destructive?: boolean
@@ -84,9 +85,11 @@ export function ModalFooter({
       <Button variant='quiet' disabled={cancelDisabled} onClick={onPrevious}>
         {cancelLabel}
       </Button>
-      <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
-        {confirmLabel}
-      </Button>
+      {confirmLabel && (
+        <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
+          {confirmLabel}
+        </Button>
+      )}
     </footer>
   )
 }

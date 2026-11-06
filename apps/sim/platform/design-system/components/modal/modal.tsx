@@ -26,7 +26,8 @@ type ConfirmHandler<Args extends unknown[]> = (...args: Args) => unknown
 
 interface ModalActions {
   title: string
-  confirmLabel: string
+  /** Absent for a dialog whose rows act on their own, which only closes. */
+  confirmLabel?: string
   confirmDisabled?: boolean
   onConfirm?: ConfirmHandler<[values: FormData]>
   /** Names the dialog more specifically than its visible title. */

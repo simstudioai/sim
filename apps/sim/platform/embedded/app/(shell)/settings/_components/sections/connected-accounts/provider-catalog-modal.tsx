@@ -53,7 +53,7 @@ export function ProviderCatalogModal({
       }}
       title='Add provider'
       cancelLabel='Close'
-      confirmLabel='Done'
+      submitOnEnter={false}
     >
       <SectionSearch subject='providers' value={search} onValueChange={setSearch} />
       {providers.map(({ name, icon, choice }) => {

@@ -41,7 +41,7 @@ export function AddSourceModal({
       }}
       title='Add source'
       cancelLabel='Close'
-      confirmLabel='Done'
+      submitOnEnter={false}
     >
       {feedback}
       <RowList>
