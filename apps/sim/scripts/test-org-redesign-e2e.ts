@@ -21,6 +21,7 @@ import { toRecord } from '@sim/utils/object'
 import { escapeRegExp, truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import type { HomeWidgetAccount } from '@/lib/api/contracts/organization-home'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   ADMIN,
@@ -1601,6 +1602,17 @@ const BUSY_DAY_EVENTS = [
   ...FOUR_WAY_MEETINGS.map((title) => ({ title, start: '13:00', end: '14:00', people: [] })),
 ]
 
+const EMAIL_THREAD = () => ({
+  id: 'thread-1',
+  credentialId: GRANTS.gmail.credentialId,
+  sender: 'Grace Hopper',
+  subject: 'Parts recall notice',
+  excerpt: 'The draft is ready for review',
+  receivedAt: new Date(Date.now() - 3_600_000).toISOString(),
+  messageCount: 3,
+  url: 'https://mail.google.com/mail/u/0/#inbox/thread-1',
+})
+
 /** Replies the same Google stand-in every test sees for a viewer's connected accounts. */
 async function stubConnectedHome(page: Page) {
   const today = new Date().toISOString().slice(0, 10)
@@ -1613,18 +1625,7 @@ async function stubConnectedHome(page: Page) {
     route.fulfill({
       json: {
         accounts: [account(GRANTS.gmail.credentialId)],
-        threads: [
-          {
-            id: 'thread-1',
-            credentialId: GRANTS.gmail.credentialId,
-            sender: 'Grace Hopper',
-            subject: 'Parts recall notice',
-            excerpt: 'The draft is ready for review',
-            receivedAt: new Date(Date.now() - 3_600_000).toISOString(),
-            messageCount: 3,
-            url: 'https://mail.google.com/mail/u/0/#inbox/thread-1',
-          },
-        ],
+        threads: [EMAIL_THREAD()],
       },
     })
   )
@@ -2402,6 +2403,122 @@ async function homeChecks() {
   })
   notProvable('Plan chip', 'Only for platform superusers, which needs a platform admin fixture')
   notProvable('Mic with permission help', 'Headless Chromium exposes no speech recognition to test')
+}
+
+async function homeFailureChecks() {
+  section('3 Home: failure states')
+  const SECOND_ACCOUNT = 'second@org-redesign.test'
+  const widgetAccount = (state: HomeWidgetAccount['state'], displayName = CONNECTED.email) => ({
+    credentialId: displayName === CONNECTED.email ? GRANTS.gmail.credentialId : 'second-account',
+    displayName,
+    state,
+  })
+  const homeRead = (widget: 'email' | 'calendar') =>
+    `**/api/organizations/${ORGANIZATION_ID}/home/${widget}**`
+  const refusedRead = (widget: 'email' | 'calendar') =>
+    refused(500, 'GET', `/api/organizations/${ORGANIZATION_ID}/home/${widget}`)
+
+  await check('an email account that needs reauthorizing asks to reconnect', async () => {
+    await withSession(CONNECTED, async ({ page }) => {
+      await stubConnectedHome(page)
+      await page.route(homeRead('email'), (route) =>
+        route.fulfill({ json: { accounts: [widgetAccount('needs_reauth')], threads: [] } })
+      )
+      await page.goto(orgUrl('/home'))
+      const email = homeRegion(page, 'Email')
+      await expect(email.getByText('Reconnect your email', { exact: true })).toBeVisible()
+      await expect(email.getByText('No email yet')).toHaveCount(0)
+    })
+  })
+  await check('one unreachable account keeps the mail that did load, and retries', async () => {
+    await withSession(CONNECTED, async ({ page }) => {
+      await stubConnectedHome(page)
+      let reads = 0
+      await page.route(homeRead('email'), (route) => {
+        reads += 1
+        return route.fulfill({
+          json: {
+            accounts: [widgetAccount('ready'), widgetAccount('unavailable', SECOND_ACCOUNT)],
+            threads: [EMAIL_THREAD()],
+          },
+        })
+      })
+      await page.goto(orgUrl('/home'))
+      const email = homeRegion(page, 'Email')
+      await expect(email.getByText(EMAIL_THREAD().subject)).toBeVisible()
+      await expect(email.getByText(`${SECOND_ACCOUNT} could not be reached.`)).toBeVisible()
+      const before = reads
+      await email.getByRole('button', { name: 'Try again', exact: true }).click()
+      await expect.poll(() => reads).toBeGreaterThan(before)
+    })
+  })
+  await check(
+    'a failed email read says so, and Try again recovers it',
+    async () => {
+      await withSession(CONNECTED, async ({ page }) => {
+        await stubConnectedHome(page)
+        let failing = true
+        await page.route(homeRead('email'), (route) =>
+          failing ? route.fulfill({ status: 500, json: { error: 'stand-in' } }) : route.fallback()
+        )
+        await page.goto(orgUrl('/home'))
+        const email = homeRegion(page, 'Email')
+        await expect(email.getByText('Your email could not load.')).toBeVisible({ timeout: 40_000 })
+        failing = false
+        await email.getByRole('button', { name: 'Try again', exact: true }).click()
+        await expect(email.getByText(EMAIL_THREAD().subject)).toBeVisible()
+      })
+    },
+    { allow: [refusedRead('email')] }
+  )
+  await check(
+    'a failed calendar read fails its day alone, and Try again recovers it',
+    async () => {
+      await withSession(CONNECTED, async ({ page }) => {
+        await stubConnectedHome(page)
+        let failing = true
+        await page.route(homeRead('calendar'), (route) =>
+          failing ? route.fulfill({ status: 500, json: { error: 'stand-in' } }) : route.fallback()
+        )
+        await page.goto(orgUrl('/home'))
+        const calendar = homeRegion(page, 'Calendar')
+        await expect(calendar.getByText('This day could not load.')).toBeVisible({
+          timeout: 40_000,
+        })
+        await expect(homeRegion(page, 'Email').getByText(EMAIL_THREAD().subject)).toBeVisible()
+        failing = false
+        await calendar.getByRole('button', { name: 'Try again', exact: true }).click()
+        await expect(calendar.getByText(/^Standup /)).toBeVisible()
+      })
+    },
+    { allow: [refusedRead('calendar')] }
+  )
+  await check('a calendar account that needs reauthorizing keeps the other schedule', async () => {
+    await withSession(CONNECTED, async ({ page }) => {
+      await stubConnectedHome(page)
+      await page.route(homeRead('calendar'), (route) => {
+        const date = new Date().toISOString().slice(0, 10)
+        return route.fulfill({
+          json: {
+            accounts: [
+              { ...widgetAccount('ready'), credentialId: GRANTS['google-calendar'].credentialId },
+              widgetAccount('needs_reauth', SECOND_ACCOUNT),
+            ],
+            window: { startAt: `${date}T00:00:00.000Z`, endAt: `${date}T23:59:59.000Z` },
+            events: [],
+          },
+        })
+      })
+      await page.goto(orgUrl('/home'))
+      await expect(
+        homeRegion(page, 'Calendar').getByText(
+          new RegExp(
+            `${escapeRegExp(SECOND_ACCOUNT)} is paused|Reconnect ${escapeRegExp(SECOND_ACCOUNT)}`
+          )
+        )
+      ).toBeVisible()
+    })
+  })
 }
 
 async function chatChecks() {
@@ -4995,6 +5112,7 @@ async function run() {
     await landingChecks()
     await sidebarChecks()
     await homeChecks()
+    await homeFailureChecks()
     await chatChecks()
     await searchChecks()
     await integrationChecks()
