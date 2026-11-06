@@ -4,7 +4,22 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { useSearchSources } from '@/hooks/queries/kb/connectors'
+import {
+  useOrganizationAccounts,
+  useUpdateOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import {
   DetailHeader,
@@ -25,22 +40,6 @@ import {
   Tooltip,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  CONNECTOR_META_REGISTRY,
-  connectedAccountsParam,
-  getConnectorAccessAvailability,
-  getSearchConnectionLabels,
-  organizationRoutes,
-  SEARCH_DEBOUNCE_MS,
-  searchSetupAccessParam,
-  searchSetupParam,
-  useOrganizationAccounts,
-  usePermissionConfig,
-  useSearchIntegrations,
-  useSearchSources,
-  useSettingsSearch,
-  useUpdateOrganizationAccounts,
-} from '@/platform/lib/data/sources'
 
 interface ProviderDetailProps {
   connectorType: string

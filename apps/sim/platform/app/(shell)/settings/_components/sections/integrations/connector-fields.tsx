@@ -3,11 +3,24 @@
 import type { ReactNode } from 'react'
 import { useId } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDisplayText } from '@sim/workflow-renderer/formatted-text'
 import Link from 'next/link'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { Credential } from '@/lib/oauth'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
+import { useConnectorApiKeyField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-connector-api-key-field'
+import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
+import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
+import { useConnectorSelector } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/use-connector-selector'
+import { useEnvVarSuggestions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
+import {
+  GITLAB_CSV_FILES,
+  GITLAB_TOKEN_TABS,
+} from '@/connectors/gitlab/permission-config/csv-files'
+import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import {
   ActionRow,
@@ -30,19 +43,6 @@ import {
   Tooltip,
 } from '@/platform/design-system/components'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
-import {
-  type ConnectorConfigFieldsProps,
-  formatDisplayText,
-  GITLAB_CSV_FILES,
-  GITLAB_TOKEN_TABS,
-  type GitLabPermissionForm,
-  isConnectorFieldRequired,
-  slackSearchSetupHref,
-  useConnectorAccessField,
-  useConnectorApiKeyField,
-  useConnectorSelector,
-  useEnvVarSuggestions,
-} from '@/platform/lib/data/sources'
 
 const SELECT_ALL = '__select_all__'
 

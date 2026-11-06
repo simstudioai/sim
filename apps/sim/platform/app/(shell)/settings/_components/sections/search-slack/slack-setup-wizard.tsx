@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSlackSearchSetup } from '@/components/integrations/use-slack-search-setup'
 import {
   ActionRow,
   Muted,
@@ -16,7 +17,6 @@ import {
   StatusTag,
   TextField,
 } from '@/platform/design-system/components'
-import { useSlackSearchSetup } from '@/platform/lib/data/slack-search'
 
 interface SlackSetupWizardProps {
   organizationId: string
