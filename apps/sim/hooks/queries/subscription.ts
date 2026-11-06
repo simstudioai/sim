@@ -204,30 +204,42 @@ export function useUpdateUsageLimit() {
 
 type OpenBillingPortalParams = ContractBodyInput<typeof createBillingPortalContract>
 
+interface OpenBillingPortalVariables {
+  body: OpenBillingPortalParams
+  portalWindow: Window | null
+  onError: (error: Error) => void
+}
+
 /**
  * Opens the billing portal in a new tab. The tab opens before the request so a popup blocker still
- * treats it as the viewer's click; if one blocks it anyway, the portal takes the current tab. A failed
- * request closes the tab and reports through `onError`.
+ * treats it as the viewer's click, and it reaches the portal or closes even if the page that asked
+ * has gone, so it is never stranded blank. If a blocker stops the tab, the portal takes the current
+ * tab, but only while that page is still mounted: a viewer who moved on is not pulled away.
  */
 export function useOpenBillingPortal() {
   const portal = useMutation({
-    mutationFn: (body: OpenBillingPortalParams) =>
+    mutationFn: ({ body }: OpenBillingPortalVariables) =>
       requestJson(createBillingPortalContract, { body }),
+    onSuccess: (data, { portalWindow }) => {
+      if (portalWindow) portalWindow.location.href = data.url
+    },
+    onError: (error, { portalWindow, onError }) => {
+      portalWindow?.close()
+      onError(error)
+    },
   })
   return {
     isPending: portal.isPending,
     open: (body: OpenBillingPortalParams, onError: (error: Error) => void) => {
       const portalWindow = window.open('', '_blank')
-      portal.mutate(body, {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          onError(error)
-        },
-      })
+      portal.mutate(
+        { body, portalWindow, onError },
+        {
+          onSuccess: (data) => {
+            if (!portalWindow) window.location.href = data.url
+          },
+        }
+      )
     },
   }
 }
