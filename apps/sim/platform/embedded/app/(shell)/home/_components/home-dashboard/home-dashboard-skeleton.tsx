@@ -2,7 +2,6 @@
 
 import { useOrganization } from '@/lib/organizations/provider'
 import { Surface } from '@/platform/design-system/components/surface/surface'
-import conversationStyles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {
   SkeletonBlock,
@@ -33,9 +32,7 @@ export function HomeDashboardSkeleton() {
           </div>
         </Surface>
         <Surface>
-          <div className={styles.composer}>
-            <div className={conversationStyles.placeholderComposer} />
-          </div>
+          <div className={styles.composer} />
         </Surface>
         <Surface>
           <div className={styles.sections}>

@@ -112,9 +112,6 @@ button:hover > .railMark > .railGlyph {
   display: grid;
   min-inline-size: 0;
 }
-.flyout {
-  inline-size: var(--shell-org-menu-width);
-}
 .footer {
   display: flex;
   align-items: center;

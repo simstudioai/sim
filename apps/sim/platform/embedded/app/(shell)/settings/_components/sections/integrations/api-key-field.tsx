@@ -4,8 +4,7 @@ import { useId } from 'react'
 import { formatDisplayText } from '@sim/workflow-renderer/formatted-text'
 import { useConnectorApiKeyField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-connector-api-key-field'
 import { useEnvVarSuggestions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
-import { FieldFrame, Icon, Input } from '@/platform/design-system/components'
-import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
+import { FieldFrame, Input, PopupNote, PopupRow } from '@/platform/design-system/components'
 import apiKey from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css'
 
 interface ApiKeyFieldProps {
@@ -47,44 +46,34 @@ function ApiKeySuggestions({
   return (
     <div className={apiKey.suggestions} data-material='floating' data-elevation='menu'>
       {suggestions.filteredEnvVars.length === 0 ? (
-        <button
-          type='button'
-          className={popup.item}
-          data-type='T060'
+        <PopupRow
+          icon='I074'
           onMouseDown={(event) => {
             event.preventDefault()
             suggestions.openEnvironmentSettings()
           }}
         >
-          <Icon name='I074' />
           Create Secret
-        </button>
+        </PopupRow>
       ) : (
         suggestions.filteredGroups.map((group) => (
           <div key={group.label}>
-            {workspaceId && (
-              <p className={popup.heading} data-type='T060'>
-                {group.label}
-              </p>
-            )}
+            {workspaceId && <PopupNote>{group.label}</PopupNote>}
             {group.variables.map((envVar) => {
               const index = suggestions.filteredEnvVars.indexOf(envVar)
               return (
-                <button
-                  key={`${group.label}-${envVar}`}
-                  type='button'
-                  className={popup.item}
-                  data-type='T060'
-                  data-env-var-index={index}
-                  data-highlighted={index === suggestions.selectedIndex || undefined}
-                  onMouseEnter={() => suggestions.setSelectedIndex(index)}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    suggestions.handleEnvVarSelect(envVar)
-                  }}
-                >
-                  {envVar}
-                </button>
+                <div key={`${group.label}-${envVar}`} data-env-var-index={index}>
+                  <PopupRow
+                    highlighted={index === suggestions.selectedIndex}
+                    onMouseEnter={() => suggestions.setSelectedIndex(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      suggestions.handleEnvVarSelect(envVar)
+                    }}
+                  >
+                    {envVar}
+                  </PopupRow>
+                </div>
               )
             })}
           </div>

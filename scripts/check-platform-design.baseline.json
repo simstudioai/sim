@@ -29,36 +29,17 @@
     "consumer-style": 3,
     "style-api": 1
   },
-  "platform/embedded/app/(shell)/_components/sidebar/rail-flyout.tsx": {
-    "primitive-owner": 1,
-    "private-recipe": 1
-  },
   "platform/embedded/app/(shell)/_components/site-mark/site-mark.tsx": {
     "consumer-style": 1
   },
   "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.tsx": {
     "consumer-style": 4
   },
-  "platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton.tsx": {
-    "private-recipe": 1
-  },
-  "platform/embedded/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions.tsx": {
-    "private-recipe": 1
-  },
   "platform/embedded/app/(shell)/people/_components/directory/directory.tsx": {
     "consumer-style": 1
   },
-  "platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": {
-    "private-recipe": 1
-  },
   "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css": {
     "css-owner": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.tsx": {
-    "private-recipe": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields.tsx": {
-    "private-recipe": 1
   },
   "platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field.tsx": {
     "consumer-style": 1
