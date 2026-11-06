@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
-import { toPlatformTurns } from '@/platform/lib/data/chat-model'
+import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'
 
 const options = {
   streaming: true,
@@ -51,5 +51,31 @@ describe('toPlatformTurns', () => {
     expect(reconnecting.find((turn) => turn.id === 'answer')).toEqual(
       finished.find((turn) => turn.id === 'answer')
     )
+  })
+})
+
+describe('isRunningWait', () => {
+  const pausing: ChatMessage = {
+    id: 'pausing',
+    role: 'assistant',
+    content: '',
+    contentBlocks: [
+      { type: 'tool_call', toolCall: { id: 'wait-1', name: 'wait', status: 'executing' } },
+    ],
+  }
+
+  it('keeps counting down while a steered message trails the running response', () => {
+    const steered: ChatMessage = {
+      id: 'steered',
+      role: 'user',
+      content: 'Also this',
+      steering: { streamId: 'turn' },
+    }
+    expect(isRunningWait([pausing, steered])).toBe(true)
+  })
+
+  it('stops at the next turn: a wait left in an earlier response is not running', () => {
+    const next: ChatMessage = { id: 'next', role: 'user', content: 'Next' }
+    expect(isRunningWait([pausing, next])).toBe(false)
   })
 })

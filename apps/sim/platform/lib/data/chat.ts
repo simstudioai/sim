@@ -27,7 +27,7 @@ import {
 import type { ChatRuntime, ToolDecision } from '@/platform/app/(shell)/_components/chat/model'
 import { platformUrl } from '@/platform/lib/data/base-path'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
-import { toPlatformTurns } from '@/platform/lib/data/chat-model'
+import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
@@ -38,11 +38,7 @@ import { useToolPermissionStore } from '@/stores/tool-permission/store'
 /** A running `wait` counts down, and nothing else re-renders during the pause. */
 function useWaitClock(messages: readonly ChatMessage[], streaming: boolean): number {
   const [now, setNow] = useState(() => Date.now())
-  const waiting =
-    streaming &&
-    (messages.at(-1)?.contentBlocks ?? []).some(
-      (block) => block.toolCall?.name === 'wait' && block.toolCall.status === 'executing'
-    )
+  const waiting = streaming && isRunningWait(messages)
   useEffect(() => {
     if (!waiting) return
     const interval = setInterval(() => setNow(Date.now()), 1_000)
