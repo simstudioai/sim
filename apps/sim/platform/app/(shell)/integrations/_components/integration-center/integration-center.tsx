@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center.module.css'
@@ -62,6 +62,7 @@ export function IntegrationCenter({
   const router = useRouter()
   const search = useSearchParams()
   const [view, setView] = useQueryStates(centerParams, { history: 'replace', shallow: true })
+  const [isOpening, startOpening] = useTransition()
   const [creating, setCreating] = useState<IntegrationResource['kind'] | null>(null)
   const [deleting, setDeleting] = useState<IntegrationResource | null>(null)
   const tabs = library
@@ -115,15 +116,19 @@ export function IntegrationCenter({
     )
     .sort(compare)
     .map((app) => ({ ...app, href: serializeCenter(app.href, { ...view, resource: null }) }))
-  const editing = library?.data.resources.find((resource) => resource.id === view.resource)
+  const editing = isOpening
+    ? undefined
+    : library?.data.resources.find((resource) => resource.id === view.resource)
   const empty =
     current === 'apps'
       ? !visibleApps.length
       : !resources.length && !(current === 'credentials' && credentialLinks.length)
 
-  async function open(resource: IntegrationResource) {
-    await setView({})
-    void setView({ resource: resource.id }, { history: 'push', scroll: false })
+  function open(resource: IntegrationResource) {
+    startOpening(async () => {
+      await setView({})
+      await setView({ resource: resource.id }, { history: 'push', scroll: false })
+    })
   }
 
   async function navigate(href: string) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
@@ -53,12 +53,15 @@ export function IntegrationDetails({
   onAddSkill,
 }: IntegrationDetailsProps) {
   const [view, setView] = useQueryStates(credentialParams)
+  const [isOpening, startOpening] = useTransition()
   const [enrollment, setEnrollment] = useState<{
     connection: CredentialConnection
     credential?: IntegrationCredential
   } | null>(null)
   const [disconnecting, setDisconnecting] = useState<IntegrationCredential | null>(null)
-  const selected = integration.credentials.find((credential) => credential.id === view.credential)
+  const selected = isOpening
+    ? undefined
+    : integration.credentials.find((credential) => credential.id === view.credential)
   const connections = catalog?.connections ?? []
   const selectedScope = selected?.scope
   const workspace =
@@ -81,9 +84,11 @@ export function IntegrationDetails({
       )
     )
   }
-  async function open(credential: IntegrationCredential) {
-    await setView({})
-    void setView({ credential: credential.id }, { history: 'push', scroll: false })
+  function open(credential: IntegrationCredential) {
+    startOpening(async () => {
+      await setView({})
+      await setView({ credential: credential.id }, { history: 'push', scroll: false })
+    })
   }
   function save(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
@@ -271,7 +276,7 @@ export function IntegrationDetails({
           <CredentialList
             integrationName={integration.name}
             credentials={integration.credentials}
-            onOpen={(credential) => void open(credential)}
+            onOpen={open}
           />
           {catalog && (
             <IntegrationCapabilities
