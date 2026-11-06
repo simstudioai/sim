@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationHomeCalendarContract,
@@ -67,19 +67,6 @@ export function useOrganizationHomeCalendar(
   })
 }
 
-function workspaceActivityOptions(organizationId: string) {
-  return queryOptions({
-    queryKey: organizationHomeKeys.workspaceActivity(organizationId),
-    queryFn: ({ signal }) =>
-      requestJson(getOrganizationHomeWorkspaceActivityContract, {
-        params: { id: organizationId },
-        signal,
-      }),
-    staleTime: WORKSPACE_ACTIVITY_STALE_TIME,
-    refetchOnWindowFocus: true,
-  })
-}
-
 function hasRunningWorkspace(data: OrganizationHomeWorkspaceActivity | undefined) {
   return data?.workspaces.some((workspace) => workspace.status === 'running') ?? false
 }
@@ -93,8 +80,15 @@ export function useOrganizationHomeWorkspaceActivity(
   { enabled }: HomeWidgetQueryOptions
 ) {
   return useQuery({
-    ...workspaceActivityOptions(organizationId),
+    queryKey: organizationHomeKeys.workspaceActivity(organizationId),
+    queryFn: ({ signal }) =>
+      requestJson(getOrganizationHomeWorkspaceActivityContract, {
+        params: { id: organizationId },
+        signal,
+      }),
     enabled,
+    staleTime: WORKSPACE_ACTIVITY_STALE_TIME,
+    refetchOnWindowFocus: true,
     refetchInterval: (query) =>
       hasRunningWorkspace(query.state.data) ? WORKSPACE_ACTIVITY_STALE_TIME : false,
   })

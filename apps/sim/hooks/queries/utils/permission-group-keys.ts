@@ -1,5 +1,6 @@
 export const PERMISSION_GROUP_MEMBERS_STALE_TIME = 30 * 1000
 export const PERMISSION_GROUPS_STALE_TIME = 60 * 1000
+export const PERMISSION_EDITOR_CATALOG_STALE_TIME = Number.POSITIVE_INFINITY
 
 export const permissionGroupKeys = {
   all: ['permissionGroups'] as const,
