@@ -35,20 +35,38 @@ function readSessions(): Record<string, Cookies> {
   }
 }
 
+const SIGN_IN_PATH = '/api/auth/sign-in/email'
+/**
+ * Better Auth refuses a fourth sign-in from one client IP while each came within ten seconds of the
+ * last. This suite is one client whoever it signs in as, and each phase of a job starts its sessions
+ * over, so a refusal here is the limiter's and says nothing about the page under test. It waits out
+ * the window; any other answer is left to the assertion after it.
+ */
+const RATE_LIMIT_WINDOW_MS = 10_000
+
 /** Types the credentials into the login page `target` redirected to, as a person would. */
 export async function signInThroughForm(page: Page, email: string, target: string) {
   await page.goto(target)
   await expect(page).toHaveURL(/\/login(?:\?|$)/)
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(async () => {
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (candidate) =>
+          candidate.request().method() === 'POST' &&
+          new URL(candidate.url()).pathname === SIGN_IN_PATH
+      ),
+      page.getByRole('button', { name: 'Sign in', exact: true }).click(),
+    ])
+    expect(response.status(), 'refused by the sign-in rate limit').not.toBe(429)
+  }).toPass({ timeout: 45_000, intervals: [RATE_LIMIT_WINDOW_MS + 1_000] })
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 })
 }
 
 /**
  * Opens `target` as `email`. The first sign-in per person goes through the form, and later ones
- * restore its session: Better Auth allows three sign-ins per address in ten seconds, far fewer than
- * a suite this size needs.
+ * restore its session: the sign-in rate limit allows far fewer than a suite this size needs.
  */
 export async function signIn(page: Page, email: string, target: string) {
   const known = readSessions()[email]
