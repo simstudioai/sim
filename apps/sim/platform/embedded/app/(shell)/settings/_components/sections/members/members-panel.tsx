@@ -9,14 +9,16 @@ import {
   FailureNotice,
   LoadingRows,
   SectionSearch,
-  Tooltip,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-modal/invite-modal'
-import { SectionToolbar } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import {
+  Muted,
+  SectionToolbar,
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ManageCreditsModal } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import {
   InvitationRow,
@@ -77,21 +79,20 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         grow={<SectionSearch subject='members' value={search} onValueChange={setSearch} />}
       >
         {members.canManage && (
-          <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-            <span>
-              <Button
-                variant='primary'
-                size='compact'
-                icon='I074'
-                disabled={!members.canInvite}
-                onClick={() => setInviting(true)}
-              >
-                Invite
-              </Button>
-            </span>
-          </Tooltip>
+          <Button
+            variant='primary'
+            size='compact'
+            icon='I074'
+            disabled={!members.canInvite}
+            onClick={() => setInviting(true)}
+          >
+            Invite
+          </Button>
         )}
       </SectionToolbar>
+      {members.canManage && !members.canInvite && (
+        <Muted>Your permission group or this deployment has turned off invitations.</Muted>
+      )}
 
       {members.canLeave && members.viewerId && (
         <SettingsSection title='Membership'>
