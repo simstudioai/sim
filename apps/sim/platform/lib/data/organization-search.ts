@@ -11,11 +11,11 @@ import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
-import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/use-organization-conversation'
 import {
+  type OrganizationSummaryRequest,
   organizationSearchParsers,
   organizationSearchUrlKeys,
-} from '@/app/o/[organizationId]/search/search-params'
+} from '@/lib/organizations/search-params'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useHydrated } from '@/hooks/use-hydrated'

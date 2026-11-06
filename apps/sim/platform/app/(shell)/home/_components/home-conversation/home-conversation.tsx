@@ -5,15 +5,15 @@ import { useSession } from '@/lib/auth/client'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { HOME_ASSISTANT_DRAFT_SLOT, organizationDraftKey } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
-import {
-  SEARCH_MODES,
-  useSearchViewHref,
-  useStartNewConversation,
-} from '@/app/o/[organizationId]/search/use-organization-search'
 import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { LiveHome } from '@/platform/app/(shell)/home/_components/live-home/live-home'
 import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
+import {
+  SEARCH_MODES,
+  useSearchViewHref,
+  useStartNewConversation,
+} from '@/platform/lib/data/organization-search'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 interface HomeConversationProps {

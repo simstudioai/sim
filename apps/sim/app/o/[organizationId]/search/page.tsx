@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { loadOrganizationSearchView } from '@/app/o/[organizationId]/search/search-params'
+import { loadOrganizationSearchView } from '@/lib/organizations/search-params'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import {
   LandingSkeleton,

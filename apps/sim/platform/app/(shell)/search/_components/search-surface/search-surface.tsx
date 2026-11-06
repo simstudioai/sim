@@ -2,12 +2,7 @@
 
 import { lazy, Suspense, useRef } from 'react'
 import { useOrganization } from '@/lib/organizations/provider'
-import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
-import {
-  useOrganizationSearch,
-  useSearchFieldDraft,
-} from '@/app/o/[organizationId]/search/use-organization-search'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
@@ -26,6 +21,8 @@ import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Surface } from '@/platform/design-system/components/surface/surface'
+import { useGetStartedSteps } from '@/platform/lib/data/get-started'
+import { useOrganizationSearch, useSearchFieldDraft } from '@/platform/lib/data/organization-search'
 
 const FIELD_MAX_HEIGHT_PX = 200
 
