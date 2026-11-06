@@ -3172,6 +3172,13 @@
       "when": 1793920630365,
       "tag": "0453_credential_multiple_accounts_per_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 454,
+      "version": "7",
+      "when": 1793937981518,
+      "tag": "0454_aws_marketplace_license",
+      "breakpoints": true
     }
   ]
 }

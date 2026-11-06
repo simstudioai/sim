@@ -749,6 +749,46 @@ export const adminDashboardIssueEnterpriseContract = defineRouteContract({
   },
 })
 
+const adminDashboardAwsMarketplaceLicenseSchema = z.object({
+  id: z.string(),
+  licenseArn: z.string(),
+  customerAwsAccountId: z.string(),
+  agreementId: z.string().nullable(),
+  status: z.enum(['pending', 'active', 'inactive']),
+  dimension: z.string().nullable(),
+  quantity: z.number().int().nullable(),
+  expiresAt: z.string().nullable(),
+  lastVerifiedAt: z.string(),
+  licenseEventReceivedAt: z.string().nullable(),
+  linkedByUserId: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  companyName: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+export const adminDashboardListAwsMarketplaceLicensesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v1/admin/dashboard/aws-marketplace-licenses',
+  query: adminV1PaginationQuerySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1ListResponseSchema(adminDashboardAwsMarketplaceLicenseSchema),
+  },
+})
+
+export const adminDashboardLinkAwsMarketplaceLicenseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/aws-marketplace-licenses',
+  body: z.object({
+    licenseId: z.string().min(1, 'License ID is required').max(255),
+    organizationId: z.string().min(1, 'Organization ID is required').max(255),
+  }),
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(z.object({ id: z.string(), organizationId: z.string() })),
+  },
+})
+
 export const adminDashboardCreateEnterpriseOwnerClaimContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/dashboard/enterprise-owner-claims',

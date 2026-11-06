@@ -10,6 +10,7 @@ const AUTH_SURFACE_ROOTS = [
   '/oauth-error',
   '/invite',
   '/enterprise/claim',
+  '/marketplace',
   '/unsubscribe',
   '/desktop/auth',
   '/desktop/done',
