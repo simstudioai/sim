@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import {
@@ -136,6 +136,8 @@ const unexpected: Problem[] = []
 let clientAddress = 0
 let currentCheck = 'Setup'
 let currentSection = 'Setup'
+/** Set once every phase has run: until then a clean report only says nothing has failed yet. */
+let finished = false
 /** What the running check expects to fail; everything else is reported. */
 let allowedFailures: RegExp[] = []
 
@@ -152,14 +154,24 @@ function reportCounts() {
   return counts
 }
 
-/** Written as the run goes, so a job that runs out of time still leaves what it found. */
+/** `running` is what a killed run leaves behind when nothing had failed, which is not a pass. */
+function reportStatus() {
+  if (process.exitCode || reportCounts().failed > 0 || unexpected.length > 0) return 'failed'
+  return finished ? 'passed' : 'running'
+}
+
+/**
+ * Written after every check and renamed into place, so a job that runs out of time still leaves
+ * what it found, and a kill mid-write cannot leave half a report.
+ */
 function writeReport() {
   mkdirSync(dirname(reportPath), { recursive: true })
+  const pending = `${reportPath}.partial`
   writeFileSync(
-    reportPath,
+    pending,
     `${JSON.stringify(
       {
-        status: process.exitCode ? 'failed' : 'passed',
+        status: reportStatus(),
         phase,
         counts: reportCounts(),
         checks,
@@ -172,6 +184,7 @@ function writeReport() {
       2
     )}\n`
   )
+  renameSync(pending, reportPath)
 }
 
 function isSameOrigin(address: string) {
@@ -197,6 +210,7 @@ function recordProblem(kind: Problem['kind'], address: string, detail: string) {
   )
     return
   unexpected.push({ check: currentCheck, kind, url: address, detail: truncate(detail, 500) })
+  writeReport()
 }
 
 class Session {
@@ -396,6 +410,7 @@ function record(name: string, section: string, started: number, error?: string) 
   })
   if (error) logger.error(`FAIL ${section}: ${name}`, { error })
   else logger.info(`PASS ${section}: ${name}`)
+  writeReport()
 }
 
 async function check(name: string, run: () => Promise<void>, options: CheckOptions = {}) {
@@ -421,6 +436,7 @@ async function check(name: string, run: () => Promise<void>, options: CheckOptio
 /** A baseline row this environment cannot exercise, kept in the report with its reason. */
 function notProvable(name: string, reason: string) {
   checks.push({ name, section: currentSection, status: 'skipped', durationMs: 0, error: reason })
+  writeReport()
 }
 
 /**
@@ -4651,6 +4667,7 @@ await run()
     await sql.end({ timeout: 5 }).catch(() => {})
     const { failed } = reportCounts()
     if (failed > 0 || checks.length === 0) process.exitCode = 1
+    finished = true
     writeReport()
     logger.info(`Org redesign E2E: ${JSON.stringify(reportCounts())}`)
   })
