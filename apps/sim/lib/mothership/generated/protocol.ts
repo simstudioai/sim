@@ -511,6 +511,54 @@ export interface SteerRequest {
   content: string;
 }
 
+/**
+ * POST /api/streams/steer/v2: steer the live run `messageId` with one immutable input. The
+ * answer is that input's durable disposition, so a caller unsure whether a send landed
+ * retries the same body and learns it. A retry that changes the input under the same
+ * steeringId is refused (409). Only `not_applied` lets the caller send the input as a new
+ * turn, and that turn uses the steeringId as its messageId, so a turn for an input the run
+ * already applied is refused.
+ */
+export const SteerV2Request = z.strictObject({
+  messageId: z.uuid(),
+  steeringId: z.uuid(),
+  content: z.string().min(1).max(1_048_576),
+  /** Attachments and @-mentions, rendered into the steer the way a turn renders its own. */
+  context: ChatPayloadSchema.shape.context,
+  /** Only an organization chat accepts images, as for a turn (400 otherwise). */
+  assistantImages: ChatPayloadSchema.shape.assistantImages,
+});
+export type SteerV2Request = z.infer<typeof SteerV2Request>;
+
+/**
+ * - `queued`: accepted; the run applies it at its next model step, or ends first and then
+ *   reports `not_applied`.
+ * - `applied`: in the run's model input. `eventSeq` is its steering_input event in the chat
+ *   log and `textOffset` the main answer's length when it applied (UTF-16 code units), the
+ *   same values the `steering_applied` frame carries.
+ * - `not_applied`: the run ended, or was stopped, before applying it, and never will.
+ */
+export const SteerV2Response = z.discriminatedUnion("status", [
+  z.strictObject({ steeringId: z.string(), status: z.literal("queued") }),
+  z.strictObject({
+    steeringId: z.string(),
+    status: z.literal("applied"),
+    eventSeq: z.number().int().positive(),
+    textOffset: z.number().int().nonnegative(),
+  }),
+  z.strictObject({ steeringId: z.string(), status: z.literal("not_applied") }),
+]);
+export type SteerV2Response = z.infer<typeof SteerV2Response>;
+
+/** The `run`/`steering_applied` frame: a steer reached the run's model input. */
+export interface StreamSteeringApplied {
+  kind: "steering_applied";
+  steeringId: string;
+  /** As in SteerV2Response's `applied`; absent only on frames from workers without steer v2. */
+  eventSeq?: number | undefined;
+  textOffset?: number | undefined;
+}
+
 /** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
 export const ForkChatRequest = z
   .strictObject({
