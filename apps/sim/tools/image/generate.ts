@@ -127,6 +127,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
     envKeyPrefix: 'FALAI_API_KEY',
     apiKeyParam: 'apiKey',
     byokProviderId: 'falai',
+    exactCostSettlement: 'falai',
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {

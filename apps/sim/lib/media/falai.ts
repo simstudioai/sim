@@ -257,7 +257,7 @@ async function pollFalQueue(
  * Asks fal to drop a request nobody will read: a queued request never runs, and a running
  * one is signalled to stop. Best effort; the generation already failed either way.
  */
-async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: string) {
+export async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: string) {
   try {
     // boundary-raw-fetch: cancels a request on the external Fal.ai queue
     const response = await fetch(cancelUrl, {
@@ -277,8 +277,14 @@ async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: st
   }
 }
 
-/** Records a completed generation's cost; called at most once per generation. */
-export type FalCostRecorder = (cost: FalAICostMetadata) => Promise<void>
+/**
+ * Records a completed generation's cost; called at most once per generation. `envVarName` names
+ * the hosted key that ran it, so a later exact-cost settlement reads the same key.
+ */
+export type FalCostRecorder = (
+  cost: FalAICostMetadata,
+  hostedKey: { envVarName: string }
+) => Promise<void>
 
 /**
  * Bills a request fal has completed. fal charges for it whatever happens next, so the lookup
@@ -286,13 +292,13 @@ export type FalCostRecorder = (cost: FalAICostMetadata) => Promise<void>
  * the generation on our side: reading the media URL and the download a Stop can end.
  */
 export async function recordFalCost(
-  apiKey: string,
+  hostedKey: { apiKey: string; envVarName: string },
   endpointId: string,
   requestId: string,
   onCost: FalCostRecorder
 ): Promise<FalAICostMetadata> {
-  const cost = await getFalAICostMetadata({ apiKey, endpointId, requestId })
-  await onCost(cost)
+  const cost = await getFalAICostMetadata({ apiKey: hostedKey.apiKey, endpointId, requestId })
+  await onCost(cost, { envVarName: hostedKey.envVarName })
   return cost
 }
 

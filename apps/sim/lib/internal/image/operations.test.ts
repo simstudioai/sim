@@ -102,7 +102,7 @@ describe('image operations', () => {
     ])
   })
 
-  it('cancels polling without resubmitting or storing an image', async () => {
+  it('cancels the fal request when polling stops, without resubmitting or storing an image', async () => {
     const controller = new AbortController()
     mocks.fetch.mockResolvedValueOnce(
       Response.json({
@@ -121,12 +121,16 @@ describe('image operations', () => {
       })
     ).rejects.toMatchObject({ name: 'AbortError' })
 
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    expect(mocks.fetch).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^https:\/\/queue\.fal\.run\/.+\/requests\/job-2\/cancel$/),
+      expect.objectContaining({ method: 'PUT' })
+    )
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
-  it('rejects foreign fal queue hosts before sending credentials', async () => {
+  it('rejects foreign fal queue hosts before sending credentials and cancels on the fal queue', async () => {
     mocks.fetch.mockResolvedValueOnce(
       Response.json({
         request_id: 'foreign-job',
@@ -143,6 +147,10 @@ describe('image operations', () => {
     expect(response.status).toBe(500)
     expect(await response.json()).toMatchObject({ error: 'Invalid Fal.ai queue URL' })
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(mocks.fetch).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^https:\/\/queue\.fal\.run\/.+\/requests\/foreign-job\/cancel$/),
+      expect.objectContaining({ method: 'PUT' })
+    )
   })
 
   it('retrieves nested fal jobs from the documented application request path', async () => {
