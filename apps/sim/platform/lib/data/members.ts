@@ -466,25 +466,16 @@ export function useOwnershipTransfer() {
     },
     openBillingPortal: () => {
       setPortalError(null)
-      const portalWindow = window.open('', '_blank')
-      portal.mutate(
+      portal.open(
         {
           context: 'organization',
           organizationId,
           returnUrl: `${window.location.origin}${APP_ENTRY_PATH}`,
         },
-        {
-          onSuccess: (data) => {
-            if (portalWindow) portalWindow.location.href = data.url
-            else window.location.href = data.url
-          },
-          onError: (error) => {
-            portalWindow?.close()
-            setPortalError(
-              getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
-            )
-          },
-        }
+        (error) =>
+          setPortalError(
+            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
+          )
       )
     },
   }

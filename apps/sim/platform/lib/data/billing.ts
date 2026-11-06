@@ -198,20 +198,11 @@ export function useBillingSection(organization: PlatformOrganization) {
 
   function openPortal() {
     if (!canManage) return
-    // Opened before the request so a popup blocker still treats it as the viewer's click.
-    const portalWindow = window.open('', '_blank')
-    portal.mutate(
+    portal.open(
       { context: 'organization', organizationId, returnUrl: window.location.href },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          reportFailure("Couldn't open billing portal", error)
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        reportFailure("Couldn't open billing portal", error)
       }
     )
   }
