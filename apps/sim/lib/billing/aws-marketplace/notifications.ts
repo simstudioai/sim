@@ -1,14 +1,20 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import {
+  AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
+  AWS_MARKETPLACE_TEAM_NOTICE_EVENT,
+  type AwsMarketplaceBuyerNotice,
+  type AwsMarketplaceNoticeTerms,
+  type AwsMarketplaceTeamNotice,
+} from '@/lib/billing/aws-marketplace/notice-events'
 import { AWS_MARKETPLACE_SETUP_TURNAROUND } from '@/lib/billing/aws-marketplace/onboarding'
 import {
   type AwsMarketplaceLicenseRecord,
+  getLicensesByIds,
   getLinkParties,
-  type LicenseTerms,
-  type LicenseVerificationOutcome,
   listOrganizationsLinkedToAccount,
 } from '@/lib/billing/aws-marketplace/repository'
 import { env } from '@/lib/core/config/env'
+import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -16,31 +22,206 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('AwsMarketplaceNotifications')
 
+/**
+ * Enterprise provisioning otherwise sends Stripe invoices, and AWS requires a listed product to be
+ * billed entirely through its dimensions, so paused collection is the one safe way to provision.
+ */
+const PROVISION =
+  'Provision through the admin API (POST /api/v1/admin/dashboard/enterprise-provisioning, or enterprise-owner-claims for a new owner) with pausePaymentCollection: true, sized from the dimension, quantity, and expiry above. Never send a Stripe invoice for a Marketplace customer: AWS bills them.'
+const LINK =
+  'Then link the license with POST /api/v1/admin/dashboard/aws-marketplace-licenses (licenseId, organizationId).'
+const CANCEL =
+  'Cancel the Enterprise subscription with POST /api/v1/admin/dashboard/organizations/<id>/cancellation (timing: immediate), unless a replacement notice for this account follows. The organization goes dormant and is not deleted.'
+const UNCONFIRMED =
+  'Unconfirmed: AWS has returned no entitlement for this license yet. Do not provision it until its status is active.'
+
+interface RenderedEmail {
+  to: string
+  subject: string
+  text: string
+  replyTo?: string | null
+}
+
 function teamInbox(): string {
   return `enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`
 }
 
-function formatTerms(terms: LicenseTerms): string {
-  return `${terms.status}, quantity ${terms.quantity ?? 'not provided'}, expires ${
-    terms.expiresAt?.toISOString() ?? 'never'
+function formatTerms(terms: AwsMarketplaceNoticeTerms): string {
+  return `${terms.status}, dimension ${terms.dimension ?? 'not provided'}, quantity ${
+    terms.quantity ?? 'not provided'
+  }, expires ${terms.expiresAt ?? 'never'}`
+}
+
+async function describeLicense(license: AwsMarketplaceLicenseRecord): Promise<string> {
+  const { organizationName } = await getLinkParties(license.organizationId, null)
+  return `Organization: ${
+    license.organizationId ? `${organizationName ?? 'Unknown'} (${license.organizationId})` : 'None'
+  }
+License ID: ${license.id}
+License: ${license.licenseArn}
+AWS account: ${license.customerAwsAccountId}
+Agreement: ${license.agreementId ?? 'Not provided'}
+Status: ${license.status}
+Dimension: ${license.dimension ?? 'Not provided'}
+Quantity: ${license.quantity ?? 'Not provided'}
+Expires: ${license.expiresAt?.toISOString() ?? 'Never'}
+Contact email: ${license.contactEmail ?? 'Not provided'}
+Company: ${license.companyName ?? 'Not provided'}
+License Updated event: ${
+    license.licenseEventReceivedAt
+      ? `received ${license.licenseEventReceivedAt.toISOString()}`
+      : 'not received yet; AWS says not to activate a subscription until it arrives'
   }`
 }
 
-function licenseLines(license: AwsMarketplaceLicenseRecord): string {
-  return `License: ${license.licenseArn}
-AWS account: ${license.customerAwsAccountId}
-Agreement: ${license.agreementId ?? 'Not provided'}
-Dimension: ${license.dimension ?? 'Not provided'}
-Terms: ${formatTerms(license)}`
+/** What is left for the team to do about one license AWS has just changed. */
+function nextStepForTerms(
+  license: AwsMarketplaceLicenseRecord,
+  after: AwsMarketplaceNoticeTerms
+): string {
+  if (after.status === 'inactive' && license.renewedAgreementId) {
+    return `Agreement ${license.renewedAgreementId} replaced this license's agreement. Do not cancel on this notice: AWS grants the replacement its own license, so check that one.`
+  }
+  if (after.status === 'inactive') return CANCEL
+  if (after.status === 'active' && !license.organizationId) return `${PROVISION} ${LINK}`
+  return 'Update the Enterprise provisioning to match. Never send a Stripe invoice for a Marketplace customer: AWS bills them.'
 }
 
-/** Provisioning is manual, so a failed send is logged and never undoes the write it reports. */
-async function send(
-  notice: string,
-  licenseId: string,
-  email: { to: string; subject: string; text: string; replyTo?: string | null }
-): Promise<void> {
-  try {
+/** Each notice's subject, opening, and next step; the license details between them are shared. */
+async function teamNoticeCopy(
+  notice: AwsMarketplaceTeamNotice,
+  license: AwsMarketplaceLicenseRecord
+): Promise<{ subject: string; opening: string; next: string; replyTo?: string | null }> {
+  const account = `AWS account ${license.customerAwsAccountId}`
+  switch (notice.kind) {
+    case 'new-license': {
+      const linked = await listOrganizationsLinkedToAccount({
+        customerAwsAccountId: license.customerAwsAccountId,
+        productCode: license.productCode,
+        excludingLicenseArn: license.licenseArn,
+      })
+      const others = linked.length
+        ? linked.map((org) => `${org.name} (${org.id})`).join(', ')
+        : 'None'
+      return {
+        subject: `New license for ${account}`,
+        opening: `${
+          notice.source === 'registration'
+            ? 'A buyer started AWS Marketplace setup. They may not finish it.'
+            : 'An AWS Marketplace license appeared that no buyer has registered.'
+        }${license.status === 'pending' ? `\n${UNCONFIRMED}` : ''}
+Organizations linked to other licenses of this account: ${others}`,
+        next: license.organizationId
+          ? 'It carries on the organization of the license it replaces. Keep that organization provisioned to the terms above.'
+          : `${PROVISION} ${LINK}`,
+      }
+    }
+    case 'taken': {
+      const { userName, userEmail } = await getLinkParties(null, notice.userId)
+      return {
+        subject: license.organizationId
+          ? `Linked to an organization: ${account}`
+          : `${license.contactEmail ?? userEmail ?? notice.userId} (no organization)`,
+        opening: `AWS Marketplace license ${
+          license.organizationId ? 'linked' : 'registered to an account, no organization yet'
+        }. Taken by ${userName ?? 'Unknown'} <${userEmail ?? 'unknown'}> (${notice.userId}). The buyer was told to wait for you to contact them.`,
+        next: license.organizationId
+          ? PROVISION
+          : `Create the Enterprise organization for this buyer. ${PROVISION} ${LINK}`,
+        replyTo: license.contactEmail ?? userEmail,
+      }
+    }
+    case 'contact':
+      return {
+        subject: `Buyer contact: ${account}`,
+        opening: `A buyer left contact details while AWS confirms their subscription.${
+          license.status === 'pending' ? `\n${UNCONFIRMED}` : ''
+        }`,
+        next: 'Nothing to provision on this notice; a separate one follows when AWS confirms it.',
+        replyTo: license.contactEmail,
+      }
+    case 'terms-changed':
+      return {
+        subject: `License ${notice.before.status} → ${notice.after.status}: ${account}`,
+        opening: `AWS Marketplace changed what this license grants.
+Before: ${formatTerms(notice.before)}
+After: ${formatTerms(notice.after)}`,
+        next: nextStepForTerms(license, notice.after),
+      }
+    case 'renewed':
+      return {
+        subject: `Agreement replaced: ${account}`,
+        opening: `An AWS Marketplace agreement was replaced.
+Previous agreement: ${notice.previousAgreementId}
+New agreement: ${notice.agreementId}`,
+        next: 'AWS grants a new license with every new agreement. It inherits the organization below when it arrives, and a notice follows. Do not cancel because the previous license ends.',
+      }
+    case 'advisory':
+      return {
+        subject: `Agreement advisory ${notice.state}: ${account}`,
+        opening: `AWS Marketplace ${notice.state} an advisory on agreement ${notice.agreementId}.
+Event detail: ${notice.detail}`,
+        next: 'Review the agreement in the AWS Marketplace Management Portal.',
+      }
+  }
+}
+
+async function renderTeamNotice(notice: AwsMarketplaceTeamNotice): Promise<RenderedEmail | null> {
+  const licenses = await getLicensesByIds(
+    'licenseIds' in notice ? notice.licenseIds : [notice.licenseId]
+  )
+  const license = licenses[0]
+  if (!license) return null
+  const copy = await teamNoticeCopy(notice, license)
+  const described = await Promise.all(licenses.map(describeLicense))
+  return {
+    to: teamInbox(),
+    subject: `[AWS MARKETPLACE] ${copy.subject}`,
+    replyTo: copy.replyTo,
+    text: `${copy.opening}
+
+${described.join('\n\n')}
+
+${copy.next}
+`,
+  }
+}
+
+/** AWS's manual-setup guidance, in its own order: being set up, wait, turnaround, contact. */
+async function renderBuyerNotice(notice: AwsMarketplaceBuyerNotice): Promise<RenderedEmail | null> {
+  const [license] = await getLicensesByIds([notice.licenseId])
+  if (!license?.contactEmail) return null
+  const brand = getBrandConfig()
+  return {
+    to: license.contactEmail,
+    subject: `Your ${brand.name} account is being set up`,
+    replyTo: brand.supportEmail,
+    text: `Thanks for subscribing to ${brand.name} through AWS Marketplace.
+
+Your account is being set up. Please wait for us to contact you. We expect to finish ${AWS_MARKETPLACE_SETUP_TURNAROUND}.
+
+Questions? Contact ${brand.supportEmail}.
+`,
+  }
+}
+
+/**
+ * Sends one rendered notice. A failure throws, so the outbox retries it with backoff; the
+ * checkpoint keeps a crash between the send and the completion from sending it twice.
+ */
+function noticeHandler<T extends object>(
+  render: (notice: T) => Promise<RenderedEmail | null>
+): OutboxHandler<unknown> {
+  return async (rawPayload, context) => {
+    const payload = rawPayload as T & { sentAt?: string }
+    if (payload.sentAt) return
+    const email = await render(payload)
+    if (!email) {
+      logger.warn('Skipping an AWS Marketplace notice with nothing left to say', {
+        eventId: context.eventId,
+      })
+      return
+    }
     const result = await sendEmail({
       to: [email.to],
       subject: email.subject,
@@ -49,216 +230,12 @@ async function send(
       ...(email.replyTo && { replyTo: email.replyTo }),
       emailType: 'transactional',
     })
-    if (result.success) {
-      logger.info('Sent an AWS Marketplace notice', { notice, licenseId })
-      return
-    }
-    logger.warn('Could not send an AWS Marketplace notice', {
-      notice,
-      licenseId,
-      message: result.message,
-    })
-  } catch (error) {
-    logger.warn('Could not send an AWS Marketplace notice', {
-      notice,
-      licenseId,
-      message: getErrorMessage(error, 'Unknown error'),
-    })
+    if (!result.success) throw new Error(result.message || 'Failed to send the notice')
+    await context.checkpointPayload({ sentAt: new Date().toISOString() })
   }
 }
 
-/**
- * Every notice runs after its write committed, with the claim already spent, so nothing in it
- * (the lookups included) may fail the request; the warning is the fallback trail.
- */
-async function bestEffort(
-  notice: string,
-  licenseId: string | null,
-  notify: () => Promise<void>
-): Promise<void> {
-  try {
-    await notify()
-  } catch (error) {
-    logger.warn('Could not prepare an AWS Marketplace notice', {
-      notice,
-      licenseId,
-      message: getErrorMessage(error, 'Unknown error'),
-    })
-  }
-}
-
-/**
- * Tells the team a buyer took a license, for an organization or for their account alone, so
- * they provision it the way an Enterprise deal is provisioned. No subscription is changed here.
- */
-export function notifyTeamOfTakenLicense(
-  license: AwsMarketplaceLicenseRecord,
-  organizationId: string | null,
-  userId: string
-): Promise<void> {
-  return bestEffort('team notice of a taken AWS Marketplace license', license.id, () =>
-    sendTakenLicenseNotice(license, organizationId, userId)
-  )
-}
-
-async function sendTakenLicenseNotice(
-  license: AwsMarketplaceLicenseRecord,
-  organizationId: string | null,
-  userId: string
-): Promise<void> {
-  const parties = await getLinkParties(organizationId, userId)
-  const organization = organizationId
-    ? `${parties.organizationName ?? 'Unknown'} (${organizationId})`
-    : 'None yet'
-  const instructions = organizationId
-    ? 'Provision this organization the way Enterprise deals are provisioned. No subscription was changed.'
-    : 'Registered to an account, no organization yet. Create the Enterprise organization for this buyer and link it. No subscription was changed.'
-  await send('team notice of a taken AWS Marketplace license', license.id, {
-    to: teamInbox(),
-    subject: `[AWS MARKETPLACE] ${
-      organizationId
-        ? (parties.organizationName ?? organizationId)
-        : `${license.contactEmail ?? parties.userEmail ?? userId} (no organization)`
-    }`,
-    replyTo: license.contactEmail ?? parties.userEmail,
-    text: `AWS Marketplace license ${organizationId ? 'linked' : 'registered to an account'}
-Organization: ${organization}
-Taken by: ${parties.userName ?? 'Unknown'} <${parties.userEmail ?? 'unknown'}> (${userId})
-Contact email: ${license.contactEmail ?? 'Not provided'}
-Company: ${license.companyName ?? 'Not provided'}
-${licenseLines(license)}
-
-${instructions}
-`,
-  })
-}
-
-/** Confirms the registration to the buyer and says what happens next. */
-export function notifyBuyerOfTakenLicense(license: AwsMarketplaceLicenseRecord): Promise<void> {
-  return bestEffort('buyer confirmation of an AWS Marketplace license', license.id, () =>
-    sendBuyerConfirmation(license)
-  )
-}
-
-async function sendBuyerConfirmation(license: AwsMarketplaceLicenseRecord): Promise<void> {
-  if (!license.contactEmail) return
-  const brand = getBrandConfig()
-  await send('buyer confirmation of an AWS Marketplace license', license.id, {
-    to: license.contactEmail,
-    subject: `Your ${brand.name} AWS Marketplace subscription is registered`,
-    replyTo: brand.supportEmail,
-    text: `Your ${brand.name} subscription from AWS Marketplace is registered.
-
-Next steps: our team will set up your Enterprise workspace ${AWS_MARKETPLACE_SETUP_TURNAROUND} and email you when it is ready.
-
-Questions? Contact ${brand.supportEmail}.
-`,
-  })
-}
-
-/**
- * Tells the team when AWS changed what a license grants, or described a license nobody has
- * registered, so a lapsed buyer does not keep Enterprise and a renewal is not missed. An
- * unchanged re-verify sends nothing. A new license is never linked automatically.
- */
-export function notifyTeamOfVerification(outcome: LicenseVerificationOutcome): Promise<void> {
-  if (outcome.kind === 'skipped' || (outcome.kind === 'updated' && !outcome.changed)) {
-    return Promise.resolve()
-  }
-  return bestEffort('team notice of an AWS Marketplace license change', outcome.license.id, () =>
-    sendVerificationNotice(outcome)
-  )
-}
-
-async function sendVerificationNotice(
-  outcome: Exclude<LicenseVerificationOutcome, { kind: 'skipped' }>
-): Promise<void> {
-  const { license } = outcome
-  if (outcome.kind === 'created') {
-    const linked = await listOrganizationsLinkedToAccount({
-      customerAwsAccountId: license.customerAwsAccountId,
-      productCode: license.productCode,
-      excludingLicenseArn: license.licenseArn,
-    })
-    await send('team notice of a new AWS Marketplace license', license.id, {
-      to: teamInbox(),
-      subject: `[AWS MARKETPLACE] New license for AWS account ${license.customerAwsAccountId}`,
-      text: `A new AWS Marketplace license appeared that no buyer has registered.
-${licenseLines(license)}
-Organizations linked to other licenses of this account: ${
-        linked.length ? linked.map((org) => `${org.name} (${org.id})`).join(', ') : 'None'
-      }
-
-It is not linked to any organization. Link it if it renews an existing customer.
-`,
-    })
-    return
-  }
-  const parties = license.organizationId
-    ? await getLinkParties(license.organizationId, license.linkedByUserId)
-    : null
-  await send('team notice of a changed AWS Marketplace license', license.id, {
-    to: teamInbox(),
-    subject: `[AWS MARKETPLACE] License ${outcome.before.status} → ${license.status}: ${
-      parties?.organizationName ?? `AWS account ${license.customerAwsAccountId}`
-    }`,
-    text: `AWS Marketplace changed what this license grants.
-Organization: ${
-      license.organizationId
-        ? `${parties?.organizationName ?? 'Unknown'} (${license.organizationId})`
-        : 'None'
-    }
-${licenseLines(license)}
-Before: ${formatTerms(outcome.before)}
-After: ${formatTerms(license)}
-
-Update the organization's Enterprise provisioning to match.
-`,
-  })
-}
-
-/**
- * Tells the team an agreement renewed, naming the organizations its licenses belong to. The
- * renewal may issue a new license ARN (AWS does not say), so nothing is linked automatically.
- */
-export function notifyTeamOfAgreementRenewal(
-  licenses: AwsMarketplaceLicenseRecord[],
-  renewal: { previousAgreementId: string; agreementId: string }
-): Promise<void> {
-  return bestEffort('team notice of a renewed AWS Marketplace agreement', null, () =>
-    sendRenewalNotice(licenses, renewal)
-  )
-}
-
-async function sendRenewalNotice(
-  licenses: AwsMarketplaceLicenseRecord[],
-  renewal: { previousAgreementId: string; agreementId: string }
-): Promise<void> {
-  const described = await Promise.all(
-    licenses.map(async (license) => {
-      const { organizationName } = await getLinkParties(license.organizationId, null)
-      const organization = license.organizationId
-        ? `${organizationName ?? 'Unknown'} (${license.organizationId})`
-        : 'None'
-      return { license, organization, organizationName }
-    })
-  )
-  const first = described[0]
-  if (!first) return
-  await send('team notice of a renewed AWS Marketplace agreement', first.license.id, {
-    to: teamInbox(),
-    subject: `[AWS MARKETPLACE] Agreement renewed: ${
-      first.organizationName ?? `AWS account ${first.license.customerAwsAccountId}`
-    }`,
-    text: `An AWS Marketplace agreement renewed.
-Previous agreement: ${renewal.previousAgreementId}
-New agreement: ${renewal.agreementId}
-
-${described
-  .map(({ license, organization }) => `Organization: ${organization}\n${licenseLines(license)}`)
-  .join('\n\n')}
-
-The renewal may issue a new license. If one appears, link it to the same organization. Nothing was linked automatically.
-`,
-  })
-}
+export const awsMarketplaceOutboxHandlers = {
+  [AWS_MARKETPLACE_TEAM_NOTICE_EVENT]: noticeHandler(renderTeamNotice),
+  [AWS_MARKETPLACE_BUYER_NOTICE_EVENT]: noticeHandler(renderBuyerNotice),
+} as const satisfies OutboxHandlerRegistry

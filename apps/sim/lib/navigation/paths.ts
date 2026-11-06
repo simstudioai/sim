@@ -25,6 +25,9 @@ export const WORKSPACES_PATH = '/workspace'
 /** Opens full settings in the viewer's most recent accessible workspace. */
 export const WORKSPACE_SETTINGS_PATH = `${WORKSPACES_PATH}?redirect=settings`
 
+/** Opens billing settings in the viewer's most recent accessible workspace. */
+export const WORKSPACE_BILLING_PATH = `${WORKSPACES_PATH}?redirect=billing`
+
 /** Root of the organization surface; `/o` alone resolves like {@link APP_ENTRY_PATH}. */
 const ORGANIZATIONS_PATH = '/o'
 

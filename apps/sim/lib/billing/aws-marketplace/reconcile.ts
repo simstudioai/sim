@@ -1,8 +1,14 @@
-import { DeleteMessageCommand, type Message, ReceiveMessageCommand } from '@aws-sdk/client-sqs'
+import {
+  ChangeMessageVisibilityCommand,
+  DeleteMessageCommand,
+  type Message,
+  ReceiveMessageCommand,
+} from '@aws-sdk/client-sqs'
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import { getEventsQueueClient } from '@/lib/billing/aws-marketplace/client'
 import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
 import {
@@ -10,13 +16,10 @@ import {
   verifyLicense,
 } from '@/lib/billing/aws-marketplace/entitlements'
 import {
-  notifyTeamOfAgreementRenewal,
-  notifyTeamOfVerification,
-} from '@/lib/billing/aws-marketplace/notifications'
-import {
+  applyAgreementRenewal,
+  enqueueAgreementAdvisory,
   listLicensesDueForReverify,
   listLicensesForAgreement,
-  markLicensesRenewed,
   markVerificationAttempted,
   recordLicenseVerification,
 } from '@/lib/billing/aws-marketplace/repository'
@@ -25,10 +28,8 @@ import { env } from '@/lib/core/config/env'
 const logger = createLogger('AwsMarketplaceReconcile')
 
 const EVENT_SOURCE = 'aws.agreement-marketplace'
-const LICENSE_EVENT_TYPES = new Set([
-  'License Updated - Manufacturer',
-  'License Deprovisioned - Manufacturer',
-])
+const LICENSE_UPDATED_EVENT = 'License Updated - Manufacturer'
+const LICENSE_DEPROVISIONED_EVENT = 'License Deprovisioned - Manufacturer'
 const AGREEMENT_ENDED_EVENT_TYPES = new Set([
   'Purchase Agreement Ended - Proposer',
   'Purchase Agreement Ended - Manufacturer',
@@ -37,20 +38,25 @@ const AGREEMENT_CREATED_EVENT_TYPES = new Set([
   'Purchase Agreement Created - Proposer',
   'Purchase Agreement Created - Manufacturer',
 ])
+const ADVISORY_STATE_BY_EVENT_TYPE = new Map<string, 'issued' | 'resolved'>([
+  ['Purchase Agreement Advisory Issued - Manufacturer', 'issued'],
+  ['Purchase Agreement Advisory Resolved - Manufacturer', 'resolved'],
+])
+const MAX_ADVISORY_DETAIL_LENGTH = 2_000
 
 /** SQS caps one receive at 10 messages; a run drains at most this many batches. */
 const RECEIVE_BATCH_SIZE = 10
 const MAX_RECEIVE_BATCHES = 10
 const RECEIVE_WAIT_SECONDS = 2
-/** One message's or stale license's entitlement reads, retries included, are aborted past this. */
-const MESSAGE_BUDGET_MS = 15_000
-/** Messages in a batch are handled one after another. */
-const BATCH_BUDGET_MS = RECEIVE_BATCH_SIZE * MESSAGE_BUDGET_MS
+/** One license's read is aborted here, whatever the SDK's three attempts have reached. */
+const LICENSE_READ_BUDGET_MS = 15_000
 /**
- * 10 messages × 15 s = 150 s per batch, so each receive hides its batch for 180 s (above the work,
- * independent of the queue's 5-minute default), and a run starts no batch or re-verify that could
- * end past 6 minutes, well inside the cron's 10-minute lock.
+ * A batch of 10 single-license messages reads for at most 10 × 15 s = 150 s, and notices are only
+ * enqueued, so each receive hides its batch for 180 s; a multi-license message extends its own
+ * visibility per license, and if that lets a sibling reappear, handling it again is idempotent. A
+ * run starts no batch or re-verify that could read past 6 minutes, inside the cron's 10-minute lock.
  */
+const BATCH_BUDGET_MS = RECEIVE_BATCH_SIZE * LICENSE_READ_BUDGET_MS
 const VISIBILITY_TIMEOUT_SECONDS = 180
 const RUN_BUDGET_MS = 6 * 60 * 1000
 
@@ -61,6 +67,8 @@ interface AwsMarketplaceReconcileSummary {
   received: number
   applied: number
   discarded: number
+  /** Named a license that has no row and that AWS described nothing to create one from. */
+  skipped: number
   retained: number
   reverified: number
   reverifyFailed: number
@@ -71,15 +79,32 @@ interface AwsMarketplaceReconcileSummary {
 /** Whether work that may take up to `workMs` still ends inside the run's budget. */
 type BudgetCheck = (workMs: number) => boolean
 
+interface DrainContext {
+  productCode: string
+  queueUrl: string
+  summary: AwsMarketplaceReconcileSummary
+  fits: BudgetCheck
+}
+
 type MarketplaceEvent =
-  | { kind: 'license'; licenseArn: string; productCode: string; agreementId: string | null }
-  | { kind: 'agreement-ended'; agreementId: string }
   | {
-      kind: 'agreement-created'
-      agreementId: string
-      intent: string | null
-      previousAgreementId: string | null
+      kind: 'license'
+      deprovisioned: boolean
+      licenseArn: string | null
+      productCode: string | null
+      agreementId: string | null
+      acceptorAccountId: string | null
+      occurredAt: Date | null
     }
+  | { kind: 'agreement-ended'; agreementId: string }
+  | { kind: 'agreement-created'; agreementId: string; previousAgreementId: string | null }
+  | { kind: 'advisory'; agreementId: string; state: 'issued' | 'resolved'; detail: string }
+
+function parseEventTime(value: unknown): Date | null {
+  const text = toStringOrNull(value)
+  const time = text ? new Date(text) : null
+  return time && Number.isFinite(time.getTime()) ? time : null
+}
 
 /**
  * The event a queue message carries, or null for a body that is not one. Agreement events name no
@@ -98,12 +123,16 @@ function parseMarketplaceEvent(body: string | undefined): MarketplaceEvent | nul
   const detail = toRecord(event.detail)
   const agreement = toRecord(detail.agreement)
   const agreementId = toStringOrNull(agreement.id)
-  if (LICENSE_EVENT_TYPES.has(detailType)) {
-    const licenseArn = toStringOrNull(toRecord(detail.license).arn)
-    const productCode = toStringOrNull(toRecord(detail.product).code)
-    return licenseArn && productCode
-      ? { kind: 'license', licenseArn, productCode, agreementId }
-      : null
+  if (detailType === LICENSE_UPDATED_EVENT || detailType === LICENSE_DEPROVISIONED_EVENT) {
+    return {
+      kind: 'license',
+      deprovisioned: detailType === LICENSE_DEPROVISIONED_EVENT,
+      licenseArn: toStringOrNull(toRecord(detail.license).arn),
+      productCode: toStringOrNull(toRecord(detail.product).code),
+      agreementId,
+      acceptorAccountId: toStringOrNull(toRecord(detail.acceptor).accountId),
+      occurredAt: parseEventTime(event.time),
+    }
   }
   if (!agreementId) return null
   if (AGREEMENT_ENDED_EVENT_TYPES.has(detailType)) return { kind: 'agreement-ended', agreementId }
@@ -111,75 +140,186 @@ function parseMarketplaceEvent(body: string | undefined): MarketplaceEvent | nul
     return {
       kind: 'agreement-created',
       agreementId,
-      intent: toStringOrNull(agreement.intent),
       previousAgreementId: toStringOrNull(agreement.previousAgreementId),
+    }
+  }
+  const advisoryState = ADVISORY_STATE_BY_EVENT_TYPE.get(detailType)
+  if (advisoryState) {
+    return {
+      kind: 'advisory',
+      agreementId,
+      state: advisoryState,
+      detail: truncate(JSON.stringify(detail), MAX_ADVISORY_DETAIL_LENGTH),
     }
   }
   return null
 }
 
-type MessageOutcome = 'applied' | 'discarded' | 'retained'
+type MessageOutcome = 'applied' | 'discarded' | 'skipped' | 'retained'
 
-/** Stamps the attempt, asks the Entitlement Service, records its answer, and tells the team. */
+/** Stamps the attempt, asks the Entitlement Service, and records its answer. */
 async function reverifyLicense(
   productCode: string,
   licenseArn: string,
-  signal: AbortSignal,
-  agreementId?: string | null
-): Promise<void> {
+  options: {
+    ended?: boolean
+    agreement?: { agreementId: string | null; seenAt: Date | null }
+    fallbackAccountId?: string | null
+    licenseEventReceivedAt?: Date
+  } = {}
+) {
   const verifiedAt = new Date()
   await markVerificationAttempted(licenseArn, verifiedAt)
-  const summary = await verifyLicense(productCode, licenseArn, signal)
+  const summary = await verifyLicense(
+    productCode,
+    licenseArn,
+    AbortSignal.timeout(LICENSE_READ_BUDGET_MS)
+  )
   const outcome = await recordLicenseVerification({
     licenseArn,
     productCode,
-    agreementId,
-    summary,
-    verifiedAt,
+    verification: { summary, verifiedAt, ended: options.ended },
+    agreement: options.agreement,
+    fallbackAccountId: options.fallbackAccountId,
+    licenseEventReceivedAt: options.licenseEventReceivedAt,
   })
-  await notifyTeamOfVerification(outcome)
+  return { summary, outcome }
 }
 
-/** An agreement ID we hold no license for is normal: the seller account has other products. */
+async function extendVisibility(
+  context: DrainContext,
+  message: Message,
+  messageId: string | undefined
+) {
+  if (!message.ReceiptHandle) return
+  try {
+    await getEventsQueueClient().send(
+      new ChangeMessageVisibilityCommand({
+        QueueUrl: context.queueUrl,
+        ReceiptHandle: message.ReceiptHandle,
+        VisibilityTimeout: VISIBILITY_TIMEOUT_SECONDS,
+      })
+    )
+  } catch (error) {
+    logger.warn('Could not extend an AWS Marketplace event; it may be redelivered', {
+      messageId,
+      message: getErrorMessage(error, 'Unknown error'),
+    })
+  }
+}
+
+/**
+ * Each license gets its own read bound and commits on its own, so one that fails or runs out of
+ * time costs no other's progress. The message stays queued until all of them have been read, and
+ * a redelivery starts with those least recently attempted. An agreement ID with no license is
+ * normal: the seller account has other products.
+ */
 async function applyAgreementEnded(
-  productCode: string,
+  context: DrainContext,
   agreementId: string,
-  messageId: string | undefined,
-  signal: AbortSignal
+  message: Message
 ): Promise<MessageOutcome> {
-  const licenseArns = await listLicensesForAgreement(productCode, agreementId)
+  const messageId = message.MessageId
+  const licenseArns = await listLicensesForAgreement(context.productCode, agreementId)
   if (licenseArns.length === 0) {
     logger.info('Ignoring an AWS Marketplace agreement event for no stored license', { messageId })
     return 'discarded'
   }
-  for (const licenseArn of licenseArns) {
-    await reverifyLicense(productCode, licenseArn, signal)
+  let incomplete = false
+  for (const [index, licenseArn] of licenseArns.entries()) {
+    if (!context.fits(LICENSE_READ_BUDGET_MS)) {
+      context.summary.outOfBudget = true
+      return 'retained'
+    }
+    if (index > 0) await extendVisibility(context, message, messageId)
+    try {
+      await reverifyLicense(context.productCode, licenseArn, { ended: true })
+    } catch (error) {
+      if (isInvalidEntitlementRequest(error)) {
+        logger.warn('The Entitlement Service rejected a license of an ended agreement', {
+          messageId,
+          message: getErrorMessage(error, 'Unknown error'),
+        })
+        continue
+      }
+      incomplete = true
+      logger.warn('Could not re-verify a license of an ended agreement', {
+        messageId,
+        message: getErrorMessage(error, 'Unknown error'),
+      })
+    }
+  }
+  return incomplete ? 'retained' : 'applied'
+}
+
+async function applyLicenseEvent(
+  context: DrainContext,
+  event: Extract<MarketplaceEvent, { kind: 'license' }>,
+  messageId: string | undefined
+): Promise<MessageOutcome> {
+  const { productCode } = context
+  if (event.productCode !== productCode) {
+    logger.warn('Discarding an AWS Marketplace event for another product', { messageId })
+    return 'discarded'
+  }
+  if (!event.licenseArn) {
+    logger.warn('Leaving an AWS Marketplace license event with no ARN for the dead-letter queue', {
+      messageId,
+    })
+    return 'retained'
+  }
+  const { summary, outcome } = await reverifyLicense(productCode, event.licenseArn, {
+    ended: event.deprovisioned,
+    agreement: { agreementId: event.agreementId, seenAt: event.occurredAt },
+    fallbackAccountId: event.acceptorAccountId,
+    licenseEventReceivedAt: event.deprovisioned ? undefined : new Date(),
+  })
+  if (outcome.kind === 'skipped') {
+    logger.warn('Skipping an AWS Marketplace event for a license AWS does not describe', {
+      messageId,
+    })
+    return 'skipped'
+  }
+  if (event.deprovisioned && summary.active) {
+    logger.warn('AWS deprovisioned a license its Entitlement Service still reports as current', {
+      messageId,
+      licenseId: outcome.license.id,
+    })
+    return 'retained'
   }
   return 'applied'
 }
 
-async function applyAgreementCreated(
-  productCode: string,
-  event: Extract<MarketplaceEvent, { kind: 'agreement-created' }>,
-  messageId: string | undefined
+async function applyEvent(
+  context: DrainContext,
+  event: MarketplaceEvent,
+  message: Message
 ): Promise<MessageOutcome> {
-  const previousAgreementId = event.intent === 'RENEW' ? event.previousAgreementId : null
-  const renewed = previousAgreementId
-    ? await markLicensesRenewed({
-        productCode,
-        previousAgreementId,
-        agreementId: event.agreementId,
-      })
-    : []
-  if (!previousAgreementId || renewed.length === 0) {
-    logger.info('Ignoring an AWS Marketplace agreement event for no stored license', { messageId })
-    return 'discarded'
+  const { productCode } = context
+  const messageId = message.MessageId
+  if (event.kind === 'license') return applyLicenseEvent(context, event, messageId)
+  if (event.kind === 'agreement-ended') {
+    return applyAgreementEnded(context, event.agreementId, message)
   }
-  await notifyTeamOfAgreementRenewal(renewed, {
-    previousAgreementId,
-    agreementId: event.agreementId,
-  })
-  return 'applied'
+  const involved =
+    event.kind === 'advisory'
+      ? await enqueueAgreementAdvisory({
+          productCode,
+          agreementId: event.agreementId,
+          state: event.state,
+          detail: event.detail,
+          messageId: messageId ?? event.agreementId,
+        })
+      : event.previousAgreementId
+        ? await applyAgreementRenewal({
+            productCode,
+            previousAgreementId: event.previousAgreementId,
+            agreementId: event.agreementId,
+          })
+        : false
+  if (involved) return 'applied'
+  logger.info('Ignoring an AWS Marketplace agreement event for no stored license', { messageId })
+  return 'discarded'
 }
 
 /**
@@ -187,27 +327,15 @@ async function applyAgreementCreated(
  * never apply is discarded; one that failed for a reason that may pass is retained, so SQS
  * redelivers it and the dead-letter queue catches one that never succeeds.
  */
-async function handleMessage(productCode: string, message: Message): Promise<MessageOutcome> {
+async function handleMessage(context: DrainContext, message: Message): Promise<MessageOutcome> {
   const messageId = message.MessageId
   const event = parseMarketplaceEvent(message.Body)
   if (!event) {
     logger.warn('Discarding an unrecognized AWS Marketplace event', { messageId })
     return 'discarded'
   }
-  if (event.kind === 'license' && event.productCode !== productCode) {
-    logger.warn('Discarding an AWS Marketplace event for another product', { messageId })
-    return 'discarded'
-  }
   try {
-    const signal = AbortSignal.timeout(MESSAGE_BUDGET_MS)
-    if (event.kind === 'agreement-ended') {
-      return await applyAgreementEnded(productCode, event.agreementId, messageId, signal)
-    }
-    if (event.kind === 'agreement-created') {
-      return await applyAgreementCreated(productCode, event, messageId)
-    }
-    await reverifyLicense(productCode, event.licenseArn, signal, event.agreementId)
-    return 'applied'
+    return await applyEvent(context, event, message)
   } catch (error) {
     if (isInvalidEntitlementRequest(error)) {
       logger.warn('Discarding an AWS Marketplace event the Entitlement Service rejected', {
@@ -224,12 +352,8 @@ async function handleMessage(productCode: string, message: Message): Promise<Mes
   }
 }
 
-async function drainEvents(
-  productCode: string,
-  queueUrl: string,
-  summary: AwsMarketplaceReconcileSummary,
-  fits: BudgetCheck
-): Promise<void> {
+async function drainEvents(context: DrainContext): Promise<void> {
+  const { queueUrl, summary, fits } = context
   const client = getEventsQueueClient()
   for (let batch = 0; batch < MAX_RECEIVE_BATCHES; batch++) {
     if (!fits(BATCH_BUDGET_MS)) {
@@ -257,7 +381,7 @@ async function drainEvents(
 
     for (const message of messages) {
       summary.received++
-      const outcome = await handleMessage(productCode, message)
+      const outcome = await handleMessage(context, message)
       summary[outcome]++
       if (outcome === 'retained' || !message.ReceiptHandle) continue
       try {
@@ -282,12 +406,12 @@ async function reverifyStaleLicenses(
   const cutoff = new Date(Date.now() - REVERIFY_AFTER_MS)
   const licenseArns = await listLicensesDueForReverify(cutoff, REVERIFY_BATCH_SIZE)
   for (const licenseArn of licenseArns) {
-    if (!fits(MESSAGE_BUDGET_MS)) {
+    if (!fits(LICENSE_READ_BUDGET_MS)) {
       summary.outOfBudget = true
       return
     }
     try {
-      await reverifyLicense(productCode, licenseArn, AbortSignal.timeout(MESSAGE_BUDGET_MS))
+      await reverifyLicense(productCode, licenseArn)
       summary.reverified++
     } catch (error) {
       summary.reverifyFailed++
@@ -311,6 +435,7 @@ export async function reconcileAwsMarketplaceLicenses(): Promise<AwsMarketplaceR
     received: 0,
     applied: 0,
     discarded: 0,
+    skipped: 0,
     retained: 0,
     reverified: 0,
     reverifyFailed: 0,
@@ -319,7 +444,7 @@ export async function reconcileAwsMarketplaceLicenses(): Promise<AwsMarketplaceR
   const startedAt = Date.now()
   const fits: BudgetCheck = (workMs) => Date.now() - startedAt + workMs <= RUN_BUDGET_MS
   const queueUrl = env.AWS_MARKETPLACE_EVENTS_QUEUE_URL
-  if (queueUrl) await drainEvents(productCode, queueUrl, summary, fits)
+  if (queueUrl) await drainEvents({ productCode, queueUrl, summary, fits })
   await reverifyStaleLicenses(productCode, summary, fits)
   return summary
 }

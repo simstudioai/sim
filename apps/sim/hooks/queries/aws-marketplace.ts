@@ -4,8 +4,10 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   getAwsMarketplaceClaimContract,
   linkAwsMarketplaceLicenseContract,
+  listAccountAwsMarketplaceLicensesContract,
   listOrganizationAwsMarketplaceLicensesContract,
   registerAwsMarketplaceLicenseToAccountContract,
+  saveAwsMarketplaceClaimContactContract,
 } from '@/lib/api/contracts/aws-marketplace'
 
 const AWS_MARKETPLACE_CLAIM_STALE_TIME = 30 * 1000
@@ -16,9 +18,10 @@ const awsMarketplaceKeys = {
   claims: () => [...awsMarketplaceKeys.all, 'claim'] as const,
   /** The claim rides in an httpOnly cookie; the viewer scopes which organizations it lists. */
   claim: (viewerId: string) => [...awsMarketplaceKeys.claims(), viewerId] as const,
-  organizationLicenses: () => [...awsMarketplaceKeys.all, 'organization-licenses'] as const,
-  organizationLicenseList: (organizationId: string) =>
-    [...awsMarketplaceKeys.organizationLicenses(), organizationId] as const,
+  licenses: () => [...awsMarketplaceKeys.all, 'licenses'] as const,
+  /** An organization's licenses, or with null the viewer's own account's. */
+  licenseList: (organizationId: string | null) =>
+    [...awsMarketplaceKeys.licenses(), organizationId ?? ''] as const,
 }
 
 export function useAwsMarketplaceClaim(viewerId: string | null) {
@@ -31,38 +34,50 @@ export function useAwsMarketplaceClaim(viewerId: string | null) {
   })
 }
 
-export function useLinkAwsMarketplaceLicense() {
+/** Taking a license spends the claim and changes what billing shows, so both are read again. */
+function useInvalidateAwsMarketplace() {
   const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: awsMarketplaceKeys.all })
+}
+
+export function useLinkAwsMarketplaceLicense() {
+  const invalidate = useInvalidateAwsMarketplace()
   return useMutation({
     mutationFn: (body: ContractBodyInput<typeof linkAwsMarketplaceLicenseContract>) =>
       requestJson(linkAwsMarketplaceLicenseContract, { body }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: awsMarketplaceKeys.claims() })
-    },
+    onSuccess: invalidate,
   })
 }
 
 export function useRegisterAwsMarketplaceLicenseToAccount() {
-  const queryClient = useQueryClient()
+  const invalidate = useInvalidateAwsMarketplace()
   return useMutation({
     mutationFn: (body: ContractBodyInput<typeof registerAwsMarketplaceLicenseToAccountContract>) =>
       requestJson(registerAwsMarketplaceLicenseToAccountContract, { body }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: awsMarketplaceKeys.claims() })
-    },
+    onSuccess: invalidate,
   })
 }
 
-/** The Marketplace subscriptions linked to an organization, for its billing page. */
-export function useOrganizationAwsMarketplaceLicenses(organizationId: string | null) {
+export function useSaveAwsMarketplaceClaimContact() {
+  const invalidate = useInvalidateAwsMarketplace()
+  return useMutation({
+    mutationFn: (body: ContractBodyInput<typeof saveAwsMarketplaceClaimContactContract>) =>
+      requestJson(saveAwsMarketplaceClaimContactContract, { body }),
+    onSuccess: invalidate,
+  })
+}
+
+/** The Marketplace subscriptions an organization holds, or with null the viewer's own account. */
+export function useAwsMarketplaceLicenses(organizationId: string | null) {
   return useQuery({
-    queryKey: awsMarketplaceKeys.organizationLicenseList(organizationId ?? ''),
+    queryKey: awsMarketplaceKeys.licenseList(organizationId),
     queryFn: ({ signal }) =>
-      requestJson(listOrganizationAwsMarketplaceLicensesContract, {
-        params: { id: organizationId ?? '' },
-        signal,
-      }),
-    enabled: Boolean(organizationId),
+      organizationId
+        ? requestJson(listOrganizationAwsMarketplaceLicensesContract, {
+            params: { id: organizationId },
+            signal,
+          })
+        : requestJson(listAccountAwsMarketplaceLicensesContract, { signal }),
     staleTime: AWS_MARKETPLACE_LICENSES_STALE_TIME,
     select: (data) => data.licenses,
   })

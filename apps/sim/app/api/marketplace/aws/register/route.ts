@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsMarketplaceRegistrationFormSchema } from '@/lib/api/contracts/aws-marketplace'
 import { serializeClaimCookie } from '@/lib/billing/aws-marketplace/claim'
@@ -17,9 +18,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AwsMarketplaceRegisterAPI')
 
-/** AWS posts a URL-encoded form; multipart is accepted too, under the same cap. */
-const FORM_MEDIA_TYPES = new Set(['application/x-www-form-urlencoded', 'multipart/form-data'])
-
 /** The form carries one opaque token; anything larger is not from AWS. */
 const MAX_FORM_BYTES = 16 * 1024
 
@@ -37,7 +35,7 @@ function redirectToOnboarding(error?: AwsMarketplaceOnboardingError): NextRespon
 
 async function readRegistrationToken(request: NextRequest): Promise<string | null> {
   const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
-  if (!mediaType || !FORM_MEDIA_TYPES.has(mediaType)) return null
+  if (mediaType !== 'application/x-www-form-urlencoded') return null
   let form: FormData
   try {
     form = await readFormDataWithLimit(request, {
@@ -58,32 +56,37 @@ async function readRegistrationToken(request: NextRequest): Promise<string | nul
  * The listing's fulfillment URL. AWS sends the buyer's browser here with a cross-site form POST,
  * so the request carries no Sim session and is authenticated only by the registration token,
  * which ResolveCustomer verifies. The response is always a 303 to the onboarding page, carrying
- * the claim cookie when the license is active. The token is never logged.
+ * the claim cookie unless the license lapsed. The token is never logged.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const productCode = getAwsMarketplaceProductCode()
   if (!productCode) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const rateLimited = await enforceIpRateLimit(
-    'aws-marketplace-register',
-    request,
-    REGISTER_RATE_LIMIT
-  )
-  if (rateLimited) return rateLimited
+  try {
+    const rateLimited = await enforceIpRateLimit(
+      'aws-marketplace-register',
+      request,
+      REGISTER_RATE_LIMIT
+    )
+    if (rateLimited) return redirectToOnboarding('unavailable')
 
-  const token = await readRegistrationToken(request)
-  if (!token) {
-    logger.warn('AWS Marketplace registration arrived without a usable token')
-    return redirectToOnboarding('invalid')
+    const token = await readRegistrationToken(request)
+    if (!token) {
+      logger.warn('AWS Marketplace registration arrived without a usable token')
+      return redirectToOnboarding('invalid')
+    }
+
+    const outcome = await registerAwsMarketplaceBuyer(productCode, token)
+    if (outcome.kind !== 'claimed') return redirectToOnboarding(outcome.kind)
+
+    const response = redirectToOnboarding()
+    response.headers.append('set-cookie', serializeClaimCookie(outcome.claimToken))
+    response.headers.set('Cache-Control', 'no-store')
+    return response
+  } catch (error) {
+    logger.error('AWS Marketplace registration failed', { error: getErrorMessage(error) })
+    return redirectToOnboarding('unavailable')
   }
-
-  const outcome = await registerAwsMarketplaceBuyer(productCode, token)
-  if (outcome.kind !== 'claimed') return redirectToOnboarding(outcome.kind)
-
-  const response = redirectToOnboarding()
-  response.headers.append('set-cookie', serializeClaimCookie(outcome.claimToken))
-  response.headers.set('Cache-Control', 'no-store')
-  return response
 })
 
 /** A refresh, back button, or bookmark of the fulfillment URL lands on the onboarding page. */

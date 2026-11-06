@@ -7,7 +7,7 @@ import { organizationIdSchema } from '@/lib/api/contracts/primitives'
  * browser submits it as `application/x-www-form-urlencoded`, and the route answers with a redirect.
  */
 export const awsMarketplaceRegistrationFormSchema = z.object({
-  'x-amzn-marketplace-token': z.string().min(1, 'Registration token is required').max(4096),
+  'x-amzn-marketplace-token': z.string().regex(/^\S+$/, 'Registration token is required'),
 })
 
 /** AWS requires the registration page to collect the buyer's email; the company is optional. */
@@ -18,34 +18,50 @@ const buyerContactSchema = z.object({
     .min(1, 'Contact email is required')
     .max(254, 'Contact email must be at most 254 characters')
     .email('Enter a valid contact email'),
-  companyName: z.string().trim().max(200, 'Company name must be at most 200 characters').optional(),
+  companyName: z
+    .string()
+    .trim()
+    .max(200, 'Company name must be at most 200 characters')
+    .regex(/^[^\r\n]*$/, 'Company name must be a single line')
+    .optional(),
 })
 
-const awsMarketplaceLicenseSummarySchema = z.object({
+const claimActionBodySchema = buyerContactSchema.extend({
+  licenseId: z.string().min(1, 'License ID is required').max(255),
+})
+
+const awsMarketplaceLicenseSchema = z.object({
   id: z.string(),
-  status: z.enum(['active', 'inactive']),
+  status: z.enum(['pending', 'active', 'inactive']),
   dimension: z.string().nullable(),
   quantity: z.number().int().nullable(),
   expiresAt: z.iso.datetime().nullable(),
-  /** The organization this license is already linked to, if any. */
-  organizationId: z.string().nullable(),
 })
 
-const awsMarketplaceClaimOrganizationSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  role: z.enum(['owner', 'admin']),
+const claimedLicenseSchema = awsMarketplaceLicenseSchema.extend({
+  /** The buyer's AWS account, masked: only they should recognize it. */
+  awsAccount: z.string(),
+  contactEmail: z.string().nullable(),
+  companyName: z.string().nullable(),
 })
 
 const awsMarketplaceClaimSchema = z.discriminatedUnion('status', [
   /** This browser holds no claim, or one already used. */
   z.object({ status: z.literal('missing') }),
   z.object({ status: z.literal('expired') }),
+  z.object({ status: z.literal('inactive') }),
+  /** AWS has returned no entitlement yet; the buyer can leave contact details meanwhile. */
+  z.object({ status: z.literal('pending'), license: claimedLicenseSchema }),
+  z.object({
+    status: z.literal('linked'),
+    /** Named only when the viewer administers it. */
+    organizationId: z.string().nullable(),
+  }),
   z.object({
     status: z.literal('ready'),
-    license: awsMarketplaceLicenseSummarySchema,
+    license: claimedLicenseSchema,
     /** Organizations the viewer owns or administers, in name order. */
-    organizations: z.array(awsMarketplaceClaimOrganizationSchema),
+    organizations: z.array(z.object({ id: z.string(), name: z.string() })),
   }),
 ])
 export type AwsMarketplaceClaim = z.output<typeof awsMarketplaceClaimSchema>
@@ -60,33 +76,31 @@ export const getAwsMarketplaceClaimContract = defineRouteContract({
 export const linkAwsMarketplaceLicenseContract = defineRouteContract({
   method: 'POST',
   path: '/api/marketplace/aws/claim/link',
-  body: buyerContactSchema.extend({
-    licenseId: z.string().min(1, 'License ID is required').max(255),
-    organizationId: organizationIdSchema,
-  }),
-  response: {
-    mode: 'json',
-    schema: z.object({ success: z.literal(true), organizationId: z.string() }),
-  },
+  body: claimActionBodySchema.extend({ organizationId: organizationIdSchema }),
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
 })
 
 /** Registers the claimed license to the signed-in account when no organization is chosen. */
 export const registerAwsMarketplaceLicenseToAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/marketplace/aws/claim/register-account',
-  body: buyerContactSchema.extend({
-    licenseId: z.string().min(1, 'License ID is required').max(255),
-  }),
+  body: claimActionBodySchema,
   response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
 })
 
-const organizationAwsMarketplaceLicenseSchema = z.object({
-  id: z.string(),
-  status: z.enum(['active', 'inactive']),
-  dimension: z.string().nullable(),
-  quantity: z.number().int().nullable(),
-  expiresAt: z.iso.datetime().nullable(),
-  lastVerifiedAt: z.iso.datetime(),
+/** Saves a pending buyer's contact details and asks AWS again; the claim stays open. */
+export const saveAwsMarketplaceClaimContactContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/marketplace/aws/claim/contact',
+  body: claimActionBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ status: z.enum(['pending', 'active', 'inactive']) }),
+  },
+})
+
+const awsMarketplaceLicenseListSchema = z.object({
+  licenses: z.array(awsMarketplaceLicenseSchema.extend({ lastVerifiedAt: z.iso.datetime() })),
 })
 
 /** The Marketplace licenses linked to an organization, for its billing page. */
@@ -94,8 +108,12 @@ export const listOrganizationAwsMarketplaceLicensesContract = defineRouteContrac
   method: 'GET',
   path: '/api/organizations/[id]/aws-marketplace-licenses',
   params: z.object({ id: organizationIdSchema }),
-  response: {
-    mode: 'json',
-    schema: z.object({ licenses: z.array(organizationAwsMarketplaceLicenseSchema) }),
-  },
+  response: { mode: 'json', schema: awsMarketplaceLicenseListSchema },
+})
+
+/** The licenses registered to the viewer's account with no organization, for personal billing. */
+export const listAccountAwsMarketplaceLicensesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/marketplace/aws/licenses',
+  response: { mode: 'json', schema: awsMarketplaceLicenseListSchema },
 })

@@ -1,5 +1,5 @@
 {
-  "id": "54cc9081-fd36-49c9-ac52-0d35d68f54a1",
+  "id": "4265b908-fbe8-481a-9c67-67f8a79c2ee9",
   "prevId": "ae1c3abd-b4a0-4658-8dd6-4858c603d078",
   "version": "7",
   "dialect": "postgresql",
@@ -1150,12 +1150,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "customer_identifier": {
-          "name": "customer_identifier",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "customer_aws_account_id": {
           "name": "customer_aws_account_id",
           "type": "text",
@@ -1165,6 +1159,12 @@
         "agreement_id": {
           "name": "agreement_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agreement_seen_at": {
+          "name": "agreement_seen_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -1186,7 +1186,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'inactive'"
+          "default": "'pending'"
         },
         "dimension": {
           "name": "dimension",
@@ -1216,6 +1216,12 @@
           "name": "last_verification_attempt_at",
           "type": "timestamp",
           "primaryKey": false,
+          "notNull": true
+        },
+        "license_event_received_at": {
+          "name": "license_event_received_at",
+          "type": "timestamp",
+          "primaryKey": false,
           "notNull": false
         },
         "claim_token_hash": {
@@ -1233,12 +1239,6 @@
         "linked_by_user_id": {
           "name": "linked_by_user_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "linked_at": {
-          "name": "linked_at",
-          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -1275,6 +1275,21 @@
           "columns": [
             {
               "expression": "license_arn",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aws_marketplace_license_claim_token_hash_unique": {
+          "name": "aws_marketplace_license_claim_token_hash_unique",
+          "columns": [
+            {
+              "expression": "claim_token_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1336,28 +1351,13 @@
           "method": "btree",
           "with": {}
         },
-        "aws_marketplace_license_claim_token_hash_unique": {
-          "name": "aws_marketplace_license_claim_token_hash_unique",
+        "aws_marketplace_license_last_attempt_idx": {
+          "name": "aws_marketplace_license_last_attempt_idx",
           "columns": [
             {
-              "expression": "claim_token_hash",
+              "expression": "last_verification_attempt_at",
               "isExpression": false,
               "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "aws_marketplace_license_reverify_due_idx": {
-          "name": "aws_marketplace_license_reverify_due_idx",
-          "columns": [
-            {
-              "expression": "coalesce(\"last_verification_attempt_at\", \"last_verified_at\")",
-              "asc": true,
-              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -1371,6 +1371,21 @@
           "columns": [
             {
               "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aws_marketplace_license_linked_by_user_id_idx": {
+          "name": "aws_marketplace_license_linked_by_user_id_idx",
+          "columns": [
+            {
+              "expression": "linked_by_user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -32439,7 +32454,7 @@
     "public.aws_marketplace_license_status": {
       "name": "aws_marketplace_license_status",
       "schema": "public",
-      "values": ["active", "inactive"]
+      "values": ["pending", "active", "inactive"]
     },
     "public.background_work_kind": {
       "name": "background_work_kind",

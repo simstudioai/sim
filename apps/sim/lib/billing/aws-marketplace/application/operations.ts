@@ -18,6 +18,18 @@ export const awsMarketplaceOperations = {
     principalKinds: ['session'],
     capability: 'none',
   }),
+  // permission-group-exempt: a buyer waiting on AWS leaves contact details for their own purchase.
+  saveClaimContact: defineOperation({
+    id: 'aws_marketplace.claim.save_contact',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
+  // permission-group-exempt: a buyer sees the status of a subscription registered to their own account.
+  listAccountLicenses: defineOperation({
+    id: 'aws_marketplace.license.list_account',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
   // permission-group-exempt: members see their organization's subscription status, as the billing page shows its plan.
   listOrganizationLicenses: defineOrganizationOperation({
     id: 'organization.aws_marketplace_license.list',

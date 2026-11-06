@@ -4,20 +4,18 @@ import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
 import { awsMarketplaceOperations } from '@/lib/billing/aws-marketplace/application/operations'
 import { hashClaimToken } from '@/lib/billing/aws-marketplace/claim'
 import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
-import { type EntitlementSummary, verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
-import {
-  notifyBuyerOfTakenLicense,
-  notifyTeamOfTakenLicense,
-  notifyTeamOfVerification,
-} from '@/lib/billing/aws-marketplace/notifications'
+import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
 import {
   type AwsMarketplaceLicenseRecord,
   consumeLicenseClaim,
   findLicenseByClaimHash,
+  isNewerRead,
+  listAccountLicenses,
   listAdministeredOrganizations,
   listOrganizationLicenses,
   lockLicense,
   recordLicenseVerification,
+  saveLicenseContact,
 } from '@/lib/billing/aws-marketplace/repository'
 import {
   defineAuthorizedOrganizationUseCase,
@@ -40,19 +38,19 @@ function isClaimOpen(license: AwsMarketplaceLicenseRecord, now: Date): boolean {
 }
 
 const NO_ACTIVE_SUBSCRIPTION = 'AWS Marketplace reports no active subscription for this license.'
+const SUBSCRIPTION_UNCONFIRMED =
+  'AWS is still confirming your subscription. Try again in a few minutes.'
 
 /**
- * Under the row lock: a newer verification than this request's wins. If it says the license
- * lapsed, the take is refused; otherwise it stands and this older read is not written.
+ * Under the row lock: a newer verification than this request's wins, so a license a newer read
+ * says is not active cannot be taken.
  */
-function newerVerificationGate(
-  locked: AwsMarketplaceLicenseRecord,
-  verifiedAt: Date,
-  summary: EntitlementSummary
-) {
-  if (locked.lastVerifiedAt.getTime() <= verifiedAt.getTime()) return { summary, verifiedAt }
-  if (locked.status !== 'active') throw new OrchestrationError('conflict', NO_ACTIVE_SUBSCRIPTION)
-  return null
+function requireNotOverruled(locked: AwsMarketplaceLicenseRecord, verifiedAt: Date): void {
+  if (isNewerRead(locked, verifiedAt) || locked.status === 'active') return
+  throw new OrchestrationError(
+    'conflict',
+    locked.status === 'pending' ? SUBSCRIPTION_UNCONFIRMED : NO_ACTIVE_SUBSCRIPTION
+  )
 }
 
 const CLAIM_NOT_FOUND =
@@ -77,7 +75,7 @@ function requireOpenClaim(
 }
 
 /** A license linked to one organization is never moved, and never taken without one. */
-function requireLinkableTo(
+export function requireLinkableTo(
   license: AwsMarketplaceLicenseRecord,
   organizationId: string | null
 ): void {
@@ -89,7 +87,28 @@ function requireLinkableTo(
   }
 }
 
-/** The pending claim this browser holds, and where the signed-in person could link it. */
+/** Enough for a buyer to recognize their account, and no more for someone holding their claim. */
+function maskAwsAccount(accountId: string): string {
+  return `••••${accountId.slice(-4)}`
+}
+
+function claimedLicenseView(license: AwsMarketplaceLicenseRecord) {
+  return {
+    id: license.id,
+    status: license.status,
+    dimension: license.dimension,
+    quantity: license.quantity,
+    expiresAt: license.expiresAt?.toISOString() ?? null,
+    awsAccount: maskAwsAccount(license.customerAwsAccountId),
+    contactEmail: license.contactEmail,
+    companyName: license.companyName,
+  }
+}
+
+/**
+ * The pending claim this browser holds, and where the signed-in person could link it. Who a linked
+ * license belongs to is said only to someone who administers that organization.
+ */
 export const readAwsMarketplaceClaim: OperationUseCase<
   typeof awsMarketplaceOperations.readClaim,
   { claimToken: string | null },
@@ -103,18 +122,20 @@ export const readAwsMarketplaceClaim: OperationUseCase<
     const license = await findLicenseByClaimHash(hashClaimToken(input.claimToken))
     if (!license) return { status: 'missing' }
     if (!isClaimOpen(license, new Date())) return { status: 'expired' }
-    return {
-      status: 'ready',
-      license: {
-        id: license.id,
-        status: license.status,
-        dimension: license.dimension,
-        quantity: license.quantity,
-        expiresAt: license.expiresAt?.toISOString() ?? null,
-        organizationId: license.organizationId,
-      },
-      organizations: await listAdministeredOrganizations(principal.userId),
+    if (license.status === 'inactive') return { status: 'inactive' }
+    if (license.status === 'pending') {
+      return { status: 'pending', license: claimedLicenseView(license) }
     }
+    const organizations = await listAdministeredOrganizations(principal.userId)
+    if (license.organizationId) {
+      return {
+        status: 'linked',
+        organizationId: organizations.some((org) => org.id === license.organizationId)
+          ? license.organizationId
+          : null,
+      }
+    }
+    return { status: 'ready', license: claimedLicenseView(license), organizations }
   },
 }
 
@@ -122,12 +143,17 @@ interface ClaimInput {
   licenseId: string
   /** The raw claim token from this browser's httpOnly cookie, or null when it holds none. */
   claimToken: string | null
+}
+
+interface BuyerContact {
   /** Whom to contact about provisioning; AWS asks the registration page to collect it. */
   contactEmail: string
   companyName: string | null
 }
 
-interface LinkLicenseInput extends ClaimInput {
+type TakeInput = ClaimInput & BuyerContact
+
+interface LinkLicenseInput extends TakeInput {
   organizationId: string
 }
 
@@ -137,9 +163,13 @@ interface LinkedLicense {
   newlyLinked: boolean
 }
 
+function contactOf(input: BuyerContact) {
+  return { email: input.contactEmail, companyName: input.companyName }
+}
+
 /**
  * Checks this browser's claim, then asks the Entitlement Service again: a license is taken only
- * while AWS says it is current. A lapsed answer is recorded before the refusal. The caller
+ * while AWS says it is current. An answer that is not is recorded before the refusal. The caller
  * rechecks the claim under the row lock, so two tabs racing one claim take it at most once.
  */
 async function verifyClaimedLicense(input: ClaimInput, organizationId: string | null) {
@@ -154,21 +184,24 @@ async function verifyClaimedLicense(input: ClaimInput, organizationId: string | 
 
   const verifiedAt = new Date()
   const summary = await verifyLicense(productCode, claimed.licenseArn)
+  const verification = { summary, verifiedAt }
   if (!summary.active) {
-    await notifyTeamOfVerification(
-      await recordLicenseVerification({
-        licenseArn: claimed.licenseArn,
-        productCode,
-        summary,
-        verifiedAt,
-      })
+    const outcome = await recordLicenseVerification({
+      licenseArn: claimed.licenseArn,
+      productCode,
+      verification,
+    })
+    throw new OrchestrationError(
+      'conflict',
+      outcome.kind === 'updated' && outcome.license.status === 'pending'
+        ? SUBSCRIPTION_UNCONFIRMED
+        : NO_ACTIVE_SUBSCRIPTION
     )
-    throw new OrchestrationError('conflict', NO_ACTIVE_SUBSCRIPTION)
   }
-  return { claimHash, summary, verifiedAt }
+  return { claimHash, verification }
 }
 
-function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
+export function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
   return {
     dimension: license.dimension,
     quantity: license.quantity,
@@ -183,17 +216,11 @@ function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
  */
 export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   operation: awsMarketplaceOperations.linkLicense,
-  authorizeResource: () => {
-    requireProductCode()
-  },
   async execute({
     input,
     context,
   }: OrganizationUseCaseContext<LinkLicenseInput>): Promise<LinkedLicense> {
-    const { claimHash, summary, verifiedAt } = await verifyClaimedLicense(
-      input,
-      input.organizationId
-    )
+    const { claimHash, verification } = await verifyClaimedLicense(input, input.organizationId)
     return db.transaction(async (tx) => {
       const locked = requireOpenClaim(
         await lockLicense(tx, input.licenseId),
@@ -201,7 +228,8 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
         claimHash
       )
       requireLinkableTo(locked, input.organizationId)
-      /** Holds the admin's membership until commit, so a concurrent demotion waits for the link. */
+      requireNotOverruled(locked, verification.verifiedAt)
+      // Holds the admin's membership until commit, so a concurrent demotion waits for the link.
       await requireOrganizationSubjectMembership(
         context.userId,
         input.organizationId,
@@ -211,11 +239,10 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
         { executor: tx, forShare: true }
       )
       const newlyLinked = locked.organizationId !== input.organizationId
-      const license = await consumeLicenseClaim(tx, {
-        licenseId: input.licenseId,
+      const license = await consumeLicenseClaim(tx, locked, {
         link: newlyLinked ? { organizationId: input.organizationId, userId: context.userId } : null,
-        contact: { email: input.contactEmail, companyName: input.companyName },
-        verification: newerVerificationGate(locked, verifiedAt, summary),
+        contact: contactOf(input),
+        verification,
       })
       return { license, newlyLinked }
     })
@@ -223,7 +250,6 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   projectAudit: ({ result }) =>
     result.newlyLinked
       ? {
-          workspaceId: null,
           action: AuditAction.AWS_MARKETPLACE_LICENSE_LINKED,
           resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
           resourceId: result.license.id,
@@ -232,12 +258,6 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
           metadata: licenseAuditMetadata(result.license),
         }
       : [],
-  afterSuccess: async ({ result, input, context }) => {
-    if (result.newlyLinked) {
-      await notifyTeamOfTakenLicense(result.license, input.organizationId, context.userId)
-      await notifyBuyerOfTakenLicense(result.license)
-    }
-  },
 })
 
 /**
@@ -248,13 +268,13 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
  */
 export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
   typeof awsMarketplaceOperations.registerToAccount,
-  ClaimInput,
+  TakeInput,
   { licenseId: string }
 > = {
   operation: awsMarketplaceOperations.registerToAccount,
   async execute({ principal, input, request }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.registerToAccount)
-    const { claimHash, summary, verifiedAt } = await verifyClaimedLicense(input, null)
+    const { claimHash, verification } = await verifyClaimedLicense(input, null)
     const { license, newlyRegistered } = await db.transaction(async (tx) => {
       const locked = requireOpenClaim(
         await lockLicense(tx, input.licenseId),
@@ -262,12 +282,12 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
         claimHash
       )
       requireLinkableTo(locked, null)
+      requireNotOverruled(locked, verification.verifiedAt)
       const newlyRegistered = locked.linkedByUserId !== principal.userId
-      const consumed = await consumeLicenseClaim(tx, {
-        licenseId: input.licenseId,
+      const consumed = await consumeLicenseClaim(tx, locked, {
         link: newlyRegistered ? { organizationId: null, userId: principal.userId } : null,
-        contact: { email: input.contactEmail, companyName: input.companyName },
-        verification: newerVerificationGate(locked, verifiedAt, summary),
+        contact: contactOf(input),
+        verification,
       })
       return { license: consumed, newlyRegistered }
     })
@@ -288,11 +308,53 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
           },
         ]
       )
-      await notifyTeamOfTakenLicense(license, null, principal.userId)
-      await notifyBuyerOfTakenLicense(license)
     }
     return { licenseId: license.id }
   },
+}
+
+/**
+ * While AWS is still confirming a license, its buyer leaves contact details here and asks AWS
+ * again. The claim stays open: linking waits for a read that says the license is current.
+ */
+export const saveAwsMarketplaceClaimContact: OperationUseCase<
+  typeof awsMarketplaceOperations.saveClaimContact,
+  TakeInput,
+  { status: 'pending' | 'active' | 'inactive' }
+> = {
+  operation: awsMarketplaceOperations.saveClaimContact,
+  async execute({ principal, input }) {
+    assertOperationPrincipal(principal, awsMarketplaceOperations.saveClaimContact)
+    const productCode = requireProductCode()
+    const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
+    const claimed = requireOpenClaim(
+      claimHash ? await findLicenseByClaimHash(claimHash) : null,
+      input.licenseId,
+      claimHash
+    )
+    const verifiedAt = new Date()
+    const summary = await verifyLicense(productCode, claimed.licenseArn)
+    return db.transaction(async (tx) => {
+      const locked = requireOpenClaim(
+        await lockLicense(tx, input.licenseId),
+        input.licenseId,
+        claimHash
+      )
+      const license = await saveLicenseContact(tx, locked, {
+        contact: contactOf(input),
+        verification: { summary, verifiedAt },
+      })
+      return { status: license.status }
+    })
+  },
+}
+
+function toLicenseStatusList(rows: Awaited<ReturnType<typeof listOrganizationLicenses>>) {
+  return rows.map((row) => ({
+    ...row,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+    lastVerifiedAt: row.lastVerifiedAt.toISOString(),
+  }))
 }
 
 /**
@@ -303,6 +365,20 @@ export const listOrganizationAwsMarketplaceLicenses = defineAuthorizedOrganizati
   operation: awsMarketplaceOperations.listOrganizationLicenses,
   async execute({ context }: OrganizationUseCaseContext<{ organizationId: string }>) {
     if (!getAwsMarketplaceProductCode()) return []
-    return listOrganizationLicenses(context.organizationId)
+    return toLicenseStatusList(await listOrganizationLicenses(context.organizationId))
   },
 })
+
+/** The licenses registered to the caller's account with no organization yet, for their billing page. */
+export const listAccountAwsMarketplaceLicenses: OperationUseCase<
+  typeof awsMarketplaceOperations.listAccountLicenses,
+  Record<string, never>,
+  ReturnType<typeof toLicenseStatusList>
+> = {
+  operation: awsMarketplaceOperations.listAccountLicenses,
+  async execute({ principal }) {
+    assertOperationPrincipal(principal, awsMarketplaceOperations.listAccountLicenses)
+    if (!getAwsMarketplaceProductCode()) return []
+    return toLicenseStatusList(await listAccountLicenses(principal.userId))
+  },
+}

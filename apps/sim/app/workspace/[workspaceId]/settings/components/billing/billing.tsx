@@ -53,6 +53,7 @@ import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useAwsMarketplaceLicenses } from '@/hooks/queries/aws-marketplace'
 import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
@@ -134,6 +135,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     enabled: !isOrganizationScope,
   })
   const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
+  const { data: marketplaceLicenses } = useAwsMarketplaceLicenses(billingOrganizationId)
+  const billedThroughMarketplace = marketplaceLicenses?.some(
+    (license) => license.status !== 'inactive'
+  )
 
   const {
     data: organizationBillingData,
@@ -453,8 +458,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       ? `Organization ${planName} plan ended`
       : `Organization ${planName} plan`
     : `Personal ${planName} plan`
-  const priceText =
-    organizationSubscriptionState === 'free'
+  const priceText = billedThroughMarketplace
+    ? 'Billed through AWS Marketplace'
+    : organizationSubscriptionState === 'free'
       ? 'No active organization subscription'
       : organizationSubscriptionState === 'lapsed'
         ? 'Choose a new plan for this organization'
@@ -515,6 +521,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
           </div>
         </div>
         {!subscription.isEnterprise &&
+          !billedThroughMarketplace &&
           (canExplorePlans && upgradeHref ? (
             <ChipLink
               href={upgradeHref}
@@ -661,9 +668,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         </SettingsSection>
       )}
 
-      {billingOrganizationId && (
-        <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
-      )}
+      <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
 
       {!subscription.isFree && invoices.length > 0 && (
         <SettingsSection label='Invoices'>

@@ -26,10 +26,7 @@ export const POST = defineInternalJsonRoute({
     companyName: body.companyName || null,
     claimToken: request.cookies.get(AWS_MARKETPLACE_CLAIM_COOKIE)?.value ?? null,
   }),
-  present: (_linked, { input }) => ({
-    success: true as const,
-    organizationId: input.organizationId,
-  }),
+  present: () => ({ success: true as const }),
   /** The claim is spent once the link commits; the cookie that carried it goes with it. */
   finalizeResponse: () => ({ headers: { 'set-cookie': serializeClaimCookie(null) } }),
 })

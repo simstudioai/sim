@@ -9,15 +9,16 @@ import {
   AuthTag,
   AuthTextLink,
 } from '@sim/auth-ui'
+import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
-import { useSession } from '@/lib/auth/client'
+import { client, useSession } from '@/lib/auth/client'
 import {
   AWS_MARKETPLACE_ONBOARDING_PATH,
   AWS_MARKETPLACE_SETUP_TURNAROUND,
   type AwsMarketplaceOnboardingError,
 } from '@/lib/billing/aws-marketplace/onboarding'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACE_BILLING_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useBrandConfig } from '@/ee/whitelabeling'
@@ -25,6 +26,7 @@ import {
   useAwsMarketplaceClaim,
   useLinkAwsMarketplaceLicense,
   useRegisterAwsMarketplaceLicenseToAccount,
+  useSaveAwsMarketplaceClaimContact,
 } from '@/hooks/queries/aws-marketplace'
 
 const RESTART_FROM_AWS =
@@ -54,6 +56,9 @@ const REGISTRATION_ERROR_COPY: Record<
   },
 }
 
+/** AWS's manual-setup guidance: being set up, wait to be contacted, turnaround, contact. */
+const BEING_SET_UP = `Your account is being set up. Please wait for us to contact you. We expect to finish ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`
+
 function authLink(path: '/login' | '/signup'): string {
   return buildAuthCrossLink(path, {
     callbackUrl: AWS_MARKETPLACE_ONBOARDING_PATH,
@@ -61,23 +66,18 @@ function authLink(path: '/login' | '/signup'): string {
   })
 }
 
-const SETUP_NEXT_STEP = `Our team will set up your Enterprise workspace ${AWS_MARKETPLACE_SETUP_TURNAROUND} and email you when it is ready.`
-
 interface SupportContactProps {
-  supportEmail: string
+  supportEmail: string | undefined
 }
 
 /** AWS requires support contact options on the fulfillment landing page. */
 function SupportContact({ supportEmail }: SupportContactProps) {
+  if (!supportEmail) return null
   return (
     <p className='au:text-center au:text-sm'>
       Questions? Email <AuthTextLink href={`mailto:${supportEmail}`}>{supportEmail}</AuthTextLink>
     </p>
   )
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
 interface AwsMarketplaceOnboardingProps {
@@ -96,8 +96,14 @@ export function AwsMarketplaceOnboarding({
   const linkLicense = useLinkAwsMarketplaceLicense()
   const registerToAccount = useRegisterAwsMarketplaceLicenseToAccount()
   const { supportEmail } = useBrandConfig()
-  const supportContact = supportEmail ? <SupportContact supportEmail={supportEmail} /> : undefined
+  const supportContact = <SupportContact supportEmail={supportEmail} />
   const returnHome = { label: 'Return to Home', onClick: () => router.push('/') }
+
+  /** A revoked session's cookie would send `/login` straight to the app, losing the way back. */
+  const goToAuth = async (path: '/login' | '/signup') => {
+    await client.signOut().catch(() => {})
+    router.push(authLink(path))
+  }
 
   if (registrationError) {
     const copy = REGISTRATION_ERROR_COPY[registrationError]
@@ -107,6 +113,7 @@ export function AwsMarketplaceOnboarding({
           type='error'
           title={copy.title}
           description={copy.description}
+          details={supportContact}
           actions={[returnHome]}
         />
       </InviteLayout>
@@ -128,43 +135,42 @@ export function AwsMarketplaceOnboarding({
           type='login'
           title='Set up your AWS Marketplace subscription'
           description='Sign in to Sim to link this subscription to your organization.'
+          details={supportContact}
           actions={[
             ...(registrationDisabled
               ? []
-              : [{ label: 'Create an account', onClick: () => router.push(authLink('/signup')) }]),
-            {
-              label: 'I already have an account',
-              onClick: () => router.push(authLink('/login')),
-            },
+              : [{ label: 'Create an account', onClick: () => goToAuth('/signup') }]),
+            { label: 'I already have an account', onClick: () => goToAuth('/login') },
           ]}
         />
       </InviteLayout>
     )
   }
 
-  if (linkLicense.isSuccess) {
+  if (linkLicense.isSuccess || registerToAccount.isSuccess) {
+    const organizationId = linkLicense.variables?.organizationId
     return (
       <InviteLayout>
         <InviteStatusCard
           type='success'
-          title='Subscription linked'
-          description={`Your AWS Marketplace subscription is linked to your organization. ${SETUP_NEXT_STEP}`}
-          details={supportContact}
-          actions={[{ label: 'Go to Sim', onClick: () => router.push(APP_ENTRY_PATH) }]}
-        />
-      </InviteLayout>
-    )
-  }
-
-  if (registerToAccount.isSuccess) {
-    return (
-      <InviteLayout>
-        <InviteStatusCard
-          type='success'
-          title='Subscription registered'
-          description={SETUP_NEXT_STEP}
-          details={supportContact}
-          actions={[{ label: 'Go to Sim', onClick: () => router.push(APP_ENTRY_PATH) }]}
+          title='Your account is being set up'
+          description={BEING_SET_UP}
+          details={
+            <div className='au:w-full au:space-y-2 au:text-center au:text-sm'>
+              <p>
+                <AuthTextLink
+                  href={
+                    organizationId
+                      ? organizationRoutes(organizationId).settingsSection('billing')
+                      : WORKSPACE_BILLING_PATH
+                  }
+                >
+                  View subscription status
+                </AuthTextLink>
+              </p>
+              {supportContact}
+            </div>
+          }
         />
       </InviteLayout>
     )
@@ -185,6 +191,7 @@ export function AwsMarketplaceOnboarding({
           type='error'
           title='Could not load your subscription'
           description={claimQuery.error.message}
+          details={supportContact}
           actions={[{ label: 'Try again', onClick: () => claimQuery.refetch() }, returnHome]}
         />
       </InviteLayout>
@@ -192,26 +199,58 @@ export function AwsMarketplaceOnboarding({
   }
 
   const claim = claimQuery.data
-  if (claim.status !== 'ready') {
+  if (claim.status === 'missing' || claim.status === 'expired' || claim.status === 'inactive') {
+    const title = {
+      missing: 'No subscription to set up',
+      expired: 'Setup link expired',
+      inactive: 'No active subscription found',
+    }[claim.status]
     return (
       <InviteLayout>
         <InviteStatusCard
           type='error'
-          title={claim.status === 'expired' ? 'Setup link expired' : 'No subscription to set up'}
+          title={title}
           description={RESTART_FROM_AWS}
+          details={supportContact}
           actions={[returnHome]}
         />
       </InviteLayout>
     )
   }
 
-  const pending = linkLicense.isPending || registerToAccount.isPending
+  if (claim.status === 'linked') {
+    return (
+      <InviteLayout>
+        <InviteStatusCard
+          type='warning'
+          title='This subscription is already linked'
+          description='It is linked to an organization, and a subscription stays with one organization.'
+          details={
+            <div className='au:w-full au:space-y-2 au:text-center au:text-sm'>
+              {claim.organizationId && (
+                <p>
+                  <AuthTextLink
+                    href={organizationRoutes(claim.organizationId).settingsSection('billing')}
+                  >
+                    View subscription status
+                  </AuthTextLink>
+                </p>
+              )}
+              {supportContact}
+            </div>
+          }
+          actions={[returnHome]}
+        />
+      </InviteLayout>
+    )
+  }
+
   return (
-    <LinkLicenseCard
+    <ClaimCard
+      key={claim.status}
       claim={claim}
-      defaultContactEmail={session.user.email ?? ''}
+      signedInAs={session.user.email}
       supportContact={supportContact}
-      pending={pending}
       linking={linkLicense.isPending}
       registering={registerToAccount.isPending}
       error={(linkLicense.error ?? registerToAccount.error)?.message ?? null}
@@ -233,11 +272,10 @@ interface BuyerContact {
   companyName?: string
 }
 
-interface LinkLicenseCardProps {
-  claim: Extract<AwsMarketplaceClaim, { status: 'ready' }>
-  defaultContactEmail: string
+interface ClaimCardProps {
+  claim: Extract<AwsMarketplaceClaim, { status: 'ready' | 'pending' }>
+  signedInAs: string
   supportContact: ReactNode
-  pending: boolean
   linking: boolean
   registering: boolean
   error: string | null
@@ -247,52 +285,82 @@ interface LinkLicenseCardProps {
 }
 
 /**
- * Links the license to an organization the viewer administers, or registers it to their
- * account when they administer none or would rather not pick one.
+ * Shows the buyer whose subscription this is and who is signed in, so a claim planted in someone
+ * else's browser is noticed. A confirmed license links to an organization the viewer administers,
+ * or registers to their account. While AWS is still confirming it, the buyer leaves contact
+ * details and asks again.
  */
-function LinkLicenseCard({
+function ClaimCard({
   claim,
-  defaultContactEmail,
+  signedInAs,
   supportContact,
-  pending,
   linking,
   registering,
   error,
   onLink,
   onRegister,
   onCancel,
-}: LinkLicenseCardProps) {
-  const { license, organizations } = claim
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>()
-  const [contactEmail, setContactEmail] = useState(defaultContactEmail)
-  const [companyName, setCompanyName] = useState('')
+}: ClaimCardProps) {
+  const { license } = claim
+  const organizations = claim.status === 'ready' ? claim.organizations : []
+  const saveContact = useSaveAwsMarketplaceClaimContact()
+  const [organizationId, setOrganizationId] = useState<string>()
+  const [contactEmail, setContactEmail] = useState(license.contactEmail ?? signedInAs)
+  const [companyName, setCompanyName] = useState(license.companyName ?? '')
   const contact: BuyerContact = {
     contactEmail: contactEmail.trim(),
     ...(companyName.trim() && { companyName: companyName.trim() }),
   }
   const hasContact = contact.contactEmail.length > 0
-  const linkedOrganization = organizations.find((org) => org.id === license.organizationId)
-  const organizationId =
-    selectedOrganizationId ??
-    linkedOrganization?.id ??
-    (organizations.length === 1 ? organizations[0]?.id : undefined)
+  const pending = linking || registering || saveContact.isPending
 
   const rows = [
+    { label: 'AWS account', value: license.awsAccount },
+    { label: 'Signed in as', value: signedInAs },
     { label: 'Plan', value: license.dimension ?? 'Not specified' },
     { label: 'Quantity', value: license.quantity?.toLocaleString() ?? 'Not specified' },
     {
       label: 'Expires',
-      value: license.expiresAt ? formatDate(license.expiresAt) : 'No expiry',
+      value: license.expiresAt ? formatDate(new Date(license.expiresAt)) : 'No expiry',
     },
   ]
 
   const hasOrganizations = organizations.length > 0
-  const registerAction = {
-    label: hasOrganizations ? 'Register to my account instead' : 'Register to my account',
-    onClick: () => onRegister(contact),
-    disabled: pending || !hasContact,
-    loading: registering,
-  }
+  const actions =
+    claim.status === 'pending'
+      ? [
+          {
+            label: 'Save and check again',
+            onClick: () => saveContact.mutate({ licenseId: license.id, ...contact }),
+            disabled: pending || !hasContact,
+            loading: saveContact.isPending,
+          },
+        ]
+      : [
+          ...(hasOrganizations
+            ? [
+                {
+                  label: 'Link subscription',
+                  onClick: () => organizationId && onLink(organizationId, contact),
+                  disabled: !organizationId || !hasContact || pending,
+                  loading: linking,
+                },
+              ]
+            : []),
+          {
+            label: hasOrganizations ? 'Register to my account instead' : 'Register to my account',
+            onClick: () => onRegister(contact),
+            disabled: pending || !hasContact,
+            loading: registering,
+          },
+        ]
+
+  const description =
+    claim.status === 'pending'
+      ? 'AWS is still confirming your subscription. Leave your contact details and check again in a few minutes.'
+      : hasOrganizations
+        ? `Choose the organization this subscription is for, or register it to your account. We expect to finish setting it up ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`
+        : `Register this subscription to your account. We expect to finish setting it up ${AWS_MARKETPLACE_SETUP_TURNAROUND}.`
 
   return (
     <InviteLayout>
@@ -303,11 +371,7 @@ function LinkLicenseCard({
             ? 'Link your AWS Marketplace subscription'
             : 'Set up your AWS Marketplace subscription'
         }
-        description={
-          hasOrganizations
-            ? `Choose the organization this subscription is for, or register it to your account. ${SETUP_NEXT_STEP}`
-            : `Register this subscription to your account. ${SETUP_NEXT_STEP}`
-        }
+        description={description}
         details={
           <div className='au:w-full au:space-y-4'>
             <dl className='au:w-full au:space-y-2 au:text-sm au:tabular-nums'>
@@ -320,7 +384,7 @@ function LinkLicenseCard({
               <div className='au:flex au:justify-between au:gap-4'>
                 <dt className='au:text-[var(--auth-secondary)]'>Status</dt>
                 <dd>
-                  <AuthTag>{license.status === 'active' ? 'Active' : 'Inactive'}</AuthTag>
+                  <AuthTag>{claim.status === 'pending' ? 'Confirming with AWS' : 'Active'}</AuthTag>
                 </dd>
               </div>
             </dl>
@@ -330,7 +394,7 @@ function LinkLicenseCard({
                   id='aws-marketplace-organization'
                   options={organizations.map((org) => ({ label: org.name, value: org.id }))}
                   value={organizationId}
-                  onChange={setSelectedOrganizationId}
+                  onChange={setOrganizationId}
                   placeholder='Select an organization'
                   fullWidth
                 />
@@ -354,24 +418,18 @@ function LinkLicenseCard({
                 onChange={(event) => setCompanyName(event.target.value)}
               />
             </AuthField>
-            {error && <AuthFormMessage type='error'>{error}</AuthFormMessage>}
+            {saveContact.isSuccess && claim.status === 'pending' && (
+              <AuthFormMessage type='info'>
+                We saved your details. AWS is still confirming your subscription.
+              </AuthFormMessage>
+            )}
+            {(error ?? saveContact.error?.message) && (
+              <AuthFormMessage type='error'>{error ?? saveContact.error?.message}</AuthFormMessage>
+            )}
             {supportContact}
           </div>
         }
-        actions={[
-          ...(hasOrganizations
-            ? [
-                {
-                  label: 'Link subscription',
-                  onClick: () => organizationId && onLink(organizationId, contact),
-                  disabled: !organizationId || !hasContact || pending,
-                  loading: linking,
-                },
-              ]
-            : []),
-          registerAction,
-          { label: 'Not now', onClick: onCancel },
-        ]}
+        actions={[...actions, { label: 'Not now', onClick: onCancel }]}
       />
     </InviteLayout>
   )

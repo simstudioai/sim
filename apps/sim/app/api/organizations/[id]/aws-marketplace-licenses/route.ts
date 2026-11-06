@@ -16,11 +16,5 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
   mapInput: ({ params }) => ({ organizationId: params.id }),
-  present: (licenses) => ({
-    licenses: licenses.map((license) => ({
-      ...license,
-      expiresAt: license.expiresAt?.toISOString() ?? null,
-      lastVerifiedAt: license.lastVerifiedAt.toISOString(),
-    })),
-  }),
+  present: (licenses) => ({ licenses }),
 })
