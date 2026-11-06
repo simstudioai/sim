@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryState } from 'nuqs'
 import type {
   OrganizationRoster,
   RosterMember,
@@ -33,7 +32,6 @@ import {
 } from '@/hooks/queries/organization'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
@@ -384,16 +382,6 @@ export function useMembers(organization: PlatformOrganization) {
 }
 
 export type MembersActions = ReturnType<typeof useMembers>['actions']
-
-export function useMemberSearch() {
-  const [search, setSearch] = useQueryState('search', {
-    defaultValue: '',
-    history: 'replace',
-    clearOnDefault: true,
-  })
-  const write = useDebouncedSearchSetter((value, options) => setSearch(value, options))
-  return { search, setSearch: write }
-}
 
 function matches(row: { name: string; email: string }, query: string): boolean {
   return row.name.toLowerCase().includes(query) || row.email.toLowerCase().includes(query)
