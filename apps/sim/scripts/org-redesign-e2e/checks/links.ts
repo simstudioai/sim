@@ -14,7 +14,6 @@ import {
 import {
   check,
   expect,
-  onHome,
   orgUrl,
   PHONE,
   refused,
@@ -383,15 +382,22 @@ export async function linksChecks() {
   await check(
     'loading, failure with Retry, and the empty state',
     async () => {
-      await onHome(MEMBER, async ({ page }) => {
+      await withSession(MEMBER, async ({ page }) => {
         const hold = createDeferred<void>()
-        await page.route(
-          (address) => address.pathname === `${root}/links` && address.searchParams.has('_rsc'),
-          async (route) => {
-            await hold.promise
-            await route.continue()
-          }
+        const isLinksPayload = (address: URL) =>
+          address.pathname === `${root}/links` && address.searchParams.has('_rsc')
+        // Only the click's own read: the router shows the loading state from what a prefetch delivered.
+        await page.route(isLinksPayload, async (route) => {
+          if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
+          await route.continue()
+        })
+        const loadingPrefetched = page.waitForResponse(
+          async (response) =>
+            isLinksPayload(new URL(response.url())) &&
+            (await response.text()).includes('Loading links')
         )
+        await page.goto(orgUrl('/home'))
+        await loadingPrefetched
         await mainNav(page).getByRole('link', { name: 'Links', exact: true }).click()
         await expect(page.getByRole('status', { name: 'Loading links' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'New link', exact: true })).toBeVisible()
