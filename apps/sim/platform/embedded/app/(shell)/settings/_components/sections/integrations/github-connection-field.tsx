@@ -10,7 +10,7 @@ import {
   InlineNotice,
   SearchableSelect,
 } from '@/platform/design-system/components'
-import { ActionRow } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { ActionRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface GitHubConnectionFieldProps {
   installations: Credential[]

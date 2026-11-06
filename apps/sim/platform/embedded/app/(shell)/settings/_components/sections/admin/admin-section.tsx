@@ -33,7 +33,7 @@ import {
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AddUserModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/admin/add-user-modal'
 
 const USER_COLUMNS = [

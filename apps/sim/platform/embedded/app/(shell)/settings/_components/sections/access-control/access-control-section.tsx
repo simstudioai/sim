@@ -26,7 +26,7 @@ import {
 import {
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { GroupDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/group-detail'
 import {

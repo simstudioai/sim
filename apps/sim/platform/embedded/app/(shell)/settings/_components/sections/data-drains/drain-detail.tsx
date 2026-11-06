@@ -32,7 +32,7 @@ import {
   DetailHeader,
   FieldStack,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { formatTimestamp } from '@/platform/shared/time'
 
 const RECENT_RUN_LIMIT = 10

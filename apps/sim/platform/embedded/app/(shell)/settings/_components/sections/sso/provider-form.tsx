@@ -39,7 +39,7 @@ import {
   FormFieldset,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ClientSecretField } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
 

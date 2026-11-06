@@ -9,7 +9,7 @@ import {
   RowList,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { GENERIC_SECRETS_SOURCE_TYPE } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets'
 
 interface SourceMarkProps {

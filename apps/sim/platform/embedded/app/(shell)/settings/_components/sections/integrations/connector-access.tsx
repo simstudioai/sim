@@ -17,7 +17,7 @@ import {
   StatusTag,
   Tooltip,
 } from '@/platform/design-system/components'
-import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface ConnectorAccessProps {
   scope: ResourceScope

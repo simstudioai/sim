@@ -25,9 +25,6 @@
   "platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": {
     "consumer-style": 4
   },
-  "platform/embedded/app/(shell)/_components/provider-mark/provider-mark.tsx": {
-    "private-composition": 1
-  },
   "platform/embedded/app/(shell)/_components/search/source-row.tsx": {
     "consumer-style": 3,
     "style-api": 1
@@ -42,17 +39,8 @@
   "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.tsx": {
     "consumer-style": 4
   },
-  "platform/embedded/app/(shell)/home/_components/home-conversation/home-conversation.tsx": {
-    "private-composition": 1
-  },
   "platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton.tsx": {
     "private-recipe": 1
-  },
-  "platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark.tsx": {
-    "consumer-style": 1
-  },
-  "platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.tsx": {
-    "private-composition": 1
   },
   "platform/embedded/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions.tsx": {
     "private-recipe": 1
@@ -61,20 +49,7 @@
     "consumer-style": 1
   },
   "platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": {
-    "private-composition": 1,
     "private-recipe": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.tsx": {
-    "private-composition": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-providers.tsx": {
-    "private-composition": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal.tsx": {
-    "private-composition": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/add-source-modal.tsx": {
-    "private-composition": 1
   },
   "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css": {
     "css-owner": 1
@@ -82,17 +57,8 @@
   "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.tsx": {
     "private-recipe": 1
   },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps.tsx": {
-    "private-composition": 1
-  },
   "platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields.tsx": {
     "private-recipe": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/integrations-section.tsx": {
-    "private-composition": 1
-  },
-  "platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host.tsx": {
-    "private-composition": 1
   },
   "platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field.tsx": {
     "consumer-style": 1

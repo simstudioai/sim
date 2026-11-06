@@ -27,14 +27,14 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import {
   DraftConflictNotice,
   FieldStack,
   Muted,
   SectionSkeleton,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { plural } from '@/platform/shared/plural'
 

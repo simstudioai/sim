@@ -17,7 +17,7 @@ import {
   SettingsRow,
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { HeadingRow } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { HeadingRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/review-modal'
 import {

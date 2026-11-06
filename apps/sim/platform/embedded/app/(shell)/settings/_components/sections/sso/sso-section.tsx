@@ -22,7 +22,7 @@ import { SettingsSection } from '@/platform/design-system/components/settings-se
 import {
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { DomainsPanel } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/domains-panel'
 import { ProviderDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/provider-detail'

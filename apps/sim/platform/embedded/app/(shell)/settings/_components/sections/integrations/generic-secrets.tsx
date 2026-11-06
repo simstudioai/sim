@@ -26,7 +26,7 @@ import { SettingsRow } from '@/platform/design-system/components/settings-sectio
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 export const GENERIC_SECRETS_SOURCE_TYPE = 'generic-secrets'
 export const GENERIC_SECRETS_NAME = 'Generic Secrets'

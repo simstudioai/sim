@@ -16,11 +16,11 @@ import {
   ConversationSkeleton,
   LandingSkeleton,
 } from '@/platform/embedded/app/(shell)/_components/conversation/skeletons'
+import { GetStarted } from '@/platform/embedded/app/(shell)/_components/get-started/get-started'
 import { SearchResults } from '@/platform/embedded/app/(shell)/_components/search/search-results'
-import { GetStarted } from '@/platform/embedded/app/(shell)/home/_components/get-started/get-started'
+import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/_components/search-surface-header/search-surface-header'
 import { SearchHistory } from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.module.css'
-import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface-header'
 import { useGetStartedSteps } from '@/platform/embedded/lib/data/get-started'
 import {
   useOrganizationSearch,

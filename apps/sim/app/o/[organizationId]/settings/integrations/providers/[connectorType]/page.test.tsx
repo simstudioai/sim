@@ -22,7 +22,7 @@ vi.mock(
 vi.mock('@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host', () => ({
   SettingsSubpageHost: () => null,
 }))
-vi.mock('@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts', () => ({
+vi.mock('@/platform/embedded/app/(shell)/_components/section-parts/section-parts', () => ({
   LoadingState: () => null,
 }))
 

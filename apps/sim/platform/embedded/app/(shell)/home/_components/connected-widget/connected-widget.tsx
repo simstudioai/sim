@@ -8,8 +8,8 @@ import type { MenuAction } from '@/platform/design-system/components/menu/action
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { FailureNotice, InlineNotice } from '@/platform/design-system/components/status/status'
+import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
-import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/home-section/home-section'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type {
   HomeAccountView,

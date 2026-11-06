@@ -30,8 +30,8 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
+import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface AssistantAppsProps {
   organizationId: string

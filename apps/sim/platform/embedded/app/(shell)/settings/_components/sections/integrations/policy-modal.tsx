@@ -29,7 +29,7 @@ import {
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface PolicyModalProps {
   organizationId: string

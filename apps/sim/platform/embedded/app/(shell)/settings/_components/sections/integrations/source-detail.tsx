@@ -43,7 +43,7 @@ import {
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ConnectorSettingsFields } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-settings-fields'
 
 interface SourceDetailProps {

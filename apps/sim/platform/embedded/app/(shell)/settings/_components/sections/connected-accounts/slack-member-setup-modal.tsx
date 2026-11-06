@@ -8,7 +8,7 @@ import {
   Modal,
   SearchableSelect,
 } from '@/platform/design-system/components'
-import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
 
 interface SlackMemberSetupModalProps {

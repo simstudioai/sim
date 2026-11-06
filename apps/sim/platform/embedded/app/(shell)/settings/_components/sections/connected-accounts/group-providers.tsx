@@ -34,13 +34,13 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,
   Muted,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { DatabricksModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal'
 import { ProviderCatalogModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'

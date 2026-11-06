@@ -2,12 +2,12 @@
 
 import { FailureNotice, SearchableSelect, Select } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ProfileForm } from '@/platform/embedded/app/(shell)/settings/_components/profile/profile-settings'
 import {
   BooleanRow,
   SavedSettingsSection,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   useAppearanceSettings,
   useProfileSettings,

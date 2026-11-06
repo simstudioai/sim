@@ -4,8 +4,8 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
+import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/activity-list/activity-list.module.css'
-import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/home-section/home-section'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type {
   AttentionItem,

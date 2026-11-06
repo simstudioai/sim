@@ -11,7 +11,7 @@ import {
   FieldStack,
   Muted,
   Preformatted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 
 const CLIENTS = [

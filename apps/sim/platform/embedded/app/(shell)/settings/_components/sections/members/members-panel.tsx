@@ -16,8 +16,8 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-modal/invite-modal'
+import { SectionToolbar } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ManageCreditsModal } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import { SectionToolbar } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   InvitationRow,
   MemberRow,

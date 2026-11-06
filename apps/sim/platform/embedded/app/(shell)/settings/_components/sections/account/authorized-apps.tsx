@@ -10,7 +10,7 @@ import {
   QueryBoundary,
   SectionSearch,
 } from '@/platform/design-system/components'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useAuthorizedAppsList } from '@/platform/embedded/lib/data/account'
 
 const TITLE = 'Authorized apps'

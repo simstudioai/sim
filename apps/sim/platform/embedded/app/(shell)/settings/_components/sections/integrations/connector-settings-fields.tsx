@@ -15,11 +15,11 @@ import {
   SearchableSelect,
   SecretField,
 } from '@/platform/design-system/components'
-import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import { ConnectorAccess } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-access'
 import { ConnectorConfigFields } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields'
 import { ContentCredentialField } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/content-credential-field'

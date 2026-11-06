@@ -11,13 +11,13 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import {
+  DetailHeader,
+  HeadingRow,
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import {
   type CreditsTarget,
   ManageCreditsModal,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import {
-  DetailHeader,
-  HeadingRow,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,

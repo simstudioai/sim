@@ -15,7 +15,7 @@ import { SettingsSection } from '@/platform/design-system/components/settings-se
 import {
   FieldStack,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 /**
  * Whether members must sign in through the organization's identity provider. Read when a session is

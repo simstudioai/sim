@@ -44,7 +44,7 @@ import {
   Muted,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const REQUEST_LIMIT = 100

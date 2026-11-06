@@ -7,7 +7,7 @@ import { SettingsSection } from '@/platform/design-system/components/settings-se
 import {
   FieldStack,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useProjects } from '@/platform/embedded/lib/data/access-control'
 
 interface ProjectIssueRestrictionsProps {

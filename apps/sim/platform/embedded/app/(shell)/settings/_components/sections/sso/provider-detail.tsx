@@ -13,7 +13,7 @@ import {
   DetailHeader,
   FieldStack,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ProviderForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/provider-form'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
 

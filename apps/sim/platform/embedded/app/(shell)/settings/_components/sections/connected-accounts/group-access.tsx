@@ -28,7 +28,7 @@ import {
 import {
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { WorkspaceGrantModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/workspace-grant-modal'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]

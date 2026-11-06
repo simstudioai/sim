@@ -17,7 +17,6 @@ import {
   SelectField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
   DetailHeader,
@@ -25,7 +24,8 @@ import {
   FormFieldset,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import { ApiKeyField } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field'
 import { ConnectorAccess } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-access'
 import { ConnectorConfigFields } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields'

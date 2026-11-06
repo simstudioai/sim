@@ -6,9 +6,9 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { HOME_ASSISTANT_DRAFT_SLOT, organizationDraftKey } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
 import { PageConversation } from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
+import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/_components/search-surface-header/search-surface-header'
 import { HomeDashboardSkeleton } from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { LiveHome } from '@/platform/embedded/app/(shell)/home/_components/live-home/live-home'
-import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface-header'
 import {
   SEARCH_MODES,
   useSearchViewHref,

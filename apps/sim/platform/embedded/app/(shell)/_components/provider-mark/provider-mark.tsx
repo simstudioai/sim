@@ -1,5 +1,5 @@
 import { PROVIDER_ICONS } from '@/components/icons/providers'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 
 interface ProviderMarkProps {
   providerId: string

@@ -42,7 +42,7 @@ import { SettingsRow } from '@/platform/design-system/components/settings-sectio
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { plural } from '@/platform/shared/plural'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>

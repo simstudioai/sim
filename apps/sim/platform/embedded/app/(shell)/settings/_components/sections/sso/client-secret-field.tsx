@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { maskedClientSecret } from '@/ee/sso/lib/provider-form'
 import { AutofillDecoys, Button, SecretField, TextField } from '@/platform/design-system/components'
-import { ActionRow } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { ActionRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface ClientSecretFieldProps {
   /** A secret is saved, so the field opens as a masked fact rather than an input. */

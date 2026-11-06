@@ -56,7 +56,7 @@ user activation is spent, `cancel` cannot be prevented, so `OverlayDialog` reope
 - A section with more than one job splits by job: `group-detail.tsx` is the shell, `group-general-tab.tsx`
   and `group-catalog-tabs.tsx` its bodies, `use-group-draft.ts` its write.
 - Merge logic worth a test is a pure module next to the view, such as `secrets-draft.ts`.
-- `section-parts/` holds what only settings needs: `SectionStack`, `FieldStack`, `SectionToolbar`,
+- `(shell)/_components/section-parts/` holds what settings and the secrets page share: `SectionStack`, `FieldStack`, `SectionToolbar`,
   `DetailHeader`, `HeadingRow`, `Muted`, `SectionSkeleton`, `DraftConflictNotice`. `useServerDraft` is in `_components/`, since Integrations uses it too.
 
 ## Legacy workspace settings

@@ -22,7 +22,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { FieldStack } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AddMembersModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
   useBulkAddPermissionGroupMembers,

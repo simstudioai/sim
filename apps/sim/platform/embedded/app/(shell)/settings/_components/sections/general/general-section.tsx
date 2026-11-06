@@ -3,7 +3,7 @@
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
-import { DetailHeader } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import {
   AccountSettingsRows,

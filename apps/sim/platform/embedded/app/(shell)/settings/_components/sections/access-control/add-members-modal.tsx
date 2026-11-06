@@ -14,7 +14,7 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import { useOrganizationRoster } from '@/platform/embedded/lib/data/access-control'
 

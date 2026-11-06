@@ -6,6 +6,7 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { Surface } from '@/platform/design-system/components/surface/surface'
+import { GetStarted } from '@/platform/embedded/app/(shell)/_components/get-started/get-started'
 import { HomeActivityChart } from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart'
 import {
   AttentionList,
@@ -13,7 +14,6 @@ import {
 } from '@/platform/embedded/app/(shell)/home/_components/activity-list/activity-list'
 import { CalendarDay } from '@/platform/embedded/app/(shell)/home/_components/calendar/calendar-day'
 import { ConnectedWidget } from '@/platform/embedded/app/(shell)/home/_components/connected-widget/connected-widget'
-import { GetStarted } from '@/platform/embedded/app/(shell)/home/_components/get-started/get-started'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import { HomeRecents } from '@/platform/embedded/app/(shell)/home/_components/home-recents/home-recents'
 import { HomeWorkspaces } from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces'

@@ -29,6 +29,11 @@ import {
   SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  DetailHeader,
+  DraftConflictNotice,
+  SectionStack,
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import {
   NewRow,
@@ -42,11 +47,6 @@ import {
   sameSecretsDraft,
 } from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-draft'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
-import {
-  DetailHeader,
-  DraftConflictNotice,
-  SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { useGenericSecrets } from '@/platform/embedded/lib/data/generic-secrets'
 
 const logger = createLogger('SecretsManager')

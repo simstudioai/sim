@@ -15,7 +15,7 @@ import {
   FieldStack,
   SectionSkeleton,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import {

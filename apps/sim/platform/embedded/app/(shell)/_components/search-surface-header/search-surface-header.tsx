@@ -3,7 +3,7 @@
 import { Button } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { Surface } from '@/platform/design-system/components/surface/surface'
-import styles from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.module.css'
+import styles from '@/platform/embedded/app/(shell)/_components/search-surface-header/search-surface-header.module.css'
 import type { OrganizationSearchState } from '@/platform/embedded/lib/data/organization-search'
 
 const SEARCH_MODE_ICONS = { search: 'I089', assistant: 'I073' } as const

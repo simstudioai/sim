@@ -17,7 +17,7 @@ import { SettingsSection } from '@/platform/design-system/components/settings-se
 import {
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { DrainCreate } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-detail'

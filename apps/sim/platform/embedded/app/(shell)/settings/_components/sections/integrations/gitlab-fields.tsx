@@ -7,7 +7,7 @@ import {
 } from '@/connectors/gitlab/permission-config/csv-files'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { Button, FileField, SegmentedControl } from '@/platform/design-system/components'
-import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface GitLabFieldsProps {
   form: GitLabPermissionForm

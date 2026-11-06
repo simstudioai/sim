@@ -18,7 +18,7 @@ import {
   ActionRow,
   Muted,
   Preformatted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface SlackSetupWizardProps {
   organizationId: string

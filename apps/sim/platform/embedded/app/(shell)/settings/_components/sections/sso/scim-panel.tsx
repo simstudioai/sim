@@ -44,7 +44,7 @@ import {
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { GroupMappings } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/group-mappings'
 import { useSettingsNavigationBlocked } from '@/platform/embedded/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'

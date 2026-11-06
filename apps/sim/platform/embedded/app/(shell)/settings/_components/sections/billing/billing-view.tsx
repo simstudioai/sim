@@ -15,7 +15,7 @@ import {
   SettingsSection,
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/billing/billing.module.css'
 import { useBillingSection } from '@/platform/embedded/lib/data/billing'

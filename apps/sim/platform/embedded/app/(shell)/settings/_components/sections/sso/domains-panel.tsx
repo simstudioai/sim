@@ -30,7 +30,7 @@ import {
   ActionRow,
   FieldStack,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface DomainRowProps {
   organizationId: string

@@ -37,7 +37,7 @@ import {
   Preformatted,
   RowStack,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section.module.css'
 import { useAuditLogFeed } from '@/platform/embedded/lib/data/audit-logs/feed'
