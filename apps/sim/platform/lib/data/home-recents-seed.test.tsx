@@ -11,6 +11,7 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import {
   organizationProviderMock,
@@ -26,9 +27,10 @@ vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 vi.mock('@/lib/knowledge/application/search-history', () => ({
   listSearchHistory: { execute: mocks.history },
 }))
