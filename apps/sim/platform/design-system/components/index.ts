@@ -31,6 +31,7 @@ export {
   VisibilityMenu,
 } from './menu/action-menu'
 export { ChoiceMenu } from './menu/choice-menu'
+export { MessageBubble } from './message-bubble/message-bubble'
 export { Modal, MultiStepModal } from './modal/modal'
 export { ModalBody, ModalFooter, ModalHeader } from './modal/modal-parts'
 export { OverflowText } from './overflow-text/overflow-text'

@@ -128,7 +128,7 @@ function FeedbackFields({ notes }: { notes?: string }) {
           id={id}
           label='Details'
           defaultValue={notes}
-          density='expanded'
+          defaultSize='expanded'
         />
       </FieldFrame>
     </>
@@ -415,7 +415,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         <TextArea
           placeholder={label}
           label={label}
-          density={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
+          defaultSize={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
           defaultValue={sample?.notes}
         />
       )

@@ -105,6 +105,10 @@
   cursor: default;
 }
 
+:is(.button, .iconButton)[aria-haspopup]:is(:disabled, [data-disabled], [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
 @media (pointer: coarse) {
   .iconButton[data-size="inline"] {
     inline-size: var(--spacing-20);

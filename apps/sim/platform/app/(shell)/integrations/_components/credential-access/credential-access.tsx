@@ -47,9 +47,7 @@ export function CredentialAccess({
   const [removing, setRemoving] = useState<CredentialMember | null>(null)
   const members = credential.members.filter((member) => member.status !== 'revoked')
   const active = members.filter((member) => member.status === 'active')
-  const existing = new Set(
-    members.filter((member) => member.status !== 'revoked').map((member) => member.userId)
-  )
+  const existing = new Set(members.map((member) => member.userId))
   const available = people.filter((person) => !existing.has(person.id))
   const admins = active.filter((member) => member.explicitAdmin).length
   const editable = credential.role === 'admin'
@@ -89,22 +87,27 @@ export function CredentialAccess({
           </Button>
         )}
       </div>
+      {credential.scope.kind === 'workspace' && (
+        <p className={styles.detail} data-type='T060'>
+          Access is limited to {credential.scope.name} workspace members.
+        </p>
+      )}
       <ul className={styles.rows}>
         {members.map((member) => {
           const reason = lockReason(member)
           const own = member.userId === viewer.id
           return (
             <li key={member.id} className={styles.row}>
-              <ActivityBody leading={<Avatar name={member.name} src={member.src} />}>
+              <ActivityBody leading={<Avatar name={member.name} src={member.src} size='inline' />}>
                 <span data-type='T059'>{member.name}</span>
                 <span className={styles.detail} data-type='T050'>
                   {member.email ?? (own ? 'You' : 'Organization member')}
                 </span>
               </ActivityBody>
               <div className={styles.actions}>
-                {member.status !== 'active' ? (
+                {member.status === 'pending' ? (
                   <span className={styles.detail} data-type='T060'>
-                    {member.status === 'pending' ? 'Pending' : 'Revoked'}
+                    Pending
                   </span>
                 ) : editable && !reason ? (
                   <ChoiceMenu
@@ -120,7 +123,7 @@ export function CredentialAccess({
                     <span data-type='T060'>{member.role === 'admin' ? 'Admin' : 'Member'}</span>
                   </Tooltip>
                 )}
-                {(own || editable) && member.status !== 'revoked' && (
+                {(own || editable) && (
                   <ActionMenu
                     label={`Manage access for ${member.name}`}
                     icon='I108'

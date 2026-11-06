@@ -110,11 +110,8 @@ export function Input({
 }
 
 interface TextAreaProps
-  extends Omit<
-    InputProps,
-    'pattern' | 'type' | 'inputMode' | 'spellCheck' | 'trailing' | 'viewOnly'
-  > {
-  density?: 'expanded'
+  extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'spellCheck' | 'trailing'> {
+  defaultSize?: 'regular' | 'expanded' | 'large'
 }
 
 export function TextArea({
@@ -128,21 +125,26 @@ export function TextArea({
   invalid,
   describedBy,
   placeholder,
-  density,
+  defaultSize = 'regular',
   required,
   autoComplete,
   maxLength,
   readOnly,
+  viewOnly,
 }: TextAreaProps) {
   const scrollRef = useScrollEdges<HTMLTextAreaElement>()
   return (
-    <span className={`${styles.inputFrame} ${styles.textareaFrame}`} data-density={density}>
+    <span
+      className={`${styles.inputFrame} ${styles.textareaFrame}`}
+      data-default-size={defaultSize}
+      data-view-only={viewOnly || undefined}
+    >
       <textarea
         ref={scrollRef}
         id={id}
         autoComplete={autoComplete}
         maxLength={maxLength}
-        readOnly={readOnly}
+        readOnly={readOnly || viewOnly}
         required={required}
         aria-label={label}
         className={styles.input}

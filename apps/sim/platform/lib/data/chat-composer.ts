@@ -445,8 +445,25 @@ function useLiveStartChat() {
   }
 }
 
+function useLiveAppendHomePrompt() {
+  const { organization } = useOrganization()
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  if (!userId) return null
+  return (prompt: string) => {
+    const key = `${userId}:organization:${organization.id}:home`
+    const store = useMothershipDraftsStore.getState()
+    const draft = store.drafts[key]
+    store.setDraft(key, {
+      ...draft,
+      text: draft?.text ? `${draft.text}\n\n${prompt}` : prompt,
+    })
+  }
+}
+
 export const LIVE_COMPOSER_HOST: ComposerHost = {
   useComposer: useLiveComposer,
   useStartChat: useLiveStartChat,
   useStartSearch,
+  useAppendHomePrompt: useLiveAppendHomePrompt,
 }

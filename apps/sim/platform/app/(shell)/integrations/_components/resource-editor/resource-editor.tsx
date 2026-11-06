@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { generateId } from '@sim/utils/id'
 import {
+  Button,
   Modal,
   MultiSelect,
   SecretField,
@@ -21,11 +22,19 @@ interface ResourceEditorProps {
   data: IntegrationCenterData
   onSave: (resource: IntegrationResource) => void
   onClose: () => void
+  onDelete?: () => void
 }
 
 const TITLES = { skill: 'skill', mcp: 'MCP', credential: 'credential' } as const
 
-export function ResourceEditor({ kind, resource, data, onSave, onClose }: ResourceEditorProps) {
+export function ResourceEditor({
+  kind,
+  resource,
+  data,
+  onSave,
+  onClose,
+  onDelete,
+}: ResourceEditorProps) {
   const [scope, setScope] = useState(resource?.scope ?? 'personal')
   const [people, setPeople] = useState(
     resource?.people
@@ -58,7 +67,12 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
       throw new Error('Choose at least one person to share with.')
     if (kind === 'skill') {
       if (!read('instructions')) throw new Error('Add instructions for this skill.')
-      onSave({ ...identity, kind, instructions: read('instructions') })
+      onSave({
+        ...identity,
+        kind,
+        instructions: read('instructions'),
+        source: resource?.kind === 'skill' ? resource.source : undefined,
+      })
     } else if (kind === 'mcp') {
       const url = new URL(read('url'))
       if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
@@ -109,6 +123,7 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
           label='Instructions'
           placeholder='Describe what this skill should do'
           name='instructions'
+          defaultSize='large'
           defaultValue={resource?.kind === 'skill' ? resource.instructions : ''}
           required
         />
@@ -199,6 +214,11 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
           value={people}
           onValueChange={setPeople}
         />
+      )}
+      {onDelete && (
+        <div>
+          <Button variant='quiet' onClick={onDelete}>{`Delete ${TITLES[kind]}`}</Button>
+        </div>
       )}
     </Modal>
   )

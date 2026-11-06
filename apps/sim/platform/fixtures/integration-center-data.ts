@@ -9,11 +9,26 @@ import type {
   IntegrationResource,
 } from '@/platform/lib/integrations/center-model'
 
-const emir: IntegrationPerson = { id: 'emir', name: 'Emir Karabeg' }
-const nina: IntegrationPerson = { id: 'nina', name: 'Nina Patel', src: ninaPhoto.src }
-const alex: IntegrationPerson = { id: 'alex', name: 'Alex Chen', src: alexPhoto.src }
-const maya: IntegrationPerson = { id: 'maya', name: 'Maya Thompson', src: mayaPhoto.src }
-const daniel: IntegrationPerson = { id: 'daniel', name: 'Daniel Kim' }
+const emir: IntegrationPerson = { id: 'emir', name: 'Emir Karabeg', email: 'emir@example.test' }
+const nina: IntegrationPerson = {
+  id: 'nina',
+  name: 'Nina Patel',
+  email: 'nina@example.test',
+  src: ninaPhoto.src,
+}
+const alex: IntegrationPerson = {
+  id: 'alex',
+  name: 'Alex Chen',
+  email: 'alex@example.test',
+  src: alexPhoto.src,
+}
+const maya: IntegrationPerson = {
+  id: 'maya',
+  name: 'Maya Thompson',
+  email: 'maya@example.test',
+  src: mayaPhoto.src,
+}
+const daniel: IntegrationPerson = { id: 'daniel', name: 'Daniel Kim', email: 'daniel@example.test' }
 const people = [emir, nina, alex, maya, daniel]
 const organization = { id: 'sim', name: 'Sim Enterprise' }
 

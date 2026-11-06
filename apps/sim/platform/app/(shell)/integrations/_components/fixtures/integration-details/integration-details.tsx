@@ -3,16 +3,12 @@
 import { useState } from 'react'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { CredentialConnect } from '@/platform/app/(shell)/integrations/_components/credential-connect/credential-connect'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
 import { CredentialList } from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list'
-import {
-  credentialParams,
-  serializeCredential,
-} from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
+import { credentialParams } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
 import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
@@ -56,9 +52,6 @@ export function IntegrationDetails({
   addedSkills,
   onAddSkill,
 }: IntegrationDetailsProps) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const search = useSearchParams()
   const [view, setView] = useQueryStates(credentialParams)
   const [enrollment, setEnrollment] = useState<{
     connection: CredentialConnection
@@ -89,11 +82,8 @@ export function IntegrationDetails({
     )
   }
   async function open(credential: IntegrationCredential) {
-    await setView(view)
-    router.push(
-      serializeCredential(`${pathname}?${search.toString()}`, { credential: credential.id }),
-      { scroll: false }
-    )
+    await setView({})
+    void setView({ credential: credential.id }, { history: 'push', scroll: false })
   }
   function save(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
@@ -267,6 +257,7 @@ export function IntegrationDetails({
               <ActionMenu
                 label='Connect integration'
                 triggerSize='compact'
+                triggerVariant='secondary'
                 icon={null}
                 tooltip={false}
                 actions={connections.map((connection) => ({
@@ -281,9 +272,6 @@ export function IntegrationDetails({
             integrationName={integration.name}
             credentials={integration.credentials}
             onOpen={(credential) => void open(credential)}
-            onReconnect={reconnect}
-            canReconnect={canReconnect}
-            onDisconnect={setDisconnecting}
           />
           {catalog && (
             <IntegrationCapabilities

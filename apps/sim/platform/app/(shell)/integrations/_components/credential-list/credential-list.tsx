@@ -1,5 +1,6 @@
 import styles from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list.module.css'
-import { ActionMenu, ActivityRow, Icon } from '@/platform/design-system/components'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { ActivityRow } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
@@ -8,19 +9,9 @@ interface CredentialListProps {
   integrationName: string
   credentials: readonly IntegrationCredential[]
   onOpen: (credential: IntegrationCredential) => void
-  onReconnect: (credential: IntegrationCredential) => void
-  onDisconnect: (credential: IntegrationCredential) => void
-  canReconnect: (credential: IntegrationCredential) => boolean
 }
 
-export function CredentialList({
-  integrationName,
-  credentials,
-  onOpen,
-  onReconnect,
-  onDisconnect,
-  canReconnect,
-}: CredentialListProps) {
+export function CredentialList({ integrationName, credentials, onOpen }: CredentialListProps) {
   return (
     <section className={styles.section} aria-label='Connected credentials'>
       <h2 data-type='T093'>
@@ -31,7 +22,7 @@ export function CredentialList({
           {credentials.map((credential) => (
             <ActivityRow
               key={credential.id}
-              leading={<Icon name='I137' />}
+              leading={<IntegrationMark providerId={credential.appId} />}
               title={credential.displayName}
               detail={credentialDescription(credential, integrationName)}
               onOpen={() => onOpen(credential)}
@@ -39,40 +30,6 @@ export function CredentialList({
                 people: credential.members.filter((member) => member.status === 'active'),
                 label: 'People with access',
               }}
-              trailing={
-                credential.role === 'admin' && credential.scope.kind !== 'organization-managed' ? (
-                  <ActionMenu
-                    label={`Manage ${credential.displayName}`}
-                    icon='I108'
-                    triggerSize='row'
-                    tooltip={false}
-                    align='end'
-                    actions={[
-                      {
-                        id: 'details',
-                        label: 'Edit details and access',
-                        onSelect: () => onOpen(credential),
-                      },
-                      ...(canReconnect(credential)
-                        ? [
-                            {
-                              id: 'reconnect',
-                              label: 'Reconnect',
-                              onSelect: () => onReconnect(credential),
-                            },
-                          ]
-                        : []),
-                      {
-                        id: 'disconnect',
-                        label: 'Disconnect',
-                        destructive: true,
-                        separatorBefore: true,
-                        onSelect: () => onDisconnect(credential),
-                      },
-                    ]}
-                  />
-                ) : undefined
-              }
             />
           ))}
         </ul>

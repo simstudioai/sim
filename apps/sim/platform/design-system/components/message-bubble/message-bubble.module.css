@@ -1,0 +1,25 @@
+.bubble {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+  color: var(--ui-ink);
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+button.bubble {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 var(--spacing-stroke-default) transparent;
+  transition: box-shadow var(--ui-motion-color);
+}
+
+button.bubble:hover {
+  box-shadow: inset 0 0 0 var(--spacing-stroke-default) var(--control-hover-border);
+}
+
+button.bubble:active {
+  box-shadow: inset 0 0 0 var(--spacing-stroke-default) var(--ui-secondary);
+}

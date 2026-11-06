@@ -29,7 +29,14 @@ function resourceMetadata(resource: IntegrationResource): IntegrationResource {
   const identity = { id, name, description, scope, owner, people, canEdit }
   switch (resource.kind) {
     case 'skill':
-      return { ...identity, kind: 'skill', instructions: resource.instructions }
+      return {
+        ...identity,
+        kind: 'skill',
+        instructions: resource.instructions,
+        source: resource.source
+          ? { providerId: resource.source.providerId, name: resource.source.name }
+          : undefined,
+      }
     case 'mcp':
       return { ...identity, kind: 'mcp', url: resource.url, auth: resource.auth }
     case 'credential':

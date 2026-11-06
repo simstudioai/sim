@@ -43,7 +43,7 @@
 }
 
 .inputFrame:not(:has(.input:disabled), [data-disabled]):hover {
-  background: var(--ui-hover);
+  border-color: var(--control-hover-border);
 }
 
 .inputFrame:is(:has(.input[aria-invalid="true"]), [data-invalid]) {
@@ -71,7 +71,12 @@
   gap: var(--ui-action-gap);
 }
 
-.inputFrame[data-view-only] > .input {
+.inputFrame[data-view-only],
+.input[readonly] {
+  cursor: not-allowed;
+}
+
+.inputFrame[data-view-only] > input.input {
   grid-area: row;
   padding-inline-end: calc(var(--spacing-app-chip) - var(--spacing-stroke-default));
 }
@@ -163,6 +168,10 @@ textarea.input {
   padding-block: var(--spacing-8);
 }
 
-.textareaFrame[data-density="expanded"] {
+.textareaFrame[data-default-size="expanded"] {
   block-size: calc(2 * var(--spacing-56));
+}
+
+.textareaFrame[data-default-size="large"] {
+  block-size: calc(3 * var(--spacing-80));
 }

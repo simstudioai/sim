@@ -1,5 +1,8 @@
+'use client'
+
+import { useHomePrompt } from '@/platform/app/(shell)/_components/session/composer-host'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea.module.css'
-import { Icon } from '@/platform/design-system/components'
+import { Icon, MessageBubble } from '@/platform/design-system/components'
 import { publicAssetPath } from '@/platform/design-system/navigation'
 
 interface IntegrationIdeaProps {
@@ -9,6 +12,7 @@ interface IntegrationIdeaProps {
 }
 
 export function IntegrationIdea({ providerId, name, example }: IntegrationIdeaProps) {
+  const preparePrompt = useHomePrompt()
   return (
     <section className={styles.idea} aria-label={`Idea for ${name}`}>
       <img
@@ -19,10 +23,15 @@ export function IntegrationIdea({ providerId, name, example }: IntegrationIdeaPr
         height={724}
       />
       <div className={styles.message}>
-        <span className={styles.mark}>
-          <Icon providerId={providerId} />
-        </span>
-        <p data-type='T048'>{example}</p>
+        <MessageBubble
+          label={`Use ${name} idea`}
+          onSelect={preparePrompt ? () => preparePrompt(example) : undefined}
+        >
+          <span className={styles.mark}>
+            <Icon providerId={providerId} />
+          </span>
+          {example}
+        </MessageBubble>
       </div>
     </section>
   )

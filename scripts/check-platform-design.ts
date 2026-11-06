@@ -538,7 +538,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     if (/:focus-visible/.test(rule.selector) && !/:focus(?!-visible)/.test(rule.selector)) return
     if (
       file === `${system}components/search-field/search-field.module.css` &&
-      rule.selector === '.search:is(:hover, :focus-within)' &&
+      rule.selector === '.search:is(:hover, :focus-within) .queryFrame::after' &&
       rule.nodes.every(
         (node) =>
           node.type === 'decl' &&

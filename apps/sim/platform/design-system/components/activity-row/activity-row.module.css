@@ -45,12 +45,6 @@
 .entry:hover:not(:has(.row:disabled)) {
   background: var(--ui-hover);
 }
-.trailing {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  gap: var(--ui-action-gap);
-}
 .body {
   display: flex;
   align-items: start;

@@ -212,7 +212,7 @@ export function SkillDetail({ data, skill, skills, onSave, onDelete, href }: Ski
                 value={draft.content}
                 onChange={(content) => setDraft({ ...draft, content })}
                 required
-                density='expanded'
+                defaultSize='large'
                 placeholder='Write skill instructions in Markdown…'
                 invalid={submitted && !!errors.content}
                 describedBy={submitted && errors.content ? `${contentId}-error` : undefined}

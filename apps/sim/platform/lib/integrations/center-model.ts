@@ -7,6 +7,7 @@ export interface IntegrationPerson {
   id: string
   name: string
   src?: string
+  email?: string
 }
 
 export interface AppSummary {
@@ -36,7 +37,7 @@ interface ResourceIdentity {
 
 export type IntegrationResource = ResourceIdentity &
   (
-    | { kind: 'skill'; instructions: string }
+    | { kind: 'skill'; instructions: string; source?: { providerId: string; name: string } }
     | { kind: 'mcp'; url: string; auth: 'none' | 'bearer' | 'oauth' }
     | { kind: 'credential'; key: string; credentialType: 'secret' | 'api-key' }
   )

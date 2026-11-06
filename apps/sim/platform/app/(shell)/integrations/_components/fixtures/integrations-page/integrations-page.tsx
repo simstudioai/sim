@@ -95,7 +95,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               addedSkills={catalog?.skills
                 .filter((skill) =>
                   library.resources.some(
-                    (entry) => entry.kind === 'skill' && entry.instructions === skill.content
+                    (entry) =>
+                      entry.kind === 'skill' &&
+                      entry.source?.providerId === item.providerId &&
+                      entry.source.name === skill.name
                   )
                 )
                 .map((skill) => skill.name)}
@@ -104,7 +107,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
                   ? (skill) => {
                       if (
                         library.resources.some(
-                          (entry) => entry.kind === 'skill' && entry.instructions === skill.content
+                          (entry) =>
+                            entry.kind === 'skill' &&
+                            entry.source?.providerId === item.providerId &&
+                            entry.source.name === skill.name
                         )
                       )
                         return
@@ -114,6 +120,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
                         name: skill.name,
                         description: skill.description,
                         instructions: skill.content,
+                        source: { providerId: item.providerId, name: skill.name },
                         scope: 'personal',
                         owner: center.viewer,
                         people: [center.viewer],

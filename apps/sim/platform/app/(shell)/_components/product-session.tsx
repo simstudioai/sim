@@ -8,6 +8,7 @@ import { NotificationSession } from '@/platform/app/(shell)/_components/notifica
 import { PlatformShell } from '@/platform/app/(shell)/_components/platform-shell/platform-shell'
 import { ChatChangesProvider } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { ComposerDrafts } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { ComposerSession } from '@/platform/app/(shell)/_components/session/composer-host'
 import { IntegrationCenterChanges } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { IntegrationChanges } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { InterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
@@ -58,15 +59,17 @@ export function ProductSession({
         <NotificationSession>
           <ChatChangesProvider>
             <ComposerDrafts>
-              <PlatformSurface theme={live?.appearance ?? readAppearance(search.get('theme'))}>
-                <IntegrationChanges>
-                  <IntegrationCenterChanges enabled={Boolean(fixture) && !live}>
-                    <PlatformShell data={data} banner={banner}>
-                      {children}
-                    </PlatformShell>
-                  </IntegrationCenterChanges>
-                </IntegrationChanges>
-              </PlatformSurface>
+              <ComposerSession>
+                <PlatformSurface theme={live?.appearance ?? readAppearance(search.get('theme'))}>
+                  <IntegrationChanges>
+                    <IntegrationCenterChanges enabled={Boolean(fixture) && !live}>
+                      <PlatformShell data={data} banner={banner}>
+                        {children}
+                      </PlatformShell>
+                    </IntegrationCenterChanges>
+                  </IntegrationChanges>
+                </PlatformSurface>
+              </ComposerSession>
             </ComposerDrafts>
           </ChatChangesProvider>
         </NotificationSession>

@@ -13,6 +13,7 @@ import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/compose
 import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerDraft } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { platformHref } from '@/platform/design-system/navigation'
 
 export interface ComposerOptions extends Partial<ComposerInventory> {
@@ -33,6 +34,7 @@ export interface ComposerHost {
   useStartChat: () => (draft: ComposerDraft) => undefined | false
   /** Opens Search with a query, where Home's Search segment leads; null when the viewer can't. */
   useStartSearch: () => ((query: string) => void) | null
+  useAppendHomePrompt: () => ((prompt: string) => void) | null
 }
 
 function attachmentFor(file: File): ChatAttachment {
@@ -115,13 +117,33 @@ function useMemoryStartChat() {
   }
 }
 
+function useMemoryAppendHomePrompt() {
+  const [, updateDraft] = useComposerDraft('home', { text: '', attachments: [] })
+  return (prompt: string) =>
+    updateDraft((draft) => ({
+      ...draft,
+      text: draft.text ? `${draft.text}\n\n${prompt}` : prompt,
+    }))
+}
+
 const MEMORY_HOST: ComposerHost = {
   useComposer: useMemoryComposer,
   useStartChat: useMemoryStartChat,
   useStartSearch: () => null,
+  useAppendHomePrompt: useMemoryAppendHomePrompt,
 }
 
-const HostContext = createContext<ComposerHost>(MEMORY_HOST)
+const HostContext = createContext<ComposerHost | null>(null)
+
+interface ComposerSessionProps {
+  children: ReactNode
+}
+
+/** Product sessions inherit their live host or own an in-memory fixture composer. */
+export function ComposerSession({ children }: ComposerSessionProps) {
+  const host = useContext(HostContext) ?? MEMORY_HOST
+  return <HostContext.Provider value={host}>{children}</HostContext.Provider>
+}
 
 export function ComposerHostProvider({
   host,
@@ -134,5 +156,24 @@ export function ComposerHostProvider({
 }
 
 export function useComposerHost(): ComposerHost {
-  return useContext(HostContext)
+  return useContext(HostContext) ?? MEMORY_HOST
+}
+
+function useUnavailableHomePrompt() {
+  return null
+}
+
+/** Prepare an editable Home draft without sending it or replacing existing work. */
+export function useHomePrompt() {
+  const useAppendPrompt = useContext(HostContext)?.useAppendHomePrompt ?? useUnavailableHomePrompt
+  const append = useAppendPrompt()
+  const preferences = useInterfacePreferences()
+  const router = useRouter()
+  const search = useSearchParams()
+  if (!append) return null
+  return (prompt: string) => {
+    append(prompt)
+    preferences?.setHomeMode('Build')
+    router.push(platformHref('/home', search))
+  }
 }

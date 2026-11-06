@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { type ComponentType, useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
-import { ActionMenu, ActivityRow, Icon, Modal } from '@/platform/design-system/components'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { ActionMenu, ActivityRow, Modal } from '@/platform/design-system/components'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
@@ -15,6 +16,8 @@ interface CredentialRow extends IntegrationAccount {
 
 interface ConnectedCredentialProps {
   integrationName: string
+  providerId: string
+  icon?: ComponentType<{ className?: string }>
   accounts: readonly CredentialRow[]
   pending: boolean
   onReconnect: (accountId: string) => void
@@ -23,6 +26,8 @@ interface ConnectedCredentialProps {
 
 export function ConnectedCredential({
   integrationName,
+  providerId,
+  icon,
   accounts,
   pending,
   onReconnect,
@@ -67,14 +72,13 @@ export function ConnectedCredential({
             <ActivityRow
               key={account.id}
               href={account.href}
-              leading={<Icon name='I137' />}
+              leading={<IntegrationMark providerId={providerId} icon={icon} />}
               title={account.label}
               detail={account.statusLabel}
-              trailing={action}
             />
           ) : (
             <li key={account.id} className={styles.row}>
-              <ActivityBody leading={<Icon name='I137' />}>
+              <ActivityBody leading={<IntegrationMark providerId={providerId} icon={icon} />}>
                 <span data-type='T059'>{account.label}</span>
                 <span className={styles.muted} data-type='T050'>
                   {account.statusLabel}

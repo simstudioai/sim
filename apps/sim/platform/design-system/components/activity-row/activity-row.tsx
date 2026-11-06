@@ -15,7 +15,6 @@ interface ActivityRowProps {
   detail: string
   detailLead?: string
   showChevron?: boolean
-  trailing?: ReactNode
   disabled?: boolean
 }
 
@@ -35,7 +34,6 @@ export function ActivityRow({
   people,
   disabled = false,
   showChevron = !disabled,
-  trailing,
   onOpen,
   href,
 }: ActivityRowProps & ActivityTarget & ActivityMetadata) {
@@ -78,7 +76,6 @@ export function ActivityRow({
           {content}
         </button>
       )}
-      {trailing && <span className={styles.trailing}>{trailing}</span>}
     </li>
   )
 }

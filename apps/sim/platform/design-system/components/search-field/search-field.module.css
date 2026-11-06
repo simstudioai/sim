@@ -23,7 +23,23 @@
   border-radius: 0;
   background: transparent;
 }
-.search:is(:hover, :focus-within) {
+.queryFrame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  align-items: center;
+  min-inline-size: 0;
+}
+.queryFrame::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: calc(-1 * var(--spacing-stroke-default));
+  border-block-end: var(--spacing-stroke-default) solid transparent;
+  pointer-events: none;
+}
+.search:is(:hover, :focus-within) .queryFrame::after {
   border-block-end-color: var(--control-hover-border);
 }
 .menuSearch {

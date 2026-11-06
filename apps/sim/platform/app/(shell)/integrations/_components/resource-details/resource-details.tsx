@@ -60,7 +60,8 @@ export function ResourceDetails({ resource, onClose }: ResourceDetailsProps) {
             label='Instructions'
             placeholder='Skill instructions'
             value={resource.instructions}
-            readOnly
+            defaultSize='large'
+            viewOnly
           />
         )}
       </ModalBody>

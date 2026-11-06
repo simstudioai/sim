@@ -1,16 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useQueryStates } from 'nuqs'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities.module.css'
-import { catalogParams } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/search-params'
 import {
   ActivityRow,
   CopyButton,
   Icon,
   Modal,
   ModalBody,
-  Pagination,
   Stack,
   TextAreaField,
 } from '@/platform/design-system/components'
@@ -27,8 +24,6 @@ interface IntegrationCapabilitiesProps {
   onAddSkill?: (skill: CatalogSkill) => void
 }
 
-const TEMPLATES_PER_PAGE = 8
-
 export function IntegrationCapabilities({
   catalog,
   addedSkills = [],
@@ -36,13 +31,6 @@ export function IntegrationCapabilities({
 }: IntegrationCapabilitiesProps) {
   const [skill, setSkill] = useState<CatalogSkill | null>(null)
   const [template, setTemplate] = useState<CatalogTemplate | null>(null)
-  const [view, setView] = useQueryStates(catalogParams)
-  const templatePages = Math.ceil(catalog.templates.length / TEMPLATES_PER_PAGE)
-  const templatePage = Math.max(1, Math.min(view['templates-page'], templatePages))
-  const templates = catalog.templates.slice(
-    (templatePage - 1) * TEMPLATES_PER_PAGE,
-    templatePage * TEMPLATES_PER_PAGE
-  )
   const installed = new Set(addedSkills)
   return (
     <>
@@ -69,9 +57,9 @@ export function IntegrationCapabilities({
             <CountedLabel label='Agent templates' count={catalog.templates.length} />
           </h2>
           <ul className={styles.links}>
-            {templates.map((entry) => (
+            {catalog.templates.map((entry) => (
               <ActivityRow
-                key={entry.title}
+                key={`${entry.title}:${entry.prompt}`}
                 title={entry.title}
                 detail={entry.prompt}
                 leading={
@@ -88,14 +76,6 @@ export function IntegrationCapabilities({
               />
             ))}
           </ul>
-          {templatePages > 1 && (
-            <Pagination
-              label='Template pages'
-              page={templatePage}
-              pageCount={templatePages}
-              onPageChange={(page) => void setView({ 'templates-page': page })}
-            />
-          )}
         </section>
       )}
       {skill &&
@@ -109,13 +89,20 @@ export function IntegrationCapabilities({
             onOpenChange={(open) => {
               if (!open) setSkill(null)
             }}
-            onConfirm={() => onAddSkill(skill)}
+            onConfirm={() => {
+              const content = skill.content.trim()
+              if (!content) throw new Error('Add instructions for this skill.')
+              onAddSkill({ ...skill, content })
+            }}
           >
             <TextAreaField
               label='Instructions'
               placeholder='Skill instructions'
               value={skill.content}
-              readOnly
+              defaultSize='large'
+              viewOnly={installed.has(skill.name)}
+              onChange={(content) => setSkill({ ...skill, content })}
+              required
             />
           </Modal>
         ) : (
@@ -130,7 +117,8 @@ export function IntegrationCapabilities({
                 label='Instructions'
                 placeholder='Skill instructions'
                 value={skill.content}
-                readOnly
+                defaultSize='large'
+                viewOnly
               />
             </ModalBody>
           </OverlayDialog>
@@ -142,7 +130,8 @@ export function IntegrationCapabilities({
               label='Prompt'
               placeholder='Agent prompt'
               value={template.prompt}
-              readOnly
+              defaultSize='expanded'
+              viewOnly
             />
             <CopyButton label='Copy prompt' text={template.prompt} />
           </ModalBody>

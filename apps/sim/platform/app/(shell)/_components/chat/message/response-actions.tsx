@@ -94,7 +94,7 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
               <TextArea
                 label='Details'
                 placeholder='Tell us what was missing or how the response could improve.'
-                density='expanded'
+                defaultSize='expanded'
                 name='details'
               />
             </FieldFrame>

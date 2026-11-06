@@ -15,7 +15,6 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
-import { credentialSharing } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
 interface CredentialDetailProps {
@@ -29,14 +28,6 @@ interface CredentialDetailProps {
   onDisconnect: () => void
   onLeave: () => void
 }
-
-const METHOD_LABELS = {
-  oauth: 'OAuth account',
-  service_account: 'Service account',
-  personal_token: 'Personal access token',
-  mcp: 'MCP connection',
-  slack: 'Slack app',
-} as const
 
 export function CredentialDetail({
   credential,
@@ -54,14 +45,6 @@ export function CredentialDetail({
   const [error, setError] = useState<string>()
   const editable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
   const dirty = displayName !== credential.displayName || description !== credential.description
-  const access =
-    credential.scope.kind === 'workspace'
-      ? credential.scope.name
-      : credential.scope.kind === 'organization-managed'
-        ? `Managed by ${credential.scope.name}`
-        : credentialSharing(credential) === 'shared'
-          ? 'Shared with selected people'
-          : 'Only you'
   return (
     <>
       <ProviderHeading
@@ -151,10 +134,11 @@ export function CredentialDetail({
             viewOnly
           />
         )}
-        <div className={styles.metadata} data-type='T060'>
-          <span>{METHOD_LABELS[credential.type]}</span>
-          <span>{access}</span>
-        </div>
+        {credential.scope.kind === 'organization-managed' && (
+          <p className={styles.managed} data-type='T060'>
+            Managed by {credential.scope.name}
+          </p>
+        )}
         {editable && dirty && (
           <div className={styles.actions}>
             <Button

@@ -1,8 +1,11 @@
 .idea {
   position: relative;
   isolation: isolate;
+  display: grid;
+  place-items: center;
   min-inline-size: 0;
-  min-block-size: var(--spacing-128);
+  min-block-size: var(--spacing-192);
+  padding: var(--spacing-32) var(--spacing-24);
   margin-inline: calc(-1 * var(--ui-row-inset));
   overflow: clip;
   border-radius: var(--radius-composer);
@@ -21,26 +24,16 @@
 }
 
 .message {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--ui-row-gap);
-  max-inline-size: var(--container-440);
-  padding: var(--spacing-16);
-  color: var(--ui-ink);
+  max-inline-size: var(--container-chat-message);
+  min-inline-size: 0;
 }
 
 .mark {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex: none;
   inline-size: var(--ui-icon-size);
-  block-size: var(--spacing-20);
-}
-
-.message p {
-  min-inline-size: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
+  margin-inline-end: var(--ui-row-gap);
+  vertical-align: text-bottom;
 }
 
 [data-platform-ui][data-theme="dark"] .artwork {
@@ -57,11 +50,10 @@
 
 @media (max-width: 40rem) {
   .idea {
-    min-block-size: var(--spacing-192);
+    padding-inline: var(--spacing-16);
   }
 
   .artwork {
     object-position: right bottom;
-    opacity: var(--opacity-0-4);
   }
 }

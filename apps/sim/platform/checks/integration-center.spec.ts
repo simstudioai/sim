@@ -165,16 +165,17 @@ test('shared creation needs a recipient and deletion affects only the confirmed 
     .getByRole('region', { name: 'Shared', exact: true })
     .getByRole('button', { name: /^Daily account brief / })
   await expect(added).toBeVisible()
-  await main.getByRole('button', { name: 'Manage Daily account brief', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+  await added.click()
+  const savedEditor = page.getByRole('dialog', { name: 'Edit skill', exact: true })
+  await savedEditor.getByRole('button', { name: 'Delete skill', exact: true }).click()
   const confirmation = page.getByRole('dialog', {
     name: 'Delete Daily account brief?',
     exact: true,
   })
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(added).toBeVisible()
-  await main.getByRole('button', { name: 'Manage Daily account brief', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+  await expect(savedEditor).toBeVisible()
+  await savedEditor.getByRole('button', { name: 'Delete skill', exact: true }).click()
   await confirmation.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(added).toHaveCount(0)
   await expect(main.getByRole('button', { name: /^Weekly customer review / })).toBeVisible()

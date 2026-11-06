@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import { type ComponentProps, type ReactNode, useId } from 'react'
 import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import {
   Input,
@@ -139,6 +139,8 @@ interface TextAreaFieldProps extends FieldProps, TextValueProps {
   required?: boolean
   maxLength?: number
   readOnly?: boolean
+  viewOnly?: boolean
+  defaultSize?: ComponentProps<typeof TextArea>['defaultSize']
 }
 
 export function TextAreaField({
@@ -155,6 +157,8 @@ export function TextAreaField({
   required,
   maxLength,
   readOnly,
+  viewOnly,
+  defaultSize,
 }: TextAreaFieldProps) {
   const id = useId()
   return (
@@ -164,6 +168,8 @@ export function TextAreaField({
         required={required}
         maxLength={maxLength}
         readOnly={readOnly}
+        viewOnly={viewOnly}
+        defaultSize={defaultSize}
         label={label}
         name={name}
         defaultValue={defaultValue}

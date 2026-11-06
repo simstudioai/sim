@@ -24,14 +24,7 @@
   overflow: hidden;
 }
 
-.counted {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--spacing-4);
-  vertical-align: top;
-}
 .count {
   color: var(--ui-secondary);
-  font-weight: var(--font-weight-regular);
   font-variant-numeric: tabular-nums;
 }

@@ -265,7 +265,14 @@ const integrationCatalog: IntegrationCatalogEntry[] = catalog.integrations.map((
   if (authType !== 'oauth' && authType !== 'api-key' && authType !== 'none')
     throw new Error(`Unknown catalog authentication method for ${integration.slug}: ${authType}`)
   const skills = getSuggestedSkillsForBlock(integration.type)
-  const templates = getTemplatesForBlock(integration.type)
+  const templates = [
+    ...new Map(
+      getTemplatesForBlock(integration.type).map((template) => [
+        JSON.stringify([template.title, template.prompt]),
+        template,
+      ])
+    ).values(),
+  ]
   const featured =
     templates.find((template) =>
       template.title.toLowerCase().startsWith(integration.name.toLowerCase())

@@ -21,10 +21,9 @@ test('app discovery opens skills and templates and preserves installed skills th
   const suggested = main.getByRole('region', { name: 'Skills', exact: true })
   await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
   const skill = page.getByRole('dialog', { name: 'fetch-secret-for-runtime', exact: true })
-  const instructions = await skill
-    .getByRole('textbox', { name: 'Instructions', exact: true })
-    .inputValue()
-  expect(instructions.length).toBeGreaterThan(0)
+  const instructions =
+    'Ask which vault to use, then retrieve the requested secret without displaying its value.'
+  await skill.getByRole('textbox', { name: 'Instructions', exact: true }).fill(instructions)
   await skill.getByRole('button', { name: 'Add to Skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
   await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
@@ -49,11 +48,34 @@ test('app discovery opens skills and templates and preserves installed skills th
     .getByRole('link', { name: 'Skills', exact: true })
     .click()
   await main.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await expect(
-    page
-      .getByRole('dialog', { name: 'Edit skill', exact: true })
-      .getByRole('textbox', { name: 'Instructions', exact: true })
-  ).toHaveValue(instructions)
+  const editor = page.getByRole('dialog', { name: 'Edit skill', exact: true })
+  await expect(editor.getByRole('textbox', { name: 'Instructions', exact: true })).toHaveValue(
+    instructions
+  )
+  const editedInstructions =
+    'Confirm the target vault, retrieve the secret, and report only its item reference.'
+  await editor.getByRole('textbox', { name: 'Name', exact: true }).fill('runtime-vault-lookup')
+  await editor.getByRole('textbox', { name: 'Instructions', exact: true }).fill(editedInstructions)
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Integration categories' })
+    .getByRole('link', { name: 'Apps', exact: true })
+    .click()
+  await main.getByRole('link', { name: /^1Password / }).click()
+  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
+  await expect(skill.getByRole('button', { name: 'Added to Skills', exact: true })).toBeDisabled()
+  await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await main.getByRole('link', { name: 'Integrations', exact: true }).click()
+  await main
+    .getByRole('navigation', { name: 'Integration categories' })
+    .getByRole('link', { name: 'Skills', exact: true })
+    .click()
+  const installed = main.getByRole('button', { name: /^runtime-vault-lookup / })
+  await expect(installed).toHaveCount(1)
+  await installed.click()
+  await expect(editor.getByRole('textbox', { name: 'Instructions', exact: true })).toHaveValue(
+    editedInstructions
+  )
 })
 
 test('adding another credential preserves existing accounts and its details survive immediate browser back', async ({
@@ -87,9 +109,8 @@ test('adding another credential preserves existing accounts and its details surv
   await list.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(list.getByRole('searchbox')).toHaveValue('gmail')
   await list.getByRole('link', { name: /^Gmail / }).click()
-  await credentials
-    .getByRole('button', { name: 'Manage Gmail account review', exact: true })
-    .click()
+  await credentials.getByRole('button', { name: /^Gmail account review / }).click()
+  await list.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Disconnect', exact: true }).click()
   await page
     .getByRole('dialog', { name: 'Disconnect Gmail account review?', exact: true })
@@ -157,20 +178,15 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(people.getByText('Nina Patel', { exact: true })).toBeVisible()
 })
 
-test('Fireflies uses its managed MCP method and templates page without losing entries', async ({
+test('Fireflies uses its managed MCP method and keeps every template in page flow', async ({
   page,
 }) => {
   await page.goto(`${origin}/integrations/fireflies?state=full`)
   const main = page.getByRole('main')
   const templates = main.getByRole('region', { name: 'Agent templates', exact: true })
-  const firstPage = await templates.getByRole('listitem').allTextContents()
-  expect(firstPage).toHaveLength(8)
-  await templates.getByRole('button', { name: 'Next', exact: true }).click()
-  const secondPage = await templates.getByRole('listitem').allTextContents()
-  expect(secondPage).toHaveLength(2)
-  expect(new Set([...firstPage, ...secondPage]).size).toBe(10)
-  await templates.getByRole('button', { name: 'Previous', exact: true }).click()
-  expect(await templates.getByRole('listitem').allTextContents()).toEqual(firstPage)
+  await expect(templates.getByRole('listitem')).toHaveCount(10)
+  expect(new Set(await templates.getByRole('listitem').allTextContents()).size).toBe(10)
+  await expect(templates.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0)
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Connect Fireflies', exact: true })
   await expect(connect.getByRole('textbox')).toHaveCount(2)
@@ -295,7 +311,8 @@ test('service-account branches validate active fields and discard secrets after 
     .getByRole('textbox', { name: 'Run as username', exact: true })
     .fill('reporting@example.com')
   await connect.getByRole('button', { name: 'Connect', exact: true }).click()
-  await main.getByRole('button', { name: 'Manage Salesforce reporting', exact: true }).click()
+  await main.getByRole('button', { name: /^Salesforce reporting / }).click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', {
     name: 'Reconnect Salesforce reporting',
@@ -349,9 +366,8 @@ test('a Google JSON credential is validated before joining every app in its fami
   await main.getByRole('link', { name: /^Google Drive / }).click()
   const credentials = main.getByRole('region', { name: 'Connected credentials', exact: true })
   await expect(credentials.getByRole('button', { name: /^Google reporting key / })).toBeVisible()
-  await credentials
-    .getByRole('button', { name: 'Manage Google reporting key', exact: true })
-    .click()
+  await credentials.getByRole('button', { name: /^Google reporting key / }).click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', {
     name: 'Reconnect Google reporting key',
@@ -360,9 +376,7 @@ test('a Google JSON credential is validated before joining every app in its fami
   await expect(reconnect.getByRole('textbox', { name: 'JSON key', exact: true })).toHaveValue('')
   await expect(reconnect.getByRole('button', { name: 'Reconnect', exact: true })).toBeDisabled()
   await reconnect.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await credentials
-    .getByRole('button', { name: 'Manage Google reporting key', exact: true })
-    .click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Disconnect', exact: true }).click()
   await page
     .getByRole('dialog', { name: 'Disconnect Google reporting key?', exact: true })
@@ -423,7 +437,8 @@ test('Slack bot steps preserve configuration when going back and clear secrets o
   await modal.getByRole('button', { name: 'Continue', exact: true }).click()
   await modal.getByLabel('Signing secret', { exact: true }).fill('fixture-signing-secret')
   await modal.getByRole('button', { name: 'Connect bot', exact: true }).click()
-  await main.getByRole('button', { name: 'Manage Review Bot', exact: true }).click()
+  await main.getByRole('button', { name: /^Review Bot / }).click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog')
   await expect(
@@ -485,9 +500,6 @@ test('member credentials withhold administration and personal tokens never offer
 }) => {
   await page.goto(`${origin}/integrations/github?state=stress`)
   const main = page.getByRole('main')
-  await expect(
-    main.getByRole('button', { name: 'Manage Engineering repositories', exact: true })
-  ).toHaveCount(0)
   await main
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^Engineering repositories / })
@@ -600,8 +612,12 @@ test('managed, unconfigured and retained connections expose only the actions the
   await expect(main.getByRole('region', { name: 'Connected credentials' })).toContainText(
     'Fireflies'
   )
-  await main.getByRole('button', { name: 'Manage Fireflies', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toHaveCount(0)
+  await main
+    .getByRole('region', { name: 'Connected credentials', exact: true })
+    .getByRole('button', { name: /^Fireflies / })
+    .click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(main.getByRole('radio')).toHaveCount(0)
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
@@ -616,7 +632,11 @@ test('managed, unconfigured and retained connections expose only the actions the
     await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   }
   await main.getByRole('link', { name: /^Confluence / }).click()
-  await main.getByRole('button', { name: 'Manage engineering@sim.ai' }).click()
+  await main
+    .getByRole('region', { name: 'Connected credentials', exact: true })
+    .getByRole('button', { name: /^engineering@sim.ai / })
+    .click()
+  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: 'Disconnect', exact: true })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toHaveCount(0)
 })

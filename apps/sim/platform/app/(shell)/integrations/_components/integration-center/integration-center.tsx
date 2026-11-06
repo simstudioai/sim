@@ -122,13 +122,13 @@ export function IntegrationCenter({
       : !resources.length && !(current === 'credentials' && credentialLinks.length)
 
   async function open(resource: IntegrationResource) {
-    await setView(view)
-    router.push(serializeCenter(base, { ...view, resource: resource.id }), { scroll: false })
+    await setView({})
+    void setView({ resource: resource.id }, { history: 'push', scroll: false })
   }
 
   async function navigate(href: string) {
-    // Flush the directory's pending URL update before it becomes a browser-history entry.
-    await setView(view)
+    // Await pending filters without adding another shallow navigation before the route change.
+    await setView({})
     router.push(href)
   }
 
@@ -250,7 +250,6 @@ export function IntegrationCenter({
                 order={view.order}
                 onNavigate={navigate}
                 onOpen={open}
-                onDelete={setDeleting}
               />
             ))}
           </>
@@ -285,6 +284,7 @@ export function IntegrationCenter({
               void setView({ resource: null })
             }}
             onSave={library.save}
+            onDelete={editing ? () => setDeleting(editing) : undefined}
           />
         )
       )}
@@ -301,6 +301,7 @@ export function IntegrationCenter({
           onConfirm={() => {
             library.remove(deleting.id)
             setDeleting(null)
+            void setView({ resource: null })
           }}
         />
       )}

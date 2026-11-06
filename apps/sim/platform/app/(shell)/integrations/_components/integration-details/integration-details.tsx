@@ -117,6 +117,8 @@ export function IntegrationDetails({
       ) : shown.length > 0 ? (
         <ConnectedCredential
           integrationName={name}
+          providerId={providerId}
+          icon={integration.icon}
           accounts={shown.map((account) => ({
             ...account,
             statusLabel: accountStatus(integration),

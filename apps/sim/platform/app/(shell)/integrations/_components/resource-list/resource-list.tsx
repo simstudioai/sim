@@ -1,6 +1,6 @@
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
-import { ActionMenu, ActivityRow, Icon } from '@/platform/design-system/components'
+import { ActivityRow, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
 
 interface AppGroupProps {
@@ -59,7 +59,6 @@ interface ResourceGroupProps {
   order: 'asc' | 'desc'
   onNavigate: (href: string) => void
   onOpen: (resource: IntegrationResource) => void
-  onDelete: (resource: IntegrationResource) => void
 }
 
 export function ResourceGroup({
@@ -69,7 +68,6 @@ export function ResourceGroup({
   order,
   onNavigate,
   onOpen,
-  onDelete,
 }: ResourceGroupProps) {
   if (!resources.length && !links.length) return null
   const entries = [...resources, ...links].sort(
@@ -100,25 +98,6 @@ export function ResourceGroup({
                       label: 'Shared with',
                     }
                   : undefined
-              }
-              trailing={
-                resource.canEdit ? (
-                  <ActionMenu
-                    label={`Manage ${resource.name}`}
-                    icon='I108'
-                    actions={[
-                      { id: 'edit', label: 'Edit', onSelect: () => onOpen(resource) },
-                      { id: 'share', label: 'Manage access', onSelect: () => onOpen(resource) },
-                      {
-                        id: 'delete',
-                        label: 'Delete',
-                        destructive: true,
-                        separatorBefore: true,
-                        onSelect: () => onDelete(resource),
-                      },
-                    ]}
-                  />
-                ) : undefined
               }
             />
           ) : (

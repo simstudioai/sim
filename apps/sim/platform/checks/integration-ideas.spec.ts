@@ -1,0 +1,26 @@
+import { expect, test } from '@playwright/test'
+
+const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+
+test('an integration idea prepares an editable Home draft without sending or losing existing text', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?state=full&theme=light`)
+  const composer = page.getByRole('textbox', {
+    name: 'Ask about your business, or give Sim something to do…',
+  })
+  await composer.fill('Keep my existing notes.')
+  await page.getByRole('link', { name: 'Integrations', exact: true }).click()
+  await page.getByRole('searchbox', { name: 'Search apps', exact: true }).fill('Fireflies')
+  await page.getByRole('link', { name: /^Fireflies / }).click()
+  const idea = page.getByRole('button', { name: 'Use Fireflies idea', exact: true })
+  await expect(idea).toBeVisible()
+  const prompt = await idea.innerText()
+  await idea.focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/home\?/)
+  await expect(composer).toHaveValue(`Keep my existing notes.\n\n${prompt}`)
+  await composer.fill(`${await composer.inputValue()}\nAsk me before sending gifts.`)
+  await expect(composer).toHaveValue(/Ask me before sending gifts\.$/)
+  await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled()
+})

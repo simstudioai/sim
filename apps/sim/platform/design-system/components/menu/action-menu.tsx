@@ -71,6 +71,7 @@ interface TriggeredMenuProps {
   heading?: string
   search?: { label: string; value: string; onValueChange: (value: string) => void }
   triggerSize?: 'small' | 'row' | 'compact'
+  triggerVariant?: 'secondary' | 'quiet'
   tooltip?: boolean
   children?: never
   defaultValue?: never
@@ -89,6 +90,7 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         heading={props.heading}
         search={props.search}
         triggerSize={props.triggerSize}
+        triggerVariant={props.triggerVariant}
         tooltip={props.tooltip}
       />
     )
@@ -139,6 +141,7 @@ function TriggeredMenu({
   heading,
   search,
   triggerSize = 'small',
+  triggerVariant = 'quiet',
   tooltip = true,
 }: TriggeredMenuProps) {
   const { trigger, container, opener } = usePopoverContainer()
@@ -163,7 +166,7 @@ function TriggeredMenu({
       ) : (
         <Button
           render={<Menu.Trigger ref={trigger} />}
-          variant='quiet'
+          variant={triggerVariant}
           size={triggerSize === 'compact' ? 'compact' : 'regular'}
           disabled={!actions.length && !search}
         >
