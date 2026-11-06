@@ -29,7 +29,8 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { filterRoster, type MemberRowModel, useMembers } from '@/platform/lib/data/members'
+import { useMembers } from '@/platform/lib/data/members'
+import { filterRoster, type MemberRowModel } from '@/platform/lib/data/members-model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 
 interface MembersPanelProps {
