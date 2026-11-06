@@ -170,7 +170,9 @@ start_platform() {
 # platform_live_environment: one hosted Enterprise organization, the deterministic seed its specs
 # read, and a scripted worker in place of the model. Hosted is decided by the app's hostname, which
 # the job maps to loopback. Google and Microsoft answer only to real credentials, so those clients
-# are fixtures, and what no fixture can reach is reported by the specs as a skip.
+# are fixtures, and what no fixture can reach is reported by the specs as a skip. Each group starts
+# the realtime server after its app, as org-redesign does, and holds the same tripwire and tool
+# permissions, so a route that passes one suite cannot fail on the same stack in the other.
 platform_live_environment() {
   app_server=start
   export REDIS_URL=redis://127.0.0.1:6379
@@ -186,6 +188,9 @@ platform_live_environment() {
   export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
   export SIM_LINKS=true PEOPLE=true
   export INTERNAL_API_SECRET=platform-live-ci-local-secret-at-least-32-characters
+  export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+  export DB_TX_TRIPWIRE=throw
+  export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3030 SOCKET_SERVER_URL=http://127.0.0.1:3030
   export COPILOT_API_KEY=platform-live-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
   export SIM_AGENT_API_URL=http://127.0.0.1:3029
   export GOOGLE_CLIENT_ID=platform-live-google-client GOOGLE_CLIENT_SECRET=platform-live-google-secret
@@ -491,6 +496,7 @@ JS
     export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
     start_browser_install platform-live --only-shell chromium
     PLATFORM_ORG_UI=true start_app platform-live 3027 'Platform main' record-http-status
+    start_realtime platform-live 3030
     start_platform 3028
     bun --no-env-file platform/checks/live/support/scripted-agent.ts 3029 \
       > "$report_dir/platform-live-agent.log" 2>&1 &
@@ -510,6 +516,7 @@ JS
     export PLATFORM_ORG_UI=true
     start_browser_install platform-live --only-shell chromium
     start_app platform-live-flag-off 3027 'Main, no zone' record-http-status
+    start_realtime platform-live-flag-off 3030
     wait_for_browsers
     run_platform_live flag-off platform-live-flag-off
     ;;
