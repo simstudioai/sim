@@ -4,7 +4,6 @@
 .lane {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
-  min-height: var(--spacing-app-touch-target);
+  gap: var(--ui-list-gap);
   inline-size: max-content;
 }

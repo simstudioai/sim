@@ -50,7 +50,6 @@
   align-items: center;
   flex: none;
   gap: var(--ui-action-gap);
-  padding-inline-end: var(--ui-row-inset);
 }
 .body {
   display: flex;

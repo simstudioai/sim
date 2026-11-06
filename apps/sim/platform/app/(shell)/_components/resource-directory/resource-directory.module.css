@@ -29,7 +29,7 @@
   flex: 1;
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-stack-gap);
+  gap: var(--ui-heading-gap);
   overflow-wrap: anywhere;
 }
 .copy p {

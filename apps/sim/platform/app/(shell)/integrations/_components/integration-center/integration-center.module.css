@@ -4,14 +4,11 @@
   min-inline-size: 0;
   gap: var(--ui-product-section-gap);
 }
-.navigation {
-  margin-inline: calc(-1 * var(--ui-row-inset));
-}
 .toolbar,
 .empty {
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-section-gap);
+  gap: var(--ui-content-gap);
 }
 .empty {
   gap: var(--ui-stack-gap);

@@ -133,13 +133,11 @@ export function IntegrationCenter({
   return (
     <div className={styles.center}>
       <div className={styles.toolbar}>
-        <div className={styles.navigation}>
-          <DestinationTabs
-            label='Integration categories'
-            destinations={destinations}
-            currentHref={currentHref}
-          />
-        </div>
+        <DestinationTabs
+          label='Integration categories'
+          destinations={destinations}
+          currentHref={currentHref}
+        />
         <IntegrationControls
           leading={
             <SearchField
