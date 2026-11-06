@@ -25,8 +25,11 @@ interface HomeWorkspacesProps {
   onRetry: () => void
 }
 
-/** Shown while a row's activity is read, since an empty slot would claim the workspace is idle. */
-const SETTLING_METADATA = '…'
+/**
+ * Stands in for a row's detail while its activity is read: an empty slot would claim the workspace
+ * is idle, and the line holds the row at the height the answer will give it.
+ */
+const SETTLING_DETAIL = '…'
 
 function metadataOf(item: HomeWorkspaceItem, asOf: number) {
   if (item.status) return STATUS_LABEL[item.status]
@@ -64,14 +67,14 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
               onRetry={onRetry}
             />
           )}
-          <div className={styles.viewport}>
+          <div className={styles.viewport} aria-busy={state.settling || undefined}>
             <RowList dividers>
               {state.items.slice(0, visibleCount).map((item) => (
                 <ActivityRow
                   key={item.id}
                   title={item.name}
-                  detail={item.detail}
-                  metadata={state.settling ? SETTLING_METADATA : metadataOf(item, asOf)}
+                  detail={state.settling ? SETTLING_DETAIL : item.detail}
+                  metadata={state.settling ? undefined : metadataOf(item, asOf)}
                   metadataLeading={item.status === 'running' ? <Spinner /> : undefined}
                   render={<SettingsGuardedLink href={item.href} />}
                 />

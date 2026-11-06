@@ -35,7 +35,6 @@ import {
   ConfirmDialog,
   EmptyState,
   FailureNotice,
-  LoadingRows,
   SectionSearch,
 } from '@/platform/design-system/components'
 import {
@@ -46,6 +45,7 @@ import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/int
 import {
   ActionRow,
   Muted,
+  SectionSkeleton,
   SectionStack,
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
@@ -179,7 +179,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           />
         ) : !policies.data || !secrets.data ? (
-          <LoadingRows label='Loading sources' />
+          <SectionSkeleton title='Added sources' />
         ) : added.length === 0 && !secretSource && !search && !assistantVisible ? (
           <EmptyState title='No sources yet. Add a source to get started.' />
         ) : (

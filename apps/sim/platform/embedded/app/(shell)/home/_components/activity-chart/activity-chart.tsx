@@ -114,7 +114,7 @@ export function HomeActivityChart({
             </span>
           )}
         </div>
-        {(ready || days !== ACTIVITY_WINDOW_DAYS[0]) && (
+        {(state.status !== 'error' || days !== ACTIVITY_WINDOW_DAYS[0]) && (
           <RangePicker
             label='Range'
             options={RANGE_LABELS}
@@ -125,7 +125,7 @@ export function HomeActivityChart({
           />
         )}
       </header>
-      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} />}
+      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} shape='chart' />}
       {state.status === 'error' && (
         <FailureNotice
           intent='warning'

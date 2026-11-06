@@ -48,7 +48,7 @@ function UsageLimit({ field }: { field: ReturnType<typeof useBillingSection>['us
 
 export function BillingView({ organization }: Pick<SettingsSectionProps, 'organization'>) {
   const billing = useBillingSection(organization)
-  if (billing.status === 'pending') return <SectionSkeleton title='Plan' rows={1} />
+  if (billing.status === 'pending') return <SectionSkeleton label='Loading plan' rows={1} />
   if (billing.status === 'error')
     return <FailureNotice message={billing.error} onRetry={billing.retry} />
   return (

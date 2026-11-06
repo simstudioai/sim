@@ -1,4 +1,4 @@
-import { SectionSearch } from '@/platform/design-system/components'
+import { LoadingRows, SectionSearch } from '@/platform/design-system/components'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
@@ -23,6 +23,18 @@ interface ToolPermissionsProps {
   onQueryChange: (query: string) => void
   pending: boolean
   onChange: (change: ToolPermissionChange) => void
+}
+
+/** The section's heading over rows, as its read will fill it. */
+export function ToolPermissionsSkeleton() {
+  return (
+    <section className={styles.section} aria-label='Tool permissions'>
+      <div className={styles.intro}>
+        <h2 data-type='T093'>Tool permissions</h2>
+      </div>
+      <LoadingRows label='Loading tool permissions' />
+    </section>
+  )
 }
 
 export function ToolPermissions({

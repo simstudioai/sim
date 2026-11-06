@@ -3,7 +3,10 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/platform/design-system/components/button/button'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import {
+  SettingsSection,
+  SettingsSurface,
+} from '@/platform/design-system/components/settings-section/settings-section'
 import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts.module.css'
@@ -154,15 +157,23 @@ export function DraftConflictNotice({ onKeepMine, onTakeLatest }: DraftConflictN
   )
 }
 
-interface SectionSkeletonProps {
-  title: string
-  rows?: number
-}
+type SectionSkeletonProps = { rows?: number } & (
+  | { title: string; label?: never }
+  /** A section that opens with a card and no heading, like a Subscription's plan. */
+  | { title?: never; label: string }
+)
 
-export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
+/** A read's place in the page, inside the heading and card it will fill. */
+export function SectionSkeleton({ title, label, rows }: SectionSkeletonProps) {
+  if (title)
+    return (
+      <SettingsSection title={title}>
+        <LoadingRows label={`Loading ${title}`} rows={rows} />
+      </SettingsSection>
+    )
   return (
-    <SettingsSection title={title}>
-      <LoadingRows label={`Loading ${title}`} rows={rows} />
-    </SettingsSection>
+    <SettingsSurface>
+      <LoadingRows label={label ?? 'Loading'} rows={rows} />
+    </SettingsSurface>
   )
 }

@@ -10,13 +10,13 @@ import {
   EmptyState,
   errorMessageOr,
   FailureNotice,
-  LoadingRows,
   QueryBoundary,
   RowList,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
+  SectionSkeleton,
   SectionStack,
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
@@ -62,7 +62,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   const openDomains = () => void setParams({ tab: 'domains' })
 
   if (billingEnabled && billing.isLoading) {
-    return <LoadingRows label='Loading sign-in settings…' />
+    return <SectionSkeleton title='Identity provider' />
   }
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
