@@ -52,7 +52,7 @@ export function parseGaugeJson(value: unknown, name: string): unknown {
   }
 }
 
-/** Validates string arrays arriving directly or as JSON from a block field. */
+/** Validates nonblank string arrays without changing the supplied values. */
 export function parseGaugeStringArray(
   value: unknown,
   name: string,
@@ -60,8 +60,8 @@ export function parseGaugeStringArray(
 ): string[] {
   const parsed = parseGaugeJson(value, name)
   if (parsed == null && !bounds.min) return []
-  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
-    throw new Error(`${name} must be a JSON array of strings`)
+  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string' || !item.trim())) {
+    throw new Error(`${name} must be a JSON array of non-empty strings`)
   }
   if (
     (bounds.min !== undefined && parsed.length < bounds.min) ||

@@ -29,7 +29,8 @@ export const gaugeUpdateTagTool: ToolConfig<GaugeUpdateTagParams, GaugeUpdateTag
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Tag color string (up to 20 characters)',
+      description:
+        'Tag color string (up to 20 characters); omit to keep unchanged or use "" to clear',
     },
   },
   request: {

@@ -60,14 +60,15 @@ function selectGaugePromptText(params: { prompts: unknown }): Record<string, unk
 /** Rebuilds the original JSON representation after the shared executor projects prompt text. */
 function rebuildGaugePrompts(original: unknown, projectedText: unknown): string | GaugePromptIn[] {
   const prompts = parseGaugePrompts(original)
-  if (
-    !Array.isArray(projectedText) ||
-    projectedText.length !== prompts.length ||
-    projectedText.some((text) => typeof text !== 'string')
-  ) {
+  if (!Array.isArray(projectedText) || projectedText.length !== prompts.length) {
     throw new Error('Projected Gauge prompts must match the original prompt batch')
   }
-  const texts = parseGaugeStringArray(projectedText, 'Projected prompt text')
+  const texts = projectedText.map((text: unknown) => {
+    if (typeof text !== 'string') {
+      throw new Error('Projected Gauge prompts must match the original prompt batch')
+    }
+    return text
+  })
   const rebuilt = prompts.map((prompt, index) => ({ ...prompt, text: texts[index] ?? '' }))
   return typeof original === 'string' ? JSON.stringify(rebuilt) : rebuilt
 }

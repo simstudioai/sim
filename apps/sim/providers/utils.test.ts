@@ -12,6 +12,7 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
 }))
 
 import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import { GaugeBlock } from '@/blocks/blocks/gauge'
 import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
 import { IntuneBlock } from '@/blocks/blocks/intune'
 import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
@@ -46,6 +47,14 @@ import {
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { gaugeGetQueryMetadataTool } from '@/tools/gauge/get_query_metadata'
+import { gaugeListPromptsTool } from '@/tools/gauge/list_prompts'
+import type {
+  GaugeGetQueryMetadataParams,
+  GaugeListPromptsParams,
+  GaugeUpdatePromptParams,
+} from '@/tools/gauge/types'
+import { gaugeUpdatePromptTool } from '@/tools/gauge/update_prompt'
 import { greenhouseConvertProspectV2Tool } from '@/tools/greenhouse/convert_prospect_v2'
 import { greenhouseCreateApplicationV2Tool } from '@/tools/greenhouse/create_application_v2'
 import { greenhouseHireApplicationV2Tool } from '@/tools/greenhouse/hire_application_v2'
@@ -79,6 +88,137 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('integration filters through agent execution', () => {
+  it.each(['configured', 'model'] as const)(
+    'retains the %s Gauge topic filter without a stored operation',
+    async (source) => {
+      const tool = gaugeListPromptsTool
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const field = getSubBlocksForToolInput(
+        tool.id,
+        'gauge',
+        { operation: tool.id },
+        undefined,
+        GaugeBlock
+      )?.subBlocks.find((item) => item.canonicalParamId === 'topicFilter')
+      if (!field) throw new Error('Gauge topic filter control is unavailable')
+      const providerTool = await transformBlockTool(
+        {
+          type: 'gauge',
+          params: {
+            org: 'example',
+            category: 'example',
+            ...(source === 'configured' ? { [field.id]: 'top_configured' } : {}),
+          },
+        },
+        { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Gauge agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { topic: 'top_model' },
+        {},
+        undefined
+      )
+      const params = { ...executionParams, accessToken: 'fixture-token' } as GaugeListPromptsParams
+      const url =
+        typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+      expect(new URL(url).searchParams.get('topic')).toBe(
+        source === 'configured' ? 'top_configured' : 'top_model'
+      )
+    }
+  )
+
+  it.each(['configured', 'unchanged', 'model'] as const)(
+    'retains %s Gauge tracking intent without a stored operation',
+    async (source) => {
+      const tool = gaugeUpdatePromptTool
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const field = getSubBlocksForToolInput(
+        tool.id,
+        'gauge',
+        { operation: tool.id },
+        undefined,
+        GaugeBlock
+      )?.subBlocks.find((item) => item.id === 'promptTrackingType')
+      if (!field && source !== 'model') throw new Error('Gauge tracking control is unavailable')
+      const providerTool = await transformBlockTool(
+        {
+          type: 'gauge',
+          params: {
+            org: 'example',
+            category: 'example',
+            promptId: 'prompt_example',
+            ...(field && source !== 'model'
+              ? { [field.id]: source === 'unchanged' ? 'unchanged' : 'visibility' }
+              : {}),
+          },
+        },
+        { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Gauge agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { trackingType: 'branded_own' },
+        {},
+        undefined
+      )
+      const params = { ...executionParams, accessToken: 'fixture-token' } as GaugeUpdatePromptParams
+      expect(tool.request.body?.(params)).toEqual({
+        topicId: undefined,
+        trackingType:
+          source === 'unchanged'
+            ? undefined
+            : source === 'configured'
+              ? 'visibility'
+              : 'branded_own',
+      })
+    }
+  )
+
+  it.each(['configured', 'all', 'model'] as const)(
+    'retains %s Gauge catalog intent without a stored operation',
+    async (source) => {
+      const tool = gaugeGetQueryMetadataTool
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const field = getSubBlocksForToolInput(
+        tool.id,
+        'gauge',
+        { operation: tool.id },
+        undefined,
+        GaugeBlock
+      )?.subBlocks.find((item) => item.id === 'metadataDataset')
+      if (!field && source !== 'model') throw new Error('Gauge catalog control is unavailable')
+      const providerTool = await transformBlockTool(
+        {
+          type: 'gauge',
+          params: {
+            org: 'example',
+            ...(field && source !== 'model'
+              ? { [field.id]: source === 'all' ? 'all' : 'citations' }
+              : {}),
+          },
+        },
+        { selectedOperation: tool.id, getAllBlocks: () => [GaugeBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Gauge agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { dataset: 'aiTraffic' },
+        {},
+        undefined
+      )
+      const params = {
+        ...executionParams,
+        accessToken: 'fixture-token',
+      } as GaugeGetQueryMetadataParams
+      const url =
+        typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+      expect(new URL(url).searchParams.get('dataset')).toBe(
+        source === 'all' ? null : source === 'configured' ? 'citations' : 'aiTraffic'
+      )
+    }
+  )
+
   it.each([
     {
       operation: 'list_jobs',

@@ -568,6 +568,7 @@ export const GaugeBlock: BlockConfig = {
       id: 'promptTrackingType',
       title: 'Tracking Type',
       type: 'dropdown',
+      paramVisibility: 'user-or-llm',
       condition: {
         field: 'operation',
         value: ['gauge_bulk_update_prompts', 'gauge_update_prompt'],
@@ -776,6 +777,7 @@ export const GaugeBlock: BlockConfig = {
       id: 'metadataDataset',
       title: 'Dataset',
       type: 'dropdown',
+      paramVisibility: 'user-or-llm',
       condition: { field: 'operation', value: 'gauge_get_query_metadata' },
       options: [
         { label: 'All Datasets', id: 'all' },
@@ -969,27 +971,20 @@ export const GaugeBlock: BlockConfig = {
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const patch = ['gauge_bulk_update_prompts', 'gauge_update_prompt'].includes(
-          params.operation
-        )
         return {
           ...params,
           limit: params.limit === '' || params.limit == null ? undefined : Number(params.limit),
-          topic: params.operation === 'gauge_list_prompts' ? params.topicFilter : params.topic,
-          topicId: patch && params.topicId === '' ? undefined : params.topicId,
-          trackingType: patch
-            ? params.promptTrackingType === 'unchanged'
+          topic: params.topicFilter ?? params.topic,
+          topicId: params.topicId === '' ? undefined : params.topicId,
+          trackingType:
+            params.promptTrackingType === 'unchanged'
               ? undefined
-              : params.promptTrackingType
-            : params.trackingType,
-          name:
-            params.operation === 'gauge_update_tag' && params.name === '' ? undefined : params.name,
+              : (params.promptTrackingType ?? params.trackingType),
+          name: params.name === '' ? undefined : params.name,
           dataset:
-            params.operation === 'gauge_get_query_metadata'
-              ? params.metadataDataset === 'all'
-                ? undefined
-                : params.metadataDataset
-              : params.dataset,
+            params.metadataDataset === 'all'
+              ? undefined
+              : (params.metadataDataset ?? params.dataset),
         }
       },
     },

@@ -33,6 +33,13 @@ describe('Gauge request encoding', () => {
     expect(() => parseGaugeStringArray([], 'ids', { min: 1, max: 500 })).toThrow()
     expect(() => parseGaugeStringArray(['a', 'b'], 'tagIds', { max: 1 })).toThrow()
   })
+
+  it.each(['', '  '])('rejects a blank identifier %j instead of sending it to Gauge', (value) => {
+    expect(() => parseGaugeStringArray([value], 'ids', { min: 1 })).toThrow()
+    expect(parseGaugeStringArray([' padded-but-nonblank '], 'ids')).toEqual([
+      ' padded-but-nonblank ',
+    ])
+  })
 })
 
 const modelInput = gaugeCreatePromptsTool.request.modelInput
