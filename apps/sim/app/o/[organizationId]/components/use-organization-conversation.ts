@@ -1,12 +1,11 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { createSerializer, useQueryStates } from 'nuqs'
-import { AssistantActionReviewProvider } from '@/components/assistant-actions'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
@@ -18,6 +17,7 @@ import {
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
@@ -26,24 +26,13 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import { Composer, type ComposerChrome } from '@/app/o/[organizationId]/home/components/composer'
+import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
 } from '@/app/o/[organizationId]/search/search-params'
-import {
-  type ChatPanelAppearance,
-  ChatResourcePanel,
-} from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
-import type { ChatAppearance } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
-import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
-import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
-import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import {
   getMothershipUseChatOptions,
   useChat,
@@ -69,7 +58,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export interface OrganizationSummaryRequest {
@@ -78,11 +67,8 @@ export interface OrganizationSummaryRequest {
   assistantSearch: WorkspaceSearchFilters
 }
 
-/** What a surface's own landing arranges in place of the default one. */
-export interface OrganizationLandingSlot {
-  requestMode: ChatRequestMode
-  composer: ReactNode
-}
+/** Search's Assistant always runs its retrieval at this level. */
+const ASSISTANT_SEARCH_LEVEL = 'fast'
 
 const serializeSearchConversation = createSerializer({
   ...organizationSearchParsers,
@@ -90,86 +76,72 @@ const serializeSearchConversation = createSerializer({
   [resourceParam.key]: resourceParam.parser,
 })
 
-/**
- * Another design language's look for a whole conversation, supplied by its host so this module
- * (which the extension also bundles) imports none of it. Absent, the conversation renders as it
- * does in the extension's panel. The surface's behavior is the same either way.
- */
-export interface OrganizationConversationAppearance {
-  composerChrome: ComposerChrome
-  threadClassName: string
-  chat: ChatAppearance
-  panel: ChatPanelAppearance
-}
+/** Where the conversation runs: what differs beyond how it is drawn. */
+type ConversationSurface =
+  | {
+      kind: 'page'
+      /** Names this surface's new-chat draft, for a surface that must not share another's. */
+      draftSlot?: string
+    }
+  | {
+      kind: 'panel'
+      draftNamespace: string
+      fileDropTarget: RefObject<HTMLElement | null>
+      onChatIdResolved: (chatId: string) => void
+      prepareSubmission: PrepareChatSubmission
+      onSubmitted: () => void
+    }
 
-export interface OrganizationConversationProps {
-  active?: boolean
-  summaryRequest?: OrganizationSummaryRequest
-  onSummaryConsumed?: (id: string) => void
+interface UseConversationGateOptions {
   chatId?: string
   requestMode: ChatRequestMode
-  header?: ReactNode
-  /** Names this surface's new-chat draft, for a surface that must not share another's. */
-  draftId?: string
-  appearance?: OrganizationConversationAppearance
-  /** Replaces the blank frame shown until the conversation can mount. */
-  fallback?: ReactNode
-  /** Shown until the first turn takes over. */
-  landing?: {
-    /** Shown over the conversation once the first turn has replaced the landing. */
-    chatHeader?: ReactNode
-    render: (slot: OrganizationLandingSlot) => ReactNode
-  }
-  panelOptions?: {
-    header: ReactNode
-    attachments?: ReactNode
-    resourceActions?: ReactNode
-    toolbarActions?: ReactNode
-    modelSelectorOptions?: ModelSelectorOptions
-    onChatIdResolved: (chatId: string) => void
-    onNavigateToChat: (chatId: string) => void
-    prepareSubmission: PrepareChatSubmission
-    onSubmitted: () => void
-    draftNamespace: string
-  }
 }
 
-/** Shared conversation surface; the destination fixes its intent before the first turn. */
-export function OrganizationConversation(props: OrganizationConversationProps) {
+/** Whether the surface may mount, and for which identity. Its key remounts on any change to one. */
+export function useConversationGate({ chatId, requestMode }: UseConversationGateOptions) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
   const isClient = useHydrated()
-  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId })
+  const userId = session?.user?.id
   if (
     !mothershipAvailable ||
-    (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
+    (requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
   )
-    return null
-  if (isRestoredChatEntry) return <HomeFallback header={props.header} />
-  if (!isClient || !session?.user?.id)
-    return props.fallback ?? <HomeFallback header={props.header} />
-  return (
-    <OrganizationConversationContent
-      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.panelOptions ? 'panel' : props.requestMode}`}
-      {...props}
-    />
-  )
+    return { status: 'denied' } as const
+  if (isRestoredChatEntry) return { status: 'restoring' } as const
+  if (!isClient || !userId) return { status: 'waiting' } as const
+  return {
+    status: 'ready',
+    instanceKey: `${userId}:${organization.id}:${chatId ?? 'new'}`,
+  } as const
 }
 
-function OrganizationConversationContent({
+interface UseOrganizationConversationOptions {
+  surface: ConversationSurface
+  chatId?: string
+  requestMode: ChatRequestMode
+  active?: boolean
+  summaryRequest?: OrganizationSummaryRequest
+  onSummaryConsumed?: (id: string) => void
+}
+
+/**
+ * An organization conversation's behavior: the chat, its drafts, attachments, submission, and
+ * resources. Its two views draw it, the extension's panel and the page's. This module stays free of
+ * the design system so the extension can bundle it.
+ */
+export function useOrganizationConversation({
+  surface,
   chatId,
   requestMode: destinationMode,
-  header: frameHeader,
   active = true,
   summaryRequest,
   onSummaryConsumed,
-  draftId,
-  appearance,
-  landing,
-  panelOptions,
-}: OrganizationConversationProps) {
+}: UseOrganizationConversationOptions) {
   const { organization, canBuild } = useOrganizationContext()
-  const compact = Boolean(panelOptions)
+  const panelSurface = surface.kind === 'panel' ? surface : null
+  const isPanel = panelSurface !== null
   const { data: session } = useSession()
   const userId = session?.user?.id
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -198,18 +170,24 @@ function OrganizationConversationContent({
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
     }),
-    ...(panelOptions
-      ? { projectsDesktopTabs: false, onChatIdResolved: panelOptions.onChatIdResolved }
+    ...(panelSurface
+      ? { projectsDesktopTabs: false, onChatIdResolved: panelSurface.onChatIdResolved }
       : {}),
   })
-  const newDraftId =
-    draftId ?? (!compact && destinationMode === 'assistant' ? 'search-assistant' : 'home')
-  const draftPrefix = panelOptions ? `${panelOptions.draftNamespace}:` : ''
-  const initialDraftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
-  const draftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
+  const newDraftSlot =
+    surface.kind === 'panel'
+      ? 'home'
+      : (surface.draftSlot ??
+        (destinationMode === 'assistant' ? SEARCH_ASSISTANT_DRAFT_SLOT : 'home'))
+  const draftKeyFor = (slot: string) =>
+    organizationDraftKey(userId, organization.id, slot, {
+      namespace: panelSurface?.draftNamespace,
+    })
+  const initialDraftKey = draftKeyFor(chatId ?? newDraftSlot)
+  const draftKey = draftKeyFor(chat.resolvedChatId ?? chatId ?? newDraftSlot)
   const [legacyDraftKey] = useState(() => {
-    if (panelOptions || chatId) return null
-    const key = `${userId}:organization:${organization.id}:new`
+    if (isPanel || chatId) return null
+    const key = organizationDraftKey(userId, organization.id, 'new')
     if (!useMothershipDraftsStore.getState().drafts[key]) return null
     const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
     const modes = toRecord(toRecord(persisted.state).modes)
@@ -217,25 +195,12 @@ function OrganizationConversationContent({
       !canBuild || modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
     return legacyMode === destinationMode ? key : null
   })
-  const savedDraft = useMothershipDraftsStore.getState().drafts
-  const initialDraft =
-    savedDraft[draftKey] ??
-    savedDraft[initialDraftKey] ??
-    (legacyDraftKey ? savedDraft[legacyDraftKey] : undefined)
-  const draft = useMothershipDraftsStore(
-    (state) =>
-      (
-        state.drafts[draftKey] ??
-        state.drafts[initialDraftKey] ??
-        (legacyDraftKey ? state.drafts[legacyDraftKey] : undefined)
-      )?.text ?? ''
+  const draftKeys = useMemo(
+    () => [draftKey, initialDraftKey, ...(legacyDraftKey ? [legacyDraftKey] : [])],
+    [draftKey, initialDraftKey, legacyDraftKey]
   )
-  const setDraft = useCallback(
-    (text: string, contexts?: ChatContext[]) => {
-      const store = useMothershipDraftsStore.getState()
-      store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
-    },
-    [draftKey]
+  const [initialDraft] = useState(() =>
+    readDraft(useMothershipDraftsStore.getState().drafts, draftKeys)
   )
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>(
     () => initialDraft?.contexts ?? []
@@ -246,13 +211,11 @@ function OrganizationConversationContent({
     store.migrateDraft(initialDraftKey, draftKey)
   }, [initialDraftKey, draftKey, legacyDraftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
-  const header = frameHeader ?? (hasChat ? landing?.chatHeader : undefined)
-  const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
   /** Restore an explicitly selected results tab before the first turn; closing it clears the URL. */
   useEffect(() => {
-    if (compact || hasChat || !q.trim()) return
+    if (isPanel || hasChat || !q.trim()) return
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
@@ -275,15 +238,15 @@ function OrganizationConversationContent({
     controller.activeResourceParam,
     chat.resources,
     addResource,
-    compact,
+    isPanel,
   ])
   const selectResource = async (ref: WorkspaceResourceRef) => {
     if (!ref.workspaceId) {
       toast.error('This resource has no workspace address.')
       return
     }
-    const destination = panelOptions ? window.open('about:blank', '_blank') : null
-    if (panelOptions && !destination) {
+    const destination = isPanel ? window.open('about:blank', '_blank') : null
+    if (isPanel && !destination) {
       toast.error('Allow pop-ups to open this resource in Sim.')
       return
     }
@@ -321,12 +284,11 @@ function OrganizationConversationContent({
       toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
     }
   }
-  const fileDropTarget = useRef<HTMLElement>(null)
   const submission = useComposerSubmission({ mode: requestMode })
   const files = useFileAttachments({
-    fileDropTarget: compact ? fileDropTarget : undefined,
+    fileDropTarget: panelSurface?.fileDropTarget,
     disabled: submission.pending,
-    userId: session?.user?.id,
+    userId,
     organizationId: organization.id,
     requestMode,
     initialAttachments: initialDraft?.fileAttachments,
@@ -371,13 +333,13 @@ function OrganizationConversationContent({
     onSummaryConsumed?.(summaryRequest.id)
     void sendMessage(summaryRequest.message, undefined, undefined, {
       requestMode: 'assistant',
-      assistantSearchLevel,
+      assistantSearchLevel: ASSISTANT_SEARCH_LEVEL,
       assistantSearch: summaryRequest.assistantSearch,
     })
   }, [active, summaryRequest, onSummaryConsumed, sendMessage])
 
   useEffect(() => {
-    if (compact || chatId) return
+    if (isPanel || chatId) return
     const handoff = MothershipHandoffStorage.consume(
       { organizationId: organization.id },
       undefined,
@@ -389,15 +351,11 @@ function OrganizationConversationContent({
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
-        ...(requestMode === 'assistant'
-          ? {
-              assistantSearchLevel,
-            }
-          : {}),
+        ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [compact, chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
+  }, [isPanel, chatId, organization.id, requestMode, sendMessage])
 
   const send = (
     message: string,
@@ -407,10 +365,10 @@ function OrganizationConversationContent({
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
     if (requestMode === 'assistant') recordQuery(message)
-    if (requestMode !== 'assistant' && !panelOptions) panel.prepareResourceViewForAgentTurn()
+    if (requestMode !== 'assistant' && !isPanel) panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
-      ...(requestMode === 'assistant' ? { assistantSearchLevel } : {}),
+      ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),
       ...(assistantSearch ? { assistantSearch } : {}),
     })
   }
@@ -456,19 +414,24 @@ function OrganizationConversationContent({
       if (!message && !attachments.length) return false
       useMothershipDraftsStore.getState().clearDraft(draftKey)
       send(message, attachments.length ? attachments : undefined, preparedContexts)
-      panelOptions?.onSubmitted()
+      panelSurface?.onSubmitted()
       setRestoredContexts([])
       files.clearAttachedFiles()
     }
-    return panelOptions
-      ? panelOptions.prepareSubmission(text.trim(), contexts, commit)
+    return panelSurface
+      ? panelSurface.prepareSubmission(text.trim(), contexts, commit)
       : commit({ message: text.trim(), contexts })
   }
 
   const editQueuedMessage = (id: string) => {
     const queued = chat.editQueuedMessage(id)
     if (queued) {
-      setDraft(queued.content, queued.contexts)
+      const store = useMothershipDraftsStore.getState()
+      store.setDraft(draftKey, {
+        ...store.drafts[draftKey],
+        text: queued.content,
+        contexts: queued.contexts,
+      })
       setRestoredContexts(queued.contexts ?? [])
       files.restoreAttachedFiles(
         (queued.fileAttachments ?? []).map((file) => ({
@@ -489,151 +452,78 @@ function OrganizationConversationContent({
     return queued
   }
 
-  const composer = (
-    <Composer
-      chrome={appearance?.composerChrome}
-      requestMode={requestMode}
-      submission={submission}
-      compact={Boolean(panelOptions)}
-      attachments={panelOptions?.attachments}
-      resourceActions={panelOptions?.resourceActions}
-      toolbarActions={panelOptions?.toolbarActions}
-      modelSelectorOptions={panelOptions?.modelSelectorOptions}
-      onPlanChange={
-        !hasChat && destinationMode === 'agent' && planEnabled
-          ? () => setPlanning((value) => !value)
-          : undefined
-      }
-      value={draft}
-      restoredContexts={restoredContexts}
-      messages={chat.messages}
-      onEditQueuedTail={() => {
-        const tail = chat.messageQueue.at(-1)
-        return tail ? Boolean(editQueuedMessage(tail.id)) : false
-      }}
-      files={files}
-      isInitialView={!hasChat}
-      isSending={chat.isSending || chat.isReconnecting}
-      onChange={setDraft}
-      onSubmit={submit}
-      onSendQueuedHead={() => {
-        void chat.sendNow()
-      }}
-      onStop={() => {
-        void chat.stopGeneration()
-      }}
-    />
-  )
-
   const allowBuildControls = requestMode !== 'assistant' && canBuild
-
-  const content = (
-    <div
-      className={cn(
-        'flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]',
-        !panelOptions && 'md:min-w-[min(480px,50%)]'
-      )}
-    >
-      {hasChat ? (
-        <AssistantActionReviewProvider
-          organizationId={organization.id}
-          chatId={chat.resolvedChatId}
-          messages={chat.messages}
-          active={chat.isSending}
-          enabled={requestMode === 'assistant'}
-        >
-          <MothershipChat
-            className={appearance?.threadClassName}
-            appearance={appearance?.chat}
-            reserveResourceHeader={!header && (chat.resources.length > 0 || allowBuildControls)}
-            onNavigateToChat={panelOptions?.onNavigateToChat}
-            layout={panelOptions ? 'copilot-view' : undefined}
-            onViewSources={(messageId, requestId) =>
-              addResource({
-                type: 'sources',
-                id: 'cited-sources',
-                title: 'Sources',
-                sources: { messageId, ...(requestId ? { requestId } : {}) },
-              })
-            }
-            SearchConnectionComponent={SearchIntegrationConnection}
-            messages={chat.messages}
-            isSending={chat.isSending}
-            isReconnecting={chat.isReconnecting}
-            isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
-            onSubmit={send}
-            onStopGeneration={() => {
-              void chat.stopGeneration()
-            }}
-            messageQueue={chat.messageQueue}
-            editingQueuedId={chat.editingQueuedId}
-            dispatchingHeadId={chat.dispatchingHeadId}
-            onRemoveQueuedMessage={chat.removeFromQueue}
-            onSendQueuedMessage={chat.sendNow}
-            onEditQueuedMessage={editQueuedMessage}
-            onCancelQueueEdit={chat.cancelQueueEdit}
-            userId={session?.user?.id}
-            chatId={chat.resolvedChatId}
-            composer={composer}
-            onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-            initialScrollBlocked={!panelOptions && panel.initialScrollBlocked}
-          />
-        </AssistantActionReviewProvider>
-      ) : panelOptions ? (
-        <>
-          <div className='flex flex-1 items-center justify-center px-5'>
-            <h1 className='text-lg'>How can I help?</h1>
-          </div>
-          <ComposerScrollArea className='px-3 pb-3'>{composer}</ComposerScrollArea>
-        </>
-      ) : (
-        landing?.render({ requestMode, composer })
-      )}
-    </div>
-  )
-  if (panelOptions) {
-    const sourceResource = chat.resources.find(
-      (resource) => resource.type === 'sources' && resource.id === controller.activeResourceParam
-    )
-    return (
-      <main
-        ref={fileDropTarget}
-        className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'
-      >
-        {panelOptions.header}
-        {content}
-        <ChipModal
-          open={Boolean(sourceResource)}
-          onOpenChange={(open) => {
-            if (!open) controller.activeResourceState[1](null)
-          }}
-          srTitle='Cited sources'
-          size='sm'
-        >
-          <ChipModalHeader onClose={() => controller.activeResourceState[1](null)}>
-            Cited sources
-          </ChipModalHeader>
-          {sourceResource && (
-            <div className='h-[60dvh] min-h-0'>
-              <SourcesResourceContent chatId={chat.resolvedChatId} resource={sourceResource} />
-            </div>
-          )}
-        </ChipModal>
-      </main>
-    )
+  const stopGeneration = () => {
+    void chat.stopGeneration()
   }
-  return (
-    <ChatResourcePanel
-      appearance={appearance?.panel}
-      header={header}
-      hideToggleUntilResource={!allowBuildControls || !hasChat}
-      allowBuildControls={allowBuildControls}
-      organizationId={organization.id}
-      chat={chat}
-      panel={panel}
-      onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
-    >
-      {content}
-    </ChatResourcePanel>
-  )
+  const composerProps: ConversationComposerProps = {
+    requestMode,
+    submission,
+    onPlanChange:
+      !hasChat && destinationMode === 'agent' && planEnabled
+        ? () => setPlanning((value) => !value)
+        : undefined,
+    draftKeys,
+    restoredContexts,
+    messages: chat.messages,
+    onEditQueuedTail: () => {
+      const tail = chat.messageQueue.at(-1)
+      return tail ? Boolean(editQueuedMessage(tail.id)) : false
+    },
+    files,
+    isInitialView: !hasChat,
+    isSending: chat.isSending || chat.isReconnecting,
+    onSubmit: submit,
+    onSendQueuedHead: () => {
+      void chat.sendNow()
+    },
+    onStop: stopGeneration,
+  }
+  /** What both views' threads take; each adds its own layout around them. */
+  const threadProps = {
+    onViewSources: (messageId: string, requestId?: string) =>
+      addResource({
+        type: 'sources',
+        id: 'cited-sources',
+        title: 'Sources',
+        sources: { messageId, ...(requestId ? { requestId } : {}) },
+      }),
+    messages: chat.messages,
+    isSending: chat.isSending,
+    isReconnecting: chat.isReconnecting,
+    isLoading: Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending,
+    onSubmit: send,
+    onStopGeneration: stopGeneration,
+    messageQueue: chat.messageQueue,
+    editingQueuedId: chat.editingQueuedId,
+    dispatchingHeadId: chat.dispatchingHeadId,
+    onRemoveQueuedMessage: chat.removeFromQueue,
+    onSendQueuedMessage: chat.sendNow,
+    onEditQueuedMessage: editQueuedMessage,
+    onCancelQueueEdit: chat.cancelQueueEdit,
+    userId,
+    chatId: chat.resolvedChatId,
+    onWorkspaceResourceSelect: requestMode !== 'assistant' ? selectResource : undefined,
+    reserveResourceHeader: chat.resources.length > 0 || allowBuildControls,
+  }
+  const reviewProps = {
+    organizationId: organization.id,
+    chatId: chat.resolvedChatId,
+    messages: chat.messages,
+    active: chat.isSending,
+    enabled: requestMode === 'assistant',
+  }
+  return {
+    organization,
+    chat,
+    controller,
+    panel,
+    hasChat,
+    requestMode,
+    allowBuildControls,
+    send,
+    composerProps,
+    threadProps,
+    reviewProps,
+  }
 }

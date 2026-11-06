@@ -24,6 +24,7 @@ export function ModelSettingTrigger({
             shape='round'
             aria-label={label}
             aria-description={valueLabel}
+            className='h-[var(--composer-control-block,30px)]'
             leftAdornment={
               <>
                 <Icon className='@max-[320px]/input-toolbar:block hidden size-[14px] text-[var(--text-icon)]' />

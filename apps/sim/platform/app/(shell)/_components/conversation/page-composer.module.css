@@ -6,16 +6,12 @@
 .frame {
   padding: var(--composer-inset-block-start) var(--composer-inset-inline)
     var(--composer-inset-block-end);
-  font-family: var(--design-font-sans), sans-serif;
-  letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
-}
-.frame div:has(> textarea) > * {
-  padding-block: 0;
-  font-family: var(--design-font-sans), sans-serif;
-  font-weight: var(--design-font-weight-regular);
-  line-height: var(--design-leading-22);
-  letter-spacing: normal;
+  --prompt-font-family: var(--design-font-sans), sans-serif;
+  --prompt-leading: var(--design-leading-22);
+  --prompt-tracking: normal;
+  --prompt-padding-block: 0;
+  --composer-control-block: var(--design-spacing-app-control-sm);
 }
 .field {
   min-block-size: var(--composer-field-block);

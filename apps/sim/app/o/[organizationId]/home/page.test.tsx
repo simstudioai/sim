@@ -25,8 +25,8 @@ vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-s
 vi.mock('@/platform/app/(shell)/search/_components/search-surface/search-surface', () => ({
   OrganizationSearchSurface: () => <div>Standalone Search</div>,
 }))
-vi.mock('@/app/o/[organizationId]/components/organization-conversation', () => ({
-  OrganizationConversation: ({ requestMode }: { requestMode?: string }) => (
+vi.mock('@/platform/app/(shell)/_components/conversation/page-conversation', () => ({
+  PageConversation: ({ requestMode }: { requestMode?: string }) => (
     <div data-request-mode={requestMode}>Organization Assistant</div>
   ),
 }))

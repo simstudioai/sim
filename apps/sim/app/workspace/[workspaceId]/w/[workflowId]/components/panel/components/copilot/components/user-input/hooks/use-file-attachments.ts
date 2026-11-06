@@ -340,6 +340,9 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   /**
    * Clears all attached files and cleanup preview URLs
    */
+  /** The latest list, fresher than `attachedFiles` between an edit and its render. */
+  const getAttachedFiles = useCallback(() => attachedFilesRef.current, [])
+
   const clearAttachedFiles = useCallback(() => {
     for (const controller of uploadControllers.values()) controller.abort()
     uploadControllers.clear()
@@ -377,6 +380,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleFileChange,
     removeFile,
     handleFileClick,
+    getAttachedFiles,
     clearAttachedFiles,
     restoreAttachedFiles,
     processFiles,
