@@ -117,16 +117,6 @@
     padding-block: calc((var(--spacing-app-touch-target) - var(--leading-22)) / 2);
   }
 }
-.docked,
-.landing {
-  --search-column-inset: var(--spacing-12);
-}
-@media (width >= 48rem) {
-  .docked,
-  .landing {
-    --search-column-inset: var(--spacing-24);
-  }
-}
 /* The field's row reserves the scroller's gutters, so the column measures the same in both. */
 .scroll,
 .dockedRow {
@@ -143,9 +133,15 @@
 }
 .column {
   inline-size: 100%;
-  max-inline-size: calc(var(--container-chat) + 2 * var(--search-column-inset));
+  max-inline-size: calc(var(--container-chat) + 2 * var(--spacing-12));
   margin-inline: auto;
-  padding-inline: var(--search-column-inset);
+  padding-inline: var(--spacing-12);
+}
+@media (width >= 48rem) {
+  .column {
+    max-inline-size: calc(var(--container-chat) + 2 * var(--spacing-24));
+    padding-inline: var(--spacing-24);
+  }
 }
 .dockedField {
   padding-block: var(--spacing-32) var(--spacing-12);

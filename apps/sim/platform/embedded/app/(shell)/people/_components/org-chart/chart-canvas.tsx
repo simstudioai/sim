@@ -97,7 +97,7 @@ function PersonCard({ data }: NodeProps<PersonCardNode>) {
     </>
   )
   return (
-    <div className={styles.card} data-focused={focused || undefined}>
+    <div className={styles.card} data-explored={focused || undefined}>
       {lines}
       {focused ? (
         <div className={styles.cardBody}>{body}</div>

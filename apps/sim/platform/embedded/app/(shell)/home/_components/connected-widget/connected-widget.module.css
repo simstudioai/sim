@@ -1,7 +1,7 @@
 .connect {
   display: grid;
-  min-block-size: 11rem;
+  min-block-size: calc(var(--spacing-192) - var(--spacing-16));
 }
 .connect[data-widget="Calendar"] {
-  min-block-size: 9.75rem;
+  min-block-size: calc(var(--spacing-96) + var(--spacing-60));
 }

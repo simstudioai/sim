@@ -29,7 +29,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
   return (
     <div className={styles.viewport}>
       <ScrollArea label='Email messages'>
-        <ul className={styles.entries}>
+        <ul className={styles.entries} data-row-rhythm='dividers'>
           {items.map((mail) => (
             <ActivityRow
               key={mail.id}
@@ -78,7 +78,7 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
           {state.items.length > 0 ? (
             <div className={styles.viewport}>
               <ScrollArea label='Attention requests'>
-                <ul className={styles.entries}>
+                <ul className={styles.entries} data-row-rhythm='dividers'>
                   {state.items.map((row) => (
                     <ActivityRow
                       key={row.id}

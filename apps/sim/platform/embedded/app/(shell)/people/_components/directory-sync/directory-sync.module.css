@@ -126,7 +126,10 @@
 
 .sources {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 16rem));
+  grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(100%, var(--container-208)), var(--container-256))
+    );
   justify-content: center;
   inline-size: 100%;
   gap: var(--spacing-16);

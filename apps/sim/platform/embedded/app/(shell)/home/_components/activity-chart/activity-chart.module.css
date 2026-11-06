@@ -1,11 +1,10 @@
 .chart {
-  /* The range control's padding and its glyph's bearing, so the glyph ends on the column's edge. */
-  --range-overhang: calc(var(--spacing-8) + var(--spacing-3));
   display: grid;
   gap: var(--spacing-16);
-  margin-inline-end: calc(-1 * var(--range-overhang));
-  padding-inline-end: var(--range-overhang);
-  inline-size: calc(100% + var(--range-overhang));
+  /* The range control's padding and its glyph's bearing, so the glyph ends on the column's edge. */
+  margin-inline-end: calc(-1 * (var(--spacing-8) + var(--spacing-3)));
+  padding-inline-end: calc(var(--spacing-8) + var(--spacing-3));
+  inline-size: calc(100% + var(--spacing-8) + var(--spacing-3));
   min-inline-size: 0;
   max-block-size: var(--ui-widget-max-size);
   overflow: auto;
@@ -22,7 +21,7 @@
 .header {
   align-items: flex-start;
   flex-wrap: wrap;
-  margin-inline-end: calc(-1 * var(--range-overhang));
+  margin-inline-end: calc(-1 * (var(--spacing-8) + var(--spacing-3)));
 }
 
 .heading {

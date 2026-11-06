@@ -1,5 +1,4 @@
 .entries {
-  --ui-row-block: var(--spacing-8);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
