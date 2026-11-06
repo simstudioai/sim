@@ -19,6 +19,7 @@ import {
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/ee/session-policy/hooks/session-policy'
+import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
 
 interface SessionPolicySettingsProps {
   organizationId: string
@@ -51,12 +52,6 @@ function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
   )
 }
 
-function parseHours(value: string): number | null {
-  if (value.trim() === '') return null
-  const parsed = Number(value)
-  return Number.isInteger(parsed) ? parsed : Number.NaN
-}
-
 interface SessionPolicyFormProps extends SessionPolicySettingsProps {
   initialData: SessionPolicyResponse
 }
@@ -85,32 +80,19 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
 
   async function handleSave() {
     if (updatePolicy.isPending) return
-    const max = parseHours(maxSessionHours)
-    const idle = parseHours(idleTimeoutHours)
-
-    if (
-      Number.isNaN(max) ||
-      (max !== null && (max < MIN_SESSION_LIFETIME_HOURS || max > MAX_SESSION_POLICY_HOURS))
-    ) {
-      toast.error(
-        `Max session lifetime must be a whole number between ${MIN_SESSION_LIFETIME_HOURS} and ${MAX_SESSION_POLICY_HOURS}`
-      )
-      return
-    }
-    if (
-      Number.isNaN(idle) ||
-      (idle !== null && (idle < MIN_IDLE_TIMEOUT_HOURS || idle > MAX_SESSION_POLICY_HOURS))
-    ) {
-      toast.error(
-        `Idle timeout must be a whole number between ${MIN_IDLE_TIMEOUT_HOURS} and ${MAX_SESSION_POLICY_HOURS}`
-      )
+    const hours = parseSessionPolicyHours(maxSessionHours, idleTimeoutHours)
+    if (!hours.ok) {
+      toast.error(hours.error)
       return
     }
 
     try {
       const result = await updatePolicy.mutateAsync({
         orgId: organizationId,
-        settings: { maxSessionHours: max, idleTimeoutHours: idle },
+        settings: {
+          maxSessionHours: hours.maxSessionHours,
+          idleTimeoutHours: hours.idleTimeoutHours,
+        },
       })
       const savedMax = result.data.configured.maxSessionHours?.toString() ?? ''
       const savedIdle = result.data.configured.idleTimeoutHours?.toString() ?? ''
