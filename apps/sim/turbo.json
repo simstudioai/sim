@@ -31,6 +31,10 @@
         "!scripts/test-org-redesign-e2e.ts",
         "!scripts/org-redesign-seed.ts",
         "!scripts/org-redesign-e2e/**",
+        "!scripts/test-workspace-visual-e2e.ts",
+        "!scripts/workspace-visual-seed.ts",
+        "!scripts/workspace-visual-e2e/**",
+        "!scripts/compare-visual-baseline.ts",
         "!scripts/test-docs-search-provider-e2e.ts",
         "!scripts/test-file-*-e2e.ts",
         "!scripts/test-landing-seo-e2e.ts",
@@ -148,6 +152,16 @@
         "scripts/test-org-redesign-e2e.ts",
         "scripts/org-redesign-seed.ts",
         "scripts/org-redesign-e2e/**"
+      ],
+      "cache": false
+    },
+    "ci:e2e-workspace-visual": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "scripts/test-workspace-visual-e2e.ts",
+        "scripts/workspace-visual-seed.ts",
+        "scripts/workspace-visual-e2e/**",
+        "scripts/compare-visual-baseline.ts"
       ],
       "cache": false
     },

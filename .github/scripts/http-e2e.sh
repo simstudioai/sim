@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|workspace-visual|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|workspace-visual|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -331,6 +331,37 @@ case "$group" in
     ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-people-ui-report.json" \
       bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
     exit "$run_status"
+    ;;
+
+  # The Mothership workspace before its move to the Platform design system: one hosted Enterprise
+  # organization, photographed with its clock frozen. The report and shots land in their own folder
+  # for the per-SHA artifact; compare two with scripts/compare-visual-baseline.ts.
+  workspace-visual)
+    app_server=start
+    export REDIS_URL=redis://127.0.0.1:6379
+    export E2E_APP_PUBLIC_URL=http://workspace-visual.sim.ai:3032
+    export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
+    export INTERNAL_API_BASE_URL=http://127.0.0.1:3032 TRUSTED_ORIGINS=http://127.0.0.1:3032
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3033 SOCKET_SERVER_URL=http://127.0.0.1:3033
+    export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+    export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+    export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export DASHBOARDS=true CHANGELOG=true
+    export INTERNAL_API_SECRET=workspace-visual-ci-local-secret-at-least-32-characters
+    export COPILOT_API_KEY=workspace-visual-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+    export GOOGLE_CLIENT_ID=workspace-visual-google-client GOOGLE_CLIENT_SECRET=workspace-visual-google-secret
+    export STRIPE_SECRET_KEY=sk_test_workspace_visual STRIPE_WEBHOOK_SECRET=whsec_workspace_visual
+    export DB_TX_TRIPWIRE=throw
+    bun --no-env-file scripts/workspace-visual-seed.ts
+    start_browser_install workspace-visual --only-shell chromium
+    start_app workspace-visual 3032 'workspace visual baseline' record-http-status
+    start_realtime workspace-visual 3033
+    wait_for_browsers
+    WORKSPACE_VISUAL_E2E_ORIGIN="$E2E_APP_PUBLIC_URL" \
+    WORKSPACE_VISUAL_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKSPACE_VISUAL_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKSPACE_VISUAL_E2E_REPORT_PATH="$report_dir/workspace-visual/report.json" \
+      bun --no-env-file scripts/test-workspace-visual-e2e.ts
     ;;
 
   browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access)

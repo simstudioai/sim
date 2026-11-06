@@ -267,6 +267,7 @@ describe('CI task attribution through real Turborepo', () => {
       'org-redesign',
       'organization-search',
       'seo',
+      'workspace-visual',
     ])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
@@ -422,6 +423,9 @@ describe('CI task attribution through real Turborepo', () => {
     ['test-assistant-actions-e2e.ts', 'assistant-actions'],
     ['test-organization-search-e2e.ts', 'organization-search'],
     ['test-org-redesign-e2e.ts', 'org-redesign'],
+    ['test-workspace-visual-e2e.ts', 'workspace-visual'],
+    ['workspace-visual-seed.ts', 'workspace-visual'],
+    ['compare-visual-baseline.ts', 'workspace-visual'],
   ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()
@@ -485,6 +489,7 @@ describe('CI task attribution through real Turborepo', () => {
       'scim',
       'seo',
       'stop-after',
+      'workspace-visual',
     ])
     expect(plan.typecheckPackages).toContain('@sim/app')
     expect(plan.typecheckPackages).toContain('@sim/realtime')
