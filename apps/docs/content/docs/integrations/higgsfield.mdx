@@ -1,0 +1,295 @@
+---
+title: Higgsfield
+description: Generate images and videos with Higgsfield models
+integration:
+  type: "higgsfield"
+  color: "#D1FE17"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Higgsfield](https://higgsfield.ai) is an image and video generation platform with its own SOUL image models and hosted models from other providers, such as Kling, Seedance, Wan, and MiniMax.
+
+With the Higgsfield block, you can:
+
+- **Generate media with any model**: Send a model endpoint ID and that model's documented JSON input, then get back image, video, or audio URLs.
+- **Generate SOUL images**: Set aspect ratio, resolution, style, and a trained character without writing JSON.
+- **Train characters**: Create, check, list, and delete Soul ID characters from reference photo URLs to keep a person or mascot consistent across images.
+- **Manage requests**: Check the status of a request, cancel one that is still queued, or delete a finished request's data.
+
+Create an API key in the [Higgsfield Console](https://console.higgsfield.ai), then connect it as a saved Higgsfield account in Sim. Paste the key ID and secret joined by a colon: `KEY_ID:KEY_SECRET`.
+
+Generation runs in the background. By default the block waits for the result. Turn off **Wait for Result** to return the request ID right away, then use **Get Request Status** later. Output URLs expire after seven days by default, so copy media you need to keep. Which models you can use depends on your Higgsfield account; find endpoint IDs and their input fields in the [model catalog](https://docs.higgsfield.ai/docs/models).
+
+In Sim, the Higgsfield block lets your agents produce product videos, ad creatives, and on-brand character images from a brief or a table of products.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Generate images and videos with any Higgsfield model, create SOUL images with styles and trained characters, train and manage Soul ID characters, and check, cancel, or delete generation requests.
+
+## Actions
+
+### Higgsfield Generate
+
+Submit a generation request to any Higgsfield image or video model endpoint with that model's documented JSON input, then wait for the output URLs.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `model` | string | Yes | Model endpoint ID from the Higgsfield model catalog, e.g. kling-video/v2.5-turbo/pro/text-to-video |
+| `input` | json | Yes | JSON request body documented for the model endpoint, e.g. \{"prompt": "...", "duration": 5\} |
+| `waitForCompletion` | boolean | No | Wait until the request finishes and return its output URLs. When false, return the request ID immediately. |
+| `webhookUrl` | string | No | HTTPS endpoint that Higgsfield notifies when the request finishes |
+| `idempotencyKey` | string | No | Key that makes retries return the original request instead of creating a duplicate \(1–255 visible ASCII characters\) |
+| `expiresAfter` | number | No | Seconds to keep the request data after it finishes, from 3600 up to the account retention |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Higgsfield request ID |
+| `status` | string | Request status: queued, in_progress, completed, failed, nsfw, or canceled |
+| `error` | string | Failure reason, when provided |
+| `imageUrls` | array | Generated image URLs \(image models\) |
+| `videoUrl` | string | Generated video URL \(video models\) |
+| `audioUrl` | string | Generated audio URL \(audio output\) |
+| `audioUrls` | array | Generated audio URLs \(audio output\) |
+| `statusUrl` | string | URL for checking the request status |
+| `cancelUrl` | string | URL for canceling the queued request |
+| `expiresAt` | string | When the output files are deleted and their URLs stop working |
+
+</ReferenceDetails>
+
+### Higgsfield Generate SOUL Image
+
+Generate images with Higgsfield SOUL, optionally in a style or as a trained Soul ID character, then wait for the image URLs.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `prompt` | string | Yes | Text description of the image |
+| `aspectRatio` | string | No | Aspect ratio: 9:16, 16:9, 4:3, 3:4, 1:1, 2:3, or 3:2 \(default 4:3\) |
+| `resolution` | string | No | Resolution: 720p or 1080p \(default 720p\) |
+| `batchSize` | number | No | Number of images: 1 or 4 \(default 1\) |
+| `styleId` | string | No | SOUL style UUID \(defaults to the general style\) |
+| `styleStrength` | number | No | Style strength from 0 to 1 \(default 1\) |
+| `characterId` | string | No | Completed Soul ID character reference ID \(model version v1\) owned by the account |
+| `characterStrength` | number | No | Character strength from 0 to 1; 0 uses the style's default \(default 1\) |
+| `imageReferenceUrl` | string | No | Public image URL that guides prompt enhancement |
+| `enhancePrompt` | boolean | No | Let Higgsfield enhance the prompt \(default false\) |
+| `seed` | number | No | Seed from 1 to 1000000 for repeatable results |
+| `waitForCompletion` | boolean | No | Wait until the request finishes and return its output URLs. When false, return the request ID immediately. |
+| `webhookUrl` | string | No | HTTPS endpoint that Higgsfield notifies when the request finishes |
+| `idempotencyKey` | string | No | Key that makes retries return the original request instead of creating a duplicate \(1–255 visible ASCII characters\) |
+| `expiresAfter` | number | No | Seconds to keep the request data after it finishes, from 3600 up to the account retention |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Higgsfield request ID |
+| `status` | string | Request status: queued, in_progress, completed, failed, nsfw, or canceled |
+| `error` | string | Failure reason, when provided |
+| `imageUrls` | array | Generated image URLs \(image models\) |
+| `videoUrl` | string | Generated video URL \(video models\) |
+| `audioUrl` | string | Generated audio URL \(audio output\) |
+| `audioUrls` | array | Generated audio URLs \(audio output\) |
+| `statusUrl` | string | URL for checking the request status |
+| `cancelUrl` | string | URL for canceling the queued request |
+| `expiresAt` | string | When the output files are deleted and their URLs stop working |
+
+</ReferenceDetails>
+
+### Higgsfield Get Request Status
+
+Get the status of a Higgsfield generation request and, once completed, its output URLs.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestId` | string | Yes | Higgsfield request ID returned by a generation request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Higgsfield request ID |
+| `status` | string | Request status: queued, in_progress, completed, failed, nsfw, or canceled |
+| `error` | string | Failure reason, when provided |
+| `imageUrls` | array | Generated image URLs \(image models\) |
+| `videoUrl` | string | Generated video URL \(video models\) |
+| `audioUrl` | string | Generated audio URL \(audio output\) |
+| `audioUrls` | array | Generated audio URLs \(audio output\) |
+| `statusUrl` | string | URL for checking the request status |
+| `cancelUrl` | string | URL for canceling the queued request |
+| `expiresAt` | string | When the output files are deleted and their URLs stop working |
+
+</ReferenceDetails>
+
+### Higgsfield Cancel Request
+
+Cancel a Higgsfield generation request that is still queued. Requests that have started processing cannot be canceled.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestId` | string | Yes | Higgsfield request ID to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | ID of the canceled request |
+| `canceled` | boolean | Whether the request was canceled |
+
+</ReferenceDetails>
+
+### Higgsfield Delete Request
+
+Immediately delete a finished Higgsfield request's output files, prompt, and parameters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestId` | string | Yes | ID of a finished Higgsfield request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | ID of the deleted request |
+| `deleted` | boolean | Whether the request data was deleted |
+
+</ReferenceDetails>
+
+### Higgsfield Create Character
+
+Train a reusable Soul ID character from public reference image URLs. Training runs in the background; use Get Character to check when it completes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Character name \(up to 100 characters\) |
+| `modelVersion` | string | No | SOUL family that will use the character: v1, v2, or cinema \(default v1\) |
+| `imageUrls` | array | Yes | 1 to 100 public URLs of reference photos of the character |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `character` | json | Created character reference |
+|   ↳ `id` | string | Character \(Soul ID\) reference ID |
+|   ↳ `name` | string | Character name |
+|   ↳ `modelVersion` | string | SOUL family: v1, v2, or cinema |
+|   ↳ `status` | string | Training status: not_ready, queued, in_progress, completed, or failed |
+|   ↳ `thumbnailUrl` | string | Thumbnail image URL |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `inProgressAt` | string | Training start timestamp |
+|   ↳ `failReason` | string | Training failure reason |
+
+</ReferenceDetails>
+
+### Higgsfield Get Character
+
+Get a Soul ID character reference, including its training status.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `characterId` | string | Yes | Soul ID character reference ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `character` | json | Character reference |
+|   ↳ `id` | string | Character \(Soul ID\) reference ID |
+|   ↳ `name` | string | Character name |
+|   ↳ `modelVersion` | string | SOUL family: v1, v2, or cinema |
+|   ↳ `status` | string | Training status: not_ready, queued, in_progress, completed, or failed |
+|   ↳ `thumbnailUrl` | string | Thumbnail image URL |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `inProgressAt` | string | Training start timestamp |
+|   ↳ `failReason` | string | Training failure reason |
+
+</ReferenceDetails>
+
+### Higgsfield List Characters
+
+List the Soul ID character references in the Higgsfield account, one page at a time.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number, starting at 1 \(default 1\) |
+| `pageSize` | number | No | Characters per page \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `characters` | array | Character references on this page |
+|   ↳ `id` | string | Character \(Soul ID\) reference ID |
+|   ↳ `name` | string | Character name |
+|   ↳ `modelVersion` | string | SOUL family: v1, v2, or cinema |
+|   ↳ `status` | string | Training status: not_ready, queued, in_progress, completed, or failed |
+|   ↳ `thumbnailUrl` | string | Thumbnail image URL |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `inProgressAt` | string | Training start timestamp |
+|   ↳ `failReason` | string | Training failure reason |
+| `total` | number | Total number of characters |
+| `page` | number | Current page number |
+| `pageSize` | number | Characters per page |
+| `totalPages` | number | Total number of pages |
+
+</ReferenceDetails>
+
+### Higgsfield Delete Character
+
+Permanently delete a Soul ID character reference.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `characterId` | string | Yes | Soul ID character reference ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `characterId` | string | ID of the deleted character |
+| `deleted` | boolean | Whether the character was deleted |
+
+</ReferenceDetails>
+
+
