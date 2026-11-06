@@ -164,6 +164,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
   nebius: buildProviderMetadata('nebius'),
+  thinkingmachines: buildProviderMetadata('thinkingmachines'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {

@@ -36,6 +36,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import {
   findProviderForModel,
@@ -445,6 +446,42 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.15, output: 0.5, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 1024000,
+      },
+    ],
+  },
+  thinkingmachines: {
+    id: 'thinkingmachines',
+    name: 'Thinking Machines',
+    description: 'Inkling models via Tinker serverless inference',
+    defaultModel: 'thinkingmachines/inkling',
+    modelPatterns: [/^thinkingmachines\//],
+    icon: ThinkingMachinesIcon,
+    color: '#111111',
+    capabilities: {
+      temperature: { min: 0, max: 1 },
+      toolUsageControl: true,
+      forcedToolUse: false,
+    },
+    models: [
+      {
+        id: 'thinkingmachines/inkling',
+        pricing: { input: 1.0, cachedInput: 0.17, output: 4.05, updatedAt: '2026-11-05' },
+        capabilities: {},
+        contextWindow: 262144,
+        releaseDate: '2026-07-16',
+      },
+      {
+        id: 'thinkingmachines/inkling-2-small',
+        pricing: { input: 0.3, cachedInput: 0.03, output: 1.0, updatedAt: '2026-11-05' },
+        capabilities: {},
+        contextWindow: 262144,
+      },
+      {
+        id: 'thinkingmachines/inkling-small',
+        pricing: { input: 0.3, cachedInput: 0.06, output: 1.2, updatedAt: '2026-11-05' },
+        capabilities: {},
+        contextWindow: 262144,
+        releaseDate: '2026-07-31',
       },
     ],
   },

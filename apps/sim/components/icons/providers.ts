@@ -27,6 +27,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 
 /**
  * Provider brand marks, keyed by the `providerId` the server resolves.
@@ -60,6 +61,7 @@ export const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?:
   openai: OpenAIIcon,
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
+  thinkingmachines: ThinkingMachinesIcon,
   together: TogetherIcon,
   typesafe: TypeSafeIcon,
   vertex: VertexIcon,

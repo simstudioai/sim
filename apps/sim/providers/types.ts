@@ -29,6 +29,7 @@ export type ProviderId =
   | 'together'
   | 'baseten'
   | 'nebius'
+  | 'thinkingmachines'
   | 'vllm'
   | 'litellm'
   | 'bedrock'

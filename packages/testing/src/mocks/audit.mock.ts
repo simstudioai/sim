@@ -14,6 +14,8 @@ const AuditAction = {
   AUTH_IMPERSONATION_ENDED: 'auth.impersonation_ended',
   AUTH_SESSIONS_REVOKED: 'auth.sessions_revoked',
   AUDIT_LOGS_EXPORTED: 'audit_logs.exported',
+  AWS_MARKETPLACE_LICENSE_LINKED: 'aws_marketplace_license.linked',
+  AWS_MARKETPLACE_LICENSE_REGISTERED: 'aws_marketplace_license.registered',
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
   API_KEY_REVOKED: 'api_key.revoked',
@@ -241,6 +243,7 @@ const AuditAction = {
 const AuditResourceType = {
   ACCOUNT: 'account',
   API_KEY: 'api_key',
+  AWS_MARKETPLACE_LICENSE: 'aws_marketplace_license',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',

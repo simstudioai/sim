@@ -345,6 +345,20 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Nebius ${model}`)
   }
 
+  if (provider === 'thinkingmachines') {
+    const byokResult = await getBYOKKey(workspaceId, 'thinkingmachines', { signal })
+    if (byokResult) {
+      logger.info('Using BYOK key for Thinking Machines', {
+        model,
+        workspaceId,
+        scope: byokResult.scope,
+      })
+      return byokResult
+    }
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: false }
+    throw new Error(`API key is required for Thinking Machines ${model}`)
+  }
+
   if (provider === 'ollama-cloud') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud', { signal })

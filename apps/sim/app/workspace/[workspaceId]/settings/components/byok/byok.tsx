@@ -47,6 +47,7 @@ import {
   ZeroBounceIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -181,6 +182,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: KieIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Kie API key',
+  },
+  {
+    id: 'thinkingmachines',
+    name: 'Thinking Machines',
+    icon: ThinkingMachinesIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Thinking Machines Tinker API key',
   },
   {
     id: 'falai',
@@ -383,6 +391,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'nebius',
       'ollama-cloud',
       'kie',
+      'thinkingmachines',
       'falai',
     ],
   },
