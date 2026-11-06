@@ -70,6 +70,16 @@ describe('getOrganizationSurfaceContext', () => {
     }
   )
 
+  it('names the viewer it authorized, without a further read', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+    queueTableRows(member, [{ memberCount: 1 }])
+
+    await expect(getOrganizationSurfaceContext('org-1', 'viewer')).resolves.toMatchObject({
+      viewer: { userId: 'viewer' },
+    })
+  })
+
   it.each([
     { role: 'owner', billing: true, denied: false, expected: true },
     { role: 'admin', billing: true, denied: true, expected: false },

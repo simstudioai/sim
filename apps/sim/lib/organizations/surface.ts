@@ -35,6 +35,8 @@ interface OrganizationSurfaceOrganization {
 }
 
 interface OrganizationSurfaceViewer {
+  /** The user this context was authorized for, known at first paint with no session read. */
+  userId: string
   role: OrganizationRole
   isAdmin: boolean
   canInviteMembers: boolean
@@ -129,6 +131,7 @@ async function resolveOrganizationSurfaceContext(
       memberCount,
     },
     viewer: {
+      userId,
       role: access.role,
       isAdmin: access.isAdmin,
       canInviteMembers:

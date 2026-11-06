@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * Failure modes at Home's read boundary: a widget the viewer hid reading their mailbox because the
- * session has not said who they are, a preference written under no viewer, and a workspace list
- * still on its way reading as a viewer with no workspaces.
+ * Failure modes at Home's read boundary: a widget the viewer hid reading their mailbox or flashing
+ * on screen, a preference lost or written under no viewer, Home stalling on the client's own session
+ * read, and a workspace list still on its way reading as a viewer with no workspaces.
  */
 import { act } from 'react'
 import {
@@ -41,7 +41,12 @@ import { useOrganizationHomeStore } from '@/stores/organization-home/store'
 
 const ORGANIZATION = {
   organization: { id: 'org-1', name: 'Org', logo: null },
-  viewer: { isAdmin: false, canConnectSearchIntegrations: true, canUseSearchMcp: false },
+  viewer: {
+    userId: 'user-1',
+    isAdmin: false,
+    canConnectSearchIntegrations: true,
+    canUseSearchMcp: false,
+  },
   searchAccess: { memberScoped: true },
   connectedAccountsAvailable: true,
   settingsFeatures: { hosted: true, billingEnabled: true },
@@ -132,72 +137,54 @@ describe('useLiveHome', () => {
     vi.useRealTimers()
   })
 
-  describe('while the session has not said who the viewer is', () => {
-    beforeEach(() => setSession(null, true))
+  describe.each([
+    ['pending', () => setSession(null, true)],
+    ['failed', () => setSession(null, false)],
+    ['settled', () => setSession({ user: { id: 'user-1' } })],
+  ])('with the client session %s', (_, arrange) => {
+    beforeEach(arrange)
 
-    it('asks no provider for a widget the viewer may have hidden', async () => {
+    it('keeps a hidden widget off screen and its provider unread from the first paint', async () => {
+      useOrganizationHomeStore.setState({
+        hiddenWidgets: { 'user-1:org-1': ['Email', 'Calendar'] },
+      })
+      const { result } = await render()
+
+      expect(result.current.view.hiddenWidgets).toEqual(['Email', 'Calendar'])
+      await settle()
+
+      const paths = requestedPaths()
+      expect(paths).not.toContain('/api/organizations/[id]/home/email')
+      expect(paths).not.toContain('/api/organizations/[id]/home/calendar')
+      expect(paths).toContain('/api/organizations/[id]/home/workspace-activity')
+    })
+
+    it('reads every visible widget without waiting on the session', async () => {
       await render()
       await settle()
 
       const paths = requestedPaths()
-      expect(paths).toContain('/api/organizations/[id]/connected-accounts')
-      expect(paths).toContain('/api/workspaces')
-      for (const read of WIDGET_READS) expect(paths).not.toContain(read)
+      for (const read of WIDGET_READS) expect(paths).toContain(read)
     })
 
-    it('still paints every widget as loading rather than removing it', async () => {
-      const { result } = await render()
+    it("reads the viewer's recents without waiting on the session", async () => {
+      await render()
       await settle()
 
-      expect(result.current.view.hiddenWidgets).toEqual([])
-      expect(result.current.view.email.status).toBe('loading')
-      expect(result.current.view.calendar).toMatchObject({
-        status: 'ready',
-        data: { status: 'loading' },
-      })
+      expect(requestedPaths()).toContain('/api/organizations/[id]/search/history')
     })
 
-    it('writes no preference under an unknown viewer', async () => {
+    it('saves a preference under the viewer, so hiding a widget takes effect', async () => {
       const { result } = await render()
       await settle()
 
       act(() => result.current.actions.setWidgetHidden('Email', true))
 
-      expect(useOrganizationHomeStore.getState().hiddenWidgets).toEqual({})
+      expect(useOrganizationHomeStore.getState().hiddenWidgets).toEqual({
+        'user-1:org-1': ['Email'],
+      })
+      expect(result.current.view.hiddenWidgets).toEqual(['Email'])
     })
-  })
-
-  it('reads only what the settled viewer left visible, and writes under their own key', async () => {
-    useOrganizationHomeStore.setState({
-      hiddenWidgets: { 'user-1:org-1': ['Email', 'Calendar'] },
-    })
-    setSession(null, true)
-    const { result, rerender } = await render()
-    await settle()
-
-    setSession({ user: { id: 'user-1' } })
-    await rerender()
-    await settle()
-
-    const paths = requestedPaths()
-    expect(paths).not.toContain('/api/organizations/[id]/home/email')
-    expect(paths).not.toContain('/api/organizations/[id]/home/calendar')
-    expect(paths).toContain('/api/organizations/[id]/home/workspace-activity')
-    expect(result.current.view.hiddenWidgets).toEqual(['Email', 'Calendar'])
-
-    act(() => result.current.actions.setWidgetHidden('Workspaces', true))
-    expect(useOrganizationHomeStore.getState().hiddenWidgets['user-1:org-1']).toContain(
-      'Workspaces'
-    )
-  })
-
-  it('reads a visible widget once the viewer is known', async () => {
-    setSession({ user: { id: 'user-1' } })
-    await render()
-    await settle()
-
-    const paths = requestedPaths()
-    for (const read of WIDGET_READS) expect(paths).toContain(read)
   })
 
   it('shows workspaces as loading until the list answers, not as none', async () => {
