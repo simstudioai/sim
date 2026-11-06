@@ -668,16 +668,27 @@ async function assertOneBubble(page: Page, text: string) {
   await expect(page.getByText(text, { exact: true })).toHaveCount(1)
 }
 
-/** The given texts are on screen, top to bottom in this order. */
+/**
+ * The given texts are on screen, top to bottom in this order. Positions are re-read until every
+ * text has one, since a re-render (after a reload or reconnect) can replace a node between finding
+ * it and measuring it.
+ */
 async function assertOrder(page: Page, texts: string[]) {
-  const positions: number[] = []
-  for (const text of texts) {
-    const element = page.getByText(text).first()
-    await element.waitFor()
-    const box = await element.boundingBox()
-    assert(box, `No position for "${text}"`)
-    positions.push(box.y)
-  }
+  let positions: number[] = []
+  await expect
+    .poll(
+      async () => {
+        positions = []
+        for (const text of texts) {
+          const box = await page.getByText(text).first().boundingBox()
+          if (!box) return false
+          positions.push(box.y)
+        }
+        return true
+      },
+      { message: `Every one of ${texts.map((text) => `"${text}"`).join(', ')} is on screen` }
+    )
+    .toBe(true)
   for (let index = 1; index < positions.length; index++) {
     assert(
       (positions[index - 1] ?? 0) < (positions[index] ?? 0),
