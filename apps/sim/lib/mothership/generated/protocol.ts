@@ -511,6 +511,9 @@ export interface SteerRequest {
   content: string;
 }
 
+/** The most attachments and mentions one steer carries: Sim's MAX_CHAT_CONTEXTS for a turn. */
+export const MAX_STEER_CONTEXTS = 100;
+
 /**
  * POST /api/streams/steer/v2: steer the live run `messageId` with one immutable input. The
  * answer is that input's durable disposition, so a caller unsure whether a send landed
@@ -524,7 +527,7 @@ export const SteerV2Request = z.strictObject({
   steeringId: z.uuid(),
   content: z.string().min(1).max(1_048_576),
   /** Attachments and @-mentions, rendered into the steer the way a turn renders its own. */
-  context: ChatPayloadSchema.shape.context,
+  context: ChatPayloadSchema.shape.context.unwrap().max(MAX_STEER_CONTEXTS).default([]),
   /** Only an organization chat accepts images, as for a turn (400 otherwise). */
   assistantImages: ChatPayloadSchema.shape.assistantImages,
 });
@@ -533,10 +536,16 @@ export type SteerV2Request = z.infer<typeof SteerV2Request>;
 /**
  * - `queued`: accepted; the run applies it at its next model step, or ends first and then
  *   reports `not_applied`.
- * - `applied`: in the run's model input. `eventSeq` is its steering_input event in the chat
+ * - `applied`: logged into the run's model input, which its next model request carries (as
+ *   v1's frame means). `eventSeq` is its steering_input event in the chat
  *   log and `textOffset` the main answer's length when it applied (UTF-16 code units), the
  *   same values the `steering_applied` frame carries.
- * - `not_applied`: the run ended, or was stopped, before applying it, and never will.
+ * - `not_applied`: the run ended, or was stopped, before applying it, and never will. A run
+ *   that would apply it only by exceeding its usage limit, or one whose input the request
+ *   supplies (an execution, a structured response), ends instead and reports this.
+ *
+ * A steeringId belongs to the run of the chat that first accepted it: a retry naming another
+ * run of the chat reads that run's disposition.
  */
 export const SteerV2Response = z.discriminatedUnion("status", [
   z.strictObject({ steeringId: z.string(), status: z.literal("queued") }),
