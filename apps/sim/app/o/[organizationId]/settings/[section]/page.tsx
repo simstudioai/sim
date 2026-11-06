@@ -13,11 +13,11 @@ import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { resolveOrganizationSurfaceSection } from '@/app/o/[organizationId]/settings/navigation'
 import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
 import { isPlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
 import { PlatformSettingsSectionHost } from '@/platform/app/(shell)/settings/_components/settings-section-host'
 import { prefetchPermissionEditorCatalog } from '@/platform/lib/data/prefetch-permission-editor'
+import { resolveOrganizationSurfaceSection } from '@/platform/lib/data/settings-sections'
 
 interface OrganizationSettingsSectionPageProps {
   params: Promise<{ organizationId: string; section: string }>

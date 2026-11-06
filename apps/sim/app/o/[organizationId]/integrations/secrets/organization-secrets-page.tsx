@@ -6,11 +6,11 @@ import { readOrganizationSecretSource } from '@/lib/organization-secrets/applica
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { IntegrationsPage } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { SecretsEditor } from '@/platform/app/(shell)/integrations/_components/secrets-editor/secrets-editor'
 import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
 import { LoadingRows } from '@/platform/design-system/components'
+import { PageSurface } from '@/platform/design-system/components/surface/surface'
 
 interface OrganizationSecretsPageProps {
   organizationId: string
@@ -48,8 +48,8 @@ export async function OrganizationSecretsPage({
   return mode === 'organization' ? (
     <SettingsSubpageHost section='integrations'>{editor}</SettingsSubpageHost>
   ) : (
-    <RedesignPageSurface>
+    <PageSurface>
       <IntegrationsPage>{editor}</IntegrationsPage>
-    </RedesignPageSurface>
+    </PageSurface>
   )
 }

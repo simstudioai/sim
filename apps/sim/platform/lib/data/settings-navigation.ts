@@ -15,15 +15,15 @@ import {
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import {
-  organizationSurfaceSettingsNavigation,
-  resolveOrganizationSurfaceSection,
-} from '@/app/o/[organizationId]/settings/navigation'
-import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import {
+  organizationSurfaceSettingsNavigation,
+  resolveOrganizationSurfaceSection,
+} from '@/platform/lib/data/settings-sections'
+import { warmOrganizationSettingsSectionQuery } from '@/platform/lib/data/settings-warmers'
 
 export type SettingsSectionKey = AccountSettingsSection | OrganizationSettingsSection
 
@@ -72,7 +72,7 @@ export interface SettingsNavGroup {
  */
 export function useSettingsNavigation() {
   const { organization, viewer, connectedAccountsAvailable, searchAccess, settingsFeatures } =
-    useOrganizationContext()
+    useOrganization()
   const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
   const { data: session } = useSession()

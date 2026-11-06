@@ -24,7 +24,7 @@ import { ApiClientError } from '@/lib/api/client/errors'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
   () => featureFlagsProviderMock
@@ -130,7 +130,7 @@ describe('useLiveHome', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
     useOrganizationHomeStore.setState({ hiddenWidgets: {} })
-    organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue(ORGANIZATION)
+    organizationProviderMockFns.mockUseOrganization.mockReturnValue(ORGANIZATION)
     apiClientRequestMockFns.mockRequestJson.mockImplementation(
       async (contract: { path: string }) => RESPONSES[contract.path] ?? {}
     )
@@ -217,7 +217,7 @@ describe('useLiveHome', () => {
     [429, 'loading'],
   ])('treats a %i from the activity read as %s', async (status, expected) => {
     setSession({ user: { id: 'user-1' } })
-    organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+    organizationProviderMockFns.mockUseOrganization.mockReturnValue({
       ...ORGANIZATION,
       viewer: { ...ORGANIZATION.viewer, isAdmin: true },
       settingsFeatures: { ...ORGANIZATION.settingsFeatures, hasEnterprisePlan: true },

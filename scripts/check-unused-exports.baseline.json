@@ -222,7 +222,6 @@
   "apps/sim/app/o/[organizationId]/integrations/search-params.ts#integrationConnectionParams",
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-params.ts#organizationIntegrationsTabParam",
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-params.ts#organizationPeopleIntegrationParam",
-  "apps/sim/app/o/[organizationId]/settings/navigation.ts#ORGANIZATION_SURFACE_ACCOUNT_ITEMS",
   "apps/sim/app/workspace/[workspaceId]/components/connect-oauth-modal/index.ts#ConnectOAuthModalProps",
   "apps/sim/app/workspace/[workspaceId]/components/credential-detail/hooks/use-credential-detail-form.ts#CredentialDetailFormSection",
   "apps/sim/app/workspace/[workspaceId]/components/error/index.ts#ErrorStateProps",

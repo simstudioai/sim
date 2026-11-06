@@ -1,6 +1,6 @@
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
@@ -11,7 +11,7 @@ import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
  * authorized to use Search. A surface that does not show them passes `enabled: false` to read nothing.
  */
 export function useGetStartedSteps(enabled = true) {
-  const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
+  const { organization, viewer, connectedAccountsAvailable } = useOrganization()
   const routes = organizationRoutes(organization.id)
   const canConnectIntegrations =
     enabled && viewer.canConnectSearchIntegrations && connectedAccountsAvailable

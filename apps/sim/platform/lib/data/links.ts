@@ -10,17 +10,17 @@ import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
 import {
+  boundedSearch,
+  simLinksParsers,
+  simLinksSortParams,
+  simLinksUrlKeys,
+} from '@/lib/sim-links/search-params'
+import {
   isVariableSimLinkUrl,
   simLinkFieldsSchema,
   toSimLinkName,
 } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import {
-  boundedSearch,
-  simLinksParsers,
-  simLinksSortParams,
-  simLinksUrlKeys,
-} from '@/app/o/[organizationId]/links/search-params'
 import {
   useCreateSimLink,
   useDeleteSimLink,

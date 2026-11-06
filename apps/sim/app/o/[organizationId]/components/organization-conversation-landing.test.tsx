@@ -48,7 +48,7 @@ vi.mock(
   () => chatResourcePanelMock
 )
 vi.mock('@/lib/auth/client', () => authClientMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
 vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
@@ -89,7 +89,7 @@ beforeEach(() => {
   reactQueryMockFns.mockUseMutation.mockReturnValue(createMutationResultMock())
   nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/home')
   authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'reader' } } })
-  organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organizationProviderMockFns.mockUseOrganization.mockReturnValue({
     organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,

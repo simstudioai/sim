@@ -17,12 +17,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { useBillingSection } from '@/platform/lib/data/billing'
-import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { renderDataHook, unmountDataHooks } from '@/platform/lib/render-hook.test-support'
 
-const ORGANIZATION = { organization: { id: 'org-1' } } as PlatformOrganization
+const ORGANIZATION = { organization: { id: 'org-1' } } as OrganizationSurfaceContext
 
 function summary(overrides: Record<string, unknown> = {}) {
   return {

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import type { PermissionGroup } from '@/ee/access-control/hooks/permission-groups'
 import {
   SectionStack,
   SectionToolbar,
@@ -29,7 +30,6 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  type PermissionGroup,
   useAccessControlParams,
   useCreatePermissionGroup,
   useOrganizationWorkspaces,

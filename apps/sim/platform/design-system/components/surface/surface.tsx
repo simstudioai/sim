@@ -4,7 +4,7 @@ import '@/platform/design-system/styles/embedded.css'
 import type { ReactNode } from 'react'
 import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
 
-interface RedesignSurfaceProps {
+interface SurfaceProps {
   /** Paints the canvas, for a surface that fills a region. */
   canvas?: boolean
   children: ReactNode
@@ -17,7 +17,7 @@ interface RedesignSurfaceProps {
  * Never render a legacy component inside: the surface redefines tokens legacy utilities read. Compose
  * one beside a surface instead.
  */
-export function RedesignSurface({ canvas, children }: RedesignSurfaceProps) {
+export function Surface({ canvas, children }: SurfaceProps) {
   return (
     <PlatformSurface theme='system' canvas={canvas}>
       {children}
@@ -25,11 +25,16 @@ export function RedesignSurface({ canvas, children }: RedesignSurfaceProps) {
   )
 }
 
-/** Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end. */
-export function RedesignPageSurface({ children }: { children: ReactNode }) {
+/**
+ * Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end.
+ *
+ * The host's Tailwind does not scan `platform/`, so these utilities exist only while a scanned file
+ * also names them (`grid-cols-[minmax(0,1fr)]`: `settings-frame.tsx`).
+ */
+export function PageSurface({ children }: { children: ReactNode }) {
   return (
     <div className='grid h-full min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-y-auto'>
-      <RedesignSurface canvas>{children}</RedesignSurface>
+      <Surface canvas>{children}</Surface>
     </div>
   )
 }

@@ -3,11 +3,11 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
 import {
   canUseOrganizationChat,
   getOrganizationBuildRedirect,
-} from '@/app/o/[organizationId]/home/home-redirect'
+} from '@/lib/organizations/home-redirect'
+import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
 import { ConversationSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'

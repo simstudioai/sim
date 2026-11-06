@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import {
@@ -16,7 +17,6 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { queryView } from '@/platform/lib/data/query-view'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const TEXT_FIELDS = [
   'brandName',

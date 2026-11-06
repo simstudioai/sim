@@ -8,8 +8,8 @@ import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { isDesktopApp } from '@/lib/desktop'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
+import { useOrganization } from '@/lib/organizations/provider'
 import { captureEvent } from '@/lib/posthog/client'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 import {
@@ -29,7 +29,7 @@ function canInstallMacApp() {
 }
 
 export function useHelp() {
-  const { deployment } = useOrganizationContext()
+  const { deployment } = useOrganization()
   const posthog = usePostHog()
   const updateState = useDesktopUpdateState()
   return {
@@ -55,7 +55,7 @@ export function useHelp() {
 }
 
 export function useOrganizationActions() {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer } = useOrganization()
   const router = useRouter()
   const { mutateAsync: renameOrganization, isPending: isRenaming } = useRenameOrganization()
   const { mutateAsync: uploadLogo, isPending: isUploadingLogo } = useUploadOrganizationLogo(

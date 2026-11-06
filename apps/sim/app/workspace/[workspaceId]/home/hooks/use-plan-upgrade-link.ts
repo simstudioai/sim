@@ -12,7 +12,7 @@ import {
 import type { UsageUpgradeTagPayload } from '@/lib/billing/usage-upgrade'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOptionalOrganization } from '@/lib/organizations/provider'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -38,7 +38,7 @@ interface PlanUpgradeLink {
 export function usePlanUpgradeLink(data: PlanUpgradeLinkInput): PlanUpgradeLink {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
-  const organizationContext = useOptionalOrganizationContext()
+  const organizationContext = useOptionalOrganization()
   const { getSettingsHref } = useSettingsNavigation()
   const { hosted } = useDeploymentShape()
   const navigationTarget = useSettingsNavigationTarget()

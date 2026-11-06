@@ -2,14 +2,14 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
-import { loadOrganizationSearchView } from '@/app/o/[organizationId]/search/search-params'
+import { loadOrganizationSearchView } from '@/lib/organizations/search-params'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import {
   LandingSkeleton,
   ResultsSkeleton,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
+import { Hydrated } from '@/platform/design-system/components/surface/hydrated'
 import { prefetchSearch } from '@/platform/lib/data/prefetch'
 
 export const metadata: Metadata = { title: 'Search' }

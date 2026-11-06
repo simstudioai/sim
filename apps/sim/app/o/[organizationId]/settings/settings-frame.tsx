@@ -4,14 +4,14 @@ import { type ReactNode, useContext } from 'react'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import {
   SettingsBreadcrumb,
   SettingsMobileTitle,
   SettingsScreen,
 } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
+import { Surface } from '@/platform/design-system/components/surface/surface'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/platform/lib/data/settings-sections'
 
 interface SettingsFrameProps {
   children: ReactNode
@@ -22,9 +22,9 @@ function PhoneTitle({ title }: { title: string }) {
   const slot = useContext(MobileTitleSlot)
   if (!slot) return null
   return createPortal(
-    <RedesignSurface canvas>
+    <Surface canvas>
       <SettingsMobileTitle title={title} />
-    </RedesignSurface>,
+    </Surface>,
     slot
   )
 }
@@ -45,16 +45,16 @@ export function SettingsFrame({ children }: SettingsFrameProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
-      <RedesignSurface canvas>
+      <Surface canvas>
         <SettingsBreadcrumb title={title} />
-      </RedesignSurface>
+      </Surface>
       <PhoneTitle title={title} />
       <div className='relative min-h-0 flex-1'>
         {pending && (
           <div className='absolute inset-0 z-10 grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'>
-            <RedesignSurface canvas>
+            <Surface canvas>
               <SettingsScreen title={pending.title} description={pending.description} />
-            </RedesignSurface>
+            </Surface>
           </div>
         )}
         <div className={pending ? 'invisible h-full' : 'h-full'} inert={pending ? true : undefined}>

@@ -1,4 +1,5 @@
 import { createLoader, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 
 export const organizationSearchParsers = {
   q: parseAsString.withDefault(''),
@@ -12,3 +13,9 @@ export const organizationSearchUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
+
+export interface OrganizationSummaryRequest {
+  id: string
+  message: string
+  assistantSearch: WorkspaceSearchFilters
+}

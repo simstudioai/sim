@@ -46,7 +46,7 @@ vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
   () => featureFlagsProviderMock
@@ -127,7 +127,7 @@ beforeEach(async () => {
   deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
   nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/chat/chat-a')
   authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'reader' } } })
-  organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organizationProviderMockFns.mockUseOrganization.mockReturnValue({
     organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,

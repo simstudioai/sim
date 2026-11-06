@@ -25,8 +25,8 @@ import {
   resolveDeploymentShape,
   useDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
+import { OrganizationProvider } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 
 authClientMockFns.mockUseSession.mockReturnValue({
   data: { user: { id: 'user-a', email: 'test@example.com' } },

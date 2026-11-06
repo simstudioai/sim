@@ -26,7 +26,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
   () => featureFlagsProviderMock
@@ -79,7 +79,7 @@ describe('Recents seeded by prefetchHome', () => {
 
   it('paints from the seed on the first render, with no read and no session', async () => {
     mocks.history.mockResolvedValue({ sources: [SOURCE], queries: [] })
-    organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue(SURFACE)
+    organizationProviderMockFns.mockUseOrganization.mockReturnValue(SURFACE)
     authClientMockFns.mockUseSession.mockReturnValue({ data: null, isPending: true })
     apiClientRequestMockFns.mockRequestJson.mockImplementation(() => new Promise(() => {}))
 

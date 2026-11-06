@@ -1,5 +1,6 @@
 'use client'
 
+import { isApiClientError } from '@/lib/api/client/errors'
 import {
   FieldStack,
   Muted,
@@ -7,7 +8,7 @@ import {
 import { Checkbox, FailureNotice } from '@/platform/design-system/components'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { isApiClientError, useProjects } from '@/platform/lib/data/access-control'
+import { useProjects } from '@/platform/lib/data/access-control'
 
 interface ProjectIssueRestrictionsProps {
   organizationId: string

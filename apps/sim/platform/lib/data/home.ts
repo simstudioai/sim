@@ -15,9 +15,8 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
@@ -33,6 +32,7 @@ import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
+import { useGetStartedSteps } from '@/platform/lib/data/get-started'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,
@@ -378,7 +378,7 @@ function firstNameOf(user: { name?: string | null; email?: string | null } | nul
  * than builds here, which decides whether Get started is theirs.
  */
 export function useLiveHome(assistant: boolean): { view: HomeView; actions: HomeActions } {
-  const organization = useOrganizationContext()
+  const organization = useOrganization()
   const { data: session } = useSession()
   const organizationId = organization.organization.id
   const { userId } = organization.viewer

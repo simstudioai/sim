@@ -21,9 +21,10 @@
  *    the adapter.
  *
  * 3. The organization surface's seam points one way. `apps/sim/platform/lib` never imports
- *    `@/platform/app`, not even for a type: views depend on the data layer, and a data file that
- *    reached back into a view could not be read or tested without it. Fix by moving what both
- *    need under `platform/lib`.
+ *    `@/platform/app` or `@/app/o`, not even for a type: views depend on the data layer, routes
+ *    depend on both, and a data file that reached back into either could not be read or tested
+ *    without it. Fix by moving what both need under `platform/lib`, or under `lib/` when a surface
+ *    the design system may not reach (the extension, `/workspace`) shares it.
  * 4. Views (`apps/sim/platform/app`) read data through `platform/lib/data`, so a read gets one
  *    adaptation and one place to fix it: no runtime edge to a data hook, in `@/hooks/queries` or
  *    a `hooks` folder under `@/ee`. Domain primitives elsewhere in `@/ee` (`lib`, constants,
@@ -31,11 +32,17 @@
  *    read. A file that only re-exports a hook satisfies this rule on paper and fixes nothing, so
  *    do not add one.
  *
- * Rules 1 to 3 have no allowlist. Rule 4 predates this check, so its existing edges are counted per
- * file in `scripts/check-monorepo-boundaries.baseline.json`. A file above its count fails, and so
- * does one below it until the baseline is rewritten, so the baseline only shrinks. Regenerate after
- * removing edges with `--update`, which refuses to raise a count; `--update --init` only creates a
- * missing baseline.
+ * 5. The rest of `apps/sim/platform` does not import `@/app/o`, not even for a type: routes adapt
+ *    Platform, so an edge the other way is a cycle through a route folder.
+ * 6. `apps/sim/platform/lib` does not import `@/app/workspace`, not even for a type: the data layer
+ *    would inherit that surface's components and hooks. Fix by moving the shared part under `lib/`
+ *    or `hooks/`.
+ *
+ * Rules 1 to 3 have no allowlist. Rules 4 to 6 predate their enforcement, so their existing edges
+ * are counted per file in `scripts/check-monorepo-boundaries.baseline.json`, one section per rule. A
+ * file above its count fails, and so does one below it until the baseline is rewritten, so the
+ * baseline only shrinks. Regenerate after removing edges with `--update`, which refuses to raise a
+ * count; `--update --init` only creates a missing baseline.
  *
  * Run: `bun run check:boundaries`
  */
@@ -47,10 +54,11 @@ import ts from '@typescript/typescript6'
 const ROOT = path.resolve(import.meta.dir, '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
 const SIM_DIR = path.join(ROOT, 'apps/sim')
-const PLATFORM_LIB_DIR = path.join(SIM_DIR, 'platform/lib')
+const PLATFORM_DIR = path.join(SIM_DIR, 'platform')
+const PLATFORM_LIB_DIR = path.join(PLATFORM_DIR, 'lib')
 const PLATFORM_VIEWS_DIR = path.join(SIM_DIR, 'platform/app')
 const EE_DATA_HOOK = /^@\/ee\/(?:.+\/)?hooks(?:\/|$)/
-const VIEW_SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
+const SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
 
 const TEST_FILE = /\.(test|spec|integration)\.tsx?$/
 
@@ -240,46 +248,54 @@ async function sourceFiles(dir: string): Promise<string[]> {
   return files.filter((file) => !TEST_FILE.test(file))
 }
 
-type ViewSeamBaseline = Record<string, number>
+const SEAM_RATCHETS = ['viewDataHooks', 'platformToRoutes', 'platformLibToWorkspace'] as const
 
-function readViewSeamBaseline(): ViewSeamBaseline | null {
-  if (!existsSync(VIEW_SEAM_BASELINE)) return null
-  return JSON.parse(readFileSync(VIEW_SEAM_BASELINE, 'utf8')) as ViewSeamBaseline
+type SeamRatchet = (typeof SEAM_RATCHETS)[number]
+type SeamCounts = Record<string, number>
+type SeamBaseline = Record<SeamRatchet, SeamCounts>
+
+function readSeamBaseline(): SeamBaseline | null {
+  if (!existsSync(SEAM_BASELINE)) return null
+  return JSON.parse(readFileSync(SEAM_BASELINE, 'utf8')) as SeamBaseline
 }
 
-function writeViewSeamBaseline(counts: ViewSeamBaseline): void {
+function writeSeamBaseline(counts: SeamBaseline): void {
   const sorted = Object.fromEntries(
-    Object.entries(counts).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    SEAM_RATCHETS.map((ratchet) => [
+      ratchet,
+      Object.fromEntries(
+        Object.entries(counts[ratchet]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      ),
+    ])
   )
-  writeFileSync(VIEW_SEAM_BASELINE, `${JSON.stringify(sorted, null, 2)}\n`)
+  writeFileSync(SEAM_BASELINE, `${JSON.stringify(sorted, null, 2)}\n`)
 }
 
 /** Rewrites the baseline, or returns why it may not: a count only ever falls. */
-function updateViewSeamBaseline(
-  baseline: ViewSeamBaseline | null,
-  counts: ViewSeamBaseline
-): string[] {
+function updateSeamBaseline(baseline: SeamBaseline | null, counts: SeamBaseline): string[] {
   if (baseline === null) {
     if (!process.argv.includes('--init')) {
-      return ['the view seam baseline is missing: restore it, or create one with --update --init']
+      return ['the seam baseline is missing: restore it, or create one with --update --init']
     }
-    writeViewSeamBaseline(counts)
+    writeSeamBaseline(counts)
     return []
   }
-  const refused = Object.entries(counts).flatMap(([file, count]) =>
-    count > (baseline[file] ?? 0)
-      ? [`refused to raise ${file}: ${count} (baseline ${baseline[file] ?? 0}); fix it instead`]
-      : []
+  const refused = SEAM_RATCHETS.flatMap((ratchet) =>
+    Object.entries(counts[ratchet]).flatMap(([file, count]) => {
+      const allowed = baseline[ratchet]?.[file] ?? 0
+      return count > allowed
+        ? [`refused to raise ${ratchet} ${file}: ${count} (baseline ${allowed}); fix it instead`]
+        : []
+    })
   )
-  if (refused.length === 0) writeViewSeamBaseline(counts)
+  if (refused.length === 0) writeSeamBaseline(counts)
   return refused
 }
 
 /** Files past their count, each with its edges, and baselined files now below it. */
-function viewSeamFailures(baseline: ViewSeamBaseline | null, hits: readonly Offender[]) {
-  const counts: ViewSeamBaseline = {}
+function seamFailures(allowed: SeamCounts, hits: readonly Offender[]) {
+  const counts: SeamCounts = {}
   for (const hit of hits) counts[hit.file] = (counts[hit.file] ?? 0) + 1
-  const allowed = baseline ?? {}
   const raised = hits.filter((hit) => counts[hit.file] > (allowed[hit.file] ?? 0))
   const dropped = Object.entries(allowed).flatMap(([file, count]) =>
     (counts[file] ?? 0) < count ? [`${file}: ${counts[file] ?? 0} (baseline ${count})`] : []
@@ -333,42 +349,81 @@ async function main() {
     )
   }
 
-  for (const file of await sourceFiles(PLATFORM_LIB_DIR)) {
+  const seamHits: Record<SeamRatchet, Offender[]> = {
+    viewDataHooks: [],
+    platformToRoutes: [],
+    platformLibToWorkspace: [],
+  }
+
+  const platformLibFiles = await sourceFiles(PLATFORM_LIB_DIR)
+  const platformLibFileSet = new Set(platformLibFiles)
+  for (const file of platformLibFiles) {
     offenders.push(
       ...(await scanImports(file, ({ module }) => {
         const specifier = aliasedSpecifier(file, module.text)
-        return matchesModule(specifier, '@/platform/app')
-          ? `platform/lib imports a view: ${specifier}`
+        if (matchesModule(specifier, '@/platform/app')) {
+          return `platform/lib imports a view: ${specifier}`
+        }
+        return matchesModule(specifier, '@/app/o')
+          ? `platform/lib imports a route: ${specifier}`
+          : null
+      }))
+    )
+    seamHits.platformLibToWorkspace.push(
+      ...(await scanImports(file, ({ module }) => {
+        const specifier = aliasedSpecifier(file, module.text)
+        return matchesModule(specifier, '@/app/workspace')
+          ? `platform/lib imports the workspace surface: ${specifier}`
           : null
       }))
     )
   }
 
-  const viewSeamHits: Offender[] = []
+  for (const file of await sourceFiles(PLATFORM_DIR)) {
+    if (platformLibFileSet.has(file)) continue
+    seamHits.platformToRoutes.push(
+      ...(await scanImports(file, ({ module }) => {
+        const specifier = aliasedSpecifier(file, module.text)
+        return matchesModule(specifier, '@/app/o') ? `platform imports a route: ${specifier}` : null
+      }))
+    )
+  }
+
   for (const file of await sourceFiles(PLATFORM_VIEWS_DIR)) {
-    viewSeamHits.push(
+    seamHits.viewDataHooks.push(
       ...(await scanImports(file, ({ module, bindings }) =>
         viewSeamViolation(aliasedSpecifier(file, module.text), bindings)
       ))
     )
   }
-  const baseline = readViewSeamBaseline()
-  const { counts, raised, dropped } = viewSeamFailures(baseline, viewSeamHits)
+
+  const baseline = readSeamBaseline()
+  const results = SEAM_RATCHETS.map((ratchet) => ({
+    ratchet,
+    ...seamFailures(baseline?.[ratchet] ?? {}, seamHits[ratchet]),
+  }))
+  const edgeCount = SEAM_RATCHETS.reduce((total, ratchet) => total + seamHits[ratchet].length, 0)
 
   if (process.argv.includes('--update')) {
-    const refused = updateViewSeamBaseline(baseline, counts)
+    const counts = Object.fromEntries(
+      results.map(({ ratchet, counts }) => [ratchet, counts])
+    ) as SeamBaseline
+    const refused = updateSeamBaseline(baseline, counts)
     if (refused.length > 0) {
       for (const reason of refused) console.error(`❌ ${reason}`)
       process.exit(1)
     }
-    console.log(`Wrote the view seam baseline: ${viewSeamHits.length} edges`)
+    console.log(`Wrote the seam baseline: ${edgeCount} edges`)
     return
   }
 
-  const violations = [...offenders, ...raised]
+  const violations = [...offenders, ...results.flatMap(({ raised }) => raised)]
+  const dropped = results.flatMap(({ ratchet, dropped }) =>
+    dropped.map((line) => `${ratchet} ${line}`)
+  )
   if (violations.length === 0 && dropped.length === 0) {
     console.log(
-      `✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and platform/lib points away from its views (${viewSeamHits.length} view edges baselined)`
+      `✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and platform/lib points away from views and routes (${edgeCount} seam edges baselined)`
     )
     return
   }
@@ -382,7 +437,7 @@ async function main() {
     }
   }
   if (dropped.length > 0) {
-    console.error('❌ View seam edges fell below the baseline; shrink it with --update:')
+    console.error('❌ Seam edges fell below the baseline; shrink it with --update:')
     for (const line of dropped) console.error(`  ${line}`)
   }
   process.exit(1)

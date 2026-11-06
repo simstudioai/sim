@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import styles from '@/platform/app/(shell)/_components/route-status/route-status.module.css'
+import { PageSurface } from '@/platform/design-system/components/surface/surface'
 
 interface RouteStatusProps {
   title: string
@@ -16,7 +16,7 @@ interface RouteStatusProps {
  */
 export function RouteStatus({ title, description, loading, actions }: RouteStatusProps) {
   return (
-    <RedesignPageSurface>
+    <PageSurface>
       <div className={styles.frame}>
         <div className={styles.content}>
           <div className={styles.copy}>
@@ -28,6 +28,6 @@ export function RouteStatus({ title, description, loading, actions }: RouteStatu
           {actions && <div className={styles.actions}>{actions}</div>}
         </div>
       </div>
-    </RedesignPageSurface>
+    </PageSurface>
   )
 }

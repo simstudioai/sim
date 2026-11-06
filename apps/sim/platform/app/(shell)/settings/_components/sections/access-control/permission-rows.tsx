@@ -2,6 +2,20 @@
 
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  ORGANIZATION_SCOPED_FEATURE_NOTE,
+  type PermissionGroupPlatformFeature,
+} from '@/lib/permission-groups/features'
+import {
+  accessStateOptions,
+  bulkAccessOptions,
+  inheritedPermissionResolvers,
+  type PermissionResolvers,
+} from '@/ee/access-control/lib/editor'
+import type {
+  AccessRequestTarget,
+  PermissionGroupAccessState,
+} from '@/ee/access-requests/lib/targets'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
@@ -21,16 +35,8 @@ import {
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  type AccessRequestTarget,
-  accessStateOptions,
-  bulkAccessOptions,
   type EditorBlock,
   type EditorModel,
-  inheritedPermissionResolvers,
-  ORGANIZATION_SCOPED_FEATURE_NOTE,
-  type PermissionGroupAccessState,
-  type PermissionGroupPlatformFeature,
-  type PermissionResolvers,
   useProviderModels,
 } from '@/platform/lib/data/access-control'
 

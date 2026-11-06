@@ -1,14 +1,8 @@
 'use client'
 
 import { lazy, Suspense, useRef } from 'react'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
-import {
-  useOrganizationSearch,
-  useSearchFieldDraft,
-} from '@/app/o/[organizationId]/search/use-organization-search'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
@@ -26,6 +20,9 @@ import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/s
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { Surface } from '@/platform/design-system/components/surface/surface'
+import { useGetStartedSteps } from '@/platform/lib/data/get-started'
+import { useOrganizationSearch, useSearchFieldDraft } from '@/platform/lib/data/organization-search'
 
 const FIELD_MAX_HEIGHT_PX = 200
 
@@ -140,9 +137,9 @@ function AssistantGetStarted() {
   if (steps.length === 0) return null
   return (
     <div className={conversationStyles.landingGetStarted}>
-      <RedesignSurface>
+      <Surface>
         <GetStarted steps={steps} />
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }
@@ -153,7 +150,7 @@ interface OrganizationSearchSurfaceProps {
 }
 
 function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearchSurfaceProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const search = useOrganizationSearch({ userId, chatId })
   const query = search.query.trim()
   const resultsScroll = useScrollEdges<HTMLDivElement>()
@@ -198,7 +195,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
       }
     >
       <div className={styles.body}>
-        <RedesignSurface>
+        <Surface>
           {query ? (
             <div className={styles.docked}>
               <div className={styles.dockedRow}>
@@ -226,7 +223,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
               </div>
             </div>
           )}
-        </RedesignSurface>
+        </Surface>
       </div>
     </SearchFrame>
   )
@@ -234,7 +231,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
 
 /** Organization Search in the design system. The Assistant conversation renders beside it. */
 export function OrganizationSearchSurface(props: OrganizationSearchSurfaceProps) {
-  const { searchAccess } = useOrganizationContext()
+  const { searchAccess } = useOrganization()
   if (!searchAccess.memberScoped) return null
   return <OrganizationSearchSurfaceContent {...props} />
 }

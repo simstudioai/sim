@@ -3,8 +3,8 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
+import type { OrganizationSummaryRequest } from '@/lib/organizations/search-params'
 import {
-  type OrganizationSummaryRequest,
   useConversationGate,
   useOrganizationConversation,
 } from '@/app/o/[organizationId]/components/use-organization-conversation'

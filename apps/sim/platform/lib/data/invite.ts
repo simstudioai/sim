@@ -5,7 +5,7 @@ import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { plural } from '@/platform/lib/plural'
@@ -24,7 +24,7 @@ const SEAT_WARNING =
  * collaborator takes no seat, and reports each failure back.
  */
 export function useInviteMembers() {
-  const { organization, deployment } = useOrganizationContext()
+  const { organization, deployment } = useOrganization()
   const { data: session } = useSession()
   const seats = useOrganizationPlanSeats(organization.id, { enabled: deployment.billingEnabled })
   const send = useSendWorkspaceInvitations()

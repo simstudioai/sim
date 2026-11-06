@@ -14,10 +14,11 @@ import {
   updateEnvVarArray,
   validateEnvVarKey,
 } from '@/components/secrets/secret-rows'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
 import {
@@ -47,7 +48,6 @@ import {
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { useGenericSecrets } from '@/platform/lib/data/generic-secrets'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000
@@ -60,7 +60,7 @@ interface SecretsEditorProps {
 
 /** One source's Generic Secrets: the organization's, or the viewer's own. */
 export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const router = useRouter()
   const { failure, editor } = useGenericSecrets(mode)
   const routes = organizationRoutes(organization.id)

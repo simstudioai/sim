@@ -3,10 +3,10 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import { loadSimLinksListView } from '@/app/o/[organizationId]/links/search-params'
+import { loadSimLinksListView } from '@/lib/sim-links/search-params'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import { LinksPage } from '@/platform/app/(shell)/links/_components/links-page/links-page'
+import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { prefetchSimLinks } from '@/platform/lib/data/prefetch'
 
 export const metadata: Metadata = { title: 'Links' }
@@ -25,10 +25,10 @@ export default async function SimLinksPage({ params, searchParams }: SimLinksPag
   if (!(await isSimLinksEnabled(organizationId))) notFound()
   const state = await prefetchSimLinks(organizationId, principal, loadSimLinksListView(query))
   return (
-    <RedesignPageSurface>
+    <PageSurface>
       <HydrationBoundary state={state}>
         <LinksPage organizationId={organizationId} />
       </HydrationBoundary>
-    </RedesignPageSurface>
+    </PageSurface>
   )
 }

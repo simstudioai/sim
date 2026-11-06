@@ -1,11 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { getOrganizationHomeRedirect } from '@/lib/organizations/home-redirect'
 import { getOrganizationSurfaceGate } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 
 export default async function OrganizationPage({
   params,

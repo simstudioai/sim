@@ -6,6 +6,8 @@ import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import {
   useRemoveWorkspaceMember,
   useUpdateWorkspacePermissions,
@@ -29,8 +31,6 @@ import {
   toSeatsModel,
   type WorkspacePermission,
 } from '@/platform/lib/data/members-model'
-import type { PlatformOrganization } from '@/platform/lib/data/organization'
-import { useOrganization } from '@/platform/lib/data/organization'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { reportFailure } from '@/platform/lib/notices'
 
@@ -48,7 +48,7 @@ async function reportingFailure(work: Promise<unknown>, message: string): Promis
  * falls back to the server-read surface; Better Auth's organization read caps its member list and
  * can omit or lag the caller, so it is never consulted.
  */
-export function useMembers(organization: PlatformOrganization) {
+export function useMembers(organization: OrganizationSurfaceContext) {
   const organizationId = organization.organization.id
   const { hosted, billingEnabled } = organization.deployment
   const { data: session } = useSession()

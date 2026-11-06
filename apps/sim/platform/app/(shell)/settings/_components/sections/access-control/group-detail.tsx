@@ -1,6 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import type {
+  PermissionGroup,
+  PermissionGroupWorkspaceRef,
+} from '@/ee/access-control/hooks/permission-groups'
+import {
+  applyPermissionAccess,
+  createPermissionResolvers,
+  isAgentDefaultUsable,
+} from '@/ee/access-control/lib/editor'
+import type {
+  AccessRequestTarget,
+  PermissionGroupAccessState,
+} from '@/ee/access-requests/lib/targets'
 import {
   DetailHeader,
   DraftConflictNotice,
@@ -22,18 +36,10 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  type AccessRequestTarget,
-  applyPermissionAccess,
-  createPermissionResolvers,
-  isAgentDefaultUsable,
-  type PermissionGroup,
-  type PermissionGroupAccessState,
-  type PermissionGroupWorkspaceRef,
   useDeletePermissionGroup,
   useGroupDetailParams,
   usePermissionEditorModel,
 } from '@/platform/lib/data/access-control'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const TABS = [
   { value: 'general', label: 'General' },

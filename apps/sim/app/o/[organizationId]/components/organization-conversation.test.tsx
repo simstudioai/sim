@@ -66,7 +66,7 @@ vi.mock(
 )
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
 vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
@@ -88,7 +88,7 @@ const {
 } = organizationConversationMockFns
 
 const mockSession = authClientMockFns.mockUseSession
-const mockContext = organizationProviderMockFns.mockUseOrganizationContext
+const mockContext = organizationProviderMockFns.mockUseOrganization
 const deploymentShape = () => createMockDeploymentShape()
 deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
 deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)

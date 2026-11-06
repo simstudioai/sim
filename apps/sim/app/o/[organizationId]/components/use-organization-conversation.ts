@@ -17,6 +17,12 @@ import {
 } from '@/lib/mothership/chat/attachment-preview'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import { useOrganization } from '@/lib/organizations/provider'
+import {
+  type OrganizationSummaryRequest,
+  organizationSearchParsers,
+  organizationSearchUrlKeys,
+} from '@/lib/organizations/search-params'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
@@ -26,11 +32,6 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import {
-  organizationSearchParsers,
-  organizationSearchUrlKeys,
-} from '@/app/o/[organizationId]/search/search-params'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import {
   getMothershipUseChatOptions,
@@ -61,12 +62,6 @@ import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-c
 import { useHydrated } from '@/hooks/use-hydrated'
 import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
-
-export interface OrganizationSummaryRequest {
-  id: string
-  message: string
-  assistantSearch: WorkspaceSearchFilters
-}
 
 /** Search's Assistant always runs its retrieval at this level. */
 const ASSISTANT_SEARCH_LEVEL = 'fast' as const
@@ -130,7 +125,7 @@ interface UseConversationGateOptions {
 
 /** Whether the surface may mount, and for which identity. Its key remounts on any change to one. */
 export function useConversationGate({ chatId, requestMode }: UseConversationGateOptions) {
-  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
+  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganization()
   const { data: session } = useSession()
   const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId })
@@ -170,7 +165,7 @@ export function useOrganizationConversation({
   summaryRequest,
   onSummaryConsumed,
 }: UseOrganizationConversationOptions) {
-  const { organization, canBuild } = useOrganizationContext()
+  const { organization, canBuild } = useOrganization()
   const panelSurface = surface.kind === 'panel' ? surface : null
   const { data: session } = useSession()
   const userId = session?.user?.id

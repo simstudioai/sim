@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
@@ -28,6 +27,7 @@ import { ControlRow } from '@/platform/design-system/components/button/control-r
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { type OrganizationNavFlags, useOrganizationShell } from '@/platform/lib/data/shell'
@@ -95,7 +95,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
       }}
     >
       <div className={styles.column}>
-        <RedesignSurface canvas>
+        <Surface canvas>
           <div data-material='shell'>
             {!isPeeking && (
               <div
@@ -168,16 +168,16 @@ export function Sidebar(flags: OrganizationNavFlags) {
             workspaces={data.workspaces}
             destinations={destinations}
           />
-        </RedesignSurface>
+        </Surface>
         <div className={styles.body}>
           {isSettings ? (
-            <RedesignSurface canvas>
+            <Surface canvas>
               <div className={styles.settingsFrame} data-material='shell'>
                 <SettingsNavigation collapsed={collapsed} />
               </div>
-            </RedesignSurface>
+            </Surface>
           ) : (
-            <RedesignSurface canvas>
+            <Surface canvas>
               <div className={styles.bodyFrame} data-material='shell'>
                 <nav className={styles.nav} aria-label='Main navigation'>
                   {destinations.map((item) => {
@@ -235,10 +235,10 @@ export function Sidebar(flags: OrganizationNavFlags) {
                   </div>
                 </ScrollArea>
               </div>
-            </RedesignSurface>
+            </Surface>
           )}
         </div>
-        <RedesignSurface canvas>
+        <Surface canvas>
           <div ref={footer} className={styles.footer} data-material='shell'>
             {data.user ? (
               <AccountMenu
@@ -258,7 +258,7 @@ export function Sidebar(flags: OrganizationNavFlags) {
               <HelpMenu />
             </div>
           </div>
-        </RedesignSurface>
+        </Surface>
       </div>
       {!isPeeking && (
         <div

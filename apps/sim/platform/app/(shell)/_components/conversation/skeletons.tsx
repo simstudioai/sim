@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
-import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import composerStyles from '@/platform/app/(shell)/_components/conversation/page-composer.module.css'
+import { Surface } from '@/platform/design-system/components/surface/surface'
 
 /** The transcript's shape while its history loads. It sits in the thread's own scroller. */
 export function TranscriptPlaceholder() {
   return (
     <div className={styles.transcriptSkeleton}>
-      <RedesignSurface>
+      <Surface>
         <div role='status' aria-label='Loading conversation' aria-busy='true'>
           <div className={styles.transcriptBubble} />
           <div className={styles.transcriptLines}>
@@ -19,7 +19,7 @@ export function TranscriptPlaceholder() {
             <span />
           </div>
         </div>
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }
@@ -28,9 +28,9 @@ export function TranscriptPlaceholder() {
 export function ComposerPlaceholder() {
   return (
     <div className={styles.composerSkeleton}>
-      <RedesignSurface>
+      <Surface>
         <div className={cn(composerStyles.box, styles.placeholderComposer)} />
-      </RedesignSurface>
+      </Surface>
     </div>
   )
 }
@@ -86,11 +86,11 @@ export function LandingSkeleton({ field, header }: LandingSkeletonProps) {
       <HeaderBand header={header} />
       <div className={styles.landingScroll}>
         <div className={styles.landing}>
-          <RedesignSurface>
+          <Surface>
             <div className={styles.placeholderHeading} />
-          </RedesignSurface>
+          </Surface>
           <div className={styles.landingField}>
-            <RedesignSurface>
+            <Surface>
               <div
                 className={
                   field === 'composer'
@@ -98,7 +98,7 @@ export function LandingSkeleton({ field, header }: LandingSkeletonProps) {
                     : styles.placeholderField
                 }
               />
-            </RedesignSurface>
+            </Surface>
           </div>
         </div>
       </div>

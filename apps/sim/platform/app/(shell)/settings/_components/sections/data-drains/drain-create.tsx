@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import { type CADENCE_TYPES, DESTINATION_TYPES, type SOURCE_TYPES } from '@/lib/data-drains/types'
 import {
@@ -30,7 +31,6 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
 const DEFAULT_CADENCE = 'daily' satisfies (typeof CADENCE_TYPES)[number]

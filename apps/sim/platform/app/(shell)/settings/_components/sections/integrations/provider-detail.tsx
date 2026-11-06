@@ -5,11 +5,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -48,7 +48,7 @@ interface ProviderDetailProps {
 }
 
 export function ProviderDetail({ connectorType }: ProviderDetailProps) {
-  const { organization, viewer, searchAccess } = useOrganizationContext()
+  const { organization, viewer, searchAccess } = useOrganization()
   const router = useRouter()
   const meta = CONNECTOR_META_REGISTRY[connectorType]
   const [search, setSearch] = useSettingsSearch()

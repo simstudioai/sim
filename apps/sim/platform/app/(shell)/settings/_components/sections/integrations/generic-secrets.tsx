@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import {
   useConfigureOrganizationSecretSource,
   useRemoveOrganizationSecretSource,
@@ -81,7 +81,7 @@ interface GenericSecretSourceRowProps {
 }
 
 export function GenericSecretSourceRow({ organizationId, source }: GenericSecretSourceRowProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const [editing, setEditing] = useState(false)
   const [removing, setRemoving] = useState(false)
   const remove = useRemoveOrganizationSecretSource(organizationId)

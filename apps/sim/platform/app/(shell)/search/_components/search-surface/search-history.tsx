@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { CompactSourceRow } from '@/platform/app/(shell)/_components/search/source-row'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
 import { Button, Chip } from '@/platform/design-system/components/button/button'
@@ -40,7 +40,7 @@ interface SearchHistoryProps {
 
 /** The viewer's private shortcuts under the field, which stays centered whatever they contain. */
 export function SearchHistory({ userId, onSearch, children }: SearchHistoryProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const { failed, retrying, retry, sources, queries, selected, setSelection, clear, isClearing } =
     useSearchLandingHistory(organization.id, userId)
   return (
