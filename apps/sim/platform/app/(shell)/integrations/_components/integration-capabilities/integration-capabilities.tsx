@@ -4,7 +4,6 @@ import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities.module.css'
 import {
   ActivityRow,
-  CopyButton,
   Icon,
   Modal,
   ModalBody,
@@ -133,7 +132,6 @@ export function IntegrationCapabilities({
               defaultSize='expanded'
               viewOnly
             />
-            <CopyButton label='Copy prompt' text={template.prompt} />
           </ModalBody>
         </OverlayDialog>
       )}

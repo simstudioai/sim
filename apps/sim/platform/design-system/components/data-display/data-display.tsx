@@ -3,12 +3,14 @@
 import { memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
+import { Checkbox } from '@/platform/design-system/components/checkbox/checkbox'
 import styles from '@/platform/design-system/components/data-display/data-display.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { ContentTabs } from '@/platform/design-system/components/tabs/content-tabs'
 
 interface MetricGroupProps {
   metrics: readonly { label: string; value: string | number }[]
@@ -59,8 +61,9 @@ type TableColumn = {
 interface TableRow {
   id: string
   values: Readonly<Partial<Record<string, string | number | null>>>
-  /** Content for a column in place of its formatted value. Interactive content goes in `action`. */
+  /** Custom cell content. Whole-row targets keep independent controls in `action`. */
   cells?: Readonly<Partial<Record<string, ReactNode>>>
+  selectionDisabled?: boolean
   /** Make the whole row open this destination, through a link on its first cell. */
   href?: string
   /** Make the whole row run this, through a button on its first cell. */
@@ -74,11 +77,29 @@ interface TableSort {
   direction: 'asc' | 'desc'
 }
 
+interface TableSelection {
+  /** Select-all changes only supplied, enabled rows and preserves selection outside this view. */
+  selectedIds: readonly string[]
+  onChange: (ids: string[]) => void
+  rowLabel: (row: TableRow) => string
+}
+
+interface TableTabs {
+  label: string
+  items: readonly { id: string; label: string }[]
+  current: string
+  onSelect: (id: string) => void
+}
+
 interface DataTableProps {
   title: string
   /** Name the table for assistive technology only, where the page already titles it. */
   titleHidden?: boolean
   control?: ReactNode
+  tabs?: TableTabs
+  /** Search, filter, sort and selection actions composed from shared controls. */
+  toolbar?: ReactNode
+  selection?: TableSelection
   locale?: string
   columns: readonly TableColumn[]
   rows: readonly TableRow[]
@@ -129,6 +150,8 @@ interface TableRowViewProps {
   rowChevron?: boolean
   index?: number
   rowRef?: Ref<HTMLTableRowElement>
+  selection?: TableSelection
+  selected?: boolean
 }
 
 const TableRowView = memo(function TableRowView({
@@ -138,6 +161,8 @@ const TableRowView = memo(function TableRowView({
   rowChevron,
   index,
   rowRef,
+  selection,
+  selected,
 }: TableRowViewProps) {
   return (
     <tr
@@ -146,6 +171,23 @@ const TableRowView = memo(function TableRowView({
       aria-rowindex={index === undefined ? undefined : index + 2}
       data-openable={row.href || row.onOpen ? true : undefined}
     >
+      {selection && (
+        <td data-kind='selection'>
+          <Checkbox
+            label={`Select ${selection.rowLabel(row)}`}
+            labelHidden
+            checked={selected}
+            disabled={row.selectionDisabled}
+            onCheckedChange={(checked) =>
+              selection.onChange(
+                checked
+                  ? [...new Set([...selection.selectedIds, row.id])]
+                  : selection.selectedIds.filter((id) => id !== row.id)
+              )
+            }
+          />
+        </td>
+      )}
       {fields.map((column, position) => {
         const custom = row.cells?.[column.key]
         const content =
@@ -187,14 +229,20 @@ interface TableHeadProps {
   actionColumn: boolean
   sort?: TableSort
   onSortChange?: (sort: TableSort) => void
+  selectionControl?: ReactNode
 }
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending', none: 'none' } as const
 
-function TableHead({ fields, actionColumn, sort, onSortChange }: TableHeadProps) {
+function TableHead({ fields, actionColumn, sort, onSortChange, selectionControl }: TableHeadProps) {
   return (
     <thead>
       <tr>
+        {selectionControl && (
+          <th scope='col' data-kind='selection'>
+            {selectionControl}
+          </th>
+        )}
         {fields.map((column) => {
           const sortable = column.sortable && onSortChange
           const direction = sort?.column === column.key ? sort.direction : undefined
@@ -249,6 +297,8 @@ interface VirtualTableProps extends TableHeadProps {
   rows: readonly TableRow[]
   loadMore?: LoadMoreState
   rowChevron?: boolean
+  selection?: TableSelection
+  selectedIds: ReadonlySet<string>
 }
 
 function VirtualTable({
@@ -260,6 +310,9 @@ function VirtualTable({
   onSortChange,
   loadMore,
   rowChevron,
+  selection,
+  selectionControl,
+  selectedIds,
 }: VirtualTableProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const scrollRef = useScrollEdges('vertical', { viewport, tabStop: true })
@@ -275,7 +328,7 @@ function VirtualTable({
   const items = virtualizer.getVirtualItems()
   const before = items[0]?.start ?? 0
   const after = virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0)
-  const columnCount = fields.length + (actionColumn ? 1 : 0)
+  const columnCount = fields.length + (actionColumn ? 1 : 0) + (selection ? 1 : 0)
   return (
     <div
       ref={scrollRef}
@@ -284,12 +337,18 @@ function VirtualTable({
       role='region'
       aria-label={title}
     >
-      <table className={styles.table} aria-label={title} aria-rowcount={rows.length + 1}>
+      <table
+        className={styles.table}
+        aria-label={title}
+        aria-rowcount={rows.length + 1}
+        data-columns={fields.length}
+      >
         <TableHead
           fields={fields}
           actionColumn={actionColumn}
           sort={sort}
           onSortChange={onSortChange}
+          selectionControl={selectionControl}
         />
         <tbody>
           <VirtualSpacer blockSize={before} columnCount={columnCount} />
@@ -302,6 +361,8 @@ function VirtualTable({
               rowChevron={rowChevron}
               index={item.index}
               rowRef={virtualizer.measureElement}
+              selection={selection}
+              selected={selectedIds.has(rows[item.index].id)}
             />
           ))}
           <VirtualSpacer blockSize={after} columnCount={columnCount} />
@@ -336,6 +397,9 @@ export function DataTable({
   title,
   titleHidden,
   control,
+  tabs,
+  toolbar,
+  selection,
   locale = 'en-US',
   columns,
   rows,
@@ -347,14 +411,29 @@ export function DataTable({
 }: DataTableProps) {
   const fields = columns.map((column) => ({ ...column, format: columnFormat(column, locale) }))
   const actionColumn = Boolean(rowChevron) || rows.some((row) => row.action)
-  return (
-    <section className={styles.section}>
-      {(!titleHidden || control) && (
-        <header className={styles.header}>
-          {!titleHidden && <h2 data-type='T042'>{title}</h2>}
-          {control}
-        </header>
-      )}
+  const selectedIds = new Set(selection?.selectedIds)
+  const selectable = rows.filter((row) => !row.selectionDisabled)
+  const selectedCount = selectable.filter((row) => selectedIds.has(row.id)).length
+  const selectionControl = selection && (
+    <Checkbox
+      label={`Select all ${title.toLowerCase()}`}
+      labelHidden
+      checked={selectable.length > 0 && selectedCount === selectable.length}
+      indeterminate={selectedCount > 0 && selectedCount < selectable.length}
+      disabled={!selectable.length}
+      onCheckedChange={(checked) => {
+        const next = new Set(selectedIds)
+        for (const row of selectable) {
+          if (checked) next.add(row.id)
+          else next.delete(row.id)
+        }
+        selection.onChange([...next])
+      }}
+    />
+  )
+  const content = (
+    <div className={styles.body}>
+      {toolbar}
       <div className={styles.tableViewport}>
         {virtualized ? (
           <VirtualTable
@@ -366,16 +445,20 @@ export function DataTable({
             onSortChange={onSortChange}
             loadMore={loadMore}
             rowChevron={rowChevron}
+            selection={selection}
+            selectionControl={selectionControl}
+            selectedIds={selectedIds}
           />
         ) : (
           <>
             <ScrollArea label={title} axis='horizontal'>
-              <table className={styles.table} aria-label={title}>
+              <table className={styles.table} aria-label={title} data-columns={fields.length}>
                 <TableHead
                   fields={fields}
                   actionColumn={actionColumn}
                   sort={sort}
                   onSortChange={onSortChange}
+                  selectionControl={selectionControl}
                 />
                 <tbody>
                   {rows.map((row) => (
@@ -385,6 +468,8 @@ export function DataTable({
                       fields={fields}
                       actionColumn={actionColumn}
                       rowChevron={rowChevron}
+                      selection={selection}
+                      selected={selectedIds.has(row.id)}
                     />
                   ))}
                 </tbody>
@@ -394,6 +479,29 @@ export function DataTable({
           </>
         )}
       </div>
+    </div>
+  )
+  return (
+    <section className={styles.section}>
+      {(!titleHidden || control) && (
+        <header className={styles.header}>
+          {!titleHidden && <h2 data-type='T042'>{title}</h2>}
+          {control}
+        </header>
+      )}
+      {tabs ? (
+        <ContentTabs
+          label={tabs.label}
+          current={tabs.current}
+          onSelect={tabs.onSelect}
+          items={tabs.items.map((item) => ({
+            ...item,
+            content: item.id === tabs.current ? content : null,
+          }))}
+        />
+      ) : (
+        content
+      )}
     </section>
   )
 }

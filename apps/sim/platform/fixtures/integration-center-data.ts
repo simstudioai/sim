@@ -194,7 +194,11 @@ export function integrationCenterData(scenario: Scenario): IntegrationCenterData
     viewer: emir,
     workspaces,
     people,
-    appUsageTotal: { gmail: scenario === 'stress' ? 1002 : 15, google_drive: 24 },
+    appUsageTotal: {
+      gmail: scenario === 'stress' ? 1002 : 15,
+      google_drive: 24,
+      notion: scenario === 'stress' ? 1002 : 15,
+    },
     appPeople: {
       gmail: [nina, alex, maya, emir, daniel],
       google_calendar: [nina, alex, maya, emir],
@@ -203,7 +207,7 @@ export function integrationCenterData(scenario: Scenario): IntegrationCenterData
       fireflies: [emir, nina, maya],
       hubspot: [nina, emir],
       salesforce: [nina, maya],
-      notion: [alex, daniel],
+      notion: [nina, alex, maya, emir, daniel],
       linear: [alex, daniel],
     },
     resources: [...resources, ...extra],

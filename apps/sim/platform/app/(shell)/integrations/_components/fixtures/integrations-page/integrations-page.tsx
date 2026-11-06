@@ -6,7 +6,6 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useIntegrationCenterResources } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { useOrganizationIntegrations } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/integration-details'
-import { serializeCredential } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/fixtures/member-secrets/member-secrets'
 import { IntegrationCenter } from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
 import {
@@ -20,6 +19,7 @@ import {
   credentialDescription,
   credentialSharing,
 } from '@/platform/lib/integrations/credential-display'
+import { serializeCredential } from '@/platform/lib/integrations/credential-navigation'
 import {
   type IntegrationsData,
   memberIntegrationHref,
@@ -46,9 +46,6 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
   const library = useIntegrationCenterResources(center)
   const item = integrations.find((entry) => entry.providerId === section)
   const secrets = section === 'secrets' ? data?.genericSecrets : null
-  const providerNames = new Map(
-    integrations.map((integration) => [integration.providerId, integration.name])
-  )
   const credentialLinks: AppSummary[] = [
     ...new Map(
       integrations.flatMap((integration) =>
@@ -59,11 +56,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
     id: credential.id,
     providerId: credential.appId,
     name: credential.displayName,
-    description: credentialDescription(credential, providerNames.get(credential.appId)),
+    description: credentialDescription(credential),
     category: 'Credentials',
     connected: true,
     scope: credentialSharing(credential),
-    people: credential.members.filter((member) => member.status === 'active'),
     href: serializeCredential(
       memberIntegrationHref(`/integrations/${encodeURIComponent(credential.appId)}`, search),
       { credential: credential.id }
@@ -149,6 +145,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               category: integration.category ?? 'Other',
               href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
               connected: integration.credentials.length > 0,
+              credentialCount: integration.credentials.length,
               searchable: integration.credentials
                 .map((credential) => `${credential.displayName} ${credential.accountLabel ?? ''}`)
                 .join(' '),

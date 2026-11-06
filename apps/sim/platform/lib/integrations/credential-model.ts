@@ -5,7 +5,7 @@ export interface CredentialMember extends IntegrationPerson {
   userId: string
   email?: string
   role: 'admin' | 'member'
-  roleSource: 'explicit' | 'workspace-admin'
+  roleSource: 'explicit' | 'workspace-admin' | 'organization-admin'
   explicitAdmin: boolean
   status: 'active' | 'pending' | 'revoked'
 }

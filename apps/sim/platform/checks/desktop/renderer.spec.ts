@@ -37,6 +37,7 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
       .getByRole('region', { name: 'Connected credentials', exact: true })
       .getByRole('button', { name: /^emir@sim.ai / })
       .click()
+    await memberPage.getByRole('tab', { name: 'Permissions', exact: true }).click()
     const send = memberPage.getByRole('group', { name: 'Gmail Send permission' })
     await send.getByRole('radio', { name: 'Ask' }).press('ArrowRight')
     const blocked = send.getByRole('radio', { name: 'Block' })

@@ -258,5 +258,45 @@ function credentialExamples(
       members: [member(viewer.id, 'admin')],
     })
   }
+  if (scenario === 'stress' && appId === 'gitlab') {
+    const organizationMembers = [
+      member('nina', 'admin'),
+      {
+        ...member(viewer.id, 'admin'),
+        roleSource: 'organization-admin' as const,
+        explicitAdmin: false,
+      },
+      member('alex', 'member'),
+      { ...member('daniel', 'member'), status: 'pending' as const },
+    ]
+    credentials.push(
+      {
+        id: 'gitlab-organization',
+        appId,
+        providerId: 'gitlab',
+        type: 'oauth',
+        displayName: 'Organization automations',
+        description: 'Repository automation shared with selected organization members.',
+        role: 'admin',
+        status: 'active',
+        canReconnect: false,
+        scope: { kind: 'organization', id: 'sim', name: 'Sim Enterprise' },
+        members: organizationMembers,
+      },
+      {
+        id: 'gitlab-managed',
+        appId,
+        providerId: 'gitlab',
+        type: 'oauth',
+        displayName: 'Managed repositories',
+        description: 'Organization-managed repository access.',
+        role: 'member',
+        status: 'active',
+        canReconnect: false,
+        scope: { kind: 'organization-managed', id: 'sim', name: 'Sim Enterprise' },
+        members: organizationMembers.filter((entry) => entry.status === 'active'),
+      }
+    )
+  }
   return credentials
 }

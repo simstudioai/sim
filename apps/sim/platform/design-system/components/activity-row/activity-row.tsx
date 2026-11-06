@@ -13,6 +13,7 @@ interface ActivityRowProps {
   title: string
   count?: number
   detail: string
+  detailContent?: ReactNode
   detailLead?: string
   showChevron?: boolean
   disabled?: boolean
@@ -29,6 +30,7 @@ export function ActivityRow({
   title,
   count,
   detail,
+  detailContent,
   detailLead,
   textMetadata,
   people,
@@ -50,7 +52,7 @@ export function ActivityRow({
                 <strong data-type='T051'>{detailLead}</strong>{' '}
               </>
             )}
-            {detail}
+            {detailContent ?? detail}
           </OverflowText>
         </span>
       </ActivityBody>

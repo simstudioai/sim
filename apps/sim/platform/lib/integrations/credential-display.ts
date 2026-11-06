@@ -9,13 +9,7 @@ export function credentialSharing(credential: IntegrationCredential): 'personal'
     : 'personal'
 }
 
-/** Keep a credential's supporting copy distinct from its display name. */
-export function credentialDescription(credential: IntegrationCredential, providerName?: string) {
-  const name = credential.displayName.trim().toLowerCase()
-  const description = [credential.description, credential.accountLabel].find(
-    (value) => value?.trim() && value.trim().toLowerCase() !== name
-  )
-  if (description) return description
-  const scope = credentialSharing(credential) === 'personal' ? 'Personal' : 'Shared'
-  return providerName ? `${providerName} ${scope.toLowerCase()} credential` : scope
+/** A credential without a description remains identifiable by its stable ID. */
+export function credentialDescription(credential: { id: string; description?: string }) {
+  return credential.description?.trim() || credential.id
 }

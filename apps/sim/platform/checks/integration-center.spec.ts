@@ -72,32 +72,36 @@ test('directory filters and ordering survive app details and resource browser hi
   await expect(main.getByRole('button', { name: /^Weekly customer review / })).toHaveCount(0)
 })
 
-test('app roster overflow stays passive while avatars explain people and the whole row opens details', async ({
+test('available app usage stays inline and passive while connected counts include shared credentials', async ({
   page,
 }) => {
-  for (const [scenario, count, accessibleCount] of [
-    ['full', '+12', '12 others'],
-    ['stress', '+999', '999 others'],
+  for (const [scenario, others, githubCount] of [
+    ['full', '12 others', '1 connected credential'],
+    ['stress', '999 others', '2 connected credentials'],
   ]) {
     await page.goto(`${origin}/integrations?state=${scenario}`)
-    const gmail = page.getByRole('main').getByRole('link', { name: /^Gmail / })
-    const people = gmail.getByRole('group', { name: 'Used by', exact: true })
-    await expect(people.getByRole('button')).toHaveCount(0)
-    const overflow = people.getByLabel(accessibleCount, { exact: true })
-    await expect(overflow).toHaveText(count)
-    const nina = people.getByRole('img', { name: 'Nina Patel', exact: true })
+    const main = page.getByRole('main')
+    const notion = main.getByRole('link', { name: /^Notion / })
+    await expect(notion).toContainText('Used by')
+    await expect(notion.locator('img')).toHaveCount(3)
+    await expect(notion.getByRole('button')).toHaveCount(0)
     await expect
       .poll(() =>
-        nina
+        notion
           .locator('img')
+          .first()
           .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)
       )
       .toBe(true)
-    await nina.hover()
-    await expect(page.getByRole('tooltip', { name: 'Nina Patel', exact: true })).toBeVisible()
+    const overflow = notion.getByText(`and ${others}`, { exact: true })
+    await expect(overflow).toBeVisible()
+    const gmail = main.getByRole('link', { name: /^Gmail / })
+    await expect(gmail).toContainText('2 connected credentials')
+    await expect(gmail.getByRole('img')).toHaveCount(0)
+    await expect(main.getByRole('link', { name: /^GitHub / })).toContainText(githubCount)
     await overflow.click()
-    await expect(page).toHaveURL(/\/integrations\/gmail/)
-    await expect(page.getByRole('heading', { name: 'Gmail', exact: true })).toBeVisible()
+    await expect(page).toHaveURL(/\/integrations\/notion/)
+    await expect(page.getByRole('heading', { name: 'Notion', exact: true })).toBeVisible()
     await expect(page.getByRole('dialog')).toHaveCount(0)
   }
 })

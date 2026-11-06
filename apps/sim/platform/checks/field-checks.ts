@@ -16,6 +16,10 @@ export async function checkCredentialFields(
   const field = page.getByRole('textbox', { name: 'Credential ID', exact: true })
   await expect(field).toHaveAttribute('readonly', '')
   const copy = page.getByRole('button', { name: 'Copy Credential ID', exact: true })
+  await page.mouse.move(0, 0)
+  await expect
+    .poll(() => copy.evaluate((element) => element.checkVisibility({ opacityProperty: true })))
+    .toBe(true)
   for (const label of ['Credential ID', 'Display name', 'Description']) {
     const control = page.getByRole('textbox', { name: label, exact: true })
     const frame = control.locator('..')
@@ -54,7 +58,7 @@ export async function checkCredentialFields(
   expect(Date.now() - copiedAt).toBeGreaterThanOrEqual(3500)
   await expect
     .poll(() => copy.evaluate((element) => element.checkVisibility({ opacityProperty: true })))
-    .toBe(false)
+    .toBe(true)
   await field.focus()
   await expect
     .poll(() => copy.evaluate((element) => element.checkVisibility({ opacityProperty: true })))

@@ -2,19 +2,25 @@
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import styles from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details.module.css'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { Button, Chip, EmptyState, Modal } from '@/platform/design-system/components'
 import {
-  accountStatus,
-  isConnectable,
-  type OrganizationIntegration,
-} from '@/platform/lib/data/integrations-types'
+  Button,
+  Chip,
+  ContentTabs,
+  EmptyState,
+  Modal,
+  TextField,
+} from '@/platform/design-system/components'
+import { isConnectable, type OrganizationIntegration } from '@/platform/lib/data/integrations-types'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
+import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
@@ -44,6 +50,7 @@ export function IntegrationDetails({
   peopleTotal,
 }: IntegrationDetailsProps) {
   const { accounts, availability, connectionTarget, providerId, name } = integration
+  const [view, setView] = useQueryStates(credentialDetailParams)
   const [connecting, setConnecting] = useState(false)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const accountCount = useRef(accounts.length)
@@ -64,6 +71,20 @@ export function IntegrationDetails({
       ? `Managed by your organization. ${integration.accessDescription}`
       : integration.status
 
+  const credentials = (
+    <ConnectedCredential
+      integrationName={name}
+      providerId={providerId}
+      icon={integration.icon}
+      accounts={shown.map((account) => ({
+        ...account,
+        href: selected ? undefined : accountHref(account.id),
+      }))}
+      pending={pending}
+      onReconnect={onReconnect}
+      onDisconnect={onDisconnect}
+    />
+  )
   return (
     <>
       <ProviderHeading
@@ -100,6 +121,7 @@ export function IntegrationDetails({
         </Button>
         {connectionTarget && (
           <Button
+            variant='secondary'
             size='compact'
             icon='I074'
             disabled={pending || !canConnect}
@@ -114,27 +136,62 @@ export function IntegrationDetails({
           title='This account is no longer connected.'
           action={<Chip href={integrationHref}>View integration</Chip>}
         />
-      ) : shown.length > 0 ? (
-        <ConnectedCredential
-          integrationName={name}
-          providerId={providerId}
-          icon={integration.icon}
-          accounts={shown.map((account) => ({
-            ...account,
-            statusLabel: accountStatus(integration),
-            href: selected ? undefined : accountHref(account.id),
-          }))}
-          pending={pending}
-          onReconnect={onReconnect}
-          onDisconnect={onDisconnect}
+      ) : selected ? (
+        <ContentTabs
+          label='Credential details'
+          current={
+            view.credentialTab === 'permissions' && !selected.hasToolPermissions
+              ? 'details'
+              : view.credentialTab
+          }
+          onSelect={(credentialTab) => {
+            if (
+              credentialTab === 'details' ||
+              credentialTab === 'access' ||
+              credentialTab === 'permissions'
+            )
+              void setView({ credentialTab })
+          }}
+          items={[
+            {
+              id: 'details',
+              label: 'Details',
+              content: (
+                <div className={styles.details}>
+                  <TextField
+                    label='Credential ID'
+                    placeholder='Credential ID'
+                    value={selected.id}
+                    viewOnly
+                  />
+                  {credentials}
+                </div>
+              ),
+            },
+            {
+              id: 'access',
+              label: 'Access',
+              content: <EmptyState title='Access details are unavailable for this connection.' />,
+            },
+            ...(selected.hasToolPermissions
+              ? [
+                  {
+                    id: 'permissions',
+                    label: 'Permissions',
+                    content: renderToolPermissions(selected.id),
+                  },
+                ]
+              : []),
+          ]}
         />
+      ) : shown.length > 0 ? (
+        credentials
       ) : (
         <EmptyState
           title='No connected credentials'
           description={canConnect ? undefined : reason}
         />
       )}
-      {selected?.hasToolPermissions && renderToolPermissions(selected.id)}
       {connecting && (
         <Modal
           open

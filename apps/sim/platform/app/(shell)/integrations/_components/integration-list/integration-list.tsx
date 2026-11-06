@@ -29,7 +29,8 @@ export function IntegrationList({
     name: item.name,
     description: item.description,
     category: item.category,
-    connected: item.accounts.length > 0 || item.availability === 'managed',
+    connected: item.accounts.length > 0,
+    credentialCount: item.accounts.length,
     searchable: [item.providerId, ...item.accounts.map((account) => account.label)].join(' '),
   }))
   const credentials: AppSummary[] = secrets

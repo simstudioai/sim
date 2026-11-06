@@ -1,7 +1,6 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import controlStyles from '@/platform/design-system/components/button/button.shared.module.css'
 import { CopyButton } from '@/platform/design-system/components/button/copy-button'
 import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -66,7 +65,7 @@ export function Input({
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
   return (
     <span
-      className={viewOnly ? `${styles.inputFrame} ${controlStyles.chipRow}` : styles.inputFrame}
+      className={styles.inputFrame}
       data-view-only={viewOnly || undefined}
       data-trailing={!viewOnly && trailing ? true : undefined}
     >
@@ -94,7 +93,7 @@ export function Input({
         aria-describedby={describedBy}
       />
       {viewOnly ? (
-        <span className={`${controlStyles.chipAction} ${styles.copyAction}`}>
+        <span className={styles.copyAction}>
           <CopyButton
             label={`Copy ${label}`}
             text={value ?? defaultValue ?? ''}
@@ -158,6 +157,16 @@ export function TextArea({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
       />
+      {viewOnly && (
+        <span className={styles.copyAction}>
+          <CopyButton
+            label={`Copy ${label}`}
+            text={value ?? defaultValue ?? ''}
+            size='compact'
+            disabled={disabled}
+          />
+        </span>
+      )}
     </span>
   )
 }

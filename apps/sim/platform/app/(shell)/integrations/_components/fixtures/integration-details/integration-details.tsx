@@ -8,7 +8,6 @@ import { CredentialConnect } from '@/platform/app/(shell)/integrations/_componen
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
 import { CredentialList } from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list'
-import { credentialParams } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
 import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
@@ -17,10 +16,15 @@ import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components
 import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
+import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
 import type {
   CredentialConnection,
   IntegrationCredential,
 } from '@/platform/lib/integrations/credential-model'
+import {
+  clearCredentialView,
+  credentialParams,
+} from '@/platform/lib/integrations/credential-navigation'
 import type { OrganizationIntegration } from '@/platform/lib/integrations/fixture-model'
 
 interface IntegrationDetailsProps {
@@ -87,13 +91,17 @@ export function IntegrationDetails({
   function open(credential: IntegrationCredential) {
     startOpening(async () => {
       await setView({})
-      await setView({ credential: credential.id }, { history: 'push', scroll: false })
+      await setView(
+        { ...clearCredentialView, credential: credential.id },
+        { history: 'push', scroll: false }
+      )
     })
   }
   function save(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
     if (!current || current.role !== 'admin' || current.scope.kind === 'organization-managed')
       return
+    if (!validCredentialMembers(current, credential.members)) return
     if (current.displayName !== credential.displayName) assertAvailableName(credential)
     onChange({
       ...integration,
@@ -135,7 +143,7 @@ export function IntegrationDetails({
       ...integration,
       credentials: integration.credentials.filter((entry) => entry.id !== credential.id),
     })
-    if (selected?.id === credential.id) void setView({ credential: null })
+    if (selected?.id === credential.id) void setView({ ...clearCredentialView, credential: null })
   }
   function leave(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
@@ -145,7 +153,7 @@ export function IntegrationDetails({
     const member = members.find((entry) => entry.userId === viewer.id)
     if (
       !member ||
-      member.roleSource === 'workspace-admin' ||
+      member.roleSource !== 'explicit' ||
       (member.explicitAdmin && members.filter((entry) => entry.explicitAdmin).length <= 1)
     )
       return
@@ -190,18 +198,16 @@ export function IntegrationDetails({
       scope: enrollment.connection.personalOnly
         ? { kind: 'personal', ownerId: viewer.id }
         : { kind: 'organization', id: organization.id, name: organization.name },
-      members: enrollment.connection.personalOnly
-        ? []
-        : [
-            {
-              ...viewer,
-              userId: viewer.id,
-              role: 'admin',
-              roleSource: 'explicit',
-              explicitAdmin: true,
-              status: 'active',
-            },
-          ],
+      members: [
+        {
+          ...viewer,
+          userId: viewer.id,
+          role: 'admin',
+          roleSource: 'explicit',
+          explicitAdmin: true,
+          status: 'active',
+        },
+      ],
     }
     assertAvailableName(credential)
     onChange({ ...integration, credentials: [...integration.credentials, credential] })
@@ -216,7 +222,7 @@ export function IntegrationDetails({
           integrationName={integration.name}
           viewer={viewer}
           people={allowedPeople}
-          onBack={() => void setView({ credential: null })}
+          onBack={() => void setView({ ...clearCredentialView, credential: null })}
           onChange={save}
           onReconnect={canReconnect(selected) ? () => reconnect(selected) : undefined}
           onDisconnect={() => setDisconnecting(selected)}
@@ -273,11 +279,7 @@ export function IntegrationDetails({
               />
             ) : null}
           </IntegrationControls>
-          <CredentialList
-            integrationName={integration.name}
-            credentials={integration.credentials}
-            onOpen={open}
-          />
+          <CredentialList credentials={integration.credentials} onOpen={open} />
           {catalog && (
             <IntegrationCapabilities
               catalog={catalog}

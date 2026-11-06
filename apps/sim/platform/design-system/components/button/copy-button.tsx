@@ -15,7 +15,6 @@ export function CopyButton({ label, text, size = 'small', disabled }: CopyButton
   return (
     <IconButton
       tooltip
-      render={<button type='button' data-copy-feedback={copied || undefined} />}
       label={copied ? 'Copied' : label}
       icon={copied ? 'I072' : 'I006'}
       size={size}

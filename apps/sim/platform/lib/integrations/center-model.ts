@@ -19,6 +19,7 @@ export interface AppSummary {
   category: string
   href: string
   connected: boolean
+  credentialCount?: number
   searchable?: string
   people?: readonly IntegrationPerson[]
   peopleTotal?: number

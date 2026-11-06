@@ -1,7 +1,8 @@
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
-import { ActivityRow, Icon } from '@/platform/design-system/components'
+import { ActivityRow, Avatar, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
+import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 
 interface AppGroupProps {
   title: string
@@ -29,6 +30,23 @@ interface AppEntryProps {
 }
 
 function AppEntry({ app, onNavigate }: AppEntryProps) {
+  const people = app.scope || app.connected ? [] : (app.people ?? []).slice(0, 3)
+  const total = Math.max(app.peopleTotal ?? 0, app.people?.length ?? 0)
+  const others = Math.max(0, total - people.length)
+  const usage =
+    !app.scope && !app.connected && total > 0
+      ? `Used by ${people.map((person) => person.name).join(', ')}${
+          others > 0
+            ? people.length
+              ? `, and ${others} ${others === 1 ? 'other' : 'others'}`
+              : `${others} ${others === 1 ? 'person' : 'people'}`
+            : ''
+        }`
+      : undefined
+  const detail =
+    !app.scope && app.connected && app.credentialCount !== undefined
+      ? `${app.credentialCount} connected ${app.credentialCount === 1 ? 'credential' : 'credentials'}`
+      : (usage ?? app.description)
   return (
     <ActivityRow
       href={app.href}
@@ -38,15 +56,29 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
       }}
       leading={<IntegrationMark providerId={app.providerId ?? app.id} icon={app.icon} />}
       title={app.name}
-      detail={app.description}
-      people={
-        app.people?.length || app.peopleTotal
-          ? {
-              people: app.people ?? [],
-              total: app.peopleTotal,
-              label: app.scope ? 'People with access' : 'Used by',
-            }
-          : undefined
+      detail={detail}
+      detailContent={
+        usage && people.length > 0 ? (
+          <span className={styles.usage}>
+            Used by{' '}
+            {people.map((person, index) => (
+              <span key={person.id} className={styles.person}>
+                <span aria-hidden>
+                  <Avatar name={person.name} src={person.src} size='inline' />
+                </span>
+                <span>
+                  {person.name}
+                  {index < people.length - 1 || others > 0 ? ',' : ''}
+                </span>
+              </span>
+            ))}
+            {others > 0 && (
+              <span>
+                and {others} {others === 1 ? 'other' : 'others'}
+              </span>
+            )}
+          </span>
+        ) : undefined
       }
     />
   )
@@ -89,16 +121,12 @@ export function ResourceGroup({
                 />
               }
               title={resource.name}
-              detail={resource.description}
-              onOpen={() => onOpen(resource)}
-              people={
-                resource.scope === 'shared'
-                  ? {
-                      people: resource.people,
-                      label: 'Shared with',
-                    }
-                  : undefined
+              detail={
+                resource.kind === 'credential'
+                  ? credentialDescription(resource)
+                  : resource.description
               }
+              onOpen={() => onOpen(resource)}
             />
           ) : (
             <AppEntry key={resource.id} app={resource} onNavigate={onNavigate} />

@@ -7,9 +7,9 @@ import { ActionMenu, ActivityRow, Modal } from '@/platform/design-system/compone
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
+import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 
 interface CredentialRow extends IntegrationAccount {
-  statusLabel: string
   /** Opens this account's permissions when the integration lists several. */
   href?: string
 }
@@ -74,14 +74,14 @@ export function ConnectedCredential({
               href={account.href}
               leading={<IntegrationMark providerId={providerId} icon={icon} />}
               title={account.label}
-              detail={account.statusLabel}
+              detail={credentialDescription(account)}
             />
           ) : (
             <li key={account.id} className={styles.row}>
               <ActivityBody leading={<IntegrationMark providerId={providerId} icon={icon} />}>
                 <span data-type='T059'>{account.label}</span>
                 <span className={styles.muted} data-type='T050'>
-                  {account.statusLabel}
+                  {credentialDescription(account)}
                 </span>
               </ActivityBody>
               {action}

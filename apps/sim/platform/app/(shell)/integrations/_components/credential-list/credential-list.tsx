@@ -6,12 +6,11 @@ import { credentialDescription } from '@/platform/lib/integrations/credential-di
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
 interface CredentialListProps {
-  integrationName: string
   credentials: readonly IntegrationCredential[]
   onOpen: (credential: IntegrationCredential) => void
 }
 
-export function CredentialList({ integrationName, credentials, onOpen }: CredentialListProps) {
+export function CredentialList({ credentials, onOpen }: CredentialListProps) {
   return (
     <section className={styles.section} aria-label='Connected credentials'>
       <h2 data-type='T093'>
@@ -24,12 +23,8 @@ export function CredentialList({ integrationName, credentials, onOpen }: Credent
               key={credential.id}
               leading={<IntegrationMark providerId={credential.appId} />}
               title={credential.displayName}
-              detail={credentialDescription(credential, integrationName)}
+              detail={credentialDescription(credential)}
               onOpen={() => onOpen(credential)}
-              people={{
-                people: credential.members.filter((member) => member.status === 'active'),
-                label: 'People with access',
-              }}
             />
           ))}
         </ul>

@@ -88,7 +88,3 @@ export function integrationPath(organizationId: string, segment: string) {
 export function isConnectable(integration: OrganizationIntegration) {
   return integration.availability === 'ready' && Boolean(integration.connectionTarget)
 }
-
-export function accountStatus(integration: OrganizationIntegration) {
-  return integration.availability === 'blocked' ? integration.status : 'Connected'
-}
