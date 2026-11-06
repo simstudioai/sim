@@ -10644,7 +10644,8 @@
     "fireworks",
     "together",
     "baseten",
-    "nebius"
+    "nebius",
+    "thinkingmachines"
   ],
   "dynamicProviderIds": [
     "ollama",
@@ -10737,6 +10738,17 @@
         { "id": "nebius/zai-org/GLM-5.2", "inStaticCatalog": true, "sunset": null },
         { "id": "nebius/zai-org/GLM-5.3", "inStaticCatalog": true, "sunset": null },
         { "id": "nebius/zai-org/GLM-5.3-Flash", "inStaticCatalog": true, "sunset": null }
+      ]
+    },
+    {
+      "id": "thinkingmachines",
+      "name": "Thinking Machines",
+      "namespaced": true,
+      "modelPatterns": [{ "source": "^thinkingmachines\\/", "flags": "" }],
+      "models": [
+        { "id": "thinkingmachines/inkling", "inStaticCatalog": true, "sunset": null },
+        { "id": "thinkingmachines/inkling-2-small", "inStaticCatalog": true, "sunset": null },
+        { "id": "thinkingmachines/inkling-small", "inStaticCatalog": true, "sunset": null }
       ]
     },
     {

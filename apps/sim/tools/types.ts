@@ -21,6 +21,7 @@ export type BYOKProviderId =
   | 'nebius'
   | 'ollama-cloud'
   | 'kie'
+  | 'thinkingmachines'
   | 'falai'
   | 'firecrawl'
   | 'exa'
@@ -499,6 +500,11 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   apiKeyParam: string
   /** BYOK provider ID for workspace key lookup */
   byokProviderId?: BYOKProviderId
+  /**
+   * Withholds the hosted key from a free-plan payer without prepaid credits. A workspace BYOK key
+   * or a key the user passes still runs; only Sim's own key is refused.
+   */
+  requiresPaidPlan?: boolean
   /** Pricing when using hosted key */
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
