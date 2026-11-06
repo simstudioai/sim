@@ -18,7 +18,7 @@ import {
   type OrganizationIntegration,
   type ToolPermissionsModel,
 } from '@/platform/embedded/lib/integrations/model'
-import { plural } from '@/platform/embedded/lib/plural'
+import { plural } from '@/platform/lib/plural'
 
 const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 

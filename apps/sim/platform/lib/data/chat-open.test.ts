@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canOpenOrganizationChat } from '@/lib/organizations/chat-open'
+import { canOpenOrganizationChat } from '@/platform/lib/data/chat-open'
 
 const access = (canBuild: boolean, memberScoped: boolean, mothershipAvailable = true) => ({
   mothershipAvailable,

@@ -3,7 +3,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -65,13 +64,12 @@ import {
   type PlatformOrganization,
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
+import { isRefusal } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
 import { MINUTE_MS } from '@/platform/lib/time'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
-const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409])
-
 function subscribeToMinutes(onChange: () => void) {
   const interval = setInterval(onChange, MINUTE_MS)
   window.addEventListener('focus', onChange)
@@ -88,11 +86,6 @@ function currentMinute() {
 /** Home mounts only after hydration, behind its host's gate, so no markup can disagree. */
 function useMinuteClock(): number {
   return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
-}
-
-/** An answer about the viewer, which retrying cannot change, unlike a failure or a rate limit. */
-function isRefusal(error: unknown) {
-  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 function useHomeIntegrations(organization: PlatformOrganization) {

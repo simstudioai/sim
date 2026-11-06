@@ -14,7 +14,7 @@ interface WorkbenchPageProps {
 }
 
 export default async function Page({ searchParams }: WorkbenchPageProps) {
-  if (resolvePlatformMode() !== 'fixture') notFound()
+  if (resolvePlatformMode() === 'live') notFound()
   const query = await searchParams
   const theme = query.theme === 'dark' ? 'dark' : 'light'
   const scenario = query.state === 'empty' || query.state === 'stress' ? query.state : 'full'

@@ -16,6 +16,11 @@ const UTC_CLOCK = utcFormat(CLOCK_OPTIONS)
 const ORDINAL = new Intl.PluralRules(LOCALE, { type: 'ordinal' })
 const SUFFIX: Partial<Record<Intl.LDMLPluralRule, string>> = { one: 'st', two: 'nd', few: 'rd' }
 
+/** The current time, floored to its minute, for reads and clocks that move only by the minute. */
+export function currentMinute() {
+  return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
+}
+
 /** Format many instants as ISO calendar days in one reporting time zone. */
 export function calendarDayFormatter(timeZone: string) {
   return new Intl.DateTimeFormat('en-CA', {

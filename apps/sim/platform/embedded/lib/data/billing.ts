@@ -38,9 +38,9 @@ import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import { queryView } from '@/platform/embedded/lib/data/query-view'
 import { reportFailure } from '@/platform/embedded/lib/notices'
-import { formatInstantDate } from '@/platform/embedded/lib/time'
+import { queryView } from '@/platform/lib/data/query-view'
+import { formatInstantDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformBilling')
 

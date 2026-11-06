@@ -21,8 +21,8 @@ import {
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { DrainCreate } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-detail'
-import { useDataDrainParam } from '@/platform/embedded/lib/data/data-drains/params'
-import { formatTimestamp } from '@/platform/embedded/lib/time'
+import { useDataDrainParam } from '@/platform/lib/data/data-drains/params'
+import { formatTimestamp } from '@/platform/lib/time'
 
 export default function DataDrainsSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id

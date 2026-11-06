@@ -53,7 +53,6 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/embedded/lib/data/home-model'
-import { homeDayParam } from '@/platform/embedded/lib/data/home-params'
 import {
   ACTIVITY_WINDOW_DAYS,
   type ActivityWindowDays,
@@ -71,9 +70,10 @@ import {
   type HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/embedded/lib/data/integrations'
-import { isRefusal } from '@/platform/embedded/lib/data/query-view'
 import { workspaceHref } from '@/platform/embedded/lib/data/workspaces'
-import { currentMinute, MINUTE_MS } from '@/platform/embedded/lib/time'
+import { homeDayParam } from '@/platform/lib/data/home-params'
+import { isRefusal } from '@/platform/lib/data/query-view'
+import { currentMinute, MINUTE_MS } from '@/platform/lib/time'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,

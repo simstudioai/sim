@@ -3,7 +3,6 @@
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { organizationRoutes } from '@/lib/navigation/paths'
-import { canOpenOrganizationChat } from '@/lib/organizations/chat-open'
 import { useOrganization } from '@/lib/organizations/provider'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
@@ -15,6 +14,7 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { canOpenOrganizationChat } from '@/platform/lib/data/chat-open'
 
 export function organizationChatHref(
   chat: { id: string; mode?: string },

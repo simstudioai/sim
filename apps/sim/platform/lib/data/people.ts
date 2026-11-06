@@ -49,6 +49,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { isRefusal } from '@/platform/lib/data/query-view'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult
@@ -90,13 +91,6 @@ export function personHref(peoplePath: string, memberId: string, originQuery = '
 
 export function isApiConflict(error: unknown): boolean {
   return isApiClientError(error) && error.status === 409
-}
-
-const REFUSAL_STATUSES = new Set([400, 401, 403, 404])
-
-/** A refusal replaces what is on screen; a transient failure, including a 429, keeps it. */
-export function isRefusal(error: unknown): boolean {
-  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 export function usePeopleUrl() {

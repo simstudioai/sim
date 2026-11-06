@@ -13,7 +13,7 @@ import {
   usePeopleUrl,
   usePeopleViewer,
 } from '@/platform/embedded/lib/data/people'
-import { formatRelativeTime } from '@/platform/embedded/lib/time'
+import { formatRelativeTime } from '@/platform/lib/time'
 
 const OrgChart = dynamic(() =>
   import('@/platform/embedded/app/(shell)/people/_components/org-chart/org-chart').then(

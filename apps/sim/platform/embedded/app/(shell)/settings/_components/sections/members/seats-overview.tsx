@@ -9,7 +9,7 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/members/members.module.css'
 import type { useMembers } from '@/platform/embedded/lib/data/members'
-import { plural } from '@/platform/embedded/lib/plural'
+import { plural } from '@/platform/lib/plural'
 
 interface SeatsOverviewProps {
   seats: ReturnType<typeof useMembers>['seats']

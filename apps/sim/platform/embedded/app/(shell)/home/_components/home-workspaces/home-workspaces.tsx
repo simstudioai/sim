@@ -11,7 +11,7 @@ import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/ho
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type { HomeListState, HomeWorkspaceItem } from '@/platform/embedded/lib/data/home-view'
-import { formatRelativeTime } from '@/platform/embedded/lib/time'
+import { formatRelativeTime } from '@/platform/lib/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */
 const PAGE_SIZE = 5

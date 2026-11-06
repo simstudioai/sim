@@ -13,7 +13,7 @@ import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-
 import styles from '@/platform/embedded/app/(shell)/_components/organization-menu/organization-menu.module.css'
 import { useOrganizationActions } from '@/platform/embedded/lib/data/shell-actions'
 import type { ShellData } from '@/platform/embedded/lib/data/shell-view'
-import { plural } from '@/platform/embedded/lib/plural'
+import { plural } from '@/platform/lib/plural'
 
 function focusNameField(frame: HTMLDivElement | null) {
   const field = frame?.querySelector('input')
