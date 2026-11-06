@@ -9,7 +9,13 @@ import {
   useConfigureOrganizationMcp,
   useOrganizationDatabricksSetup,
 } from '@/hooks/queries/organization-accounts'
-import { InlineNotice, Modal, SecretField, TextField } from '@/platform/design-system/components'
+import {
+  InlineNotice,
+  LoadingRows,
+  Modal,
+  SecretField,
+  TextField,
+} from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 
 interface DatabricksModalProps {
@@ -70,7 +76,9 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
       confirmDisabled={pending || !canSave}
       onConfirm={submit}
     >
-      {existingServer && setup.isPending && <Muted>Loading Databricks configuration…</Muted>}
+      {existingServer && setup.isPending && (
+        <LoadingRows label='Loading Databricks configuration…' rows={2} />
+      )}
       {fieldsAvailable && (
         <>
           <TextField

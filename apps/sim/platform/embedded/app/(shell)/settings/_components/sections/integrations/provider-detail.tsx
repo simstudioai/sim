@@ -142,6 +142,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
       {actions}
     </DetailHeader>
   )
+  // The header stays on screen through every state, and the read gates more than this list.
   if (overview.isError)
     return (
       <SectionStack>

@@ -105,6 +105,7 @@ export function ConnectorAccess({
       ) : (
         <Muted>{modes.find((entry) => entry.mode === value.accessMode)?.label ?? ''}</Muted>
       )}
+      {/* Decides a setup link beside the access choice, not the content of a read. */}
       {showSlackSetup &&
         (accountsQuery.isError ? (
           <FailureNotice

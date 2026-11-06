@@ -166,6 +166,7 @@ function SessionPolicySection({
 }) {
   const { data, error, isLoading, isFetching, refetch } =
     useOrganizationSessionPolicy(organizationId)
+  // Every state sits in the section's titled card, which a boundary around the read cannot hold.
   if (isLoading) return <SectionSkeleton title='Session policies' rows={2} />
   if (!data) {
     return (

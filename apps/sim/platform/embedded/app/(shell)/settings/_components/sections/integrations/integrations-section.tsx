@@ -168,6 +168,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             policies={policies.error ? undefined : policies.data}
           />
         )}
+        {/* Two reads settle this list together, and the empty state depends on the search too. */}
         {policies.error || secrets.error ? (
           <FailureNotice
             message={getErrorMessage(policies.error ?? secrets.error, 'Could not load sources')}

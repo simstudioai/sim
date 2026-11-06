@@ -207,7 +207,7 @@ function SourceDetailContent({
         <>
           {queryError}
           {integrationFailure ||
-            (integrations.isPending && <Muted>Loading integration status</Muted>)}
+            (integrations.isPending && <LoadingRows label='Loading integration status' rows={1} />)}
           {integrations.data?.find((item) => item.connectorType === connector.connectorType)
             ?.approved === false && (
             <InlineNotice

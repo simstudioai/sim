@@ -22,6 +22,7 @@ const THEMES = [
 
 function Profile() {
   const profile = useProfileSettings()
+  // The profile adapter's status carries its upload state too, so it isn't one query's read.
   if (profile.status === 'pending') return <SectionSkeleton title='Profile' />
   if (profile.status === 'error')
     return <FailureNotice message='Failed to load your profile' onRetry={profile.retry} />

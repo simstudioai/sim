@@ -7,8 +7,8 @@ import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/s
 import { describeSsoPolicy, SSO_POLICY_OPTIONS } from '@/ee/sso/lib/provider-form'
 import {
   ConfirmDialog,
-  FailureNotice,
-  LoadingRows,
+  errorMessageOr,
+  QueryBoundary,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -23,7 +23,8 @@ import {
  * identity provider never locks the organization out of its own settings.
  */
 export function RequireSso({ organizationId }: { organizationId: string }) {
-  const { data, error, isFetching, refetch } = useOrganizationSsoPolicy(organizationId)
+  const policy = useOrganizationSsoPolicy(organizationId)
+  const { data } = policy
   const updatePolicy = useUpdateOrganizationSsoPolicy()
   const [confirmingEnable, setConfirmingEnable] = useState(false)
 
@@ -43,32 +44,30 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
   return (
     <SettingsSection title='Sign-in requirement'>
       <FieldStack>
-        {data ? (
-          <>
-            <SegmentedControl
-              label='Allowed sign-in methods'
-              options={SSO_POLICY_OPTIONS.map((option) => ({ ...option, disabled }))}
-              value={data.requireSso ? 'sso-only' : 'any'}
-              onSelect={(value) => {
-                if (value === 'sso-only') setConfirmingEnable(true)
-                else void turnOff()
-              }}
-            />
-            <Muted>{describeSsoPolicy(data)}</Muted>
-            <Muted>
-              Owners can always sign in with a password, so a misconfigured identity provider never
-              locks the organization out.
-            </Muted>
-          </>
-        ) : error ? (
-          <FailureNotice
-            message={getErrorMessage(error, 'Failed to load the sign-in requirement')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
-          />
-        ) : (
-          <LoadingRows label='Loading sign-in requirement…' />
-        )}
+        <QueryBoundary
+          query={policy}
+          failure={errorMessageOr('Failed to load the sign-in requirement')}
+          loadingLabel='Loading sign-in requirement…'
+        >
+          {(data) => (
+            <>
+              <SegmentedControl
+                label='Allowed sign-in methods'
+                options={SSO_POLICY_OPTIONS.map((option) => ({ ...option, disabled }))}
+                value={data.requireSso ? 'sso-only' : 'any'}
+                onSelect={(value) => {
+                  if (value === 'sso-only') setConfirmingEnable(true)
+                  else void turnOff()
+                }}
+              />
+              <Muted>{describeSsoPolicy(data)}</Muted>
+              <Muted>
+                Owners can always sign in with a password, so a misconfigured identity provider
+                never locks the organization out.
+              </Muted>
+            </>
+          )}
+        </QueryBoundary>
       </FieldStack>
       <ConfirmDialog
         target={confirmingEnable}
