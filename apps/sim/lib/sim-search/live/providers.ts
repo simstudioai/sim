@@ -185,12 +185,12 @@ export const LIVE_SEARCH_PROVIDERS = {
   confluence: {
     guide: {
       syntax:
-        'CQL: text ~ "term", title ~ "term" (title ~ "win*" for a prefix), type IN (page, blogpost) and space = KEY (quote keys starting with a digit), joined with AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
+        'CQL: siteSearch ~ "a few words" is Confluence relevance search and ranks pages about the topic first, so use it for topic, acronym and how-to lookups. text ~ "term" and title ~ "term" (title ~ "win*" for a prefix) match pages containing those words or their variants without that ranking, so keep them for a specific identifier or term; text ~ "\\"exact phrase\\"" matches a phrase. Combine with type IN (page, blogpost) and space = KEY (quote keys starting with a digit) using AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
       scope:
         'creator = currentUser(), contributor = currentUser(), mention = currentUser() and space = KEY. CQL has no project field; the separate native project field takes an Atlassian site cloud ID.',
-      example: 'type IN (page, blogpost) AND space = ENG AND text ~ "roadmap"',
+      example: 'type IN (page, blogpost) AND siteSearch ~ "deployment freeze process"',
       avoid:
-        'starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
+        'ORing several text ~ clauses for a topic, which ranks pages sharing one common word first (put the words in one siteSearch instead), and starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
     },
     requiresEveryTerm: true,
     previewText: previewConfluence,
