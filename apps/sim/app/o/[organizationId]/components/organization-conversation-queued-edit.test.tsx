@@ -122,7 +122,6 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(async () => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'ResizeObserver',

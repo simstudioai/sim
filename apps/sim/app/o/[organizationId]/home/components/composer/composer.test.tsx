@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, useState } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider, toast } from '@sim/emcn'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
@@ -21,8 +21,6 @@ import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
 } from '@/stores/mothership-effort/store'
-
-const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
   workspacesLoading: false,
@@ -53,10 +51,6 @@ const mocks = vi.hoisted(() => ({
   ],
 }))
 
-vi.mock('@sim/emcn', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@sim/emcn')>()
-  return { ...actual, toast: { ...actual.toast, error: toastError } }
-})
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () =>
@@ -122,6 +116,7 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
+  vi.spyOn(toast, 'error')
   mocks.advanced = false
   mocks.workspacesLoading = false
   useMothershipEffortStore.getState().reset()
@@ -207,7 +202,6 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
-  vi.restoreAllMocks()
   vi.useRealTimers()
   container.remove()
   queryClient.clear()
@@ -617,7 +611,7 @@ it('tells the viewer when the lists never land, keeps the message, and sends pla
   expect(mocks.submit).not.toHaveBeenCalled()
   expect(input.value).toBe('/review this')
   expect(input.closest('[aria-busy="true"]')).toBeNull()
-  expect(toastError).toHaveBeenCalledOnce()
+  expect(toast.error).toHaveBeenCalledOnce()
   await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
   expect(mocks.submit).toHaveBeenCalledOnce()
   expect(mocks.submit.mock.lastCall?.[0]).toBe('/review this')
@@ -638,7 +632,7 @@ it('a list that fails while the send waits tells the viewer the same way', async
   await settleQueries()
   await vi.waitFor(async () => {
     await act(async () => {})
-    expect(toastError).toHaveBeenCalledOnce()
+    expect(toast.error).toHaveBeenCalledOnce()
   })
   expect(mocks.submit).not.toHaveBeenCalled()
 })
@@ -661,7 +655,7 @@ it('a path in a held message goes out as written once the lists land', async () 
     expect(mocks.submit).toHaveBeenCalledOnce()
   })
   expect(mocks.submit.mock.lastCall?.[0]).toBe('read /etc/hosts')
-  expect(toastError).not.toHaveBeenCalled()
+  expect(toast.error).not.toHaveBeenCalled()
 })
 
 it('editing away and back does not revive a cancelled hold', async () => {

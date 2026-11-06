@@ -218,7 +218,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
             <div className={styles.scroll}>
               <div className={styles.landing}>
                 <div className={styles.column}>
-                  <h1 className={styles.heading} data-type='T076'>
+                  <h1 className={conversationStyles.landingHeading} data-type='T076'>
                     Search {organization.name}
                   </h1>
                   {field}

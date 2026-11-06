@@ -39,34 +39,17 @@ export function SearchSurfaceHeader({ search }: { search: SearchHeaderState }) {
             ))}
           </nav>
           {search.canStartNew && (
-            <>
-              <span className={styles.newFull}>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  icon='I074'
-                  disabled={search.isStartingNew}
-                  onClick={search.startNew}
-                  render={<button type='button' className={styles.newButton} />}
-                >
-                  {newLabel}
-                </Button>
-              </span>
-              <span className={styles.newShort}>
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  icon='I074'
-                  disabled={search.isStartingNew}
-                  onClick={search.startNew}
-                  render={
-                    <button type='button' className={styles.newButton} aria-label={newLabel} />
-                  }
-                >
-                  New
-                </Button>
-              </span>
-            </>
+            <Button
+              variant='quiet'
+              size='compact'
+              icon='I074'
+              narrowLabel='New'
+              disabled={search.isStartingNew}
+              onClick={search.startNew}
+              render={<button type='button' className={styles.newButton} aria-label={newLabel} />}
+            >
+              {newLabel}
+            </Button>
           )}
         </div>
       </RedesignSurface>

@@ -17,6 +17,7 @@ import {
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
@@ -76,11 +77,11 @@ const serializeSearchConversation = createSerializer({
 })
 
 /** Where the conversation runs: what differs beyond how it is drawn. */
-export type ConversationSurface =
+type ConversationSurface =
   | {
       kind: 'page'
       /** Names this surface's new-chat draft, for a surface that must not share another's. */
-      draftId?: string
+      draftSlot?: string
     }
   | {
       kind: 'panel'
@@ -173,16 +174,20 @@ export function useOrganizationConversation({
       ? { projectsDesktopTabs: false, onChatIdResolved: panelSurface.onChatIdResolved }
       : {}),
   })
-  const newDraftId =
+  const newDraftSlot =
     surface.kind === 'panel'
       ? 'home'
-      : (surface.draftId ?? (destinationMode === 'assistant' ? 'search-assistant' : 'home'))
-  const draftPrefix = panelSurface ? `${panelSurface.draftNamespace}:` : ''
-  const initialDraftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
-  const draftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
+      : (surface.draftSlot ??
+        (destinationMode === 'assistant' ? SEARCH_ASSISTANT_DRAFT_SLOT : 'home'))
+  const draftKeyFor = (slot: string) =>
+    organizationDraftKey(userId, organization.id, slot, {
+      namespace: panelSurface?.draftNamespace,
+    })
+  const initialDraftKey = draftKeyFor(chatId ?? newDraftSlot)
+  const draftKey = draftKeyFor(chat.resolvedChatId ?? chatId ?? newDraftSlot)
   const [legacyDraftKey] = useState(() => {
     if (isPanel || chatId) return null
-    const key = `${userId}:organization:${organization.id}:new`
+    const key = organizationDraftKey(userId, organization.id, 'new')
     if (!useMothershipDraftsStore.getState().drafts[key]) return null
     const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
     const modes = toRecord(toRecord(persisted.state).modes)

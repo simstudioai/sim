@@ -12,7 +12,6 @@ import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components
 import { ChatFontProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { PageContextDialog } from '@/platform/app/(shell)/_components/conversation/dialogs'
@@ -21,6 +20,7 @@ import { ResponseActions } from '@/platform/app/(shell)/_components/conversation
 import { ShareDialog } from '@/platform/app/(shell)/_components/conversation/share-dialog'
 import {
   ComposerPlaceholder,
+  ConversationSkeleton,
   TranscriptPlaceholder,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
 import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
@@ -41,7 +41,7 @@ interface PageConversationProps {
   summaryRequest?: OrganizationSummaryRequest
   onSummaryConsumed?: (id: string) => void
   /** Names this surface's new-chat draft, for a surface that must not share another's. */
-  draftId?: string
+  draftSlot?: string
   /** Shown until the conversation can mount. */
   fallback: ReactNode
   /** Shown until the first turn takes over. A saved chat has no first view. */
@@ -52,7 +52,7 @@ interface PageConversationProps {
 export function PageConversation(props: PageConversationProps) {
   const gate = useConversationGate(props)
   if (gate.status === 'denied') return null
-  if (gate.status === 'restoring') return <HomeFallback header={props.header} />
+  if (gate.status === 'restoring') return <ConversationSkeleton header={props.header} />
   if (gate.status === 'waiting') return props.fallback
   return <PageConversationContent key={`${gate.instanceKey}:${props.requestMode}`} {...props} />
 }
@@ -65,7 +65,7 @@ function PageConversationContent({
   active,
   summaryRequest,
   onSummaryConsumed,
-  draftId,
+  draftSlot,
   landing,
 }: PageConversationProps) {
   const {
@@ -80,7 +80,7 @@ function PageConversationContent({
     threadProps,
     reviewProps,
   } = useOrganizationConversation({
-    surface: { kind: 'page', draftId },
+    surface: { kind: 'page', draftSlot },
     chatId,
     requestMode: destinationMode,
     active,
