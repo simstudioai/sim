@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -76,11 +77,15 @@ export function useSaveAwsMarketplaceClaimContact() {
  */
 export function useAwsMarketplaceBilling(organizationId: string | null) {
   const licenses = useAwsMarketplaceLicenses(organizationId)
+  const { refetch } = licenses
+  const retry = useCallback(() => {
+    void refetch()
+  }, [refetch])
   return {
     isResolved: licenses.data !== undefined,
     isError: licenses.isError,
     isRetrying: licenses.isFetching,
-    retry: () => void licenses.refetch(),
+    retry,
     billedThroughMarketplace:
       licenses.data?.some((license) => license.status !== 'inactive') ?? false,
   }
