@@ -1,6 +1,6 @@
 ---
 description: "Tailwind CSS and styling conventions"
-globs: ["apps/sim/**/*.tsx","apps/sim/**/*.css","packages/workflow-renderer/**/*.tsx","packages/auth-ui/**/*.tsx"]
+globs: ["apps/sim/**/*.tsx","apps/sim/**/*.css","packages/workflow-renderer/**/*.tsx"]
 ---
 
 <!-- Generated from .claude/rules/sim-styling.md by `bun run skills:sync`. Edit the source, not this file. -->
