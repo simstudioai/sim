@@ -31,7 +31,7 @@ describe('organization settings access', () => {
   })
 
   it('conceals requests from viewers rejected by the organization gate', async () => {
-    mocks.authorize.mockResolvedValue(false)
+    mocks.authorize.mockImplementation(async ({ section }) => section !== 'requests')
     await expect(
       OrganizationSettingsSectionPage({
         params: Promise.resolve({ organizationId: 'organization', section: 'access-control' }),

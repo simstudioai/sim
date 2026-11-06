@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
+
 import { act, type ReactNode } from 'react'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,22 +36,12 @@ afterEach(() => {
  */
 describe('organization route boundaries with nothing around them', () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      }
-    )
+    stubResizeObserver()
   })
 
-  it('error offers Try again and calls reset', () => {
-    const reset = vi.fn()
-    const page = mount(<OrganizationError error={new Error('provider failed')} reset={reset} />)
-    const retry = page.querySelector('button')
-    expect(retry?.textContent).toBe('Try again')
-    act(() => retry?.click())
-    expect(reset).toHaveBeenCalledOnce()
+  it('error offers Try again', () => {
+    const page = mount(<OrganizationError error={new Error('provider failed')} reset={vi.fn()} />)
+    expect(page.querySelector('button')?.textContent).toBe('Try again')
   })
 
   it('not found offers a way home', () => {

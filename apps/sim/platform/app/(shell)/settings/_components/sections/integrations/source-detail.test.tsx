@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act } from 'react'
+import { stubDialogMethods, stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
@@ -93,20 +94,8 @@ describe('organization source detail navigation', () => {
   let container: HTMLDivElement
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    HTMLDialogElement.prototype.showModal = function showModal() {
-      this.open = true
-    }
-    HTMLDialogElement.prototype.close = function close() {
-      this.open = false
-    }
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    )
+    stubDialogMethods()
+    stubResizeObserver()
     mocks.admin = true
     mocks.dirty = false
     mocks.saving = false

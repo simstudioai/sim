@@ -6,8 +6,10 @@
  * without its text, its chips, its attachments, or the viewer's focus once the conversation no longer
  * holds the draft.
  */
+
 import { act, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
@@ -118,14 +120,7 @@ let queryClient: QueryClient
 
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-    }
-  )
+  stubResizeObserver()
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))

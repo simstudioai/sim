@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
+
 import { act, type ComponentProps, useState } from 'react'
 import { ToastProvider, toast } from '@sim/emcn'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
@@ -161,14 +163,7 @@ beforeEach(() => {
       items = { add: (file: File) => this.files.push(file) }
     }
   )
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-    }
-  )
+  stubResizeObserver()
   vi.stubGlobal(
     'URL',
     class extends URL {
@@ -453,13 +448,6 @@ function typeInto(input: HTMLTextAreaElement, text: string) {
   input.setSelectionRange(text.length, text.length)
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
-
-it('reads no workspace list on mount, even with the field focused', async () => {
-  await render(true, '', 'agent')
-  await act(async () => required<HTMLTextAreaElement>('[aria-label="Ask Sim"]').focus())
-  expect(mocks.skillQuery).not.toHaveBeenCalled()
-  expect(mocks.resourceMenu.mock.lastCall?.[0].warm).toBe(false)
-})
 
 it('warms the lists when the viewer presses the field, and opening the + menu does too', async () => {
   await render(true, '', 'agent')

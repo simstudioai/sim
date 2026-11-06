@@ -54,32 +54,33 @@ describe('organization source setup redirects', () => {
     container.remove()
   })
 
-  it.each([
-    ['source-one', '/o/org-1/settings/integrations/sources/source-one'],
-    ['confluence', '/o/org-1/settings/integrations'],
-    ['', '/o/org-1/settings/integrations'],
-  ])(
-    'redirects legacy organization management for %s without opening a dialog',
-    async (source, destination) => {
-      await act(async () =>
-        root.render(
-          <NuqsTestingAdapter searchParams={`?manage-source=${source}`}>
-            <SourceSetup
-              scope={{ kind: 'organization', organizationId: 'org-1' }}
-              backLabel='Slack'
-              canAdmin
-              memberAccessAvailable
-              mirroredAccessAvailable
-            >
-              <p>Connections</p>
-            </SourceSetup>
-          </NuqsTestingAdapter>
-        )
+  const renderManaging = (source: string) =>
+    act(async () =>
+      root.render(
+        <NuqsTestingAdapter searchParams={`?manage-source=${source}`}>
+          <SourceSetup
+            scope={{ kind: 'organization', organizationId: 'org-1' }}
+            backLabel='Slack'
+            canAdmin
+            memberAccessAvailable
+            mirroredAccessAvailable
+          >
+            <p>Connections</p>
+          </SourceSetup>
+        </NuqsTestingAdapter>
       )
-      if (source === 'source-one') expect(mockReplace).toHaveBeenCalledWith(destination)
-      else expect(mockReplace).not.toHaveBeenCalled()
-      expect(document.querySelector('dialog[open]')).toBeNull()
-      expect(container.textContent).toContain('Connections')
-    }
-  )
+    )
+
+  it('redirects legacy management of a saved source without opening a dialog', async () => {
+    await renderManaging('source-one')
+    expect(mockReplace).toHaveBeenCalledWith('/o/org-1/settings/integrations/sources/source-one')
+    expect(document.querySelector('dialog[open]')).toBeNull()
+  })
+
+  it.each(['confluence', ''])('stays on the connections for %j', async (source) => {
+    await renderManaging(source)
+    expect(mockReplace).not.toHaveBeenCalled()
+    expect(document.querySelector('dialog[open]')).toBeNull()
+    expect(container.textContent).toContain('Connections')
+  })
 })
