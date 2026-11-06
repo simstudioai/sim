@@ -511,16 +511,26 @@ export interface SteerRequest {
   content: string;
 }
 
+/**
+ * The images one run takes in steers over its whole life. With a turn's own five they stay
+ * under the twenty image and document blocks a model request holds.
+ */
+export const MAX_RUN_STEERED_IMAGES = 10;
+
 /** The most attachments and mentions one steer carries: Sim's MAX_CHAT_CONTEXTS for a turn. */
 export const MAX_STEER_CONTEXTS = 100;
 
 /**
- * POST /api/streams/steer/v2: steer the live run `messageId` with one immutable input. The
- * answer is that input's durable disposition, so a caller unsure whether a send landed
- * retries the same body and learns it. A retry that changes the input under the same
- * steeringId is refused (409). Only `not_applied` lets the caller send the input as a new
- * turn, and that turn uses the steeringId as its messageId, so a turn for an input the run
- * already applied is refused.
+ * POST /api/streams/steer/v2: steer the live run `messageId` with one immutable input, answered
+ * with its durable disposition, which a retry of the same body reads back. Only `not_applied`
+ * (or a 422) lets the caller send the input as a new turn, with the steeringId as its
+ * messageId; a turn for an input a run applied is refused. Refusals keep nothing:
+ * - 400: an invalid body, or images outside an organization chat (`steering_scope`).
+ * - 404 `steering_target_missing`: no such run (or not admitted yet).
+ * - 409 `steering_conflict`: a different input under this steeringId.
+ * - 422 `steering_image_limit`: past MAX_RUN_STEERED_IMAGES, applied images included. Final
+ *   for the run: send the input as the next turn once the run ends.
+ * - 429 `steering_capacity`: the pending queue is full; retryable once the run applies it.
  */
 export const SteerV2Request = z.strictObject({
   messageId: z.uuid(),
