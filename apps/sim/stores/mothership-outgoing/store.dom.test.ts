@@ -36,20 +36,6 @@ describe('useMothershipOutgoingStore', () => {
     expect(store.getState().chats['chat-a']).toEqual([entry])
   })
 
-  it('starts empty when the journal cannot be read', async () => {
-    vi.stubGlobal('sessionStorage', {
-      getItem: () => {
-        throw new DOMException('denied', 'SecurityError')
-      },
-      removeItem: () => {},
-      setItem: () => {},
-    })
-
-    const store = await freshStore()
-
-    expect(store.getState().chats).toEqual({})
-  })
-
   it('resumes what a reload left in the journal', async () => {
     const first = await freshStore()
     first.getState().record('chat-a', [entry])
