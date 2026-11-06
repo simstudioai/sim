@@ -4,7 +4,6 @@ import type {
 } from '@/tools/jama/types'
 import {
   assertJamaResponse,
-  JAMA_RETRY,
   jamaAuthParams,
   jamaHeaders,
   jamaId,
@@ -40,7 +39,6 @@ export const jamaDeleteRelationshipTool: ToolConfig<
       ),
     method: 'DELETE',
     headers: jamaHeaders,
-    retry: JAMA_RETRY,
     redirectPolicy: () => ({ mode: 'standard', sendCredentialsOnCrossOriginRedirect: false }),
   },
   transformResponse: async (response) => {

@@ -708,7 +708,7 @@ export const JamaBlock: BlockConfig = {
     items: {
       type: 'json',
       description:
-        'List Baseline Items result (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
+        'List Items, Search Items, or List Baseline Items results (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
     },
     item: {
       type: 'json',

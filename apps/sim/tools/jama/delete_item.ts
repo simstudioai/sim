@@ -1,7 +1,6 @@
 import type { JamaDeleteItemParams, JamaDeleteItemResponse } from '@/tools/jama/types'
 import {
   assertJamaResponse,
-  JAMA_RETRY,
   jamaAuthParams,
   jamaHeaders,
   jamaId,
@@ -24,7 +23,6 @@ export const jamaDeleteItemTool: ToolConfig<JamaDeleteItemParams, JamaDeleteItem
     url: (params) => jamaUrl(params.instanceUrl, `/items/${jamaId(params.itemId, 'itemId')}`, {}),
     method: 'DELETE',
     headers: jamaHeaders,
-    retry: JAMA_RETRY,
     redirectPolicy: () => ({ mode: 'standard', sendCredentialsOnCrossOriginRedirect: false }),
   },
   transformResponse: async (response) => {

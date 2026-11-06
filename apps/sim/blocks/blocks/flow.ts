@@ -888,13 +888,6 @@ export const FlowBlock: BlockConfig = {
       tool: (params) => `flow_${params.operation || 'search_entities'}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.operation === 'set_value' && typeof params.value === 'string') {
-          try {
-            result.value = JSON.parse(params.value)
-          } catch {
-            throw new Error('Value must be valid JSON; wrap text values in double quotes')
-          }
-        }
         if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
         for (const key of ['includeResolved', 'resolved', 'isVariant']) {
           if (params[key] != null && params[key] !== '')
@@ -976,7 +969,7 @@ export const FlowBlock: BlockConfig = {
       description: 'Stored field key returned by Get Data Model',
     },
     value: {
-      type: 'json',
+      type: 'string',
       description:
         'Field value as JSON, matching the data model: string, number, boolean, array, object, or null',
     },

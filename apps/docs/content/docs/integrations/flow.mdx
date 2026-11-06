@@ -283,7 +283,7 @@ Set one field on a Flow entity using a key from the data model and a JSON value 
 | `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
 | `branchId` | string | No | Branch ID; omit or use master for Base |
 | `fieldKey` | string | Yes | Stored field key returned by Get Data Model |
-| `value` | json | Yes | Field value as JSON, matching the data model: string, number, boolean, array, object, or null |
+| `value` | string | Yes | JSON-encoded field value matching the data model. Use "text" for a string, 123 for a number, true or false for a boolean, an array or object, or null to clear the field. Use "" for an empty string. |
 
 #### Output
 

@@ -1,7 +1,8 @@
 /** Keeps the credential's HTTPS instance and optional deployment context path together. */
 export function normalizeJamaInstanceUrl(value: string): string {
-  const url = new URL(value.trim())
+  const url = URL.parse(value.trim())
   if (
+    !url ||
     url.protocol !== 'https:' ||
     url.username ||
     url.password ||

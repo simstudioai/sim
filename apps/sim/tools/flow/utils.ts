@@ -76,12 +76,8 @@ export function flowSearchQuery(value: string): string {
 }
 
 export function flowIds(value: string, maximum = 100): string[] {
-  const ids = value
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean)
-  if (ids.length < 1 || ids.length > maximum)
-    throw new Error(`Provide between 1 and ${maximum} entity IDs`)
+  const ids = value.split(',').map((id) => id.trim())
+  if (ids.length > maximum) throw new Error(`Provide between 1 and ${maximum} entity IDs`)
   for (const id of ids) safeUrlPathSegment(id, 'entityIds')
   return ids
 }
@@ -288,15 +284,15 @@ export const FLOW_ENTITY_PROPERTIES = {
   },
   createdAt: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   defaultSortKey: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   deleted: {
     type: 'boolean',
-    optional: true,
+    nullable: true,
   },
   formulaTemplates: {
     type: 'json',
@@ -351,15 +347,15 @@ export const FLOW_ENTITY_PROPERTIES = {
   },
   type: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   uniqueEntityNumber: {
     type: 'number',
-    optional: true,
+    nullable: true,
   },
   updatedAt: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   values: {
     type: 'json',
@@ -387,22 +383,22 @@ export const FLOW_SEARCH_RESULT_PROPERTIES = {
   },
   human_id: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   legacy_human_id: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   match: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
   },
   same_text_count: {
     type: 'number',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -448,7 +444,7 @@ export const FLOW_BRANCH_PROPERTIES = {
   },
   merged_at: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
@@ -458,15 +454,15 @@ export const FLOW_BRANCH_PROPERTIES = {
   },
   owner_id: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   parent: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   parent_name: {
     type: 'string',
-    optional: true,
+    nullable: true,
   },
   ready_for_review: {
     type: 'boolean',
@@ -504,8 +500,8 @@ export const FLOW_COMMENT_PROPERTIES = {
   },
   branch_id: {
     type: 'string',
-    description: 'Branch the comment was posted on; absent for the main line.',
-    optional: true,
+    description: 'Branch the comment was posted on; null for the main line.',
+    nullable: true,
   },
   created_at: {
     type: 'string',
@@ -579,11 +575,13 @@ export const FLOW_HISTORY_ENTRY_PROPERTIES = {
       value: {
         type: 'json',
         optional: true,
+        nullable: true,
         properties: {},
       },
       formula: {
         type: 'string',
         optional: true,
+        nullable: true,
       },
       child_entity_id: {
         type: 'string',
@@ -625,7 +623,7 @@ export const FLOW_HISTORY_ENTRY_PROPERTIES = {
   },
   reason: {
     type: 'json',
-    optional: true,
+    nullable: true,
     properties: {
       source_entity_id: {
         type: 'string',

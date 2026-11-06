@@ -16,15 +16,24 @@ vi.mock('next/navigation', () => nextNavigationMock)
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import { listOrganizationAccountPeopleContract } from '@/lib/api/contracts/organization-accounts'
+import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { useOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'
+import { useRemovePersonalSearchCredential } from '@/hooks/queries/personal-search-integrations'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
-describe('organization people search pagination', () => {
+describe('organization accounts', () => {
   let root: Root
   let container: HTMLDivElement
   let client: QueryClient
   let result: ReturnType<typeof useOrganizationAccountPeople>
+  let removal: ReturnType<typeof useRemovePersonalSearchCredential>
+
+  function RemovalProbe() {
+    removal = useRemovePersonalSearchCredential()
+    return null
+  }
 
   function Probe({
     search,
@@ -128,6 +137,37 @@ describe('organization people search pagination', () => {
     })
     expect(result.hasNextPage).toBe(false)
     expect(result.data?.pages).toHaveLength(1)
+  })
+
+  it('clears disconnected Search content while preserving another organization’s results', async () => {
+    const search = knowledgeKeys.search(
+      resourceScopeKey({ kind: 'organization', organizationId: 'org-1' }),
+      'private content'
+    )
+    const otherSearch = knowledgeKeys.search(
+      resourceScopeKey({ kind: 'organization', organizationId: 'org-2' }),
+      'private content'
+    )
+    const document = knowledgeKeys.document('knowledge-1', 'document-1')
+    client.setQueryData(search, [{ content: 'disconnected source content' }])
+    client.setQueryData(otherSearch, [{ content: 'other organization content' }])
+    client.setQueryData(document, { content: 'disconnected document content' })
+    mockRequestJson.mockResolvedValueOnce({ success: true })
+
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <RemovalProbe />
+        </QueryClientProvider>
+      )
+    )
+    await act(async () => {
+      await removal.mutateAsync({ organizationId: 'org-1', credentialId: 'credential-1' })
+    })
+
+    expect(client.getQueryData(search)).toBeUndefined()
+    expect(client.getQueryData(document)).toBeUndefined()
+    expect(client.getQueryData(otherSearch)).toEqual([{ content: 'other organization content' }])
   })
 
   it.each([400, 401, 403, 404, 409, 422])(

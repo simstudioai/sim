@@ -56,6 +56,9 @@ export async function mintJamaServiceAccountToken(
     } catch (error) {
       options?.signal?.throwIfAborted()
       if (error instanceof TokenServiceAccountValidationError) throw error
+      if (toRecord(toRecord(error).cause).code === 'ENOTFOUND') {
+        throw new TokenServiceAccountValidationError('site_not_found', 400)
+      }
       throw new TokenServiceAccountValidationError('provider_unavailable', 502)
     }
   }

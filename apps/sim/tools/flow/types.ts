@@ -123,7 +123,7 @@ export interface FlowSetValueParams extends FlowAuthParams {
   entityId: string
   branchId?: string
   fieldKey: string
-  value: unknown
+  value: string
 }
 
 export interface FlowSetValueResponse extends ToolResponse {

@@ -47,11 +47,11 @@ export const flowSetValueTool: ToolConfig<FlowSetValueParams, FlowSetValueRespon
       description: 'Stored field key returned by Get Data Model',
     },
     value: {
-      type: 'json',
+      type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Field value as JSON, matching the data model: string, number, boolean, array, object, or null',
+        'JSON-encoded field value matching the data model. Use "text" for a string, 123 for a number, true or false for a boolean, an array or object, or null to clear the field. Use "" for an empty string.',
     },
   },
   request: {
@@ -63,11 +63,20 @@ export const flowSetValueTool: ToolConfig<FlowSetValueParams, FlowSetValueRespon
     method: 'PUT',
     headers: flowHeaders,
     redirectPolicy: () => FLOW_REDIRECT_POLICY,
-    body: (params) => ({
-      key: params.fieldKey.trim(),
-      value: params.value,
-      branchId: params.branchId?.trim() || undefined,
-    }),
+    body: (params) => {
+      if (typeof params.value !== 'string') throw new Error('Value must be JSON text')
+      let value: unknown
+      try {
+        value = JSON.parse(params.value)
+      } catch {
+        throw new Error('Value must be valid JSON; wrap text values in double quotes')
+      }
+      return {
+        key: params.fieldKey.trim(),
+        value,
+        branchId: params.branchId?.trim() || undefined,
+      }
+    },
   },
   transformResponse: async (response) => {
     assertFlowResponse(response)

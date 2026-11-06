@@ -3,6 +3,7 @@ import '@sim/testing/mocks/executor'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { BufferBlock } from '@/blocks/blocks/buffer'
+import { FlowBlock } from '@/blocks/blocks/flow'
 import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/index'
@@ -15,6 +16,8 @@ import bufferPostFixture from '@/tools/buffer/__fixtures__/post.json'
 import { bufferCreatePostTool } from '@/tools/buffer/create_post'
 import { bufferEditPostTool } from '@/tools/buffer/edit_post'
 import type { BufferCreatePostParams, BufferEditPostParams } from '@/tools/buffer/types'
+import { flowSetValueTool } from '@/tools/flow/set-value'
+import type { FlowSetValueParams } from '@/tools/flow/types'
 import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -80,6 +83,70 @@ describe('GenericBlockHandler', () => {
 
     // Default mock implementations
     mockExecuteTool.mockResolvedValue({ success: true, output: { customResult: 'OK' } })
+  })
+
+  describe('Flow field values', () => {
+    const writes: unknown[] = []
+
+    beforeEach(async () => {
+      writes.length = 0
+      mockGetBlock.mockReturnValue(FlowBlock)
+      mockGetTool.mockReturnValue(flowSetValueTool)
+      const { validateRequiredParametersAfterMerge } =
+        await vi.importActual<typeof import('@/tools/utils')>('@/tools/utils')
+      mockExecuteTool.mockImplementation(async (toolId: string, params: FlowSetValueParams) => {
+        validateRequiredParametersAfterMerge(toolId, flowSetValueTool, params)
+        writes.push(await Response.json(flowSetValueTool.request.body?.(params)).json())
+        return { success: true, output: {} }
+      })
+    })
+
+    const values = ['123', 'true', '{"key":1}', '', null, 123, false, [1, '2'], { key: 1 }]
+    it.each(values.map((value) => ({ value, encoded: JSON.stringify(value) })))(
+      'preserves the JSON value $encoded on the provider wire',
+      async ({ value, encoded }) => {
+        await handler.execute(
+          mockContext,
+          {
+            ...mockBlock,
+            metadata: { id: 'flow', name: 'Flow' },
+            config: { tool: 'flow_set_value', params: {} },
+          },
+          {
+            operation: 'set_value',
+            projectId: 'project',
+            entityId: 'entity',
+            fieldKey: 'name',
+            value: encoded,
+          }
+        )
+        expect(writes).toEqual([{ key: 'name', value }])
+      }
+    )
+
+    it.each([undefined, '', '{"broken":', 'unquoted text'])(
+      'rejects omitted or malformed JSON before sending a field write (%s)',
+      async (value) => {
+        await expect(
+          handler.execute(
+            mockContext,
+            {
+              ...mockBlock,
+              metadata: { id: 'flow', name: 'Flow' },
+              config: { tool: 'flow_set_value', params: {} },
+            },
+            {
+              operation: 'set_value',
+              projectId: 'project',
+              entityId: 'entity',
+              fieldKey: 'name',
+              value,
+            }
+          )
+        ).rejects.toThrow()
+        expect(writes).toEqual([])
+      }
+    )
   })
 
   it.each([

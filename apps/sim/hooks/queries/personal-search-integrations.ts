@@ -17,6 +17,7 @@ import {
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
+import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 export const PERSONAL_SEARCH_INTEGRATIONS_STALE_TIME = 15_000
@@ -102,12 +103,7 @@ export function useRemovePersonalSearchCredential() {
           queryKey: organizationAccountsKeys.detail(body.organizationId),
         }),
         client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
-        client.invalidateQueries({
-          queryKey: searchSourceKeys.list({
-            kind: 'organization',
-            organizationId: body.organizationId,
-          }),
-        }),
+        resetOrganizationSearchAccess(client, body.organizationId),
       ]),
   })
 }

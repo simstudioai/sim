@@ -80,6 +80,8 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
+import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -202,6 +204,8 @@ const mockRegistryTools: Record<string, any> = {
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_users_v2: searchUsersV2Tool,
+  jama_delete_item: jamaDeleteItemTool,
+  jama_delete_relationship: jamaDeleteRelationshipTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -6303,6 +6307,28 @@ describe('MCP Tool Execution', () => {
 
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
       expect(result.success).toBe(false)
+    })
+
+    it.each([
+      ['jama_delete_item', { itemId: '42' }],
+      ['jama_delete_relationship', { relationshipId: '42' }],
+    ])('does not repeat %s after an ambiguous server failure', async (toolId, params) => {
+      mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+        accessToken: 'jama-token',
+        credentialType: 'service_account',
+        instanceUrl: 'https://example.jamacloud.com',
+      })
+      mockSecureFetchWithPinnedIP
+        .mockReset()
+        .mockResolvedValueOnce(makeJsonResponse(500, { error: 'Delete outcome unknown' }))
+        .mockResolvedValueOnce(makeJsonResponse(404, { error: 'Item already deleted' }))
+
+      const pending = executeTool(toolId, { credential: 'jama-credential', ...params })
+      await vi.runAllTimersAsync()
+      const result = await pending
+
+      expect(result.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
     })
 
     it('stops retrying after max attempts for http_request', async () => {

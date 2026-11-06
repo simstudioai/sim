@@ -122,7 +122,13 @@ export function memberIntegrationEntries(
         permissionAccountIds: [],
         reconnectAccountIds: ready ? savedAccounts.map((account) => account.credentialId) : [],
         connectionTarget: ready ? { savedProviderId } : undefined,
-        description: ready ? 'Search with your own account' : 'Disabled by your organization',
+        description: !policies
+          ? undefined
+          : approval?.available === false
+            ? 'Currently unavailable'
+            : ready
+              ? 'Search with your own account'
+              : 'Disabled by your organization',
       })
       continue
     }
