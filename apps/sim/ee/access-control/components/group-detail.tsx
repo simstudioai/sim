@@ -79,6 +79,7 @@ import {
   CHAT_DEPLOY_AUTH_TYPE_OPTIONS,
   compareEditorBlocks,
   FILE_SHARE_AUTH_TYPE_OPTIONS,
+  hasPermissionConfigChanges,
   matchesStatusFilter,
   type PermissionStatusFilter,
   statusFilterOptions,
@@ -553,19 +554,7 @@ export function GroupDetail({
     }))
   }, [platformCategories])
 
-  const hasConfigChanges = (Object.keys(editingConfig) as (keyof PermissionGroupConfig)[]).some(
-    (key) => {
-      const saved = viewingGroup.config[key]
-      const edited = editingConfig[key]
-      if (!Array.isArray(saved) || !Array.isArray(edited)) return saved !== edited
-      const savedMembers = new Set(saved)
-      const editedMembers = new Set(edited)
-      return (
-        savedMembers.size !== editedMembers.size ||
-        [...savedMembers].some((member) => !editedMembers.has(member))
-      )
-    }
-  )
+  const hasConfigChanges = hasPermissionConfigChanges(viewingGroup.config, editingConfig)
 
   // Both buffers are seeded trimmed and compared against a trimmed baseline. The
   // contract trims name and description on write, but a row stored before those
