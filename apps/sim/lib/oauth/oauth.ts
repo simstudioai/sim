@@ -22,6 +22,7 @@ import {
   DocuSignIcon,
   DropboxIcon,
   FivetranIcon,
+  GaugeIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -1639,6 +1640,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'coda',
+  },
+  gauge: {
+    name: 'Gauge',
+    icon: GaugeIcon,
+    services: {
+      gauge: {
+        name: 'Gauge',
+        description: 'Track AI visibility and manage Gauge prompts, topics, and tags.',
+        providerId: 'gauge',
+        serviceAccountProviderId: 'gauge-service-account',
+        icon: GaugeIcon,
+        baseProviderIcon: GaugeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gauge',
   },
   harmonic: {
     name: 'Harmonic',

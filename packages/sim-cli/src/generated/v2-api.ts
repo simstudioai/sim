@@ -7194,6 +7194,12 @@ export type GetSelectorBody = {
     | 'confluence.spacesById'
     | 'confluence.pages'
     | 'google.tasks.lists'
+    | 'gauge.organizations'
+    | 'gauge.categories'
+    | 'gauge.topics'
+    | 'gauge.prompts'
+    | 'gauge.tags'
+    | 'gauge.answers'
     | 'fivetran.groups'
     | 'fivetran.connections'
     | 'gmail.labels'
@@ -10227,6 +10233,12 @@ export type ListSelectorBody = {
     | 'confluence.spacesById'
     | 'confluence.pages'
     | 'google.tasks.lists'
+    | 'gauge.organizations'
+    | 'gauge.categories'
+    | 'gauge.topics'
+    | 'gauge.prompts'
+    | 'gauge.tags'
+    | 'gauge.answers'
     | 'fivetran.groups'
     | 'fivetran.connections'
     | 'gmail.labels'
@@ -19292,6 +19304,12 @@ export const V2_OPERATIONS = {
           'confluence.spacesById',
           'confluence.pages',
           'google.tasks.lists',
+          'gauge.organizations',
+          'gauge.categories',
+          'gauge.topics',
+          'gauge.prompts',
+          'gauge.tags',
+          'gauge.answers',
           'fivetran.groups',
           'fivetran.connections',
           'gmail.labels',
@@ -21623,6 +21641,12 @@ export const V2_OPERATIONS = {
           'confluence.spacesById',
           'confluence.pages',
           'google.tasks.lists',
+          'gauge.organizations',
+          'gauge.categories',
+          'gauge.topics',
+          'gauge.prompts',
+          'gauge.tags',
+          'gauge.answers',
           'fivetran.groups',
           'fivetran.connections',
           'gmail.labels',

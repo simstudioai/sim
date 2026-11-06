@@ -8,6 +8,7 @@ import {
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
   CODA_SERVICE_ACCOUNT_PROVIDER_ID,
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
+  GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
   HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
@@ -31,6 +32,7 @@ import { validateClaudePlatformServiceAccount } from '@/lib/credentials/token-se
 import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
 import { validateCodaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/coda'
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
+import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
@@ -106,6 +108,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: validateClaudePlatformServiceAccount,
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSnowflakeServiceAccount,
   [CODA_SERVICE_ACCOUNT_PROVIDER_ID]: validateCodaServiceAccount,
+  [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
 }
 

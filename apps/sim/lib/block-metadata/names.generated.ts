@@ -93,6 +93,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   flow: 'Flow Engineering',
   function: 'Function',
   gamma: 'Gamma',
+  gauge: 'Gauge',
   generic_webhook: 'Webhook Trigger',
   github_v2: 'GitHub',
   gitlab: 'GitLab',

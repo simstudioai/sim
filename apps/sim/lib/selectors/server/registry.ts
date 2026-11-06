@@ -12,6 +12,7 @@ import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
 import { fivetranSelectorAttachments } from '@/lib/selectors/server/providers/fivetran'
 import { flowSelectorAttachments } from '@/lib/selectors/server/providers/flow'
+import { gaugeSelectorAttachments } from '@/lib/selectors/server/providers/gauge'
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
@@ -57,6 +58,7 @@ export const serverSelectorRegistry = {
   ...codaSelectorAttachments,
   ...confluenceSelectorAttachments,
   ...fivetranSelectorAttachments,
+  ...gaugeSelectorAttachments,
   ...googleSelectorAttachments,
   ...githubSelectorAttachments,
   ...harmonicSelectorAttachments,
