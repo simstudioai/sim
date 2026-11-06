@@ -43,6 +43,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -90,6 +91,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   openai: OpenAIIcon,
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
+  thinkingmachines: ThinkingMachinesIcon,
   together: TogetherIcon,
   typesafe: TypeSafeIcon,
   vertex: VertexIcon,
