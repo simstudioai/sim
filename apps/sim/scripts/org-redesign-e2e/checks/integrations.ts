@@ -10,7 +10,6 @@ import {
   notProvable,
   orgUrl,
   PHONE,
-  pathOf,
   refused,
   root,
   section,
@@ -253,7 +252,7 @@ export async function integrationChecks() {
           await restore()
           const reread = page.waitForResponse(
             (response) =>
-              pathOf(response.url()) === '/api/knowledge/sim-search/integrations' &&
+              new URL(response.url()).pathname === '/api/knowledge/sim-search/integrations' &&
               response.request().method() === 'GET'
           )
           await retry(page).click()
