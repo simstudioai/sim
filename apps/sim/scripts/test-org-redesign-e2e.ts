@@ -256,7 +256,7 @@ class Session {
     })
     page.on('request', (request) => {
       if (HIGH_VOLUME_REQUEST.test(request.url())) return
-      this.inflight.add(request)
+      if (request.resourceType() !== 'eventsource') this.inflight.add(request)
       this.lastActivity = Date.now()
       if (isSameOrigin(request.url()))
         this.requests.push({
@@ -294,13 +294,20 @@ class Session {
     })
   }
 
-  /** Quiet for 400ms, ignoring the SSE and socket connections that never finish. */
+  /**
+   * Quiet for 400ms, ignoring the SSE and socket connections that never finish. Fails at its
+   * deadline, naming what is still out, because every caller goes on to reason about a quiet page.
+   */
   async settle(maxMs = 8_000) {
     const deadline = Date.now() + maxMs
     while (Date.now() < deadline) {
       if (this.inflight.size === 0 && Date.now() - this.lastActivity > 400) return
       await sleep(100)
     }
+    const out = [...this.inflight].map((request) => `${request.method()} ${request.url()}`)
+    throw new Error(
+      `The page did not go quiet in ${maxMs}ms. Still out: ${out.join(', ') || 'none'}`
+    )
   }
 }
 
@@ -4613,7 +4620,9 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         if (persona === CONNECTED) await stubConnectedHome(page)
         for (const route of routesFor(persona)) {
           const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
-          await session.settle()
+          await session
+            .settle()
+            .catch((error) => failures.push(`${route.name}: ${getErrorMessage(error)}`))
           if (route.name === 'home')
             await composer(page)
               .waitFor({ timeout: 20_000 })
