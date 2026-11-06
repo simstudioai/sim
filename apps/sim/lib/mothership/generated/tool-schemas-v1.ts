@@ -6024,6 +6024,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'gitlab',
                   'linear',
                   'lucid',
+                  'hex',
                   'hubspot',
                   'fireflies',
                   'granola',

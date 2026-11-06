@@ -130,6 +130,11 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     example: '',
   },
   linear: { label: 'Projects', hint: 'Member accounts search all accessible issues.', example: '' },
+  hex: {
+    label: 'Projects',
+    hint: 'Member accounts search projects allowed by their Hex permissions.',
+    example: '',
+  },
   hubspot: {
     label: 'CRM records',
     hint: 'Member accounts search CRM records allowed by their HubSpot permissions.',
