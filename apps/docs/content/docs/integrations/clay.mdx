@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Clay](https://www.clay.com/) organizes and enriches data in tables. Use the Clay Populate action to send structured data from your Sim workflow to a Clay table through its webhook URL—for example, lead records or research results.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Send structured records to a Clay table through its webhook URL.
 ### Clay Populate
 
 Send structured JSON data to a Clay table webhook and return its response and HTTP metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -41,5 +44,7 @@ Send structured JSON data to a Clay table webhook and return its response and HT
 |   ↳ `headers` | object | Response headers from Clay |
 |   ↳ `timestamp` | string | ISO timestamp recorded when the webhook response was processed |
 |   ↳ `contentType` | string | Content type of the response |
+
+</ReferenceDetails>
 
 

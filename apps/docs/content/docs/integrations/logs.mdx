@@ -6,11 +6,12 @@ integration:
   color: "#EAB308"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 The Logs block queries workflow run history in the current workspace. **Query Logs** filters runs and returns matching run IDs; **Get Run Details** retrieves one run’s status, trigger, timing, cost, final output, and trace spans. See [Using Logs in Workflows](/workflows/blocks/logs) for a query-and-inspect example.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Query workflow run logs in the current workspace with the same filters as the Lo
 ### Query Logs
 
 Query workflow run logs in the current workspace with the full Logs-page filter set. Returns matching run IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -47,9 +50,13 @@ Query workflow run logs in the current workspace with the full Logs-page filter 
 | --------- | ---- | ----------- |
 | `runIds` | array | IDs of the runs matching the filters |
 
+</ReferenceDetails>
+
 ### Get Run Details
 
 Fetch details for a single workflow run by its run ID, including the full trace spans.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,5 +78,7 @@ Fetch details for a single workflow run by its run ID, including the full trace 
 | `cost` | number | Run cost in credits |
 | `traceSpans` | array | Full trace spans for the run |
 | `finalOutput` | json | Final output of the run |
+
+</ReferenceDetails>
 
 

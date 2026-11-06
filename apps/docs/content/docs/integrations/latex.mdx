@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [LaTeX](https://www.latex-project.org/) compiles plain-text document source into PDFs. Provide the source, select a compiler, and attach any required images, included files, or bibliographies. You can also inspect the available TeX Live packages and system fonts. No OAuth connection or API key is required.
 
 Note: compilation runs on the public [LaTeX-on-HTTP](https://github.com/YtoTech/latex-on-http) service at latex.ytotech.com, so the document source and any attached resources are sent to that third-party service. Avoid compiling documents whose contents must not leave your environment.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, 
 ### LaTeX Compile
 
 Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +45,13 @@ Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.
 | `fileName` | string | Name of the compiled PDF file |
 | `compiler` | string | LaTeX compiler used for the build |
 
+</ReferenceDetails>
+
 ### LaTeX Search Packages
 
 Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,9 +71,13 @@ Search the TeX Live packages available to the LaTeX compiler by name or descript
 |   ↳ `ctanUrl` | string | CTAN page for the package |
 | `totalMatches` | number | Total number of packages matching the query, before truncation |
 
+</ReferenceDetails>
+
 ### LaTeX Get Package
 
 Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +101,13 @@ Get details about a specific TeX Live package available to the LaTeX compiler, i
 |   ↳ `homepage` | string | Package homepage URL |
 |   ↳ `ctanUrl` | string | CTAN page for the package |
 
+</ReferenceDetails>
+
 ### LaTeX List Fonts
 
 List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,5 +125,7 @@ List the system fonts available to the LaTeX compiler, optionally filtered by na
 |   ↳ `name` | string | Full font name |
 |   ↳ `styles` | array | Available styles, e.g. Bold or Italic |
 | `totalMatches` | number | Total number of fonts matching the filter, before truncation |
+
+</ReferenceDetails>
 
 

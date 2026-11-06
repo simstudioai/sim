@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [MongoDB](https://www.mongodb.com/) to query collections, insert one or more documents, update or delete documents selected by a filter, and run aggregation pipelines. Configure the database connection and collection for the selected operation.
 
 The `mongodb_query`, `mongodb_insert`, `mongodb_update`, `mongodb_delete`, and `mongodb_execute` operations return data for later workflow steps. Check the write filter and single/multiple-document option before updating or deleting records.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Find, insert, update, delete, and aggregate data.
 ### MongoDB Query
 
 Execute find operation on MongoDB collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -48,9 +51,13 @@ Execute find operation on MongoDB collection
 | `documents` | array | Array of documents returned from the query |
 | `documentCount` | number | Number of documents returned |
 
+</ReferenceDetails>
+
 ### MongoDB Insert
 
 Insert documents into MongoDB collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +82,13 @@ Insert documents into MongoDB collection
 | `insertedId` | string | ID of inserted document \(single insert\) |
 | `insertedIds` | array | Array of inserted document IDs \(multiple insert\) |
 
+</ReferenceDetails>
+
 ### MongoDB Update
 
 Update documents in MongoDB collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -106,9 +117,13 @@ Update documents in MongoDB collection
 | `documentCount` | number | Total number of documents affected |
 | `insertedId` | string | ID of inserted document \(if upsert\) |
 
+</ReferenceDetails>
+
 ### MongoDB Delete
 
 Delete documents from MongoDB collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -133,9 +148,13 @@ Delete documents from MongoDB collection
 | `deletedCount` | number | Number of documents deleted |
 | `documentCount` | number | Total number of documents affected |
 
+</ReferenceDetails>
+
 ### MongoDB Execute
 
 Execute MongoDB aggregation pipeline
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +178,13 @@ Execute MongoDB aggregation pipeline
 | `documents` | array | Array of documents returned from aggregation |
 | `documentCount` | number | Number of documents returned |
 
+</ReferenceDetails>
+
 ### MongoDB Introspect
 
 Introspect MongoDB database to list databases, collections, and indexes
+
+<ReferenceDetails>
 
 #### Input
 
@@ -182,5 +205,7 @@ Introspect MongoDB database to list databases, collections, and indexes
 | `message` | string | Operation status message |
 | `databases` | array | Array of database names |
 | `collections` | array | Array of collection info with name, type, document count, and indexes |
+
+</ReferenceDetails>
 
 

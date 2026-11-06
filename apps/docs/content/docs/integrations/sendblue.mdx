@@ -127,6 +127,8 @@ Send an iMessage or SMS to a group of recipients via Sendblue.
 
 Check whether a phone number can receive iMessage or only SMS.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -142,9 +144,13 @@ Check whether a phone number can receive iMessage or only SMS.
 | `number` | string | The evaluated phone number in E.164 format |
 | `service` | string | The service the number supports: iMessage or SMS |
 
+</ReferenceDetails>
+
 ### Sendblue Send Typing Indicator
 
 Display a typing indicator to a recipient (not supported in group chats).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -165,6 +171,8 @@ Display a typing indicator to a recipient (not supported in group chats).
 | `status_code` | number | Numeric status code returned by Sendblue |
 | `number` | string | The recipient phone number |
 | `error_message` | string | Error details, null on success |
+
+</ReferenceDetails>
 
 ### Sendblue Get Message
 

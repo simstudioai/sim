@@ -23,6 +23,8 @@ Query, insert, update, delete, execute raw T-SQL, and introspect schemas.
 
 Execute a SELECT query on a Microsoft SQL Server database
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -47,9 +49,13 @@ Execute a SELECT query on a Microsoft SQL Server database
 | `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
 | `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
+</ReferenceDetails>
+
 ### Microsoft SQL Server Insert
 
 Insert data into a Microsoft SQL Server table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +82,13 @@ Insert data into a Microsoft SQL Server table
 | `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
 | `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
+</ReferenceDetails>
+
 ### Microsoft SQL Server Update
 
 Update rows in a Microsoft SQL Server table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -106,9 +116,13 @@ Update rows in a Microsoft SQL Server table
 | `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
 | `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
+</ReferenceDetails>
+
 ### Microsoft SQL Server Delete
 
 Delete rows from a Microsoft SQL Server table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +149,13 @@ Delete rows from a Microsoft SQL Server table
 | `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
 | `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
+</ReferenceDetails>
+
 ### Microsoft SQL Server Execute
 
 Execute a raw T-SQL statement on a Microsoft SQL Server database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,6 +180,8 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 | `rowCount` | number | Number of rows returned or affected |
 | `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
 | `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
+
+</ReferenceDetails>
 
 ### Microsoft SQL Server Introspect
 

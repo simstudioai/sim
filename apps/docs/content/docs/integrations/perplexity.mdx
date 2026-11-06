@@ -6,11 +6,12 @@ integration:
   color: "#20808D"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Perplexity](https://www.perplexity.ai) to generate chat responses with web citations or search the web with filtering. Pass the returned content and source references to downstream blocks as needed.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Generate completions using Perplexity AI chat models or perform web searches wit
 ### Perplexity Chat
 
 Generate completions using Perplexity AI chat models
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +47,13 @@ Generate completions using Perplexity AI chat models
 |   ↳ `completion_tokens` | number | Number of tokens in the completion |
 |   ↳ `total_tokens` | number | Total number of tokens used |
 
+</ReferenceDetails>
+
 ### Perplexity Search
 
 Get ranked search results from Perplexity's continuously refreshed index with advanced filtering and customization options
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,5 +79,7 @@ Get ranked search results from Perplexity's continuously refreshed index with ad
 |   ↳ `snippet` | string | Brief excerpt or summary of the content |
 |   ↳ `date` | string | Date the page was crawled and added to Perplexity's index |
 |   ↳ `last_updated` | string | Date the page was last updated in Perplexity's index |
+
+</ReferenceDetails>
 
 

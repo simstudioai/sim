@@ -6,11 +6,12 @@ integration:
   color: "#0B0F19"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Hugging Face](https://huggingface.co/) in Sim to generate text completions with the Hugging Face Inference API. Choose a model and supply the prompt for the workflow step.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Generate completions with the Hugging Face Inference API.
 ### Hugging Face Chat
 
 Generate completions using Hugging Face Inference API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -46,5 +49,7 @@ Generate completions using Hugging Face Inference API
 |     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
 |     ↳ `completion_tokens` | number | Number of tokens in the completion |
 |     ↳ `total_tokens` | number | Total number of tokens used |
+
+</ReferenceDetails>
 
 

@@ -915,6 +915,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a message is delivered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -932,13 +934,14 @@ Trigger workflow when a message is delivered
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Failed
 
 Trigger workflow when a message fails to deliver
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -956,13 +959,14 @@ Trigger workflow when a message fails to deliver
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Read
 
 Trigger workflow when a message is read
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -980,13 +984,14 @@ Trigger workflow when a message is read
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Received
 
 Trigger workflow when an inbound message is received
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1004,13 +1009,14 @@ Trigger workflow when an inbound message is received
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Reaction Added
 
 Trigger workflow when a reaction is added to a message
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1028,13 +1034,14 @@ Trigger workflow when a reaction is added to a message
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Webhook (All Events)
 
 Trigger on any Linq webhook event (messages, reactions, chats, and more)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1051,4 +1058,6 @@ Trigger on any Linq webhook event (messages, reactions, chats, and more)
 | `createdAt` | string | ISO 8601 timestamp of when the event occurred |
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+</ReferenceDetails>
 

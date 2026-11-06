@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [MySQL](https://www.mysql.com/) to query rows, insert or modify records, execute raw SQL, and inspect databases, tables, columns, keys, and indexes. Configure the host, port, database, credentials, and SSL mode for the target server.
 
 Query returns rows and a row count. Insert, update, and delete operations accept the data or WHERE clause documented below. Raw SQL can also change schema; use a database account with the permissions the workflow needs.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Query, insert, update, delete, and execute raw SQL.
 ### MySQL Query
 
 Execute SELECT query on MySQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +47,13 @@ Execute SELECT query on MySQL database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### MySQL Insert
 
 Insert new record into MySQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,9 +76,13 @@ Insert new record into MySQL database
 | `rows` | array | Array of inserted rows |
 | `rowCount` | number | Number of rows inserted |
 
+</ReferenceDetails>
+
 ### MySQL Update
 
 Update existing records in MySQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +106,13 @@ Update existing records in MySQL database
 | `rows` | array | Array of updated rows |
 | `rowCount` | number | Number of rows updated |
 
+</ReferenceDetails>
+
 ### MySQL Delete
 
 Delete records from MySQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +135,13 @@ Delete records from MySQL database
 | `rows` | array | Array of deleted rows |
 | `rowCount` | number | Number of rows deleted |
 
+</ReferenceDetails>
+
 ### MySQL Execute
 
 Execute raw SQL query on MySQL database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +163,13 @@ Execute raw SQL query on MySQL database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows affected |
 
+</ReferenceDetails>
+
 ### MySQL Introspect
 
 Introspect MySQL database schema to retrieve table structures, columns, and relationships
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,5 +189,7 @@ Introspect MySQL database schema to retrieve table structures, columns, and rela
 | `message` | string | Operation status message |
 | `tables` | array | Array of table schemas with columns, keys, and indexes |
 | `databases` | array | List of available databases on the server |
+
+</ReferenceDetails>
 
 
