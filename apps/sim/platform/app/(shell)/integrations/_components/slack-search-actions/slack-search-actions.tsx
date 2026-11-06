@@ -2,13 +2,10 @@
 
 import Link from 'next/link'
 import { slackSearchOnboardingPath } from '@/lib/slack-search/onboarding'
-import {
-  useRetrySlackSearchOnboarding,
-  useSlackSearchOnboarding,
-} from '@/hooks/queries/slack-search-onboarding'
 import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
 import { Button } from '@/platform/design-system/components/button/button'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
+import { useSlackSearchHandoff } from '@/platform/lib/data/slack-search-handoff'
 
 interface SlackSearchActionsProps {
   organizationId: string
@@ -18,12 +15,10 @@ interface SlackSearchActionsProps {
 
 /** Slack adds only thread return and retry actions to the ordinary integrations page. */
 export function SlackSearchActions({ organizationId, token, userId }: SlackSearchActionsProps) {
-  const status = useSlackSearchOnboarding(token, userId)
-  const retry = useRetrySlackSearchOnboarding(userId)
-  const data = status.data
-  if (!data)
-    return status.error ? <InlineNotice intent='danger' message={status.error.message} /> : null
-  if (!('organizationId' in data) || data.organizationId !== organizationId)
+  const handoff = useSlackSearchHandoff(organizationId, token, userId)
+  if (handoff.stage === 'unread')
+    return handoff.error ? <InlineNotice intent='danger' message={handoff.error} /> : null
+  if (handoff.stage === 'elsewhere')
     return (
       <div className={styles.handoff}>
         <Button render={<Link href={slackSearchOnboardingPath(token)} />}>
@@ -31,31 +26,26 @@ export function SlackSearchActions({ organizationId, token, userId }: SlackSearc
         </Button>
       </div>
     )
-  const retried = data.status === 'retried' || retry.isSuccess
   return (
     <div className={styles.handoff}>
-      {!retried &&
-        (data.status === 'ready' ? (
-          <Button
-            variant='primary'
-            disabled={retry.isPending}
-            onClick={() => retry.mutate({ token })}
-          >
-            {retry.isPending ? 'Queuing' : 'Retry question in Slack'}
+      {!handoff.retried &&
+        (handoff.ready ? (
+          <Button variant='primary' disabled={handoff.retrying} onClick={handoff.retry}>
+            {handoff.retrying ? 'Queuing' : 'Retry question in Slack'}
           </Button>
         ) : (
-          <Button disabled={status.isFetching} onClick={() => void status.refetch()}>
-            {status.isFetching ? 'Checking' : 'Check connection'}
+          <Button disabled={handoff.checking} onClick={handoff.check}>
+            {handoff.checking ? 'Checking' : 'Check connection'}
           </Button>
         ))}
       <Button
-        variant={retried ? 'primary' : 'secondary'}
-        render={<Link href={data.slackUrl} referrerPolicy='no-referrer' />}
+        variant={handoff.retried ? 'primary' : 'secondary'}
+        render={<Link href={handoff.slackUrl} referrerPolicy='no-referrer' />}
       >
         Return to Slack
       </Button>
-      {retry.isError && <InlineNotice intent='danger' message={retry.error.message} />}
-      {status.isRefetchError && <InlineNotice intent='danger' message={status.error.message} />}
+      {handoff.retryError && <InlineNotice intent='danger' message={handoff.retryError} />}
+      {handoff.checkError && <InlineNotice intent='danger' message={handoff.checkError} />}
     </div>
   )
 }
