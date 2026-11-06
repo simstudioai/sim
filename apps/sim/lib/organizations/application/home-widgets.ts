@@ -133,11 +133,14 @@ async function readViewerAccounts<T>(
     throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
   // The boundary the assistant's direct tools answer to, which a widget must not sidestep. Read
   // fresh on each widget read, so a revoked approval or a tightened policy applies on the next one.
-  const [accounts, owned, isProviderContentReadable] = await Promise.all([
-    listViewerOrganizationAccounts({ organizationId, userId }),
+  const [owned, isProviderContentReadable] = await Promise.all([
     getOwnOrganizationManagedOAuthCredentials({ organizationId, userId }),
     loadAssistantProviderAccess(organizationId),
   ])
+  // Owned credentials exclude one awaiting reconnection, so statuses are read after them: a
+  // concurrent read that marks one `needs_reauth` in between shows here as needing reconnection,
+  // never as an account not offered.
+  const accounts = await listViewerOrganizationAccounts({ organizationId, userId })
   const candidates = accounts
     .flatMap((account) => {
       const provider = findCredentialGroupProviderFromProviderId(account.providerId)
