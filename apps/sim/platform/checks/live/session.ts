@@ -18,6 +18,9 @@ export const adminEmail = () => requireEnv('PLATFORM_LIVE_EMAIL')
 export const memberEmail = () => requireEnv('PLATFORM_LIVE_MEMBER_EMAIL')
 export const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
+/** The owner of an organization no rollout targets, on a deployment that targets another. */
+export const offOrganizationId = () => requireEnv('PLATFORM_LIVE_OFF_ORGANIZATION_ID')
+export const offEmail = () => requireEnv('PLATFORM_LIVE_OFF_EMAIL')
 
 type Cookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>
 

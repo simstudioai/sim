@@ -37,6 +37,7 @@ platform_tag=''
 platform_log=''
 agent_pid=''
 failing_zone_pid=''
+appconfig_pid=''
 browsers_pid=''
 local_app_url=''
 # `dev` or `start`; a group sets it before start_app.
@@ -82,6 +83,10 @@ finish() {
   if [ -n "$failing_zone_pid" ]; then
     kill "$failing_zone_pid" 2>/dev/null || true
     wait "$failing_zone_pid" 2>/dev/null || true
+  fi
+  if [ -n "$appconfig_pid" ]; then
+    kill "$appconfig_pid" 2>/dev/null || true
+    wait "$appconfig_pid" 2>/dev/null || true
   fi
   if [ -n "$browsers_pid" ]; then
     kill -- "-$browsers_pid" 2>/dev/null || true
@@ -220,6 +225,8 @@ platform_live_environment() {
   export PLATFORM_LIVE_ROLE_TARGET_EMAIL=rae@platform-live.test
   export PLATFORM_LIVE_REMOVABLE_EMAIL=remy@platform-live.test
   export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
+  export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
+  export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
   bun --no-env-file scripts/platform-live-seed.ts
 }
@@ -502,7 +509,9 @@ JS
 
   # The zone as deployed: flag on, /org rewritten to the Platform build. Then, on that running app,
   # the zone goes away, answers 503 to everything, and comes back. Then the same build with the flag
-  # off, which must put everyone back on the legacy surface. Every phase reports, whichever fails.
+  # off, which must put everyone back on the legacy surface. Then that build with its flags read from
+  # AppConfig, the real rollout path, targeting one organization by id. Every phase reports, whichever
+  # fails.
   platform-live-zone)
     platform_live_environment
     export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
@@ -531,6 +540,17 @@ JS
     stop_app
     start_app platform-live-flag-off 3027 'Platform main, flag off' record-http-status
     run_platform_live flag-off platform-live-flag-off || live_status=$?
+    stop_app
+    bun --no-env-file platform/checks/live/support/appconfig-service.ts 3033 \
+      > "$report_dir/platform-live-appconfig.log" 2>&1 &
+    appconfig_pid=$!
+    wait_ready "$appconfig_pid" http://127.0.0.1:3033/health 'AppConfig fixture'
+    export APPCONFIG_APPLICATION=platform-live APPCONFIG_ENVIRONMENT=ci AWS_REGION=us-east-1
+    export AWS_ACCESS_KEY_ID=platform-live-ci AWS_SECRET_ACCESS_KEY=platform-live-ci
+    export AWS_ENDPOINT_URL_APPCONFIGDATA=http://127.0.0.1:3033
+    export PLATFORM_LIVE_APPCONFIG_URL=http://127.0.0.1:3033
+    start_app platform-live-rollout 3027 'Platform main, per-organization rollout' record-http-status
+    run_platform_live rollout platform-live-rollout || live_status=$?
     exit "$live_status"
     ;;
 
