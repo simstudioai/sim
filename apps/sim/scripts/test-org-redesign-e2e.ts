@@ -18,7 +18,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { toRecord } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
+import { escapeRegExp, truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -223,6 +223,12 @@ function recordProblem(kind: Problem['kind'], address: string, detail: string) {
     return
   unexpected.push({ check: currentCheck, kind, url: address, detail: truncate(detail, 500) })
   writeReport()
+}
+
+/** One request a check provokes on purpose. A path with no query also covers the path with one. */
+function refused(status: number, method: string, path: string) {
+  const query = path.includes('?') ? '' : '(\\?\\S*)?'
+  return new RegExp(`^http \\S+ ${status} ${method} ${escapeRegExp(path)}${query}$`)
 }
 
 class Session {
@@ -629,7 +635,13 @@ async function landingChecks() {
         ).toBeVisible()
       })
     },
-    { allow: [/404 GET \/(o|api\/mothership)\//] }
+    {
+      // The member's own agent chat, on both of its routes.
+      allow: [
+        refused(404, 'GET', `${root}/chat/${MEMBER_CHATS.agent.id}`),
+        refused(404, 'GET', `${root}/search/chat/${MEMBER_CHATS.agent.id}`),
+      ],
+    }
   )
   await check(
     'a chat that is not theirs, or in another organization, is not found',
@@ -644,7 +656,13 @@ async function landingChecks() {
         await expect(composer(page)).toBeVisible()
       })
     },
-    { allow: [/404 GET \/(o|api\/mothership)\//] }
+    {
+      // Someone else's chats, which must read as absent.
+      allow: [
+        refused(404, 'GET', `${root}/chat/${ADMIN_CHATS.agent.id}`),
+        refused(404, 'GET', `${root}/search/chat/${ADMIN_CHATS.assistant.id}`),
+      ],
+    }
   )
   await check('signed out, every organization route goes to login', async () => {
     await withSession(null, async ({ page }) => {
@@ -689,7 +707,8 @@ async function landingChecks() {
         await expectPageNotFound(page)
       })
     },
-    { allow: [/404 GET \/o\//] }
+    // Audit logs is the one section a member may not open here.
+    { allow: [refused(404, 'GET', `${root}/settings/audit-logs`)] }
   )
   await check(
     'People is not found with its flag off, and bad Integrations params are not found',
@@ -703,7 +722,14 @@ async function landingChecks() {
         await expectPageNotFound(page)
       })
     },
-    { allow: [/404 GET \/o\//] }
+    {
+      // The flag-off page and the two malformed queries this check opens.
+      allow: [
+        refused(404, 'GET', `${root}/people`),
+        refused(404, 'GET', `${root}/integrations?connectorType=not-a-connector`),
+        refused(404, 'GET', `${root}/integrations?slack=!!`),
+      ],
+    }
   )
 }
 
@@ -1073,31 +1099,37 @@ async function sidebarChecks() {
     },
     { allow: [/400 (PATCH|PUT) \/api\/organizations\//] }
   )
-  await check(
-    'an admin can change the logo from the card',
-    async () => {
-      await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl('/home'))
-        await orgChip(page).click()
-        const card = orgCard(page)
-        await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
-        const upload = page.waitForRequest(
-          (request) =>
-            request.method() !== 'GET' && /\/api\/(files|organizations)\//.test(request.url())
-        )
-        await page.getByLabel('Organization logo').setInputFiles({
-          name: 'logo.png',
-          mimeType: 'image/png',
-          buffer: Buffer.from(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-            'base64'
-          ),
-        })
-        await upload
+  await check('an admin can change the logo from the card', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(orgUrl('/home'))
+      await orgChip(page).click()
+      const card = orgCard(page)
+      await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
+      const started = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' && pathOf(response.url()) === '/api/files/uploads'
+      )
+      await page.getByLabel('Organization logo').setInputFiles({
+        name: 'logo.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64'
+        ),
       })
-    },
-    { allow: [/\/api\/files\//] }
-  )
+      const response = await started
+      assert(
+        response.ok(),
+        `Starting the upload answered ${response.status()}: ${await response.text()}`
+      )
+      await expect
+        .poll(
+          async () =>
+            (await sql`select logo from organization where id = ${ORGANIZATION_ID}`)[0]?.logo
+        )
+        .toBeTruthy()
+    })
+  })
   await check('Invite follows the default group, and an admin invites when it allows', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -2700,7 +2732,8 @@ async function searchChecks() {
         await expect(page.getByRole('region', { name: 'Recent activity' })).toHaveCount(0)
       })
     },
-    { allow: [/500 GET \/api\//] }
+    // The read whose table the check hides.
+    { allow: [refused(500, 'GET', `/api/organizations/${ORGANIZATION_ID}/search/history`)] }
   )
   await check('a query keeps its edited draft on return', async () => {
     await withSession(MEMBER, async ({ page }) => {
@@ -2918,7 +2951,13 @@ async function integrationChecks() {
         })
       })
     },
-    { allow: [/500 GET \/api\//] }
+    {
+      // The two reads whose tables the check hides, one at a time.
+      allow: [
+        refused(500, 'GET', `/api/organizations/${ORGANIZATION_ID}/connected-accounts`),
+        refused(500, 'GET', '/api/knowledge/sim-search/integrations'),
+      ],
+    }
   )
 
   section('3 Tool permissions')
@@ -3376,7 +3415,8 @@ async function linksChecks() {
         await expect(dialog(page, 'New link')).toBeVisible()
       })
     },
-    { allow: [/500 GET \/api\//] }
+    // The read whose table the check hides.
+    { allow: [refused(500, 'GET', `/api/organizations/${ORGANIZATION_ID}/sim-links`)] }
   )
   await check('the phone keeps Links usable', async () => {
     await withSession(
@@ -4082,7 +4122,14 @@ async function blastRadiusChecks() {
         }
       })
     },
-    { allow: [/404 GET \/(sim|invite|platform)/] }
+    {
+      // The three addresses this check opens that have nothing to show.
+      allow: [
+        refused(404, 'GET', '/sim/no-such-link'),
+        refused(404, 'GET', '/invite/not-a-token'),
+        refused(404, 'GET', '/platform'),
+      ],
+    }
   )
   await check('the surface defines its caption token without reaching :root', async () => {
     await withSession(MEMBER, async ({ page }) => {
@@ -4558,7 +4605,6 @@ const STATE_SHOTS: readonly StateShot[] = [
 /** States a route walk never reaches. A shot that cannot open is a failure, not a missing file. */
 async function stateScreenshots() {
   section('State screenshots')
-  allowedFailures = [/404 GET /]
   for (const viewport of [DESKTOP, PHONE]) {
     await check(`${viewport.name}: states capture`, () =>
       asPlatformAdmin(async () => {
