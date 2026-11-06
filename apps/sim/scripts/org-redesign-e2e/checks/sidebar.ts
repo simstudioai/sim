@@ -211,6 +211,8 @@ export async function sidebarChecks() {
       const width = async () => Math.round((await sidebar(page).boundingBox())?.width ?? 0)
       const before = await width()
       await expect(edge).toHaveAttribute('aria-valuenow', String(before))
+      // Home's field takes focus once it mounts, which is after the rail: this waits it out.
+      await expect(composer(page)).toBeFocused()
       await edge.focus()
       await page.keyboard.press('ArrowRight')
       await expect.poll(width).toBe(before + 16)
