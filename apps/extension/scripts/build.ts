@@ -48,7 +48,11 @@ if (!outputArgument) await rm(dist, { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
 await build({
   absWorkingDir: root,
-  entryPoints: { background: 'src/background.ts', sidepanel: 'src/sidepanel.tsx' },
+  entryPoints: {
+    background: 'src/background.ts',
+    sidepanel: 'src/sidepanel.tsx',
+    'recents-setup': 'src/recents-setup.tsx',
+  },
   outdir: dist,
   bundle: true,
   platform: 'browser',
@@ -83,6 +87,7 @@ await build({
   ],
 })
 await cp(resolve(root, 'src/sidepanel.html'), resolve(dist, 'sidepanel.html'))
+await cp(resolve(root, 'src/recents.html'), resolve(dist, 'recents.html'))
 for (const [size, file] of [
   [16, 'favicon-16x16.png'],
   [32, 'favicon-32x32.png'],
@@ -114,7 +119,7 @@ await writeFile(
       name: development ? 'Sim (Development)' : 'Sim',
       version: packageJson.version,
       description:
-        "Ask Sim about the page you are reading, and open your organization's go/ and sim/ links from the address bar.",
+        "Ask Sim about the page you are reading, open your organization's go/ and sim/ links from the address bar, and, if you turn it on, see your recent pages on Sim Home.",
       minimum_chrome_version: '120',
       permissions: [
         'activeTab',
@@ -131,7 +136,9 @@ await writeFile(
       declarative_net_request: {
         rule_resources: [{ id: 'sim_links', enabled: true, path: 'sim-links.json' }],
       },
+      optional_permissions: ['history', 'favicon'],
       optional_host_permissions: ['https://*/*', 'http://*/*'],
+      externally_connectable: { matches: [`${origin.origin}/*`] },
       background: { service_worker: 'background.js' },
       omnibox: { keyword: 'sim' },
       side_panel: { default_path: 'sidepanel.html' },
@@ -144,7 +151,7 @@ await writeFile(
         },
       },
       content_security_policy: {
-        extension_pages: `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; frame-src ${origin.origin}; connect-src ${origin.origin}; object-src 'none'; base-uri 'none'`,
+        extension_pages: `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; frame-src ${origin.origin}; connect-src 'self' ${origin.origin}; object-src 'none'; base-uri 'none'`,
       },
       incognito: 'not_allowed',
       ...(key ? { key } : {}),

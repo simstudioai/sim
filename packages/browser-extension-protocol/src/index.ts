@@ -157,3 +157,5 @@ export function simLinkDraftDestination(value: string): string | null {
     return null
   }
 }
+
+export * from './recent-pages'

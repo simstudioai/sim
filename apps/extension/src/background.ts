@@ -10,6 +10,7 @@ import {
 } from '@/config'
 import { captureIntentSchema } from '@/intent'
 import { registerSimLinkOmnibox } from '@/omnibox'
+import { registerRecentPages } from '@/recents'
 import { registerShortHostVisits } from '@/short-hosts'
 import { digestUrl } from '@/utils'
 
@@ -92,6 +93,7 @@ function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') 
 
 registerSimLinkOmnibox()
 registerShortHostVisits()
+registerRecentPages()
 chrome.runtime.onInstalled.addListener(() => {
   void configure().catch(() => logger.warn('Could not initialize extension controls'))
 })
