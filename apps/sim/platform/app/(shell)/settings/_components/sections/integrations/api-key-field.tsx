@@ -98,7 +98,7 @@ const MASK = '•'
 
 /**
  * Takes a key or a `{{SECRET}}` reference. Bullets replace the value in the input until it is
- * focused, as on the older field, so an unfocused key is never in the DOM; while focused the text
+ * focused, so an unfocused key is never in the DOM; while focused the text
  * is drawn by an overlay that colors its references.
  */
 export function ApiKeyField({

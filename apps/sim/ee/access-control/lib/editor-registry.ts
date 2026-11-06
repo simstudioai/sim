@@ -25,11 +25,9 @@ export const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = O
  * drop a preview block from the stored allowlist and deny it to revealed
  * users already running it.
  *
- * EXCLUDES superseded blocks. They are hidden and so are never rendered, but
- * they used to be materialized into the allowlist all the same — so an admin
- * narrowing a previously-unrestricted allowlist by unchecking `slack_v2` wrote
- * `slack` into it, which the runtime resolves back to `slack_v2` and allows.
- * A decision about a retired version is made on its successor's row.
+ * EXCLUDES superseded blocks: materializing `slack` when `slack_v2` is unchecked
+ * would re-allow it, since the runtime resolves it back to `slack_v2`. A decision about
+ * a retired version is made on its successor's row.
  */
 export function getAccessControlBlockUniverse(): BlockConfig[] {
   return getAllBlocks()

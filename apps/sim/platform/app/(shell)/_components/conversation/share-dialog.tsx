@@ -182,7 +182,7 @@ export function ShareDialog(props: ShareDialogProps) {
           return false
         }}
       >
-        {/* Unsharing asks first, so Enter in a field does not start it, as in the legacy footer. */}
+        {/* Unsharing asks first, so Enter in a field does not start it. */}
         <div
           className={styles.shareFields}
           onKeyDown={(event) => {

@@ -37,9 +37,7 @@ import { NebiusIcon } from '@/components/icons/nebius'
  * imports, so this is a re-keying, never a second set of artwork.
  *
  * It must list every provider the registry defines, or a model resolving to a
- * missing one renders an unexplained blank where every neighbouring row has a mark
- * — which is how `zai` (GLM) shipped iconless. `usage-consumers.test.ts` fails when
- * the two drift, so the coverage is checked rather than remembered.
+ * missing one renders an unexplained blank where every neighbouring row has a mark.
  */
 export const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>> = {
   anthropic: AnthropicIcon,

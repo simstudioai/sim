@@ -55,7 +55,7 @@ export function MicrophoneHelp({ onClose }: MicrophoneHelpProps) {
 
 /**
  * What a chat captured from a page. Its trigger sits inside a message's paragraph, which could not
- * hold a dialog anyway, and it stays out of session capture as the legacy dialog does.
+ * hold a dialog anyway, and it stays out of session capture.
  */
 export function PageContextDialog({
   snapshot,

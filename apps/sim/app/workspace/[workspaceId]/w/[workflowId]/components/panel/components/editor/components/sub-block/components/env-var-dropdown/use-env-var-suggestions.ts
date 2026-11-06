@@ -34,7 +34,6 @@ export function useEnvVarSuggestions({
 }: EnvVarSuggestionsOptions) {
   const { navigateToSettings } = useSettingsNavigation()
 
-  // React Query hooks for environment variables
   const { data: personalEnv = {} } = usePersonalEnvironment()
   const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
     select: useCallback(

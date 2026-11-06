@@ -6,7 +6,6 @@
  */
 export const SIM_AUTO_MODEL_ID = 'sim-auto'
 
-/** True when the configured model is the sim-auto pseudo-model. */
 export function isAutoModel(model: string): boolean {
   return model.trim().toLowerCase() === SIM_AUTO_MODEL_ID
 }
