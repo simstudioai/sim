@@ -207,7 +207,7 @@ jobs:
     needs: [changes, e2e-build]
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ matrix.group == 'org-redesign' && 45 || 20 }}
+    timeout-minutes: ${{ (matrix.group == 'org-redesign' || matrix.group == 'workspace-chat') && 45 || 20 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
@@ -227,7 +227,7 @@ jobs:
           --health-retries 10
       # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'org-redesign' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'org-redesign' || matrix.group == 'workspace-chat' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-

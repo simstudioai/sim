@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|workspace-chat|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|workspace-chat|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -331,6 +331,36 @@ case "$group" in
     ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-people-ui-report.json" \
       bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
     exit "$run_status"
+    ;;
+
+  # One self-hosted workspace, its realtime server, and a scripted worker in place of the model, so
+  # every chat surface runs against the real app. Tool approval, the model picker and Plan mode
+  # are on because the suite proves them.
+  workspace-chat)
+    app_server=start
+    export REDIS_URL=redis://127.0.0.1:6379
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3034 SOCKET_SERVER_URL=http://127.0.0.1:3034
+    export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+    export MSHIP_MODEL_SELECTOR=true MOTHERSHIP_BENCHMARK_ENABLED=true
+    export INTERNAL_API_SECRET=workspace-chat-ci-local-secret-at-least-32-characters
+    export COPILOT_API_KEY=workspace-chat-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+    export SIM_AGENT_API_URL=http://127.0.0.1:3035
+    export DB_TX_TRIPWIRE=throw
+    start_browser_install workspace-chat --only-shell chromium
+    bun --no-env-file scripts/org-redesign-e2e/scripted-agent.ts 3035 \
+      > "$report_dir/workspace-chat-agent.log" 2>&1 &
+    agent_pid=$!
+    wait_ready "$agent_pid" http://127.0.0.1:3035/health 'scripted agent'
+    start_app workspace-chat 3033 'workspace chat' record-http-status
+    start_realtime workspace-chat 3034
+    wait_for_browsers
+    WORKSPACE_CHAT_E2E_BASE_URL="$local_app_url" \
+    WORKSPACE_CHAT_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKSPACE_CHAT_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKSPACE_CHAT_E2E_AGENT_URL=http://127.0.0.1:3035 \
+    WORKSPACE_CHAT_E2E_REPORT_PATH="$report_dir/workspace-chat-ui-report.json" \
+      bun --no-env-file scripts/test-workspace-chat-e2e.ts
     ;;
 
   browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access)

@@ -29,6 +29,7 @@
         "!scripts/test-assistant-actions-e2e.ts",
         "!scripts/test-organization-search-e2e.ts",
         "!scripts/test-org-redesign-e2e.ts",
+        "!scripts/test-workspace-chat-e2e.ts",
         "!scripts/org-redesign-seed.ts",
         "!scripts/org-redesign-e2e/**",
         "!scripts/test-docs-search-provider-e2e.ts",
@@ -151,6 +152,14 @@
       ],
       "cache": false
     },
+    "ci:e2e-workspace-chat": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "scripts/test-workspace-chat-e2e.ts",
+        "scripts/org-redesign-e2e/scripted-agent.ts"
+      ],
+      "cache": false
+    },
     "ci:e2e-docs-platform": {
       "dependsOn": ["ci:server", "docs#build"],
       "inputs": ["scripts/test-docs-search-provider-e2e.ts"],
@@ -194,6 +203,7 @@
         "!scripts/test-assistant-actions-e2e.ts",
         "!scripts/test-organization-search-e2e.ts",
         "!scripts/test-org-redesign-e2e.ts",
+        "!scripts/test-workspace-chat-e2e.ts",
         "!scripts/org-redesign-seed.ts",
         "!scripts/org-redesign-e2e/**",
         "!scripts/test-docs-search-provider-e2e.ts",
