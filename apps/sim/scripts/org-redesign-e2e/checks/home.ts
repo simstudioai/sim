@@ -405,6 +405,14 @@ export async function homeChecks() {
           await channelChip.hover()
           await recents.getByRole('button', { name: 'Remove #candidates from recents' }).click()
           await expect(links).toHaveCount(1)
+          // The chip leaves at once and its visits are deleted one by one; a reload would abort that.
+          await expect
+            .poll(async () => {
+              const [after] =
+                await sql`select sources from organization_search_history where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`
+              return after?.sources.map((source: { url: string }) => source.url)
+            })
+            .toEqual([sources[2].url])
           await page.reload()
           await expect(homeRegion(page, 'Email')).toBeVisible()
           await session.settle()
