@@ -17,6 +17,7 @@ import {
   Input,
   Modal,
   MultiSelect,
+  SaveActions,
   SearchField,
   SegmentedControl,
   SelectField,
@@ -201,6 +202,8 @@ interface PolicyDetailProps {
   draft: PolicyDraft
   isNew: boolean
   changed: boolean
+  /** A newer version is waiting on the editor's choice, so nothing can be saved yet. */
+  conflict?: boolean
   isSaving: boolean
   canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
@@ -221,6 +224,7 @@ export function PolicyDetail({
   draft,
   isNew,
   changed,
+  conflict,
   isSaving,
   canRemove,
   workspaceOptions,
@@ -349,24 +353,15 @@ export function PolicyDetail({
           </FieldStack>
         </SettingsSection>
       </FormFieldset>
-      <SettingsSection title='Policy changes'>
-        <SettingsRow label='Changes to this policy'>
-          <ActionRow>
-            {changed && (
-              <Button variant='quiet' disabled={isSaving} onClick={onDiscard}>
-                Discard
-              </Button>
-            )}
-            <Button
-              variant='primary'
-              disabled={!changed || isSaving || (!isOrg && draft.workspaceIds.length === 0)}
-              onClick={onSave}
-            >
-              {isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </ActionRow>
-        </SettingsRow>
-        {canRemove && (
+      <SaveActions
+        dirty={changed}
+        saving={isSaving}
+        blocked={conflict || (!isOrg && draft.workspaceIds.length === 0)}
+        onSave={onSave}
+        onDiscard={onDiscard}
+      />
+      {canRemove && (
+        <SettingsSection title='Manage'>
           <SettingsRow
             label='Workspace override'
             description='Use the organization defaults for these workspaces.'
@@ -379,8 +374,8 @@ export function PolicyDetail({
               Remove override
             </Button>
           </SettingsRow>
-        )}
-      </SettingsSection>
+        </SettingsSection>
+      )}
       <Modal
         variant='confirm'
         destructive

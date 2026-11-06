@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button } from '@/platform/design-system/components'
+import { Button, InlineNotice } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ChildrenProps {
@@ -123,6 +123,32 @@ export function DetailHeader({
         {children && <div className={styles.actions}>{children}</div>}
       </div>
     </header>
+  )
+}
+
+interface DraftConflictNoticeProps {
+  onKeepMine: () => void
+  onTakeLatest: () => void
+}
+
+/** The choice `useServerDraft` holds a save behind: the edits stay on screen until it is made. */
+export function DraftConflictNotice({ onKeepMine, onTakeLatest }: DraftConflictNoticeProps) {
+  return (
+    <InlineNotice
+      intent='warning'
+      title='This changed while you were editing'
+      message='Your edits are still here and have not been saved. Keep them to save over the newer version, or use the latest and lose them.'
+      action={
+        <>
+          <Button size='compact' onClick={onKeepMine}>
+            Keep my edits
+          </Button>
+          <Button size='compact' variant='quiet' onClick={onTakeLatest}>
+            Use the latest
+          </Button>
+        </>
+      }
+    />
   )
 }
 

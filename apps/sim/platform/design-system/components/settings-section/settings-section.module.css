@@ -110,3 +110,11 @@
     padding-inline: var(--spacing-16);
   }
 }
+
+.saveActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}
