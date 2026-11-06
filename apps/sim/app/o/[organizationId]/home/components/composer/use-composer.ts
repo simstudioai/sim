@@ -34,14 +34,14 @@ export interface ConversationComposerProps {
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
-  restoredContexts?: ChatContext[]
+  restoredContexts: ChatContext[]
   onSubmit: (
     text: string,
     contexts?: ChatContext[]
   ) => undefined | false | PendingComposerSubmission
-  onSendQueuedHead?: () => void
-  onEditQueuedTail?: () => boolean
-  messages?: readonly ChatMessage[]
+  onSendQueuedHead: () => void
+  onEditQueuedTail: () => boolean
+  messages: readonly ChatMessage[]
   onStop: () => void
 }
 
@@ -49,7 +49,7 @@ interface UseComposerOptions extends ConversationComposerProps {
   /** The full page waits for complete lists before it sends a `/name`; the panel keeps its own timing. */
   waitsForFullLists: boolean
   /** Attachments the view shows itself, which count as something to send. */
-  hasAdditionalAttachments: boolean
+  hasAdditionalAttachments?: boolean
 }
 
 /** A `/` starting a token: typed, pasted, or carried in by a draft, all of which skills can chip. */
@@ -80,20 +80,17 @@ function whenAborted(signal: AbortSignal) {
  */
 export function useComposer({
   requestMode,
-  onPlanChange,
   draftKeys,
   files,
   submission,
-  isInitialView,
   isSending,
   restoredContexts,
   onSubmit,
   onSendQueuedHead,
   onEditQueuedTail,
   messages,
-  onStop,
   waitsForFullLists,
-  hasAdditionalAttachments,
+  hasAdditionalAttachments = false,
 }: UseComposerOptions) {
   const [draftKey] = draftKeys
   const value = useMothershipDraftsStore((state) => readDraft(state.drafts, draftKeys)?.text ?? '')
@@ -145,7 +142,7 @@ export function useComposer({
     editor,
     attachedFiles: files.attachedFiles,
     restoreAttachedFiles: files.restoreAttachedFiles,
-    getMessages: () => messages ?? [],
+    getMessages: () => messages,
   })
   const { textareaRef, setValue, setContexts, getValue, getPlainValue, restorePrompt } = editor
   /**
@@ -168,7 +165,6 @@ export function useComposer({
     store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
   }, [editor.value, editor.contexts, draftKeys, draftKey, getValue, getPlainValue])
   useEffect(() => {
-    if (!restoredContexts) return
     history.reset()
     const { hasUnavailableContexts } = restorePrompt(getPlainValue(), restoredContexts)
     if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
@@ -179,22 +175,17 @@ export function useComposer({
     getValue: getPlainValue,
     onChange: (text) => setValue(text),
   })
+  const hasPayload = (text: string, attached: typeof files.attachedFiles) =>
+    text.trim().length > 0 || attached.some((file) => file.key) || hasAdditionalAttachments
   const canSubmit =
-    !files.attachedFiles.some((file) => file.uploading) &&
-    (value.trim().length > 0 ||
-      files.attachedFiles.some((file) => file.key) ||
-      hasAdditionalAttachments)
+    !files.attachedFiles.some((file) => file.uploading) && hasPayload(value, files.attachedFiles)
 
   const { pending: preparingSubmission, accept: acceptSubmission } = submission
   const send = () => {
     const filesAtSend = files.getAttachedFiles()
     if (filesAtSend.some((file) => file.uploading)) return
-    const hasPayload =
-      getValue().trim().length > 0 ||
-      filesAtSend.some((file) => file.key) ||
-      hasAdditionalAttachments
-    if (!hasPayload) {
-      if (isSending) onSendQueuedHead?.()
+    if (!hasPayload(getValue(), filesAtSend)) {
+      if (isSending) onSendQueuedHead()
       return
     }
     const contexts = imagesOnly
@@ -278,20 +269,14 @@ export function useComposer({
   }
   const recallQueuedTail = () => {
     if (hasAdditionalAttachments || files.getAttachedFiles().length > 0) return false
-    return onEditQueuedTail?.() ?? false
+    return onEditQueuedTail()
   }
 
   return {
     editor,
     voice,
-    files,
     imagesOnly,
-    requestMode,
-    onPlanChange,
     value,
-    isInitialView,
-    isSending,
-    onStop,
     canSend: canSubmit && !heldSend,
     submit,
     openResourceMenu,
@@ -310,5 +295,3 @@ export function useComposer({
     },
   }
 }
-
-export type ComposerState = ReturnType<typeof useComposer>

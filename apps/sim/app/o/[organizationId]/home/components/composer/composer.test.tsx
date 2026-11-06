@@ -21,6 +21,7 @@ import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
 } from '@/stores/mothership-effort/store'
+import type { ChatContext } from '@/stores/panel'
 
 const mocks = vi.hoisted(() => ({
   workspacesLoading: false,
@@ -101,6 +102,8 @@ import { PageComposer as Composer } from '@/platform/app/(shell)/_components/con
 
 const DRAFT_KEY = 'composer-test-draft'
 const DRAFT_KEYS = [DRAFT_KEY]
+/** One identity, since a new list is how a host restores a prompt. */
+const NO_RESTORED_CONTEXTS: ChatContext[] = []
 const writeDraft = (text: string) =>
   useMothershipDraftsStore.getState().setDraft(DRAFT_KEY, { text })
 
@@ -211,10 +214,10 @@ async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
   requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
-  controls: Pick<
-    ComponentProps<typeof Composer>,
-    'isSending' | 'restoredContexts' | 'onSendQueuedHead'
-  > = { isSending: false }
+  controls: Pick<ComponentProps<typeof Composer>, 'isSending'> &
+    Partial<Pick<ComponentProps<typeof Composer>, 'restoredContexts' | 'onSendQueuedHead'>> = {
+    isSending: false,
+  }
 ) {
   writeDraft(initialValue)
   function Harness() {
@@ -229,13 +232,15 @@ async function render(
       <Composer
         requestMode={requestMode}
         submission={submission}
-        restoredContexts={controls.restoredContexts}
+        restoredContexts={controls.restoredContexts ?? NO_RESTORED_CONTEXTS}
         draftKeys={DRAFT_KEYS}
         files={files}
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
-        onSendQueuedHead={controls.onSendQueuedHead}
+        onSendQueuedHead={controls.onSendQueuedHead ?? vi.fn()}
+        onEditQueuedTail={() => false}
+        messages={[]}
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
           mocks.contexts(contexts)
@@ -293,7 +298,7 @@ it.each([false, true])(
     writeDraft('Original draft')
     function Harness() {
       const [contexts, setContexts] =
-        useState<ComponentProps<typeof Composer>['restoredContexts']>()
+        useState<ComponentProps<typeof Composer>['restoredContexts']>(NO_RESTORED_CONTEXTS)
       restore = () => {
         writeDraft('/review fix this @Browser')
         setContexts([
@@ -327,6 +332,9 @@ it.each([false, true])(
           isInitialView={false}
           isSending={false}
           onStop={() => {}}
+          onSendQueuedHead={() => {}}
+          onEditQueuedTail={() => false}
+          messages={[]}
           onSubmit={mocks.submit}
         />
       )

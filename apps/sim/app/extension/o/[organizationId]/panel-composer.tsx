@@ -40,12 +40,13 @@ export function PanelComposer({
   modelSelectorOptions,
   ...props
 }: PanelComposerProps) {
+  const { files, requestMode, onPlanChange, isSending, onStop } = props
   const composer = useComposer({
     ...props,
     waitsForFullLists: false,
     hasAdditionalAttachments: Boolean(attachments),
   })
-  const { editor, voice, files, imagesOnly, requestMode, onPlanChange } = composer
+  const { editor, voice, imagesOnly } = composer
   const attachLabel = imagesOnly ? 'Attach image' : 'Attach file'
   return (
     <div
@@ -69,7 +70,7 @@ export function PanelComposer({
       <InputToolbar
         plan={requestMode === 'plan'}
         showModelSelector={!imagesOnly}
-        modelSelectorOptions={imagesOnly ? undefined : modelSelectorOptions}
+        modelSelectorOptions={modelSelectorOptions}
         leadingControls={
           <>
             {imagesOnly && resourceActions && (
@@ -87,17 +88,7 @@ export function PanelComposer({
                 onClick={composer.openResourceMenu}
               />
             )}
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Chip
-                  shape='round'
-                  leftIcon={Paperclip}
-                  onClick={files.handleFileSelect}
-                  aria-label={attachLabel}
-                />
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>{attachLabel}</Tooltip.Content>
-            </Tooltip.Root>
+            <ContextPicker icon={Paperclip} label={attachLabel} onClick={files.handleFileSelect} />
             {!imagesOnly && (
               <ContextPicker
                 icon={Slash}
@@ -128,10 +119,10 @@ export function PanelComposer({
           )
         }
         submitControl={
-          composer.isSending ? (
+          isSending ? (
             <ComposerActionButton
               type='button'
-              onClick={composer.onStop}
+              onClick={onStop}
               aria-label='Stop generation'
               active
             >

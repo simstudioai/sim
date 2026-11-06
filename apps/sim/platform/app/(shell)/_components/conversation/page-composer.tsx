@@ -45,12 +45,9 @@ function ControlIsland({ children }: { children: ReactNode }) {
  * behind it, and each group of design-system controls sits in a surface of its own beside them.
  */
 export function PageComposer(props: ConversationComposerProps) {
-  const composer = useComposer({
-    ...props,
-    waitsForFullLists: true,
-    hasAdditionalAttachments: false,
-  })
-  const { editor, voice, files, imagesOnly, requestMode, onPlanChange, isInitialView } = composer
+  const { files, requestMode, onPlanChange, isInitialView, isSending, onStop } = props
+  const composer = useComposer({ ...props, waitsForFullLists: true })
+  const { editor, voice, imagesOnly } = composer
   const animatedPlaceholder = useAnimatedPlaceholder(
     !imagesOnly && isInitialView && !composer.value
   )
@@ -92,8 +89,8 @@ export function PageComposer(props: ConversationComposerProps) {
   )
   const submitControl = (
     <ControlIsland>
-      {composer.isSending ? (
-        <IconButton label='Stop generation' icon='I035' variant='solid' onClick={composer.onStop} />
+      {isSending ? (
+        <IconButton label='Stop generation' icon='I035' variant='solid' onClick={onStop} />
       ) : (
         <IconButton
           label='Send'

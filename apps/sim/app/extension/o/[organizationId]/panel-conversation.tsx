@@ -37,12 +37,12 @@ export function PanelConversation(props: PanelConversationProps) {
   const gate = useConversationGate(props)
   if (gate.status === 'denied') return null
   if (gate.status !== 'ready') return <HomeFallback />
-  return <PanelConversationContent key={`${gate.instanceKey}:panel`} {...props} />
+  return <PanelConversationContent key={gate.instanceKey} {...props} />
 }
 
 function PanelConversationContent({
   chatId,
-  requestMode: destinationMode,
+  requestMode,
   header,
   attachments,
   resourceActions,
@@ -66,7 +66,7 @@ function PanelConversationContent({
         onSubmitted,
       },
       chatId,
-      requestMode: destinationMode,
+      requestMode,
     })
   const composer = (
     <PanelComposer
@@ -77,6 +77,7 @@ function PanelConversationContent({
       modelSelectorOptions={modelSelectorOptions}
     />
   )
+  const closeSources = () => controller.activeResourceState[1](null)
   const sourceResource = chat.resources.find(
     (resource) => resource.type === 'sources' && resource.id === controller.activeResourceParam
   )
@@ -110,14 +111,12 @@ function PanelConversationContent({
       <ChipModal
         open={Boolean(sourceResource)}
         onOpenChange={(open) => {
-          if (!open) controller.activeResourceState[1](null)
+          if (!open) closeSources()
         }}
         srTitle='Cited sources'
         size='sm'
       >
-        <ChipModalHeader onClose={() => controller.activeResourceState[1](null)}>
-          Cited sources
-        </ChipModalHeader>
+        <ChipModalHeader onClose={closeSources}>Cited sources</ChipModalHeader>
         {sourceResource && (
           <div className='h-[60dvh] min-h-0'>
             <SourcesResourceContent chatId={chat.resolvedChatId} resource={sourceResource} />
