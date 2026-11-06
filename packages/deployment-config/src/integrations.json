@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-05",
+  "updatedAt": "2026-11-06",
   "integrations": [
     {
       "type": "onepassword",
@@ -9947,6 +9947,134 @@
       "integrationType": "marketing",
       "tags": ["document-processing", "content-management"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "gauge",
+      "slug": "gauge",
+      "name": "Gauge",
+      "description": "Track AI visibility and manage Gauge prompts",
+      "longDescription": "Manage organizations, categories, topics, tracked prompts, and tags; inspect brands, AI answers, citations, and search queries; and run visibility, share-of-voice, and AI-traffic reports with the Gauge Chat API.",
+      "bgColor": "#E8FF3F",
+      "iconName": "GaugeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/gauge",
+      "operations": [
+        {
+          "name": "Get Current Credential",
+          "description": "Read the identity, permissions, and expiry of the connected Gauge API key."
+        },
+        {
+          "name": "List Organizations",
+          "description": "List organizations and agency clients accessible to the connected API key."
+        },
+        {
+          "name": "Get Organization",
+          "description": "Read an organization and its enabled Gauge products."
+        },
+        {
+          "name": "List Categories",
+          "description": "List the AI-search categories configured for an organization."
+        },
+        {
+          "name": "Get Category",
+          "description": "Read the details of an AI-search category."
+        },
+        {
+          "name": "List Topics",
+          "description": "List one page of tracked-prompt topics in a category."
+        },
+        {
+          "name": "Create Topic",
+          "description": "Create a topic to organize tracked prompts."
+        },
+        {
+          "name": "Get Topic",
+          "description": "Read a topic and its tracked-prompt count."
+        },
+        {
+          "name": "Rename Topic",
+          "description": "Change the title of an existing topic."
+        },
+        {
+          "name": "List Prompts",
+          "description": "List one page of tracked prompts with optional topic, tag, and tracking-type filters."
+        },
+        {
+          "name": "Create Prompts",
+          "description": "Add a batch of tracked questions or preview the import without creating prompts."
+        },
+        {
+          "name": "Bulk Update Prompts",
+          "description": "Change the topic or tracking type of up to 500 tracked prompts."
+        },
+        {
+          "name": "Add Tags to Prompts",
+          "description": "Apply a set of tags to the selected tracked prompts."
+        },
+        {
+          "name": "Remove Tags from Prompts",
+          "description": "Remove a set of tags from the selected tracked prompts."
+        },
+        {
+          "name": "Get Prompt",
+          "description": "Read a tracked question and its topic, tags, and sampling information."
+        },
+        {
+          "name": "Update Prompt",
+          "description": "Move a prompt to another topic or change its tracking type. Prompt text is immutable: create a new prompt instead."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags available to organize prompts in an organization."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create an organization-wide prompt tag."
+        },
+        {
+          "name": "Get Tag",
+          "description": "Read a prompt tag and its usage count."
+        },
+        {
+          "name": "Update Tag",
+          "description": "Change the name or color of a prompt tag."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Delete a prompt tag and remove its associations with prompts."
+        },
+        {
+          "name": "List Brands",
+          "description": "Your owned brands and the category's tracked competitors. Together these are the share-of-voice denominator."
+        },
+        {
+          "name": "Get Query Catalog",
+          "description": "Discover available report datasets, metrics, dimensions, filters, and values."
+        },
+        {
+          "name": "Run Report Query",
+          "description": "Run a report on AI answers, citations, search queries, or AI bot traffic using metrics from the query catalog."
+        },
+        {
+          "name": "List Answers",
+          "description": "List one page of collected AI answers using date, model, prompt, and brand filters."
+        },
+        {
+          "name": "Get Answer",
+          "description": "Read an AI answer with its prompt, brand mentions, source citations, and searches."
+        },
+        {
+          "name": "List Citations",
+          "description": "List one page of sources cited by AI answers in a category."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "seo", "data-analytics", "automation"],
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "github_v2",

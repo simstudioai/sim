@@ -158,6 +158,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/flint.mdx',
   'integrations/flow.mdx',
   'integrations/gamma.mdx',
+  'integrations/gauge.mdx',
   'integrations/github.mdx',
   'integrations/gitlab.mdx',
   'integrations/gmail.mdx',
