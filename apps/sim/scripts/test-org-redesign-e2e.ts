@@ -1607,8 +1607,13 @@ async function chatChecks() {
       })
     }
   )
-  await check('a message during a turn queues; up arrow recalls the tail', async () => {
+  await check('a message during a turn steers it, without a second turn', async () => {
     await withSession(MEMBER, async ({ page }) => {
+      const turns: string[] = []
+      page.on('request', (request) => {
+        if (request.method() === 'POST' && request.url().endsWith('/api/mothership/chat'))
+          turns.push(request.postDataJSON().message)
+      })
       await page.goto(orgUrl('/search?mode=assistant'))
       await composer(page).fill('Count slowly from 1 to 50, one number per line.')
       await composer(page).press('Enter')
@@ -1616,14 +1621,52 @@ async function chatChecks() {
         timeout: 30_000,
       })
       await composer(page).fill('And then say done.')
+      const steered = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          response.url().endsWith('/api/copilot/chat/steer')
+      )
       await composer(page).press('Enter')
-      await expect(page.getByText('And then say done.')).toBeVisible()
+      const steer = await steered
+      assert.equal(steer.status(), 200)
+      assert.equal(steer.request().postDataJSON().content, 'And then say done.')
       await expect(composer(page)).toHaveValue('')
-      await composer(page).press('ArrowUp')
-      await expect(composer(page)).toHaveValue('And then say done.')
+      await expect(page.getByText('And then say done.', { exact: true })).toBeVisible()
+      await expect(page.getByText('Applied: And then say done.')).toBeVisible({ timeout: 30_000 })
       await page.getByRole('button', { name: 'Stop generation' }).click()
+      await expect(page.getByText('And then say done.', { exact: true })).toHaveCount(1)
+      assert.deepEqual(turns, ['Count slowly from 1 to 50, one number per line.'])
     })
   })
+  await check(
+    'a message the turn ends without applying goes out as the next turn',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        const turns: string[] = []
+        page.on('request', (request) => {
+          if (request.method() === 'POST' && request.url().endsWith('/api/mothership/chat'))
+            turns.push(request.postDataJSON().message)
+        })
+        await page.goto(orgUrl('/search?mode=assistant'))
+        await composer(page).fill('Count slowly to 3 and ignore steering.')
+        await composer(page).press('Enter')
+        await expect(page.getByRole('button', { name: 'Stop generation' })).toBeVisible({
+          timeout: 30_000,
+        })
+        await composer(page).fill('Then say done.')
+        await composer(page).press('Enter')
+        await expect(page.getByText('Then say done.', { exact: true })).toBeVisible()
+        await expect(page.getByText('Hello from the scripted agent.')).toBeVisible({
+          timeout: 30_000,
+        })
+        await expect(page.getByText('Then say done.', { exact: true })).toHaveCount(1)
+        assert.deepEqual(turns, ['Count slowly to 3 and ignore steering.', 'Then say done.'])
+      })
+    },
+    /* The turn's end can reach the page before the chat's lock is released: the send is then
+       refused once and retried, which the client handles without showing anything. */
+    { allow: [/409 POST \/api\/(mothership\/chat|copilot\/chat\/steer)/] }
+  )
   notProvable('Assistant action approval review cards', 'Covered by the assistant-actions suite')
   notProvable(
     'Citations, Sources panel, feedback',

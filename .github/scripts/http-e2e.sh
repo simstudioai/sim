@@ -377,7 +377,7 @@ case "$group" in
     export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
     bun --no-env-file scripts/org-redesign-seed.ts
     start_browser_install org-redesign --only-shell chromium
-    bun --no-env-file scripts/org-redesign-e2e/scripted-agent.ts 3031 \
+    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3031 \
       > "$report_dir/org-redesign-agent.log" 2>&1 &
     agent_pid=$!
     wait_ready "$agent_pid" http://127.0.0.1:3031/health 'scripted agent'
