@@ -87,7 +87,8 @@ async function resolveZoomChallengeSecrets(
         const secretToken = typeof config.secretToken === 'string' ? config.secretToken : ''
         return { secretToken }
       } catch (error) {
-        logger.warn(`[${requestId}] Failed to resolve Zoom webhook secret for challenge`, {
+        logger.warn('Failed to resolve Zoom webhook secret for challenge', {
+          requestId,
           error: toError(error).message,
           path,
         })
@@ -111,9 +112,9 @@ export const zoomHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secretToken = providerConfig.secretToken as string | undefined
     if (!secretToken) {
-      logger.warn(
-        `[${requestId}] Zoom webhook missing secretToken in providerConfig — rejecting request`
-      )
+      logger.warn('Zoom webhook missing secretToken in providerConfig — rejecting request', {
+        requestId,
+      })
       return new NextResponse('Unauthorized - Zoom secret token not configured', { status: 401 })
     }
 
@@ -121,12 +122,12 @@ export const zoomHandler: WebhookProviderHandler = {
     const timestamp = request.headers.get('x-zm-request-timestamp')
 
     if (!signature || !timestamp) {
-      logger.warn(`[${requestId}] Zoom webhook missing signature or timestamp header`)
+      logger.warn('Zoom webhook missing signature or timestamp header', { requestId })
       return new NextResponse('Unauthorized - Missing Zoom signature', { status: 401 })
     }
 
     if (!validateZoomSignature(secretToken, signature, timestamp, rawBody)) {
-      logger.warn(`[${requestId}] Zoom webhook signature verification failed`)
+      logger.warn('Zoom webhook signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Zoom signature', { status: 401 })
     }
 
@@ -146,13 +147,8 @@ export const zoomHandler: WebhookProviderHandler = {
       const { isZoomEventMatch } = await import('@/triggers/zoom/utils')
       if (!isZoomEventMatch(triggerId, event)) {
         logger.debug(
-          `[${requestId}] Zoom event mismatch for trigger ${triggerId}. Event: ${event}. Skipping execution.`,
-          {
-            webhookId: wh.id,
-            workflowId: workflow.id,
-            triggerId,
-            receivedEvent: event,
-          }
+          `Zoom event mismatch for trigger ${triggerId}. Event: ${event}. Skipping execution.`,
+          { requestId, webhookId: wh.id, workflowId: workflow.id, triggerId, receivedEvent: event }
         )
         return false
       }
@@ -184,12 +180,12 @@ export const zoomHandler: WebhookProviderHandler = {
       return null
     }
 
-    logger.info(`[${requestId}] Zoom URL validation request received for path: ${path}`)
+    logger.info(`Zoom URL validation request received for path: ${path}`, { requestId })
 
     const signature = request.headers.get('x-zm-signature')
     const timestamp = request.headers.get('x-zm-request-timestamp')
     if (!signature || !timestamp) {
-      logger.warn(`[${requestId}] Zoom challenge request missing signature headers — rejecting`)
+      logger.warn('Zoom challenge request missing signature headers — rejecting', { requestId })
       return null
     }
 
@@ -200,7 +196,7 @@ export const zoomHandler: WebhookProviderHandler = {
     try {
       rows = await resolveZoomChallengeSecrets(path, requestId)
     } catch (err) {
-      logger.warn(`[${requestId}] Failed to look up webhook secret for Zoom validation`, err)
+      logger.warn('Failed to look up webhook secret for Zoom validation', err, { requestId })
       return null
     }
 
@@ -220,7 +216,8 @@ export const zoomHandler: WebhookProviderHandler = {
     }
 
     logger.warn(
-      `[${requestId}] Zoom challenge: no matching secret for path ${path} (${rows.length} webhook row(s))`
+      `Zoom challenge: no matching secret for path ${path} (${rows.length} webhook row(s))`,
+      { requestId }
     )
     return null
   },

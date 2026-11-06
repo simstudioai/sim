@@ -119,7 +119,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] First poll for webhook ${webhookId}, seeded timestamp`)
+        logger.info(`First poll for webhook ${webhookId}, seeded timestamp`, { requestId })
         return 'success'
       }
 
@@ -128,11 +128,11 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 
       if (!events.length) {
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No changed events for webhook ${webhookId}`)
+        logger.info(`No changed events for webhook ${webhookId}`, { requestId })
         return 'success'
       }
 
-      logger.info(`[${requestId}] Found ${events.length} changed events for webhook ${webhookId}`)
+      logger.info(`Found ${events.length} changed events for webhook ${webhookId}`, { requestId })
 
       const { processedCount, failedCount, latestUpdated } = await processEvents(
         events,
@@ -162,22 +162,23 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} events failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} events failed to process for webhook ${webhookId}`, {
+          requestId,
+        })
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} events for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} events for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`,
+        { requestId }
       )
       return 'success'
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
         return skipAdmissionRefusedPoll(logger, requestId, webhookId)
       }
-      logger.error(`[${requestId}] Error processing Google Calendar webhook ${webhookId}:`, error)
+      logger.error(`Error processing Google Calendar webhook ${webhookId}:`, error, { requestId })
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -338,9 +339,10 @@ async function processEvents(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for event ${event.id}:`,
+              `Failed to process webhook for event ${event.id}:`,
               result.statusCode,
-              result.error
+              result.error,
+              { requestId }
             )
             throw new Error(`Webhook processing failed (${result.statusCode}): ${result.error}`)
           }
@@ -349,14 +351,14 @@ async function processEvents(
         }
       )
 
-      logger.info(
-        `[${requestId}] Successfully processed event ${event.id} for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully processed event ${event.id} for webhook ${webhookData.id}`, {
+        requestId,
+      })
       processedCount++
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Error processing event ${event.id}:`, errorMessage)
+      logger.error(`Error processing event ${event.id}:`, errorMessage, { requestId })
       failedCount++
     }
   }

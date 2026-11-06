@@ -156,7 +156,7 @@ const defaultHandler: WebhookProviderHandler = {
     const token = providerConfig.token
     if (typeof token === 'string') {
       if (!verifyTokenAuth(request, token)) {
-        logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
+        logger.warn('Unauthorized webhook access attempt - invalid token', { requestId })
         return new NextResponse('Unauthorized', { status: 401 })
       }
     }

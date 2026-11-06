@@ -35,12 +35,12 @@ async function fetchAndAuthorize(
     .limit(1)
 
   if (!schedule) {
-    logger.warn(`[${requestId}] Schedule not found: ${scheduleId}`)
+    logger.warn(`Schedule not found: ${scheduleId}`, { requestId })
     return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
   }
 
   if (!schedule.workflowId) {
-    logger.warn(`[${requestId}] Schedule has no workflow: ${scheduleId}`)
+    logger.warn(`Schedule has no workflow: ${scheduleId}`, { requestId })
     return NextResponse.json({ error: 'Schedule has no associated workflow' }, { status: 400 })
   }
 
@@ -51,12 +51,12 @@ async function fetchAndAuthorize(
   })
 
   if (!authorization.workflow) {
-    logger.warn(`[${requestId}] Workflow not found for schedule: ${scheduleId}`)
+    logger.warn(`Workflow not found for schedule: ${scheduleId}`, { requestId })
     return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
   }
 
   if (!authorization.allowed) {
-    logger.warn(`[${requestId}] User not authorized to modify schedule: ${scheduleId}`)
+    logger.warn(`User not authorized to modify schedule: ${scheduleId}`, { requestId })
     return NextResponse.json(
       { error: authorization.message || 'Not authorized to modify this schedule' },
       { status: authorization.status }
@@ -91,7 +91,7 @@ export const GET = withRouteHandler(
 
       return NextResponse.json({ schedule: authResult.schedule })
     } catch (error) {
-      logger.error(`[${requestId}] Failed to get schedule`, { error })
+      logger.error('Failed to get schedule', { error })
       return NextResponse.json({ error: 'Failed to get schedule' }, { status: 500 })
     }
   }
@@ -104,7 +104,7 @@ export const PUT = withRouteHandler(
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized schedule update attempt`)
+        logger.warn('Unauthorized schedule update attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -136,7 +136,7 @@ export const PUT = withRouteHandler(
           .set({ status: 'disabled', nextRunAt: null, lastQueuedAt: null, updatedAt: new Date() })
           .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
-        logger.info(`[${requestId}] Disabled schedule: ${scheduleId}`)
+        logger.info(`Disabled schedule: ${scheduleId}`)
 
         recordAudit({
           workspaceId,
@@ -165,13 +165,13 @@ export const PUT = withRouteHandler(
       }
 
       if (!schedule.cronExpression) {
-        logger.error(`[${requestId}] Schedule has no cron expression: ${scheduleId}`)
+        logger.error(`Schedule has no cron expression: ${scheduleId}`)
         return NextResponse.json({ error: 'Schedule has no cron expression' }, { status: 400 })
       }
 
       const cronResult = validateCronExpression(schedule.cronExpression, schedule.timezone || 'UTC')
       if (!cronResult.isValid || !cronResult.nextRun) {
-        logger.error(`[${requestId}] Invalid cron expression for schedule: ${scheduleId}`)
+        logger.error(`Invalid cron expression for schedule: ${scheduleId}`)
         return NextResponse.json({ error: 'Schedule has invalid cron expression' }, { status: 400 })
       }
 
@@ -183,7 +183,7 @@ export const PUT = withRouteHandler(
         .set({ status: 'active', failedCount: 0, infraRetryCount: 0, updatedAt: now, nextRunAt })
         .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
 
-      logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
+      logger.info(`Reactivated schedule: ${scheduleId}`)
 
       recordAudit({
         workspaceId,
@@ -210,7 +210,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
-      logger.error(`[${requestId}] Error updating schedule`, error)
+      logger.error('Error updating schedule', error)
       return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
     }
   }
@@ -225,7 +225,7 @@ export const DELETE = withRouteHandler(
 
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized schedule delete attempt`)
+        logger.warn('Unauthorized schedule delete attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -235,7 +235,7 @@ export const DELETE = withRouteHandler(
 
       await db.delete(workflowSchedule).where(eq(workflowSchedule.id, scheduleId))
 
-      logger.info(`[${requestId}] Deleted schedule: ${scheduleId}`)
+      logger.info(`Deleted schedule: ${scheduleId}`)
 
       recordAudit({
         workspaceId,
@@ -257,7 +257,7 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ message: 'Schedule deleted successfully' })
     } catch (error) {
-      logger.error(`[${requestId}] Error deleting schedule`, error)
+      logger.error('Error deleting schedule', error)
       return NextResponse.json({ error: 'Failed to delete schedule' }, { status: 500 })
     }
   }

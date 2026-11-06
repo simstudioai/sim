@@ -220,7 +220,8 @@ export async function executeWorkflowJob(
     }
 
     return await runWithRequestContext({ requestId, ...payload.attribution }, async () => {
-      logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
+      logger.info(`Starting workflow execution job: ${workflowId}`, {
+        requestId,
         userId: payload.userId,
         triggerType: payload.triggerType,
         executionId,
@@ -252,7 +253,8 @@ export async function executeWorkflowJob(
         })
 
         if (!preprocessResult.success) {
-          logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`, {
+          logger.error(`Preprocessing failed: ${preprocessResult.error?.message}`, {
+            requestId,
             workflowId,
             statusCode: preprocessResult.error?.statusCode,
           })
@@ -267,7 +269,7 @@ export async function executeWorkflowJob(
           throw new Error(`Workflow ${workflowId} has no associated workspace`)
         }
 
-        logger.info(`[${requestId}] Preprocessing passed. Using actor: ${actorUserId}`)
+        logger.info(`Preprocessing passed. Using actor: ${actorUserId}`, { requestId })
 
         const workflow = preprocessResult.workflowRecord!
 
@@ -319,7 +321,8 @@ export async function executeWorkflowJob(
           timeoutController.timeoutMs
         ) {
           const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
-          logger.info(`[${requestId}] Workflow execution timed out`, {
+          logger.info('Workflow execution timed out', {
+            requestId,
             timeoutMs: timeoutController.timeoutMs,
           })
           await loggingSession.markAsFailed(timeoutErrorMessage)
@@ -332,7 +335,8 @@ export async function executeWorkflowJob(
 
         if (timeoutError) throw timeoutError
 
-        logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
+        logger.info(`Workflow execution completed: ${workflowId}`, {
+          requestId,
           success: result.success,
           executionTime: result.metadata?.duration,
           executionId,
@@ -347,13 +351,18 @@ export async function executeWorkflowJob(
           metadata: payload.metadata,
         }
       } catch (error: unknown) {
-        logFailureOnce(logger, `[${requestId}] Workflow execution failed: ${workflowId}`, error, {
-          metadata: () => loggingSession.projectDiagnosticError(error),
+        logFailureOnce(logger, 'Workflow execution failed', error, {
+          metadata: () => ({
+            requestId,
+            workflowId,
+            ...loggingSession.projectDiagnosticError(error),
+          }),
           executionId,
         })
 
         const completeWithDeletedScope = (scope: ExecutionScope) => {
-          logger.info(`[${requestId}] Workflow execution ended: its ${scope} was deleted`, {
+          logger.info(`Workflow execution ended: its ${scope} was deleted`, {
+            requestId,
             workflowId,
             executionId,
           })

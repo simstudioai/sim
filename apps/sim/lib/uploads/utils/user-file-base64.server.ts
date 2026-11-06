@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
@@ -214,10 +215,11 @@ function logSkippedCacheWrite(
   file: UserFile,
   error: ExecutionResourceLimitError
 ): void {
-  logger.warn(
-    `[${requestId ?? 'unknown'}] Skipping base64 cache write for ${file.name}: ${error.message}`,
-    { resource: error.resource, attemptedBytes: error.attemptedBytes }
-  )
+  logger.warn(`Skipping base64 cache write for ${file.name}: ${error.message}`, {
+    requestId,
+    resource: error.resource,
+    attemptedBytes: error.attemptedBytes,
+  })
 }
 
 function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Base64Cache {
@@ -225,9 +227,9 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
   const { executionId } = options
 
   if (!redis) {
-    logger.warn(
-      `[${options.requestId}] Redis unavailable for base64 cache, using in-memory fallback`
-    )
+    logger.warn('Redis unavailable for base64 cache, using in-memory fallback', {
+      requestId: options.requestId,
+    })
     return new InMemoryBase64Cache()
   }
 
@@ -237,7 +239,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
         const key = getFullCacheKey(executionId, file)
         return await redis.get(key)
       } catch (error) {
-        logger.warn(`[${options.requestId}] Redis get failed, skipping cache`, error)
+        logger.warn('Redis get failed, skipping cache', error, { requestId: options.requestId })
         return null
       }
     },
@@ -302,7 +304,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           )
         }
       } catch (error) {
-        logger.warn(`[${options.requestId}] Redis set failed, skipping cache`, error)
+        logger.warn('Redis set failed, skipping cache', error, { requestId: options.requestId })
       }
     },
   }
@@ -410,7 +412,8 @@ async function resolveBase64(
     const base64Bytes = Buffer.byteLength(file.base64, 'base64')
     if (base64Bytes > maxBytes) {
       logger.warn(
-        `[${options.requestId}] Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`
+        `Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`,
+        { requestId: options.requestId }
       )
       return { base64: null }
     }
@@ -425,9 +428,9 @@ async function resolveBase64(
     Number.isFinite(file.size) &&
     file.size > maxBytes
   ) {
-    logger.warn(
-      `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
-    )
+    logger.warn(`Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`, {
+      requestId: options.requestId,
+    })
     return { base64: null }
   }
 
@@ -436,11 +439,13 @@ async function resolveBase64(
     !allowUnknownSize &&
     !hasStableStorageKey
   ) {
-    logger.warn(`[${options.requestId}] Skipping base64 for ${file.name} (unknown file size)`)
+    logger.warn(`Skipping base64 for ${file.name} (unknown file size)`, {
+      requestId: options.requestId,
+    })
     return { base64: null }
   }
 
-  const requestId = options.requestId ?? 'unknown'
+  const requestId = options.requestId ?? generateRequestId()
   try {
     const result = await readUserFileContentWithContributors(file, {
       requestId,
@@ -463,7 +468,7 @@ async function resolveBase64(
     if (error instanceof Error && error.name === 'DocCompileUserError') {
       throw error
     }
-    logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
+    logger.warn(`Failed to hydrate base64 for ${file.name}`, error, { requestId })
     return { base64: null }
   }
 }
@@ -489,7 +494,7 @@ async function hydrateUserFile(
         logger,
       })
     } catch (error) {
-      logger.warn(`[${options.requestId ?? 'unknown'}] Skipping unauthorized file base64`, error)
+      logger.warn('Skipping unauthorized file base64', error, { requestId: options.requestId })
       return stripBase64(file)
     }
   }

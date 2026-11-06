@@ -92,7 +92,8 @@ async function resolveMediaKind(args: {
     }
   } catch (error) {
     context.signal?.throwIfAborted()
-    logger.warn(`[${context.requestId}] Media content-type probe was inconclusive`, {
+    logger.warn('Media content-type probe was inconclusive', {
+      requestId: context.requestId,
       error: getErrorMessage(error, 'probe failed'),
     })
   }
@@ -171,7 +172,7 @@ async function executePostMutation(args: {
   } catch (error) {
     context.signal?.throwIfAborted()
     const message = getErrorMessage(error, 'Buffer API request failed')
-    logger.error(`[${context.requestId}] Buffer post mutation failed`, { error: message })
+    logger.error('Buffer post mutation failed', { requestId: context.requestId, error: message })
     throw new BufferOperationError(message, 502)
   }
 

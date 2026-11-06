@@ -1136,7 +1136,8 @@ describe('isolated-vm scheduler', () => {
 
     expect(JSON.parse(String(result.result)).error).toContain(secret)
     expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(secret)
-    expect(mockLogger.warn).toHaveBeenCalledWith('[req-fetch-secret] Isolated fetch failed', {
+    expect(mockLogger.warn).toHaveBeenCalledWith('Isolated fetch failed', {
+      requestId: 'req-fetch-secret',
       errorName: 'Error',
     })
   })

@@ -73,14 +73,18 @@ export const mondayHandler: WebhookProviderHandler = {
     const boardId = config.boardId as string | undefined
 
     if (!triggerId) {
-      logger.warn(`[${ctx.requestId}] Missing triggerId for Monday webhook ${ctx.webhook.id}`)
+      logger.warn(`Missing triggerId for Monday webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       throw new WebhookDeploymentConfigurationError(
         'Trigger type is required for Monday.com webhook creation.'
       )
     }
 
     if (!boardId) {
-      logger.warn(`[${ctx.requestId}] Missing boardId for Monday webhook ${ctx.webhook.id}`)
+      logger.warn(`Missing boardId for Monday webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       throw new WebhookDeploymentConfigurationError(
         'Board ID is required. Please provide a valid Monday.com board ID in the trigger configuration.'
       )
@@ -94,7 +98,7 @@ export const mondayHandler: WebhookProviderHandler = {
     const { MONDAY_EVENT_TYPE_MAP } = await import('@/triggers/monday/utils')
     const eventType = MONDAY_EVENT_TYPE_MAP[triggerId]
     if (!eventType) {
-      logger.warn(`[${ctx.requestId}] Unknown Monday trigger ID: ${triggerId}`)
+      logger.warn(`Unknown Monday trigger ID: ${triggerId}`, { requestId: ctx.requestId })
       throw new Error(`Unknown Monday.com trigger type: ${triggerId}`)
     }
 
@@ -121,7 +125,8 @@ export const mondayHandler: WebhookProviderHandler = {
 
       if (errors && errors.length > 0) {
         const errorMsg = errors.map((e) => e.message).join(', ')
-        logger.error(`[${ctx.requestId}] Failed to create Monday webhook`, {
+        logger.error('Failed to create Monday webhook', {
+          requestId: ctx.requestId,
           errors: errorMsg,
           webhookId: ctx.webhook.id,
         })
@@ -142,7 +147,8 @@ export const mondayHandler: WebhookProviderHandler = {
       const externalId = String(result.id)
 
       logger.info(
-        `[${ctx.requestId}] Created Monday webhook ${externalId} for webhook ${ctx.webhook.id} (event: ${eventType}, board: ${boardId})`
+        `Created Monday webhook ${externalId} for webhook ${ctx.webhook.id} (event: ${eventType}, board: ${boardId})`,
+        { requestId: ctx.requestId }
       )
 
       return {
@@ -154,7 +160,8 @@ export const mondayHandler: WebhookProviderHandler = {
       if (error instanceof Error && error.message !== 'fetch failed') {
         throw error
       }
-      logger.error(`[${ctx.requestId}] Error creating Monday webhook`, {
+      logger.error('Error creating Monday webhook', {
+        requestId: ctx.requestId,
         error: toError(error).message,
       })
       throw new Error(
@@ -178,9 +185,9 @@ export const mondayHandler: WebhookProviderHandler = {
 
     const externalIdValidation = validateMondayNumericId(externalId, 'webhookId')
     if (!externalIdValidation.isValid) {
-      logger.warn(
-        `[${ctx.requestId}] Invalid externalId format for Monday webhook deletion: ${externalId}`
-      )
+      logger.warn(`Invalid externalId format for Monday webhook deletion: ${externalId}`, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw new Error('Invalid Monday externalId for webhook deletion')
       return
     }
@@ -192,16 +199,17 @@ export const mondayHandler: WebhookProviderHandler = {
         accessToken = await getCredentialAccessToken(credentialId, ctx.requestId)
       }
     } catch (error) {
-      logger.warn(
-        `[${ctx.requestId}] Could not resolve credentials for Monday webhook deletion (non-fatal)`,
-        { error: toError(error).message }
-      )
+      logger.warn('Could not resolve credentials for Monday webhook deletion (non-fatal)', {
+        requestId: ctx.requestId,
+        error: toError(error).message,
+      })
       if (ctx.strict) throw error
     }
 
     if (!accessToken) {
       logger.warn(
-        `[${ctx.requestId}] No access token available for Monday webhook deletion ${externalId} (non-fatal)`
+        `No access token available for Monday webhook deletion ${externalId} (non-fatal)`,
+        { requestId: ctx.requestId }
       )
       if (ctx.strict) throw new Error('Missing Monday access token for webhook deletion')
       return
@@ -218,7 +226,8 @@ export const mondayHandler: WebhookProviderHandler = {
 
       if (!response.ok) {
         logger.warn(
-          `[${ctx.requestId}] Monday API returned HTTP ${response.status} during webhook deletion for ${externalId}`
+          `Monday API returned HTTP ${response.status} during webhook deletion for ${externalId}`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error(`Monday webhook deletion failed: ${response.status}`)
         return
@@ -232,28 +241,31 @@ export const mondayHandler: WebhookProviderHandler = {
           data.error_message ||
           'Unknown error'
         if (isAlreadyAbsentWebhookMessage(errorMsg)) {
-          logger.info(
-            `[${ctx.requestId}] Monday webhook ${externalId} was already absent during deletion`
-          )
+          logger.info(`Monday webhook ${externalId} was already absent during deletion`, {
+            requestId: ctx.requestId,
+          })
           return
         }
-        logger.warn(
-          `[${ctx.requestId}] Monday webhook deletion GraphQL error for ${externalId}: ${errorMsg}`
-        )
+        logger.warn(`Monday webhook deletion GraphQL error for ${externalId}: ${errorMsg}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) throw new Error(`Monday webhook deletion failed: ${errorMsg}`)
         return
       }
 
       if (data.data?.delete_webhook?.id) {
-        logger.info(
-          `[${ctx.requestId}] Deleted Monday webhook ${externalId} for webhook ${ctx.webhook.id}`
-        )
+        logger.info(`Deleted Monday webhook ${externalId} for webhook ${ctx.webhook.id}`, {
+          requestId: ctx.requestId,
+        })
       } else {
-        logger.warn(`[${ctx.requestId}] Monday webhook deletion returned no data for ${externalId}`)
+        logger.warn(`Monday webhook deletion returned no data for ${externalId}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) throw new Error('Monday webhook deletion returned no data')
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Monday webhook ${externalId} (non-fatal)`, {
+      logger.warn(`Error deleting Monday webhook ${externalId} (non-fatal)`, {
+        requestId: ctx.requestId,
         error: toError(error).message,
       })
       if (ctx.strict) throw error

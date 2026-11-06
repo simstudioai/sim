@@ -64,7 +64,8 @@ export const sentryHandler: WebhookProviderHandler = {
       const { isSentryEventMatch } = await import('@/triggers/sentry/utils')
       if (!isSentryEventMatch(triggerId, resource, action)) {
         logger.debug(
-          `[${requestId}] Sentry event mismatch for trigger ${triggerId}. Resource: ${resource}, Action: ${action}. Skipping.`
+          `Sentry event mismatch for trigger ${triggerId}. Resource: ${resource}, Action: ${action}. Skipping.`,
+          { requestId }
         )
         return false
       }

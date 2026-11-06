@@ -41,7 +41,7 @@ export function createEventStreamResponse<E extends EventLogEntry>(
 ): NextResponse {
   const { requestId, streamId, fromEventId, getLatestEventId, readEventsSince, label } = options
 
-  logger.info(`[${requestId}] ${label} event stream opened`, { streamId, fromEventId })
+  logger.info(`${label} event stream opened`, { requestId, streamId, fromEventId })
 
   const encoder = new TextEncoder()
   let closed = false
@@ -137,7 +137,8 @@ export function createEventStreamResponse<E extends EventLogEntry>(
           } catch {}
         }
       } catch (error) {
-        logger.error(`[${requestId}] ${label} event stream error`, {
+        logger.error(`${label} event stream error`, {
+          requestId,
           streamId,
           error: toError(error).message,
         })
@@ -150,7 +151,7 @@ export function createEventStreamResponse<E extends EventLogEntry>(
     },
     cancel() {
       closed = true
-      logger.info(`[${requestId}] Client disconnected from ${label} event stream`, { streamId })
+      logger.info(`Client disconnected from ${label} event stream`, { requestId, streamId })
     },
   })
 

@@ -89,26 +89,24 @@ export const zendeskHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(`[${requestId}] Zendesk webhook secret not configured`)
+      logger.warn('Zendesk webhook secret not configured', { requestId })
       return new NextResponse('Unauthorized - Missing Zendesk webhook secret', { status: 401 })
     }
 
     const signature = request.headers.get('X-Zendesk-Webhook-Signature')
     const timestamp = request.headers.get('X-Zendesk-Webhook-Signature-Timestamp')
     if (!signature || !timestamp) {
-      logger.warn(`[${requestId}] Zendesk webhook missing signature headers`)
+      logger.warn('Zendesk webhook missing signature headers', { requestId })
       return new NextResponse('Unauthorized - Missing Zendesk signature', { status: 401 })
     }
 
     if (!isZendeskTimestampFresh(timestamp)) {
-      logger.warn(`[${requestId}] Zendesk webhook timestamp outside the allowed window`, {
-        timestamp,
-      })
+      logger.warn('Zendesk webhook timestamp outside the allowed window', { requestId, timestamp })
       return new NextResponse('Unauthorized - Stale Zendesk timestamp', { status: 401 })
     }
 
     if (!validateZendeskSignature(secret, signature, timestamp, rawBody)) {
-      logger.warn(`[${requestId}] Zendesk signature verification failed`)
+      logger.warn('Zendesk signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Zendesk signature', { status: 401 })
     }
 
@@ -123,9 +121,9 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     const { isZendeskEventMatch } = await import('@/triggers/zendesk/utils')
     if (!isZendeskEventMatch(triggerId, eventType || '')) {
-      logger.debug(
-        `[${requestId}] Zendesk event '${eventType}' does not match trigger ${triggerId}, skipping`
-      )
+      logger.debug(`Zendesk event '${eventType}' does not match trigger ${triggerId}, skipping`, {
+        requestId,
+      })
       return false
     }
     return true
@@ -217,7 +215,8 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     if (!createRes.ok) {
       const detail = await createRes.text().catch(() => '')
-      logger.error(`[${ctx.requestId}] Failed to create Zendesk webhook (${createRes.status})`, {
+      logger.error(`Failed to create Zendesk webhook (${createRes.status})`, {
+        requestId: ctx.requestId,
         detail,
       })
       if (createRes.status === 401 || createRes.status === 403) {
@@ -238,8 +237,8 @@ export const zendeskHandler: WebhookProviderHandler = {
     if (!secretRes.ok) {
       const detail = await secretRes.text().catch(() => '')
       logger.error(
-        `[${ctx.requestId}] Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
-        { detail }
+        `Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
+        { requestId: ctx.requestId, detail }
       )
       await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
       throw new Error(`Failed to fetch Zendesk signing secret: ${secretRes.status}`)
@@ -252,7 +251,7 @@ export const zendeskHandler: WebhookProviderHandler = {
       throw new Error('Zendesk did not return a signing secret for the webhook.')
     }
 
-    logger.info(`[${ctx.requestId}] Created Zendesk webhook ${externalId}`)
+    logger.info(`Created Zendesk webhook ${externalId}`, { requestId: ctx.requestId })
     return { providerConfigUpdates: { externalId, webhookSecret: secret } }
   },
 
@@ -265,15 +264,17 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     if (!subdomain || !email || !apiToken || !externalId) {
       if (ctx.strict) throw new Error('Missing Zendesk credentials or webhook ID for deletion.')
-      logger.warn(
-        `[${ctx.requestId}] Skipping Zendesk webhook cleanup — missing credentials or webhook ID`
-      )
+      logger.warn('Skipping Zendesk webhook cleanup — missing credentials or webhook ID', {
+        requestId: ctx.requestId,
+      })
       return
     }
 
     if (!isValidZendeskSubdomain(subdomain)) {
       if (ctx.strict) throw new Error('Invalid Zendesk subdomain for deletion.')
-      logger.warn(`[${ctx.requestId}] Skipping Zendesk webhook cleanup — invalid subdomain`)
+      logger.warn('Skipping Zendesk webhook cleanup — invalid subdomain', {
+        requestId: ctx.requestId,
+      })
       return
     }
 
@@ -284,11 +285,11 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     if (!res.ok && res.status !== 404) {
       if (ctx.strict) throw new Error(`Failed to delete Zendesk webhook: ${res.status}`)
-      logger.warn(
-        `[${ctx.requestId}] Failed to delete Zendesk webhook ${externalId} (non-fatal): ${res.status}`
-      )
+      logger.warn(`Failed to delete Zendesk webhook ${externalId} (non-fatal): ${res.status}`, {
+        requestId: ctx.requestId,
+      })
       return
     }
-    logger.info(`[${ctx.requestId}] Deleted Zendesk webhook ${externalId}`)
+    logger.info(`Deleted Zendesk webhook ${externalId}`, { requestId: ctx.requestId })
   },
 }

@@ -916,7 +916,7 @@ export async function assertWorkflowGroupsDeployable(
     throw new OrchestrationError('validation', describe(undeployed[0]))
   }
   for (const group of undeployed) {
-    logger.warn(`[${options.requestId}] Skipping auto-run: ${describe(group)}`)
+    logger.warn(`Skipping auto-run: ${describe(group)}`, { requestId: options.requestId })
   }
   const skipped = new Set(undeployed.map((group) => group.id))
   return groups.filter((group) => !skipped.has(group.id))
@@ -1109,7 +1109,8 @@ export async function runWorkflowColumn(opts: {
     try {
       await cancelDispatchById(dispatchId)
     } catch (cleanupErr) {
-      logger.error(`[Cascade] [${requestId}] failed to cancel dispatch after prep failure`, {
+      logger.error('[Cascade] failed to cancel dispatch after prep failure', {
+        requestId,
         dispatchId,
         error: toError(cleanupErr).message,
       })
@@ -1126,14 +1127,15 @@ export async function runWorkflowColumn(opts: {
   // takes its "no dispatch created" path and rolls the optimistic bump back.
   const current = await readDispatch(dispatchId)
   if (!current || current.status === 'cancelled' || current.status === 'complete') {
-    logger.info(
-      `[Cascade] [${requestId}] dispatch ${dispatchId} cancelled during prep — not firing`
-    )
+    logger.info(`[Cascade] dispatch ${dispatchId} cancelled during prep — not firing`, {
+      requestId,
+    })
     return { dispatchId: null, shouldSignalRowsChanged }
   }
 
   logger.info(
-    `[Cascade] [${requestId}] dispatch ${dispatchId} table=${tableId} groups=[${targetGroupIds.join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
+    `[Cascade] dispatch ${dispatchId} table=${tableId} groups=[${targetGroupIds.join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`,
+    { requestId }
   )
 
   if (isTriggerDevEnabled) {
@@ -1154,10 +1156,7 @@ export async function runWorkflowColumn(opts: {
     // so the HTTP request returns instantly (mirrors the trigger.dev path's
     // async fan-out).
     void runDispatcherToCompletion(dispatchId, concurrency).catch((err) =>
-      logger.error(`[${requestId}] dispatcher loop failed`, {
-        dispatchId,
-        error: toError(err).message,
-      })
+      logger.error('dispatcher loop failed', { requestId, dispatchId, error: toError(err).message })
     )
   }
 

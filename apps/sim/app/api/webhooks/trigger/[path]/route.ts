@@ -179,7 +179,7 @@ async function handleWebhookDelivery(
   )
 
   if (allWebhooksForPath.length > 0 && pathWebhooks.length === 0) {
-    logger.warn(`[${requestId}] Rejected HTTP delivery to non-path trigger: ${path}`)
+    logger.warn(`Rejected HTTP delivery to non-path trigger: ${path}`, { requestId })
     return notDeliverableResponse(request.method)
   }
 
@@ -189,7 +189,8 @@ async function handleWebhookDelivery(
 
   if (pathWebhooks.length > 0 && webhooksForPath.length === 0) {
     logger.warn(
-      `[${requestId}] Rejected ${request.method} delivery to path ${path}: no trigger on this path accepts that method`
+      `Rejected ${request.method} delivery to path ${path}: no trigger on this path accepts that method`,
+      { requestId }
     )
     return methodNotAllowedResponse()
   }
@@ -205,7 +206,7 @@ async function handleWebhookDelivery(
       return verificationResponse
     }
 
-    logger.debug(`[${requestId}] Webhook or workflow not found for path: ${path}`)
+    logger.debug(`Webhook or workflow not found for path: ${path}`, { requestId })
     return notDeliverableResponse(request.method)
   }
 
@@ -293,9 +294,9 @@ async function handleWebhookDelivery(
         { status: 500 }
       )
       if (dispatchTargetCount > 1) {
-        logger.error(
-          `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
-        )
+        logger.error(`Webhook ${foundWebhook.id} has no provider, continuing to next`, {
+          requestId,
+        })
         continue
       }
       return missingProviderResponse
@@ -310,7 +311,7 @@ async function handleWebhookDelivery(
     )
     if (authError) {
       if (dispatchTargetCount > 1) {
-        logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
+        logger.warn(`Auth failed for webhook ${foundWebhook.id}, continuing to next`, { requestId })
         continue
       }
       return authError
@@ -346,10 +347,11 @@ async function handleWebhookDelivery(
 
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       if (dispatchTargetCount > 1) {
-        logger.warn(
-          `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
-          { reason: dispatchResult.reason, status: dispatchResult.response.status }
-        )
+        logger.warn(`Webhook dispatch failed for ${foundWebhook.id}, continuing to next`, {
+          requestId,
+          reason: dispatchResult.reason,
+          status: dispatchResult.response.status,
+        })
         if (dispatchResult.outcome === 'failed') {
           failures.push(dispatchResult.response)
         } else {
@@ -381,7 +383,7 @@ async function handleWebhookDelivery(
   }
 
   // For multiple webhooks, return success if at least one succeeded
-  logger.info(`[${requestId}] Processed ${responses.length} webhooks for path: ${path}`)
+  logger.info(`Processed ${responses.length} webhooks for path: ${path}`, { requestId })
   return NextResponse.json({
     success: true,
     webhooksProcessed: responses.length,

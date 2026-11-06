@@ -20,7 +20,7 @@ export const loopsHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(`[${requestId}] Loops webhook missing signing secret in provider configuration`)
+      logger.warn('Loops webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Loops signing secret is required', { status: 401 })
     }
 
@@ -50,7 +50,8 @@ export const loopsHandler: WebhookProviderHandler = {
     if (!isLoopsEventMatch(triggerId, body as Record<string, unknown>)) {
       const actualEvent = (body as Record<string, unknown>)?.eventName
       logger.debug(
-        `[${requestId}] Loops event mismatch for trigger ${triggerId}. Got: ${String(actualEvent)}. Skipping.`
+        `Loops event mismatch for trigger ${triggerId}. Got: ${String(actualEvent)}. Skipping.`,
+        { requestId }
       )
       return false
     }

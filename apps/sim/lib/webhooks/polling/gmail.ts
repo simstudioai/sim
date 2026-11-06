@@ -92,11 +92,11 @@ export const gmailPollingHandler: PollingProviderHandler = {
       if (!emails || !emails.length) {
         await updateWebhookProviderConfig(webhookId, pollState, logger)
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
+        logger.info(`No new emails found for webhook ${webhookId}`, { requestId })
         return 'success'
       }
 
-      logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+      logger.info(`Found ${emails.length} new emails for webhook ${webhookId}`, { requestId })
 
       const { processedCount, failedCount } = await processEmails(
         emails,
@@ -112,22 +112,23 @@ export const gmailPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} emails failed to process for webhook ${webhookId}`, {
+          requestId,
+        })
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`,
+        { requestId }
       )
       return 'success'
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
         return skipAdmissionRefusedPoll(logger, requestId, webhookId)
       }
-      logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
+      logger.error(`Error processing Gmail webhook ${webhookId}:`, error, { requestId })
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -165,13 +166,15 @@ async function fetchNewEmails(
           if (status === 404 || status === 400) {
             await historyResponse.body?.cancel().catch(() => {})
             logger.info(
-              `[${requestId}] Gmail rejected history cursor ${config.historyId} (${status}); resyncing through search`
+              `Gmail rejected history cursor ${config.historyId} (${status}); resyncing through search`,
+              { requestId }
             )
             return resyncAfterExpiredHistory(accessToken, config, requestId, logger)
           }
 
           const errorData = await historyResponse.json().catch(() => ({}))
-          logger.warn(`[${requestId}] Gmail history API error:`, {
+          logger.warn('Gmail history API error:', {
+            requestId,
             status,
             statusText: historyResponse.statusText,
             error: errorData,
@@ -183,7 +186,7 @@ async function fetchNewEmails(
             )
           }
 
-          logger.info(`[${requestId}] Falling back to search API after history API error ${status}`)
+          logger.info(`Falling back to search API after history API error ${status}`, { requestId })
           return searchEmails(accessToken, config, requestId, logger)
         }
 
@@ -212,14 +215,14 @@ async function fetchNewEmails(
 
       const sortedIds = [...messageIds].sort().reverse()
       const idsToFetch = sortedIds.slice(0, config.maxEmailsPerPoll || 25)
-      logger.info(`[${requestId}] Processing ${idsToFetch.length} emails from history API`)
+      logger.info(`Processing ${idsToFetch.length} emails from history API`, { requestId })
 
       const emailResults = await Promise.allSettled(
         idsToFetch.map((messageId) => getEmailDetails(accessToken, messageId))
       )
       const rejected = emailResults.filter((r) => r.status === 'rejected')
       if (rejected.length > 0) {
-        logger.warn(`[${requestId}] Failed to fetch ${rejected.length} email details`)
+        logger.warn(`Failed to fetch ${rejected.length} email details`, { requestId })
       }
       emails = emailResults
         .filter(
@@ -235,7 +238,7 @@ async function fetchNewEmails(
     return { emails, latestHistoryId }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Error fetching new emails:`, errorMessage)
+    logger.error('Error fetching new emails:', errorMessage, { requestId })
     throw error
   }
 }
@@ -320,7 +323,8 @@ async function searchEmails(
 
     if (!searchResponse.ok) {
       const errorData = await searchResponse.json()
-      logger.error(`[${requestId}] Gmail search API error:`, {
+      logger.error('Gmail search API error:', {
+        requestId,
         status: searchResponse.status,
         statusText: searchResponse.statusText,
         query,
@@ -334,7 +338,7 @@ async function searchEmails(
     const searchData = await searchResponse.json()
 
     if (!searchData.messages || !searchData.messages.length) {
-      logger.info(`[${requestId}] No emails found matching query: ${query}`)
+      logger.info(`No emails found matching query: ${query}`, { requestId })
       return { emails: [], latestHistoryId: config.historyId }
     }
 
@@ -342,7 +346,8 @@ async function searchEmails(
     let latestHistoryId = config.historyId
 
     logger.info(
-      `[${requestId}] Processing ${idsToFetch.length} emails from search API (total matches: ${searchData.messages.length})`
+      `Processing ${idsToFetch.length} emails from search API (total matches: ${searchData.messages.length})`,
+      { requestId }
     )
 
     const emailResults = await Promise.allSettled(
@@ -350,7 +355,7 @@ async function searchEmails(
     )
     const rejected = emailResults.filter((r) => r.status === 'rejected')
     if (rejected.length > 0) {
-      logger.warn(`[${requestId}] Failed to fetch ${rejected.length} email details`)
+      logger.warn(`Failed to fetch ${rejected.length} email details`, { requestId })
     }
     const emails = emailResults
       .filter(
@@ -365,7 +370,7 @@ async function searchEmails(
     return { emails, latestHistoryId }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Error searching emails:`, errorMessage)
+    logger.error('Error searching emails:', errorMessage, { requestId })
     throw error
   }
 }
@@ -388,7 +393,7 @@ async function resyncAfterExpiredHistory(
       : await getGmailProfileHistoryId(accessToken, requestId, logger)
   const latestHistoryId = candidate && candidate !== config.historyId ? candidate : undefined
   if (!latestHistoryId) {
-    logger.info(`[${requestId}] No replacement Gmail history cursor yet; polling through search`)
+    logger.info('No replacement Gmail history cursor yet; polling through search', { requestId })
   }
   return { emails: searchResult.emails, latestHistoryId }
 }
@@ -403,15 +408,15 @@ async function getGmailProfileHistoryId(
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!response.ok) {
-      logger.warn(
-        `[${requestId}] Failed to fetch Gmail profile for fresh historyId: ${response.status}`
-      )
+      logger.warn(`Failed to fetch Gmail profile for fresh historyId: ${response.status}`, {
+        requestId,
+      })
       return null
     }
     const profile = await response.json()
     return (profile.historyId as string | undefined) ?? null
   } catch (error) {
-    logger.warn(`[${requestId}] Error fetching Gmail profile:`, error)
+    logger.warn('Error fetching Gmail profile:', error, { requestId })
     return null
   }
 }
@@ -519,10 +524,9 @@ async function processEmails(
               const attachmentInfo = extractAttachmentInfo(payload)
               attachments = await downloadAttachments(email.id, attachmentInfo, accessToken)
             } catch (error) {
-              logger.error(
-                `[${requestId}] Error downloading attachments for email ${email.id}:`,
-                error
-              )
+              logger.error(`Error downloading attachments for email ${email.id}:`, error, {
+                requestId,
+              })
             }
           }
 
@@ -557,9 +561,10 @@ async function processEmails(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for email ${email.id}:`,
+              `Failed to process webhook for email ${email.id}:`,
               result.statusCode,
-              result.error
+              result.error,
+              { requestId }
             )
             throw new Error(`Webhook processing failed (${result.statusCode}): ${result.error}`)
           }
@@ -572,14 +577,14 @@ async function processEmails(
         }
       )
 
-      logger.info(
-        `[${requestId}] Successfully processed email ${email.id} for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully processed email ${email.id} for webhook ${webhookData.id}`, {
+        requestId,
+      })
       processedCount++
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)
+      logger.error(`Error processing email ${email.id}:`, errorMessage, { requestId })
       failedCount++
     }
   }

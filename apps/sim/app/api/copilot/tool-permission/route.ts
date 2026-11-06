@@ -202,7 +202,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         return NextResponse.json({ success: true, results })
       } catch (error) {
-        logger.error(`[${tracker.requestId}] Unexpected error:`, {
+        logger.error('Unexpected error:', {
+          requestId: tracker.requestId,
           duration: tracker.getDuration(),
           error: getErrorMessage(error, 'Unknown error'),
           stack: error instanceof Error ? error.stack : undefined,

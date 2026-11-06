@@ -1,9 +1,9 @@
 import { type Readable, Transform } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
@@ -101,7 +101,7 @@ export interface TableImportPayload {
 export async function runTableImport(payload: TableImportPayload): Promise<void> {
   const { importId, tableId, workspaceId, userId, fileKey, fileName, delimiter, mode } = payload
   const storageContext = payload.storageContext ?? 'workspace'
-  const requestId = generateId().slice(0, 8)
+  const requestId = generateRequestId()
   // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
   // open until it times out.
   let source: Readable | undefined
@@ -438,7 +438,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           },
           { groups: { workspace: workspaceId } }
         )
-        logger.warn(`[${requestId}] Import has no data rows`, { tableId, fileName })
+        logger.warn('Import has no data rows', { requestId, tableId, fileName })
         return
       }
       await resolveSetup()
@@ -473,31 +473,27 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         },
         { groups: { workspace: workspaceId } }
       )
-      logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
+      logger.info('Import complete', { requestId, tableId, fileName, mode, rows: inserted })
     } else {
-      logger.info(
-        `[${requestId}] Import finished but no longer owns the run (canceled/superseded)`,
-        {
-          tableId,
-          importId,
-        }
-      )
+      logger.info('Import finished but no longer owns the run (canceled/superseded)', {
+        requestId,
+        tableId,
+        importId,
+      })
     }
   } catch (err) {
     if (err instanceof ImportSupersededError) {
       // A newer import owns the table now — leave its status alone and just stop.
-      logger.info(`[${requestId}] Import superseded by a newer run; stopping`, {
-        tableId,
-        importId,
-      })
+      logger.info('Import superseded by a newer run; stopping', { requestId, tableId, importId })
     } else {
       const message = getErrorMessage(err, 'Import failed')
-      logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
+      logger.error(`Import failed for table ${tableId}:`, err, { requestId })
       // Scoped to importId — a no-op if a newer import has taken over.
       try {
         await markJobFailedInWorkspace(tableId, workspaceId, importId, message)
       } catch (failureError) {
-        logger.error(`[${requestId}] Failed to mark import job failed`, {
+        logger.error('Failed to mark import job failed', {
+          requestId,
           tableId,
           workspaceId,
           importId,
@@ -541,7 +537,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           rejectedSamples: rejections.summary.rejectedSamples,
         })
       } catch (summaryError) {
-        logger.error(`[${requestId}] Failed to record import rejections`, {
+        logger.error('Failed to record import rejections', {
+          requestId,
           tableId,
           importId,
           error: getErrorMessage(summaryError, 'Unknown rejection-summary error'),
@@ -553,7 +550,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // persistent workspace files (deleteSourceFile: false).
     if (payload.deleteSourceFile !== false) {
       await deleteFile({ key: fileKey, context: storageContext }).catch((err) => {
-        logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
+        logger.warn('Failed to delete imported file', { requestId, fileKey, err })
       })
     }
   }

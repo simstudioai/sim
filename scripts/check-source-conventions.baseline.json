@@ -668,5 +668,6 @@
   "bare-route-handler": {
     "apps/sim/app/api/health/route.ts": 1,
     "apps/sim/app/api/mothership/chat/stream/route.ts": 1
-  }
+  },
+  "log-message-tag": {}
 }

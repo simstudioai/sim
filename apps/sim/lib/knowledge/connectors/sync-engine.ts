@@ -820,7 +820,8 @@ async function resolveAccessToken(
     if (revocationError && connector.credentialId) {
       throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
     }
-    logger.error(`[${requestId}] Connector credential resolved no access token`, {
+    logger.error('Connector credential resolved no access token', {
+      requestId,
       credentialId: connector.credentialId,
       userId,
       authMode: connectorConfig.auth.mode,

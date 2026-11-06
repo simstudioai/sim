@@ -192,7 +192,7 @@ async function deleteExpiredLegacyWorkspaceFileRows(
       result.failed += batch.length - deleted.length
     } catch (error) {
       result.failed += batch.length
-      logger.error(`[${label}/workspaceFile] Exact-row delete failed`, { error })
+      logger.error('Exact-row delete failed', { label: `${label}/workspaceFile`, error })
     }
   }
   return result
@@ -233,7 +233,10 @@ async function deleteExpiredUnbilledWorkspaceFileRows(
         result.failed += batch.length - deleted.length
       } catch (error) {
         result.failed += batch.length
-        logger.error(`[${label}/workspaceFiles] Exact-row ${context} delete failed`, { error })
+        logger.error(`Exact-row ${context} delete failed`, {
+          label: `${label}/workspaceFiles`,
+          error,
+        })
       }
     }
   }
@@ -251,7 +254,8 @@ async function deleteExpiredBillableWorkspaceFileRows(
     if (!BILLED_FILE_CONTEXTS.includes(row.context)) continue
     if (!row.workspaceId) {
       result.failed++
-      logger.error(`[${label}/workspaceFiles] Billable row has no workspace attribution`, {
+      logger.error('Billable row has no workspace attribution', {
+        label: `${label}/workspaceFiles`,
         fileId: row.id,
       })
       continue
@@ -333,7 +337,8 @@ async function deleteExpiredBillableWorkspaceFileRows(
         result.failed += batch.length - deletedCount
       } catch (error) {
         result.failed += batch.length
-        logger.error(`[${label}/workspaceFiles] Atomic delete and decrement failed`, {
+        logger.error('Atomic delete and decrement failed', {
+          label: `${label}/workspaceFiles`,
           error,
           workspaceId,
         })

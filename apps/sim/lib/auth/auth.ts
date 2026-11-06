@@ -194,12 +194,13 @@ function logUnresolvedStripePlan(
   priceChanged: boolean
 ): void {
   if (isEnterprise(details.dbPlan) || (isLegacyPlan(details.dbPlan) && !priceChanged)) {
-    logger.info(`[${hook}] Off-catalog Stripe price; keeping the stored plan`, details)
+    logger.info('Off-catalog Stripe price; keeping the stored plan', details, { hook })
     return
   }
   logger.error(
-    `[${hook}] Could not resolve plan from Stripe price; keeping the stored plan — check env var configuration`,
-    details
+    'Could not resolve plan from Stripe price; keeping the stored plan — check env var configuration',
+    details,
+    { hook }
   )
 }
 

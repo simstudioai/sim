@@ -107,7 +107,7 @@ async function writeCustomTools(
           })
           .where(eq(customTools.id, tool.id))
 
-        logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
+        logger.info(`Updated legacy tool ${tool.id}`, { requestId })
         continue
       }
     }
@@ -131,7 +131,7 @@ async function writeCustomTools(
         .onConflictDoNothing({ target: [customTools.workspaceId, customTools.title] })
         .returning({ id: customTools.id })
       if (inserted.length === 0) {
-        logger.info(`[${requestId}] Skipped custom tool "${tool.title}": title already exists`)
+        logger.info(`Skipped custom tool "${tool.title}": title already exists`, { requestId })
         skippedTitles.push(tool.title)
       }
       continue

@@ -13,7 +13,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
@@ -125,13 +124,12 @@ async function maskPersonalEnvForViewer({
 
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace env access attempt`)
+        logger.warn('Unauthorized workspace env access attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -183,7 +181,7 @@ export const GET = withRouteHandler(
         { status: 200 }
       )
     } catch (error) {
-      logger.error(`[${requestId}] Workspace env GET error`, error)
+      logger.error('Workspace env GET error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to load environment') },
         { status: 500 }
@@ -200,13 +198,12 @@ export const GET = withRouteHandler(
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace env update attempt`)
+        logger.warn('Unauthorized workspace env update attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -236,7 +233,7 @@ export const PUT = withRouteHandler(
       const isKeyAdmin = (key: string) => permission === 'admin' || adminKeys.has(key)
       const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !isKeyAdmin(k))
       if (forbiddenExisting.length > 0) {
-        logger.warn(`[${requestId}] Workspace env update denied`, {
+        logger.warn('Workspace env update denied', {
           workspaceId,
           userId,
           reason: 'not-secret-admin',
@@ -252,7 +249,7 @@ export const PUT = withRouteHandler(
         permission !== 'admin' &&
         permission !== 'write'
       ) {
-        logger.warn(`[${requestId}] Workspace env update denied`, {
+        logger.warn('Workspace env update denied', {
           workspaceId,
           userId,
           reason: 'write-access-required',
@@ -343,7 +340,7 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
-      logger.error(`[${requestId}] Workspace env PUT error`, error)
+      logger.error('Workspace env PUT error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to update environment') },
         { status: 500 }
@@ -359,13 +356,12 @@ export const PUT = withRouteHandler(
  */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace env delete attempt`)
+        logger.warn('Unauthorized workspace env delete attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -391,7 +387,7 @@ export const DELETE = withRouteHandler(
       const isKeyAdmin = (key: string) => permission === 'admin' || adminKeys.has(key)
       const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !isKeyAdmin(k))
       if (forbiddenExisting.length > 0) {
-        logger.warn(`[${requestId}] Workspace env delete denied`, {
+        logger.warn('Workspace env delete denied', {
           workspaceId,
           userId,
           reason: 'not-secret-admin',
@@ -403,7 +399,7 @@ export const DELETE = withRouteHandler(
         )
       }
       if (keys.some((k) => !knownKeys.has(k)) && permission !== 'admin' && permission !== 'write') {
-        logger.warn(`[${requestId}] Workspace env delete denied`, {
+        logger.warn('Workspace env delete denied', {
           workspaceId,
           userId,
           reason: 'write-access-required',
@@ -481,7 +477,7 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
-      logger.error(`[${requestId}] Workspace env DELETE error`, error)
+      logger.error('Workspace env DELETE error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to remove environment keys') },
         { status: 500 }

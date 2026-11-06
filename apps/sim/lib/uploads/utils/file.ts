@@ -994,7 +994,7 @@ function convertToUserFile(file: RawFileInput, requestId: string, logger: Logger
     base64: file.base64,
   }
 
-  logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
+  logger.info(`Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`, { requestId })
   return userFile
 }
 
@@ -1009,14 +1009,14 @@ export function processSingleFileToUserFile(
 ): UserFile {
   if (Array.isArray(file)) {
     const errorMsg = `Expected a single file but received an array with ${file.length} file(s). Use a file input that accepts multiple files, or select a specific file from the array (e.g., {{block.files[0]}}).`
-    logger.error(`[${requestId}] ${errorMsg}`)
+    logger.error(errorMsg, { requestId })
     throw new Error(errorMsg)
   }
 
   const userFile = convertToUserFile(file, requestId, logger)
   if (!userFile) {
     const errorMsg = `File has no storage key: ${file.name || 'unknown'}`
-    logger.warn(`[${requestId}] ${errorMsg}`)
+    logger.warn(errorMsg, { requestId })
     throw new Error(errorMsg)
   }
 
@@ -1036,7 +1036,7 @@ export function processFilesToUserFiles(
 
   for (const file of filesArray) {
     if (Array.isArray(file)) {
-      logger.warn(`[${requestId}] Skipping nested array in file input`)
+      logger.warn('Skipping nested array in file input', { requestId })
       continue
     }
 
@@ -1044,7 +1044,7 @@ export function processFilesToUserFiles(
     if (userFile) {
       userFiles.push(userFile)
     } else {
-      logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
+      logger.warn(`Skipping file without storage key: ${file.name || 'unknown'}`, { requestId })
     }
   }
 

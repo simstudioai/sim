@@ -100,7 +100,7 @@ export async function executeSapS4HanaOperation(
   let invocation = await callSapOdata(input, accessToken, csrf, signal)
 
   if (isWrite && isCsrfRequired(invocation)) {
-    logger.info(`[${requestId}] CSRF token rejected, refetching once`)
+    logger.info('CSRF token rejected, refetching once', { requestId })
     const refreshed = await fetchSapCsrf(input, accessToken, signal)
     if (refreshed) {
       invocation = await callSapOdata(input, accessToken, refreshed, signal)
@@ -116,8 +116,8 @@ export async function executeSapS4HanaOperation(
   }
 
   const message = extractOdataError(invocation.body, invocation.status)
-  logger.warn(
-    `[${requestId}] SAP API error (${invocation.status}) ${input.service}${input.path}: ${message}`
-  )
+  logger.warn(`SAP API error (${invocation.status}) ${input.service}${input.path}: ${message}`, {
+    requestId,
+  })
   throw new SapS4HanaProviderError(message, invocation.status)
 }
