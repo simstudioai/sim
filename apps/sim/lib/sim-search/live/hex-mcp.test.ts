@@ -1,6 +1,7 @@
 import { toRecord } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import { readHexMcp, searchHexMcp } from '@/lib/sim-search/live/hex-mcp'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import type { ManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 
 const PROJECT = '00000000-0000-4000-8000-000000000001'
@@ -34,7 +35,13 @@ function cell(id: string, cellType = 'MARKDOWN', source = 'Reviewed deployment n
 }
 
 function client(
-  options: { search?: unknown; workspace?: string; metadata?: unknown[]; pages?: unknown[] } = {}
+  options: {
+    search?: unknown
+    workspace?: string
+    metadata?: unknown[]
+    pages?: unknown[]
+    projectFailure?: Error
+  } = {}
 ) {
   let page = 0
   let metadataRead = 0
@@ -57,6 +64,7 @@ function client(
           }
         )
       if (name === 'get_project') {
+        if (args.projectId === OTHER && options.projectFailure) throw options.projectFailure
         if (args.projectId !== PROJECT) throw new Error('Unexpected project')
         return options.metadata?.[metadataRead++] ?? metadata
       }
@@ -106,6 +114,49 @@ describe('Hex source retrieval', () => {
     expect(page.documents).toEqual([])
     expect(page.partial).toBe(true)
   })
+
+  it.each([
+    new NativeSearchError(
+      'unavailable',
+      'Project no longer accessible',
+      undefined,
+      undefined,
+      'mcp_tool_error'
+    ),
+    new NativeSearchError('reconnect', 'Connection changed'),
+    new DOMException('Search cancelled', 'AbortError'),
+    new NativeSearchError('rate_limited', 'Rate limit reached'),
+    new NativeSearchError(
+      'unavailable',
+      'Request limit reached',
+      undefined,
+      undefined,
+      'request_budget_exceeded'
+    ),
+  ])(
+    'isolates project read errors while preserving connection and request failures: %s',
+    async (error) => {
+      const result = searchHexMcp(
+        client({
+          search: {
+            orgId: WORKSPACE,
+            baseUrl: 'https://app.hex.tech',
+            projects: [
+              { projectId: OTHER, type: 'project' },
+              { projectId: PROJECT, type: 'project' },
+            ],
+          },
+          projectFailure: error,
+        }),
+        { query: 'deployment', limit: 10, scopes: [] }
+      )
+      if (error instanceof NativeSearchError && error.diagnosticCode === 'mcp_tool_error') {
+        const page = await result
+        expect(page.documents.map((document) => document.id)).toEqual([PROJECT])
+        expect(page.partial).toBe(true)
+      } else await expect(result).rejects.toBe(error)
+    }
+  )
 
   it.each(['', '*'])('refuses unbounded search terms', async (query) => {
     await expect(searchHexMcp(client(), { query, limit: 10, scopes: [] })).rejects.toThrow()

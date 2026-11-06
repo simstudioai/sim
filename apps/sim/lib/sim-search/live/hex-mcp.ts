@@ -55,6 +55,7 @@ async function project(
   }
 }
 
+/** Searches current project metadata with at most ten candidates and no continuation. */
 export async function searchHexMcp(
   client: ManagedSearchMcpClient,
   input: NativeSearchInput
@@ -97,9 +98,16 @@ export async function searchHexMcp(
   }
   const limit = Math.max(1, Math.min(MAX_CANDIDATES, input.limit))
   const documents = await mapWithConcurrency([...ids].slice(0, limit), 3, async (id) => {
-    const document = await project(client, id, workspaceId)
-    if (!document) dropped = true
-    return document
+    try {
+      const document = await project(client, id, workspaceId)
+      if (!document) dropped = true
+      return document
+    } catch (error) {
+      if (!(error instanceof NativeSearchError) || error.diagnosticCode !== 'mcp_tool_error')
+        throw error
+      dropped = true
+      return undefined
+    }
   })
   const capped = ids.size > limit
   const localDates = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
