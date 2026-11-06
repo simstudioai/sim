@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -7,7 +6,6 @@ import {
   revokeAuthorizedAppContract,
 } from '@/lib/api/contracts/user'
 import { client } from '@/lib/auth/client'
-import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 
 export const oauthProviderKeys = {
   all: ['oauth-provider'] as const,
@@ -112,18 +110,4 @@ export function useOAuthSwitchAccount() {
       if (error) throw new Error(error.message ?? 'Could not sign out. Please try again.')
     },
   })
-}
-
-/** Whether an app the viewer authorized can read Search, paging until one is found or none is left. */
-export function useHasSearchAuthorization(enabled: boolean): boolean {
-  const apps = useAuthorizedApps('', { enabled })
-  const authorized =
-    apps.data?.pages.some((page) =>
-      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
-    ) ?? false
-  const { hasNextPage, isFetching, isError, fetchNextPage } = apps
-  useEffect(() => {
-    if (enabled && !authorized && hasNextPage && !isFetching && !isError) void fetchNextPage()
-  }, [enabled, authorized, hasNextPage, isFetching, isError, fetchNextPage])
-  return authorized
 }

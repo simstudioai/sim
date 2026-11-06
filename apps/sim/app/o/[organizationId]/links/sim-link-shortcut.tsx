@@ -40,8 +40,8 @@ function useNestedSimLinkCreator(url: string, title: string): SimLinkCreator {
 }
 
 /** The first link that already opens `url`, and a copy of its address. */
-export function useExistingSimLink(organizationId: string, url: string, enabled = true) {
-  const { data, isPending, isError } = useSimLinksForUrl(organizationId, url, enabled)
+function useExistingSimLink(organizationId: string, url: string) {
+  const { data, isPending, isError } = useSimLinksForUrl(organizationId, url)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const existing = data?.at(0)
   const copyExisting = async () => {

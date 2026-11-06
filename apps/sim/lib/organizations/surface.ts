@@ -20,13 +20,12 @@ import {
 } from '@/lib/organizations/chat-access'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
   getUserPermissionConfigForOrganization,
   isOrganizationPermissionRegimeActive,
 } from '@/lib/permission-groups/resolve.server'
 
-interface OrganizationSurfaceOrganization {
+export interface OrganizationSurfaceOrganization {
   id: string
   name: string
   slug: string
@@ -56,13 +55,6 @@ export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   connectedAccountsAvailable: boolean
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
-}
-
-export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
-  return (
-    !capabilityDeniedBy('integrations.manage', config) &&
-    !capabilityDeniedBy('knowledge.use', config)
-  )
 }
 
 /**
@@ -133,7 +125,9 @@ async function resolveOrganizationSurfaceContext(
       isAdmin: access.isAdmin,
       canInviteMembers:
         access.isAdmin && !isInvitationsDisabled && !capabilityDeniedBy('invitations.send', config),
-      canConnectSearchIntegrations: canConnectSearchIntegrations(config),
+      canConnectSearchIntegrations:
+        !capabilityDeniedBy('integrations.manage', config) &&
+        !capabilityDeniedBy('knowledge.use', config),
       canUsePersonalApiKeys:
         !capabilityDeniedBy('personal_api_key.use', config) &&
         !capabilityDeniedBy('api_keys.manage', config),

@@ -1,5 +1,0 @@
-.connect {
-  display: grid;
-  block-size: var(--ui-widget-max-size);
-  min-block-size: 0;
-}

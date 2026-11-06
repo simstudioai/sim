@@ -1,4 +1,4 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -8,25 +8,18 @@ import {
 } from '@/lib/api/contracts/knowledge/search-integrations'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
-import {
-  SEARCH_INTEGRATIONS_STALE_TIME,
-  searchIntegrationKeys,
-} from '@/hooks/queries/utils/search-integration-keys'
+import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
 
-export function searchIntegrationsQueryOptions(organizationId: string) {
-  return queryOptions({
+export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
+
+export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
+  return useQuery({
     queryKey: searchIntegrationKeys.list(organizationId),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     queryFn: async ({ signal }) =>
       (await requestJson(listSearchIntegrationsContract, { query: { organizationId }, signal }))
         .data,
     staleTime: SEARCH_INTEGRATIONS_STALE_TIME,
-  })
-}
-
-export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    ...searchIntegrationsQueryOptions(organizationId),
-    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 

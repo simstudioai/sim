@@ -8,7 +8,7 @@ import { ORGANIZATION_VIEWER_ACCOUNT_LIMIT } from '@/lib/credential-groups/limit
 export async function listViewerOrganizationAccounts(input: {
   organizationId: string
   userId: string
-  matching?: SQL
+  matching: SQL
 }) {
   const scope = { kind: 'organization', organizationId: input.organizationId } as const
   const accounts = await db

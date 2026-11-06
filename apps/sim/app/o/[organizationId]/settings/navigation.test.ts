@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { OrganizationSettingsFeatures } from '@/components/settings/navigation'
+import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import {
   organizationSettingsNavigation,
   resolveOrganizationSettingsSection,
@@ -23,6 +24,11 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('sessions')).toBe('security')
     expect(resolveOrganizationSettingsSection('/o/one/settings/network')).toBeNull()
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
+    expect(
+      buildOrganizationNavItems('org', { searchAvailable: true, mothershipAvailable: true }).map(
+        ({ id }) => id
+      )
+    ).toEqual(['home', 'search', 'integrations'])
   })
   it('keeps both setup pages hidden from non-admins when Search is disabled', () => {
     const sections = organizationSettingsNavigation(false, enterprise, {

@@ -1,13 +1,19 @@
 import { ChipDatePicker, ChipDropdown } from '@sim/emcn'
-import { useSearchFilterControls } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-search-filter-controls'
+import { useQueryStates } from 'nuqs'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import {
+  resourceUrlKeys,
+  searchFilterParsers,
+  UPDATED_WINDOWS,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 
 interface SearchFiltersProps {
   sourceTypes: readonly string[]
 }
 
-/** The refinement controls in the app's chip chrome. */
+/** Shared refinements for indexed and live search, backed by the same URL parameters. */
 export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
-  const { source, updated, range } = useSearchFilterControls(sourceTypes)
+  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   return (
     <div
       role='group'
@@ -17,30 +23,46 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
       <ChipDropdown
         variant='ghost'
         shape='round'
-        aria-label={source.label}
+        aria-label={`Filter by source: ${filters.source ? (filters.source === 'upload' ? 'Uploads' : connectorDisplayName(filters.source)) : 'All sources'}`}
         matchTriggerWidth={false}
-        value={source.value}
-        options={source.options}
-        onChange={source.onChange}
+        value={filters.source ?? ''}
+        options={[
+          { value: '', label: 'All sources' },
+          ...sourceTypes.map((type) => ({
+            value: type,
+            label: type === 'upload' ? 'Uploads' : connectorDisplayName(type),
+          })),
+        ]}
+        onChange={(source) => void setFilters({ source: source || null })}
       />
       <ChipDropdown
         variant='ghost'
         shape='round'
-        aria-label={updated.label}
+        aria-label={`Filter by date: ${UPDATED_WINDOWS.find((window) => window.id === filters.updated)?.label ?? 'Any time'}`}
         matchTriggerWidth={false}
-        value={updated.value}
-        options={updated.options}
-        onChange={updated.onChange}
+        value={filters.updated}
+        options={UPDATED_WINDOWS.map((window) => ({ value: window.id, label: window.label }))}
+        onChange={(value) => {
+          const window = UPDATED_WINDOWS.find((entry) => entry.id === value)
+          if (window)
+            void setFilters(
+              window.id === 'custom'
+                ? { updated: window.id }
+                : { updated: window.id, from: null, to: null }
+            )
+        }}
       />
-      {range && (
+      {filters.updated === 'custom' && (
         <ChipDatePicker
           mode='range'
           variant='ghost'
           placeholder='Updated between'
-          startDate={range.start}
-          endDate={range.end}
-          onRangeChange={range.onChange}
-          onClear={range.onClear}
+          startDate={filters.from?.toISOString().slice(0, 10)}
+          endDate={filters.to?.toISOString().slice(0, 10)}
+          onRangeChange={(start, end) =>
+            void setFilters({ from: new Date(start), to: new Date(end) })
+          }
+          onClear={() => void setFilters({ updated: 'any', from: null, to: null })}
         />
       )}
     </div>

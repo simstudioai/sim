@@ -5,7 +5,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { presentSimLink, presentSimLinkPage } from '@/lib/api/server/sim-link-presenters'
+import { presentSimLink } from '@/lib/api/server/sim-link-presenters'
 import { createSimLink, listSimLinks } from '@/lib/sim-links/application/use-cases'
 
 const policy = {
@@ -21,7 +21,7 @@ export const GET = defineInternalJsonRoute({
   operation: listSimLinks.operation,
   useCase: listSimLinks,
   mapInput: ({ params, query }) => ({ organizationId: params.id, ...query }),
-  present: presentSimLinkPage,
+  present: ({ links, nextCursor }) => ({ links: links.map(presentSimLink), nextCursor }),
 })
 
 export const POST = defineInternalJsonRoute({

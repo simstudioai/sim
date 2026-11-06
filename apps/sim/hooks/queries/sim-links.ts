@@ -1,5 +1,4 @@
 import {
-  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -16,15 +15,25 @@ import {
 } from '@/lib/api/contracts/sim-links'
 import type { SimLinkSort } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
-import { SIM_LINKS_STALE_TIME, simLinkKeys } from '@/hooks/queries/utils/sim-link-keys'
 
-export function simLinksQueryOptions(
+const SIM_LINKS_STALE_TIME = 30 * 1000
+
+const simLinkKeys = {
+  all: ['sim-links'] as const,
+  lists: (organizationId: string) => [...simLinkKeys.all, 'list', organizationId] as const,
+  list: (organizationId: string, search: string, sort: SimLinkSort, dir: SortDirection) =>
+    [...simLinkKeys.lists(organizationId), search, sort, dir] as const,
+  forUrl: (organizationId: string, url: string) =>
+    [...simLinkKeys.lists(organizationId), 'url', url] as const,
+}
+
+export function useSimLinks(
   organizationId: string,
   search: string,
   sort: SimLinkSort,
   dir: SortDirection
 ) {
-  return infiniteQueryOptions({
+  return useInfiniteQuery({
     queryKey: simLinkKeys.list(organizationId, search, sort, dir),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
@@ -35,17 +44,6 @@ export function simLinksQueryOptions(
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: SIM_LINKS_STALE_TIME,
-  })
-}
-
-export function useSimLinks(
-  organizationId: string,
-  search: string,
-  sort: SimLinkSort,
-  dir: SortDirection
-) {
-  return useInfiniteQuery({
-    ...simLinksQueryOptions(organizationId, search, sort, dir),
     placeholderData: keepPreviousData,
   })
 }
@@ -54,7 +52,7 @@ export function useSimLinks(
  * Links whose destination is exactly `url`. Shares the list key prefix, so creating a link
  * refreshes it.
  */
-export function useSimLinksForUrl(organizationId: string, url: string, enabled = true) {
+export function useSimLinksForUrl(organizationId: string, url: string) {
   return useQuery({
     queryKey: simLinkKeys.forUrl(organizationId, url),
     queryFn: ({ signal }) =>
@@ -65,7 +63,6 @@ export function useSimLinksForUrl(organizationId: string, url: string, enabled =
       }),
     select: (page) => page.links,
     staleTime: SIM_LINKS_STALE_TIME,
-    enabled: Boolean(organizationId) && enabled,
   })
 }
 

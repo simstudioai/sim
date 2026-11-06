@@ -55,8 +55,8 @@ vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: mockGetOrganizationSurfaceContext,
 }))
 
-vi.mock('@/platform/app/(shell)/_components/sidebar/sidebar', () => ({
-  Sidebar: () => null,
+vi.mock('@/app/o/[organizationId]/components/organization-sidebar', () => ({
+  OrganizationSidebar: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({

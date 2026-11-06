@@ -75,7 +75,7 @@ export function ChartEmptyState({
         emptyOrganization
           ? onImport
             ? 'Connect a directory, import people data, or add a manager to a profile to build your org chart.'
-            : 'An administrator needs to connect the company directory, such as Okta, to build the org chart.'
+            : 'Teams appear here when an administrator adds managers to people’s profiles.'
           : 'This profile has no visible manager or direct reports.'
       }
       action={
