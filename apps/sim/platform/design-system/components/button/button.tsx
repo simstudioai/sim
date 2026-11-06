@@ -74,6 +74,8 @@ interface IconButtonProps {
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>
   tooltip?: boolean
+  /** Points the glyph the other way, for the opposite of a directional action. */
+  mirrored?: boolean
   'aria-describedby'?: string
 }
 
@@ -86,6 +88,7 @@ export function IconButton({
   disabled,
   onClick,
   tooltip,
+  mirrored,
   'aria-describedby': describedBy,
 }: IconButtonProps) {
   const button = useRender({
@@ -99,6 +102,7 @@ export function IconButton({
       'data-type': 'T060',
       'data-size': size,
       'data-variant': variant,
+      'data-mirrored': mirrored || undefined,
       'data-solid': variant === 'solid' || undefined,
       'data-material': variant === 'floating' ? 'reading' : undefined,
       'data-elevation': variant === 'floating' ? 'composer' : undefined,

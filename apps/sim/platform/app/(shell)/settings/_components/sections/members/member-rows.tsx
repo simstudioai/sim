@@ -105,6 +105,7 @@ export function MemberRow({ row, actions, onRemove, onManageCredits, onTransfer 
       control={
         row.canEditRole ? (
           <Select
+            block
             variant='quiet'
             label={`Role for ${row.name}`}
             options={ORGANIZATION_ROLE_OPTIONS}
@@ -197,6 +198,7 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
           <StatusTag label={row.isExternal ? 'External' : ORGANIZATION_ROLE_LABELS[row.role]} />
         ) : (
           <Select
+            block
             variant='quiet'
             label={`Role for ${row.email}`}
             options={ORGANIZATION_ROLE_OPTIONS}
@@ -229,6 +231,7 @@ export function WorkspaceMemberRow({
   const [removing, setRemoving] = useState(false)
   const select = (
     <Select
+      block
       variant='quiet'
       label={`Access to ${workspaceName} for ${row.name}`}
       options={WORKSPACE_ROLES}
@@ -260,7 +263,7 @@ export function WorkspaceMemberRow({
       control={
         row.lockReason ? (
           <Tooltip label={row.lockReason}>
-            <span>{select}</span>
+            <span className={styles.roleTooltip}>{select}</span>
           </Tooltip>
         ) : (
           select
@@ -311,6 +314,7 @@ export function WorkspaceInvitationRow({
       actions={menu}
       control={
         <Select
+          block
           variant='quiet'
           label={`Access to ${workspaceName} for ${row.email}`}
           options={WORKSPACE_ROLES}

@@ -44,7 +44,7 @@ import {
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
 
-const PROVIDER_TYPE_OPTIONS = [
+const PROVIDER_TYPE_OPTIONS: { value: SsoProviderForm['providerType']; label: string }[] = [
   { label: 'OIDC', value: 'oidc' },
   { label: 'SAML', value: 'saml' },
 ]
@@ -280,7 +280,7 @@ export function ProviderForm({
                 hint='Choose the protocol configured in your identity provider.'
                 options={PROVIDER_TYPE_OPTIONS}
                 value={form.providerType}
-                onValueChange={(value) => changeType(value as SsoProviderForm['providerType'])}
+                onValueChange={changeType}
               />
               {isEditing ? (
                 <CopyField

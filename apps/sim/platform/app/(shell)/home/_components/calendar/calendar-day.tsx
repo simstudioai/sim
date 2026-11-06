@@ -105,7 +105,8 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
   function returnToNow() {
     focusOnReturn.current = true
     onReturnToToday()
-    // Replacing the viewport cancels an in-flight native keyboard or momentum scroll.
+    // Remounting the viewport is the only thing that stops iOS momentum: assigning scrollTop or an
+    // instant scrollTo while it runs is overridden by the momentum's next frame.
     setReturnCount((count) => count + 1)
   }
 
@@ -119,7 +120,13 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
               Now
             </Button>
           )}
-          <IconButton icon='I032' label='Previous day' tooltip onClick={() => onDayChange(-1)} />
+          <IconButton
+            icon='I032'
+            mirrored
+            label='Previous day'
+            tooltip
+            onClick={() => onDayChange(-1)}
+          />
           <IconButton icon='I032' label='Next day' tooltip onClick={() => onDayChange(1)} />
         </div>
       </div>

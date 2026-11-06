@@ -64,7 +64,7 @@ function StatusFilterSelect({
       variant='quiet'
       value={value}
       options={statusFilterOptions(value)}
-      onValueChange={(next) => onChange(next as PermissionStatusFilter)}
+      onValueChange={onChange}
     />
   )
 }
