@@ -240,7 +240,7 @@ export async function blastRadiusChecks() {
         const signedOut = [
           ['/login', page.locator('#email')],
           ['/', page.getByRole('heading', { level: 1 }).first()],
-          ['/platform', page.getByRole('heading', { name: 'Page not found' })],
+          ['/platform', page.getByRole('heading', { level: 1, name: 'One AI workspace' })],
         ] as const
         for (const [path, anchor] of signedOut) {
           await page.goto(url(path))
@@ -251,11 +251,10 @@ export async function blastRadiusChecks() {
       })
     },
     {
-      // The three addresses this check opens that have nothing to show.
+      // The link and the invitation this check opens that do not exist.
       allow: [
         refused(404, 'GET', '/sim/no-such-link'),
-        refused(404, 'GET', '/invite/not-a-token'),
-        refused(404, 'GET', '/platform'),
+        refused(404, 'GET', '/api/invitations/not-a-token'),
       ],
     }
   )
