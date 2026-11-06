@@ -208,7 +208,9 @@ export async function blastRadiusChecks() {
         const home = session.requests.filter(({ path }) => /\/home\/|\/usage\/activity/.test(path))
         assert.deepEqual(home, [])
         await expect(page.getByRole('region', { name: 'Email', exact: true })).toHaveCount(0)
-        await page.goto(url('/extension/create-link'))
+        const createLink = await page.goto(url('/extension/create-link'))
+        assert.equal(createLink?.status(), 200, 'The create-link panel did not load')
+        await session.settle()
         await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
       },
       { viewport: { name: 'panel', width: 400, height: 800 } }
@@ -217,18 +219,33 @@ export async function blastRadiusChecks() {
   await check(
     '/sim, /sim-links, /invite, login and marketing have no platform surface',
     async () => {
-      await withSession(MEMBER, async ({ page, context }) => {
+      await withSession(MEMBER, async (session) => {
+        const { page, context } = session
         await context.route(/^https:\/\/example\.com\//, (route) =>
           route.fulfill({ status: 200, contentType: 'text/html', body: 'stand-in' })
         )
-        for (const path of ['/sim/no-such-link', '/invite/not-a-token']) {
+        const member = [
+          ['/sim/no-such-link', page.getByText("This link doesn't exist yet.")],
+          ['/invite/not-a-token', page.getByText('Invitation Error')],
+        ] as const
+        for (const [path, anchor] of member) {
           await page.goto(url(path))
+          await expect(anchor, `${path} rendered nothing`).toBeVisible()
+          await session.settle()
           await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
         }
       })
-      await withSession(null, async ({ page }) => {
-        for (const path of ['/login', '/', '/platform']) {
+      await withSession(null, async (session) => {
+        const { page } = session
+        const signedOut = [
+          ['/login', page.locator('#email')],
+          ['/', page.getByRole('heading', { level: 1 }).first()],
+          ['/platform', page.getByRole('heading', { name: 'Page not found' })],
+        ] as const
+        for (const [path, anchor] of signedOut) {
           await page.goto(url(path))
+          await expect(anchor, `${path} rendered nothing`).toBeVisible()
+          await session.settle()
           await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
         }
       })
