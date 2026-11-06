@@ -185,7 +185,7 @@ export const LIVE_SEARCH_PROVIDERS = {
   confluence: {
     guide: {
       syntax:
-        'CQL: siteSearch ~ "a few words" is Confluence relevance search and ranks pages about the topic first, so use it for topic, acronym and how-to lookups. text ~ "term" and title ~ "term" (title ~ "win*" for a prefix) match words with no relevance order, so keep them for exact strings. Combine with type IN (page, blogpost) and space = KEY (quote keys starting with a digit) using AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
+        'CQL: siteSearch ~ "a few words" is Confluence relevance search and ranks pages about the topic first, so use it for topic, acronym and how-to lookups. text ~ "term" and title ~ "term" (title ~ "win*" for a prefix) match pages containing those words or their variants without that ranking, so keep them for a specific identifier or term; text ~ "\\"exact phrase\\"" matches a phrase. Combine with type IN (page, blogpost) and space = KEY (quote keys starting with a digit) using AND/OR/NOT and parentheses; add ORDER BY lastmodified DESC only when recency matters more than relevance.',
       scope:
         'creator = currentUser(), contributor = currentUser(), mention = currentUser() and space = KEY. CQL has no project field; the separate native project field takes an Atlassian site cloud ID.',
       example: 'type IN (page, blogpost) AND siteSearch ~ "deployment freeze process"',
