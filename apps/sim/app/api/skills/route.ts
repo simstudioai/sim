@@ -13,7 +13,6 @@ import {
   messageForOrchestrationError,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -71,12 +70,10 @@ const withReadOnly = <T extends SkillListRow>(skills: T[]) =>
 
 /** GET - Fetch all skills for a workspace */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const principal = await authenticatePrincipal()
     if (!principal) {
-      logger.warn(`[${requestId}] Unauthorized skills access attempt`)
+      logger.warn('Unauthorized skills access attempt')
       return unauthorized()
     }
 
@@ -84,7 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
     if (!query.success) {
-      logger.warn(`[${requestId}] Invalid skills query`, { errors: query.error.issues })
+      logger.warn('Invalid skills query', { errors: query.error.issues })
       return NextResponse.json(
         { error: 'Invalid request data', details: query.error.issues },
         { status: 400 }
@@ -101,19 +98,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     const projected = orchestrationErrorResponse(error, 'Failed to fetch skills')
     if (projected) return projected
-    logger.error(`[${requestId}] Error fetching skills:`, error)
+    logger.error('Error fetching skills:', error)
     return NextResponse.json({ error: 'Failed to fetch skills' }, { status: 500 })
   }
 })
 
 /** POST - Create or update skills */
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const principal = await authenticatePrincipal()
     if (!principal) {
-      logger.warn(`[${requestId}] Unauthorized skills update attempt`)
+      logger.warn('Unauthorized skills update attempt')
       return unauthorized()
     }
 
@@ -123,7 +118,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid skills data`, { errors: error.issues })
+          logger.warn('Invalid skills data', { errors: error.issues })
           return validationErrorResponse(error, 'Invalid request data')
         },
       }
@@ -164,22 +159,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   } catch (error) {
     const projected = orchestrationErrorResponse(error, 'Failed to update skills')
     if (projected) {
-      logger.warn(`[${requestId}] Skill write rejected`, { status: projected.status })
+      logger.warn('Skill write rejected', { status: projected.status })
       return projected
     }
-    logger.error(`[${requestId}] Error updating skills`, error)
+    logger.error('Error updating skills', error)
     return NextResponse.json({ error: 'Failed to update skills' }, { status: 500 })
   }
 })
 
 /** DELETE - Delete a skill by ID */
 export const DELETE = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const principal = await authenticatePrincipal()
     if (!principal) {
-      logger.warn(`[${requestId}] Unauthorized skill deletion attempt`)
+      logger.warn('Unauthorized skill deletion attempt')
       return unauthorized()
     }
 
@@ -187,7 +180,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
     if (!query.success) {
-      logger.warn(`[${requestId}] Invalid skill deletion query`, { errors: query.error.issues })
+      logger.warn('Invalid skill deletion query', { errors: query.error.issues })
       return NextResponse.json(
         { error: 'Invalid request data', details: query.error.issues },
         { status: 400 }
@@ -208,15 +201,15 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       { groups: { workspace: workspaceId } }
     )
 
-    logger.info(`[${requestId}] Deleted skill: ${skillId}`)
+    logger.info(`Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })
   } catch (error) {
     const projected = orchestrationErrorResponse(error, 'Failed to delete skill')
     if (projected) {
-      logger.warn(`[${requestId}] Skill delete rejected`, { status: projected.status })
+      logger.warn('Skill delete rejected', { status: projected.status })
       return projected
     }
-    logger.error(`[${requestId}] Error deleting skill:`, error)
+    logger.error('Error deleting skill:', error)
     return NextResponse.json({ error: 'Failed to delete skill' }, { status: 500 })
   }
 })

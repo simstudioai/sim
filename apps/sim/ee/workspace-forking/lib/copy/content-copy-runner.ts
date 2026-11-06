@@ -234,7 +234,8 @@ export async function scheduleForkContentCopy(
       runDetached(detachedLabel, () => runForkContentCopy(payload))
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to schedule fork content copy`, {
+    logger.error('Failed to schedule fork content copy', {
+      requestId,
       detachedLabel,
       error: getErrorMessage(error),
     })

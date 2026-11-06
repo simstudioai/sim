@@ -82,12 +82,13 @@ export function verifyStandardWebhookRequest({
   if (verification.valid) return null
 
   if (verification.reason === 'missing_headers') {
-    logger.warn(`[${requestId}] ${providerLabel} webhook missing signature headers`)
+    logger.warn(`${providerLabel} webhook missing signature headers`, { requestId })
     return new NextResponse(`Unauthorized - Missing ${providerLabel} signature headers`, {
       status: 401,
     })
   }
-  logger.warn(`[${requestId}] ${providerLabel} signature verification failed`, {
+  logger.warn(`${providerLabel} signature verification failed`, {
+    requestId,
     reason: verification.reason,
   })
   return new NextResponse(`Unauthorized - Invalid ${providerLabel} signature`, { status: 401 })
@@ -113,7 +114,7 @@ export function createHmacVerifier({
     const secret = providerConfig[configKey] as string | undefined
     if (!secret) {
       if (requireSecret) {
-        logger.warn(`[${requestId}] ${providerLabel} webhook secret not configured`)
+        logger.warn(`${providerLabel} webhook secret not configured`, { requestId })
         return new NextResponse(`Unauthorized - Missing ${providerLabel} webhook secret`, {
           status: 401,
         })
@@ -123,13 +124,14 @@ export function createHmacVerifier({
 
     const signature = request.headers.get(headerName)
     if (!signature) {
-      logger.warn(`[${requestId}] ${providerLabel} webhook missing signature header`)
+      logger.warn(`${providerLabel} webhook missing signature header`, { requestId })
       return new NextResponse(`Unauthorized - Missing ${providerLabel} signature`, { status: 401 })
     }
 
     const isValid = await validateFn(secret, signature, rawBody)
     if (!isValid) {
-      logger.warn(`[${requestId}] ${providerLabel} signature verification failed`, {
+      logger.warn(`${providerLabel} signature verification failed`, {
+        requestId,
         signatureLength: signature.length,
         secretLength: secret.length,
       })
@@ -191,7 +193,8 @@ export function skipByEventTypes(
   const eventType = (body as Record<string, unknown>)?.type as string | undefined
   if (eventType && !eventTypes.includes(eventType)) {
     eventLogger.info(
-      `[${requestId}] ${providerLabel} event type '${eventType}' not in allowed list for webhook ${webhook.id as string}, skipping`
+      `${providerLabel} event type '${eventType}' not in allowed list for webhook ${webhook.id as string}, skipping`,
+      { requestId }
     )
     return true
   }

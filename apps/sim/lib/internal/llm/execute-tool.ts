@@ -67,7 +67,7 @@ export const executeLlmTool: InternalToolOperationHandler = async (request) => {
       return Response.json(error.body, { status: error.status })
     }
     const message = getErrorMessage(error)
-    logger.error(`[${request.requestId}] LLM chat operation failed`, { error: message })
+    logger.error('LLM chat operation failed', { requestId: request.requestId, error: message })
     return Response.json({ error: message }, { status: 500 })
   }
 }

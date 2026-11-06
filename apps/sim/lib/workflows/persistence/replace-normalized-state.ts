@@ -244,7 +244,6 @@ export async function replaceWorkflowNormalizedState(
   input: ReplaceWorkflowNormalizedStateInput
 ): Promise<ReplaceWorkflowNormalizedStateResult> {
   const { workflowId, workspaceId, attributedUserId, subjectUserId, state, requestId } = input
-  const logPrefix = requestId ? `[${requestId}] ` : ''
 
   /**
    * Hoisted ahead of the transaction even though the shared write checks it
@@ -336,7 +335,8 @@ export async function replaceWorkflowNormalizedState(
   })
 
   if (!saveResult.success) {
-    logger.error(`${logPrefix}Failed to save workflow ${workflowId} state`, {
+    logger.error(`Failed to save workflow ${workflowId} state`, {
+      requestId,
       error: saveResult.error,
     })
     throw new WorkflowStatePersistenceError(saveResult.error ?? 'Unknown persistence failure')
@@ -350,16 +350,17 @@ export async function replaceWorkflowNormalizedState(
         attributedUserId
       )
       if (saved > 0) {
-        logger.info(`${logPrefix}Persisted ${saved} custom tool(s) to database`, { workflowId })
+        logger.info(`Persisted ${saved} custom tool(s) to database`, { requestId, workflowId })
       }
       if (errors.length > 0) {
-        logger.warn(`${logPrefix}Some custom tools failed to persist`, { errors, workflowId })
+        logger.warn('Some custom tools failed to persist', { requestId, errors, workflowId })
       }
     } catch (error) {
-      logger.error(`${logPrefix}Failed to persist custom tools`, { error, workflowId })
+      logger.error('Failed to persist custom tools', { requestId, error, workflowId })
     }
   } else {
-    logger.warn(`${logPrefix}Workflow has no workspaceId, skipping custom tools persistence`, {
+    logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
+      requestId,
       workflowId,
     })
   }

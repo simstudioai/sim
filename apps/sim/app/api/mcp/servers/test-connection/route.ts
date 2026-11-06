@@ -98,7 +98,8 @@ export const POST = withRouteHandler(
 
       const body = parsedBody.data
 
-      logger.info(`[${requestId}] Testing MCP server connection:`, {
+      logger.info('Testing MCP server connection:', {
+        requestId,
         name: body.name,
         transport: body.transport,
         url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
@@ -158,7 +159,7 @@ export const POST = withRouteHandler(
       )
 
       if (missingVars.length > 0) {
-        logger.warn(`[${requestId}] Some environment variables not found:`, { missingVars })
+        logger.warn('Some environment variables not found:', { requestId, missingVars })
       }
 
       // Re-validate domain and SSRF after env var resolution
@@ -226,7 +227,7 @@ export const POST = withRouteHandler(
           result.toolCount = tools.length
           result.success = true
         } catch {
-          logger.warn(`[${requestId}] Connection established but could not list tools`)
+          logger.warn('Connection established but could not list tools', { requestId })
           result.success = false
           result.error = 'Connection established but could not list tools'
           result.warnings = result.warnings || []
@@ -243,7 +244,8 @@ export const POST = withRouteHandler(
           )
         }
 
-        logger.info(`[${requestId}] MCP server test successful:`, {
+        logger.info('MCP server test successful:', {
+          requestId,
           name: body.name,
           negotiatedVersion: result.negotiatedVersion,
           toolCount: result.toolCount,
@@ -252,13 +254,13 @@ export const POST = withRouteHandler(
       } catch (error) {
         result.success = false
         result.error = sanitizeConnectionError(error)
-        logger.warn(`[${requestId}] MCP server test failed`, { error: result.error })
+        logger.warn('MCP server test failed', { requestId, error: result.error })
       } finally {
         if (client) {
           try {
             await client.disconnect()
           } catch {
-            logger.debug(`[${requestId}] Test client disconnect error (expected)`)
+            logger.debug('Test client disconnect error (expected)', { requestId })
           }
         }
       }
@@ -267,7 +269,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
       if (bodyErrorResponse) return bodyErrorResponse
-      logger.error(`[${requestId}] Error testing MCP server connection:`, error)
+      logger.error('Error testing MCP server connection:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
   })

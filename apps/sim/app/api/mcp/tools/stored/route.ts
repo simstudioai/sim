@@ -19,7 +19,7 @@ export const GET = withRouteHandler(
     'mcp_tools.use'
   )(async (_request: NextRequest, { workspaceId, requestId }) => {
     try {
-      logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
+      logger.info(`Fetching stored MCP tools for workspace ${workspaceId}`, { requestId })
 
       const workflows = await db
         .select({ id: workflow.id, name: workflow.name })
@@ -69,12 +69,13 @@ export const GET = withRouteHandler(
       }
 
       logger.info(
-        `[${requestId}] Found ${storedTools.length} stored MCP tools across ${workflows.length} workflows`
+        `Found ${storedTools.length} stored MCP tools across ${workflows.length} workflows`,
+        { requestId }
       )
 
       return createMcpSuccessResponse({ tools: storedTools })
     } catch (error) {
-      logger.error(`[${requestId}] Error fetching stored MCP tools:`, error)
+      logger.error('Error fetching stored MCP tools:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to fetch stored MCP tools', 500)
     }
   })

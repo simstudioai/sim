@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
 import { validationErrorResponse } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { runDetached } from '@/lib/core/utils/background'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollNoActivityEvents } from '@/lib/workspace-events/no-activity'
 
@@ -18,8 +18,8 @@ const LOCK_KEY = 'workspace-events-no-activity-poll-lock'
 const LOCK_TTL_SECONDS = 120
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateShortId()
-  logger.info(`Workspace events no-activity polling triggered (${requestId})`)
+  const requestId = generateRequestId()
+  logger.info('Workspace events no-activity polling triggered')
   const queryValidation = noInputSchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries())
   )
@@ -65,7 +65,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       { status: 202 }
     )
   } catch (error) {
-    logger.error(`Error during workspace events polling (${requestId}):`, error)
+    logger.error('Error during workspace events polling:', error)
     return NextResponse.json(
       {
         success: false,

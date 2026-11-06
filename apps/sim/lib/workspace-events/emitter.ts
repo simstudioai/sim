@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
-import { generateShortId } from '@sim/utils/id'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   isSimRuleEventType,
@@ -46,7 +46,7 @@ export async function dispatchSimEvent(
   subscription: SimSubscription,
   payload: SimEventPayload
 ): Promise<void> {
-  const requestId = generateShortId()
+  const requestId = generateRequestId()
   try {
     const { processPolledWebhookEvent } = await import('@/lib/webhooks/processor')
     const result = await processPolledWebhookEvent(
@@ -58,16 +58,16 @@ export async function dispatchSimEvent(
 
     if (!result.success) {
       logger.error(
-        `[${requestId}] Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
+        `Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
         result.statusCode,
-        result.error
+        result.error,
+        { requestId }
       )
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Error firing sim trigger for workflow ${subscription.workflow.id}:`,
-      error
-    )
+    logger.error(`Error firing sim trigger for workflow ${subscription.workflow.id}:`, error, {
+      requestId,
+    })
   }
 }
 

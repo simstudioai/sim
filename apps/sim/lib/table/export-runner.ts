@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
@@ -47,7 +47,7 @@ export interface TableExportPayload {
  */
 export async function runTableExport(payload: TableExportPayload): Promise<void> {
   const { jobId, tableId, workspaceId, format } = payload
-  const requestId = generateId().slice(0, 8)
+  const requestId = generateRequestId()
   let handle: MultipartUploadHandle | null = null
   let uploadedKey: string | null = null
 
@@ -141,14 +141,15 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
         status: 'ready',
         progress: exported,
       })
-      logger.info(`[${requestId}] Export complete`, { tableId, rows: exported, format })
+      logger.info('Export complete', { requestId, tableId, rows: exported, format })
     } else {
       // Canceled at the very end — the file is orphaned; remove it (janitor would otherwise
       // only catch it via the pruned job's resultKey).
       try {
         await deleteFile({ key: uploaded.key, context: 'workspace' })
       } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to delete superseded export`, {
+        logger.warn('Failed to delete superseded export', {
+          requestId,
           tableId,
           workspaceId,
           jobId,
@@ -156,7 +157,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
           error: getErrorMessage(cleanupError, 'Unknown cleanup error'),
         })
       }
-      logger.info(`[${requestId}] Export finished but no longer owns the run`, { tableId, jobId })
+      logger.info('Export finished but no longer owns the run', { requestId, tableId, jobId })
     }
   } catch (err) {
     // A partial/orphaned upload from this attempt is useless — clean it up best-effort. An
@@ -166,7 +167,8 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       try {
         await deleteFile({ key: uploadedKey, context: 'workspace' })
       } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to delete incomplete export`, {
+        logger.warn('Failed to delete incomplete export', {
+          requestId,
           tableId,
           workspaceId,
           jobId,
@@ -178,7 +180,8 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       try {
         await handle.abort()
       } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to abort incomplete export`, {
+        logger.warn('Failed to abort incomplete export', {
+          requestId,
           tableId,
           workspaceId,
           jobId,
@@ -187,14 +190,15 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       }
     }
     if (err instanceof JobSupersededError) {
-      logger.info(`[${requestId}] Export superseded/canceled; stopping`, { tableId, jobId })
+      logger.info('Export superseded/canceled; stopping', { requestId, tableId, jobId })
     } else {
       const message = getErrorMessage(err, 'Export failed')
-      logger.error(`[${requestId}] Export failed for table ${tableId}:`, err)
+      logger.error(`Export failed for table ${tableId}:`, err, { requestId })
       try {
         await markJobFailedInWorkspace(tableId, workspaceId, jobId, message)
       } catch (failureError) {
-        logger.error(`[${requestId}] Failed to mark export job failed`, {
+        logger.error('Failed to mark export job failed', {
+          requestId,
           tableId,
           workspaceId,
           jobId,

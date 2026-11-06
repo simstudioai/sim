@@ -103,7 +103,7 @@ export async function runDocumentProcessing(
     payload.providerRetryCount === undefined &&
     payload.processingSliceCount === undefined
 
-  logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
+  logger.info(`Starting Trigger.dev processing for document: ${docData.filename}`, { requestId })
   /** Set from the service's callback, so control-flow narrowing cannot see it change. */
   let databaseRetryAt = null as Date | null
 
@@ -148,7 +148,7 @@ export async function runDocumentProcessing(
       }
     )
 
-    logger.info(`[${requestId}] Document processing finished`, { documentId, ...result })
+    logger.info('Document processing finished', { requestId, documentId, ...result })
 
     return {
       success: result.outcome === 'indexed',
@@ -160,7 +160,8 @@ export async function runDocumentProcessing(
   } catch (error) {
     if (databaseRetryAt) {
       const diagnostic = getConnectorFailureDiagnostic(error)
-      logger.warn(`[${requestId}] Document processing will retry after a database failure`, {
+      logger.warn('Document processing will retry after a database failure', {
+        requestId,
         documentId,
         diagnostic,
         attempt: attemptNumber,
@@ -178,7 +179,8 @@ export async function runDocumentProcessing(
         error instanceof ProviderCapacityContinuationExhaustedError
           ? 'provider_exhausted'
           : 'provider_deferred'
-      logger.warn(`[${requestId}] Document processing is waiting for provider recovery`, {
+      logger.warn('Document processing is waiting for provider recovery', {
+        requestId,
         documentId,
         providerRetryCount: payload.providerRetryCount ?? 0,
         reason: providerDeferral?.reason,
@@ -197,7 +199,8 @@ export async function runDocumentProcessing(
       }
     }
     if (isUsageLimitDocumentProcessingError(error)) {
-      logger.warn(`[${requestId}] Document processing is blocked by the current usage limit`, {
+      logger.warn('Document processing is blocked by the current usage limit', {
+        requestId,
         filename: docData.filename,
       })
       return {
@@ -211,7 +214,8 @@ export async function runDocumentProcessing(
     }
     if (isEmbeddingQuotaExhaustion(error)) {
       const outcome = canScheduleQuotaContinuation ? 'quota_deferred' : 'quota_exhausted'
-      logger.warn(`[${requestId}] Embedding quota is exhausted`, {
+      logger.warn('Embedding quota is exhausted', {
+        requestId,
         filename: docData.filename,
         quotaRetryCount: payload.quotaRetryCount ?? 0,
         continuationLimit: MAX_QUOTA_CONTINUATION_ATTEMPTS,
@@ -227,7 +231,8 @@ export async function runDocumentProcessing(
       }
     }
     if (isBYOKEmbeddingCredentialRejection(error)) {
-      logger.warn(`[${requestId}] Customer-managed embedding credentials were rejected`, {
+      logger.warn('Customer-managed embedding credentials were rejected', {
+        requestId,
         filename: docData.filename,
         status: error.status,
       })
@@ -243,7 +248,8 @@ export async function runDocumentProcessing(
     }
     const ocrRejection = getOcrRequestRejection(error)
     if (ocrRejection) {
-      logger.warn(`[${requestId}] OCR request requires remediation before retrying`, {
+      logger.warn('OCR request requires remediation before retrying', {
+        requestId,
         status: ocrRejection.status,
         code: ocrRejection.code,
       })
@@ -258,7 +264,8 @@ export async function runDocumentProcessing(
       }
     }
     if (isPermanentDocumentProcessingError(error)) {
-      logger.warn(`[${requestId}] Document cannot be processed without changing its content`, {
+      logger.warn('Document cannot be processed without changing its content', {
+        requestId,
         code: error.code,
         filename: docData.filename,
       })
@@ -273,10 +280,9 @@ export async function runDocumentProcessing(
       }
     }
     const diagnostic = getConnectorFailureDiagnostic(error)
-    logger.error(
-      `[${requestId}] Failed to process document: ${docData.filename}`,
-      diagnostic ?? error
-    )
+    logger.error(`Failed to process document: ${docData.filename}`, diagnostic ?? error, {
+      requestId,
+    })
     /** Trigger records the thrown message and stack, never `cause`; Drizzle's message carries SQL. */
     if (diagnostic?.category === 'database') throw new Error(diagnostic.message, { cause: error })
     throw error

@@ -495,16 +495,14 @@ describe('executeWebhookJob fault vs error handling', () => {
       workflowId: 'workflow-1',
       provider: 'gmail',
     })
-    expect(webhookExecutionLogger.error).toHaveBeenCalledWith(
-      '[request-1] Webhook execution failed',
-      {
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        provider: 'gmail',
-        error: projectedError,
-        failureKind: 'internal',
-      }
-    )
+    expect(webhookExecutionLogger.error).toHaveBeenCalledWith('Webhook execution failed', {
+      requestId: 'request-1',
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      provider: 'gmail',
+      error: projectedError,
+      failureKind: 'internal',
+    })
     const loggerPayload = JSON.stringify(webhookExecutionLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')

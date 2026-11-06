@@ -31,7 +31,7 @@ export async function getCredentialOwner(
 ): Promise<{ userId: string; accountId: string } | null> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
-    logger.warn(`[${requestId}] Failed to resolve OAuth account for credentialId ${credentialId}`)
+    logger.warn(`Failed to resolve OAuth account for credentialId ${credentialId}`, { requestId })
     return null
   }
   const [credentialRecord] = await db
@@ -41,7 +41,7 @@ export async function getCredentialOwner(
     .limit(1)
 
   if (!credentialRecord?.userId) {
-    logger.warn(`[${requestId}] Credential owner not found for credentialId ${credentialId}`)
+    logger.warn(`Credential owner not found for credentialId ${credentialId}`, { requestId })
     return null
   }
 

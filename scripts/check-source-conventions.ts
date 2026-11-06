@@ -31,6 +31,14 @@
  *   member of such a result, and a synchronous expression arrow that delegates to one, such as
  *   `(req, ctx) => withSpan(…, () => handler(req, ctx))`. Whether a factory in another module
  *   applies `withRouteHandler` is that module's concern; this rule only sees the route file.
+ * - `log-message-tag` (CLAUDE.md "Logging"): a `@sim/logger` message opens with an interpolated tag
+ *   (`[${requestId}] Started`, also after static tags such as `[Cascade] [${id}]`) or interpolates a
+ *   request id anywhere (`Polling failed (${requestId})`). Correlation ids belong in metadata, where
+ *   queries can filter on them, and a message whose text varies per request cannot be grouped. The
+ *   request context already stamps `requestId` on every line inside `withRouteHandler` and the
+ *   background tasks that bind one; elsewhere pass it as a field. A bracketed list mid-message
+ *   (`columns [${ids.join(', ')}]`) is not a tag. Unlike the rules above, this one covers every
+ *   `apps/*` and `packages/*` module that imports `@sim/logger`, not only `apps/sim`.
  *
  * Existing hits are counted per rule and file in `scripts/check-source-conventions.baseline.json`.
  * A file whose count rises, or that gains its first hit, fails. A count that drops also fails until
@@ -56,6 +64,7 @@ const RULES = [
   'static-inline-style',
   'api-db-import',
   'bare-route-handler',
+  'log-message-tag',
 ] as const
 
 export type Rule = (typeof RULES)[number]
@@ -88,6 +97,8 @@ const HOW_TO_FIX: Record<Rule, string> = {
     'Move the query into an application use case or manager and call it from the route; surface adapters never query protected data (CLAUDE.md "Application Operation Boundary"). Type-only imports are fine.',
   'bare-route-handler':
     'Export the verb as the result of a shared route builder (`defineInternalJsonRoute`, `defineV2JsonRoute`, …) or `withRouteHandler`, never a bare handler function (CLAUDE.md "API Contracts and Routes").',
+  'log-message-tag':
+    'Keep the message static and move the id into metadata: `logger.info(\'Started\', { requestId })`. Inside `withRouteHandler`, a `generateRequestId()` id is already on every line, so drop it (CLAUDE.md "Logging").',
 }
 
 const HTTP_VERBS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
@@ -116,6 +127,13 @@ const TRANSPARENT_WRAPPERS = new Set([
 ])
 
 type Node = { type: string; loc?: { start: { line: number } }; [key: string]: unknown }
+
+const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error'])
+/** Names a logger is bound to: `logger`, `log`, `routeLogger`, `this.logger`. */
+const LOGGER_RECEIVER = /^(?:logger|log|[a-z][A-Za-z]*Logger)$/
+/** Message text before its first interpolation that leaves a tag open: `[`, `[Cascade] [`. */
+const OPEN_TAG = /^(?:\[[^\]]*\]\s*)*\[$/
+const REQUEST_ID_NAME = /requestId$/i
 
 function walk(node: unknown, visit: (node: Node) => void): void {
   if (!node || typeof node !== 'object') return
@@ -533,6 +551,153 @@ function isContractCopy(file: string, source: string): boolean {
   return file.startsWith(CONTRACT_COPY_DIR) && source.startsWith(CONTRACT_COPY_HEADER)
 }
 
+/** `logger` for `logger` and `this.logger`; undefined for anything that is not a plain name. */
+function boundName(node: Node): string | undefined {
+  if (node.type === 'Identifier') return node.name as string
+  const member = node.property as Node | undefined
+  return node.type === 'MemberExpression' && !node.computed && member?.type === 'Identifier'
+    ? (member.name as string)
+    : undefined
+}
+
+function isLogger(node: Node | undefined): boolean {
+  const name = node && boundName(node)
+  return name !== undefined && LOGGER_RECEIVER.test(name)
+}
+
+/**
+ * The message a call logs: the first argument of `logger.info(…)` and its siblings, or the second
+ * of a helper handed the caller's logger, such as `logFailureOnce(logger, message, error)`.
+ */
+function loggedMessage(node: Node): Node | undefined {
+  const callee = node.callee as Node
+  const args = node.arguments as Node[]
+  const level = callee.property as Node | undefined
+  if (
+    callee.type === 'MemberExpression' &&
+    !callee.computed &&
+    level?.type === 'Identifier' &&
+    LOG_LEVELS.has(level.name as string) &&
+    isLogger(callee.object as Node)
+  ) {
+    return args[0]
+  }
+  return isLogger(args[0]) ? args[1] : undefined
+}
+
+function mentionsRequestId(expression: Node): boolean {
+  let found = false
+  walk(expression, (node) => {
+    if (node.type === 'Identifier' && REQUEST_ID_NAME.test(node.name as string)) found = true
+  })
+  return found
+}
+
+/** A message's parts in order: static text as strings, interpolations as nodes. */
+function messageParts(message: Node): Array<string | Node> | undefined {
+  if (message.type === 'TemplateLiteral') {
+    const quasis = message.quasis as Node[]
+    const expressions = message.expressions as Node[]
+    return quasis.flatMap((quasi, index) => {
+      const text = (quasi.value as { cooked: string | null }).cooked ?? ''
+      return index < expressions.length ? [text, expressions[index]] : [text]
+    })
+  }
+  if (message.type === 'BinaryExpression' && message.operator === '+') {
+    const left = messageParts(message.left as Node) ?? [message.left as Node]
+    const right = messageParts(message.right as Node) ?? [message.right as Node]
+    return [...left, ...right]
+  }
+  const text = stringValue(message)
+  return text === undefined ? undefined : [text]
+}
+
+/**
+ * Whether a message opens with an interpolated tag or interpolates a request id anywhere. An
+ * interpolated local `const` counts as what it holds, so `${logPrefix}Saved` is checked as the
+ * `[${requestId}] ` it was built from.
+ */
+function isTaggedMessage(message: Node, inits: Map<string, Node[]>, seen: Set<string>): boolean {
+  const parts = messageParts(message)
+  if (!parts) return false
+  const firstInterpolation = parts.findIndex((part) => typeof part !== 'string')
+  if (firstInterpolation === -1) return false
+  const lead = parts
+    .slice(0, firstInterpolation)
+    .filter((part): part is string => typeof part === 'string')
+    .join('')
+  if (OPEN_TAG.test(lead)) return true
+  return parts.some(
+    (part) =>
+      typeof part !== 'string' &&
+      (mentionsRequestId(part) ||
+        (part.type === 'Identifier' &&
+          messageCandidates(part, inits, seen).some(
+            (candidate) => candidate !== part && isTaggedMessage(candidate, inits, seen)
+          )))
+  )
+}
+
+/** `const` initializers by name, so a message built before the call is checked where it is logged. */
+function constInitializers(program: Node): Map<string, Node[]> {
+  const inits = new Map<string, Node[]>()
+  walk(program, (node) => {
+    if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
+    for (const declarator of node.declarations as Node[]) {
+      const id = declarator.id as Node
+      const init = declarator.init as Node | null
+      if (id.type !== 'Identifier' || !init) continue
+      inits.set(id.name as string, [...(inits.get(id.name as string) ?? []), init])
+    }
+  })
+  return inits
+}
+
+/** The message's possible values: both arms of a ternary, and a local `const` it names. */
+function messageCandidates(
+  message: Node,
+  inits: Map<string, Node[]>,
+  seen = new Set<string>()
+): Node[] {
+  const current = unwrap(message) ?? message
+  if (current.type === 'ConditionalExpression') {
+    return [
+      ...messageCandidates(current.consequent as Node, inits, seen),
+      ...messageCandidates(current.alternate as Node, inits, seen),
+    ]
+  }
+  if (current.type === 'Identifier' && !seen.has(current.name as string)) {
+    seen.add(current.name as string)
+    return (inits.get(current.name as string) ?? []).flatMap((init) =>
+      messageCandidates(init, inits, seen)
+    )
+  }
+  return [current]
+}
+
+function findLogMessageTags(file: string, source: string, program: Node): Violation[] {
+  const violations: Violation[] = []
+  const inits = constInitializers(program)
+  walk(program, (node) => {
+    if (node.type !== 'CallExpression') return
+    const message = loggedMessage(node)
+    if (!message) return
+    const seen = new Set<string>()
+    const tagged = messageCandidates(message, inits, seen).find((candidate) =>
+      isTaggedMessage(candidate, inits, seen)
+    )
+    if (!tagged) return
+    const text = source.slice(tagged.start as number, tagged.end as number).replace(/\s+/g, ' ')
+    violations.push({
+      rule: 'log-message-tag',
+      file,
+      line: lineOf(node),
+      detail: text.length > 80 ? `${text.slice(0, 77)}...` : text,
+    })
+  })
+  return violations
+}
+
 /** Unit, integration and live tests, plus fixtures: they bind real boundaries on purpose. */
 function isTestFile(file: string): boolean {
   return /\.(?:test|spec|integration)\.tsx?$/.test(file) || file.includes('/__fixtures__/')
@@ -540,16 +705,23 @@ function isTestFile(file: string): boolean {
 
 /** Every convention violation in one file; `file` is repo-relative with forward slashes. */
 export function findViolations(file: string, source: string): Violation[] {
-  if (!file.startsWith('apps/sim/') || !/\.tsx?$/.test(file) || file.endsWith('.d.ts')) return []
+  if (!/^(?:apps|packages)\//.test(file) || !/\.tsx?$/.test(file) || file.endsWith('.d.ts')) {
+    return []
+  }
+  const inSim = file.startsWith('apps/sim/')
   const test = isTestFile(file)
   const isApi = file.startsWith('apps/sim/app/api/') && !test
   // Cheap textual gates; each is a superset of what its rule can match, and the AST decides.
-  const wantsRelative = !isContractCopy(file, source) && /['"`]\.\.?\//.test(source)
-  const wantsTextSize = !test && /text-\[\d/.test(source)
-  const wantsStyle = !test && file.endsWith('.tsx') && /\bstyle\s*=\s*\{/.test(source)
+  const wantsRelative = inSim && !isContractCopy(file, source) && /['"`]\.\.?\//.test(source)
+  const wantsTextSize = inSim && !test && /text-\[\d/.test(source)
+  const wantsStyle = inSim && !test && file.endsWith('.tsx') && /\bstyle\s*=\s*\{/.test(source)
   const wantsDb = isApi && source.includes('@sim/db')
   const wantsRoute = isApi && /(?:^|\/)route\.ts$/.test(file)
-  if (!(wantsRelative || wantsTextSize || wantsStyle || wantsDb || wantsRoute)) return []
+  const wantsLogTag =
+    !test && source.includes('@sim/logger') && /\[(?:\$\{|['"`]\s*\+)|requestId/i.test(source)
+  if (!(wantsRelative || wantsTextSize || wantsStyle || wantsDb || wantsRoute || wantsLogTag)) {
+    return []
+  }
 
   const program = parseSource(file, source)
   return [
@@ -558,6 +730,7 @@ export function findViolations(file: string, source: string): Violation[] {
     ...(wantsStyle ? findStaticInlineStyles(file, program) : []),
     ...(wantsDb ? findApiDbImports(file, program) : []),
     ...(wantsRoute ? findBareRouteHandlers(file, program) : []),
+    ...(wantsLogTag ? findLogMessageTags(file, source, program) : []),
   ]
 }
 
@@ -639,7 +812,7 @@ export function nextBaseline(
 function sourceFiles(): string[] {
   const output = execFileSync(
     'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'apps/sim'],
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z', 'apps', 'packages'],
     { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
   )
   return [...new Set(output.split('\0'))]

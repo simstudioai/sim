@@ -163,7 +163,7 @@ export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
 
   if (scopeIds.length === 0) {
-    logger.info(`[${tableName}] Skipped — no resource owners in scope`)
+    logger.info('Skipped — no resource owners in scope', { tableName })
     return result
   }
 
@@ -220,8 +220,8 @@ export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
         // Count rows we tried to delete; SELECT-stage errors leave rows=[].
         result.failed += rows.length
         logger.error(
-          `[${tableName}] Batch failed (chunk ${chunkIdx + 1}/${chunks.length}, ${rows.length} rows):`,
-          { error }
+          `Batch failed (chunk ${chunkIdx + 1}/${chunks.length}, ${rows.length} rows):`,
+          { tableName, error }
         )
         hasMore = false
       }
@@ -229,7 +229,8 @@ export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
   }
 
   logger.info(
-    `[${tableName}] Complete: ${result.deleted} deleted, ${result.failed} failed across ${chunks.length} chunks${stoppedEarly ? ' (row-limit reached, remaining chunks deferred to next run)' : ''}`
+    `Complete: ${result.deleted} deleted, ${result.failed} failed across ${chunks.length} chunks${stoppedEarly ? ' (row-limit reached, remaining chunks deferred to next run)' : ''}`,
+    { tableName }
   )
 
   return result
@@ -338,14 +339,15 @@ export async function deleteRowsById(
       // run picks up whatever's still expired, so this only inflates the metric.
       result.failed += chunkIds.length
       logger.error(
-        `[${tableName}] Delete chunk ${chunkIdx + 1}/${chunks.length} failed (up to ${chunkIds.length} rows):`,
-        { error }
+        `Delete chunk ${chunkIdx + 1}/${chunks.length} failed (up to ${chunkIds.length} rows):`,
+        { tableName, error }
       )
     }
   }
 
   logger.info(
-    `[${tableName}] Deleted ${result.deleted} rows across ${chunks.length} chunk(s)${result.failed > 0 ? `, ${result.failed} failed` : ''}`
+    `Deleted ${result.deleted} rows across ${chunks.length} chunk(s)${result.failed > 0 ? `, ${result.failed} failed` : ''}`,
+    { tableName }
   )
   return result
 }

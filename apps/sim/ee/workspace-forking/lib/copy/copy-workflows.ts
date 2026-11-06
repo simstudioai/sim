@@ -651,7 +651,8 @@ export async function copyWorkflowStateIntoTarget(
     const newSource = blockIdMapping.get(edge.source)
     const newTarget = blockIdMapping.get(edge.target)
     if (!newSource || !newTarget) {
-      logger.warn(`[${requestId}] Skipping edge with unmapped block reference during fork copy`, {
+      logger.warn('Skipping edge with unmapped block reference during fork copy', {
+        requestId,
         edgeId: edge.id,
       })
       return []

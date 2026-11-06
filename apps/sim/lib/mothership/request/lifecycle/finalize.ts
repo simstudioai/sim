@@ -82,7 +82,8 @@ async function handleAborted(
   const partialContentLen = result.content?.length ?? 0
   const toolCallCount = result.toolCalls?.length ?? 0
   const blockCount = result.contentBlocks?.length ?? 0
-  logger.info(`[${requestId}] Stream aborted by explicit stop`, {
+  logger.info('Stream aborted by explicit stop', {
+    requestId,
     partialContentLen,
     toolCallCount,
     blockCount,
@@ -132,9 +133,10 @@ async function handleError(
   const toolCallCount = result.toolCalls?.length ?? 0
 
   if (publisher.clientDisconnected) {
-    logger.info(`[${requestId}] Stream failed after client disconnect`, { error: errorMessage })
+    logger.info('Stream failed after client disconnect', { requestId, error: errorMessage })
   }
-  logger.error(`[${requestId}] Orchestration returned failure`, {
+  logger.error('Orchestration returned failure', {
+    requestId,
     error: errorMessage,
     partialContentLen,
     toolCallCount,
@@ -233,7 +235,8 @@ async function loggedRunStatusUpdate(
   try {
     await updateRunStatus(runId, status, updates, controllerToken)
   } catch (error) {
-    logger.warn(`[${requestId}] Failed to update run status to ${status}`, {
+    logger.warn(`Failed to update run status to ${status}`, {
+      requestId,
       runId,
       error: toError(error).message,
     })

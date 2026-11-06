@@ -347,14 +347,14 @@ export function accessError(
   context?: string
 ): NextResponse {
   if (result.capability) {
-    logger.warn(
-      `[${requestId}] ${capabilityRefusal(result.capability)}${context ? `: ${context}` : ''}`
-    )
+    logger.warn(`${capabilityRefusal(result.capability)}${context ? `: ${context}` : ''}`, {
+      requestId,
+    })
     return capabilityRefusalResponse(result.capability)
   }
 
   const message = result.status === 404 ? 'Table not found' : 'Access denied'
-  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
+  logger.warn(`${message}${context ? `: ${context}` : ''}`, { requestId })
   return NextResponse.json({ error: message }, { status: result.status })
 }
 

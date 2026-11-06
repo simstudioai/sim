@@ -484,8 +484,12 @@ describe('async preprocessing correlation threading', () => {
       })
       expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
       expect(workflowExecutionLogger.info).toHaveBeenCalledWith(
-        '[request-deleted] Workflow execution ended: its workspace was deleted',
-        { workflowId: 'workflow-1', executionId: 'execution-deleted-start' }
+        'Workflow execution ended: its workspace was deleted',
+        {
+          requestId: 'request-deleted',
+          workflowId: 'workflow-1',
+          executionId: 'execution-deleted-start',
+        }
       )
     })
 
@@ -627,10 +631,13 @@ describe('async preprocessing correlation threading', () => {
       })
     )
     expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError)
-    expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
-      '[request-fault] Workflow execution failed: workflow-1',
-      { executionId: 'execution-fault', error: projectedError, failureKind: 'internal' }
-    )
+    expect(workflowExecutionLogger.error).toHaveBeenCalledWith('Workflow execution failed', {
+      requestId: 'request-fault',
+      workflowId: 'workflow-1',
+      executionId: 'execution-fault',
+      error: projectedError,
+      failureKind: 'internal',
+    })
     const loggerPayload = JSON.stringify(workflowExecutionLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')

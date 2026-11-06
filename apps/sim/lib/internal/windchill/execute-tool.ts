@@ -105,7 +105,8 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
         internalToolIdentityFaultStatus(identityFault)
       )
     }
-    logger.error(`[${requestId}] Windchill operation failed`, {
+    logger.error('Windchill operation failed', {
+      requestId,
       operation: toolId,
       error: sanitizeWindchillError(getErrorMessage(error, 'Windchill operation failed')),
     })

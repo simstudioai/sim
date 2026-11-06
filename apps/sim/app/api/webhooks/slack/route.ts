@@ -171,7 +171,7 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     }
   }
   if (teamIds.size === 0) {
-    logger.warn(`[${requestId}] Slack event missing team_id`)
+    logger.warn('Slack event missing team_id')
     return new NextResponse(null, { status: 200 })
   }
 

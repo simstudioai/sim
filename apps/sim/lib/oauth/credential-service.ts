@@ -869,7 +869,7 @@ async function getCredentialByAccountId(requestId: string, accountId: string, us
     .limit(1)
 
   if (!credentials.length) {
-    logger.warn(`[${requestId}] Credential not found`)
+    logger.warn('Credential not found', { requestId })
     return undefined
   }
 
@@ -885,7 +885,7 @@ async function getCredentialByAccountId(requestId: string, accountId: string, us
 export async function getCredential(requestId: string, credentialId: string, userId: string) {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
-    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
+    logger.warn('Credential is not an OAuth credential', { requestId })
     return undefined
   }
   return getCredentialByAccountId(requestId, resolved.accountId, userId)
@@ -1597,8 +1597,10 @@ async function performCoalescedRefresh({
 }
 
 /** Starts a refresh ahead of expiry; callers in the window share it through the refresh's own single-flight. */
-function refreshInBackground(options: CoalescedRefreshOptions, logPrefix: string): void {
-  logger.debug(`${logPrefix}Refreshing ahead of expiry; using the still-valid access token`)
+function refreshInBackground(options: CoalescedRefreshOptions): void {
+  logger.debug('Refreshing ahead of expiry; using the still-valid access token', {
+    requestId: options.requestId,
+  })
   // The refresh settles and logs its own failures; this catches only a setup error before it starts.
   performCoalescedRefresh(options).catch((error: unknown) => {
     logger.error('Background token refresh failed to start', {
@@ -1635,9 +1637,8 @@ async function resolveStoredAccessToken(
     refreshToken: plan.refreshToken,
     chain: stored,
   }
-  const prefix = refresh.requestId ? `[${refresh.requestId}] ` : ''
   if (plan.kind === 'refresh-ahead') {
-    refreshInBackground(options, prefix)
+    refreshInBackground(options)
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
   const fresh = await waitWithAbort(performCoalescedRefresh(options), signal)
@@ -1645,7 +1646,9 @@ async function resolveStoredAccessToken(
     return { kind: 'token', accessToken: fresh.accessToken, refreshed: true }
   }
   if (plan.kind === 'refresh-or-reuse' && stored.accessToken) {
-    logger.info(`${prefix}Refresh unavailable; reusing still-valid access token`)
+    logger.info('Refresh unavailable; reusing still-valid access token', {
+      requestId: refresh.requestId,
+    })
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
   return { kind: 'failed', outcome: fresh }
@@ -1724,7 +1727,7 @@ export async function resolveCredentialTokenBundle(
   }
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
-    logger.info(`[${requestId}] Using service account token for credential`)
+    logger.info('Using service account token for credential', { requestId })
     return resolveServiceAccountToken(
       resolved.credentialId,
       resolved.providerId,
@@ -1761,10 +1764,10 @@ export async function resolveCredentialTokenBundle(
   if (result.kind === 'failed') return null
   if (!result.accessToken) {
     // We have no access token and either no refresh token or not eligible to refresh
-    logger.error(`[${requestId}] Missing access token for credential`)
+    logger.error('Missing access token for credential', { requestId })
     return null
   }
-  if (!result.refreshed) logger.debug(`[${requestId}] Access token is valid for credential`)
+  if (!result.refreshed) logger.debug('Access token is valid for credential', { requestId })
   return { accessToken: result.accessToken }
 }
 
@@ -1817,7 +1820,7 @@ export async function refreshTokenIfNeeded(
     throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
   }
   if (result.kind === 'token') {
-    if (!result.refreshed) logger.debug(`[${requestId}] Access token is valid`)
+    if (!result.refreshed) logger.debug('Access token is valid', { requestId })
     /** A row storing neither token returns its empty token as before; callers decide how to fail. */
     return {
       accessToken: result.accessToken ?? credential.accessToken,

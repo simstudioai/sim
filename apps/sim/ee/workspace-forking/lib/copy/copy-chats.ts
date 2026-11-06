@@ -183,7 +183,8 @@ export async function copyForkChatDeployments(params: {
   }
   if (inserts.length > 0) {
     await tx.insert(chat).values(inserts)
-    logger.info(`[${requestId ?? 'unknown'}] Carried ${inserts.length} chat deployment(s)`, {
+    logger.info(`Carried ${inserts.length} chat deployment(s)`, {
+      requestId,
       identifiers: inserts.map((row) => row.identifier),
     })
   }

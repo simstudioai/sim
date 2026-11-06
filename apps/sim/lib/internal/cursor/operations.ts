@@ -111,7 +111,8 @@ export async function downloadCursorArtifact(
     mimeType: downloadResponse.headers.get('content-type') || 'application/octet-stream',
     buffer: fileBuffer,
   }
-  logger.info(`[${context.requestId}] Cursor artifact downloaded`, {
+  logger.info('Cursor artifact downloaded', {
+    requestId: context.requestId,
     agentId: input.agentId,
     path: input.path,
     size: fileBuffer.length,

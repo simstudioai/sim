@@ -560,7 +560,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     }
     await seedEdgeMappings(tx, childWorkspaceId, userId, seedEntries)
 
-    logger.info(`[${requestId}] Created fork ${childWorkspaceId} from ${source.id}`, {
+    logger.info(`Created fork ${childWorkspaceId} from ${source.id}`, {
+      requestId,
       workflowsCopied,
       mappingsSeeded: seedEntries.length,
     })
@@ -688,7 +689,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Failed to record fork background-work status`, {
+    logger.error('Failed to record fork background-work status', {
+      requestId,
       childWorkspaceId: result.workspace.id,
       error: getErrorMessage(error),
     })

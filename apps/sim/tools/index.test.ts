@@ -1149,8 +1149,10 @@ describe('executeTool Function', () => {
       expect(result.success).toBe(false)
     }
 
-    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(([message]) =>
-      String(message).includes('Error executing tool http_request')
+    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(
+      ([message, fields]) =>
+        message === 'Error executing tool' &&
+        (fields as Record<string, unknown> | undefined)?.toolId === 'http_request'
     )
     expect(toolFailureLogs).toHaveLength(2)
   })
@@ -1998,7 +2000,7 @@ describe('executeTool Function', () => {
     expect(logged).not.toContain('__sim_')
     expect(mockToolsLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to read non-OK response body for function_execute'),
-      { errorName: 'Error' }
+      { requestId: 'mock-request-id', errorName: 'Error' }
     )
   })
 

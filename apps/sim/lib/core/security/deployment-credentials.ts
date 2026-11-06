@@ -120,7 +120,7 @@ export async function validateDeploymentCredentials(
       }
 
       if (!resource.password) {
-        logger.error(`[${requestId}] No password set for password-protected ${resource.id}`)
+        logger.error(`No password set for password-protected ${resource.id}`, { requestId })
         return { authorized: false, error: 'Authentication configuration error' }
       }
 
@@ -132,7 +132,8 @@ export async function validateDeploymentCredentials(
           { failClosed: true }
         )
         if (!ipRateLimit.allowed) {
-          logger.warn(`[${requestId}] Password attempt IP rate limit exceeded`, {
+          logger.warn('Password attempt IP rate limit exceeded', {
+            requestId,
             resourceId: resource.id,
             cookiePrefix,
             ip,
@@ -150,7 +151,8 @@ export async function validateDeploymentCredentials(
         { failClosed: true }
       )
       if (!resourceRateLimit.allowed) {
-        logger.warn(`[${requestId}] Password attempt resource rate limit exceeded`, {
+        logger.warn('Password attempt resource rate limit exceeded', {
+          requestId,
           resourceId: resource.id,
           cookiePrefix,
         })
@@ -167,7 +169,7 @@ export async function validateDeploymentCredentials(
 
       return { authorized: true }
     } catch (error) {
-      logger.error(`[${requestId}] Error validating password:`, error)
+      logger.error('Error validating password:', error, { requestId })
       return { authorized: false, error: 'Authentication error' }
     }
   }
@@ -198,7 +200,7 @@ export async function validateDeploymentCredentials(
 
       return { authorized: false, error: 'Email not authorized' }
     } catch (error) {
-      logger.error(`[${requestId}] Error validating email:`, error)
+      logger.error('Error validating email:', error, { requestId })
       return { authorized: false, error: 'Authentication error' }
     }
   }
@@ -224,7 +226,7 @@ export async function validateDeploymentCredentials(
 
       return { authorized: false, error: 'Your email is not authorized to access this resource' }
     } catch (error) {
-      logger.error(`[${requestId}] Error validating SSO:`, error)
+      logger.error('Error validating SSO:', error, { requestId })
       return { authorized: false, error: 'SSO authentication error' }
     }
   }

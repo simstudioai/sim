@@ -43,7 +43,7 @@ export async function executeMemberSyncJob(payload: unknown) {
   const { connectorId, requestId, billingAttribution, dispatchToken, forceContentRefresh } =
     assertMemberSyncPayload(payload)
 
-  logger.info(`[${requestId}] Starting member sync: ${connectorId}`)
+  logger.info(`Starting member sync: ${connectorId}`, { requestId })
 
   try {
     const result = await executeMemberSync(connectorId, {
@@ -53,7 +53,8 @@ export async function executeMemberSyncJob(payload: unknown) {
     })
     const outcome = classifyMemberSyncResult(result)
 
-    logger.info(`[${requestId}] Member sync completed`, {
+    logger.info('Member sync completed', {
+      requestId,
       connectorId,
       outcome,
       deferred: result.deferred,
@@ -86,7 +87,7 @@ export async function executeMemberSyncJob(payload: unknown) {
 
     return { success: outcome === 'completed', outcome, connectorId, ...result }
   } catch (error) {
-    logger.error(`[${requestId}] Member sync failed: ${connectorId}`, error)
+    logger.error(`Member sync failed: ${connectorId}`, error, { requestId })
     throw error
   }
 }

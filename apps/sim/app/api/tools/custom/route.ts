@@ -22,12 +22,10 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('CustomToolsAPI')
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
+      logger.warn('Unauthorized custom tools access attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -47,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         action: 'read',
       })
       if (!workflowAuthorization.allowed) {
-        logger.warn(`[${requestId}] Workflow authorization failed for custom tools`, {
+        logger.warn('Workflow authorization failed for custom tools', {
           workflowId,
           userId,
           status: workflowAuthorization.status,
@@ -69,9 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         resolvedWorkspaceId
       )
       if (!userPermission) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have access to workspace ${resolvedWorkspaceId}`
-        )
+        logger.warn(`User ${userId} does not have access to workspace ${resolvedWorkspaceId}`)
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
     }
@@ -92,7 +88,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching custom tools:`, error)
+    logger.error('Error fetching custom tools:', error)
     return NextResponse.json({ error: 'Failed to fetch custom tools' }, { status: 500 })
   }
 })
@@ -103,7 +99,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const authResult = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized custom tools update attempt`)
+      logger.warn('Unauthorized custom tools update attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -114,7 +110,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       {
         invalidJson: 'throw',
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid custom tools data`, { errors: error.issues })
+          logger.warn('Invalid custom tools data', { errors: error.issues })
           return NextResponse.json(
             {
               error: 'Invalid request data',
@@ -131,20 +127,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const { tools, workspaceId, source } = parsed.data.body
 
     if (!workspaceId) {
-      logger.warn(`[${requestId}] Missing workspaceId in request body`)
+      logger.warn('Missing workspaceId in request body')
       return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
     }
 
     const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!userPermission) {
-      logger.warn(`[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`)
+      logger.warn(`User ${userId} does not have access to workspace ${workspaceId}`)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     if (userPermission !== 'admin' && userPermission !== 'write') {
-      logger.warn(
-        `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-      )
+      logger.warn(`User ${userId} does not have write permission for workspace ${workspaceId}`)
       return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
     }
 
@@ -182,21 +176,20 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, data: resultTools })
   } catch (error) {
-    logger.error(`[${requestId}] Error updating custom tools`, error)
+    logger.error('Error updating custom tools', error)
     const errorMessage = getErrorMessage(error, 'Failed to update custom tools')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 })
 
 export const DELETE = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
   const parsed = await parseRequest(
     deleteCustomToolContract,
     request,
     {},
     {
       validationErrorResponse: (error) => {
-        logger.warn(`[${requestId}] Missing tool ID for deletion`)
+        logger.warn('Missing tool ID for deletion')
         return NextResponse.json(
           {
             error: 'Tool ID is required',
@@ -214,7 +207,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
+      logger.warn('Unauthorized custom tool deletion attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -227,7 +220,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     if (existingTool.length === 0) {
-      logger.warn(`[${requestId}] Tool not found: ${toolId}`)
+      logger.warn(`Tool not found: ${toolId}`)
       return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
     }
 
@@ -235,33 +228,27 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
 
     if (tool.workspaceId) {
       if (!workspaceId) {
-        logger.warn(`[${requestId}] Missing workspaceId for workspace-scoped tool`)
+        logger.warn('Missing workspaceId for workspace-scoped tool')
         return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
       }
 
       const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!userPermission) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`
-        )
+        logger.warn(`User ${userId} does not have access to workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
 
       if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-        )
+        logger.warn(`User ${userId} does not have write permission for workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
       }
 
       if (tool.workspaceId !== workspaceId) {
-        logger.warn(`[${requestId}] Tool ${toolId} does not belong to workspace ${workspaceId}`)
+        logger.warn(`Tool ${toolId} does not belong to workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
       }
     } else if (tool.userId !== userId) {
-      logger.warn(
-        `[${requestId}] User ${userId} attempted to delete tool they don't own: ${toolId}`
-      )
+      logger.warn(`User ${userId} attempted to delete tool they don't own: ${toolId}`)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
@@ -288,10 +275,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       metadata: { source },
     })
 
-    logger.info(`[${requestId}] Deleted tool: ${toolId}`)
+    logger.info(`Deleted tool: ${toolId}`)
     return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error(`[${requestId}] Error deleting custom tool:`, error)
+    logger.error('Error deleting custom tool:', error)
     return NextResponse.json({ error: 'Failed to delete custom tool' }, { status: 500 })
   }
 })

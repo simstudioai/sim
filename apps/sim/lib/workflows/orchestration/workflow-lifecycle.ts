@@ -268,7 +268,8 @@ export async function createWorkflowWithState({
     return { success: true, workflow }
   } catch (error) {
     if (asOrchestrationError(error)) throw error
-    logger.error(`[${params.requestId ?? 'create'}] Failed to persist workflow state`, {
+    logger.error('Failed to persist workflow state', {
+      requestId: params.requestId,
       workspaceId: params.workspaceId,
       error,
     })
@@ -359,7 +360,7 @@ export async function performCreateWorkflowTransition(
       const conflictingConstraint =
         getPostgresErrorCode(error) === '23505' ? getPostgresConstraintName(error) : undefined
       if (conflictingConstraint === WORKFLOW_PRIMARY_KEY) {
-        logger.warn(`[${requestId}] Workflow id is already taken`, { workflowId })
+        logger.warn('Workflow id is already taken', { requestId, workflowId })
         return {
           success: false,
           error: 'A workflow with this ID already exists',
@@ -378,14 +379,15 @@ export async function performCreateWorkflowTransition(
         }
       }
 
-      logger.warn(`[${requestId}] Workflow name was claimed during creation; retrying`, {
+      logger.warn('Workflow name was claimed during creation; retrying', {
+        requestId,
         name,
         attempt: attempt + 1,
       })
     }
   }
 
-  logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)
+  logger.info(`Successfully created workflow ${workflowId}`, { requestId })
 
   return {
     success: true,
@@ -430,7 +432,7 @@ export async function performCreateWorkflow(
     }
     return result
   } catch (error) {
-    logger.error(`[${requestId}] Failed to create workflow`, { error })
+    logger.error('Failed to create workflow', { requestId, error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -504,7 +506,8 @@ export async function updateWorkflowRecord(
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
-  logger.info(`[${requestId}] Successfully updated workflow ${params.workflowId}`, {
+  logger.info(`Successfully updated workflow ${params.workflowId}`, {
+    requestId,
     updates: updateData,
   })
 
@@ -550,7 +553,7 @@ export async function deleteWorkflowRecord(
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
-  logger.info(`[${requestId}] Successfully archived workflow ${workflowId}`)
+  logger.info(`Successfully archived workflow ${workflowId}`, { requestId })
   return {
     success: true,
     archived: archiveResult.archived,
@@ -610,7 +613,7 @@ export async function performRestoreWorkflow(
       }
     }
 
-    logger.info(`[${requestId}] Successfully restored workflow ${workflowId}`)
+    logger.info(`Successfully restored workflow ${workflowId}`, { requestId })
 
     recordAudit({
       workspaceId: restoreResult.workflow.workspaceId || null,
@@ -628,7 +631,7 @@ export async function performRestoreWorkflow(
 
     return { success: true, workflow: restoreResult.workflow }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to restore workflow ${workflowId}`, { error })
+    logger.error(`Failed to restore workflow ${workflowId}`, { requestId, error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }

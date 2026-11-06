@@ -797,12 +797,12 @@ export async function assertToolFileAccess(
   routeLogger: ReturnType<typeof createLogger>
 ): Promise<NextResponse | null> {
   if (typeof key !== 'string' || key.length === 0) {
-    routeLogger.warn(`[${requestId}] File access check rejected: missing key`)
+    routeLogger.warn('File access check rejected: missing key', { requestId })
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
   }
   const hasAccess = await verifyFileAccess(key, userId)
   if (!hasAccess) {
-    routeLogger.warn(`[${requestId}] File access denied for user`, { userId, key })
+    routeLogger.warn('File access denied for user', { requestId, userId, key })
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
   }
   return null
