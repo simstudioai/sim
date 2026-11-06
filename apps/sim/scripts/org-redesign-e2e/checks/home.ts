@@ -466,6 +466,13 @@ export async function homeChecks() {
       await expect(region.getByText('Last run failed: Invoice sync')).toBeVisible()
       await expect(region.getByText('2hrs ago')).toBeVisible()
       await expect(region.getByText('No recent workflow runs')).toBeVisible()
+      const rowWidth = (await region.getByRole('link', { name: /Invoice sync/ }).boundingBox())
+        ?.width
+      const regionWidth = (await region.boundingBox())?.width
+      assert(
+        rowWidth && regionWidth && rowWidth >= regionWidth,
+        `A row is ${rowWidth}px wide in a ${regionWidth}px section, too narrow to show its name`
+      )
     })
   })
   await check(
