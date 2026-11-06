@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   PermissionGroup,
@@ -22,7 +21,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { FieldStack } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AddMembersModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
   useBulkAddPermissionGroupMembers,
@@ -31,6 +30,7 @@ import {
 } from '@/platform/embedded/lib/data/access-control'
 import { plural } from '@/platform/shared/plural'
 import { formatTimestamp } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 interface GroupMembersProps {
   group: PermissionGroup

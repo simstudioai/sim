@@ -27,10 +27,7 @@ vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/lib/knowledge/application/search-history', () => ({
   listSearchHistory: { execute: mocks.history },
 }))

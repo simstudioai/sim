@@ -2,7 +2,7 @@
 
 import { TextField } from '@/platform/design-system/components/field/fields'
 import { Modal } from '@/platform/design-system/components/modal/modal'
-import { readFormText } from '@/platform/embedded/lib/row-links'
+import { readFormText } from '@/platform/shared/row-links'
 
 interface NameModalProps {
   title: string

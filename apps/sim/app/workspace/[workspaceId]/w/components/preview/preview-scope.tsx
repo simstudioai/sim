@@ -5,7 +5,7 @@ import {
   useOptionalWorkflowScope,
   WorkflowScopeProvider,
 } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 
 interface PreviewScopeProps {
   workspaceId?: string

@@ -1,15 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
-import {
-  useAddOrganizationDomain,
-  useOrganizationDomains,
-  useRemoveOrganizationDomain,
-  useVerifyOrganizationDomain,
-} from '@/ee/sso/hooks/domains'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
   ActionMenu,
@@ -30,7 +23,8 @@ import {
   ActionRow,
   FieldStack,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useDomainList, useDomainVerification } from '@/platform/embedded/lib/data/sso-settings'
 
 interface DomainRowProps {
   organizationId: string
@@ -39,17 +33,8 @@ interface DomainRowProps {
 }
 
 function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
-  const verifyDomain = useVerifyOrganizationDomain()
+  const verification = useDomainVerification(organizationId, domain)
   const isVerified = domain.status === 'verified'
-
-  async function verify() {
-    try {
-      await verifyDomain.mutateAsync({ orgId: organizationId, domainId: domain.id })
-      toast.success(`${domain.domain} verified`)
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Verification failed — check the DNS record and retry'))
-    }
-  }
 
   return (
     <>
@@ -86,8 +71,12 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           />
           <CopyField label='Value' value={domain.txtRecordValue} />
           <ActionRow>
-            <Button size='compact' disabled={verifyDomain.isPending} onClick={() => void verify()}>
-              {verifyDomain.isPending ? 'Checking…' : 'Verify'}
+            <Button
+              size='compact'
+              disabled={verification.pending}
+              onClick={() => void verification.verify()}
+            >
+              {verification.pending ? 'Checking…' : 'Verify'}
             </Button>
           </ActionRow>
         </FieldStack>
@@ -104,33 +93,31 @@ export function DomainsPanel({
   organizationId: string
   active: boolean
 }) {
-  const { data, isLoading, isError, error, isFetching, refetch } = useOrganizationDomains(
-    organizationId,
-    { enabled: active }
-  )
-  const addDomain = useAddOrganizationDomain()
-  const removeDomain = useRemoveOrganizationDomain()
+  const {
+    read,
+    addPending,
+    removePending,
+    add: addDomain,
+    remove,
+  } = useDomainList(organizationId, active)
+  const { data, isLoading, isError, error, isFetching, refetch } = read
   const [newDomain, setNewDomain] = useState('')
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null)
   const domains = data?.domains ?? []
   const pendingRemoval = domains.find((domain) => domain.id === pendingRemovalId) ?? null
   useSettingsUnsavedGuard({
     isDirty: newDomain.trim().length > 0,
-    navigationBlocked: addDomain.isPending || removeDomain.isPending,
+    navigationBlocked: addPending || removePending,
     onDiscard: () => setNewDomain(''),
   })
-  const canAdd = !addDomain.isPending && newDomain.trim().length > 0
+  const canAdd = !addPending && newDomain.trim().length > 0
 
   async function add() {
     const value = newDomain.trim()
     if (!value) return
-    try {
-      await addDomain.mutateAsync({ orgId: organizationId, body: { domain: value } })
+    await addDomain(value, () => {
       setNewDomain((current) => (current.trim() === value ? '' : current))
-      toast.success(`${value} added — add the DNS record and verify`)
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, 'Failed to add domain'))
-    }
+    })
   }
 
   return (
@@ -152,7 +139,7 @@ export function DomainsPanel({
             />
             <ActionRow>
               <Button variant='primary' submit disabled={!canAdd}>
-                {addDomain.isPending ? 'Adding…' : 'Add domain'}
+                {addPending ? 'Adding…' : 'Add domain'}
               </Button>
             </ActionRow>
           </FieldStack>
@@ -194,8 +181,7 @@ export function DomainsPanel({
         pendingLabel='Removing…'
         onConfirm={async () => {
           if (!pendingRemoval) return
-          await removeDomain.mutateAsync({ orgId: organizationId, domainId: pendingRemoval.id })
-          toast.success(`${pendingRemoval.domain} removed`)
+          await remove(pendingRemoval)
         }}
       />
     </SectionStack>

@@ -2,11 +2,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useOrganization } from '@/lib/organizations/provider'
-import { Button, FailureNotice, LoadingRows, StatusTag } from '@/platform/design-system/components'
+import { Button, FailureNotice, StatusTag } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/members/members.module.css'
 import type { useMembers } from '@/platform/embedded/lib/data/members'
 import { plural } from '@/platform/shared/plural'
@@ -17,7 +18,7 @@ interface SeatsOverviewProps {
 
 export function SeatsOverview({ seats }: SeatsOverviewProps) {
   const organizationId = useOrganization().organization.id
-  if (seats.status === 'pending') return <LoadingRows label='Loading seats' rows={1} />
+  if (seats.status === 'pending') return <SectionSkeleton title='Seats' rows={1} />
   if (seats.status === 'error')
     return (
       <FailureNotice

@@ -50,11 +50,17 @@ export function WidgetSkeleton({
   )
 }
 
+interface SkeletonBlockProps extends SkeletonPlaceholderProps {
+  /** A chart's height, where the block sits under the chart's own heading. */
+  shape?: 'chart'
+}
+
 /** The same fill for a chart or schedule, whose shape has no rows. */
-export function SkeletonBlock({ label, silent }: SkeletonPlaceholderProps) {
+export function SkeletonBlock({ label, silent, shape }: SkeletonBlockProps) {
   return (
     <div
       className={styles.block}
+      data-shape={shape}
       role={silent ? undefined : 'status'}
       aria-label={silent ? undefined : label}
       aria-hidden={silent || undefined}

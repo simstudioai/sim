@@ -32,6 +32,7 @@ export {
   MenuItem,
   VisibilityMenu,
 } from './menu/action-menu'
+export { PopupNote, PopupRow } from './menu/popup-row'
 export { RangePicker } from './menu/range-picker'
 export { ConfirmDialog } from './modal/confirm-dialog'
 export { Modal, MultiStepModal } from './modal/modal'

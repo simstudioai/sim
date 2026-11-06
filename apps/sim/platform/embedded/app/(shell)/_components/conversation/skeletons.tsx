@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
@@ -29,7 +28,7 @@ export function ComposerPlaceholder() {
   return (
     <div className={styles.composerSkeleton}>
       <Surface>
-        <div className={cn(composerStyles.box, styles.placeholderComposer)} />
+        <div className={composerStyles.placeholder} />
       </Surface>
     </div>
   )
@@ -93,9 +92,7 @@ export function LandingSkeleton({ field, header }: LandingSkeletonProps) {
             <Surface>
               <div
                 className={
-                  field === 'composer'
-                    ? cn(composerStyles.box, styles.placeholderComposer)
-                    : styles.placeholderField
+                  field === 'composer' ? composerStyles.placeholder : styles.placeholderField
                 }
               />
             </Surface>

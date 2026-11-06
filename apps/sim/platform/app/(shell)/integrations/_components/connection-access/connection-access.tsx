@@ -4,7 +4,7 @@ import {
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { OrganizationIntegration } from '@/platform/lib/data/integrations-types'
+import type { OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface AccessGroupProps {
   title: string

@@ -6,13 +6,13 @@
  * and a waiting save judged against a minimum that has since changed.
  */
 import { act } from 'react'
-import { toast } from '@sim/emcn'
 import {
   apiClientRequestMock,
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from '@/platform/shared/toast'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)

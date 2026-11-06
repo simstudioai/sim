@@ -80,7 +80,7 @@ export function SearchHistory({ userId, onSearch, children }: SearchHistoryProps
                 {queries.map(({ query }) => (
                   <ControlRow
                     key={query}
-                    label={query}
+                    label={query.replace(/\s+/g, ' ').trim()}
                     icon='I046'
                     render={<button type='button' onClick={() => onSearch(query)} />}
                   />

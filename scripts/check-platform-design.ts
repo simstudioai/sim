@@ -268,6 +268,7 @@ const seamHelpers = new Set([
   'lib/core/resource-scope',
   'lib/core/security/csp',
   'lib/core/utils/browser-storage',
+  'lib/core/utils/paste-admission',
   'lib/core/utils/react-node-text',
   'lib/desktop',
   'lib/desktop/chat-scope',
@@ -375,7 +376,6 @@ const seamHelpers = new Set([
 /** Legacy `.tsx` the seam's closure may reach: providers and glyphs, not a surface. */
 const seamClosureViews = new Set([
   'app/_shell/providers/query-provider.tsx',
-  'app/workspace/[workspaceId]/providers/feature-flags-provider.tsx',
   'components/icons.tsx',
 ])
 /** Each pulls in a whole subsystem, which is why `next.config.ts` replaces what would reach it. */
@@ -451,13 +451,24 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   // is a separate app, and what the views import from the host would ride into it.
   if (inPlatform && !inEmbedded && target?.startsWith(embedded))
     report('zone-embedded', file, `The zone may not import the organization views: ${specifier}`)
-  if (file.startsWith('platform/shared/') && target && /^platform\/(?!shared\/)/.test(target))
+  // Both trees already build on the design system, so a shared model may name its icon or menu types.
+  const sharedNamesDesignSystemType = typesOnly && target?.startsWith(system)
+  if (
+    file.startsWith('platform/shared/') &&
+    target &&
+    /^platform\/(?!shared\/)/.test(target) &&
+    !sharedNamesDesignSystemType
+  )
     report('zone-embedded', file, `platform/shared may only import itself: ${specifier}`)
   if (inEmbedded && target && /^platform\/(?!embedded\/|design-system\/|shared\/)/.test(target))
     report('zone-embedded', file, `The organization views may not import the zone: ${specifier}`)
   const hostMountsWhatItShips =
     file.startsWith(embeddedHost) &&
-    Boolean(target?.startsWith(embedded) || target?.startsWith(system))
+    Boolean(
+      target?.startsWith(embedded) ||
+        target?.startsWith(system) ||
+        target?.startsWith('platform/shared/')
+    )
   // `embedded` is the one tree in `platform/` built on the host app: its views and data import the
   // host's hooks, stores and packages on purpose, as `check:boundaries` governs.
   if (
@@ -1121,7 +1132,7 @@ function checkJs(file: string, content: string) {
             }
           }
           const calendarPlacement =
-            file === 'platform/app/(shell)/home/_components/calendar/calendar-day.tsx' &&
+            file.endsWith('app/(shell)/home/_components/calendar/calendar-day.tsx') &&
             native &&
             attr === 'style' &&
             expr &&

@@ -11,14 +11,14 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Slash, StopFilled } from '@sim/emcn/icons'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
   ComposerFileTargets,
   type ConversationComposerProps,
   useComposer,
-} from '@/app/o/[organizationId]/home/components/composer'
+} from '@/app/_organization-conversation/composer'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'

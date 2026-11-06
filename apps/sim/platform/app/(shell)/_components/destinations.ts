@@ -1,5 +1,5 @@
-import type { ShellDestination } from '@/platform/app/(shell)/_components/model'
 import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
+import type { ShellDestination } from '@/platform/shared/shell'
 
 export const PLATFORM_DESTINATIONS = [
   { id: 'home', label: 'Home', icon: 'I104', value: '/home' },

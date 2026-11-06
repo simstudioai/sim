@@ -1,10 +1,9 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import type { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   MothershipChatDeleteError,
   useDeleteMothershipChat,
@@ -15,6 +14,7 @@ import {
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
 import { canOpenOrganizationChat } from '@/platform/shared/chat-open'
+import { toast } from '@/platform/shared/toast'
 
 export function organizationChatHref(
   chat: { id: string; mode?: string },

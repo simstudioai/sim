@@ -1,13 +1,12 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable `useFeatureFlag`, for `@/lib/core/config/feature-flags-context` or a module that
- * re-exports it, such as `@/app/workspace/[workspaceId]/providers/feature-flags-provider`.
+ * Controllable `useFeatureFlag`, for `@/lib/core/config/feature-flags-context`.
  * Every flag reads as off unless a test says otherwise.
  *
  * @example
  * ```ts
- * vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => featureFlagsProviderMock)
+ * vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
  * featureFlagsProviderMockFns.mockUseFeatureFlag.mockImplementation((name) => name === 'plan')
  * ```
  */

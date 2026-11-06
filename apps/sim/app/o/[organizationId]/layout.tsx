@@ -10,6 +10,7 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
@@ -22,10 +23,10 @@ import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform-route-guard'
+import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -34,8 +35,8 @@ import {
   WorkspaceChrome,
   WorkspaceViewport,
 } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 import { Sidebar } from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar'
 
@@ -73,12 +74,13 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  const platformOrgUi = await isPlatformOrgUiEnabled(organizationId)
-  if (platformOrgUi) {
-    const legacyUrl = (await headers()).get(LEGACY_URL_HEADER)
-    const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
-    if (platformUrl) redirect(platformUrl)
-  }
+  // The proxy sends no legacy URL while the zone is unavailable: this organization stays here, on
+  // client navigation too, until the zone can serve it.
+  const legacyUrl = (await isPlatformOrgUiEnabled(organizationId))
+    ? (await headers()).get(LEGACY_URL_HEADER)
+    : null
+  const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
+  if (platformUrl) redirect(platformUrl)
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
@@ -143,7 +145,8 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
-          {platformOrgUi && (
+          <OrganizationToastSink />
+          {legacyUrl && (
             <Suspense fallback={null}>
               <PlatformRouteGuard organizationId={organizationId} />
             </Suspense>

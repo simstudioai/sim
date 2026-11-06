@@ -16,14 +16,12 @@ import {
   TrendChart,
 } from '@/platform/design-system/components'
 import {
-  ACTIVITY_DIMENSIONS,
-  ACTIVITY_SORTS,
-  formatDurationMs,
   type OrganizationUsageWindowKey,
   useActivityBreakdown,
   useActivitySummary,
   useUsageView,
 } from '@/platform/lib/data/usage'
+import { ACTIVITY_DIMENSIONS, ACTIVITY_SORTS, formatDurationMs } from '@/platform/shared/usage'
 
 interface ActivityOverviewProps {
   organizationId: string

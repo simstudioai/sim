@@ -35,7 +35,7 @@ import {
   FieldStack,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import {
   BlockToolRow,
   PermissionBulkSelect,
@@ -404,11 +404,13 @@ export function GroupCatalogTab({
       />
     )
   }
-  const shared = { params, query, model, controls }
   if (params.tab === 'providers') {
     return (
       <ProvidersTab
-        {...shared}
+        params={params}
+        query={query}
+        model={model}
+        controls={controls}
         providers={editor.providers}
         config={config}
         hosted={hosted}
@@ -416,10 +418,14 @@ export function GroupCatalogTab({
       />
     )
   }
-  if (params.tab === 'blocks') return <BlocksTab {...shared} />
+  if (params.tab === 'blocks')
+    return <BlocksTab params={params} query={query} model={model} controls={controls} />
   return (
     <PlatformTab
-      {...shared}
+      params={params}
+      query={query}
+      model={model}
+      controls={controls}
       deferredSearch={deferredSearch}
       isDefault={isDefault}
       organizationId={organizationId}

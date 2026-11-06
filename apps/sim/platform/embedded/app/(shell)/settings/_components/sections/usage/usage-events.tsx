@@ -6,7 +6,7 @@ import {
   FailureNotice,
   LoadingRows,
 } from '@/platform/design-system/components'
-import { DetailHeader } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import { useUsageEvents, useUsageView } from '@/platform/embedded/lib/data/usage'
 

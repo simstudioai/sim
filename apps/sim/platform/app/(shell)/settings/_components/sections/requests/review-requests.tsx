@@ -22,7 +22,7 @@ import {
   useRequestsUrl,
   useReviewList,
 } from '@/platform/lib/data/requests'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 interface ReviewRequestsProps {
   organizationId: string

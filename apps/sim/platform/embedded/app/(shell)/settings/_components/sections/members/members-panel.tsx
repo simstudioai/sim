@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import {
@@ -9,15 +9,17 @@ import {
   FailureNotice,
   LoadingRows,
   SectionSearch,
-  Tooltip,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-modal/invite-modal'
+import {
+  Muted,
+  SectionToolbar,
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ManageCreditsModal } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import { SectionToolbar } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   InvitationRow,
   MemberRow,
@@ -32,7 +34,8 @@ import {
 import { SeatsOverview } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/seats-overview'
 import { TransferOwnershipModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/transfer-ownership-modal'
 import { useMembers } from '@/platform/embedded/lib/data/members'
-import { filterRoster, type MemberRowModel } from '@/platform/embedded/lib/data/members-model'
+import { filterRoster, type MemberRowModel } from '@/platform/shared/members'
+import { useRemovedRowFocus } from '@/platform/shared/use-removed-row-focus'
 
 interface MembersPanelProps {
   organization: OrganizationSurfaceContext
@@ -54,6 +57,14 @@ export function MembersPanel({ organization }: MembersPanelProps) {
     searching &&
     visible &&
     visible.members.length + visible.invitations.length + visible.workspaces.length === 0
+  const panel = useRef<HTMLDivElement>(null)
+  const memberRows = useRef<HTMLDivElement>(null)
+  const removeRow = useRemovedRowFocus({
+    rowIds: visible?.members.map((row) => row.userId) ?? [],
+    rowAt: (index) => memberRows.current?.children[index],
+    list: panel,
+    confirming: removal !== null,
+  })
   const startRemoval = (row: MemberRowModel) =>
     setRemoval({
       userId: row.userId,
@@ -63,26 +74,25 @@ export function MembersPanel({ organization }: MembersPanelProps) {
     })
 
   return (
-    <div className={styles.panel}>
+    <div ref={panel} className={styles.panel}>
       <SectionToolbar
         grow={<SectionSearch subject='members' value={search} onValueChange={setSearch} />}
       >
         {members.canManage && (
-          <Tooltip label='Invitations are disabled' enabled={!members.canInvite}>
-            <span>
-              <Button
-                variant='primary'
-                size='compact'
-                icon='I074'
-                disabled={!members.canInvite}
-                onClick={() => setInviting(true)}
-              >
-                Invite
-              </Button>
-            </span>
-          </Tooltip>
+          <Button
+            variant='primary'
+            size='compact'
+            icon='I074'
+            disabled={!members.canInvite}
+            onClick={() => setInviting(true)}
+          >
+            Invite
+          </Button>
         )}
       </SectionToolbar>
+      {members.canManage && !members.canInvite && (
+        <Muted>Your permission group or this deployment has turned off invitations.</Muted>
+      )}
 
       {members.canLeave && members.viewerId && (
         <SettingsSection title='Membership'>
@@ -127,16 +137,18 @@ export function MembersPanel({ organization }: MembersPanelProps) {
               {visible.members.length + visible.invitations.length === 0 && (
                 <EmptyState title='No members yet' />
               )}
-              {visible.members.map((row) => (
-                <MemberRow
-                  key={row.key}
-                  row={row}
-                  actions={actions}
-                  onRemove={startRemoval}
-                  onManageCredits={setCredits}
-                  onTransfer={() => setTransferring(true)}
-                />
-              ))}
+              <div ref={memberRows} className={styles.memberRows}>
+                {visible.members.map((row) => (
+                  <MemberRow
+                    key={row.key}
+                    row={row}
+                    actions={actions}
+                    onRemove={startRemoval}
+                    onManageCredits={setCredits}
+                    onTransfer={() => setTransferring(true)}
+                  />
+                ))}
+              </div>
               {visible.invitations.map((row) => (
                 <InvitationRow
                   key={row.key}
@@ -177,7 +189,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       )}
 
       {members.canManage && inviting && <InviteModal onClose={() => setInviting(false)} />}
-      <RemoveMemberModal target={removal} onClose={() => setRemoval(null)} />
+      <RemoveMemberModal target={removal} onClose={() => setRemoval(null)} removeRow={removeRow} />
       {transferring && (
         <TransferOwnershipModal
           open

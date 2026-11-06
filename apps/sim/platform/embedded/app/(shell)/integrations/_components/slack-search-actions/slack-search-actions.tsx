@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { slackSearchOnboardingPath } from '@/lib/slack-search/onboarding'
 import { Button } from '@/platform/design-system/components/button/button'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
-import styles from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
+import styles from '@/platform/embedded/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions.module.css'
 import { useSlackSearchHandoff } from '@/platform/embedded/lib/data/slack-search-handoff'
 
 interface SlackSearchActionsProps {

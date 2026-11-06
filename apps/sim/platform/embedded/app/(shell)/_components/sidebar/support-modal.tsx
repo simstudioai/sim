@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -20,7 +19,8 @@ import {
 } from '@/platform/design-system/components/field/fields'
 import { FileField } from '@/platform/design-system/components/field/file-field'
 import { Modal } from '@/platform/design-system/components/modal/modal'
-import { readFormText } from '@/platform/embedded/lib/row-links'
+import { readFormText } from '@/platform/shared/row-links'
+import { toast } from '@/platform/shared/toast'
 
 interface SupportImage {
   id: string

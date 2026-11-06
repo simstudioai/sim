@@ -5,7 +5,7 @@
 }
 /* The peek card is the host chrome's, so its rounding follows the host's radius. */
 .sidebar[data-peeking] {
-  border-radius: calc(var(--radius) - 1px);
+  border-radius: calc(var(--radius) - var(--design-spacing-1));
 }
 /* The peek card floats, so it is the frame its menus are placed against, and it must not clip them. */
 [data-peek]:has(.sidebar) {
@@ -57,13 +57,13 @@
 .railMark {
   display: grid;
   flex: none;
-  grid-template-areas: "mark";
+  grid-template-areas: "logo";
   place-items: center;
 }
 .railLogo,
 .railGlyph {
   display: flex;
-  grid-area: mark;
+  grid-area: logo;
 }
 .railGlyph {
   visibility: hidden;
@@ -112,9 +112,6 @@ button:hover > .railMark > .railGlyph {
   display: grid;
   min-inline-size: 0;
 }
-.flyout {
-  inline-size: var(--shell-org-menu-width);
-}
 .footer {
   display: flex;
   align-items: center;
@@ -155,8 +152,8 @@ button:hover > .railMark > .railGlyph {
   position: relative;
   z-index: 2;
   flex: none;
-  inline-size: 0.25rem;
-  margin-inline-start: -0.25rem;
+  inline-size: var(--design-spacing-4);
+  margin-inline-start: calc(-1 * var(--design-spacing-4));
   cursor: ew-resize;
 }
 .edge[data-collapsed] {
@@ -164,8 +161,8 @@ button:hover > .railMark > .railGlyph {
 }
 /* The edge sits outside the rail's surfaces, so it reads the host's own ink. */
 .edge:focus-visible {
-  outline: 1px solid var(--text-muted);
-  outline-offset: -1px;
+  outline: var(--design-spacing-1) solid var(--text-muted);
+  outline-offset: calc(-1 * var(--design-spacing-1));
 }
 @media (max-width: 48rem) {
   .edge,

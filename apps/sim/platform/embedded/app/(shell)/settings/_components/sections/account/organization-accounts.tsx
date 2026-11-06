@@ -11,8 +11,8 @@ import {
   StatusTag,
   TableLabel,
 } from '@/platform/design-system/components'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
-import { usePersonalAccountsList } from '@/platform/embedded/lib/data/account'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { usePersonalAccountsList } from '@/platform/shared/account'
 
 const TITLE = 'Connected organization accounts'
 const COLUMNS = [

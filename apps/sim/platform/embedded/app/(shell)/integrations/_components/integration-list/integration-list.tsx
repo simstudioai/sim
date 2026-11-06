@@ -2,13 +2,13 @@ import { SectionSearch } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { RowList } from '@/platform/design-system/components/settings-section/row-list'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/integration-list/integration-list.module.css'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   type GenericSecrets,
   isConnectable,
   type OrganizationIntegration,
-} from '@/platform/embedded/lib/integrations/model'
+} from '@/platform/shared/integrations'
 
 const SECTIONS = [
   'Your accounts',
@@ -100,6 +100,7 @@ export function IntegrationList({
                   leading={item.leading}
                   title={item.name}
                   detail={item.detail}
+                  wrapDetail
                   metadata={item.status}
                 />
               ))}

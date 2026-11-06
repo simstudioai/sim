@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { fullPageScreenshot } from '@/scripts/org-redesign-e2e/checks/walk'
-import { ADMIN, MEMBER } from '@/scripts/org-redesign-e2e/fixture'
+import { ADMIN, CONNECTED, MEMBER } from '@/scripts/org-redesign-e2e/fixture'
 import {
   artifactDirectory,
   check,
@@ -15,6 +15,9 @@ import {
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
 import { mainNav, navLabels, routePrefetched } from '@/scripts/org-redesign-e2e/locators'
+
+/** What the name keeps of the table at 390px, once its columns have joined the row's summary. */
+const MIN_PHONE_NAME_SHARE = 0.7
 
 export async function peoplePhaseChecks() {
   section('People with its flag on')
@@ -79,6 +82,47 @@ export async function peoplePhaseChecks() {
       await expect(page.getByText(ADMIN.name).first()).toBeVisible()
     })
   })
+  await check('a phone gives the directory to the name, unbroken, on the page gutter', async () => {
+    await withSession(
+      MEMBER,
+      async ({ page }) => {
+        await page.goto(orgUrl('/people?view=directory'))
+        const email = page.getByText(CONNECTED.email, { exact: true }).first()
+        await expect(email).toBeVisible()
+        const layout = await email.evaluate((node) => {
+          const lines = (element: Element) => {
+            const range = document.createRange()
+            range.selectNodeContents(element)
+            return new Set(Array.from(range.getClientRects(), ({ top }) => Math.round(top))).size
+          }
+          const cell = node.closest('td')
+          const table = node.closest('table')
+          const name = node.previousElementSibling
+          const field = document.querySelector('input')?.parentElement
+          return {
+            nameShare:
+              (cell?.getBoundingClientRect().width ?? 0) /
+              (table?.getBoundingClientRect().width ?? 1),
+            emailLines: lines(node),
+            nameLines: name ? lines(name) : 0,
+            searchEnd: field?.getBoundingClientRect().right ?? 0,
+            gutter: document.querySelector('h1')?.getBoundingClientRect().left ?? 0,
+          }
+        })
+        assert.ok(
+          layout.nameShare >= MIN_PHONE_NAME_SHARE,
+          `The name holds ${Math.round(layout.nameShare * 100)}% of the table`
+        )
+        assert.equal(layout.emailLines, 1, 'An ordinary email address breaks mid-word')
+        assert.equal(layout.nameLines, 1, 'An ordinary name breaks mid-word')
+        assert.ok(
+          Math.abs(layout.searchEnd - (PHONE.width - layout.gutter)) <= 1,
+          `Search ends at ${layout.searchEnd}, with the page gutter at ${PHONE.width - layout.gutter}`
+        )
+      },
+      { viewport: PHONE }
+    )
+  })
   await walkPeopleRoutes()
 }
 
@@ -97,7 +141,7 @@ async function walkPeopleRoutes() {
               ]) {
                 const response = await session.page.goto(orgUrl(`/${path}`))
                 assert((response?.status() ?? 500) < 400, `${path} ${response?.status()}`)
-                await session.settle()
+                await session.contentReady()
                 await expect(
                   session.page.getByRole('button', { name: 'Org chart' }),
                   `${path} rendered no People page`

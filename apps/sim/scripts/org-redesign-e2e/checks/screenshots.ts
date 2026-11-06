@@ -142,7 +142,7 @@ export async function stateScreenshots() {
                 const response = await session.page.goto(orgUrl(`/${shot.path}`), {
                   timeout: 60_000,
                 })
-                await session.settle()
+                await session.contentReady()
                 if (shot.name === 'not-found') await expectPageNotFound(session.page)
                 else
                   assert(

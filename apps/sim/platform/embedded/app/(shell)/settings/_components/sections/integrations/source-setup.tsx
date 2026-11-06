@@ -17,7 +17,6 @@ import {
   SelectField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
   DetailHeader,
@@ -25,7 +24,8 @@ import {
   FormFieldset,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { BesideSurface } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/beside-surface'
 import { ApiKeyField } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field'
 import { ConnectorAccess } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-access'
 import { ConnectorConfigFields } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields'
@@ -313,7 +313,7 @@ export function SourceSetupForm({
                 )}
                 {configFieldsProps && (
                   <ConnectorConfigFields
-                    {...configFieldsProps}
+                    config={configFieldsProps}
                     isFieldVisible={(field) =>
                       isFieldVisible(field) &&
                       !hiddenCapFieldIds.has(field.id) &&
@@ -330,7 +330,7 @@ export function SourceSetupForm({
                       {!form.canSetUpGitHubInstallation && contentCredentialField}
                       {configFieldsProps && form.hasOptionalSetupFields && (
                         <ConnectorConfigFields
-                          {...configFieldsProps}
+                          config={configFieldsProps}
                           isFieldVisible={(field) =>
                             isFieldVisible(field) &&
                             !hiddenCapFieldIds.has(field.id) &&
@@ -389,7 +389,8 @@ export function SourceSetupForm({
             onOpenChange={(open) => {
               if (!open) form.setServiceAccountField(null)
             }}
-            {...owner}
+            workspaceId={owner.workspaceId}
+            organizationId={owner.organizationId}
             serviceAccountProviderId={connectableServiceAccount.serviceAccountProviderId}
             serviceName={connectableServiceAccount.serviceName}
             serviceIcon={connectableServiceAccount.serviceIcon}
@@ -421,7 +422,8 @@ export function SourceSetupForm({
             providerId={form.connectorProviderId}
             docsUrl={form.docsUrl}
             requiredScopes={getCanonicalScopesForProvider(form.connectorProviderId)}
-            {...owner}
+            workspaceId={owner.workspaceId}
+            organizationId={owner.organizationId}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={connectorType}
             sourceAccess={access.accessMode === 'members' ? 'members' : undefined}

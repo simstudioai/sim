@@ -12,7 +12,7 @@ import {
   StatusTag,
   TableLabel,
 } from '@/platform/design-system/components'
-import { usePersonalAccountsList } from '@/platform/lib/data/account'
+import { usePersonalAccountsList } from '@/platform/shared/account'
 
 const TITLE = 'Connected organization accounts'
 const COLUMNS = [

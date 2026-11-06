@@ -1,6 +1,5 @@
 import {
   getOrganizationSettingsFeatures,
-  isOrganizationSettingsSectionAvailable,
   type OrganizationSettingsSection,
 } from '@/components/settings/navigation'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
@@ -10,6 +9,7 @@ import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availab
 import { isMemorySpacesEnabled } from '@/lib/mothership/feature-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 
 interface AuthorizeOrganizationSettingsSectionInput {
   organizationId: string
@@ -45,7 +45,7 @@ export async function authorizeOrganizationSettingsSection({
     readsRegime ? isOrganizationPermissionRegimeActive(organizationId) : Promise.resolve(false),
   ])
 
-  return isOrganizationSettingsSectionAvailable(
+  return organizationPlanAllowsSettingsSection(
     section,
     getOrganizationSettingsFeatures(hasEnterprisePlan, deployment, governanceActive)
   )

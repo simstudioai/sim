@@ -22,7 +22,7 @@ const {
   mockWorkflowSetState: vi.fn(),
 }))
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
 vi.mock('@/stores/user-data-reset-registry', () => ({

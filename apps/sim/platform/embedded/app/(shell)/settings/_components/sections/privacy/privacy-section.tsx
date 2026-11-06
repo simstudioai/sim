@@ -3,8 +3,8 @@
 import dynamic from 'next/dynamic'
 import { Switch } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SavedSettingsSection } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { useTelemetrySetting } from '@/platform/embedded/lib/data/preferences'
 

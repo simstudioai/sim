@@ -432,9 +432,9 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
-import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
+import * as getQueryClientModule from '@/hooks/queries/utils/get-query-client'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'

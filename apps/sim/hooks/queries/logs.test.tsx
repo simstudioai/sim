@@ -20,13 +20,13 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   type LogFilters,
-  logKeys,
   NEW_LOG_COUNT_STALE_TIME,
   useCancelExecution,
   useLogSnapshotUpdates,
   useLogsSnapshot,
   useNewLogCount,
 } from '@/hooks/queries/logs'
+import { logKeys } from '@/hooks/queries/utils/log-keys'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 

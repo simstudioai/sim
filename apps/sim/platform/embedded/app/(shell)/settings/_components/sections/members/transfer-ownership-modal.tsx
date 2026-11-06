@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Button, InlineNotice, Modal, SearchableSelect } from '@/platform/design-system/components'
 import { useOwnershipTransfer } from '@/platform/embedded/lib/data/members'
-import type { RosterModel } from '@/platform/embedded/lib/data/members-model'
+import type { RosterModel } from '@/platform/shared/members'
 
 interface TransferOwnershipModalProps {
   open: boolean

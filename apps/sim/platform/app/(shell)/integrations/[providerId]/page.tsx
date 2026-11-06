@@ -1,4 +1,7 @@
+import type { Metadata } from 'next'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+
+export const metadata: Metadata = { title: 'Integrations' }
 
 export default async function Page({
   params,

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -36,20 +35,20 @@ import {
   ConfirmDialog,
   EmptyState,
   FailureNotice,
-  LoadingRows,
   SectionSearch,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,
   Muted,
+  SectionSkeleton,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { AddSourceModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/add-source-modal'
 import { AssistantApps } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps'
@@ -62,6 +61,7 @@ import {
 import { PolicyModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/policy-modal'
 import { SlackAccountSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 import { SourceSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host'
+import { toast } from '@/platform/shared/toast'
 
 export default function IntegrationsSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer, searchAccess } = context
@@ -179,7 +179,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           />
         ) : !policies.data || !secrets.data ? (
-          <LoadingRows label='Loading sources' />
+          <SectionSkeleton title='Added sources' />
         ) : added.length === 0 && !secretSource && !search && !assistantVisible ? (
           <EmptyState title='No sources yet. Add a source to get started.' />
         ) : (
@@ -348,7 +348,6 @@ export default function IntegrationsSection({ organization: context }: SettingsS
         )}
         {adding && (
           <AddSourceModal
-            organization={organization}
             sources={availableToAdd}
             descriptions={Object.fromEntries(
               availableToAdd.map(({ type, access }) => [

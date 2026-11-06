@@ -29,7 +29,7 @@ import { ChatsSection } from '@/platform/embedded/app/(shell)/_components/sideba
 import { HelpMenu } from '@/platform/embedded/app/(shell)/_components/sidebar/help-menu'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/embedded/app/(shell)/_components/sidebar/workspaces-section'
-import { useNavWarmers } from '@/platform/embedded/lib/data/nav-warmers'
+import { useNavWarmers } from '@/platform/embedded/lib/data/settings-warmers'
 import { type OrganizationNavFlags, useOrganizationShell } from '@/platform/embedded/lib/data/shell'
 import { useShellActions } from '@/platform/embedded/lib/data/shell-actions'
 import { copyLinkAction, openInNewTabAction } from '@/platform/embedded/lib/row-links'

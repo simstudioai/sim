@@ -39,8 +39,11 @@
   align-items: center;
   gap: var(--ui-popup-padding);
 }
-.row:hover {
+.row:hover:not([data-read-only]) {
   background: var(--ui-hover);
+}
+.row[data-read-only] {
+  cursor: default;
 }
 .body {
   display: flex;

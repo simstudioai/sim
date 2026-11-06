@@ -7,7 +7,7 @@ import type { OrganizationSummaryRequest } from '@/lib/organizations/search-para
 import {
   useConversationGate,
   useOrganizationConversation,
-} from '@/app/o/[organizationId]/components/use-organization-conversation'
+} from '@/app/_organization-conversation/use-organization-conversation'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import {
   type ChatChrome,
@@ -73,7 +73,21 @@ export function PageConversation(props: PageConversationProps) {
   if (gate.status === 'denied') return null
   if (gate.status === 'restoring') return <ConversationSkeleton header={props.header} />
   if (gate.status === 'waiting') return props.fallback
-  return <PageConversationContent key={`${gate.instanceKey}:${props.requestMode}`} {...props} />
+  return (
+    <PageConversationContent
+      key={`${gate.instanceKey}:${props.requestMode}`}
+      chatId={props.chatId}
+      requestMode={props.requestMode}
+      header={props.header}
+      chatHeader={props.chatHeader}
+      active={props.active}
+      summaryRequest={props.summaryRequest}
+      onSummaryConsumed={props.onSummaryConsumed}
+      draftSlot={props.draftSlot}
+      fallback={props.fallback}
+      landing={props.landing}
+    />
+  )
 }
 
 function PageConversationContent({
@@ -110,8 +124,6 @@ function PageConversationContent({
   usePageConversationEffects({ chatId, requestMode, conversation })
   const header = frameHeader ?? (hasChat ? chatHeader : undefined)
   const composer = <PageComposer {...composerProps} />
-  // The landing names its own main region; a chat has only this frame to carry it.
-  const Frame = hasChat ? 'main' : 'div'
   return (
     <ChatChromeProvider value={PAGE_CHAT_CHROME}>
       <ChatResourcePanel
@@ -123,14 +135,16 @@ function PageConversationContent({
         panel={panel}
         onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
       >
-        <Frame
-          className={cn(
-            'flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]',
-            'md:min-w-[min(480px,50%)]'
-          )}
-        >
-          {hasChat ? (
-            <AssistantActionReviewProvider {...reviewProps}>
+        {hasChat ? (
+          // The landing names its own main region; a chat has only this frame to carry it.
+          <main className={styles.conversationFrame}>
+            <AssistantActionReviewProvider
+              organizationId={reviewProps.organizationId}
+              chatId={reviewProps.chatId}
+              messages={reviewProps.messages}
+              active={reviewProps.active}
+              enabled={reviewProps.enabled}
+            >
               <MothershipChat
                 {...threadProps}
                 className={cn(hostBridge.palette, styles.thread)}
@@ -140,10 +154,10 @@ function PageConversationContent({
                 initialScrollBlocked={panel.initialScrollBlocked}
               />
             </AssistantActionReviewProvider>
-          ) : (
-            landing?.({ requestMode, composer })
-          )}
-        </Frame>
+          </main>
+        ) : (
+          <div className={styles.conversationFrame}>{landing?.({ requestMode, composer })}</div>
+        )}
       </ChatResourcePanel>
     </ChatChromeProvider>
   )

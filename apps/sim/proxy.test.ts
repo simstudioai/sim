@@ -1,8 +1,10 @@
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
@@ -174,24 +176,26 @@ describe('proxy on the dedicated MCP host', () => {
     })
   }
 
-  it('answers the endpoint preflight with the API CORS policy', () => {
-    const response = proxy(mcpRequest('/mcp', 'OPTIONS'))
+  it('answers the endpoint preflight with the API CORS policy', async () => {
+    const response = await proxy(mcpRequest('/mcp', 'OPTIONS'))
     expect(response.status).toBe(204)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://app.sim.test')
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization')
   })
 
-  it('serves nothing else on the MCP host', () => {
-    expect(proxy(mcpRequest('/login', 'GET')).status).toBe(404)
+  it('serves nothing else on the MCP host', async () => {
+    expect((await proxy(mcpRequest('/login', 'GET'))).status).toBe(404)
   })
 
   it.each(['', 'python-requests/2.32.3'])(
     'allows ownership verification with an automated user agent: %s',
-    (userAgent) => {
+    async (userAgent) => {
       const request = mcpRequest('/.well-known/openai-apps-challenge', 'GET')
       if (userAgent) request.headers.set('user-agent', userAgent)
-      expect(proxy(request).status).toBe(200)
-      expect(proxy(mcpRequest('/.well-known/openai-apps-challenge/other', 'GET')).status).toBe(404)
+      expect((await proxy(request)).status).toBe(200)
+      expect(
+        (await proxy(mcpRequest('/.well-known/openai-apps-challenge/other', 'GET'))).status
+      ).toBe(404)
     }
   )
 })
@@ -199,33 +203,35 @@ describe('proxy on the dedicated MCP host', () => {
 describe('proxy indexing policy', () => {
   afterEach(resetEnvFlagsMock)
 
-  const robotsTag = (pathname: string) =>
-    proxy(new NextRequest(`https://self-hosted.example${pathname}`)).headers.get('X-Robots-Tag')
+  const robotsTag = async (pathname: string) =>
+    (await proxy(new NextRequest(`https://self-hosted.example${pathname}`))).headers.get(
+      'X-Robots-Tag'
+    )
 
-  it('keeps the marketing pages of a self-hosted deployment out of search results', () => {
+  it('keeps the marketing pages of a self-hosted deployment out of search results', async () => {
     setEnvFlags({ isHosted: false })
-    expect(robotsTag('/comparisons/n8n')).toBe('noindex, nofollow')
-    expect(robotsTag('/pricing')).toBe('noindex, nofollow')
+    expect(await robotsTag('/comparisons/n8n')).toBe('noindex, nofollow')
+    expect(await robotsTag('/pricing')).toBe('noindex, nofollow')
   })
 
-  it('keeps the marketing documents of a self-hosted deployment out of search results', () => {
+  it('keeps the marketing documents of a self-hosted deployment out of search results', async () => {
     setEnvFlags({ isHosted: false })
-    expect(robotsTag('/index.md')).toBe('noindex, nofollow')
-    expect(robotsTag('/llms.txt')).toBe('noindex, nofollow')
-    expect(robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
-    expect(robotsTag('/changelog.xml')).toBe('noindex, nofollow')
-    expect(robotsTag('/library.md/some-article')).toBe('noindex, nofollow')
+    expect(await robotsTag('/index.md')).toBe('noindex, nofollow')
+    expect(await robotsTag('/llms.txt')).toBe('noindex, nofollow')
+    expect(await robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
+    expect(await robotsTag('/changelog.xml')).toBe('noindex, nofollow')
+    expect(await robotsTag('/library.md/some-article')).toBe('noindex, nofollow')
   })
 
-  it('leaves the marketing pages and documents of the hosted deployment indexable', () => {
+  it('leaves the marketing pages and documents of the hosted deployment indexable', async () => {
     setEnvFlags({ isHosted: true })
-    expect(robotsTag('/comparisons/n8n')).toBeNull()
-    expect(robotsTag('/pricing')).toBeNull()
-    expect(robotsTag('/index.md')).toBeNull()
-    expect(robotsTag('/llms.txt')).toBeNull()
-    expect(robotsTag('/llms-full.txt')).toBeNull()
-    expect(robotsTag('/changelog.xml')).toBeNull()
-    expect(robotsTag('/library.md/some-article')).toBeNull()
+    expect(await robotsTag('/comparisons/n8n')).toBeNull()
+    expect(await robotsTag('/pricing')).toBeNull()
+    expect(await robotsTag('/index.md')).toBeNull()
+    expect(await robotsTag('/llms.txt')).toBeNull()
+    expect(await robotsTag('/llms-full.txt')).toBeNull()
+    expect(await robotsTag('/changelog.xml')).toBeNull()
+    expect(await robotsTag('/library.md/some-article')).toBeNull()
   })
 
   it.each([
@@ -239,10 +245,10 @@ describe('proxy indexing policy', () => {
     '/credential-groups/enroll/example',
     '/f/example',
     '/chat/example',
-  ])('keeps Auth out of search results on every deployment: %s', (pathname) => {
+  ])('keeps Auth out of search results on every deployment: %s', async (pathname) => {
     for (const isHosted of [false, true]) {
       setEnvFlags({ isHosted })
-      expect(robotsTag(pathname)).toBe('noindex, nofollow')
+      expect(await robotsTag(pathname)).toBe('noindex, nofollow')
     }
   })
 })
@@ -278,5 +284,172 @@ describe('proxy matcher', () => {
     expect(matches('/api/internal/project-file-doc/project-1/file-1/persist/other')).toBe(true)
     expect(matches('/api/internal/file-doc/persist/other')).toBe(true)
     expect(matches('/api/internal/file-doc/seed')).toBe(true)
+  })
+})
+
+/**
+ * The zone's real availability answer over real HTTP, because the rewrite gives a browser nothing to
+ * recover from: Next answers a failed proxy with a bare 500. Each case takes its own port, which is
+ * also the availability cache's key, so no case reads another's answer.
+ */
+describe('Platform zone outage', () => {
+  const LEGACY_URL = 'x-middleware-request-x-sim-legacy-url'
+  const servers: Server[] = []
+  let answer = 404
+
+  const listen = (handler: Parameters<typeof createServer>[1]) =>
+    new Promise<string>((resolve) => {
+      const server = createServer(handler)
+      servers.push(server)
+      server.listen(0, '127.0.0.1', () => {
+        resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
+      })
+    })
+
+  const zoneAnswering = (status: number) =>
+    listen((_request, response) => {
+      response.writeHead(status, status === 307 ? { location: 'http://127.0.0.1:1/dead' } : {})
+      response.end()
+    })
+
+  /** Binds a port and frees it, so a connection to it is refused. */
+  async function refusedOrigin() {
+    const origin = await zoneAnswering(404)
+    const server = servers.pop()
+    await new Promise((resolve) => server?.close(resolve))
+    return origin
+  }
+
+  const deploy = (origin: string | undefined) => {
+    vi.stubEnv('SIM_PLATFORM_ZONE_REWRITE', origin ? '1' : '')
+    setEnv({ SIM_PLATFORM_ORIGIN: origin })
+  }
+
+  const open = (pathname: string, init: { method?: string; legacyHeader?: string } = {}) =>
+    proxy(
+      new NextRequest(`https://app.sim.test${pathname}`, {
+        method: init.method ?? 'GET',
+        headers: {
+          cookie: 'better-auth.session_token=session',
+          'user-agent': 'Mozilla/5.0',
+          ...(init.legacyHeader && { 'x-sim-legacy-url': init.legacyHeader }),
+        },
+      })
+    )
+
+  const sentBackToTheOrganizationSurface = (response: Response) => {
+    expect(response.status).toBe(307)
+    expect(new URL(response.headers.get('location') as string).pathname).toBe('/o')
+  }
+
+  const passedThrough = (response: Response) => {
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+  }
+
+  beforeAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  afterEach(async () => {
+    setEnv({ SIM_PLATFORM_ORIGIN: undefined })
+    answer = 404
+    await Promise.all(
+      servers.splice(0).map((server) => {
+        server.closeAllConnections()
+        return new Promise((resolve) => server.close(resolve))
+      })
+    )
+  })
+
+  describe.each([
+    ['refuses connections', refusedOrigin],
+    ['answers 500', () => zoneAnswering(500)],
+    ['answers 503', () => zoneAnswering(503)],
+    ['hangs', () => listen(() => {})],
+  ])('when the zone %s', (_name, startZone) => {
+    it('sends a Platform page and a client navigation back to the main app', async () => {
+      deploy(await startZone())
+      sentBackToTheOrganizationSurface(await open('/org/settings/members?search=rae'))
+      sentBackToTheOrganizationSurface(await open('/org'))
+    })
+
+    it('renders an organization route in place, with no handoff to read, even a forged one', async () => {
+      deploy(await startZone())
+      const response = await open('/o/org-1/home', { legacyHeader: '/o/org-1/people' })
+      passedThrough(response)
+      expect(response.headers.get(LEGACY_URL)).toBeNull()
+    })
+  })
+
+  it('leaves what a redirect cannot help alone: zone assets and writes', async () => {
+    deploy(await refusedOrigin())
+    passedThrough(await open('/org/_next/image?url=x'))
+    passedThrough(await open('/org/settings/members', { method: 'POST' }))
+  })
+
+  it.each([
+    ['a 404, the zone rendering its own not-found page', 404],
+    ['a 200', 200],
+    ['a redirect, which it does not follow', 307],
+  ])('counts %s as a healthy zone', async (_name, status) => {
+    deploy(await zoneAnswering(status))
+    passedThrough(await open('/org/home'))
+    const response = await open('/o/org-1/home?tab=a', { legacyHeader: '/o/org-1/people' })
+    passedThrough(response)
+    expect(response.headers.get(LEGACY_URL)).toBe('/o/org-1/home?tab=a')
+  })
+
+  it('hands back to the zone once it recovers', async () => {
+    deploy(
+      await listen((_request, response) => {
+        response.writeHead(answer)
+        response.end()
+      })
+    )
+    answer = 503
+    sentBackToTheOrganizationSurface(await open('/org/home'))
+    answer = 404
+    await vi.waitFor(async () => passedThrough(await open('/org/home')), {
+      timeout: 15_000,
+      interval: 250,
+    })
+  }, 20_000)
+
+  it('notices an outage on its own, without waiting for a restart', async () => {
+    deploy(
+      await listen((_request, response) => {
+        response.writeHead(answer)
+        response.end()
+      })
+    )
+    passedThrough(await open('/org/home'))
+    answer = 503
+    await vi.waitFor(async () => sentBackToTheOrganizationSurface(await open('/org/home')), {
+      timeout: 15_000,
+      interval: 250,
+    })
+  }, 20_000)
+
+  it('asks nothing of a deployment with no zone', async () => {
+    const requests = vi.fn()
+    const origin = await listen((_request, response) => {
+      requests()
+      response.writeHead(503)
+      response.end()
+    })
+    setEnv({ SIM_PLATFORM_ORIGIN: origin })
+    vi.stubEnv('SIM_PLATFORM_ZONE_REWRITE', '')
+    passedThrough(await open('/o/org-1/home'))
+    await open('/org/home')
+    expect(requests).not.toHaveBeenCalled()
+  })
+
+  it('runs for a Platform page but not its static assets', () => {
+    const matches = (path: string) =>
+      unstable_doesMiddlewareMatch({ config, url: `https://sim.test${path}` })
+    expect(matches('/org')).toBe(true)
+    expect(matches('/org/settings/members')).toBe(true)
+    expect(matches('/org/_next/static/chunk.js')).toBe(false)
   })
 })

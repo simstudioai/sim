@@ -16,13 +16,13 @@ import {
   SOURCE_MARKS,
 } from '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sources'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
+import { usePeopleViewer } from '@/platform/embedded/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,
   type SyncSource,
   type SyncStatus,
   useDirectorySync,
-  usePeopleViewer,
-} from '@/platform/embedded/lib/data/people'
+} from '@/platform/shared/people'
 
 const PHASE_TITLES = {
   users: 'Reading people',

@@ -42,7 +42,7 @@
  *
  * 7. The Platform zone and the organization views are two apps sharing `platform/design-system`. Nothing
  *    under `apps/sim/platform` outside `embedded` imports `@/platform/embedded`, and `embedded` imports
- *    nothing under `@/platform` but itself and the design system, tests included: the views are built on
+ *    nothing under `@/platform` but itself, the design system and `platform/shared`, tests included: the views are built on
  *    the host app, so an edge from the zone would pull the host into a separate build, and an edge
  *    the other way would make the zone part of what every organization ships.
  *

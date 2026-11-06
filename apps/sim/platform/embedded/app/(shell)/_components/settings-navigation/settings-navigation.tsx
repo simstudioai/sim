@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
@@ -104,12 +104,18 @@ export function SettingsNavigation({ collapsed }: SettingsNavigationProps) {
     navigation.activeSection
   )
   const [query, setQuery] = useState('')
+  const nav = useRef<HTMLElement>(null)
+  // A section low in the list opens scrolled off a short window, and the current row should show.
+  useEffect(() => {
+    nav.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   const searching = !collapsed && query.trim().length > 0
   const found = searching ? searchSettings(query, groups, navigation) : []
   const count = found.reduce((total, group) => total + group.results.length, 0)
 
   return (
     <nav
+      ref={nav}
       aria-label='Settings'
       className={styles.navigation}
       data-collapsed={collapsed || undefined}

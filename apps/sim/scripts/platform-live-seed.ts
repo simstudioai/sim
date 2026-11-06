@@ -41,6 +41,8 @@ if (!/test/i.test(databaseName)) throw new Error('Seed only a dedicated test dat
 
 const ORGANIZATION_ID = required('PLATFORM_LIVE_ORGANIZATION_ID')
 const OUTSIDE_ORGANIZATION_ID = `${ORGANIZATION_ID}-outside`
+const OFF_ORGANIZATION_ID = required('PLATFORM_LIVE_OFF_ORGANIZATION_ID')
+const OFF_EMAIL = required('PLATFORM_LIVE_OFF_EMAIL')
 const PASSWORD = required('PLATFORM_LIVE_PASSWORD')
 const CONNECTED_EMAIL = required('PLATFORM_LIVE_CONNECTED_EMAIL')
 
@@ -81,9 +83,11 @@ const PEOPLE = [
 const userId = (key: string) => `platform-live-user-${key}`
 const OUTSIDER_ID = userId('outsider')
 const OUTSIDER_EMAIL = required('PLATFORM_LIVE_REFUSED_INVITE_EMAIL')
+const OFF_OWNER_ID = userId('off-owner')
 const EVERYONE = [
   ...PEOPLE.map(({ key, email, name }) => ({ id: userId(key), email, name })),
   { id: OUTSIDER_ID, email: OUTSIDER_EMAIL, name: 'Otto Outsider' },
+  { id: OFF_OWNER_ID, email: OFF_EMAIL, name: 'Odessa Off' },
 ]
 const allUserIds = EVERYONE.map(({ id }) => id)
 const WORKSPACES = [
@@ -128,7 +132,9 @@ await db.transaction(async (tx) => {
   await tx.delete(project).where(inArray(project.ownerId, allUserIds))
   await tx
     .delete(organization)
-    .where(inArray(organization.id, [ORGANIZATION_ID, OUTSIDE_ORGANIZATION_ID]))
+    .where(
+      inArray(organization.id, [ORGANIZATION_ID, OUTSIDE_ORGANIZATION_ID, OFF_ORGANIZATION_ID])
+    )
   await tx.delete(user).where(inArray(user.id, allUserIds))
 
   await tx.insert(user).values(
@@ -164,6 +170,7 @@ await db.transaction(async (tx) => {
       createdAt: now,
     },
     { id: OUTSIDE_ORGANIZATION_ID, name: 'Outside', slug: 'platform-live-outside', createdAt: now },
+    { id: OFF_ORGANIZATION_ID, name: 'Off Rollout', slug: 'platform-live-off', createdAt: now },
   ])
   await tx.insert(member).values([
     ...PEOPLE.map(({ key, role }) => ({
@@ -178,17 +185,28 @@ await db.transaction(async (tx) => {
       organizationId: OUTSIDE_ORGANIZATION_ID,
       role: 'owner',
     },
+    {
+      id: 'platform-live-member-off-owner',
+      userId: OFF_OWNER_ID,
+      organizationId: OFF_ORGANIZATION_ID,
+      role: 'owner',
+    },
   ])
-  await tx.insert(subscription).values({
-    id: 'platform-live-subscription',
-    plan: 'enterprise',
-    referenceId: ORGANIZATION_ID,
-    status: 'active',
-    seats: 50,
-    metadata: { plan: 'enterprise', referenceId: ORGANIZATION_ID, seats: 50, monthlyPrice: 100 },
-    periodStart: now,
-    periodEnd: new Date(now.getTime() + 30 * 86_400_000),
-  })
+  await tx.insert(subscription).values(
+    [
+      { id: 'platform-live-subscription', referenceId: ORGANIZATION_ID },
+      { id: 'platform-live-subscription-off', referenceId: OFF_ORGANIZATION_ID },
+    ].map(({ id, referenceId }) => ({
+      id,
+      plan: 'enterprise',
+      referenceId,
+      status: 'active',
+      seats: 50,
+      metadata: { plan: 'enterprise', referenceId, seats: 50, monthlyPrice: 100 },
+      periodStart: now,
+      periodEnd: new Date(now.getTime() + 30 * 86_400_000),
+    }))
+  )
 
   const ownerId = userId('owner')
   for (const { id, name } of WORKSPACES) {

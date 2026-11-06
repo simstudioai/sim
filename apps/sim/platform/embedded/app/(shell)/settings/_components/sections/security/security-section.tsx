@@ -1,15 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import {
-  useOrganizationSessionPolicy,
-  useRevokeOrganizationSessions,
-  useUpdateOrganizationSessionPolicy,
-} from '@/ee/session-policy/hooks/session-policy'
-import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
+import { useOrganizationSessionPolicy } from '@/ee/session-policy/hooks/session-policy'
 import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
@@ -27,16 +21,16 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import {
   DraftConflictNotice,
   FieldStack,
   Muted,
   SectionSkeleton,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
-import { plural } from '@/platform/shared/plural'
+import { useSessionPolicyWrites } from '@/platform/embedded/lib/data/session-policy'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 
@@ -56,13 +50,12 @@ interface SessionPolicyFormProps {
 }
 
 function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
-  const updatePolicy = useUpdateOrganizationSessionPolicy()
-  const revokeSessions = useRevokeOrganizationSessions()
+  const writes = useSessionPolicyWrites(organizationId)
   const [confirmingRevoke, setConfirmingRevoke] = useState(false)
   const session = useServerDraft({
     server: hoursOf(policy.configured),
     isEqual: sameHours,
-    saving: updatePolicy.isPending,
+    saving: writes.saving,
     merge: (mine, base, theirs) => ({
       maxHours: mine.maxHours === base.maxHours ? theirs.maxHours : mine.maxHours,
       idleHours: mine.idleHours === base.idleHours ? theirs.idleHours : mine.idleHours,
@@ -72,31 +65,16 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
 
   useSettingsUnsavedGuard({
     isDirty: session.dirty,
-    navigationBlocked: updatePolicy.isPending,
+    navigationBlocked: writes.saving,
     onDiscard: session.takeLatest,
   })
 
   async function save() {
-    if (updatePolicy.isPending || session.conflict) return
+    if (writes.saving || session.conflict) return
     const submitted = session.draft
-    const parsed = parseSessionPolicyHours(submitted.maxHours, submitted.idleHours)
-    if (!parsed.ok) {
-      toast.error(parsed.error)
-      return
-    }
-    try {
-      const result = await updatePolicy.mutateAsync({
-        orgId: organizationId,
-        settings: {
-          maxSessionHours: parsed.maxSessionHours,
-          idleTimeoutHours: parsed.idleTimeoutHours,
-        },
-      })
-      session.markSaved(submitted, hoursOf(result.data.configured))
-      toast.success('Session policy updated')
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to update session policy'))
-    }
+    await writes.save(submitted, (configured) => {
+      session.markSaved(submitted, hoursOf(configured))
+    })
   }
 
   return (
@@ -126,7 +104,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
       )}
       <SaveActions
         dirty={session.dirty}
-        saving={updatePolicy.isPending}
+        saving={writes.saving}
         blocked={session.conflict}
         onSave={() => void save()}
         onDiscard={session.takeLatest}
@@ -147,10 +125,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           description='Every member of this organization will be signed out on their next request, except your current session. Members will need to sign in again.'
           confirmLabel='Sign out all'
           pendingLabel='Signing out…'
-          onConfirm={async () => {
-            const result = await revokeSessions.mutateAsync({ orgId: organizationId })
-            toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)
-          }}
+          onConfirm={writes.revokeAll}
         />
       </SettingsSection>
     </>

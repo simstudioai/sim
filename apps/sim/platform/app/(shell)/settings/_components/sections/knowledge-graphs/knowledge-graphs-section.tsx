@@ -15,7 +15,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useKnowledgeGraphs } from '@/platform/lib/data/knowledge-graphs'
+import { useKnowledgeGraphs } from '@/platform/shared/knowledge-graphs'
 
 export default function KnowledgeGraphsSection({ organization }: SettingsSectionProps) {
   const graphs = useKnowledgeGraphs(organization.organization.id)

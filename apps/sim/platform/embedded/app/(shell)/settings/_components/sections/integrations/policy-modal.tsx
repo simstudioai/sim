@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -29,7 +28,8 @@ import {
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 interface PolicyModalProps {
   organizationId: string

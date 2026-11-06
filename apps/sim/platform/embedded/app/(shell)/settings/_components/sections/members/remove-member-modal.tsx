@@ -17,6 +17,8 @@ export interface RemovalTarget {
 interface RemoveMemberModalProps {
   target: RemovalTarget | null
   onClose: () => void
+  /** Wraps the removal, so its row's place in the list can take focus afterwards. */
+  removeRow: (userId: string, work: () => Promise<void>) => Promise<void>
 }
 
 function describeImpact(
@@ -54,7 +56,7 @@ function removalCopy(target: RemovalTarget | null) {
 }
 
 /** Removal discloses what stops working first, holding the confirm until that check has answered. */
-export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
+export function RemoveMemberModal({ target, onClose, removeRow }: RemoveMemberModalProps) {
   const removal = useMemberRemoval(target)
   const copy = removalCopy(target)
   const impact = describeImpact(target?.isSelf ?? false, removal.credentials, removal.checkFailed)
@@ -66,7 +68,7 @@ export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
       confirmLabel={copy.confirmLabel}
       pendingLabel={target?.isSelf ? 'Leaving…' : 'Removing…'}
       confirmDisabled={removal.checking}
-      onConfirm={removal.confirm}
+      onConfirm={() => (target ? removeRow(target.userId, removal.confirm) : undefined)}
     >
       <p data-type='T060'>{copy.body}</p>
       {removal.checking ? (

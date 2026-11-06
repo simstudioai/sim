@@ -5,7 +5,10 @@ import { integrationViewParsers } from '@/lib/organizations/integrations-search-
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { QueryBoundary } from '@/platform/design-system/components'
 import { ProviderHeading } from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { ToolPermissions } from '@/platform/embedded/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
+import {
+  ToolPermissions,
+  ToolPermissionsSkeleton,
+} from '@/platform/embedded/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
 import { useToolPermissions } from '@/platform/embedded/lib/data/integrations'
 
 interface ToolPermissionsPanelProps {
@@ -31,6 +34,7 @@ export function ToolPermissionsPanel({
         query={{ ...query, data: undefined }}
         failure='Could not load tool permissions'
         loadingLabel='Loading tool permissions'
+        loading={<ToolPermissionsSkeleton />}
       >
         {() => null}
       </QueryBoundary>

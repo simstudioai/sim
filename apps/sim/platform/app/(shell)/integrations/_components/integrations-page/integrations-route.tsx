@@ -18,7 +18,7 @@ import {
   useIntegrationsView,
   useMemberIntegrations,
 } from '@/platform/lib/data/integrations'
-import { GENERIC_SECRETS_SEGMENT } from '@/platform/lib/data/integrations-types'
+import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'

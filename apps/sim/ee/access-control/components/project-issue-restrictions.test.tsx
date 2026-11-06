@@ -6,7 +6,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { ProjectIssueRestrictions } from '@/ee/access-control/components/project-issue-restrictions'
 
 let root: Root

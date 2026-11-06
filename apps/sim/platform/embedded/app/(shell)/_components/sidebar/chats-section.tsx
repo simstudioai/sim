@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { usePathname, useRouter } from 'next/navigation'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
@@ -18,8 +17,10 @@ import {
 import { SectionStatus } from '@/platform/embedded/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useChatListActions } from '@/platform/embedded/lib/data/chat-list'
-import type { ShellChat, ShellQueryStatus } from '@/platform/embedded/lib/data/shell-view'
+import type { ShellChat } from '@/platform/embedded/lib/data/shell-view'
 import { copyLinkAction, openInNewTabAction } from '@/platform/embedded/lib/row-links'
+import type { ShellQueryStatus } from '@/platform/shared/shell'
+import { toast } from '@/platform/shared/toast'
 import { useFolderStore } from '@/stores/folders/store'
 
 const CHAT_TITLE_MAX_LENGTH = 200

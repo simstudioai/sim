@@ -11,7 +11,7 @@ import {
   FieldStack,
   Muted,
   Preformatted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 
 const CLIENTS = [
@@ -75,14 +75,20 @@ function ConnectionInstructions({ endpoint, client }: ConnectionInstructionsProp
         ? 'codex mcp add sim-search --url'
         : 'claude mcp add --transport http sim-search'
     return (
-      <CopyField
-        label='Terminal command'
-        value={`${prefix} ${quotedEndpoint}`}
-        hint={client.hint}
-      />
+      <FieldStack>
+        <CopyField
+          label='Terminal command'
+          value={`${prefix} ${quotedEndpoint}`}
+          hint={client.hint}
+        />
+      </FieldStack>
     )
   }
-  return <CopyField label='Server URL' value={endpoint} hint={client.hint} />
+  return (
+    <FieldStack>
+      <CopyField label='Server URL' value={endpoint} hint={client.hint} />
+    </FieldStack>
+  )
 }
 
 export default function SearchMcpSection({ organization }: SettingsSectionProps) {

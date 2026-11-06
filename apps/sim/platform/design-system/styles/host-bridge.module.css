@@ -22,6 +22,7 @@
   --design-leading-22: 1.375rem;
   --design-leading-16: 1rem;
   --design-radius-control: 0.5rem;
+  --design-spacing-1: 1px;
   --design-spacing-4: 0.25rem;
   --design-spacing-8: 0.5rem;
   --design-spacing-12: 0.75rem;
@@ -37,6 +38,7 @@
   --design-spacing-app-touch-target: 2.75rem;
   --design-container-chat: 44rem;
   --design-container-chat-message: 40rem;
+  --design-container-app-panel-start: 30rem;
   --design-ui-page-max-size: calc(75rem + 2 * 3rem);
 }
 html[class~="dark"] .tokens {

@@ -26,7 +26,7 @@ import {
   restoreWorkflowContract,
   updateWorkflowContract,
 } from '@/lib/api/contracts/workflows'
-import { deploymentKeys } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'

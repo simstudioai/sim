@@ -149,7 +149,8 @@
   background: var(--control-danger);
 }
 .edgeAction {
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+  /* A text button's own padding: its label ends on the column's edge, at any pointer. */
+  margin-inline-end: calc(-1 * var(--spacing-8));
 }
 .tableHeading {
   display: flex;

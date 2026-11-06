@@ -24,6 +24,7 @@ import {
   isDeliveredAsTurn,
   MAX_OUTGOING_DELIVERY_ATTEMPTS,
   nextOutgoingStep,
+  nextOutgoingWake,
   ORPHAN_AUTO_SEND_MAX_AGE_MS,
   type OutgoingMessage,
   orphanSteeringRows,
@@ -260,6 +261,54 @@ describe('transitions', () => {
       { streamId: 'turn', turnErrored: false, now: NOW }
     )
     expect(notBefore).toBeGreaterThan(NOW)
+  })
+
+  it('never steers a message with a search scope, and shows it waits for its own turn', () => {
+    const scoped = entry('a', {
+      payload: { content: 'Summarize', assistantSearch: { startDate: '2026-11-01T00:00:00.000Z' } },
+    })
+    expect(nextOutgoingStep([scoped], view({ liveStreamId: 'turn' })).kind).toBe('idle')
+    expect(deliveryOf(scoped, true)).toBe('waiting')
+    expect(nextOutgoingStep([scoped], view())).toMatchObject({ kind: 'send', message: scoped })
+  })
+
+  it('clears the retry delay on every move to not delivered or applied', () => {
+    const delayed = { notBefore: NOW - 1 }
+    const context = { streamId: 'turn', turnErrored: false, now: NOW }
+    const steered = entry('a', { status: 'steered', streamId: 'turn', ...delayed })
+    for (const patch of [
+      afterUnsentAttempt(entry('a', { attempts: MAX_OUTGOING_DELIVERY_ATTEMPTS - 1, ...delayed }), {
+        online: true,
+        now: NOW,
+      }),
+      afterDispositionRead({ ...steered, reads: 7 }, { status: 'queued' }, context),
+      afterDispositionRead(steered, { status: 'applied' }, context),
+      afterDispositionRead(
+        { ...steered, attempts: 2 },
+        { status: 'not_applied' },
+        { ...context, turnErrored: true }
+      ),
+    ]) {
+      expect('notBefore' in patch && patch.notBefore === undefined).toBe(true)
+    }
+  })
+
+  it('wakes only for a delay the last pass could have skipped', () => {
+    const wake = (message: OutgoingMessage) => nextOutgoingWake([message], NOW)
+    for (const status of ['pending', 'steered'] as const) {
+      expect(wake(entry('a', { status, notBefore: NOW + 5 }))).toBe(NOW + 5)
+      expect(wake(entry('a', { status, notBefore: NOW }))).toBe(Number.POSITIVE_INFINITY)
+    }
+    for (const status of ['failed', 'applied'] as const) {
+      expect(wake(entry('a', { status, notBefore: NOW + 5 }))).toBe(Number.POSITIVE_INFINITY)
+    }
+    expect(wake(entry('a'))).toBe(Number.POSITIVE_INFINITY)
+    expect(
+      nextOutgoingWake(
+        [entry('a', { notBefore: NOW + 9 }), entry('b', { notBefore: NOW + 3 })],
+        NOW
+      )
+    ).toBe(NOW + 3)
   })
 
   it('leaves reads out of the budget for sends', () => {

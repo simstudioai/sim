@@ -9,18 +9,14 @@ import {
   usePinnedWorkspaceIds,
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
-import type {
-  ShellChat,
-  ShellData,
-  ShellDestination,
-  ShellWorkspace,
-} from '@/platform/app/(shell)/_components/model'
+import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { canListOrganizationChats, legacyRoutes } from '@/platform/lib/data/organization-model'
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
+import type { ShellDestination } from '@/platform/shared/shell'
 
 type LegacyRoutes = ReturnType<typeof legacyRoutes>
 

@@ -13,7 +13,7 @@ import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standa
 import { getSession } from '@/lib/auth'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 
 interface AccountSettingsSectionPageProps {
   params: Promise<{ section: string }>

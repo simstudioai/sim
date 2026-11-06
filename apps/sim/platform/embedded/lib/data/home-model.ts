@@ -23,15 +23,18 @@ import {
 } from '@/platform/design-system/components/icon/provider-marks'
 import type {
   AttentionItem,
-  CalendarMeeting,
   EmailItem,
+  HomeRecentItem,
+  HomeWorkspaceItem,
+} from '@/platform/embedded/lib/data/home-view'
+import { placeMeeting } from '@/platform/shared/calendar-meeting'
+import type {
+  CalendarMeeting,
   HomeAccountView,
   HomeCalendarDay,
   HomeConnectOption,
-  HomeRecentItem,
   HomeWidgetState,
-  HomeWorkspaceItem,
-} from '@/platform/embedded/lib/data/home-view'
+} from '@/platform/shared/home'
 import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {
@@ -170,24 +173,6 @@ export function toEmailItems(email: OrganizationHomeEmail): EmailItem[] {
   }))
 }
 
-const MINUTES_PER_DAY = 24 * 60
-
-export function wallClockMinute(instantMs: number, timeZone: string): number {
-  const { hour, minute } = getWallClockParts(new Date(instantMs), timeZone)
-  return hour * 60 + minute
-}
-
-/** A wall-clock minute of the requested day; an instant outside it clamps to that day's edge. */
-function minuteOfDay(
-  instant: string,
-  window: OrganizationHomeCalendar['window'],
-  timeZone: string
-) {
-  if (instant <= window.startAt) return 0
-  if (instant >= window.endAt) return MINUTES_PER_DAY
-  return wallClockMinute(Date.parse(instant), timeZone)
-}
-
 export function toCalendarDay(
   calendar: OrganizationHomeCalendar,
   day: { date: string; nowMinute: number | null; timeZone: string }
@@ -196,8 +181,6 @@ export function toCalendarDay(
   const allDay: HomeCalendarDay['allDay'][number][] = []
   for (const event of calendar.events) {
     const id = `${event.credentialId}:${event.id}`
-    const runsBefore = event.startAt < calendar.window.startAt
-    const runsAfter = event.endAt > calendar.window.endAt
     // A timed event filling the whole day would only be a card too tall to read.
     const fillsDay =
       event.startAt <= calendar.window.startAt && event.endAt >= calendar.window.endAt
@@ -205,20 +188,10 @@ export function toCalendarDay(
       allDay.push({ id, title: event.title, providerUrl: event.url })
       continue
     }
-    const startMinute = minuteOfDay(event.startAt, calendar.window, day.timeZone)
     meetings.push({
       id,
       title: event.title,
-      startMinute,
-      duration: Math.max(0, minuteOfDay(event.endAt, calendar.window, day.timeZone) - startMinute),
-      ...(runsBefore || runsAfter
-        ? {
-            clock: {
-              startMinute: wallClockMinute(Date.parse(event.startAt), day.timeZone),
-              endMinute: wallClockMinute(Date.parse(event.endAt), day.timeZone),
-            },
-          }
-        : {}),
+      ...placeMeeting(event, calendar.window, day.timeZone),
       providerUrl: event.url,
       people: event.people,
     })

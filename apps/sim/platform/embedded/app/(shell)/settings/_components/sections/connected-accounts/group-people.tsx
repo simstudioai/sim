@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
@@ -30,14 +29,15 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   Muted,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.module.css'
 import { PeopleInviteModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal'
+import { toast } from '@/platform/shared/toast'
 
 interface PersonConnectionsProps {
   person: Parameters<typeof personConnectionSummaries>[0]

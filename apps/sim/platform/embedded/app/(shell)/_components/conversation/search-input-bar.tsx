@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { GrowingTextarea } from '@/app/workspace/[workspaceId]/home/components/user-input/components/growing-textarea'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import styles from '@/platform/embedded/app/(shell)/_components/conversation/page-composer.module.css'
 
 interface SearchInputBarProps {
   inputRef: RefObject<HTMLTextAreaElement | null>
@@ -42,7 +43,7 @@ export function SearchInputBar({
 }: SearchInputBarProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   return (
-    <div ref={scrollerRef} className='relative w-full'>
+    <div ref={scrollerRef} className={styles.inputBar}>
       {attachments}
       <InputToolbar
         leadingControls={leadingControls}

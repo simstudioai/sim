@@ -15,7 +15,7 @@ import {
   SettingsSection,
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/billing/billing.module.css'
 import { useBillingSection } from '@/platform/embedded/lib/data/billing'
@@ -48,7 +48,7 @@ function UsageLimit({ field }: { field: ReturnType<typeof useBillingSection>['us
 
 export function BillingView({ organization }: Pick<SettingsSectionProps, 'organization'>) {
   const billing = useBillingSection(organization)
-  if (billing.status === 'pending') return <SectionSkeleton title='Plan' rows={1} />
+  if (billing.status === 'pending') return <SectionSkeleton label='Loading plan' rows={1} />
   if (billing.status === 'error')
     return <FailureNotice message={billing.error} onRetry={billing.retry} />
   return (

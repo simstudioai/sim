@@ -37,7 +37,8 @@ import type {
 } from '@/platform/app/(shell)/_components/search/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/lib/data/toast'
+import { useSummaryQueue } from '@/platform/lib/data/search-summary'
+import { toast } from '@/platform/shared/toast'
 
 const NO_FILTERS: WorkspaceSearchFilters = {}
 /** A tab without a retrieval address runs nothing: an empty query never enables the read. */
@@ -119,7 +120,8 @@ function useSearchResults({
       navigator.clipboard.writeText(row.url).catch(() => toast.error('Unable to copy link'))
     },
     onOpen: (row) => onRecordSource?.(row),
-    onSummarize,
+    // A row's document stops being what it read as while its results may still change.
+    onSummarize: isFetching ? undefined : onSummarize,
   }
 }
 
@@ -163,6 +165,7 @@ export function useSearchSurface(chatId: string | undefined) {
   const clearHistory = useClearSearchHistory(organizationId, userId)
   const record = useRecordSearchHistory(organizationId, userId)
   const awaitingRange = updated === 'custom' && !(from && to)
+  const summaries = useSummaryQueue()
   const results = useSearchResults({
     scope,
     // Hidden behind Assistant, a query in the URL must not search every connected app.
@@ -174,6 +177,12 @@ export function useSearchSurface(chatId: string | undefined) {
         kind: 'source',
         source: { url: row.url, title: row.title, siteName: row.meta },
       }),
+    onSummarize: assistantAvailable
+      ? (row) => {
+          summaries.enqueue(`Summarize "${row.title}"`, { ...filters, documentIds: [row.id] })
+          setMode('assistant')
+        }
+      : undefined,
   })
   const fetching =
     useIsFetching({
@@ -187,6 +196,9 @@ export function useSearchSurface(chatId: string | undefined) {
     setMode,
     assistantAvailable,
     assistantStarted,
+    /** The next summary for the conversation, held until Assistant is what the viewer is reading. */
+    pendingSummary: mode === 'assistant' ? summaries.pending : undefined,
+    consumeSummary: summaries.consume,
     query,
     filtered: Boolean(source) || updated !== 'any',
     searching: fetching,
@@ -207,7 +219,10 @@ export function useSearchSurface(chatId: string | undefined) {
         queryKey: knowledgeKeys.searchQuery(resourceScopeKey(scope), query.trim(), userId),
       })
     },
-    clear: () => void setParams({ q: '', source: null, updated: 'any', from: null, to: null }),
+    clear: () => {
+      summaries.clear()
+      void setParams({ q: '', source: null, updated: 'any', from: null, to: null })
+    },
     results: {
       ...results,
       filters: {

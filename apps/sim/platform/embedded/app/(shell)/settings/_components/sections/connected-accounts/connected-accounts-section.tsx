@@ -21,7 +21,7 @@ import {
 import {
   ActionRow,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { GroupAccess } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people'

@@ -16,8 +16,6 @@ import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys
 export const OAUTH_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
 export const OAUTH_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
 
-export { oauthCredentialKeys }
-
 interface FetchOAuthCredentialsParams {
   providerId: string
   workspaceId?: string

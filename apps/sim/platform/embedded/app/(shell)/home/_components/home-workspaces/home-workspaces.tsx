@@ -6,10 +6,11 @@ import { ActivityRow } from '@/platform/design-system/components/activity-row/ac
 import { Chip } from '@/platform/design-system/components/button/button'
 import { RowList } from '@/platform/design-system/components/settings-section/row-list'
 import { FailureNotice, Spinner } from '@/platform/design-system/components/status/status'
-import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/home-section/home-section'
+import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type { HomeListState, HomeWorkspaceItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeWorkspaceItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */
@@ -24,8 +25,11 @@ interface HomeWorkspacesProps {
   onRetry: () => void
 }
 
-/** Shown while a row's activity is read, since an empty slot would claim the workspace is idle. */
-const SETTLING_METADATA = '…'
+/**
+ * Stands in for a row's detail while its activity is read: an empty slot would claim the workspace
+ * is idle, and the line holds the row at the height the answer will give it.
+ */
+const SETTLING_DETAIL = '…'
 
 function metadataOf(item: HomeWorkspaceItem, asOf: number) {
   if (item.status) return STATUS_LABEL[item.status]
@@ -63,14 +67,14 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
               onRetry={onRetry}
             />
           )}
-          <div className={styles.viewport}>
+          <div className={styles.viewport} aria-busy={state.settling || undefined}>
             <RowList dividers>
               {state.items.slice(0, visibleCount).map((item) => (
                 <ActivityRow
                   key={item.id}
                   title={item.name}
-                  detail={item.detail}
-                  metadata={state.settling ? SETTLING_METADATA : metadataOf(item, asOf)}
+                  detail={state.settling ? SETTLING_DETAIL : item.detail}
+                  metadata={state.settling ? undefined : metadataOf(item, asOf)}
                   metadataLeading={item.status === 'running' ? <Spinner /> : undefined}
                   render={<SettingsGuardedLink href={item.href} />}
                 />

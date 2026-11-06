@@ -8,7 +8,7 @@
 .content {
   display: grid;
   justify-items: center;
-  max-inline-size: 26rem;
+  max-inline-size: calc(2 * var(--container-208));
   gap: var(--spacing-16);
 }
 .copy {
@@ -22,5 +22,5 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--ui-action-gap);
+  gap: var(--spacing-8);
 }

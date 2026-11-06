@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -19,7 +20,6 @@ import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -37,7 +37,6 @@ import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { DesktopOAuthConnectListener } from '@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { InFlightUploadGuard } from '@/app/workspace/[workspaceId]/providers/in-flight-upload-guard'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
@@ -53,6 +52,7 @@ import {
 } from '@/ee/whitelabeling'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode

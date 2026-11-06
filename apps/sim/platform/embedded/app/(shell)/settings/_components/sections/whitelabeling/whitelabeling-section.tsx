@@ -15,14 +15,14 @@ import {
   FieldStack,
   SectionSkeleton,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import {
   useWhitelabelForm,
   useWhitelabelRead,
   type WhitelabelTextField,
-} from '@/platform/embedded/lib/data/whitelabeling'
+} from '@/platform/shared/whitelabeling'
 
 const IMAGE_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
 

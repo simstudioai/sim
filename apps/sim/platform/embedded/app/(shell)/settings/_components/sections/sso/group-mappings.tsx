@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
@@ -42,8 +41,9 @@ import { SettingsRow } from '@/platform/design-system/components/settings-sectio
 import {
   ActionRow,
   Muted,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
 type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>

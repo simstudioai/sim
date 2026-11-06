@@ -11,9 +11,9 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
-import { useDeletedChats, useRestoreChat } from '@/platform/embedded/lib/data/recently-deleted'
+import { useDeletedChats, useRestoreChat } from '@/platform/shared/recently-deleted'
 
 const TITLE = 'Deleted chats'
 

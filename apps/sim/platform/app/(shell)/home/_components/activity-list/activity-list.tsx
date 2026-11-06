@@ -1,11 +1,7 @@
 import { useSearchParams } from 'next/navigation'
 import styles from '@/platform/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeListState,
-} from '@/platform/app/(shell)/home/_components/model'
+import type { AttentionItem, EmailItem } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
@@ -17,6 +13,7 @@ import {
   ScrollArea,
 } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
+import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 interface EmailListProps {

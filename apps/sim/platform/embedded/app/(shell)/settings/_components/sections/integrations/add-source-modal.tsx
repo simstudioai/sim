@@ -1,25 +1,11 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
-import {
-  ActivityRow,
-  Avatar,
-  EmptyState,
-  Modal,
-  RowList,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { ActivityRow, EmptyState, Modal, RowList } from '@/platform/design-system/components'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { GENERIC_SECRETS_SOURCE_TYPE } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets'
 
-interface SourceMarkProps {
-  organization: AddSourceModalProps['organization']
-  type: string
-  icon?: ComponentType<{ className?: string }>
-}
-
 interface AddSourceModalProps {
-  organization: { name: string; logo?: string | null }
   sources: {
     type: string
     name: string
@@ -35,16 +21,10 @@ interface AddSourceModalProps {
   descriptions: Readonly<Record<string, string>>
 }
 
-function SourceMark({ organization, type, icon }: SourceMarkProps) {
-  return type === GENERIC_SECRETS_SOURCE_TYPE ? (
-    <Avatar name={organization.name} src={organization.logo ?? undefined} organization />
-  ) : (
-    <IntegrationMark providerId={type} icon={icon} />
-  )
-}
+/** Generic Secrets has no provider, so it takes the same mark the Integrations list gives it. */
+const markId = (type: string) => (type === GENERIC_SECRETS_SOURCE_TYPE ? undefined : type)
 
 export function AddSourceModal({
-  organization,
   sources,
   pending,
   ready,
@@ -61,7 +41,7 @@ export function AddSourceModal({
       }}
       title='Add source'
       cancelLabel='Close'
-      confirmLabel='Done'
+      submitOnEnter={false}
     >
       {feedback}
       <RowList>
@@ -77,18 +57,19 @@ export function AddSourceModal({
                   ? 'Unavailable in this deployment'
                   : descriptions[type]
           return pending || !sourceReady || !available ? (
-            <li key={type}>
-              <SettingsRow
-                label={name}
-                description={description}
-                leading={<SourceMark organization={organization} type={type} icon={icon} />}
-              />
-            </li>
+            <ActivityRow
+              readOnly
+              density='comfortable'
+              key={type}
+              leading={<IntegrationMark providerId={markId(type)} icon={icon} />}
+              title={name}
+              detail={description}
+            />
           ) : (
             <ActivityRow
               density='comfortable'
               key={type}
-              leading={<SourceMark organization={organization} type={type} icon={icon} />}
+              leading={<IntegrationMark providerId={markId(type)} icon={icon} />}
               title={name}
               detail={description}
               onOpen={() => onSelect(type, access.admin ? 'admin' : 'members')}

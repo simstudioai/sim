@@ -70,21 +70,46 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
   return shared
 }
 
-/** The app scrolls inside its own panes, so the viewport grows to what they hold before the shot. */
+/** Enough to name what a slow route was waiting on. */
+const SLOWEST_READS = 5
+/** How far a probe grows the viewport to see which panes follow it. */
+const PANE_PROBE_PX = 200
+/** Home's composer types its suggestion out, then holds it this long before deleting it. */
+const TYPED_PLACEHOLDER = '[placeholder^="Ask Sim to "]:not([placeholder$="..."])'
+
+/**
+ * The app scrolls inside its own panes, so the viewport grows to what they hold before the shot. A
+ * pane with a ceiling of its own, such as a Home widget's list, stays a scroller at any height and
+ * shows no more for it: only the panes that follow the viewport count.
+ */
+async function viewportHolding(page: Page, viewport: Viewport) {
+  const scrollers = await page.evaluateHandle(() =>
+    Array.from(document.querySelectorAll('body *'))
+      .filter((element) => element.scrollHeight - element.clientHeight > 1)
+      .map((element) => ({
+        element,
+        clientHeight: element.clientHeight,
+        overflow: element.scrollHeight - element.clientHeight,
+      }))
+  )
+  await page.setViewportSize({ width: viewport.width, height: viewport.height + PANE_PROBE_PX })
+  await sleep(150)
+  const overflow = await scrollers.evaluate((measured) =>
+    measured
+      .filter(({ element, clientHeight }) => element.clientHeight > clientHeight)
+      .reduce((tallest, { overflow }) => Math.max(tallest, overflow), 0)
+  )
+  await scrollers.dispose()
+  return Math.min(viewport.height + overflow, 3600)
+}
+
 export async function fullPageScreenshot(page: Page, path: string, viewport: Viewport) {
-  const height = await page.evaluate(() => {
-    let tallest = innerHeight
-    for (const element of Array.from(document.querySelectorAll('body *'))) {
-      const overflow = element.scrollHeight - element.clientHeight
-      if (overflow > 1) tallest = Math.max(tallest, innerHeight + overflow)
-    }
-    return Math.min(tallest, 3600)
+  const height = await viewportHolding(page, viewport)
+  await page.setViewportSize({ width: viewport.width, height })
+  await sleep(150)
+  await page.waitForFunction((typing) => !document.querySelector(typing), TYPED_PLACEHOLDER, {
+    timeout: 10_000,
   })
-  const grows = height > viewport.height
-  if (grows) {
-    await page.setViewportSize({ width: viewport.width, height })
-    await sleep(150)
-  }
   await page.screenshot({
     path,
     fullPage: true,
@@ -92,7 +117,7 @@ export async function fullPageScreenshot(page: Page, path: string, viewport: Vie
     style: 'nextjs-portal { display: none; }',
     timeout: 20_000,
   })
-  if (grows) await page.setViewportSize({ width: viewport.width, height: viewport.height })
+  await page.setViewportSize({ width: viewport.width, height: viewport.height })
 }
 
 /** Long enough for a persona's walk to list every route that failed. */
@@ -109,10 +134,14 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         const failures: string[] = []
         if (persona === CONNECTED) await stubConnectedHome(page)
         for (const route of routesFor(persona)) {
+          session.reads.length = 0
+          const navigated = performance.now()
           const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
-          await session
-            .settle()
-            .catch((error) => failures.push(`${route.name}: ${getErrorMessage(error)}`))
+          const documentMs = Math.round(performance.now() - navigated)
+          const contentReadyMs = await session.contentReady().catch((error) => {
+            failures.push(`${route.name}: ${getErrorMessage(error)}`)
+            return null
+          })
           if (route.name === 'home')
             await composer(page)
               .waitFor({ timeout: 20_000 })
@@ -149,6 +178,10 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             finalPath: pathOf(page.url()),
             screenshot,
             platformSurfaces: facts.surfaces,
+            contentReadyMs,
+            documentMs,
+            slowestReads: [...session.reads].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_READS),
+            readCount: session.reads.length,
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)

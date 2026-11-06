@@ -9,18 +9,21 @@ import { IconButton } from '@/platform/design-system/components/button/button'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { Surface } from '@/platform/design-system/components/surface/surface'
-import conversationStyles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { MicrophoneHelp } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
-import { ConversationLanding } from '@/platform/embedded/app/(shell)/_components/conversation/landing'
+import {
+  ConversationLanding,
+  LandingFollowUp,
+  LandingHeading,
+} from '@/platform/embedded/app/(shell)/_components/conversation/landing'
 import {
   ConversationSkeleton,
   LandingSkeleton,
 } from '@/platform/embedded/app/(shell)/_components/conversation/skeletons'
+import { GetStarted } from '@/platform/embedded/app/(shell)/_components/get-started/get-started'
 import { SearchResults } from '@/platform/embedded/app/(shell)/_components/search/search-results'
-import { GetStarted } from '@/platform/embedded/app/(shell)/home/_components/get-started/get-started'
+import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/_components/search-surface-header/search-surface-header'
 import { SearchHistory } from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-history'
 import styles from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.module.css'
-import { SearchSurfaceHeader } from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface-header'
 import { useGetStartedSteps } from '@/platform/embedded/lib/data/get-started'
 import {
   useOrganizationSearch,
@@ -141,11 +144,11 @@ function AssistantGetStarted() {
   const steps = useGetStartedSteps()
   if (steps.length === 0) return null
   return (
-    <div className={conversationStyles.landingGetStarted}>
+    <LandingFollowUp>
       <Surface>
         <GetStarted steps={steps} />
       </Surface>
-    </div>
+    </LandingFollowUp>
   )
 }
 
@@ -220,9 +223,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
             <div className={styles.scroll}>
               <div className={styles.landing}>
                 <div className={styles.column}>
-                  <h1 className={conversationStyles.landingHeading} data-type='T076'>
-                    Search {organization.name}
-                  </h1>
+                  <LandingHeading>Search {organization.name}</LandingHeading>
                   {field}
                 </div>
               </div>
@@ -235,8 +236,8 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
 }
 
 /** Organization Search in the design system. The Assistant conversation renders beside it. */
-export function OrganizationSearchSurface(props: OrganizationSearchSurfaceProps) {
+export function OrganizationSearchSurface({ userId, chatId }: OrganizationSearchSurfaceProps) {
   const { searchAccess } = useOrganization()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchSurfaceContent {...props} />
+  return <OrganizationSearchSurfaceContent userId={userId} chatId={chatId} />
 }

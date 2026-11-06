@@ -16,11 +16,11 @@
   gap: var(--spacing-8);
 }
 .filter {
-  inline-size: 10.5rem;
+  inline-size: calc(var(--spacing-96) + var(--spacing-72));
   max-inline-size: 100%;
 }
 .range {
-  inline-size: 15rem;
+  inline-size: calc(3 * var(--spacing-80));
   max-inline-size: 100%;
 }
 .quiet {
@@ -43,9 +43,9 @@
   min-block-size: var(--spacing-app-chip);
 }
 .row:hover,
-.row:focus-within,
+.row:has(:focus-visible),
 .compactRow:hover,
-.compactRow:focus-within {
+.compactRow:has(:focus-visible) {
   background: var(--ui-hover);
 }
 .mark {

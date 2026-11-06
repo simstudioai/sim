@@ -37,7 +37,7 @@ vi.mock('@/lib/auth/stale-session-recovery', () => ({
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: () => ({}),
 }))
 

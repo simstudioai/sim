@@ -53,3 +53,7 @@
   flex-direction: column;
   gap: var(--spacing-2);
 }
+
+.hoverPanel {
+  inline-size: var(--shell-org-menu-width);
+}

@@ -15,6 +15,8 @@ interface ActivityRowProps {
   count?: number
   detail?: string
   detailLead?: string
+  /** Lets the detail take more lines, for a sentence a touch screen has no tooltip to finish. */
+  wrapDetail?: boolean
   metadata?: string
   /** A glyph held beside `metadata`, such as a running spinner. */
   metadataLeading?: ReactNode
@@ -24,10 +26,12 @@ interface ActivityRowProps {
 }
 
 type ActivityTarget =
-  | { href: string; onOpen?: never; render?: never }
-  | { href?: never; onOpen: () => void; render?: never }
+  | { href: string; onOpen?: never; render?: never; readOnly?: never }
+  | { href?: never; onOpen: () => void; render?: never; readOnly?: never }
   /** The row's own link, for a destination whose navigation carries a guard. */
-  | { href?: never; onOpen?: never; render: ReactElement }
+  | { href?: never; onOpen?: never; render: ReactElement; readOnly?: never }
+  /** A row in the same list that opens nothing, such as a source this deployment does not offer. */
+  | { href?: never; onOpen?: never; render?: never; readOnly: true }
 
 interface RenderedRowProps {
   render: ReactElement
@@ -48,6 +52,7 @@ export function ActivityRow({
   count,
   detail,
   detailLead,
+  wrapDetail,
   metadata,
   metadataLeading,
   showChevron = true,
@@ -55,6 +60,7 @@ export function ActivityRow({
   onOpen,
   href,
   render,
+  readOnly,
 }: ActivityRowProps & ActivityTarget) {
   const content = (
     <>
@@ -64,18 +70,22 @@ export function ActivityRow({
         </span>
         {detail && (
           <span className={styles.detail} data-type='T050'>
-            <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
-              {detailLead && (
-                <>
-                  <strong data-type='T051'>{detailLead}</strong>{' '}
-                </>
-              )}
-              {detail}
-            </OverflowText>
+            {wrapDetail ? (
+              detail
+            ) : (
+              <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
+                {detailLead && (
+                  <>
+                    <strong data-type='T051'>{detailLead}</strong>{' '}
+                  </>
+                )}
+                {detail}
+              </OverflowText>
+            )}
           </span>
         )}
       </ActivityBody>
-      {(metadata || showChevron) && (
+      {(metadata || (showChevron && !readOnly)) && (
         <span className={styles.meta} data-type='T052'>
           {metadata && (
             <span className={styles.metaLabel}>
@@ -83,14 +93,18 @@ export function ActivityRow({
               {metadata}
             </span>
           )}
-          {showChevron && <Icon name='I032' />}
+          {showChevron && !readOnly && <Icon name='I032' />}
         </span>
       )}
     </>
   )
   return (
     <li className={styles.entry}>
-      {render ? (
+      {readOnly ? (
+        <div className={styles.row} data-density={density} data-read-only>
+          {content}
+        </div>
+      ) : render ? (
         <RenderedRow render={render} rowDensity={density}>
           {content}
         </RenderedRow>

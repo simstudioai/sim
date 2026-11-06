@@ -1,5 +1,5 @@
 import type { ComponentType, Ref } from 'react'
-import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading.module.css'
 
 interface ProviderHeadingProps {

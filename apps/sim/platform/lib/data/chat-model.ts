@@ -526,6 +526,13 @@ function liveResponseIndex(messages: readonly ChatMessage[]): number {
   return -1
 }
 
+/** Whether the running response is paused in a `wait`, which counts down. */
+export function isRunningWait(messages: readonly ChatMessage[]): boolean {
+  return (messages[liveResponseIndex(messages)]?.contentBlocks ?? []).some(
+    (block) => block.toolCall?.name === 'wait' && block.toolCall.status === 'executing'
+  )
+}
+
 /**
  * The hook's transcript as Platform turns. A pure read of `messages`, so a replay, a reconnect or a
  * reload lands on the same turns, and it keeps the legacy parsers as the only readers of the wire.

@@ -10,12 +10,12 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { DetailHeader } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AuthorizedApps } from '@/platform/embedded/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/embedded/app/(shell)/settings/_components/sections/account/delete-account'
 import { OrganizationAccounts } from '@/platform/embedded/app/(shell)/settings/_components/sections/account/organization-accounts'
-import { useAccountEmail, useResetPasswordAction } from '@/platform/embedded/lib/data/account'
 import { useAnonymousViewer } from '@/platform/embedded/lib/data/organization'
+import { useAccountEmail, useResetPasswordAction } from '@/platform/shared/account'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface AccountSettingsRowsProps {

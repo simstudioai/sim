@@ -30,6 +30,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
@@ -52,7 +53,6 @@ import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/h
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,

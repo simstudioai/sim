@@ -6,8 +6,8 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings.module.css'
-import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/embedded/lib/data/preferences'
 
 interface SavedSettingsSectionProps {

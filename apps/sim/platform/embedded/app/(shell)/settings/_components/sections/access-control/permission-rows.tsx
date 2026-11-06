@@ -32,7 +32,7 @@ import { ProviderMark } from '@/platform/embedded/app/(shell)/_components/provid
 import {
   ActionRow,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import {
   type EditorBlock,

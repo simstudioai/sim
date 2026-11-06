@@ -40,6 +40,10 @@
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
+/* The total, plot and ticks together, so the sections below stay put when the chart arrives. */
+.block[data-shape="chart"] {
+  block-size: calc(var(--spacing-chart-plot) + var(--spacing-56) + var(--spacing-32));
+}
 .lane {
   display: flex;
   gap: var(--ui-list-gap);

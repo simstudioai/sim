@@ -8,6 +8,23 @@ interface IntegrationsPageProps {
   children: ReactNode
 }
 
+interface IntegrationsBackProps {
+  label: string
+  /** For a page with its own guard on leaving. */
+  onBack: () => void
+}
+
+/** The way back on a page that decides for itself whether it can be left. */
+export function IntegrationsBack({ label, onBack }: IntegrationsBackProps) {
+  return (
+    <nav aria-label='Integration navigation' className={styles.back}>
+      <Chip icon='I093' onClick={onBack}>
+        {label}
+      </Chip>
+    </nav>
+  )
+}
+
 export function IntegrationsPage({ back, children }: IntegrationsPageProps) {
   return (
     <main className={styles.page}>

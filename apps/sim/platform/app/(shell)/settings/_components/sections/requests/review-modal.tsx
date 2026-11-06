@@ -14,7 +14,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { useRequestReview } from '@/platform/lib/data/requests'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 interface ReviewModalProps {
   organizationId: string

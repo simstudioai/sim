@@ -4,14 +4,11 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
+import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/activity-list/activity-list.module.css'
-import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/home-section/home-section'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeListState,
-} from '@/platform/embedded/lib/data/home-view'
+import type { AttentionItem, EmailItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 interface EmailListProps {
@@ -29,7 +26,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
   return (
     <div className={styles.viewport}>
       <ScrollArea label='Email messages'>
-        <ul className={styles.entries}>
+        <ul className={styles.entries} data-row-rhythm='dividers'>
           {items.map((mail) => (
             <ActivityRow
               key={mail.id}
@@ -45,6 +42,28 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
         </ul>
       </ScrollArea>
     </div>
+  )
+}
+
+function AttentionRow({ row, asOf }: { row: AttentionItem; asOf: number }) {
+  const leading = <Icon name={row.icon} />
+  const metadata = relativeTime(row.occurredAt, asOf)
+  return row.onOpen ? (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      onOpen={row.onOpen}
+    />
+  ) : (
+    <ActivityRow
+      leading={leading}
+      title={row.title}
+      detail={row.detail}
+      metadata={metadata}
+      href={row.href}
+    />
   )
 }
 
@@ -78,16 +97,9 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
           {state.items.length > 0 ? (
             <div className={styles.viewport}>
               <ScrollArea label='Attention requests'>
-                <ul className={styles.entries}>
+                <ul className={styles.entries} data-row-rhythm='dividers'>
                   {state.items.map((row) => (
-                    <ActivityRow
-                      key={row.id}
-                      leading={<Icon name={row.icon} />}
-                      title={row.title}
-                      detail={row.detail}
-                      metadata={relativeTime(row.occurredAt, asOf)}
-                      {...(row.onOpen ? { onOpen: row.onOpen } : { href: row.href })}
-                    />
+                    <AttentionRow key={row.id} row={row} asOf={asOf} />
                   ))}
                 </ul>
               </ScrollArea>

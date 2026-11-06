@@ -9,8 +9,8 @@ import {
   type MockInstance,
   vi,
 } from 'vitest'
-import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import * as getQueryClientModule from '@/hooks/queries/utils/get-query-client'
 import { prepareToolRequest } from '@/tools/request-transport'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'

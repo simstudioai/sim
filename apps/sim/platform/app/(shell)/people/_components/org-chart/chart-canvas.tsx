@@ -17,12 +17,8 @@ import {
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
 import { Avatar, Icon, IconButton, OverflowText } from '@/platform/design-system/components'
-import {
-  type ChartBranch,
-  type PersonSummary,
-  personHref,
-  usePeoplePath,
-} from '@/platform/lib/data/people'
+import { usePeoplePath } from '@/platform/lib/data/people'
+import { type ChartBranch, type PersonSummary, personHref } from '@/platform/shared/people'
 import { plural } from '@/platform/shared/plural'
 
 import '@xyflow/react/dist/style.css'

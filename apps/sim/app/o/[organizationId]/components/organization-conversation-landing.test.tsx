@@ -35,10 +35,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   composer: vi.fn(),
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)

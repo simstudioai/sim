@@ -120,6 +120,8 @@ vi.mock('@/hooks/use-permission-config', () => ({
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({

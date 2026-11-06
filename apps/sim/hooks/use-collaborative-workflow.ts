@@ -34,7 +34,7 @@ import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/depende
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
+import { invalidateDeploymentQueries } from '@/hooks/queries/utils/deployment-keys'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
   registerEmitFunctions,

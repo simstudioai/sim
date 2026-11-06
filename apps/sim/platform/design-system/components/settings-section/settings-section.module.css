@@ -132,6 +132,15 @@
   gap: 0;
 }
 
+/* The divider stops with the text, where the row's hover fill reaches past it. */
 .rowList[data-dividers] > * + * {
+  position: relative;
+}
+
+.rowList[data-dividers] > * + *::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: var(--ui-row-inset);
   border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+  content: "";
 }

@@ -30,7 +30,7 @@ import {
   DraftConflictNotice,
   Muted,
   SectionStack,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { GroupCatalogTab } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/group-catalog-tabs'
 import { GroupGeneralTab } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/group-general-tab'
 import type { PermissionControls } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/permission-rows'

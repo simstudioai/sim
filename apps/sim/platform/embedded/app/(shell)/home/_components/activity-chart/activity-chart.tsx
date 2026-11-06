@@ -11,10 +11,9 @@ import styles from '@/platform/embedded/app/(shell)/home/_components/activity-ch
 import { SkeletonBlock } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
   ACTIVITY_WINDOW_DAYS,
-  type ActivityPoint,
   type ActivityWindowDays,
-  type HomeActivityState,
 } from '@/platform/embedded/lib/data/home-view'
+import type { ActivityPoint, HomeActivityState } from '@/platform/shared/home'
 import { formatCalendarDate } from '@/platform/shared/time'
 
 interface HomeActivityChartProps {
@@ -115,7 +114,7 @@ export function HomeActivityChart({
             </span>
           )}
         </div>
-        {(ready || days !== ACTIVITY_WINDOW_DAYS[0]) && (
+        {(state.status !== 'error' || days !== ACTIVITY_WINDOW_DAYS[0]) && (
           <RangePicker
             label='Range'
             options={RANGE_LABELS}
@@ -126,7 +125,7 @@ export function HomeActivityChart({
           />
         )}
       </header>
-      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} />}
+      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} shape='chart' />}
       {state.status === 'error' && (
         <FailureNotice
           intent='warning'

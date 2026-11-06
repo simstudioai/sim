@@ -20,12 +20,8 @@ import { ChartCanvas } from '@/platform/embedded/app/(shell)/people/_components/
 import { ChartEmptyState } from '@/platform/embedded/app/(shell)/people/_components/org-chart/chart-empty-state'
 import styles from '@/platform/embedded/app/(shell)/people/_components/org-chart/org-chart.module.css'
 import { ProfileUnavailable } from '@/platform/embedded/app/(shell)/people/_components/people-page/profile-unavailable'
-import {
-  type SyncSource,
-  useOrgChart,
-  usePeoplePicker,
-  usePeopleViewer,
-} from '@/platform/embedded/lib/data/people'
+import { usePeoplePicker, usePeopleViewer } from '@/platform/embedded/lib/data/people'
+import { type SyncSource, useOrgChart } from '@/platform/shared/people'
 import { isRefusal } from '@/platform/shared/query-view'
 
 function ReportingLinesGraphic() {

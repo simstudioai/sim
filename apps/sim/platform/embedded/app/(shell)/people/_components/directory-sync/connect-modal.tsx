@@ -11,15 +11,15 @@ import {
 } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
 import { ExternalLink } from '@/platform/embedded/app/(shell)/people/_components/external-link/external-link'
+import { usePeopleViewer } from '@/platform/embedded/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,
   type SyncDraft,
   type SyncFieldErrors,
   type SyncSource,
   useDirectorySync,
-  usePeopleViewer,
   useProvisioningConnection,
-} from '@/platform/embedded/lib/data/people'
+} from '@/platform/shared/people'
 
 const SOURCE_DESCRIPTIONS: Record<SyncSource, string> = {
   okta: 'Keep your org chart current with an hourly directory sync. You can disconnect at any time.',

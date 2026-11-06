@@ -1,7 +1,6 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
@@ -28,8 +27,9 @@ import {
 import {
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { WorkspaceGrantModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/workspace-grant-modal'
+import { toast } from '@/platform/shared/toast'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =
@@ -208,18 +208,22 @@ function WorkspaceAccessList({
       </SettingsSection>
       {editor && (
         <WorkspaceGrantModal
-          {...(editor.mode === 'create'
-            ? ({ mode: 'create', workspaces: availableWorkspaces } as const)
-            : ({
-                mode: 'edit',
-                grant: editor.grant,
-                workspaceName: byId.get(editor.grant.workspaceId)?.name ?? '',
-                onRemove: () =>
-                  void save(
-                    access.grants.filter((grant) => grant.workspaceId !== editor.grant.workspaceId),
-                    editor.revision
-                  ),
-              } as const))}
+          target={
+            editor.mode === 'create'
+              ? { mode: 'create', workspaces: availableWorkspaces }
+              : {
+                  mode: 'edit',
+                  grant: editor.grant,
+                  workspaceName: byId.get(editor.grant.workspaceId)?.name ?? '',
+                  onRemove: () =>
+                    void save(
+                      access.grants.filter(
+                        (grant) => grant.workspaceId !== editor.grant.workspaceId
+                      ),
+                      editor.revision
+                    ),
+                }
+          }
           credentialTypes={access.credentialTypes}
           disabled={update.isPending}
           error={update.error?.message}

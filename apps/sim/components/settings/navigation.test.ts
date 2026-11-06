@@ -5,7 +5,6 @@ import {
   canMutateWorkspaceSettingsSection,
   getOrganizationSettingsFeatures,
   getWorkspaceSettingsHref,
-  isOrganizationSettingsSectionAvailable,
   isSelfHostedOverrideEnabled,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
@@ -14,6 +13,7 @@ import {
   WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 
 const SELF_HOSTED: DeploymentShape = {
   hosted: false,
@@ -156,13 +156,13 @@ describe('settings navigation boundaries', () => {
       })
     ).toBe('manage')
     expect(
-      isOrganizationSettingsSectionAvailable(
+      organizationPlanAllowsSettingsSection(
         'requests',
         getOrganizationSettingsFeatures(false, SELF_HOSTED)
       )
     ).toBe(true)
     expect(
-      isOrganizationSettingsSectionAvailable(
+      organizationPlanAllowsSettingsSection(
         'requests',
         getOrganizationSettingsFeatures(false, {
           ...SELF_HOSTED,

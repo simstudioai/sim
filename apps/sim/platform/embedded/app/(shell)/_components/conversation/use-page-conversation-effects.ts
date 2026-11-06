@@ -6,7 +6,7 @@ import { createSearchResource } from '@/lib/mothership/resources/search'
 import {
   chatSendOptions,
   type useOrganizationConversation,
-} from '@/app/o/[organizationId]/components/use-organization-conversation'
+} from '@/app/_organization-conversation/use-organization-conversation'
 import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 

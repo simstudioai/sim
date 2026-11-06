@@ -8,7 +8,7 @@ import { useSession } from '@/lib/auth/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 interface SettingsNavigationOptions {

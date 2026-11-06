@@ -16,17 +16,17 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   downloadImportTemplate,
   type ImportBody,
   isApiConflict,
   type PeopleImportResult,
   usePeopleImport,
-  usePeopleViewer,
   useProvisioningConnection,
-} from '@/platform/lib/data/people'
-import { toast } from '@/platform/lib/data/toast'
+} from '@/platform/shared/people'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

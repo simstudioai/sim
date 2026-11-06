@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import {
   FailureNotice,
   InlineNotice,
@@ -14,6 +13,7 @@ import {
   type RequestTarget,
   useRequestAccess,
 } from '@/platform/embedded/lib/data/requests'
+import { toast } from '@/platform/shared/toast'
 
 interface RequestAccessModalProps {
   scope: RequestScope

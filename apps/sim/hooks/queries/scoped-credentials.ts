@@ -18,12 +18,12 @@ import {
   updateOrganizationCredentialContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import {
   organizationCredentialKeys,
   workspaceCredentialKeys,
 } from '@/hooks/queries/utils/credential-keys'
 import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 export const SCOPED_CREDENTIALS_STALE_TIME = 60_000

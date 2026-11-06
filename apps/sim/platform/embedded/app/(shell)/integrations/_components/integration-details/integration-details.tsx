@@ -11,7 +11,7 @@ import {
   accountStatus,
   isConnectable,
   type OrganizationIntegration,
-} from '@/platform/embedded/lib/integrations/model'
+} from '@/platform/shared/integrations'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration

@@ -51,10 +51,7 @@ const mocks = vi.hoisted(() => ({
   selectResource: vi.fn(),
   activeResource: null as string | null,
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
-  () => featureFlagsProviderMock
-)
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
@@ -78,8 +75,8 @@ vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.auth
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 vi.mock('@/app/extension/o/[organizationId]/panel-composer', () => ({ PanelComposer: () => null }))
 
+import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
 import { PanelConversation } from '@/app/extension/o/[organizationId]/panel-conversation'
-import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
 import { PageConversation } from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
 
 const {

@@ -12,11 +12,8 @@ import {
 } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory/directory.module.css'
 import { PersonIdentity } from '@/platform/embedded/app/(shell)/people/_components/person-identity/person-identity'
-import {
-  personHref,
-  useDepartmentOptions,
-  usePeopleDirectory,
-} from '@/platform/embedded/lib/data/people'
+import { personHref } from '@/platform/embedded/lib/data/people'
+import { useDepartmentOptions, usePeopleDirectory } from '@/platform/shared/people'
 
 const COLUMNS = [
   { key: 'person', label: 'Person', kind: 'text', primary: true },
@@ -30,11 +27,13 @@ interface DirectoryCellProps {
 }
 
 function DirectoryCell({ value }: DirectoryCellProps) {
-  return (
-    <span className={value ? undefined : styles.blank} data-type='T043'>
-      {value || '—'}
-    </span>
-  )
+  if (!value)
+    return (
+      <span className={styles.blank} data-type='T043'>
+        —
+      </span>
+    )
+  return <span data-type='T043'>{value}</span>
 }
 
 interface PersonSummaryProps {

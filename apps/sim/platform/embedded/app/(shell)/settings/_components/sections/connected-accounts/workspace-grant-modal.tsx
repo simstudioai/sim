@@ -23,27 +23,33 @@ interface WorkspaceGrantModalBaseProps {
   onClose: () => void
 }
 
-type WorkspaceGrantModalProps = WorkspaceGrantModalBaseProps &
-  (
+interface WorkspaceGrantModalProps extends WorkspaceGrantModalBaseProps {
+  target:
     | { mode: 'create'; workspaces: OrganizationAccountWorkspaceAccess['workspaces'] }
     | { mode: 'edit'; grant: Grant; workspaceName: string; onRemove: () => void }
-  )
+}
 
 /** All integrations is an explicit grant; an empty picker selection never grants access. */
-export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
-  const { credentialTypes, disabled, error, onSave, onClose } = props
+export function WorkspaceGrantModal({
+  target,
+  credentialTypes,
+  disabled,
+  error,
+  onSave,
+  onClose,
+}: WorkspaceGrantModalProps) {
   const [workspaceId, setWorkspaceId] = useState(
-    props.mode === 'edit' ? props.grant.workspaceId : ''
+    target.mode === 'edit' ? target.grant.workspaceId : ''
   )
   const [access, setAccess] = useState<Grant['access']>(
-    props.mode === 'edit' ? props.grant.access : { mode: 'selected', credentialTypes: [] }
+    target.mode === 'edit' ? target.grant.access : { mode: 'selected', credentialTypes: [] }
   )
 
   async function save() {
     if (!workspaceId) throw new Error('Select a workspace before granting access')
     if (
-      props.mode === 'create' &&
-      !props.workspaces.some((workspace) => workspace.id === workspaceId)
+      target.mode === 'create' &&
+      !target.workspaces.some((workspace) => workspace.id === workspaceId)
     )
       throw new Error('Selected workspace is unavailable')
     if (access.mode === 'selected' && !access.credentialTypes.length)
@@ -58,20 +64,20 @@ export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
       onOpenChange={(open) => {
         if (!open && !disabled) onClose()
       }}
-      title={props.mode === 'create' ? 'Add workspace' : `Edit ${props.workspaceName} access`}
-      confirmLabel={props.mode === 'create' ? 'Add workspace' : 'Save access'}
+      title={target.mode === 'create' ? 'Add workspace' : `Edit ${target.workspaceName} access`}
+      confirmLabel={target.mode === 'create' ? 'Add workspace' : 'Save access'}
       pending={disabled}
       confirmDisabled={
         disabled || !workspaceId || (access.mode === 'selected' && !access.credentialTypes.length)
       }
       onConfirm={save}
     >
-      {props.mode === 'create' && (
+      {target.mode === 'create' && (
         <SearchableSelect
           label='Workspace'
           searchLabel='Search workspaces'
           placeholder='Select workspace'
-          options={props.workspaces.map((workspace) => ({
+          options={target.workspaces.map((workspace) => ({
             value: workspace.id,
             label: workspace.name,
           }))}
@@ -102,9 +108,14 @@ export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
         hint={access.mode === 'all' ? 'Includes integrations added in the future.' : undefined}
         disabled={disabled}
       />
-      {props.mode === 'edit' && (
+      {target.mode === 'edit' && (
         <div>
-          <Button variant='destructive' size='compact' disabled={disabled} onClick={props.onRemove}>
+          <Button
+            variant='destructive'
+            size='compact'
+            disabled={disabled}
+            onClick={target.onRemove}
+          >
             Remove access
           </Button>
         </div>

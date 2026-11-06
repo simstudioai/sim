@@ -10,8 +10,8 @@ import type {
 } from '@/platform/app/(shell)/_components/chat/model'
 import type { ChatTurn, ComposerDraft } from '@/platform/app/(shell)/_components/composer/model'
 import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
-import type { ShellItem } from '@/platform/app/(shell)/_components/model'
 import { platformHref } from '@/platform/design-system/navigation'
+import type { ShellItem } from '@/platform/shared/shell'
 
 interface ChatEdits {
   title?: string

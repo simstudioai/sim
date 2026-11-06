@@ -9,10 +9,11 @@ import {
   Button,
   InlineNotice,
   MultiSelect,
+  PopupNote,
+  PopupRow,
   SearchableSelect,
   TextField,
 } from '@/platform/design-system/components'
-import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 
 const SELECT_ALL = '__select_all__'
 
@@ -57,10 +58,7 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
             : selector.emptyMessage,
     footer:
       selector.hasMore && selector.hasSearch ? (
-        <button
-          type='button'
-          className={popup.item}
-          data-type='T060'
+        <PopupRow
           disabled={selector.isFetchingMore}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => void (selector.error ? selector.refetch() : selector.loadAll())}
@@ -70,11 +68,9 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
             : selector.error
               ? 'Try again'
               : 'Search all options'}
-        </button>
+        </PopupRow>
       ) : selector.truncated && visibleOptions.length > 0 ? (
-        <p className={popup.heading} data-type='T060'>
-          Showing partial results
-        </p>
+        <PopupNote>Showing partial results</PopupNote>
       ) : undefined,
   }
   const blocked = disabled || !credentialId || !selector.depsResolved
@@ -131,22 +127,27 @@ function ConnectorSelector({ label, hint, optional, ...options }: SelectorProps)
   )
 }
 
+interface ConnectorFieldListProps {
+  config: Omit<ConnectorConfigFieldsProps, 'isFieldVisible'>
+  isFieldVisible: ConnectorConfigFieldsProps['isFieldVisible']
+}
+
 /** A connector's dynamic configuration fields, with their selector/manual pairs. */
-export function ConnectorConfigFields({
-  scope,
-  accessMode = 'workspace',
-  connectorConfig,
-  sourceConfig,
-  selectionLabels,
-  credentialId,
-  credentialType,
-  canonicalGroups,
-  canonicalModes,
-  isFieldVisible,
-  onFieldChange,
-  onToggleCanonicalMode,
-  disabled,
-}: ConnectorConfigFieldsProps) {
+export function ConnectorConfigFields({ config, isFieldVisible }: ConnectorFieldListProps) {
+  const {
+    scope,
+    accessMode = 'workspace',
+    connectorConfig,
+    sourceConfig,
+    selectionLabels,
+    credentialId,
+    credentialType,
+    canonicalGroups,
+    canonicalModes,
+    onFieldChange,
+    onToggleCanonicalMode,
+    disabled,
+  } = config
   return (
     <>
       {connectorConfig.configFields.map((field) => {

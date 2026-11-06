@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
@@ -39,14 +38,15 @@ import {
   RowList,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import {
   DraftConflictNotice,
   SectionStack,
   SectionToolbar,
-} from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail'
+import { toast } from '@/platform/shared/toast'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []
@@ -267,6 +267,7 @@ function RetentionForm({
             density='comfortable'
             title='Organization'
             detail={orgPolicySummary(snapshot)}
+            wrapDetail
             metadata='Default'
             onOpen={() => setSelection({ kind: 'organization' })}
           />
@@ -276,6 +277,7 @@ function RetentionForm({
               key={workspaceId}
               title={workspaceName(workspaceId)}
               detail={overridePolicySummary(snapshot, workspaceId)}
+              wrapDetail
               onOpen={() => setSelection({ kind: 'override', workspaceId })}
             />
           ))}

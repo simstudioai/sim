@@ -14,7 +14,7 @@ import {
   maxLanesForWidth,
 } from '@/platform/embedded/app/(shell)/home/_components/calendar/day-layout'
 import { SkeletonBlock } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type { CalendarMeeting, HomeCalendarDay } from '@/platform/embedded/lib/data/home-view'
+import type { CalendarMeeting, HomeCalendarDay } from '@/platform/shared/home'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 
 interface CalendarDayProps {
@@ -184,7 +184,7 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
                     data-lane={lane}
                     data-lanes={lanes}
                     data-reserves-overflow={reservesOverflow || undefined}
-                    data-density={density}
+                    data-card={density}
                     style={{ gridRow: timeSlot(startMinute, endMinute - startMinute) }}
                   >
                     <a

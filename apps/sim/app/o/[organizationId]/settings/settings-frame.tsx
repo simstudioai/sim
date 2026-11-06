@@ -22,7 +22,7 @@ function PhoneTitle({ title }: { title: string }) {
   const slot = useContext(MobileTitleSlot)
   if (!slot) return null
   return createPortal(
-    <Surface canvas>
+    <Surface>
       <SettingsMobileTitle title={title} />
     </Surface>,
     slot

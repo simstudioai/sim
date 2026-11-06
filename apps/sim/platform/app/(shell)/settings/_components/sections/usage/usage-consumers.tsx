@@ -12,12 +12,12 @@ import {
   OverflowText,
   TableLabel,
 } from '@/platform/design-system/components'
-import {
-  EMPTY_COPY,
-  type OrganizationUsageBreakdown,
-  type UsageBreakdownDimension,
-  type UsageList,
+import type {
+  OrganizationUsageBreakdown,
+  UsageBreakdownDimension,
+  UsageList,
 } from '@/platform/lib/data/usage'
+import { EMPTY_COPY } from '@/platform/shared/usage'
 
 type BreakdownRow = OrganizationUsageBreakdown['rows'][number]
 

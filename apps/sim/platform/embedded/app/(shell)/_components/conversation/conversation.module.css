@@ -54,6 +54,20 @@
   align-items: center;
   gap: var(--ui-action-gap);
 }
+.conversationFrame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--bg);
+}
+@media (width >= 48rem) {
+  .conversationFrame {
+    min-inline-size: min(var(--design-container-app-panel-start), 50%);
+  }
+}
 .dialogHost {
   user-select: text;
 }
@@ -116,7 +130,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--design-spacing-132) var(--design-spacing-12) var(--design-spacing-32);
+  padding: var(--design-spacing-132) var(--design-spacing-16) var(--design-spacing-32);
 }
 .landing > [data-platform-ui] {
   max-inline-size: 100%;
@@ -151,11 +165,6 @@
   inline-size: var(--container-208);
   max-inline-size: 100%;
   margin-block-end: var(--spacing-28);
-}
-.placeholderComposer {
-  block-size: var(--composer-block);
-  border-radius: var(--radius-composer);
-  background: var(--control-muted-fill);
 }
 .placeholderField {
   block-size: calc(

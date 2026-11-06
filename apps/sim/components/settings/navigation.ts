@@ -32,10 +32,7 @@ import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import {
-  organizationMemberSectionAccess,
-  organizationPlanAllowsSettingsSection,
-} from '@/lib/settings/section-availability'
+import { organizationMemberSectionAccess } from '@/lib/settings/section-availability'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
@@ -1003,7 +1000,7 @@ export function getOrganizationSettingsHref(
 /**
  * Unified section id to the organization-scoped section it acts on, for the gates
  * that take an {@link OrganizationSettingsSection} (`canOpenOrganizationSettingsSection`,
- * `isOrganizationSettingsSectionAvailable`).
+ * `organizationPlanAllowsSettingsSection`).
  *
  * Derived from the registry rather than hand-listed: a section added to one and
  * forgotten in the other used to mean the page applied *no* organization gate at
@@ -1084,8 +1081,6 @@ export function getOrganizationSettingsFeatures(
     },
   }
 }
-
-export const isOrganizationSettingsSectionAvailable = organizationPlanAllowsSettingsSection
 
 export interface WorkspacePermissionConfig {
   hideSecretsTab?: boolean

@@ -29,10 +29,8 @@ import {
   useIntegrationActions,
   useMemberIntegrations,
 } from '@/platform/embedded/lib/data/integrations'
-import {
-  GENERIC_SECRETS_SEGMENT,
-  integrationPath,
-} from '@/platform/embedded/lib/integrations/model'
+import { integrationPath } from '@/platform/embedded/lib/data/integrations-model'
+import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'
@@ -125,7 +123,11 @@ export function IntegrationsRoute({
         <IntegrationsHeading
           handoff={
             slackOnboarding && (
-              <SlackSearchActions organizationId={organizationId} {...slackOnboarding} />
+              <SlackSearchActions
+                organizationId={organizationId}
+                token={slackOnboarding.token}
+                userId={slackOnboarding.userId}
+              />
             )
           }
         />
@@ -133,7 +135,8 @@ export function IntegrationsRoute({
           <SearchConnectionRequest
             key={JSON.stringify([connectionRequest.userId, connectionRequest.target])}
             organizationId={organizationId}
-            {...connectionRequest}
+            target={connectionRequest.target}
+            userId={connectionRequest.userId}
           />
         )}
         {inventoryStatus ?? (
