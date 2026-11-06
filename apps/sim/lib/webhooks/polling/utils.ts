@@ -63,14 +63,8 @@ export function throwIfAdmissionRefused(result: PolledWebhookEventResult): void 
 }
 
 /** Logs a poll stopped by {@link PollAdmissionRefusedError} and reports it as skipped. */
-export function skipAdmissionRefusedPoll(
-  logger: Logger,
-  requestId: string,
-  webhookId: string
-): 'skipped' {
-  logger.info(`Execution admission refused webhook ${webhookId}; left its items for a later poll`, {
-    requestId,
-  })
+export function skipAdmissionRefusedPoll(logger: Logger, webhookId: string): 'skipped' {
+  logger.info(`Execution admission refused webhook ${webhookId}; left its items for a later poll`)
   return 'skipped'
 }
 
