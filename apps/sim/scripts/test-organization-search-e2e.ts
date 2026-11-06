@@ -1060,6 +1060,9 @@ try {
             'Assistant history rejects a chat from another organization',
             'A streamed denied chat remains navigable after hydration',
           ].includes(event.stage)) ||
+          // React reports the recovery once hydration settles, which can be after Return home.
+          (event.url === `${baseUrl.origin}${root}/home` &&
+            event.stage === 'A streamed denied chat remains navigable after hydration') ||
           (event.url === `${baseUrl.origin}${root}/chat/${agentId}` &&
             event.stage ===
               'Search-only members have Home with the Assistant and their history, but no agent chat'))
