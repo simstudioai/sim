@@ -325,6 +325,27 @@ describe('sharing a Gmail read across accounts', () => {
     expect(reconnected.threads[0].url).toBe(gmailThreadUrl('t', 'new@example.com'))
   })
 
+  it('does not wait for the listing before asking for the mailbox address', async () => {
+    let listed: (response: Response) => void = () => {}
+    providerFetch.mockImplementation((url: string) =>
+      url.includes('/threads?')
+        ? new Promise((resolve) => {
+            listed = resolve
+          })
+        : Promise.resolve(respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')])))
+    )
+    const read = readGmailThreadsPage({
+      accessToken: 'token',
+      signal,
+      credentialId: 'mailbox-parallel',
+      accountId: 'account',
+      count: 1,
+    })
+    await vi.waitFor(() => expect(mailboxEmail).toHaveBeenCalledOnce())
+    listed(respond({ threads: [{ id: 't' }] }))
+    await expect(read).resolves.toMatchObject({ threads: [{ id: 't' }] })
+  })
+
   it('does not cache a failed mailbox lookup', async () => {
     providerFetch.mockImplementation(async (url: string) =>
       url.includes('/threads?')
