@@ -45,4 +45,6 @@ export async function payerHasPaidAccess(payer: UsageUpgradePayer): Promise<bool
  * job dispatch, Copilot key admission, and the workspace host context the composer reads, so the
  * composer never offers a send that admission will refuse.
  */
-export const payerHasChatAccess = payerHasPaidAccess
+export function payerHasChatAccess(payer: UsageUpgradePayer): Promise<boolean> {
+  return payerHasPaidAccess(payer)
+}
