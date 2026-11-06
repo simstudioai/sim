@@ -16,6 +16,7 @@ import {
   Checkbox,
   CopyField,
   Disclosure,
+  SaveActions,
   SearchableSelect,
   SecretField,
   SegmentedControl,
@@ -529,22 +530,8 @@ export function ProviderForm({
               </Muted>
             </FieldStack>
           </SettingsSection>
-          <ActionRow>
-            {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
-            <Button variant='primary' submit disabled={!dirty || configure.isPending}>
-              {configure.isPending ? 'Saving…' : 'Save'}
-            </Button>
-            {dirty && (
-              <Button variant='quiet' disabled={configure.isPending} onClick={discard}>
-                Discard
-              </Button>
-            )}
-            {isEditing && !dirty && onBack && (
-              <Button variant='quiet' onClick={onBack}>
-                Cancel
-              </Button>
-            )}
-          </ActionRow>
+          {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
+          <SaveActions dirty={dirty} saving={configure.isPending} onDiscard={discard} />
         </FormFieldset>
       </form>
     </SectionStack>

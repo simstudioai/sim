@@ -24,7 +24,7 @@ import {
   FailureNotice,
   InlineNotice,
   Modal,
-  Tooltip,
+  SaveActions,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
@@ -330,23 +330,6 @@ function SourceSettingsForm({
           </Button>
         )}
         <ActionMenu label='Connection actions' icon='I108' actions={menu} />
-        {form.dirty && (
-          <Button size='compact' disabled={form.saving} onClick={onDiscard}>
-            Discard
-          </Button>
-        )}
-        <Tooltip label={form.saveBlockedReason ?? ''} enabled={Boolean(form.saveBlockedReason)}>
-          <span>
-            <Button
-              variant='primary'
-              size='compact'
-              disabled={!form.dirty || !form.canSave || form.saving}
-              onClick={form.save}
-            >
-              {form.saving ? 'Saving…' : 'Save'}
-            </Button>
-          </span>
-        </Tooltip>
       </DetailHeader>
       {lifecycle.error && <InlineNotice intent='danger' message={lifecycle.error.message} />}
       {queryError}
@@ -361,6 +344,14 @@ function SourceSettingsForm({
           <ConnectorSettingsFields {...form.fieldsProps} />
         </FieldStack>
       </SettingsSection>
+      <SaveActions
+        dirty={form.dirty}
+        saving={form.saving}
+        blocked={!form.canSave}
+        blockedReason={form.saveBlockedReason}
+        onSave={form.save}
+        onDiscard={onDiscard}
+      />
       <Modal
         open={removal.open}
         variant='confirm'
