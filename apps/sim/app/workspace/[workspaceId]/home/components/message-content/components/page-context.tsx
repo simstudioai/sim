@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import {
   ChipLink,
@@ -16,14 +16,13 @@ import { Globe } from '@sim/emcn/icons'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
-/** Draws the open page-context dialog in another design language. */
-export type RenderPageContextDialog = (dialog: {
+export interface PageContextDialogProps {
   snapshot: PageSnapshot
   title: string
   hostname: string
   isDraft: boolean
   onClose: () => void
-}) => ReactNode
+}
 
 interface PageContextProps {
   snapshot: PageSnapshot
@@ -32,8 +31,7 @@ interface PageContextProps {
 }
 
 export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
-  const { appearance } = useChatSurface()
-  const renderDialog = appearance?.renderPageContextDialog
+  const { PageContextDialogComponent: PageContextDialog } = useChatSurface()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<HTMLPreElement | null>(null)
   const edges = useScrollEdges(preview)
@@ -58,17 +56,17 @@ export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
         onRemove={onRemove}
         removeLabel='Remove page context'
       />
-      {renderDialog &&
-        open &&
-        renderDialog({
-          snapshot,
-          title,
-          hostname,
-          isDraft: Boolean(onRemove),
-          onClose: () => setOpen(false),
-        })}
+      {PageContextDialog && open && (
+        <PageContextDialog
+          snapshot={snapshot}
+          title={title}
+          hostname={hostname}
+          isDraft={Boolean(onRemove)}
+          onClose={() => setOpen(false)}
+        />
+      )}
       <ChipModal
-        open={open && !renderDialog}
+        open={open && !PageContextDialog}
         onOpenChange={setOpen}
         srTitle='Page context'
         size='sm'

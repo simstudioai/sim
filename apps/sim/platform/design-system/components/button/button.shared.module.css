@@ -205,3 +205,18 @@
     visibility: hidden;
   }
 }
+
+.wideLabel {
+  display: contents;
+}
+.narrowLabel {
+  display: none;
+}
+@media (width < 48rem) {
+  .wideLabel {
+    display: none;
+  }
+  .narrowLabel {
+    display: contents;
+  }
+}

@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
+import { HOME_ASSISTANT_DRAFT_SLOT, organizationDraftKey } from '@/lib/organizations/draft-key'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { SEARCH_MODES } from '@/app/o/[organizationId]/search/use-organization-search'
-import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
+import {
+  SEARCH_MODES,
+  useSearchViewHref,
+  useStartNewConversation,
+} from '@/app/o/[organizationId]/search/use-organization-search'
+import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { LiveHome } from '@/platform/app/(shell)/home/_components/live-home/live-home'
 import { SearchSurfaceHeader } from '@/platform/app/(shell)/search/_components/search-surface/search-surface-header'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-
-/** Search's Assistant keeps its own unsent question; the agent composer keeps the default `home` key. */
-const HOME_ASSISTANT_DRAFT_ID = 'home-assistant'
 
 interface HomeConversationProps {
   requestMode: 'agent' | 'assistant'
@@ -25,9 +25,8 @@ export function HomeConversation({ requestMode }: HomeConversationProps) {
   const { organization } = useOrganizationContext()
   const router = useRouter()
   const { data: session } = useSession()
-  const routes = organizationRoutes(organization.id)
-  const [conversationInstance, setConversationInstance] = useState(0)
-  const [isStartingNew, startNewTransition] = useTransition()
+  const { conversationInstance, isStartingNew, startNew, newChatLabel } = useStartNewConversation()
+  const searchViewHref = useSearchViewHref()
   // An Assistant chat started here takes its Search address without leaving this page, so it carries
   // Search's controls itself, and they navigate rather than switch a view this page doesn't hold.
   const assistantChatHeader = (
@@ -36,41 +35,30 @@ export function HomeConversation({ requestMode }: HomeConversationProps) {
         activeMode: 'assistant',
         modes: [...SEARCH_MODES],
         changeMode: (mode) => {
-          if (mode !== 'search') return
-          const current = new URL(window.location.href)
-          const onChat = current.pathname.startsWith(`${routes.search}/chat/`)
-          const params = new URLSearchParams(onChat ? current.search : '')
-          params.set('mode', 'search')
-          router.push(`${onChat ? current.pathname : routes.search}?${params}`)
+          if (mode === 'search') router.push(searchViewHref)
         },
-        newLabel: 'New chat',
+        newLabel: newChatLabel,
         canStartNew: true,
         isStartingNew,
-        startNew: () => {
-          useMothershipDraftsStore
-            .getState()
-            .clearDraft(
-              `${session?.user?.id}:organization:${organization.id}:${HOME_ASSISTANT_DRAFT_ID}`
-            )
-          startNewTransition(() => {
-            setConversationInstance((current) => current + 1)
-            router.push(routes.home, { scroll: false })
-          })
-        },
+        startNew: () =>
+          startNew(organizationRoutes(organization.id).home, () =>
+            useMothershipDraftsStore
+              .getState()
+              .clearDraft(
+                organizationDraftKey(session?.user?.id, organization.id, HOME_ASSISTANT_DRAFT_SLOT)
+              )
+          ),
       }}
     />
   )
   return (
-    <OrganizationConversation
+    <PageConversation
       key={conversationInstance}
       requestMode={requestMode}
-      draftId={requestMode === 'assistant' ? HOME_ASSISTANT_DRAFT_ID : undefined}
-      appearance={CONVERSATION_APPEARANCE}
+      draftSlot={requestMode === 'assistant' ? HOME_ASSISTANT_DRAFT_SLOT : undefined}
+      chatHeader={requestMode === 'assistant' ? assistantChatHeader : undefined}
       fallback={<HomeDashboardSkeleton requestMode={requestMode} />}
-      landing={{
-        chatHeader: requestMode === 'assistant' ? assistantChatHeader : undefined,
-        render: (slot) => <LiveHome {...slot} />,
-      }}
+      landing={(slot) => <LiveHome {...slot} />}
     />
   )
 }

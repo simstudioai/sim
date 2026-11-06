@@ -6,8 +6,10 @@ import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { loadOrganizationSearchView } from '@/app/o/[organizationId]/search/search-params'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { LandingSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
+import {
+  LandingSkeleton,
+  ResultsSkeleton,
+} from '@/platform/app/(shell)/_components/conversation/skeletons'
 import { OrganizationSearchSurface } from '@/platform/app/(shell)/search/_components/search-surface/search-surface'
 import { prefetchSearch } from '@/platform/lib/data/prefetch'
 
@@ -32,7 +34,7 @@ export default async function OrganizationSearchPage({
     mode === 'assistant' ? (
       <LandingSkeleton field='composer' />
     ) : q.trim() ? (
-      <HomeFallback />
+      <ResultsSkeleton />
     ) : (
       <LandingSkeleton field='search' />
     )

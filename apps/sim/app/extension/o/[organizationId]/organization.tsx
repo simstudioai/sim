@@ -10,9 +10,9 @@ import { ExtensionHeader } from '@/app/extension/[workspaceId]/header'
 import { extensionChatParam } from '@/app/extension/[workspaceId]/search-params'
 import { useExtensionComposer } from '@/app/extension/hooks/use-composer'
 import ExtensionLoading from '@/app/extension/loading'
+import { PanelConversation } from '@/app/extension/o/[organizationId]/panel-conversation'
 import { ExtensionSessionExpired } from '@/app/extension/providers'
 import { ExtensionUnavailable } from '@/app/extension/unavailable'
-import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
@@ -164,35 +164,37 @@ function ExtensionOrganizationConversation({
       : routes.home
   return (
     <VoiceInputPermissionContext value={composer.openMicrophoneSettings}>
-      <OrganizationConversation
+      <PanelConversation
         chatId={initialChatId}
         requestMode={requestMode}
-        panelOptions={{
-          ...composer,
-          onSubmitted: () => {
-            onCommitMode()
-            composer.onSubmitted()
-          },
-          draftNamespace: 'extension',
-          onChatIdResolved,
-          onNavigateToChat: onSelectChat,
-          header: (
-            <>
-              <ExtensionHeader
-                scopeName={context.organization.name}
-                history={history}
-                chatId={selectedChatId}
-                onSelectChat={onSelectChat}
-                appHref={appHref}
-              />
-              {composer.captureError && (
-                <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
-                  {composer.captureError}
-                </p>
-              )}
-            </>
-          ),
+        attachments={composer.attachments}
+        resourceActions={composer.resourceActions}
+        toolbarActions={composer.toolbarActions}
+        modelSelectorOptions={composer.modelSelectorOptions}
+        prepareSubmission={composer.prepareSubmission}
+        onSubmitted={() => {
+          onCommitMode()
+          composer.onSubmitted()
         }}
+        draftNamespace='extension'
+        onChatIdResolved={onChatIdResolved}
+        onNavigateToChat={onSelectChat}
+        header={
+          <>
+            <ExtensionHeader
+              scopeName={context.organization.name}
+              history={history}
+              chatId={selectedChatId}
+              onSelectChat={onSelectChat}
+              appHref={appHref}
+            />
+            {composer.captureError && (
+              <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
+                {composer.captureError}
+              </p>
+            )}
+          </>
+        }
       />
     </VoiceInputPermissionContext>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode, RefObject } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import {
   ModelSelector,
@@ -11,7 +11,6 @@ interface InputToolbarProps {
   leadingControls: ReactNode
   showModelSelector?: boolean
   plan?: boolean
-  selectionControl?: ReactNode
   modelSelectorOptions?: ModelSelectorOptions
   voiceControl?: ReactNode
   beforeSubmitControl?: ReactNode
@@ -19,8 +18,6 @@ interface InputToolbarProps {
   trailingControls?: ReactNode
   editor?: ReactNode
   expanded?: boolean
-  leadingRef?: RefObject<HTMLDivElement | null>
-  trailingRef?: RefObject<HTMLDivElement | null>
 }
 
 /** Shared control order for organization and workspace chat inputs. */
@@ -28,7 +25,6 @@ export function InputToolbar({
   leadingControls,
   showModelSelector = true,
   plan = false,
-  selectionControl,
   modelSelectorOptions,
   voiceControl,
   beforeSubmitControl,
@@ -36,8 +32,6 @@ export function InputToolbar({
   trailingControls,
   editor,
   expanded = false,
-  leadingRef,
-  trailingRef,
 }: InputToolbarProps) {
   return (
     <div
@@ -48,9 +42,8 @@ export function InputToolbar({
       }
     >
       <div
-        ref={leadingRef}
         className={cn(
-          'flex min-h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
+          'flex min-h-[var(--composer-control-block,30px)] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-1',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
@@ -65,19 +58,17 @@ export function InputToolbar({
         </div>
       )}
       <div
-        ref={trailingRef}
         className={cn(
-          'ml-auto flex min-h-[30px] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
+          'ml-auto flex min-h-[var(--composer-control-block,30px)] shrink-0 items-center @max-[280px]/input-toolbar:gap-0 gap-1',
           editor && 'col-start-3',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
       >
         {trailingControls ?? (
           <>
-            {(selectionControl || showModelSelector || voiceControl) && (
+            {(showModelSelector || voiceControl) && (
               <div className='flex items-center gap-[inherit]'>
-                {selectionControl ??
-                  (showModelSelector && <ModelSelector plan={plan} {...modelSelectorOptions} />)}
+                {showModelSelector && <ModelSelector plan={plan} {...modelSelectorOptions} />}
                 {voiceControl}
               </div>
             )}

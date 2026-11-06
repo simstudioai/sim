@@ -1,8 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
 import { Chip, ComposerActionButton, cn } from '@sim/emcn'
-import { ArrowUp } from '@sim/emcn/icons'
+import { ArrowUp, Search } from '@sim/emcn/icons'
 import { GithubIcon, GmailIcon, GoogleDriveIcon, SlackIcon } from '@/components/icons'
 import {
   LANDING_STAGE_RADIUS,
@@ -10,7 +9,8 @@ import {
   LANDING_WINDOW_SHADOW,
 } from '@/app/(landing)/components/landing-layout'
 import { CodeWindowGraphic } from '@/app/(landing)/components/shared/code-window-graphic'
-import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
+import { PROMPT_FIELD_CLASSES } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 
 const SOURCES = [
   { name: 'Slack', icon: SlackIcon },
@@ -60,8 +60,6 @@ interface SearchNewsletterVisualProps {
 }
 
 function SearchNewsletterVisual({ query }: SearchNewsletterVisualProps) {
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-
   return (
     <div
       className={cn(
@@ -71,18 +69,22 @@ function SearchNewsletterVisual({ query }: SearchNewsletterVisualProps) {
       )}
     >
       <h2 className='text-center text-2xl text-[var(--text-primary)]'>Search your company.</h2>
-      <SearchInputBar
-        inputRef={inputRef}
-        value={query}
-        onChange={() => {}}
-        onSubmit={() => {}}
-        floating
-        submitControl={
-          <ComposerActionButton aria-label='Search' active>
-            <ArrowUp className='size-[16px] text-white' />
-          </ComposerActionButton>
-        }
-      />
+      <div className='min-h-[46px] w-full rounded-full border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 shadow-ambient dark:bg-[var(--surface-4)]'>
+        <InputToolbar
+          leadingControls={<Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+          showModelSelector={false}
+          submitControl={
+            <ComposerActionButton aria-label='Search' active>
+              <ArrowUp className='size-[16px] text-white' />
+            </ComposerActionButton>
+          }
+          editor={
+            <span className={cn(PROMPT_FIELD_CLASSES, 'block whitespace-pre px-0 py-[3px]')}>
+              {query}
+            </span>
+          }
+        />
+      </div>
       <div className='flex justify-center gap-2'>
         {SOURCES.map(({ name, icon }) => (
           <Chip key={name} variant='outline' leftIcon={icon}>

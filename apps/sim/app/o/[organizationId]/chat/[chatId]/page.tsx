@@ -10,7 +10,8 @@ import {
   canUseOrganizationChat,
   getOrganizationBuildRedirect,
 } from '@/app/o/[organizationId]/home/home-redirect'
-import { ChatRoute } from '@/platform/app/(shell)/_components/conversation/chat-route'
+import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
+import { ConversationSkeleton } from '@/platform/app/(shell)/_components/conversation/skeletons'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -41,7 +42,11 @@ export default async function OrganizationChatPage({
 
   return (
     <Suspense fallback={<OrganizationChatLoading />}>
-      <ChatRoute chatId={chatId} requestMode={chat.mode} />
+      <PageConversation
+        chatId={chatId}
+        requestMode={chat.mode}
+        fallback={<ConversationSkeleton />}
+      />
     </Suspense>
   )
 }
