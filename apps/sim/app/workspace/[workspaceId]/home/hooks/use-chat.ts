@@ -115,6 +115,7 @@ import {
   fromJournaled,
   hasOutgoingFollowUp,
   holdAfterErroredTurn,
+  isDeliveredAsTurn,
   MAX_OUTGOING_DELIVERY_ATTEMPTS,
   nextOutgoingStep,
   notSteered,
@@ -4437,7 +4438,12 @@ export function useChat(
     }
     const admitted = admittedMessageIds(history)
     for (const message of outgoingRef.current) {
-      if (message.chatKey !== chatKey || !message.streamId) continue
+      if (message.chatKey !== chatKey) continue
+      if (isDeliveredAsTurn(message, admitted)) {
+        writeOutgoing((current) => current.filter((candidate) => candidate.id !== message.id))
+        continue
+      }
+      if (!message.streamId) continue
       if (message.status === 'applied') {
         if (marked.has(message.id)) {
           writeOutgoing((current) => current.filter((candidate) => candidate.id !== message.id))
@@ -4445,10 +4451,6 @@ export function useChat(
         continue
       }
       if (message.status !== 'steered') continue
-      if (admitted.has(message.id)) {
-        writeOutgoing((current) => current.filter((candidate) => candidate.id !== message.id))
-        continue
-      }
       const streamId = message.streamId
       if (streamId === live) continue
       /** A turn the chat still shows running, unless this surface saw it end. */
@@ -4568,6 +4570,7 @@ export function useChat(
             status: 'pending',
             streamId: undefined,
             unconfirmed: false,
+            reads: 0,
           },
           ...current.filter((candidate) => candidate.id !== message.id),
         ])
@@ -4621,7 +4624,9 @@ export function useChat(
       outgoingRef.current.some(
         (message) =>
           message.chatKey === chatKey &&
-          (message.status === 'steered' || message.status === 'applied')
+          (message.status === 'steered' ||
+            message.status === 'applied' ||
+            message.status === 'failed')
       )
     ) {
       return true
@@ -4702,11 +4707,23 @@ export function useChat(
         return
       }
       try {
+        /* A conflict means the worker holds other bytes under this id: nothing more can
+           be learned, and the user asked for it gone. */
         const outcome = await requestJson(copilotChatDismissSteeringContract, {
           body: { chatId, steeringId: id },
+        }).catch((error: unknown) => {
+          if (isApiClientError(error) && error.status === 409) {
+            return { status: 'dismissed' as const }
+          }
+          throw error
         })
         if (outcome.status === 'busy') {
-          updateOutgoing(id, { status: 'steered', streamId: outcome.streamId, attempts: 0 })
+          updateOutgoing(id, {
+            status: 'steered',
+            streamId: outcome.streamId,
+            attempts: 0,
+            reads: 0,
+          })
           void deliverOutgoing()
           return
         }
@@ -4777,6 +4794,8 @@ export function useChat(
           display: optimisticUserMessageFor(id, payload),
           status: 'pending',
           attempts: 0,
+          reads: 0,
+          writtenAt: Date.now(),
         },
       ])
       void deliverOutgoing()
@@ -4796,6 +4815,12 @@ export function useChat(
    */
   const historyActiveStreamId = chatHistory?.activeStreamId ?? null
   const historyHoldsSteering = chatHistory?.messages.some((message) => message.steering) ?? false
+  const admittedInHistory = outgoing.some((message) => message.status === 'failed')
+    ? admittedMessageIds(chatHistory)
+    : undefined
+  const historyDeliveredAnEntry =
+    admittedInHistory !== undefined &&
+    outgoing.some((message) => isDeliveredAsTurn(message, admittedInHistory))
   useEffect(() => {
     /* A chat this mount has not delivered for yet resumes what its journal holds:
        an earlier mount's messages, under their ids and where their delivery stood. */
@@ -4804,9 +4829,10 @@ export function useChat(
       const known = new Set(outgoingRef.current.map((message) => message.id))
       const restored = journaled.filter((entry) => !known.has(entry.id))
       if (restored.length > 0) {
+        const now = Date.now()
         writeOutgoing((current) => [
           ...current,
-          ...restored.map((entry) => fromJournaled(chatKey, entry)),
+          ...restored.map((entry) => fromJournaled(chatKey, entry, now)),
         ])
       }
     }
@@ -4816,7 +4842,14 @@ export function useChat(
     ) {
       void deliverOutgoing()
     }
-  }, [chatKey, historyActiveStreamId, historyHoldsSteering, deliverOutgoing, writeOutgoing])
+  }, [
+    chatKey,
+    historyActiveStreamId,
+    historyHoldsSteering,
+    historyDeliveredAnEntry,
+    deliverOutgoing,
+    writeOutgoing,
+  ])
   useEffect(() => {
     if (typeof window === 'undefined') return
     const retryOnline = () => {

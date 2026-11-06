@@ -196,7 +196,7 @@ interface NetworkState {
   appliedOffset?: number
   dismissBodies: Array<{ chatId: string; steeringId: string }>
   /** How the dismiss route answers, one per request; `500` fails it. Once spent, `dismissed`. */
-  dismissAnswers: Array<{ status: 'dismissed' | 'applied' | 'busy'; streamId?: string } | 500>
+  dismissAnswers: Array<{ status: 'dismissed' | 'applied' | 'busy'; streamId?: string } | 500 | 409>
 }
 
 const state: NetworkState = {
@@ -236,8 +236,8 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
   if (url.includes('/api/copilot/chat/steer/dismiss')) {
     state.dismissBodies.push(JSON.parse(String(init?.body)))
     const answer = state.dismissAnswers.shift() ?? { status: 'dismissed' }
-    return answer === 500
-      ? Response.json({ error: 'Failed' }, { status: 500 })
+    return typeof answer === 'number'
+      ? Response.json({ error: 'Failed' }, { status: answer })
       : Response.json(answer)
   }
   if (url.includes('/api/copilot/chat/steer')) {
@@ -3396,14 +3396,17 @@ describe('useChat remount send recovery', () => {
 
     /** A chat whose journal holds these entries, with nothing running. */
     async function restoredChat(
-      entries: JournaledOutgoing[],
+      entries: Array<Omit<JournaledOutgoing, 'writtenAt'> & { writtenAt?: number }>,
       messages: MothershipChatHistory['messages'] = []
     ) {
       const chat = { ...history, messages }
       mockRequestJson.mockImplementation(() => Promise.resolve({ chat }))
       state.postBehavior = 'accept'
       vi.stubGlobal('fetch', fetchStub)
-      useMothershipOutgoingStore.getState().record(chatId, entries)
+      useMothershipOutgoingStore.getState().record(
+        chatId,
+        entries.map((journaled) => ({ writtenAt: Date.now(), ...journaled }))
+      )
       const view = renderUseChatInChat(chatId, chat)
       await act(async () => {
         await settle()
@@ -3515,6 +3518,66 @@ describe('useChat remount send recovery', () => {
       expect(userMessages(view.getResult())).toEqual(['hello'])
       expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
     })
+
+    it.each([
+      ['with', 'earlier-turn'],
+      ['without', undefined],
+    ])(
+      'drops a message not delivered %s a turn once its id is a turn in the chat',
+      async (_name, streamId) => {
+        const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7'
+        const view = await restoredChat([
+          {
+            id,
+            payload: { content: 'hello' },
+            status: 'failed',
+            ...(streamId ? { streamId } : {}),
+          },
+        ])
+        expect(deliveryOf(view, id)).toBe('failed')
+        const chat: MothershipChatHistory = {
+          ...history,
+          messages: [
+            { id, role: 'user', content: 'hello', timestamp: new Date().toISOString() },
+            { id: 'answer', role: 'assistant', content: 'Hi', timestamp: new Date().toISOString() },
+          ],
+        }
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat }))
+
+        await act(async () => {
+          queryClient.setQueryData(mothershipChatKeys.detail(chatId), chat)
+          await settle()
+        })
+
+        expect(userMessages(view.getResult())).toEqual(['hello'])
+        expect(deliveryOf(view, id)).toBeUndefined()
+        expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
+        expect(state.postBodies).toEqual([])
+      }
+    )
+
+    it.each([
+      ['steered', { status: 'steered', streamId: 'earlier-turn' }],
+      ['pending', { status: 'pending' }],
+    ] as const)(
+      'shows a %s entry a session restore brought back days later as not delivered',
+      async (_name, standing) => {
+        const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7'
+        state.steerDispositions = ['not_applied']
+        const view = await restoredChat([
+          {
+            id,
+            payload: { content: 'from days ago' },
+            writtenAt: Date.now() - 3 * 24 * 60 * 60_000,
+            ...standing,
+          },
+        ])
+
+        expect(deliveryOf(view, id)).toBe('failed')
+        expect(state.steerBodies).toEqual([])
+        expect(state.postBodies).toEqual([])
+      }
+    )
 
     it('does not let a message not delivered hold back a later plain send', async () => {
       const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9'
@@ -3684,6 +3747,7 @@ describe('useChat remount send recovery', () => {
         payload: { content: 'Then summarize' },
         status: 'failed',
         streamId: 'earlier-turn',
+        writtenAt: Date.now(),
       }
 
       it('removes the message and its record', async () => {
@@ -3736,6 +3800,19 @@ describe('useChat remount send recovery', () => {
         })
 
         expect(deliveryOf(view, id)).toBe('failed')
+      })
+
+      it('removes it locally when the worker holds other bytes under its id', async () => {
+        state.dismissAnswers = [409]
+        const view = await restoredChat([failedEntry], [steeringRow(id, 60)])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+
+        expect(userMessages(view.getResult())).toEqual([])
+        expect(useMothershipOutgoingStore.getState().chats[chatId]).toBeUndefined()
       })
 
       it('forgets the journal of a chat deleted elsewhere', async () => {
@@ -4107,6 +4184,7 @@ describe('useChat remount send recovery', () => {
             id: '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9',
             payload: { content: 'Restored after a reload' },
             status: 'pending',
+            writtenAt: Date.now(),
           },
         ])
         stubRunningTurn()

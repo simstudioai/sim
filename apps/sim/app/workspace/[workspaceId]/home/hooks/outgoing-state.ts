@@ -13,8 +13,10 @@ import type { ChatContext } from '@/stores/panel'
 
 /** The worker's cap on steering text; a longer message goes out as a turn. */
 const MAX_STEERING_CONTENT_LENGTH = 32_768
-/** Rounds that came back without delivering a message before it shows as not delivered. */
+/** Sends that came back without delivering a message before it shows as not delivered. */
 export const MAX_OUTGOING_DELIVERY_ATTEMPTS = 8
+/** Reads of a turn's end that still found a message held before it shows as not delivered. */
+const MAX_DISPOSITION_READS = 8
 const OUTGOING_RETRY_BASE_MS = 1000
 const OUTGOING_RETRY_MAX_MS = 30_000
 /**
@@ -68,8 +70,12 @@ export interface OutgoingMessage {
   textOffset?: number
   /** A turn that refused it: it waits for that turn to end rather than steering it again. */
   refusedBy?: string
-  /** Delivery rounds that came back without delivering it, whichever way they did. */
+  /** Sends that came back without delivering it (no answer, or the chat was busy). */
   attempts: number
+  /** Reads after its turn ended that found it still held; they say nothing about a send. */
+  reads: number
+  /** Epoch ms it was written, which decides whether it may still go out on its own. */
+  writtenAt: number
   /** Epoch ms before which it is not tried again. */
   notBefore?: number
 }
@@ -141,15 +147,30 @@ export function toJournaled(message: OutgoingMessage): JournaledOutgoing {
       ? { unconfirmed: true }
       : {}),
     ...(message.textOffset !== undefined ? { textOffset: message.textOffset } : {}),
+    writtenAt: message.writtenAt,
   }
 }
 
-export function fromJournaled(chatKey: string, entry: JournaledOutgoing): OutgoingMessage {
+/**
+ * The entry a journal restores. One on its way that has sat past the age limit (a
+ * browser session restored days later) shows as not delivered, with no network call
+ * and nothing going out until the user asks.
+ */
+export function fromJournaled(
+  chatKey: string,
+  entry: JournaledOutgoing,
+  now: number
+): OutgoingMessage {
+  const stillOnItsWay = entry.status === 'pending' || entry.status === 'steered'
   return {
     ...entry,
+    ...(stillOnItsWay && now - entry.writtenAt >= ORPHAN_AUTO_SEND_MAX_AGE_MS
+      ? { status: 'failed' as const }
+      : {}),
     chatKey,
     display: optimisticUserMessageFor(entry.id, entry.payload),
     attempts: 0,
+    reads: 0,
   }
 }
 
@@ -174,6 +195,19 @@ export function admittedMessageIds(history: MothershipChatHistory | undefined): 
     if (!row.steering || row.steering.streamId === row.id) admitted.add(row.id)
   }
   return admitted
+}
+
+/**
+ * Whether the chat's history shows this message is a turn of its own, whatever this
+ * tab last knew: another tab sent it, or a send that got no answer was admitted.
+ */
+export function isDeliveredAsTurn(
+  message: OutgoingMessage,
+  admittedIds: ReadonlySet<string>
+): boolean {
+  return (
+    (message.status === 'failed' || message.status === 'steered') && admittedIds.has(message.id)
+  )
 }
 
 export type OutgoingStep =
@@ -281,13 +315,13 @@ export function afterDispositionRead(
   }
   /* Still held (or no answer): read again later. A run that never settles it, such
      as one whose owner died, does not keep it waiting forever. */
-  const attempts = message.attempts + 1
-  return attempts >= MAX_OUTGOING_DELIVERY_ATTEMPTS
-    ? { status: 'failed', attempts }
+  const reads = message.reads + 1
+  return reads >= MAX_DISPOSITION_READS
+    ? { status: 'failed', reads }
     : {
-        attempts,
+        reads,
         unconfirmed: outcome.status === 'unknown',
-        notBefore: context.now + outgoingRetryDelay(attempts),
+        notBefore: context.now + outgoingRetryDelay(reads),
       }
 }
 
@@ -300,6 +334,7 @@ export function afterRetry(message: OutgoingMessage): Partial<OutgoingMessage> {
   return {
     status: message.streamId ? 'steered' : 'pending',
     attempts: 0,
+    reads: 0,
     notBefore: undefined,
   }
 }
@@ -363,16 +398,18 @@ export function adoptOrphanRow(row: PersistedRow, chatKey: string, now: number):
     ...(contexts?.length ? { contexts } : {}),
     ...(row.requestMode ? { requestMode: row.requestMode } : {}),
   })
-  const age = now - Date.parse(row.timestamp)
+  const writtenAt = Date.parse(row.timestamp) || 0
   return {
     id: row.id,
     chatKey,
     payload,
     display: optimisticUserMessageFor(row.id, payload),
-    status: age < ORPHAN_AUTO_SEND_MAX_AGE_MS ? 'steered' : 'failed',
+    status: now - writtenAt < ORPHAN_AUTO_SEND_MAX_AGE_MS ? 'steered' : 'failed',
     streamId: row.steering?.streamId,
     unconfirmed: true,
     attempts: 0,
+    reads: 0,
+    writtenAt,
   }
 }
 

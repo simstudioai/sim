@@ -31,7 +31,14 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
+/** The worker conversation copy is a separate service; Sim persistence stays real. */
+const workerCopy = vi.hoisted(() => vi.fn(async (_request: { upToMessageId: string }) => {}))
+vi.mock('@/lib/mothership/chat/fork-worker', () => ({
+  copyWorkerConversation: workerCopy,
+  discardWorkerConversation: vi.fn(async () => {}),
+}))
 
+import { forkChat } from '@/lib/mothership/chat/application/fork'
 import {
   dismissSteeringMessage,
   resolveSteeringFallback,
@@ -503,6 +510,19 @@ describe('steering fallback gate in PostgreSQL', () => {
       expect(await transcriptIds(chatId)).toContain(turnId)
     })
 
+    it('removes a record whose bytes the worker no longer recognizes', async () => {
+      const { chatId, steeringId } = await chatWithSteeredTurn()
+      worker.answers.push(new Response(null, { status: 409 }))
+
+      const answer = await dismissSteeringMessage.execute({
+        principal: owner,
+        input: { chatId, messageId: steeringId },
+      })
+
+      expect(answer).toEqual({ status: 'dismissed' })
+      expect(await transcriptIds(chatId)).not.toContain(steeringId)
+    })
+
     it("refuses someone else's chat, leaving the record", async () => {
       const { chatId, steeringId } = await chatWithSteeredTurn()
 
@@ -515,6 +535,55 @@ describe('steering fallback gate in PostgreSQL', () => {
 
       expect(worker.bodies).toEqual([])
       expect(await transcriptIds(chatId)).toContain(steeringId)
+    })
+  })
+
+  describe('forking a chat', () => {
+    it('neither cuts at nor copies a steering message no turn applied', async () => {
+      workerCopy.mockClear()
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      const [{ messageId: answerId }] = await db
+        .select({ messageId: copilotMessages.messageId })
+        .from(copilotMessages)
+        .where(and(eq(copilotMessages.chatId, chatId), eq(copilotMessages.role, 'assistant')))
+
+      const fromAnswer = await forkChat.execute({
+        principal: owner,
+        input: { chatId, upToMessageId: answerId },
+      })
+      const fromRecord = await forkChat.execute({
+        principal: owner,
+        input: { chatId, upToMessageId: steeringId },
+      })
+
+      expect(workerCopy.mock.calls.map(([request]) => request.upToMessageId)).toEqual([
+        turnId,
+        turnId,
+      ])
+      expect(await transcriptIds(fromAnswer.id)).toEqual([turnId, answerId])
+      expect(await transcriptIds(fromRecord.id)).toEqual([turnId])
+    })
+
+    it('keeps a steering message a turn applied, and may cut at it', async () => {
+      workerCopy.mockClear()
+      const { chatId, steeringId } = await chatWithSteeredTurn()
+      const answerId = generateId()
+      await appendCopilotChatMessages(chatId, [
+        {
+          id: answerId,
+          role: 'assistant',
+          content: 'Done',
+          timestamp: new Date().toISOString(),
+          contentBlocks: [{ type: 'steering', steering: { steeringId }, timestamp: Date.now() }],
+        },
+      ])
+      const fork = await forkChat.execute({
+        principal: owner,
+        input: { chatId, upToMessageId: answerId },
+      })
+
+      expect(workerCopy.mock.calls[0][0].upToMessageId).toBe(steeringId)
+      expect(await transcriptIds(fork.id)).toContain(steeringId)
     })
   })
 })

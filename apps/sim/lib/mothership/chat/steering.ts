@@ -32,6 +32,32 @@ export interface SteeringBlockInfo {
 }
 
 /**
+ * A transcript without the steering messages it shows no turn applying. Only an applied
+ * one is in the conversation: the worker has no input event for the rest, and in a copy
+ * of the transcript nothing could ever deliver them. A row re-marked as a turn's own
+ * message (`streamId` is its own id) is that turn, and stays.
+ */
+export function withoutUnappliedSteering<
+  M extends {
+    id: string
+    steering?: { streamId: string }
+    contentBlocks?: ReadonlyArray<{ steering?: { steeringId?: string } }>
+  },
+>(messages: readonly M[]): M[] {
+  const applied = new Set(
+    messages.flatMap((message) =>
+      (message.contentBlocks ?? []).flatMap((block) =>
+        block.steering?.steeringId ? [block.steering.steeringId] : []
+      )
+    )
+  )
+  return messages.filter(
+    (message) =>
+      !message.steering || message.steering.streamId === message.id || applied.has(message.id)
+  )
+}
+
+/**
  * The steering id a `run` payload acknowledges as applied, if it is a
  * `steering_applied` frame. Read untyped, since the reducers it serves (live view,
  * server persistence, stopped-turn replay) see run payloads from workers both with

@@ -5,6 +5,7 @@ import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getLatestRunForStream,
   TERMINAL_RUN_STATUSES,
@@ -184,7 +185,8 @@ export const settleSteeringFallback = defineAuthorizedChatUseCase({
  * Drops a steering message the user gave up on (a Not delivered message's Dismiss).
  * The same reading decides as for a turn going out under its id, so a message a
  * run applied, or may yet apply, stays where it is. Anything else loses its record,
- * and a row that is a turn's own message is never touched.
+ * including one whose bytes the worker no longer recognizes, and a row that is a
+ * turn's own message is never touched.
  */
 export const dismissSteeringMessage = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
@@ -209,10 +211,17 @@ export const dismissSteeringMessage = defineAuthorizedChatUseCase({
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {},
   async execute({ input, context }) {
+    const { chatId, userId } = context
     const fallback = await resolveSteeringFallback({
-      chatId: context.chatId,
+      chatId,
       messageId: input.messageId,
-      userId: context.userId,
+      userId,
+    }).catch(async (error: unknown) => {
+      if (!(error instanceof OrchestrationError) || error.code !== 'conflict') throw error
+      /* The worker holds other bytes under this id, so no read of it can ever answer.
+         Left in place the record would come back as an orphan on the next read. */
+      await db.delete(copilotMessages).where(steeringRow(chatId, input.messageId))
+      return { kind: 'send' as const }
     })
     if (fallback.kind === 'busy') return { status: 'busy' as const, streamId: fallback.streamId }
     return { status: fallback.kind === 'applied' ? ('applied' as const) : ('dismissed' as const) }

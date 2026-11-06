@@ -7,7 +7,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const entry = { id: 'message-a', payload: { content: 'Hi' }, status: 'pending' as const }
+const entry = {
+  id: 'message-a',
+  payload: { content: 'Hi' },
+  status: 'pending' as const,
+  writtenAt: 1,
+}
 
 async function freshStore() {
   vi.resetModules()
@@ -42,6 +47,23 @@ describe('useMothershipOutgoingStore', () => {
     const reloaded = await freshStore()
 
     expect(reloaded.getState().chats['chat-a']).toEqual([entry])
+  })
+
+  it('loads where merely naming sessionStorage throws, as in a sandboxed frame', async () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      get: () => {
+        throw new DOMException('denied', 'SecurityError')
+      },
+    })
+    try {
+      const store = await freshStore()
+      store.getState().record('chat-a', [entry])
+      expect(store.getState().chats['chat-a']).toEqual([entry])
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'sessionStorage', original)
+    }
   })
 
   it('removes the old queue key once', async () => {

@@ -18,6 +18,8 @@ export interface JournaledOutgoing {
   refusedBy?: string
   unconfirmed?: boolean
   textOffset?: number
+  /** Epoch ms it was written: a browser session restore must not send it days later. */
+  writtenAt: number
 }
 
 interface MothershipOutgoingState {
@@ -37,8 +39,8 @@ const logger = createLogger('MothershipOutgoingStore')
  */
 const tabStorageAdapter = {
   getItem: (name: string): string | null => {
-    if (typeof sessionStorage === 'undefined') return null
     try {
+      if (typeof sessionStorage === 'undefined') return null
       return sessionStorage.getItem(name)
     } catch (error) {
       logger.warn('Failed to read the outgoing journal', toError(error))
@@ -46,16 +48,16 @@ const tabStorageAdapter = {
     }
   },
   setItem: (name: string, value: string): void => {
-    if (typeof sessionStorage === 'undefined') return
     try {
+      if (typeof sessionStorage === 'undefined') return
       sessionStorage.setItem(name, value)
     } catch (error) {
       logger.warn('Failed to write the outgoing journal', toError(error))
     }
   },
   removeItem: (name: string): void => {
-    if (typeof sessionStorage === 'undefined') return
     try {
+      if (typeof sessionStorage === 'undefined') return
       sessionStorage.removeItem(name)
     } catch (error) {
       logger.warn('Failed to clear the outgoing journal', toError(error))

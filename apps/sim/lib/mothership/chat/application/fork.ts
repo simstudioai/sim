@@ -30,6 +30,7 @@ import {
   rewriteMessageFileRefs,
   rewriteResourceFileRefs,
 } from '@/lib/mothership/chat/rewrite-file-references'
+import { withoutUnappliedSteering } from '@/lib/mothership/chat/steering'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -101,7 +102,7 @@ export const forkChat = defineAuthorizedChatUseCase({
       if (forkIdx < 0) {
         throw new OrchestrationError('validation', 'Message not found in chat')
       }
-      const forkedMessages = messages.slice(0, forkIdx + 1)
+      const forkedMessages = withoutUnappliedSteering(messages.slice(0, forkIdx + 1))
       const keptMessageIds = new Set(forkedMessages.map((m) => m.id))
       const keptRequestIds = new Set(
         forkedMessages.flatMap((m) => (m.requestId ? [m.requestId] : []))

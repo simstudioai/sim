@@ -21,6 +21,7 @@ import {
   fromJournaled,
   hasOutgoingFollowUp,
   holdAfterErroredTurn,
+  isDeliveredAsTurn,
   MAX_OUTGOING_DELIVERY_ATTEMPTS,
   nextOutgoingStep,
   ORPHAN_AUTO_SEND_MAX_AGE_MS,
@@ -40,6 +41,8 @@ function entry(id: string, patch: Partial<OutgoingMessage> = {}): OutgoingMessag
     display: { id, role: 'user', content: id },
     status: 'pending',
     attempts: 0,
+    reads: 0,
+    writtenAt: NOW,
     ...patch,
   }
 }
@@ -222,20 +225,65 @@ describe('transitions', () => {
     ).toBe('failed')
   })
 
-  it('reads a held message again later, counting toward the one delivery cap', () => {
+  it('reads a held message again later, and gives up at its own cap', () => {
     const context = { streamId: 'turn', turnErrored: false, now: NOW }
     const steered = entry('a', { status: 'steered', streamId: 'turn' })
     const later = afterDispositionRead(steered, { status: 'queued' }, context)
-    expect(later).toMatchObject({ attempts: 1, unconfirmed: false })
+    expect(later).toMatchObject({ reads: 1, unconfirmed: false })
     expect(later.notBefore).toBeGreaterThan(NOW)
     expect(afterDispositionRead(steered, { status: 'unknown' }, context).unconfirmed).toBe(true)
     expect(
       afterDispositionRead(
-        { ...steered, attempts: MAX_OUTGOING_DELIVERY_ATTEMPTS - 1 },
+        { ...steered, reads: MAX_OUTGOING_DELIVERY_ATTEMPTS - 1 },
         { status: 'queued' },
         context
       ).status
     ).toBe('failed')
+  })
+
+  it('sends a message read as not applied at once, whatever the reads before it took', () => {
+    const steered = entry('a', { status: 'steered', streamId: 'turn', reads: 6 })
+    const patch = afterDispositionRead(
+      steered,
+      { status: 'not_applied' },
+      { streamId: 'turn', turnErrored: false, now: NOW }
+    )
+    expect(patch.status).toBe('pending')
+    expect(patch.notBefore).toBeUndefined()
+  })
+
+  it('still backs off a message the chat kept refusing as busy', () => {
+    const steered = entry('a', { status: 'steered', streamId: 'turn', attempts: 2 })
+    const { notBefore } = afterDispositionRead(
+      steered,
+      { status: 'not_applied' },
+      { streamId: 'turn', turnErrored: false, now: NOW }
+    )
+    expect(notBefore).toBeGreaterThan(NOW)
+  })
+
+  it('leaves reads out of the budget for sends', () => {
+    const read = afterDispositionRead(
+      entry('a', { status: 'steered', streamId: 'turn' }),
+      { status: 'queued' },
+      { streamId: 'turn', turnErrored: false, now: NOW }
+    )
+    expect(read.attempts).toBeUndefined()
+    const sent = afterUnsentAttempt(entry('a', { reads: MAX_OUTGOING_DELIVERY_ATTEMPTS }), {
+      online: true,
+      now: NOW,
+    })
+    expect(sent).toMatchObject({ status: 'pending', attempts: 1 })
+  })
+
+  it('counts a message not delivered or steered as delivered once its id is a turn', () => {
+    const admitted = new Set(['a'])
+    expect(isDeliveredAsTurn(entry('a', { status: 'failed' }), admitted)).toBe(true)
+    expect(isDeliveredAsTurn(entry('a', { status: 'failed', streamId: 'turn' }), admitted)).toBe(
+      true
+    )
+    expect(isDeliveredAsTurn(entry('a', { status: 'steered' }), admitted)).toBe(true)
+    expect(isDeliveredAsTurn(entry('b', { status: 'failed' }), admitted)).toBe(false)
   })
 
   it('reads a steered message again on Retry, and sends one that never reached a turn', () => {
@@ -268,7 +316,7 @@ describe('transitions', () => {
 describe('journal', () => {
   it('restores a send or steer that was out as possibly held, so it cannot steer again', () => {
     for (const status of ['sending', 'steering'] as const) {
-      const restored = fromJournaled('chat', toJournaled(entry('a', { status })))
+      const restored = fromJournaled('chat', toJournaled(entry('a', { status })), NOW)
       expect(restored.unconfirmed).toBe(true)
     }
   })
@@ -278,7 +326,8 @@ describe('journal', () => {
       'chat',
       toJournaled(
         entry('a', { status: 'applied', streamId: 'turn', textOffset: 4, refusedBy: 'earlier' })
-      )
+      ),
+      NOW
     )
     expect(restored).toMatchObject({
       status: 'applied',
@@ -286,6 +335,27 @@ describe('journal', () => {
       textOffset: 4,
       refusedBy: 'earlier',
     })
+  })
+})
+
+describe('a journal restored past the age limit', () => {
+  const restore = (status: OutgoingMessage['status'], age: number) =>
+    fromJournaled(
+      'chat',
+      toJournaled(entry('a', { status, streamId: 'turn', writtenAt: NOW - age })),
+      NOW
+    ).status
+
+  it('shows a message on its way as not delivered', () => {
+    expect(restore('pending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
+    expect(restore('steered', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
+    expect(restore('sending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
+  })
+
+  it('resumes a recent one where it stood, and leaves one already applied alone', () => {
+    expect(restore('pending', ORPHAN_AUTO_SEND_MAX_AGE_MS - 1)).toBe('pending')
+    expect(restore('steered', ORPHAN_AUTO_SEND_MAX_AGE_MS - 1)).toBe('steered')
+    expect(restore('applied', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('applied')
   })
 })
 

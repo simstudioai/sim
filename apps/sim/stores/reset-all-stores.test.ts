@@ -26,7 +26,6 @@ vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
 vi.mock('@/stores/user-data-reset-registry', () => ({
-  registerUserDataReset: vi.fn(),
   resetRegisteredUserData: mockResetRegisteredUserData,
 }))
 vi.mock('@/stores/execution', () => ({
@@ -81,7 +80,9 @@ describe('resetAllStores', () => {
   it('clears what the outgoing journal holds even if no chat loaded it this session', async () => {
     useMothershipOutgoingStore
       .getState()
-      .record('chat-a', [{ id: 'message-a', payload: { content: 'Hi' }, status: 'pending' }])
+      .record('chat-a', [
+        { id: 'message-a', payload: { content: 'Hi' }, status: 'pending', writtenAt: 1 },
+      ])
 
     await resetAllStores()
 
