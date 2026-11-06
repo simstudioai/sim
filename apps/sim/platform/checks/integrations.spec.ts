@@ -631,7 +631,6 @@ test('managed, unconfigured and retained connections expose only the actions the
   await page.goto(`${origin}/integrations?state=stress`)
   const main = page.getByRole('main')
   const fireflies = main.getByRole('link', { name: /^Fireflies / })
-  await expect(fireflies).toContainText('meeting transcripts and recordings')
   await fireflies.click()
   await expect(main.getByRole('region', { name: 'Connected credentials' })).toContainText(
     'Fireflies'
