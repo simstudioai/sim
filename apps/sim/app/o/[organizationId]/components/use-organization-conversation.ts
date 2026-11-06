@@ -17,6 +17,7 @@ import {
 } from '@/lib/mothership/chat/attachment-preview'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import { useOrganization } from '@/lib/organizations/provider'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
@@ -26,7 +27,6 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -130,7 +130,7 @@ interface UseConversationGateOptions {
 
 /** Whether the surface may mount, and for which identity. Its key remounts on any change to one. */
 export function useConversationGate({ chatId, requestMode }: UseConversationGateOptions) {
-  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
+  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganization()
   const { data: session } = useSession()
   const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId })
@@ -170,7 +170,7 @@ export function useOrganizationConversation({
   summaryRequest,
   onSummaryConsumed,
 }: UseOrganizationConversationOptions) {
-  const { organization, canBuild } = useOrganizationContext()
+  const { organization, canBuild } = useOrganization()
   const panelSurface = surface.kind === 'panel' ? surface : null
   const { data: session } = useSession()
   const userId = session?.user?.id

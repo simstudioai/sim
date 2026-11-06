@@ -3,8 +3,8 @@
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import type { Workspace } from '@/lib/api/contracts'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import { canUseOrganizationChat } from '@/app/o/[organizationId]/home/home-redirect'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -68,7 +68,7 @@ export interface OrganizationNavFlags {
  * says nothing: only a list that never loaded reports a failure.
  */
 export function useOrganizationShell(flags: OrganizationNavFlags) {
-  const context = useOrganizationContext()
+  const context = useOrganization()
   const { organization, searchAccess } = context
   const routes = organizationRoutes(organization.id)
   const workspaces = useOrderedWorkspacesQuery()

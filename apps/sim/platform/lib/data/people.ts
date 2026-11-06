@@ -20,6 +20,7 @@ import {
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import { readPeopleSheet } from '@/lib/people/read-sheet'
 import {
   boundedSearch,
@@ -30,7 +31,6 @@ import {
 import { memberProfileFieldsSchema } from '@/lib/people/validation'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useScimConnection } from '@/ee/scim/hooks/scim'
 import { serializeSsoSettings } from '@/ee/sso/search-params'
 import {
@@ -66,7 +66,7 @@ export const SYNC_SOURCE_NAMES: Record<SyncSource, string> = {
 
 /** Who is viewing, and which of the page's administration they may reach. */
 export function usePeopleViewer() {
-  const { organization, viewer, settingsFeatures } = useOrganizationContext()
+  const { organization, viewer, settingsFeatures } = useOrganization()
   const { features, hosted } = useDeploymentShape()
   return {
     organizationName: organization.name,

@@ -55,14 +55,14 @@ export function OrganizationProvider({ children, context }: OrganizationProvider
   )
 }
 
-export function useOrganizationContext(): OrganizationSurfaceContext {
+export function useOrganization(): OrganizationSurfaceContext {
   const context = useContext(OrganizationContextValue)
   if (!context) {
-    throw new Error('useOrganizationContext must be used within OrganizationProvider')
+    throw new Error('useOrganization must be used within OrganizationProvider')
   }
   return context
 }
 
-export function useOptionalOrganizationContext(): OrganizationSurfaceContext | null {
+export function useOptionalOrganization(): OrganizationSurfaceContext | null {
   return useContext(OrganizationContextValue)
 }

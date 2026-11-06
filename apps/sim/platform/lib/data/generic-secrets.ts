@@ -2,7 +2,7 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import {
   useOrganizationSecrets,
   useSaveOrganizationSecrets,
@@ -14,7 +14,7 @@ import {
  * screen, and `failure` says whether it was the first load or a refresh that failed.
  */
 export function useGenericSecrets(mode: SecretSourceMode) {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer } = useOrganization()
   const secrets = useOrganizationSecrets(organization.id, mode, mode === 'member' || viewer.isAdmin)
   const save = useSaveOrganizationSecrets(organization.id)
   const data = secrets.data

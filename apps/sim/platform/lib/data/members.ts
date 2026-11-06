@@ -6,6 +6,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import {
   useRemoveWorkspaceMember,
   useUpdateWorkspacePermissions,
@@ -30,7 +31,6 @@ import {
   type WorkspacePermission,
 } from '@/platform/lib/data/members-model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
-import { useOrganization } from '@/platform/lib/data/organization'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { reportFailure } from '@/platform/lib/notices'
 

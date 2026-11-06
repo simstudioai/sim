@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
+import { useOrganization } from '@/lib/organizations/provider'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
 import { Button, FailureNotice, LoadingRows, StatusTag } from '@/platform/design-system/components'
 import {
@@ -8,7 +9,6 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { useMembers } from '@/platform/lib/data/members'
-import { useOrganization } from '@/platform/lib/data/organization'
 import { plural } from '@/platform/lib/plural'
 
 interface SeatsOverviewProps {

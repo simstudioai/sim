@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import type { PlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -153,7 +153,7 @@ export function PlatformSettingsSectionHost({
   section,
   subpath = [],
 }: PlatformSettingsSectionHostProps) {
-  const organization = useOrganizationContext()
+  const organization = useOrganization()
   const params = useSearchParams()
   const revealRoot = useSettingRowReveal<HTMLDivElement>()
   const meta = resolveOrganizationSurfaceHeaderMeta(section)

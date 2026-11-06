@@ -5,8 +5,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import { simLinksSortParams } from '@/app/o/[organizationId]/links/search-params'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
@@ -23,7 +23,7 @@ const NAV_WARM_DWELL_MS = 80
  * and payloads are the same ones. Only the cheap database reads: slow provider reads stay on the page.
  */
 export function useNavWarmers() {
-  const context = useOrganizationContext()
+  const context = useOrganization()
   const organizationId = context.organization.id
   const queryClient = useQueryClient()
   const router = useRouter()

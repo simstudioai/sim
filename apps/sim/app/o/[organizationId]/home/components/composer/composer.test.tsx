@@ -96,7 +96,7 @@ vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () => 'Ask Sim to' }))
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
@@ -112,7 +112,7 @@ const writeDraft = (text: string) =>
 const deploymentShape = () => createMockDeploymentShape()
 deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
 deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
-organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+organizationProviderMockFns.mockUseOrganization.mockReturnValue({
   organization: { id: 'organization-a' },
 })
 

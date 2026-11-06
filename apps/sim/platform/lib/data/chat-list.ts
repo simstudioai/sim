@@ -3,7 +3,7 @@
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   MothershipChatDeleteError,
@@ -28,7 +28,7 @@ export function organizationChatHref(
  * with no mode is an optimistic entry the viewer just started.
  */
 export function useCanOpenOrganizationChat() {
-  const { mothershipAvailable, canBuild, searchAccess } = useOrganizationContext()
+  const { mothershipAvailable, canBuild, searchAccess } = useOrganization()
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   return ({ mode }: { mode?: string }) => {
     if (!mothershipAvailable) return false

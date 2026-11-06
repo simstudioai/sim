@@ -16,6 +16,7 @@ import {
   type ActivitySort,
 } from '@/lib/billing/core/organization-activity'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
+import { useOrganization } from '@/lib/organizations/provider'
 import { saveBlob } from '@/lib/uploads/client/download'
 import {
   COLLAPSED_ROW_COUNT,
@@ -37,7 +38,6 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
-import { useOrganization } from '@/platform/lib/data/organization'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/lib/data/usage/model'
 import { DAY_MS } from '@/platform/lib/time'
 

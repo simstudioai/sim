@@ -10,8 +10,8 @@ import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/use-organization-conversation'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -48,7 +48,7 @@ export function useStartNewConversation() {
 
 /** Search's address from a page that carries an Assistant chat but not the Search view beside it. */
 export function useSearchViewHref() {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { search } = organizationRoutes(organization.id)
@@ -78,7 +78,7 @@ function searchDraftKeys(userId: string | undefined, organizationId: string) {
  */
 export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchProps) {
   const starter = useStartNewConversation()
-  const { organization, mothershipAvailable } = useOrganizationContext()
+  const { organization, mothershipAvailable } = useOrganization()
   const { recordQuery } = useSearchHistoryActions()
   const pathname = usePathname()
   const hasSearchParams = useSearchParams().toString() !== ''
@@ -181,7 +181,7 @@ interface UseSearchFieldDraftProps {
 export function useSearchFieldDraft({ userId, initialValue, onSubmit }: UseSearchFieldDraftProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const hydrated = useHydrated()
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const queryClient = useQueryClient()
   const queryKey = knowledgeKeys.searchQuery(
     resourceScopeKey({ kind: 'organization', organizationId: organization.id }),

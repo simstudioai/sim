@@ -5,7 +5,7 @@ import { toast } from '@sim/emcn'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { flushSync } from 'react-dom'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import { usePromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
@@ -95,7 +95,7 @@ export function useComposer({
   const [draftKey] = draftKeys
   const value = useMothershipDraftsStore((state) => readDraft(state.drafts, draftKeys)?.text ?? '')
   const imagesOnly = requestMode === 'assistant'
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const queryClient = useQueryClient()
   const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
   const waitsForLists = waitsForFullLists && !imagesOnly

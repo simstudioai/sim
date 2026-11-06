@@ -7,8 +7,8 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganization } from '@/lib/organizations/provider'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
 import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
@@ -57,7 +57,7 @@ function isAccessFailure(error: unknown) {
 }
 
 export function SourceDetail({ connectorId }: SourceDetailProps) {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer } = useOrganization()
   const router = useRouter()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const backHref = organizationRoutes(organization.id).settingsSection('integrations')
@@ -163,7 +163,7 @@ function SourceDetailContent({
     scope,
     connector.id
   )
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const integrations = useSearchIntegrations(organization.id)
   const router = useRouter()
   const meta = CONNECTOR_META_REGISTRY[connector.connectorType]

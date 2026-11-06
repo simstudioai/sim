@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { HOME_ASSISTANT_DRAFT_SLOT, organizationDraftKey } from '@/lib/organizations/draft-key'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import {
   SEARCH_MODES,
   useSearchViewHref,
@@ -22,7 +22,7 @@ interface HomeConversationProps {
 
 /** The real conversation, landing on the dashboard until the first turn takes over. */
 export function HomeConversation({ requestMode }: HomeConversationProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const router = useRouter()
   const { data: session } = useSession()
   const { conversationInstance, isStartingNew, startNew, newChatLabel } = useStartNewConversation()

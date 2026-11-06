@@ -1,8 +1,8 @@
 'use client'
 
 import { lazy, Suspense, useRef } from 'react'
+import { useOrganization } from '@/lib/organizations/provider'
 import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
 import {
   useOrganizationSearch,
@@ -153,7 +153,7 @@ interface OrganizationSearchSurfaceProps {
 }
 
 function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearchSurfaceProps) {
-  const { organization } = useOrganizationContext()
+  const { organization } = useOrganization()
   const search = useOrganizationSearch({ userId, chatId })
   const query = search.query.trim()
   const resultsScroll = useScrollEdges<HTMLDivElement>()
@@ -234,7 +234,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
 
 /** Organization Search in the design system. The Assistant conversation renders beside it. */
 export function OrganizationSearchSurface(props: OrganizationSearchSurfaceProps) {
-  const { searchAccess } = useOrganizationContext()
+  const { searchAccess } = useOrganization()
   if (!searchAccess.memberScoped) return null
   return <OrganizationSearchSurfaceContent {...props} />
 }

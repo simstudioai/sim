@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.fn() }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/search-integrations', () => ({
@@ -56,7 +56,7 @@ nextNavigationMockFns.mockUsePathname.mockReturnValue(
 )
 const mockIndex = kbConnectorsQueriesMockFns.mockUseSearchIndex
 const mockDetail = kbConnectorsQueriesMockFns.mockUseConnectorDetail
-organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+organizationProviderMockFns.mockUseOrganization.mockImplementation(() => ({
   organization: { id: 'org-one' },
   viewer: { isAdmin: mocks.admin },
 }))

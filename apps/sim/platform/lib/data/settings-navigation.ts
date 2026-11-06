@@ -15,7 +15,7 @@ import {
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOrganization } from '@/lib/organizations/provider'
 import {
   organizationSurfaceSettingsNavigation,
   resolveOrganizationSurfaceSection,
@@ -72,7 +72,7 @@ export interface SettingsNavGroup {
  */
 export function useSettingsNavigation() {
   const { organization, viewer, connectedAccountsAvailable, searchAccess, settingsFeatures } =
-    useOrganizationContext()
+    useOrganization()
   const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
   const { data: session } = useSession()
