@@ -55,7 +55,7 @@ vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: mockGetOrganizationSurfaceContext,
 }))
 
-vi.mock('@/app/o/[organizationId]/_redesign/rail/sidebar', () => ({
+vi.mock('@/platform/embedded/app/(shell)/_components/sidebar/sidebar', () => ({
   Sidebar: () => null,
 }))
 

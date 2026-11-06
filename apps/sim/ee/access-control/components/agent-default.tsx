@@ -5,14 +5,15 @@ import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
-  REGISTRY_MODEL_FACTS,
+  createModelAccessGate,
   resolveAgentDefaultModel,
 } from '@/lib/permission-groups/model-access'
-import { agentDefaultModelIds, PLATFORM_DEFAULT_MODEL } from '@/ee/access-control/lib/editor'
+import { agentDefaultModelId, PLATFORM_DEFAULT_MODEL } from '@/ee/access-control/lib/editor'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useProviderModelLists } from '@/hooks/queries/providers'
 import {
   DYNAMIC_MODEL_PROVIDERS,
+  getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
   SIM_AUTO_MODEL_ID,
@@ -36,22 +37,27 @@ export function AgentDefault({ config, providerIds, workspaceId, onChange }: Age
     { enabled: open }
   )
   const options = useMemo((): ComboboxOption[] => {
-    const { autoAllowed, models } = agentDefaultModelIds({
-      config,
-      providerIds,
-      staticModels: getProviderModels,
-      dynamicModels,
-      hosted,
-      facts: REGISTRY_MODEL_FACTS,
-    })
+    const isAllowed = createModelAccessGate(config)
+    const models = new Set([
+      ...providerIds.flatMap((provider) =>
+        getProviderModels(provider).map((model) => agentDefaultModelId(provider, model))
+      ),
+      ...dynamicModels.flatMap(({ provider, models }) =>
+        models.map((model) => agentDefaultModelId(provider, model))
+      ),
+    ])
     const modelOptions: ComboboxOption[] = [
       { label: 'Platform default', value: PLATFORM_DEFAULT_MODEL },
-      ...(autoAllowed ? [{ label: 'Auto', value: SIM_AUTO_MODEL_ID }] : []),
-      ...models.map((model) => ({
-        label: model,
-        value: model,
-        icon: getProviderIcon(model) ?? undefined,
-      })),
+      ...(hosted && isAllowed(SIM_AUTO_MODEL_ID)
+        ? [{ label: 'Auto', value: SIM_AUTO_MODEL_ID }]
+        : []),
+      ...[...models]
+        .filter((model) => isAllowed(model) && getModelSunsetStatus(model) !== 'deprecated')
+        .map((model) => ({
+          label: model,
+          value: model,
+          icon: getProviderIcon(model) ?? undefined,
+        })),
     ]
     const savedModel = config.defaultAgentModel
     if (savedModel && !modelOptions.some((option) => option.value === savedModel)) {

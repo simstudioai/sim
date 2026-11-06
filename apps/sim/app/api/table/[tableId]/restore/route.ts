@@ -47,14 +47,14 @@ export const POST = withRouteHandler(
         return orchestrationOutcomeErrorResponse(result, 'Failed to restore table')
       }
 
-      logger.info(`[${requestId}] Restored table ${tableId}`)
+      logger.info(`Restored table ${tableId}`)
 
       return NextResponse.json({
         success: true,
         data: { table: result.table },
       })
     } catch (error) {
-      logger.error(`[${requestId}] Error restoring table ${tableId}`, error)
+      logger.error(`Error restoring table ${tableId}`, error)
       return NextResponse.json({ error: 'Failed to restore table' }, { status: 500 })
     }
   }

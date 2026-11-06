@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteFileContract, v1DownloadFileContract } from '@/lib/api/contracts/v1/files'
 import { parseRequest } from '@/lib/api/server'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
@@ -37,8 +36,6 @@ interface FileRouteParams {
  * capability twice.
  */
 export const GET = withRouteHandler(async (request: NextRequest, context: FileRouteParams) => {
-  const requestId = generateRequestId()
-
   try {
     const rateLimit = await checkRateLimit(request, 'file-detail')
     if (!rateLimit.allowed) {
@@ -91,15 +88,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
         { status: statusForOrchestrationError(orchestrationError.code) }
       )
     }
-    logger.error(`[${requestId}] Error downloading file:`, error)
+    logger.error('Error downloading file:', error)
     return NextResponse.json({ error: 'Failed to download file' }, { status: 500 })
   }
 })
 
 /** DELETE /api/v1/files/[fileId] — Archive a file. */
 export const DELETE = withRouteHandler(async (request: NextRequest, context: FileRouteParams) => {
-  const requestId = generateRequestId()
-
   try {
     const rateLimit = await checkRateLimit(request, 'file-detail')
     if (!rateLimit.allowed) {
@@ -138,9 +133,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    logger.info(
-      `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
-    )
+    logger.info(`Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`)
 
     return NextResponse.json({
       success: true,
@@ -149,7 +142,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error deleting file:`, error)
+    logger.error('Error deleting file:', error)
     return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })
   }
 })

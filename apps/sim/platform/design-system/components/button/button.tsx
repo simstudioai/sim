@@ -15,12 +15,16 @@ interface ButtonProps {
   render?: ReactElement
   children: string
   count?: number
+  /** Replaces the label below 48rem. Give the button an `aria-label` so its name holds at any width. */
+  narrowLabel?: string
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   size?: 'regular' | 'compact'
   submit?: boolean
   icon?: IconName | { providerId: string }
   trailingIcon?: IconName
   disabled?: boolean
+  /** Names the action when several identical buttons sit side by side. */
+  'aria-label'?: string
   onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
@@ -28,12 +32,14 @@ export function Button({
   render,
   children,
   count,
+  narrowLabel,
   variant = 'secondary',
   size = 'regular',
   submit,
   icon,
   trailingIcon,
   disabled,
+  'aria-label': ariaLabel,
   onClick,
 }: ButtonProps) {
   return useRender({
@@ -48,6 +54,7 @@ export function Button({
       'data-elevation': variant === 'secondary' ? 'control' : undefined,
       'data-type': 'T060',
       disabled,
+      'aria-label': ariaLabel,
       onClick,
       children: (
         <>
@@ -57,7 +64,18 @@ export function Button({
             ) : (
               <Icon providerId={icon.providerId} />
             ))}
-          <CountedLabel label={children} count={count} />
+          {narrowLabel ? (
+            <>
+              <span className={styles.wideLabel}>
+                <CountedLabel label={children} count={count} />
+              </span>
+              <span className={styles.narrowLabel}>
+                <CountedLabel label={narrowLabel} count={count} />
+              </span>
+            </>
+          ) : (
+            <CountedLabel label={children} count={count} />
+          )}
           {trailingIcon && <Icon name={trailingIcon} />}
         </>
       ),
@@ -74,6 +92,8 @@ interface IconButtonProps {
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>
   tooltip?: boolean
+  /** Points the glyph the other way, for the opposite of a directional action. */
+  mirrored?: boolean
   'aria-describedby'?: string
 }
 
@@ -86,6 +106,7 @@ export function IconButton({
   disabled,
   onClick,
   tooltip,
+  mirrored,
   'aria-describedby': describedBy,
 }: IconButtonProps) {
   const button = useRender({
@@ -99,6 +120,7 @@ export function IconButton({
       'data-type': 'T060',
       'data-size': size,
       'data-variant': variant,
+      'data-mirrored': mirrored || undefined,
       'data-solid': variant === 'solid' || undefined,
       'data-material': variant === 'floating' ? 'reading' : undefined,
       'data-elevation': variant === 'floating' ? 'composer' : undefined,

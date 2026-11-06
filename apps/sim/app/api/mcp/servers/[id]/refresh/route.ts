@@ -147,7 +147,8 @@ async function syncToolSchemasToWorkflows(
 
   if (updatedWorkflowIds.size > 0) {
     logger.info(
-      `[${requestId}] Synced tool schemas to ${updatedWorkflowIds.size} workflow(s) for server ${serverId}`
+      `Synced tool schemas to ${updatedWorkflowIds.size} workflow(s) for server ${serverId}`,
+      { requestId }
     )
   }
 
@@ -166,7 +167,7 @@ export const POST = withRouteHandler(
       const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
       if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
       const { id: serverId } = paramsValidation.data
-      logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
+      logger.info(`Refreshing MCP server: ${serverId}`, { requestId })
 
       const [server] = await db
         .select()
@@ -200,14 +201,12 @@ export const POST = withRouteHandler(
           workspaceId,
           'force'
         )
-        logger.info(
-          `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
-        )
+        logger.info(`Discovered ${discoveredTools.length} tools from server ${serverId}`, {
+          requestId,
+        })
       } catch (error) {
         discoveryError = truncate(categorizeError(error).message, 200, '')
-        logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
-          error: discoveryError,
-        })
+        logger.warn(`Failed to connect to server ${serverId}`, { requestId, error: discoveryError })
       }
 
       if (discoveryError === null) {
@@ -223,7 +222,8 @@ export const POST = withRouteHandler(
           // Discovery already persisted status and cached tools; a workflow-sync
           // failure is a secondary propagation and must not fail the refresh with
           // a 500. Surface it as zero workflows updated instead.
-          logger.warn(`[${requestId}] Tool schema sync failed after successful discovery`, {
+          logger.warn('Tool schema sync failed after successful discovery', {
+            requestId,
             error: getErrorMessage(error),
           })
         }
@@ -288,7 +288,7 @@ export const POST = withRouteHandler(
         updatedWorkflowIds: syncResult.updatedWorkflowIds,
       })
     } catch (error) {
-      logger.error(`[${requestId}] Error refreshing MCP server:`, error)
+      logger.error('Error refreshing MCP server:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
     }
   })

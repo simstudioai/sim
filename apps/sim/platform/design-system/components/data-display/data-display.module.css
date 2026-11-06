@@ -6,8 +6,8 @@
 }
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--spacing-128)), 1fr));
-  gap: var(--spacing-32);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--spacing-96)), 1fr));
+  gap: var(--spacing-24);
 }
 .metric {
   display: grid;
@@ -22,6 +22,11 @@
 .header,
 .table td[data-kind="text"] {
   color: var(--ui-strong);
+}
+.metricLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
 }
 .metric dd,
 .table {
@@ -55,6 +60,9 @@
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }
+.table td[data-empty] {
+  color: var(--ui-muted);
+}
 .table [data-primary] {
   inline-size: 32%;
 }
@@ -70,6 +78,9 @@
 }
 .table th {
   height: var(--ui-table-head);
+}
+.table th[data-width] {
+  inline-size: var(--column-width);
 }
 .table td {
   height: var(--spacing-40);
@@ -136,6 +147,9 @@
 @container (width < 48rem) {
   .table [data-from="wide"] {
     display: none;
+  }
+  .table th[data-width] {
+    inline-size: auto;
   }
   .table [data-kind="number"] {
     inline-size: calc(var(--ui-table-compact) + var(--spacing-16));

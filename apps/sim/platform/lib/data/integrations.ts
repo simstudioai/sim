@@ -66,8 +66,13 @@ export function useIntegrationActions(organizationId: string) {
   return {
     connecting,
     pending: connecting || disconnect.isPending,
-    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) =>
-      connect.mutate({ organizationId, ...target }, { onError }),
+    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
+      if ('savedProviderId' in target) {
+        onError(new Error('Connect this service account from the organization app.'))
+        return
+      }
+      connect.mutate({ organizationId, ...target }, { onError })
+    },
     reconnect: (credentialId: string) => reconnect.mutate(credentialId, { onError }),
     disconnect: (credentialId: string) => disconnect.mutateAsync({ credentialId, organizationId }),
   }

@@ -26,6 +26,7 @@
 
 .copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-inline-size: 0;
   gap: var(--ui-stack-gap);
@@ -34,14 +35,21 @@
 .identity {
   display: flex;
   flex: 1;
-  align-items: flex-start;
+  align-items: center;
   min-inline-size: 0;
   gap: var(--ui-row-gap);
+}
+
+.identity:has(.detail) {
+  align-items: flex-start;
 }
 
 .leading {
   display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--spacing-24);
 }
 
 .detail {
@@ -61,10 +69,28 @@
   inline-size: var(--settings-control-width);
 }
 
+.row[data-field] .control > * {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
 @container settings-rows (max-width: 30rem) {
   .row {
     gap: var(--spacing-16);
     min-block-size: var(--spacing-68);
+    row-gap: var(--spacing-8);
+  }
+  .row:not([data-field]) {
+    flex-wrap: wrap;
+  }
+  /* Actions that do not fit beside the copy take their own line, flush with the column's end. */
+  .row:not([data-field]) > :is(.copy, .identity) {
+    flex: 1 1 55%;
+  }
+  .row:not([data-field]) .control {
+    flex-wrap: wrap;
+    max-inline-size: 100%;
+    margin-inline-start: auto;
   }
   .row[data-field] {
     flex-direction: column;
@@ -83,4 +109,30 @@
   .surface {
     padding-inline: var(--spacing-16);
   }
+}
+
+.saveActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}
+
+.rowList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  list-style: none;
+}
+
+.rowList[data-dividers] {
+  --ui-row-block: var(--spacing-8);
+  gap: 0;
+}
+
+.rowList[data-dividers] > * + * {
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }

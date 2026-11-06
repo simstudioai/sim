@@ -2467,7 +2467,8 @@ export async function executeFunctionRequest(
     const executionParams = { ...params }
     executionParams._context = undefined
 
-    logger.debug(`[${requestId}] Function execution request`, {
+    logger.debug('Function execution request', {
+      requestId,
       hasCode: !!code,
       paramsCount: Object.keys(executionParams).length,
       timeout,
@@ -2724,7 +2725,8 @@ export async function executeFunctionRequest(
       // messages already say which file and what to do, so they are the response
       // rather than a 500 that reads like the platform broke. Matches the
       // too-many-files refusal above.
-      logger.warn(`[${requestId}] Could not resolve sandbox file mounts`, {
+      logger.warn('Could not resolve sandbox file mounts', {
+        requestId,
         error: getErrorMessage(error),
       })
       return functionJsonResponse(
@@ -2800,9 +2802,7 @@ export async function executeFunctionRequest(
         : undefined
 
     if (mountManifest.length > 0) {
-      logger.info(`[${requestId}] Mounted files into sandbox`, {
-        mountCount: mountManifest.length,
-      })
+      logger.info('Mounted files into sandbox', { requestId, mountCount: mountManifest.length })
     }
 
     if (lang === CodeLanguage.Shell) {
@@ -2814,7 +2814,8 @@ export async function executeFunctionRequest(
         shellEnvs[k] = serializeForShellEnv(v, 'null')
       }
 
-      logger.info(`[${requestId}] E2B shell execution`, {
+      logger.info('E2B shell execution', {
+        requestId,
         enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         envVarCount: Object.keys(shellEnvs).length,
@@ -2852,7 +2853,8 @@ export async function executeFunctionRequest(
       })
       const executionTime = Date.now() - execStart
 
-      logger.info(`[${requestId}] E2B shell sandbox`, {
+      logger.info('E2B shell sandbox', {
+        requestId,
         sandboxId,
         succeeded: !shellError,
         executionTime,
@@ -2931,7 +2933,8 @@ export async function executeFunctionRequest(
     }
 
     if (useRemoteSandbox) {
-      logger.info(`[${requestId}] E2B status`, {
+      logger.info('E2B status', {
+        requestId,
         enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
@@ -3011,7 +3014,8 @@ export async function executeFunctionRequest(
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
 
-        logger.info(`[${requestId}] E2B JS sandbox`, {
+        logger.info('E2B JS sandbox', {
+          requestId,
           sandboxId,
           succeeded: !e2bError,
           executionTime,
@@ -3143,7 +3147,8 @@ export async function executeFunctionRequest(
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
 
-      logger.info(`[${requestId}] E2B Py sandbox`, {
+      logger.info('E2B Py sandbox', {
+        requestId,
         sandboxId,
         succeeded: !e2bError,
         executionTime,
@@ -3315,7 +3320,8 @@ export async function executeFunctionRequest(
 
       /** The author's code throwing is logged once by the tool boundary; an isolate failure is ours. */
       if (isSystemError) {
-        logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+        logger.error('Function execution failed in isolated-vm', {
+          requestId,
           executionTime,
           hasStack: Boolean(ivmError.stack),
           line: enhancedError.line,
@@ -3345,7 +3351,8 @@ export async function executeFunctionRequest(
       )
     }
 
-    logger.debug(`[${requestId}] Function executed successfully using ${executionMethod}`, {
+    logger.debug(`Function executed successfully using ${executionMethod}`, {
+      requestId,
       executionTime,
     })
 
@@ -3384,7 +3391,8 @@ export async function executeFunctionRequest(
           executionTime,
         },
       }
-      logger.warn(`[${requestId}] Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
+      logger.warn(`Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
+        requestId,
         executionTime,
       })
       return routeContext
@@ -3440,7 +3448,8 @@ export async function executeFunctionRequest(
           )
     }
     if (isExecutionResourceLimitError(error)) {
-      logger.warn(`[${requestId}] Function execution exceeded resource limits`, {
+      logger.warn('Function execution exceeded resource limits', {
+        requestId,
         resource: error.resource,
         attemptedBytes: error.attemptedBytes,
         limitBytes: error.limitBytes,
@@ -3501,7 +3510,8 @@ export async function executeFunctionRequest(
         (error?.message || String(error)).slice(0, 300),
         compilerInternalIdentifiers
       )
-      logger.warn(`[${requestId}] Sandbox terminated before completion (likely OOM or timeout)`, {
+      logger.warn('Sandbox terminated before completion (likely OOM or timeout)', {
+        requestId,
         executionTime,
       })
       const killResponse = {
@@ -3527,7 +3537,8 @@ export async function executeFunctionRequest(
       compilerInternalIdentifiers
     )
 
-    logger.error(`[${requestId}] Function execution failed`, {
+    logger.error('Function execution failed', {
+      requestId,
       executionTime,
       hasStack: Boolean(error.stack),
       line: enhancedError.line,

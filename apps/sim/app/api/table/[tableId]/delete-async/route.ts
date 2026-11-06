@@ -126,7 +126,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     throw error
   }
 
-  logger.info(`[${requestId}] Async row delete started`, {
+  logger.info('Async row delete started', {
     tableId,
     jobId,
     hasFilter: Boolean(filter),

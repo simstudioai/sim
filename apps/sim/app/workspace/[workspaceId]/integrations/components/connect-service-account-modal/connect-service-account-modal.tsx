@@ -25,6 +25,7 @@ import {
   type ClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
   getTokenServiceAccountDescriptor,
   type TokenServiceAccountProviderId,
@@ -139,6 +140,10 @@ interface ConnectServiceAccountModalProps {
   credentialDescription?: string
   /** Called with the new credential id after a successful create (token-paste providers). */
   onCreated?: (credentialId: string) => void
+  onSubmitCredentials?: (
+    fields: ServiceAccountSecretFields & { displayName?: string; description?: string }
+  ) => Promise<string>
+  submitPending?: boolean
 }
 
 /**
@@ -169,6 +174,8 @@ export function ConnectServiceAccountModal({
   credentialDisplayName,
   credentialDescription,
   onCreated,
+  onSubmitCredentials,
+  submitPending,
 }: ConnectServiceAccountModalProps) {
   if (serviceAccountProviderId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
@@ -189,6 +196,8 @@ export function ConnectServiceAccountModal({
   if (clientCredentialDescriptor) {
     return (
       <ClientCredentialAccountModal
+        onSubmitCredentials={onSubmitCredentials}
+        submitPending={submitPending}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
@@ -207,6 +216,8 @@ export function ConnectServiceAccountModal({
   if (tokenDescriptor) {
     return (
       <TokenServiceAccountModal
+        onSubmitCredentials={onSubmitCredentials}
+        submitPending={submitPending}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}

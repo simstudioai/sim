@@ -4,7 +4,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import type { DbOrTx } from '@/lib/db/types'
 import { projectIntegrationToolsForViewer } from '@/lib/integrations/tool-projection'
-import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
+import {
+  listOrganizationSearchApprovals,
+  requireOrganizationSearchApproval,
+} from '@/lib/knowledge/search/integration-policy'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
@@ -49,4 +52,23 @@ export async function requireAssistantProviderAccess(organizationId: string, pro
       'forbidden',
       'This organization restricts content access for this app. Use search_workspace and read_document within that scope.'
     )
+}
+
+/**
+ * The same boundary as {@link requireAssistantProviderAccess} for a read that checks several
+ * providers: one load of the organization's decisions, then a pure answer per provider.
+ */
+export async function loadAssistantProviderAccess(organizationId: string) {
+  const [approvals, policies] = await Promise.all([
+    listOrganizationSearchApprovals(organizationId),
+    loadLiveSearchPolicies({ organizationId }),
+  ])
+  return (providerId: string) => {
+    const source = assistantSearchSourceForProvider(providerId)
+    if (!source) return true
+    return (
+      approvals.get(source) === true &&
+      !requiresScopedRetrieval(source, livePolicyFor(policies, source))
+    )
+  }
 }

@@ -104,15 +104,13 @@ export const confluenceHandler: WebhookProviderHandler = {
     if (triggerId) {
       const { isConfluencePayloadMatch } = await import('@/triggers/confluence/utils')
       if (!isConfluencePayloadMatch(triggerId, obj)) {
-        logger.debug(
-          `[${requestId}] Confluence payload mismatch for trigger ${triggerId}. Skipping execution.`,
-          {
-            webhookId: webhook.id,
-            workflowId: workflow.id,
-            triggerId,
-            bodyKeys: Object.keys(obj),
-          }
-        )
+        logger.debug(`Confluence payload mismatch for trigger ${triggerId}. Skipping execution.`, {
+          requestId,
+          webhookId: webhook.id,
+          workflowId: workflow.id,
+          triggerId,
+          bodyKeys: Object.keys(obj),
+        })
         return NextResponse.json({
           message: 'Payload does not match trigger configuration. Ignoring.',
         })

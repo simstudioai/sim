@@ -13,6 +13,8 @@ export const liveSearchProviderSchema = z.enum([
   'jira',
   'confluence',
   'github',
+  'jama',
+  'flow',
   'gitlab',
   'linear',
   'lucid',

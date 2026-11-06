@@ -1,15 +1,13 @@
-import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
-import {
-  LinkRowsSkeleton,
-  LinksFrame,
-} from '@/platform/app/(shell)/_components/links-page/links-frame'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
+import { PageSurface } from '@/platform/design-system/components/surface/surface'
+import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
 
 export default function SimLinksLoading() {
   return (
-    <RedesignPageSurface>
+    <PageSurface>
       <LinksFrame loading>
-        <LinkRowsSkeleton />
+        <LoadingRows label='Loading links' rows={6} />
       </LinksFrame>
-    </RedesignPageSurface>
+    </PageSurface>
   )
 }

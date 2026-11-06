@@ -11,12 +11,14 @@ import {
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   resourceScopeFields,
   resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
+import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
   getTokenServiceAccountErrorMessage,
   type TokenServiceAccountDescriptor,
@@ -55,6 +57,10 @@ interface TokenServiceAccountModalProps {
   initialDescription?: string
   /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
+  onSubmitCredentials?: (
+    fields: ServiceAccountSecretFields & { displayName?: string; description?: string }
+  ) => Promise<string>
+  submitPending?: boolean
 }
 
 /**
@@ -86,9 +92,12 @@ function TokenServiceAccountModalForm({
   initialDisplayName,
   initialDescription,
   onCreated,
+  onSubmitCredentials,
+  submitPending,
 }: TokenServiceAccountModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
+  const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -98,11 +107,17 @@ function TokenServiceAccountModalForm({
 
   const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
   const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
 
   const trimmedToken = apiToken.trim()
   const normalizedDomain = normalizeDomainInput(domain)
-  const isPending = createCredential.isPending || updateCredential.isPending
-  const isDisabled = !trimmedToken || (Boolean(domainField) && !normalizedDomain) || isPending
+  const isPending =
+    createCredential.isPending || updateCredential.isPending || submitPending === true
+  const isDisabled =
+    !trimmedToken ||
+    (Boolean(domainField) && !normalizedDomain) ||
+    (Boolean(workspaceField) && !providerWorkspaceId.trim()) ||
+    isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
     if (!field.hintPattern || !field.hintMessage || value.length === 0) return undefined
@@ -115,7 +130,18 @@ function TokenServiceAccountModalForm({
     try {
       const secretFields = {
         apiToken: trimmedToken,
+        ...(workspaceField ? { providerWorkspaceId: providerWorkspaceId.trim() } : {}),
         ...(domainField ? { domain: normalizedDomain } : {}),
+      }
+      if (onSubmitCredentials) {
+        const savedId = await onSubmitCredentials({
+          ...secretFields,
+          displayName: displayName.trim() || undefined,
+          description: description.trim() || undefined,
+        })
+        onCreated?.(savedId)
+        onOpenChange(false)
+        return
       }
       if (credentialId) {
         await updateCredential.mutateAsync({
@@ -140,7 +166,11 @@ function TokenServiceAccountModalForm({
       onOpenChange(false)
     } catch (err: unknown) {
       const code = isApiClientError(err) ? err.code : undefined
-      setError(getTokenServiceAccountErrorMessage(descriptor, code))
+      setError(
+        onSubmitCredentials
+          ? getErrorMessage(err, 'Could not save this connection.')
+          : getTokenServiceAccountErrorMessage(descriptor, code)
+      )
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
     }
   }
@@ -179,6 +209,17 @@ function TokenServiceAccountModalForm({
           </ChipModalField>
         )}
 
+        {workspaceField && (
+          <ChipModalField
+            type='input'
+            title={workspaceField.label}
+            value={providerWorkspaceId}
+            onChange={setProviderWorkspaceId}
+            placeholder={workspaceField.placeholder}
+            required
+            autoComplete='off'
+          />
+        )}
         {domainField && (
           <ChipModalField
             type='input'

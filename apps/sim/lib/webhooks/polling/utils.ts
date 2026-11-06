@@ -68,9 +68,9 @@ export function skipAdmissionRefusedPoll(
   requestId: string,
   webhookId: string
 ): 'skipped' {
-  logger.info(
-    `[${requestId}] Execution admission refused webhook ${webhookId}; left its items for a later poll`
-  )
+  logger.info(`Execution admission refused webhook ${webhookId}; left its items for a later poll`, {
+    requestId,
+  })
   return 'skipped'
 }
 

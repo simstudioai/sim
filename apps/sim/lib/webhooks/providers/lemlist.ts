@@ -21,7 +21,8 @@ export const lemlistHandler: WebhookProviderHandler = {
       const campaignId = providerConfig.campaignId as string | undefined
 
       if (!apiKey) {
-        logger.warn(`[${requestId}] Missing apiKey for Lemlist webhook creation.`, {
+        logger.warn('Missing apiKey for Lemlist webhook creation.', {
+          requestId,
           webhookId: webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -45,7 +46,8 @@ export const lemlistHandler: WebhookProviderHandler = {
       const notificationUrl = getNotificationUrl(webhook)
       const authString = Buffer.from(`:${apiKey}`).toString('base64')
 
-      logger.info(`[${requestId}] Creating Lemlist webhook`, {
+      logger.info('Creating Lemlist webhook', {
+        requestId,
         triggerId,
         eventType,
         hasCampaignId: !!campaignId,
@@ -83,8 +85,8 @@ export const lemlistHandler: WebhookProviderHandler = {
           (responseBody.error as string) ||
           'Unknown Lemlist API error'
         logger.error(
-          `[${requestId}] Failed to create webhook in Lemlist for webhook ${webhook.id}. Status: ${lemlistResponse.status}`,
-          { message: errorMessage, response: responseBody }
+          `Failed to create webhook in Lemlist for webhook ${webhook.id}. Status: ${lemlistResponse.status}`,
+          { requestId, message: errorMessage, response: responseBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Lemlist'
@@ -100,24 +102,20 @@ export const lemlistHandler: WebhookProviderHandler = {
         throw new Error(userFriendlyMessage)
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Lemlist for webhook ${webhook.id}.`,
-        {
-          lemlistWebhookId: responseBody._id,
-        }
-      )
+      logger.info(`Successfully created webhook in Lemlist for webhook ${webhook.id}.`, {
+        requestId,
+        lemlistWebhookId: responseBody._id,
+      })
 
       return { providerConfigUpdates: { externalId: responseBody._id } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Lemlist webhook creation for webhook ${webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Lemlist webhook creation for webhook ${webhook.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -130,9 +128,9 @@ export const lemlistHandler: WebhookProviderHandler = {
       const externalId = config.externalId as string | undefined
 
       if (!apiKey) {
-        logger.warn(
-          `[${requestId}] Missing apiKey for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
-        )
+        logger.warn(`Missing apiKey for Lemlist webhook deletion ${webhook.id}, skipping cleanup`, {
+          requestId,
+        })
         if (ctx.strict) throw new Error('Missing Lemlist apiKey for webhook deletion')
         return
       }
@@ -142,7 +140,8 @@ export const lemlistHandler: WebhookProviderHandler = {
       const deleteById = async (id: string) => {
         const validation = validateAlphanumericId(id, 'Lemlist hook ID', 50)
         if (!validation.isValid) {
-          logger.warn(`[${requestId}] Invalid Lemlist hook ID format, skipping deletion`, {
+          logger.warn('Invalid Lemlist hook ID format, skipping deletion', {
+            requestId,
             id: id.substring(0, 30),
           })
           if (ctx.strict) throw new Error('Invalid Lemlist hook ID for deletion')
@@ -159,15 +158,15 @@ export const lemlistHandler: WebhookProviderHandler = {
 
         if (!lemlistResponse.ok && lemlistResponse.status !== 404) {
           const responseBody = await lemlistResponse.json().catch(() => ({}))
-          logger.warn(
-            `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
-            { response: responseBody }
-          )
+          logger.warn(`Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`, {
+            requestId,
+            response: responseBody,
+          })
           if (ctx.strict) {
             throw new Error(`Failed to delete Lemlist webhook: ${lemlistResponse.status}`)
           }
         } else {
-          logger.info(`[${requestId}] Successfully deleted Lemlist webhook ${id}`)
+          logger.info(`Successfully deleted Lemlist webhook ${id}`, { requestId })
         }
       }
 
@@ -178,8 +177,8 @@ export const lemlistHandler: WebhookProviderHandler = {
 
       if (ctx.strict) {
         logger.warn(
-          `[${requestId}] Missing Lemlist externalId during strict cleanup; skipping unsafe URL-based remote deletion`,
-          { webhookId: webhook.id }
+          'Missing Lemlist externalId during strict cleanup; skipping unsafe URL-based remote deletion',
+          { requestId, webhookId: webhook.id }
         )
         throw new Error('Missing Lemlist externalId for strict cleanup')
       }
@@ -193,7 +192,8 @@ export const lemlistHandler: WebhookProviderHandler = {
       })
 
       if (!listResponse.ok) {
-        logger.warn(`[${requestId}] Failed to list Lemlist webhooks for cleanup ${webhook.id}`, {
+        logger.warn(`Failed to list Lemlist webhooks for cleanup ${webhook.id}`, {
+          requestId,
           status: listResponse.status,
         })
         if (ctx.strict) throw new Error(`Failed to list Lemlist webhooks: ${listResponse.status}`)
@@ -215,7 +215,8 @@ export const lemlistHandler: WebhookProviderHandler = {
       })
 
       if (matches.length === 0) {
-        logger.info(`[${requestId}] Lemlist webhook not found for cleanup ${webhook.id}`, {
+        logger.info(`Lemlist webhook not found for cleanup ${webhook.id}`, {
+          requestId,
           notificationUrl,
         })
         return
@@ -228,7 +229,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         }
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
+      logger.warn('Error deleting Lemlist webhook (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

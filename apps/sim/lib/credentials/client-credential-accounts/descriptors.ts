@@ -123,6 +123,7 @@ export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' a
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
+export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
@@ -148,6 +149,7 @@ export type ClientCredentialAccountProviderId =
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -387,6 +389,34 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
 > = {
+  [JAMA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: JAMA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Jama Connect',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Jama URL',
+        placeholder: 'https://your-company.jamacloud.com',
+        secret: false,
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Enter your Jama client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Enter your Jama client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/jama',
+    helpText:
+      'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Ramp',

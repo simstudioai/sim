@@ -90,11 +90,8 @@ export function auditRefreshReads(scope: { isAnswerable: boolean }, workspaceId:
  * Entries the feed is allowed to present.
  *
  * A disabled query still serves whatever is cached under its key, and an unresolved
- * workspace scope resolves to the same key as the unscoped feed — so an admin looking
- * at the organization-wide feed who then followed a stale scoped link kept those rows
- * on screen, with Export still armed against them. The scope a link asks for is a
- * ceiling, so when it cannot be honoured the feed presents nothing rather than
- * whatever it happens to be holding.
+ * workspace scope resolves to the same key as the unscoped feed. The scope a link asks
+ * for is a ceiling, so when it cannot be honoured the feed presents nothing.
  */
 export function presentableAuditEntries(
   pages: AuditLogPage[] | undefined,

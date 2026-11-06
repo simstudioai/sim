@@ -42,6 +42,7 @@ import {
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -758,6 +759,8 @@ function EmbeddedFileActions({
   const [isShareOpen, setIsShareOpen] = useState(false)
   const { file } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
+  const { ShareDialogComponent } = useChatChrome()
+  const ShareDialog = ShareDialogComponent ?? ShareModal
 
   const handleDownload = async () => {
     if (!file) return
@@ -818,7 +821,7 @@ function EmbeddedFileActions({
             </Tooltip.Content>
           </Tooltip.Root>
           {isShareOpen && (
-            <ShareModal
+            <ShareDialog
               key={file.id}
               open
               onOpenChange={setIsShareOpen}

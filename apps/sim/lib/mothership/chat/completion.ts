@@ -119,7 +119,8 @@ export function buildOnComplete(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to persist chat messages`, {
+      logger.error('Failed to persist chat messages', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })
@@ -183,7 +184,8 @@ export function buildOnError(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
+      logger.error('Failed to finalize errored chat stream', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })

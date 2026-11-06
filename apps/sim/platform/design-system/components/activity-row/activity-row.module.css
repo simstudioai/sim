@@ -34,6 +34,11 @@
     grid-row: 1 / span 2;
   }
 }
+.metaLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-popup-padding);
+}
 .row:hover {
   background: var(--ui-hover);
 }
@@ -73,4 +78,7 @@
   min-block-size: var(--leading-app-control);
   max-inline-size: 45%;
   overflow-wrap: anywhere;
+}
+.row[data-density="comfortable"] {
+  min-block-size: var(--spacing-64);
 }

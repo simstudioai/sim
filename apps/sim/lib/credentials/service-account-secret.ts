@@ -54,6 +54,7 @@ export interface ServiceAccountSecretFields {
   botToken?: string
   apiToken?: string
   domain?: string
+  providerWorkspaceId?: string
   atlassianProduct?: AtlassianProduct
   serviceAccountJson?: string
   clientId?: string
@@ -303,19 +304,22 @@ async function buildTokenServiceAccountSecret(
   const apiToken = fields.apiToken?.trim()
   const domain = fields.domain?.trim()
   const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
-  if (!apiToken || (requiresDomain && !domain)) {
+  const providerWorkspaceId = fields.providerWorkspaceId?.trim()
+  const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
+  if (!apiToken || (requiresDomain && !domain) || (requiresWorkspace && !providerWorkspaceId)) {
     const required = descriptor.fields.map((field) => field.id).join(' and ')
     throw new ServiceAccountSecretError(
       `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
   }
-  const validation = await validator({ apiToken, domain })
+  const validation = await validator({ apiToken, domain, providerWorkspaceId })
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountSecretBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId,
     apiToken,
     ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
+    ...(requiresWorkspace ? { providerWorkspaceId } : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))

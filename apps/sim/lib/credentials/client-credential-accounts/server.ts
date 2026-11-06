@@ -7,6 +7,7 @@ import {
   getClientCredentialAccountDescriptor,
   HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID,
   isClientCredentialAccountProviderId,
+  JAMA_SERVICE_ACCOUNT_PROVIDER_ID,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -21,6 +22,7 @@ import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-
 import { mintFivetranServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/fivetran'
 import { mintGreenhouseServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/greenhouse'
 import { mintHelpScoutServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/helpscout'
+import { mintJamaServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/jama'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
 import { mintOracleEpmServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-epm'
 import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
@@ -142,6 +144,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountMinter
 > = {
+  [JAMA_SERVICE_ACCOUNT_PROVIDER_ID]: mintJamaServiceAccountToken,
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: mintZoomServiceAccountToken,
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: mintBoxServiceAccountToken,
   [SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID]: mintSalesforceServiceAccountToken,

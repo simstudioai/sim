@@ -358,7 +358,8 @@ export const completePublicCredentialGroupMcpOAuth =
         input.attempt.codeVerifier,
         input.code,
         input.attempt.invitationToken,
-        input.attempt.configurationFingerprint
+        input.attempt.configurationFingerprint,
+        input.attempt.connectionIntent
       )
       if (context.organizationId)
         await fireCredentialGroupTrigger({
@@ -375,7 +376,7 @@ export const completePublicCredentialGroupMcpOAuth =
             mcpServerId: completion.mcpServerId,
             provider: context.oauth.server.connectorId,
             providerId: context.oauth.server.connectorId,
-            displayName: context.oauth.server.name,
+            displayName: completion.displayName,
           },
         })
       return { connectionId: completion.connectionId, mcpServerId: completion.mcpServerId }

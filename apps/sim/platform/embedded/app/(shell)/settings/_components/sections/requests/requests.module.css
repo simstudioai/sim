@@ -1,0 +1,40 @@
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-24);
+}
+
+.status {
+  color: var(--ui-secondary);
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+
+.filter {
+  min-inline-size: var(--spacing-128);
+}
+
+.text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.changes {
+  display: grid;
+  gap: var(--ui-list-gap);
+  overflow-wrap: anywhere;
+}
+
+.changeLabel {
+  color: var(--ui-secondary);
+}
+
+.changeDetails {
+  display: grid;
+  gap: var(--spacing-12);
+  padding-block-start: var(--spacing-8);
+}

@@ -251,7 +251,7 @@ export async function insertRow(
     limit: rowLimit,
   })
 
-  logger.info(`[${requestId}] Inserted row ${rowId} into table ${data.tableId}`)
+  logger.info(`Inserted row ${rowId} into table ${data.tableId}`, { requestId })
 
   const insertedRow: TableRow = {
     id: row.id,
@@ -282,7 +282,7 @@ export async function insertRow(
     requestId,
     triggeredByUserId: data.userId,
     capabilityGovernedUserId: data.capabilityGovernedUserId,
-  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
+  }).catch((err) => logger.error('auto-dispatch (insertRow) failed:', err, { requestId }))
 
   return insertedRow
 }
@@ -442,7 +442,7 @@ export async function batchInsertRowsWithTx(
     },
   })
 
-  logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
+  logger.info(`Batch inserted ${data.rows.length} rows into table ${data.tableId}`, { requestId })
 
   const result: TableRow[] = insertedRows.map((r) => ({
     id: r.id,
@@ -495,7 +495,7 @@ export function dispatchAfterBatchInsert(
     requestId,
     triggeredByUserId: actorUserId,
     capabilityGovernedUserId,
-  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
+  }).catch((err) => logger.error('auto-dispatch (batchInsertRows) failed:', err, { requestId }))
 }
 
 /**
@@ -691,7 +691,8 @@ export async function replaceTableRowsWithTx(
   }
 
   logger.info(
-    `[${requestId}] Replaced rows in table ${data.tableId}: deleted ${deletedCount}, inserted ${insertedCount}`
+    `Replaced rows in table ${data.tableId}: deleted ${deletedCount}, inserted ${insertedCount}`,
+    { requestId }
   )
 
   return { deletedCount, insertedCount }
@@ -959,9 +960,9 @@ export async function upsertRow(
     }
   })
 
-  logger.info(
-    `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${data.tableId}`
-  )
+  logger.debug(`Upserted (${result.operation}) row ${result.row.id} in table ${data.tableId}`, {
+    requestId,
+  })
 
   if (result.operation === 'insert') {
     notifyTableRowUsage({
@@ -1002,7 +1003,7 @@ export async function upsertRow(
     requestId,
     triggeredByUserId: data.userId,
     capabilityGovernedUserId: data.capabilityGovernedUserId,
-  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
+  }).catch((err) => logger.error('auto-dispatch (upsertRow) failed:', err, { requestId }))
 
   return result
 }
@@ -1175,7 +1176,8 @@ export async function findRowMatches(
   }))
 
   logger.info(
-    `[${requestId}] Find "${options.q}" in table ${table.id}: ${matches.length} match(es)${truncated ? ' (truncated)' : ''}`
+    `Find "${options.q}" in table ${table.id}: ${matches.length} match(es)${truncated ? ' (truncated)' : ''}`,
+    { requestId }
   )
 
   return { matches, truncated }
@@ -1331,7 +1333,8 @@ export async function queryRows(
       : null
 
   logger.debug(
-    `[${requestId}] Queried ${rows.length} rows from table ${table.id} (total: ${totalCount}, bytes: ${fetched.bytes}, more: ${fetched.hasMore})`
+    `Queried ${rows.length} rows from table ${table.id} (total: ${totalCount}, bytes: ${fetched.bytes}, more: ${fetched.hasMore})`,
+    { requestId }
   )
 
   const mappedRows = rows.map((r) => ({
@@ -2111,7 +2114,7 @@ export async function updateRow(
     throw err
   }
 
-  logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
+  logger.info(`Updated row ${data.rowId} in table ${data.tableId}`, { requestId })
 
   const updatedRow: TableRow = {
     ...toRowSummary(persistedRow),
@@ -2169,7 +2172,7 @@ export async function updateRow(
           capabilityGovernedUserId: data.capabilityGovernedUserId,
         })
       } catch (err) {
-        logger.error(`[${requestId}] cancel+rerun for in-flight downstream groups failed:`, err)
+        logger.error('cancel+rerun for in-flight downstream groups failed:', err, { requestId })
       }
     })()
   }
@@ -2182,7 +2185,7 @@ export async function updateRow(
     requestId,
     triggeredByUserId: data.actorUserId,
     capabilityGovernedUserId: data.capabilityGovernedUserId,
-  }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRow) failed:`, err))
+  }).catch((err) => logger.error('auto-dispatch (updateRow) failed:', err, { requestId }))
 
   return updatedRow
 }
@@ -2210,7 +2213,7 @@ export async function deleteRow(
   })
   if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
-  logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
+  logger.info(`Deleted row ${rowId} from table ${table.id}`, { requestId })
   void dispatchDeleteTriggers(table, [deleted], requestId)
 }
 
@@ -2400,8 +2403,8 @@ async function persistBulkUpdateBatch(params: {
         }
         if (skippedRowIds.length > 0) {
           logger.warn(
-            `[${requestId}] Skipping rows concurrently changed to values that cannot accept the bulk patch`,
-            { tableId: table.id, rowIds: skippedRowIds }
+            'Skipping rows concurrently changed to values that cannot accept the bulk patch',
+            { requestId, tableId: table.id, rowIds: skippedRowIds }
           )
         }
 
@@ -2474,7 +2477,7 @@ function dispatchBulkUpdateEffects(
     triggeredByUserId: actorUserId,
     capabilityGovernedUserId,
   }).catch((error) =>
-    logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, error)
+    logger.error('auto-dispatch (updateRowsByFilter) failed:', error, { requestId })
   )
 }
 
@@ -2593,7 +2596,7 @@ export async function updateRowsByFilter(
       if (batchRows.length < TABLE_LIMITS.UPDATE_BATCH_SIZE) break
     }
 
-    logger.info(`[${requestId}] Updated ${affectedRowIds.length} rows in table ${table.id}`)
+    logger.info(`Updated ${affectedRowIds.length} rows in table ${table.id}`, { requestId })
     return { affectedCount: affectedRowIds.length, affectedRowIds }
   }
 
@@ -2636,7 +2639,7 @@ export async function updateRowsByFilter(
   })
   const { affectedRowIds } = persisted
 
-  logger.info(`[${requestId}] Updated ${affectedRowIds.length} rows in table ${table.id}`)
+  logger.info(`Updated ${affectedRowIds.length} rows in table ${table.id}`, { requestId })
   dispatchBulkUpdateEffects(
     persisted.table,
     persisted.rows,
@@ -2917,7 +2920,7 @@ export async function batchUpdateRows(
     })
   })
 
-  logger.info(`[${requestId}] Batch updated ${affectedRowIds.length} rows in table ${data.tableId}`)
+  logger.info(`Batch updated ${affectedRowIds.length} rows in table ${data.tableId}`, { requestId })
 
   const affectedRowIdSet = new Set(affectedRowIds)
   const oldRowsForTrigger = new Map(
@@ -2975,10 +2978,9 @@ export async function batchUpdateRows(
           })
         }
       } catch (err) {
-        logger.error(
-          `[${requestId}] cancel+rerun for in-flight downstream groups (batch) failed:`,
-          err
-        )
+        logger.error('cancel+rerun for in-flight downstream groups (batch) failed:', err, {
+          requestId,
+        })
       }
     })()
   }
@@ -2992,7 +2994,7 @@ export async function batchUpdateRows(
       requestId,
       triggeredByUserId: data.actorUserId,
       capabilityGovernedUserId: data.capabilityGovernedUserId,
-    }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
+    }).catch((err) => logger.error('auto-dispatch (batchUpdateRows) failed:', err, { requestId }))
   }
 
   return {
@@ -3083,7 +3085,7 @@ export async function deleteRowsByFilter(
 
   if (deletedRowIds.length === 0) return { affectedCount: 0, affectedRowIds: [] }
 
-  logger.info(`[${requestId}] Deleted ${deletedRowIds.length} rows from table ${table.id}`)
+  logger.info(`Deleted ${deletedRowIds.length} rows from table ${table.id}`, { requestId })
 
   return {
     affectedCount: deletedRowIds.length,
@@ -3118,7 +3120,7 @@ export async function deleteRowsByIds(
   const deletedIdSet = new Set(deletedIds)
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
-  logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
+  logger.info(`Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`, { requestId })
   return {
     deletedCount: deletedIds.length,
     deletedRowIds: deletedIds,

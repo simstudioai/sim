@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useRef } from 'react'
+import { type ReactNode, useId, useMemo, useRef } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
 import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
@@ -19,7 +19,7 @@ interface SearchableSelectProps {
   label: string
   labelHidden?: boolean
   /** `text` sits in a line of copy, such as a breadcrumb, with a popup wider than its label. */
-  variant?: 'field' | 'text'
+  variant?: 'field' | 'text' | 'quiet'
   options: readonly PickerOption[]
   defaultValue?: string
   /** Controlled selection, where `null` holds nothing. It may be absent from the current `options`. */
@@ -27,6 +27,8 @@ interface SearchableSelectProps {
   onValueChange?: (value: string | null) => void
   /** The trigger's text for a controlled `value` the current `options` may not contain. */
   selectedLabel?: string
+  /** A mark before the trigger's text. */
+  selectedLeading?: ReactNode
   placeholder?: string
   searchLabel: string
   /** Needs a controlled `value`: a selection may leave the current `options`. */
@@ -50,6 +52,7 @@ export function SearchableSelect({
   value,
   onValueChange,
   selectedLabel,
+  selectedLeading,
   placeholder,
   searchLabel,
   search,
@@ -93,10 +96,11 @@ export function SearchableSelect({
           aria-invalid={error ? true : undefined}
           aria-describedby={fieldDescription(id, error, hint)}
           className={picker.trigger}
-          data-variant={variant === 'text' ? 'text' : undefined}
           data-empty={current === null && placeholder ? true : undefined}
-          data-type='T043'
+          data-variant={variant === 'field' ? undefined : variant}
+          data-type={variant === 'quiet' ? 'T057' : 'T043'}
         >
+          {selectedLeading}
           <span ref={valueEdges} className={picker.value}>
             {current === null && placeholder ? placeholder : (selectedLabel ?? <Combobox.Value />)}
           </span>

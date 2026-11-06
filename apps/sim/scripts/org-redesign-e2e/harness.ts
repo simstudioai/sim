@@ -1,0 +1,623 @@
+import assert from 'node:assert/strict'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import {
+  type Browser,
+  type BrowserContext,
+  expect as browserExpect,
+  chromium,
+  type Page,
+  type Request,
+} from '@playwright/test'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { createLogger } from '@sim/logger'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { escapeRegExp, truncate } from '@sim/utils/string'
+import { makeSignature } from 'better-auth/crypto'
+import postgres from 'postgres'
+import { ADMIN, type EVERYONE, ORGANIZATION_ID } from '@/scripts/org-redesign-e2e/fixture'
+
+/**
+ * Acceptance for the organization view against a hosted production build, real Postgres and Redis,
+ * and a scripted model. Walks what each persona could see and do before the redesign, as behaviour:
+ * every section's rows are present and work, in both themes at both widths, with no runtime error
+ * and no failed same-origin request. One failed check never stops the walk, so a run reports them
+ * all. Google answers only to real credentials, so the widget reads are replaced at the browser's
+ * network boundary; `home-widgets.integration.ts` proves the reads behind them.
+ *
+ * Requires ORG_REDESIGN_E2E_ORIGIN, ORG_REDESIGN_E2E_DATABASE_URL, ORG_REDESIGN_E2E_AUTH_SECRET and
+ * ORG_REDESIGN_E2E_REPORT_PATH. ORG_REDESIGN_E2E_PHASE picks `main`, or `people` for an app started
+ * with the People flag on.
+ */
+const logger = createLogger('OrgRedesignE2E')
+export const expect = browserExpect.configure({ timeout: 20_000 })
+
+function requiredEnvironment(name: string): string {
+  const value = process.env[name]
+  assert(value, `${name} must be explicitly provided`)
+  return value
+}
+
+export const origin = new URL(requiredEnvironment('ORG_REDESIGN_E2E_ORIGIN')).origin
+const databaseUrl = assertDisposableTestDatabaseUrl(
+  requiredEnvironment('ORG_REDESIGN_E2E_DATABASE_URL')
+)
+const authSecret = requiredEnvironment('ORG_REDESIGN_E2E_AUTH_SECRET')
+const reportPath = resolve(requiredEnvironment('ORG_REDESIGN_E2E_REPORT_PATH'))
+export const phase = process.env.ORG_REDESIGN_E2E_PHASE ?? 'main'
+export const artifactDirectory = `${reportPath}.artifacts`
+export const sql = postgres(databaseUrl.toString(), { max: 2 })
+export const root = `/o/${ORGANIZATION_ID}`
+export const url = (path: string) => `${origin}${path}`
+export const orgUrl = (path: string) => url(`${root}${path}`)
+
+export type Persona = (typeof EVERYONE)[number]
+type Status = 'passed' | 'failed' | 'skipped'
+export type Theme = 'light' | 'dark'
+export interface Viewport {
+  name: string
+  width: number
+  height: number
+}
+
+export const DESKTOP: Viewport = { name: 'desktop', width: 1440, height: 900 }
+export const PHONE: Viewport = { name: 'phone', width: 390, height: 844 }
+const CHECK_TIMEOUT_MS = 180_000
+/** A check whose sessions are closed fails its next step at once; this leaves its restores time. */
+const CHECK_CANCEL_GRACE_MS = 30_000
+export const WALK_CONCURRENCY = 4
+
+interface Problem {
+  check: string
+  kind: 'runtime' | 'console' | 'http' | 'network'
+  url: string
+  detail: string
+}
+
+interface FirstPaint {
+  persona: string
+  page: string
+  firstPaintMs: number | null
+  firstContentfulPaintMs: number | null
+  primaryVisibleMs: number
+  apiRequests: string[]
+  totalRequestCount: number
+  duplicates: string[]
+  prefetchedAndRefetched: string[]
+  perWorkspaceReads: string[]
+}
+
+const checks: {
+  name: string
+  section: string
+  status: Status
+  durationMs: number
+  error?: string
+}[] = []
+export const routes: {
+  persona: string
+  route: string
+  viewport: string
+  theme: Theme
+  status: number | null
+  finalPath: string
+  screenshot: string | null
+  platformSurfaces: number
+}[] = []
+export const firstPaints: FirstPaint[] = []
+const unexpected: Problem[] = []
+let clientAddress = 0
+let currentCheck = 'Setup'
+let currentSection = 'Setup'
+/** Set once every phase has run: until then a clean report only says nothing has failed yet. */
+let finished = false
+/** What the running check expects to fail; everything else is reported. */
+let allowedFailures: RegExp[] = []
+
+const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
+/** A Suspense boundary the server gave up on, which is only fine when it was a redirect or not-found. */
+const STREAMED_FAILURE = /Minified React error #419/
+/** The browser's own line for a failed load, which the response and requestfailed listeners judge. */
+const BROWSER_LOAD_FAILURE = /^Failed to load resource/
+/**
+ * What this environment says, not the app: the suite runs over plain HTTP, where the browser ignores
+ * COOP, and the Inth analytics host refuses this test origin's CORS request.
+ */
+const ENVIRONMENT_CONSOLE_NOISE = [
+  /^The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy\./,
+  /^Access to fetch at 'https:\/\/sim-sim\.inth\.app\/init' from origin /,
+]
+const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\/|\/api\/auth\/socket-token/
+
+const browser: Browser = await chromium.launch()
+
+/** What a running check holds, so a timeout can stop it instead of leaving it running behind the next. */
+interface CheckScope {
+  cancelled: boolean
+  sessions: Set<Session>
+}
+const checkScope = new AsyncLocalStorage<CheckScope>()
+
+function reportCounts() {
+  const counts = { passed: 0, failed: 0, skipped: 0 }
+  for (const entry of checks) counts[entry.status] += 1
+  return counts
+}
+
+/** `running` is what a killed run leaves behind when nothing had failed, which is not a pass. */
+function reportStatus() {
+  if (process.exitCode || reportCounts().failed > 0 || unexpected.length > 0) return 'failed'
+  return finished ? 'passed' : 'running'
+}
+
+/**
+ * Written after every check and renamed into place, so a job that runs out of time still leaves
+ * what it found, and a kill mid-write cannot leave half a report.
+ */
+function writeReport() {
+  mkdirSync(dirname(reportPath), { recursive: true })
+  const pending = `${reportPath}.partial`
+  writeFileSync(
+    pending,
+    `${JSON.stringify(
+      {
+        status: reportStatus(),
+        phase,
+        counts: reportCounts(),
+        checks,
+        unexpected,
+        firstPaints,
+        routes,
+        artifactDirectory,
+      },
+      null,
+      2
+    )}\n`
+  )
+  renameSync(pending, reportPath)
+}
+
+function isSameOrigin(address: string) {
+  try {
+    return new URL(address).origin === origin
+  } catch {
+    return false
+  }
+}
+
+export function pathOf(address: string) {
+  const parsed = new URL(address)
+  return `${parsed.pathname}${parsed.search}`
+}
+
+function recordProblem(kind: Problem['kind'], address: string, detail: string) {
+  const signature = `${kind} ${address} ${detail}`
+  if (allowedFailures.some((pattern) => pattern.test(signature))) return
+  if (
+    unexpected.some(
+      (entry) => entry.check === currentCheck && entry.kind === kind && entry.detail === detail
+    )
+  )
+    return
+  unexpected.push({ check: currentCheck, kind, url: address, detail: truncate(detail, 500) })
+  writeReport()
+}
+
+/** One request a check provokes on purpose. A path with no query also covers the path with one. */
+export function refused(status: number, method: string, path: string) {
+  const query = path.includes('?') ? '' : '(\\?\\S*)?'
+  return new RegExp(`^http \\S+ ${status} ${method} ${escapeRegExp(path)}${query}$`)
+}
+
+/** What a page paints with rather than reads. An SVG `<use href>` reports its type as `other`. */
+const ASSET_RESOURCE = new Set(['image', 'font', 'media'])
+const STATIC_ASSET_PATH = /^\/(?!api\/).*\.(?:svg|png|jpe?g|webp|avif|gif|ico|woff2?|ttf)$/
+
+/**
+ * A read this page is waiting on. Router prefetches, static assets and other hosts come and go on
+ * their own schedule, and no check reasons about them.
+ */
+function isPageRead(request: Request) {
+  if (request.resourceType() === 'eventsource' || !isSameOrigin(request.url())) return false
+  if (ASSET_RESOURCE.has(request.resourceType())) return false
+  const { pathname } = new URL(request.url())
+  if (pathname.startsWith('/_next/static/') || STATIC_ASSET_PATH.test(pathname)) return false
+  return request.headers()['next-router-prefetch'] === undefined
+}
+
+class Session {
+  private readonly inflight = new Set<Request>()
+  private lastActivity = Date.now()
+  /** The document a navigation is loading, until it replaces the page. */
+  private loadingDocument: Request | null = null
+  readonly requests: { method: string; path: string; type: string }[] = []
+
+  constructor(
+    readonly context: BrowserContext,
+    readonly page: Page
+  ) {
+    page.on('pageerror', (error) => {
+      if (!HANDLED_RUNTIME.test(error.message) && !STREAMED_FAILURE.test(error.message))
+        recordProblem('runtime', page.url(), error.message)
+    })
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return
+      const text = message.text()
+      if (
+        !BROWSER_LOAD_FAILURE.test(text) &&
+        !ENVIRONMENT_CONSOLE_NOISE.some((noise) => noise.test(text)) &&
+        !HANDLED_RUNTIME.test(text) &&
+        !STREAMED_FAILURE.test(text)
+      )
+        recordProblem('console', page.url(), text)
+    })
+    page.on('request', (request) => {
+      if (HIGH_VOLUME_REQUEST.test(request.url())) return
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+        this.loadingDocument = request
+      if (isPageRead(request)) {
+        this.inflight.add(request)
+        this.lastActivity = Date.now()
+      }
+      if (isSameOrigin(request.url()))
+        this.requests.push({
+          method: request.method(),
+          path: pathOf(request.url()),
+          type: request.resourceType(),
+        })
+    })
+    // The browser never reports the end of a read the old document was running or sent while this
+    // one loaded, including after the request that started the navigation.
+    page.on('framenavigated', (frame) => {
+      if (frame !== page.mainFrame() || !this.loadingDocument) return
+      for (const request of this.inflight)
+        if (request !== this.loadingDocument) this.inflight.delete(request)
+      this.loadingDocument = null
+    })
+    const settled = (request: Request) => {
+      if (this.inflight.delete(request)) this.lastActivity = Date.now()
+    }
+    page.on('requestfinished', settled)
+    page.on('requestfailed', (request) => {
+      settled(request)
+      if (request === this.loadingDocument) this.loadingDocument = null
+      const reason = request.failure()?.errorText ?? 'failed'
+      if (
+        isSameOrigin(request.url()) &&
+        reason !== 'net::ERR_ABORTED' &&
+        !HIGH_VOLUME_REQUEST.test(request.url())
+      )
+        recordProblem(
+          'network',
+          request.url(),
+          `${request.method()} ${pathOf(request.url())} ${reason}`
+        )
+    })
+    page.on('response', (response) => {
+      if (response.status() < 400 || !isSameOrigin(response.url())) return
+      recordProblem(
+        'http',
+        response.url(),
+        `${response.status()} ${response.request().method()} ${pathOf(response.url())}`
+      )
+    })
+  }
+
+  /**
+   * Quiet for 400ms on the page's own reads (`isPageRead`), ignoring the SSE and socket connections
+   * that never finish. Fails at its deadline, naming what is still out, because every caller goes on
+   * to reason about a quiet page.
+   */
+  async settle(maxMs = 8_000) {
+    const deadline = Date.now() + maxMs
+    while (Date.now() < deadline) {
+      if (this.inflight.size === 0 && Date.now() - this.lastActivity > 400) return
+      await sleep(100)
+    }
+    const out = [...this.inflight].map((request) => `${request.method()} ${request.url()}`)
+    throw new Error(
+      `The page did not go quiet in ${maxMs}ms. Still out: ${out.join(', ') || 'none'}`
+    )
+  }
+}
+
+async function cookieFor(persona: Persona) {
+  return encodeURIComponent(
+    `${persona.sessionToken}.${await makeSignature(persona.sessionToken, authSecret)}`
+  )
+}
+
+async function sessionCookie(persona: Persona) {
+  return {
+    name: 'better-auth.session_token',
+    value: await cookieFor(persona),
+    url: origin,
+    httpOnly: true,
+    sameSite: 'Lax' as const,
+  }
+}
+
+interface OpenOptions {
+  viewport?: Viewport
+  theme?: Theme
+  /**
+   * Mints a real socket token. Off by default: every document load mints one against a 30-a-minute
+   * budget per user, which a person reloading by hand never spends and this suite spends in seconds.
+   * Nothing on the organization surface reads the socket, so its token stays unanswered, as on a
+   * slow network, and `realtimeChecks` proves the real path.
+   */
+  realtime?: boolean
+}
+
+async function open(persona: Persona | null, options: OpenOptions = {}): Promise<Session> {
+  const scope = checkScope.getStore()
+  if (scope?.cancelled) throw new Error('The check timed out; it may not open another session')
+  const viewport = options.viewport ?? DESKTOP
+  clientAddress += 1
+  const context = await browser.newContext({
+    // Better Auth limits by address, and hundreds of loads from one would be nobody's real traffic.
+    extraHTTPHeaders: {
+      'x-forwarded-for': `10.0.${Math.floor(clientAddress / 250)}.${clientAddress % 250}`,
+    },
+    viewport: { width: viewport.width, height: viewport.height },
+    colorScheme: options.theme ?? 'light',
+    hasTouch: viewport === PHONE,
+    isMobile: viewport === PHONE,
+  })
+  await context.exposeBinding(
+    'reportStreamedFailure',
+    (_source, address: string, message: string, digests: string[]) => {
+      const allHandled =
+        digests.length > 0 && digests.every((digest) => HANDLED_RUNTIME.test(digest))
+      if (!allHandled)
+        recordProblem('runtime', address, `${message} digests: ${digests.join(', ')}`)
+    }
+  )
+  await context.addInitScript((pattern) => {
+    window.addEventListener('error', (event) => {
+      if (!new RegExp(pattern).test(event.message)) return
+      const digests = Array.from(document.querySelectorAll('template[data-dgst]')).map(
+        (template) => template.getAttribute('data-dgst') ?? ''
+      )
+      if (typeof event.error?.digest === 'string') digests.push(event.error.digest)
+      void (
+        window as typeof window & {
+          reportStreamedFailure: (...args: unknown[]) => Promise<void>
+        }
+      ).reportStreamedFailure(location.href, event.message, digests)
+    })
+  }, STREAMED_FAILURE.source)
+  // Plain HTTP has no Clipboard API, which production's HTTPS has; this records what the app copies.
+  await context.addInitScript(() => {
+    if (navigator.clipboard) return
+    let copied = ''
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: async (text: string) => {
+          copied = text
+        },
+        write: async () => {},
+        readText: async () => copied,
+      },
+    })
+  })
+  if (persona) await context.addCookies([await sessionCookie(persona)])
+  if (!options.realtime) await context.route('**/api/auth/socket-token', () => {})
+  const session = new Session(context, await context.newPage())
+  scope?.sessions.add(session)
+  return session
+}
+
+export async function withSession(
+  persona: Persona | null,
+  run: (session: Session) => Promise<void>,
+  options: OpenOptions = {}
+) {
+  const session = await open(persona, options)
+  try {
+    await run(session)
+  } catch (error) {
+    await session.page
+      .screenshot({
+        path: resolve(artifactDirectory, `failure-${checks.length + 1}.png`),
+        timeout: 5_000,
+      })
+      .catch(() => {})
+    throw error
+  } finally {
+    checkScope.getStore()?.sessions.delete(session)
+    await session.context.close().catch(() => {})
+  }
+}
+
+/** A session that has already opened Home, where most of the suite starts. */
+export async function onHome(
+  persona: Persona | null,
+  run: (session: Session) => Promise<void>,
+  options: OpenOptions = {}
+) {
+  await withSession(
+    persona,
+    async (session) => {
+      await session.page.goto(orgUrl('/home'))
+      await run(session)
+    },
+    options
+  )
+}
+
+/**
+ * Records the requests a page sends that a check cares about, from now on. The array fills as they
+ * arrive, so a check can assert it stayed empty or poll it.
+ */
+export function captureRequests(page: Page, matches: (request: Request) => boolean) {
+  const captured: Request[] = []
+  page.on('request', (request) => {
+    if (matches(request)) captured.push(request)
+  })
+  return captured
+}
+
+/**
+ * Runs a check that changes seeded data, and always puts it back, so a failure part-way cannot leave
+ * the next check on a different fixture. A failed restore fails the check, beside its own failure.
+ */
+export async function withRestore<T>(
+  restore: () => Promise<unknown>,
+  run: () => Promise<T>
+): Promise<T> {
+  let outcome: { value: T } | { error: unknown }
+  try {
+    outcome = { value: await run() }
+  } catch (error) {
+    outcome = { error }
+  }
+  try {
+    await restore()
+  } catch (restoreError) {
+    const failures = 'error' in outcome ? `${getErrorMessage(outcome.error)}; ` : ''
+    throw new Error(`${failures}and the restore failed: ${getErrorMessage(restoreError)}`)
+  }
+  if ('error' in outcome) throw outcome.error
+  return outcome.value
+}
+
+/** Admin and Mothership are for platform admins, which no persona is outside this scope. */
+export async function asPlatformAdmin<T>(run: () => Promise<T>) {
+  await sql`update "user" set role = 'admin' where email = ${ADMIN.email}`
+  try {
+    return await run()
+  } finally {
+    await sql`update "user" set role = 'user' where email = ${ADMIN.email}`
+  }
+}
+
+export function section(name: string) {
+  currentSection = name
+  writeReport()
+}
+
+interface CheckOptions {
+  /** Failures this check provokes on purpose. */
+  allow?: RegExp[]
+}
+
+export function record(name: string, section: string, started: number, error?: string) {
+  checks.push({
+    name,
+    section,
+    status: error ? 'failed' : 'passed',
+    durationMs: Math.round(performance.now() - started),
+    ...(error ? { error } : {}),
+  })
+  if (error) logger.error(`FAIL ${section}: ${name}`, { error })
+  else logger.info(`PASS ${section}: ${name}`)
+  writeReport()
+}
+
+/**
+ * Closes what a timed-out check has open, which fails its next browser step, then waits for it to
+ * unwind so its restores finish before the next check starts. Reports whether it stopped in time.
+ */
+async function cancelCheck(scope: CheckScope, running: Promise<void>) {
+  scope.cancelled = true
+  await Promise.all([...scope.sessions].map(({ context }) => context.close().catch(() => {})))
+  return Promise.race([
+    running.then(
+      () => true,
+      () => true
+    ),
+    sleep(CHECK_CANCEL_GRACE_MS).then(() => false),
+  ])
+}
+
+export async function check(name: string, run: () => Promise<void>, options: CheckOptions = {}) {
+  currentCheck = `${currentSection}: ${name}`
+  allowedFailures = options.allow ?? []
+  const started = performance.now()
+  const scope: CheckScope = { cancelled: false, sessions: new Set() }
+  const running = checkScope.run(scope, run)
+  const timeout = createDeferred<never>()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    timeout.reject(new Error(`Timed out after ${CHECK_TIMEOUT_MS}ms`))
+  }, CHECK_TIMEOUT_MS)
+  try {
+    await Promise.race([running, timeout.promise])
+    record(name, currentSection, started)
+  } catch (error) {
+    const stopped = !timedOut || (await cancelCheck(scope, running))
+    const message = stopped
+      ? getErrorMessage(error)
+      : `${getErrorMessage(error)}, and it was still running ${CHECK_CANCEL_GRACE_MS}ms after its sessions closed`
+    record(name, currentSection, started, truncate(message, 2000))
+  } finally {
+    clearTimeout(timer)
+    allowedFailures = []
+  }
+}
+
+/** A baseline row this environment cannot exercise, kept in the report with its reason. */
+export function notProvable(name: string, reason: string) {
+  checks.push({ name, section: currentSection, status: 'skipped', durationMs: 0, error: reason })
+  writeReport()
+}
+
+/**
+ * Fails a page's own read at its source, so its server seed stays out of hydration and the client
+ * read fails too: the only way a seeded page reaches its error state. `restore` lets a check retry.
+ */
+export async function withTableHidden(
+  table: string,
+  run: (restore: () => Promise<void>) => Promise<void>
+) {
+  const hidden = `${table}_e2e_hidden`
+  await sql.unsafe(`alter table "${table}" rename to "${hidden}"`)
+  let restored = false
+  const restore = async () => {
+    if (restored) return
+    restored = true
+    await sql.unsafe(`alter table "${hidden}" rename to "${table}"`)
+  }
+  try {
+    await run(restore)
+  } finally {
+    await restore()
+  }
+}
+
+export async function startRun() {
+  await mkdir(artifactDirectory, { recursive: true })
+}
+
+/** Walks that run several personas at once report under one name, outside `check`. */
+export function beginWalk() {
+  currentCheck = 'Route walk'
+}
+
+export async function healthCheck() {
+  section('Health')
+  await check('no unexpected browser runtime errors or failed same-origin requests', async () => {
+    assert.deepEqual(unexpected, [])
+  })
+}
+
+/** Closes what the run holds and writes its last report, whatever the phases did. */
+export async function finishRun(aborted?: unknown) {
+  if (aborted !== undefined) {
+    logger.error('Org redesign E2E aborted', { error: getErrorMessage(aborted) })
+    process.exitCode = 1
+  }
+  await browser.close().catch(() => {})
+  await sql.end({ timeout: 5 }).catch(() => {})
+  const { failed } = reportCounts()
+  if (failed > 0 || checks.length === 0) process.exitCode = 1
+  finished = true
+  writeReport()
+  logger.info(`Org redesign E2E: ${JSON.stringify(reportCounts())}`)
+}

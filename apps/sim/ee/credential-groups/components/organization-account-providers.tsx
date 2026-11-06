@@ -14,7 +14,6 @@ import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import {
   MANAGED_MCP_CONNECTORS,
   type ManagedMcpConnectorId,
@@ -38,11 +37,12 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 import { DatabricksMcpConnectorModal } from '@/ee/credential-groups/components/databricks-mcp-connector-modal'
-import {
-  OrganizationAccountProviderCatalog,
-  type OrganizationAccountProviderChoice,
-} from '@/ee/credential-groups/components/organization-account-provider-catalog'
+import { OrganizationAccountProviderCatalog } from '@/ee/credential-groups/components/organization-account-provider-catalog'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
+import {
+  type OrganizationAccountProviderChoice,
+  organizationAccountProviderRows,
+} from '@/ee/credential-groups/provider-rows'
 import {
   useAddOrganizationAccountMcpProvider,
   useRemoveOrganizationAccountMcpProvider,
@@ -147,33 +147,17 @@ export function OrganizationAccountProviders({
       )
     }
   }
-  const rows = [
-    ...group.options
-      .filter((option) => !visibleProviders || visibleProviders.includes(option.provider))
-      .map((option) => {
-        const service = getCredentialGroupProviderService(option.provider)
-        return {
-          id: option.id,
-          name: service.name,
-          icon: service.icon,
-          configure: option.provider === 'slack' ? () => setSlackOpen(true) : undefined,
-          choice: { kind: 'oauth', provider: option.provider } as const,
-        }
-      }),
-    ...group.mcpServers
-      .filter((server) => server.managedConnectorId !== 'databricks' || server.enabled)
-      .map((server) => ({
-        id: server.id,
-        name:
-          server.managedConnectorId === 'hubspot' || server.managedConnectorId === 'zoom'
-            ? `${MANAGED_MCP_CONNECTORS[server.managedConnectorId].name} (member access)`
-            : MANAGED_MCP_CONNECTORS[server.managedConnectorId].name,
-        icon: getManagedMcpConnectorIcon(server.managedConnectorId),
-        configure:
-          server.managedConnectorId === 'databricks' ? () => setDatabricksOpen(true) : undefined,
-        choice: { kind: 'mcp', connectorId: server.managedConnectorId } as const,
-      })),
-  ].sort((left, right) => left.name.localeCompare(right.name))
+  const rows = organizationAccountProviderRows(group, visibleProviders).map((row) => ({
+    ...row,
+    configure:
+      row.choice.kind === 'oauth'
+        ? row.choice.provider === 'slack'
+          ? () => setSlackOpen(true)
+          : undefined
+        : row.choice.connectorId === 'databricks'
+          ? () => setDatabricksOpen(true)
+          : undefined,
+  }))
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const visibleRows = rows.filter((row) => row.name.toLowerCase().includes(normalizedSearch))
   const error = update.error ?? addMcp.error ?? removeMcp.error

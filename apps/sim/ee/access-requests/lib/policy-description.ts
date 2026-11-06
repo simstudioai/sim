@@ -20,11 +20,8 @@ function describePolicyItems(
   for (const value of values) {
     if (configKey === 'allowedIntegrations') {
       const canonical = resolveAccessControlBlockType(value.toLowerCase()).toLowerCase()
-      const label = Object.hasOwn(BLOCK_NAMES, canonical)
-        ? BLOCK_NAMES[canonical]!
-        : canonical === integrationTarget
-          ? targetLabel
-          : value
+      const blockName = Object.hasOwn(BLOCK_NAMES, canonical) ? BLOCK_NAMES[canonical] : undefined
+      const label = blockName ?? (canonical === integrationTarget ? targetLabel : value)
       items.set(canonical, label)
     } else {
       items.set(value, target.kind !== 'feature' && value === target.id ? targetLabel : value)

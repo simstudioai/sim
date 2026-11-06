@@ -489,7 +489,7 @@ export async function createAuthorizedKnowledgeBase(
     throw error
   }
 
-  logger.info(`[${requestId}] Created knowledge base: ${data.name} (${kbId})`)
+  logger.info(`Created knowledge base: ${data.name} (${kbId})`, { requestId })
 
   return {
     id: kbId,
@@ -877,7 +877,7 @@ export async function updateKnowledgeBase(
     throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
-  logger.info(`[${requestId}] Updated knowledge base: ${knowledgeBaseId}`)
+  logger.info(`Updated knowledge base: ${knowledgeBaseId}`, { requestId })
 
   return toActiveKnowledgeBaseReference(updated)
 }
@@ -1065,7 +1065,7 @@ export async function deleteKnowledgeBase(
       )
   })
 
-  logger.info(`[${requestId}] Soft deleted knowledge base: ${knowledgeBaseId}`)
+  logger.info(`Soft deleted knowledge base: ${knowledgeBaseId}`, { requestId })
 }
 
 /**
@@ -1213,7 +1213,7 @@ export async function restoreKnowledgeBase(
     }
   }
 
-  logger.info(
-    `[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${attemptedRestoreName}"`
-  )
+  logger.info(`Restored knowledge base: ${knowledgeBaseId} as "${attemptedRestoreName}"`, {
+    requestId,
+  })
 }

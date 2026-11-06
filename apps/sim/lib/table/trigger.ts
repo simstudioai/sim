@@ -97,7 +97,8 @@ export async function fireTableTrigger(
     const { processPolledWebhookEvent } = await import('@/lib/webhooks/processor')
 
     logger.info(
-      `[${requestId}] Firing ${matching.length} trigger(s) for ${rows.length} ${eventType} event(s) in table ${tableId}`
+      `Firing ${matching.length} trigger(s) for ${rows.length} ${eventType} event(s) in table ${tableId}`,
+      { requestId }
     )
 
     for (const { webhook: webhookData, workflow: workflowData } of matching) {
@@ -149,18 +150,21 @@ export async function fireTableTrigger(
 
           if (!result.success) {
             logger.error(
-              `[${eventRequestId}] Failed to fire table trigger for row ${row.id}:`,
+              `Failed to fire table trigger for row ${row.id}:`,
               result.statusCode,
-              result.error
+              result.error,
+              { requestId: eventRequestId }
             )
           }
         } catch (error) {
-          logger.error(`[${eventRequestId}] Error firing table trigger for row ${row.id}:`, error)
+          logger.error(`Error firing table trigger for row ${row.id}:`, error, {
+            requestId: eventRequestId,
+          })
         }
       }
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error in fireTableTrigger:`, error)
+    logger.error('Error in fireTableTrigger:', error, { requestId })
   }
 }
 

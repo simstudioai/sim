@@ -185,6 +185,29 @@ describe('GitHub Search installation application operations', () => {
     await expect(connect()).rejects.toMatchObject({ code: 'forbidden' })
     expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
+  it('verifies through whichever connected account administers the installation', async () => {
+    const other = { ...reader, id: 'other-reader', subjectId: '10' }
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(credential, [other, reader])
+    m.verify.mockRejectedValueOnce(new GitHubInstallationError('Not an admin', 403))
+    queueTableRows(member, [{ id: 'admin-membership' }])
+    queueTableRows(credentialGroup, [{ id: 'group' }])
+    queueTableRows(credential, [other, reader])
+    queueTableRows(credential, [])
+
+    await expect(connect()).resolves.toMatchObject({ created: true })
+    expect(m.verify).toHaveBeenCalledTimes(2)
+  })
+  it('reports why no connected account could verify the installation', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(credential, [reader, { ...reader, id: 'other-reader' }])
+    m.verify
+      .mockRejectedValueOnce(new GitHubInstallationError('Not an admin', 403))
+      .mockRejectedValueOnce(new GitHubInstallationError('Not an admin', 403))
+
+    await expect(connect()).rejects.toThrow('Not an admin')
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
   it('refuses if the reader identity changed during GitHub verification', async () => {
     setupReader()
     setupTransaction({ ...reader, subjectId: 'different-person' })

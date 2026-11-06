@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type V1ImportWorkflowData,
   v1ImportWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
 import { parseRequest } from '@/lib/api/server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
@@ -36,7 +36,7 @@ export const revalidate = 0
  * route authenticates and renders the v1 envelope.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const rateLimit = await checkRateLimit(request, 'workflow-import')
@@ -59,7 +59,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId, folderId, name, description } = parsed.data.body
 
-    logger.info(`[${requestId}] Importing workflow into workspace ${workspaceId}`, {
+    logger.info(`Importing workflow into workspace ${workspaceId}`, {
       userId,
       folderId,
     })
@@ -109,7 +109,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(apiResponse.body, { status: 201, headers: apiResponse.headers })
   } catch (error: unknown) {
     const message = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Workflow import error`, { error: message })
+    logger.error('Workflow import error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

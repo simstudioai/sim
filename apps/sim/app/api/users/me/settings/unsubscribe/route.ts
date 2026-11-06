@@ -7,7 +7,6 @@ import {
 } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 import {
@@ -27,8 +26,6 @@ const UNSUBSCRIBE_RATE_LIMIT = {
 }
 
 export const GET = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   const rateLimited = await enforceIpRateLimit('unsubscribe', req, UNSUBSCRIBE_RATE_LIMIT)
   if (rateLimited) return rateLimited
 
@@ -43,14 +40,14 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
       }
     )
     if (!parsed.success) {
-      logger.warn(`[${requestId}] Missing email or token in GET request`)
+      logger.warn('Missing email or token in GET request')
       return parsed.response
     }
     const { email, token } = parsed.data.query
 
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
-      logger.warn(`[${requestId}] Invalid unsubscribe token for email: ${email}`)
+      logger.warn(`Invalid unsubscribe token for email: ${email}`)
       return NextResponse.json({ error: 'Invalid or expired unsubscribe link' }, { status: 400 })
     }
 
@@ -59,9 +56,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
 
     const preferences = await getEmailPreferences(email)
 
-    logger.info(
-      `[${requestId}] Valid unsubscribe GET request for email: ${email}, type: ${emailType}`
-    )
+    logger.info(`Valid unsubscribe GET request for email: ${email}, type: ${emailType}`)
 
     return NextResponse.json({
       success: true,
@@ -72,14 +67,12 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
       currentPreferences: preferences || {},
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error processing unsubscribe GET request:`, error)
+    logger.error('Error processing unsubscribe GET request:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   const rateLimited = await enforceIpRateLimit('unsubscribe', req, UNSUBSCRIBE_RATE_LIMIT)
   if (rateLimited) return rateLimited
 
@@ -101,14 +94,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         }
       )
       if (!parsed.success) {
-        logger.warn(`[${requestId}] One-click unsubscribe missing email or token in URL`)
+        logger.warn('One-click unsubscribe missing email or token in URL')
         return parsed.response
       }
 
       email = parsed.data.query.email
       token = parsed.data.query.token
 
-      logger.info(`[${requestId}] Processing one-click unsubscribe for: ${email}`)
+      logger.info(`Processing one-click unsubscribe for: ${email}`)
     } else {
       const parsed = await parseRequest(
         unsubscribePostContract,
@@ -123,7 +116,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         }
       )
       if (!parsed.success) {
-        logger.warn(`[${requestId}] Invalid unsubscribe POST data`)
+        logger.warn('Invalid unsubscribe POST data')
         return parsed.response
       }
 
@@ -134,7 +127,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
-      logger.warn(`[${requestId}] Invalid unsubscribe token for email: ${email}`)
+      logger.warn(`Invalid unsubscribe token for email: ${email}`)
       return NextResponse.json({ error: 'Invalid or expired unsubscribe link' }, { status: 400 })
     }
 
@@ -142,7 +135,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const isTransactional = isTransactionalEmail(emailType)
 
     if (isTransactional) {
-      logger.warn(`[${requestId}] Attempted to unsubscribe from transactional email: ${email}`)
+      logger.warn(`Attempted to unsubscribe from transactional email: ${email}`)
       return NextResponse.json(
         {
           error: 'Cannot unsubscribe from transactional emails',
@@ -171,11 +164,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (!success) {
-      logger.error(`[${requestId}] Failed to update unsubscribe preferences for: ${email}`)
+      logger.error(`Failed to update unsubscribe preferences for: ${email}`)
       return NextResponse.json({ error: 'Failed to process unsubscribe request' }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Successfully unsubscribed ${email} from ${type}`)
+    logger.info(`Successfully unsubscribed ${email} from ${type}`)
 
     return NextResponse.json(
       {
@@ -188,7 +181,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       { status: 200 }
     )
   } catch (error) {
-    logger.error(`[${requestId}] Error processing unsubscribe POST request:`, error)
+    logger.error('Error processing unsubscribe POST request:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

@@ -9,6 +9,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import { compareStrings } from '@sim/utils/string'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   HOME_CALENDAR_ATTENDEE_LIMIT,
@@ -16,9 +17,12 @@ import {
   HOME_TEXT_LIMITS,
 } from '@/lib/organizations/home/limits'
 import {
+  type GmailThreadCursor,
+  gmailThreadsStillNeeded,
   HomeProviderReadError,
-  readGmailThreads,
+  readGmailThreads as readGmailThreadsPage,
   readGoogleCalendarDay,
+  readMoreGmailThreads,
   readOutlookCalendarDay,
   readOutlookMessages,
 } from '@/lib/organizations/home/provider-reads'
@@ -71,7 +75,22 @@ function metadataMessage(from: string, subject: string, snippet: string) {
   }
 }
 
+let credentialCount = 0
+
+/** A fresh credential each call, because the mailbox lookup is cached per credential. */
+async function readGmailThreads(input: { accessToken: string; signal: AbortSignal }) {
+  credentialCount += 1
+  const { threads } = await readGmailThreadsPage({
+    ...input,
+    credentialId: `credential-${credentialCount}`,
+    providerSubjectId: 'google-sub',
+    count: HOME_EMAIL_THREAD_LIMIT,
+  })
+  return threads
+}
+
 beforeEach(() => {
+  mailboxEmail.mockReset()
   mailboxEmail.mockResolvedValue('reader@example.com')
   providerFetch.mockReset()
 })
@@ -266,5 +285,180 @@ describe('reading a calendar day', () => {
         endAt: '2026-11-05T17:15:00.000Z',
       }),
     ])
+  })
+})
+
+describe('sharing a Gmail read across accounts', () => {
+  it('reads the mailbox address once per credential, whatever token the credential holds', async () => {
+    providerFetch.mockImplementation(async (url: string) =>
+      url.includes('/threads?')
+        ? respond({ threads: [{ id: 't' }] })
+        : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
+    )
+    const read = (accessToken: string, credentialId: string) =>
+      readGmailThreadsPage({
+        accessToken,
+        signal,
+        credentialId,
+        providerSubjectId: 'google-sub',
+        count: 1,
+      })
+    await read('token-a', 'mailbox-cached')
+    const rotated = await read('token-b', 'mailbox-cached')
+    expect(mailboxEmail).toHaveBeenCalledTimes(1)
+    expect(rotated.threads[0].url).toBe(gmailThreadUrl('t', 'reader@example.com'))
+    await read('token-c', 'mailbox-other')
+    expect(mailboxEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the mailbox again when a reconnect binds a credential that had no subject', async () => {
+    providerFetch.mockImplementation(async (url: string) =>
+      url.includes('/threads?')
+        ? respond({ threads: [{ id: 't' }] })
+        : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
+    )
+    const read = (providerSubjectId: string | null) =>
+      readGmailThreadsPage({
+        accessToken: 'token',
+        signal,
+        credentialId: 'mailbox-reconnected',
+        providerSubjectId,
+        count: 1,
+      })
+    await read(null)
+    mailboxEmail.mockResolvedValue('new@example.com')
+    const reconnected = await read('google-sub-new')
+    expect(reconnected.threads[0].url).toBe(gmailThreadUrl('t', 'new@example.com'))
+  })
+
+  it('does not wait for the listing before asking for the mailbox address', async () => {
+    let listed: (response: ReturnType<typeof respond>) => void = () => {}
+    providerFetch.mockImplementation((url: string) =>
+      url.includes('/threads?')
+        ? new Promise((resolve) => {
+            listed = resolve
+          })
+        : Promise.resolve(respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')])))
+    )
+    const read = readGmailThreadsPage({
+      accessToken: 'token',
+      signal,
+      credentialId: 'mailbox-parallel',
+      providerSubjectId: 'google-sub',
+      count: 1,
+    })
+    await vi.waitFor(() => expect(mailboxEmail).toHaveBeenCalledOnce())
+    listed(respond({ threads: [{ id: 't' }] }))
+    await expect(read).resolves.toMatchObject({ threads: [{ id: 't' }] })
+  })
+
+  it('does not cache a failed mailbox lookup', async () => {
+    providerFetch.mockImplementation(async (url: string) =>
+      url.includes('/threads?')
+        ? respond({ threads: [{ id: 't' }] })
+        : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
+    )
+    mailboxEmail.mockRejectedValueOnce(new GoogleApiError('gmail.users.getProfile', 500, []))
+    const read = () =>
+      readGmailThreadsPage({
+        accessToken: 't',
+        signal,
+        credentialId: 'mailbox-failed',
+        providerSubjectId: 'google-sub',
+        count: 1,
+      })
+    await expect(read()).rejects.toMatchObject({ failure: 'unavailable' })
+    await expect(read()).resolves.toMatchObject({ threads: [expect.anything()] })
+  })
+
+  it('a refused read repeats its threads rather than skipping them', async () => {
+    const cursor: GmailThreadCursor = { mailbox: 'reader@example.com', unreadThreadIds: ['a', 'b'] }
+    providerFetch.mockResolvedValueOnce(respond({ error: 'expired' }, 401))
+    await expect(
+      readMoreGmailThreads({ accessToken: 'old', signal, cursor, count: 1 })
+    ).rejects.toMatchObject({ failure: 'token_rejected' })
+    expect(cursor.unreadThreadIds).toEqual(['a', 'b'])
+    providerFetch.mockResolvedValueOnce(respond(gmailThread('a', [metadataMessage('A', 'S', 'P')])))
+    await readMoreGmailThreads({ accessToken: 'new', signal, cursor, count: 1 })
+    expect(cursor.unreadThreadIds).toEqual(['b'])
+  })
+
+  const minute = (value: number) => new Date(Date.UTC(2026, 10, 5, 0, value)).toISOString()
+
+  /** Runs the budgeted read the widget runs, against mailboxes listed newest first. */
+  function mergeWithBudget(mailboxes: Record<string, number[]>, limit = HOME_EMAIL_THREAD_LIMIT) {
+    const names = Object.keys(mailboxes)
+    const budget = Math.ceil(limit / names.length)
+    const cursors = new Map<string, GmailThreadCursor>(
+      names.map((name) => [
+        name,
+        { mailbox: name, unreadThreadIds: mailboxes[name].slice(0, limit).map(String) },
+      ])
+    )
+    const rows: { credentialId: string; receivedAt: string }[] = []
+    let reads = 0
+    const read = (name: string, count: number) => {
+      const cursor = cursors.get(name) as GmailThreadCursor
+      for (const id of cursor.unreadThreadIds.splice(0, count)) {
+        reads += 1
+        rows.push({ credentialId: name, receivedAt: minute(Number(id)) })
+      }
+    }
+    for (const name of names) read(name, budget)
+    for (;;) {
+      const needed = gmailThreadsStillNeeded(rows, cursors, limit)
+      if (needed.size === 0) break
+      for (const [name, count] of needed) read(name, count)
+    }
+    const newest = (entries: typeof rows) =>
+      [...entries]
+        .sort((left, right) => compareStrings(right.receivedAt, left.receivedAt))
+        .slice(0, limit)
+        .map((row) => row.receivedAt)
+    const everyThread = names.flatMap((name) =>
+      mailboxes[name]
+        .slice(0, limit)
+        .map((value) => ({ credentialId: name, receivedAt: minute(value) }))
+    )
+    return { reads, shown: newest(rows), expected: newest(everyThread) }
+  }
+
+  const descending = (from: number, count: number, step = 1) =>
+    Array.from({ length: count }, (_, index) => from - index * step)
+
+  it.each([
+    [
+      'an even spread',
+      {
+        a: descending(900, 15, 4),
+        b: descending(899, 15, 4),
+        c: descending(898, 15, 4),
+        d: descending(897, 15, 4),
+      },
+      19,
+    ],
+    [
+      'one mailbox holding every recent thread',
+      {
+        a: descending(900, 15),
+        b: descending(100, 15),
+        c: descending(50, 15),
+        d: descending(20, 15),
+      },
+      31,
+    ],
+    [
+      'mailboxes too quiet to fill their share',
+      { a: descending(900, 15), b: [800], c: [], d: [700, 600] },
+      18,
+    ],
+    ['a single account', { a: descending(900, 15) }, 15],
+    ['two accounts with disjoint weeks', { a: descending(900, 15), b: descending(500, 15) }, 23],
+  ] as const)('shows what reading everything would, on %s', (_label, mailboxes, maxReads) => {
+    const { shown, expected, reads } = mergeWithBudget(
+      Object.fromEntries(Object.entries(mailboxes).map(([name, list]) => [name, [...list]]))
+    )
+    expect(shown).toEqual(expected)
+    expect(reads).toBeLessThanOrEqual(maxReads)
   })
 })

@@ -5,7 +5,7 @@ import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link
 import { ApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOptionalOrganization } from '@/lib/organizations/provider'
 import {
   useOrganizationSecretSource,
   useSaveOrganizationSecrets,
@@ -33,7 +33,7 @@ export function OrganizationSecretInputHost({
   organizationId: string
   children: ReactNode
 }) {
-  const organizationContext = useOptionalOrganizationContext()
+  const organizationContext = useOptionalOrganization()
   const { data: session } = useSession()
   const matchesOrganization = organizationContext?.organization.id === organizationId
   const sourceQuery = useOrganizationSecretSource(matchesOrganization ? organizationId : '')

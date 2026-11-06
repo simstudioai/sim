@@ -77,6 +77,38 @@ beforeEach(() => {
 })
 
 describe('organization Search approval', () => {
+  it.each([
+    { unavailable: 'jama', available: 'flow' },
+    { unavailable: 'flow', available: 'jama' },
+  ])(
+    'does not offer approved $unavailable when its credential provider is restricted',
+    async ({ unavailable, available }) => {
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(organization, [{ metadata: {} }])
+      queueTableRows(organizationSearchIntegration, [
+        { connectorType: unavailable, approved: true },
+        { connectorType: available, approved: true },
+      ])
+      permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+        allowedIntegrations: [available],
+      })
+
+      const integrations = await listSearchIntegrations.execute({
+        principal,
+        input: { organizationId: 'organization' },
+      })
+
+      expect(integrations.find((entry) => entry.connectorType === unavailable)).toMatchObject({
+        approved: true,
+        available: false,
+      })
+      expect(integrations.find((entry) => entry.connectorType === available)).toMatchObject({
+        approved: true,
+        available: true,
+      })
+    }
+  )
+
   it.each(['owner', 'admin'])(
     'allows %s approval without creating sources, credentials or an index',
     async (role) => {

@@ -219,6 +219,7 @@ export function useSetUserRole() {
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: 'user' | 'admin' }) => {
       const result = await client.admin.setRole({ userId, role })
+      if (result.error) throw new Error(result.error.message ?? 'Failed to change the user role')
       return result
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
@@ -236,6 +237,7 @@ export function useBanUser() {
         userId,
         ...(banReason ? { banReason } : {}),
       })
+      if (result.error) throw new Error(result.error.message ?? 'Failed to ban user')
       return result
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),
@@ -250,6 +252,7 @@ export function useUnbanUser() {
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
       const result = await client.admin.unbanUser({ userId })
+      if (result.error) throw new Error(result.error.message ?? 'Failed to unban user')
       return result
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: adminUserKeys.lists() }),

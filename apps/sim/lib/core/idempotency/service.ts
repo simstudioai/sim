@@ -714,7 +714,10 @@ export class IdempotencyService {
         )
       }
 
-      logger.warn(`Operation failed: ${claimResult.normalizedKey} - ${errorMessage}`)
+      logger.warn('Idempotent operation failed', {
+        key: claimResult.normalizedKey,
+        error: errorMessage,
+      })
       throw error
     }
   }

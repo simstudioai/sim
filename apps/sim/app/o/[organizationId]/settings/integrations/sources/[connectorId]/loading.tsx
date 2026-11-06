@@ -1,4 +1,11 @@
-/** Keeps the source layout's heading visible while authorization and content load. */
+import { LoadingRows } from '@/platform/design-system/components'
+import { SettingsSubpageHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host'
+
+/** Keeps the section's heading visible while authorization and content load. */
 export default function OrganizationSourceLoading() {
-  return null
+  return (
+    <SettingsSubpageHost section='integrations'>
+      <LoadingRows label='Loading connection' />
+    </SettingsSubpageHost>
+  )
 }

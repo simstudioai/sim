@@ -1,0 +1,11 @@
+import { LoadingRows } from '@/platform/design-system/components'
+import { SettingsSubpageHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host'
+
+/** Keeps the section's heading visible while authorization and content load. */
+export default function OrganizationProviderLoading() {
+  return (
+    <SettingsSubpageHost section='integrations'>
+      <LoadingRows label='Loading integration' />
+    </SettingsSubpageHost>
+  )
+}

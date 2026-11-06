@@ -1,3 +1,4 @@
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
@@ -20,9 +21,10 @@ import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
-vi.mock('@/lib/core/config/feature-flags-context', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 

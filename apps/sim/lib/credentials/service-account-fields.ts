@@ -15,6 +15,7 @@ export type AtlassianProduct = (typeof ATLASSIAN_PRODUCTS)[number]
 export type ServiceAccountFieldId =
   | 'apiToken'
   | 'domain'
+  | 'providerWorkspaceId'
   | 'atlassianProduct'
   | 'serviceAccountJson'
   | 'signingSecret'

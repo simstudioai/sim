@@ -143,8 +143,9 @@ export const jiraHandler: WebhookProviderHandler = {
       const { isJiraEventMatch } = await import('@/triggers/jira/utils')
       if (!isJiraEventMatch(triggerId, webhookEvent || '', issueEventTypeName)) {
         logger.debug(
-          `[${requestId}] Jira event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
+          `Jira event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,
@@ -161,8 +162,8 @@ export const jiraHandler: WebhookProviderHandler = {
         !matchesFieldFilters(obj, fieldFilters)
       ) {
         logger.debug(
-          `[${requestId}] Jira issue_updated field filter did not match for trigger ${triggerId}. Skipping execution.`,
-          { webhookId: webhook.id, workflowId: workflow.id, fieldFilters }
+          `Jira issue_updated field filter did not match for trigger ${triggerId}. Skipping execution.`,
+          { requestId, webhookId: webhook.id, workflowId: workflow.id, fieldFilters }
         )
         return false
       }

@@ -143,7 +143,7 @@ export async function executeSttOperation(
 ): Promise<Response> {
   const { headers, requestId, signal, userId } = context
   signal?.throwIfAborted()
-  logger.info(`[${requestId}] STT transcription request started`)
+  logger.info('STT transcription request started', { requestId })
 
   try {
     const modelInputProvenance = validateOpaqueModelInputProvenance({
@@ -181,7 +181,7 @@ export async function executeSttOperation(
         return Response.json({ error: 'audioFile must be a single file' }, { status: 400 })
       }
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
-      logger.info(`[${requestId}] Processing uploaded audio`)
+      logger.info('Processing uploaded audio', { requestId })
 
       const deniedAudio = await assertToolFileAccess(file.key, userId, requestId, logger)
       if (deniedAudio) return deniedAudio
@@ -202,7 +202,7 @@ export async function executeSttOperation(
       const file = Array.isArray(body.audioFileReference)
         ? body.audioFileReference[0]
         : body.audioFileReference
-      logger.info(`[${requestId}] Processing referenced audio`)
+      logger.info('Processing referenced audio', { requestId })
 
       const deniedRef = await assertToolFileAccess(file.key, userId, requestId, logger)
       if (deniedRef) return deniedRef
@@ -220,7 +220,7 @@ export async function executeSttOperation(
     } else if (body.audioUrl) {
       let audioUrl = body.audioUrl.trim()
       const internalAudioUrl = isInternalFileUrl(audioUrl)
-      logger.info(`[${requestId}] Downloading audio source`, { internal: internalAudioUrl })
+      logger.info('Downloading audio source', { requestId, internal: internalAudioUrl })
       if (audioUrl.startsWith('/') && !isInternalFileUrl(audioUrl)) {
         return Response.json(
           {
@@ -287,7 +287,7 @@ export async function executeSttOperation(
     }
 
     if (isVideoFile(audioMimeType)) {
-      logger.info(`[${requestId}] Extracting audio from video file`)
+      logger.info('Extracting audio from video file', { requestId })
       try {
         const extracted = await extractAudioFromVideo(audioBuffer, audioMimeType, {
           outputFormat: 'mp3',
@@ -301,7 +301,7 @@ export async function executeSttOperation(
         audioFileName = audioFileName.replace(/\.[^.]+$/, '.mp3')
       } catch (error) {
         signal?.throwIfAborted()
-        logger.error(`[${requestId}] Video extraction failed:`, error)
+        logger.error('Video extraction failed:', error, { requestId })
         if (isPayloadSizeLimitError(error)) {
           return Response.json(
             { error: 'Extracted audio exceeds the maximum supported size' },
@@ -317,7 +317,7 @@ export async function executeSttOperation(
       }
     }
 
-    logger.info(`[${requestId}] Transcribing audio`, { provider })
+    logger.info('Transcribing audio', { requestId, provider })
 
     let transcript: string
     let segments: TranscriptSegment[] | undefined
@@ -417,12 +417,12 @@ export async function executeSttOperation(
       }
     } catch (error) {
       signal?.throwIfAborted()
-      logger.error(`[${requestId}] Transcription failed:`, error)
+      logger.error('Transcription failed:', error, { requestId })
       const errorMessage = getErrorMessage(error, 'Transcription failed')
       return Response.json({ error: errorMessage }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Transcription completed successfully`)
+    logger.info('Transcription completed successfully', { requestId })
 
     const response: SttOutput = { transcript }
     if (segments !== undefined) response.segments = segments
@@ -436,7 +436,7 @@ export async function executeSttOperation(
     return Response.json(response)
   } catch (error) {
     signal?.throwIfAborted()
-    logger.error(`[${requestId}] STT proxy error:`, error)
+    logger.error('STT proxy error:', error, { requestId })
     const isSizeLimit = isPayloadSizeLimitError(error)
     const errorMessage = isSizeLimit
       ? 'Audio file exceeds the maximum supported size'

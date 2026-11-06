@@ -29,6 +29,13 @@ export const permissionGroupOperations = {
   /**
    * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
    */
+  readEditorCatalog: definePermissionGroupOperation(
+    'permission_groups.editor_catalog.read',
+    'api:read'
+  ),
+  /**
+   * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
+   */
   create: definePermissionGroupOperation('permission_groups.create', 'api:write'),
   /**
    * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
@@ -58,13 +65,6 @@ export const permissionGroupOperations = {
    * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
    */
   listWorkspaces: definePermissionGroupOperation('permission_groups.workspaces.list', 'api:read'),
-  /**
-   * permission-group-exempt: Organization admins manage Access Control itself; no group capability governs its configuration.
-   */
-  readEditorCatalog: definePermissionGroupOperation(
-    'permission_groups.editor_catalog.read',
-    'api:read'
-  ),
 } as const
 
 export const permissionGroupWorkspaceOperations = {

@@ -230,10 +230,7 @@ export async function executeJupyterUpload(
   if (!response.ok) {
     const errorText = await response.text()
     signal?.throwIfAborted()
-    uploadLogger.error(`[${requestId}] Jupyter API error:`, {
-      status: response.status,
-      errorText,
-    })
+    uploadLogger.error('Jupyter API error:', { requestId, status: response.status, errorText })
     return Response.json(
       { success: false, error: `Jupyter API error: ${response.status} ${errorText}` },
       { status: response.status }
@@ -244,7 +241,7 @@ export async function executeJupyterUpload(
   signal?.throwIfAborted()
   const uploaded = parseJupyterContentModel(uploadedValue)
   if (!uploaded) {
-    uploadLogger.error(`[${requestId}] Jupyter returned an invalid upload response`)
+    uploadLogger.error('Jupyter returned an invalid upload response', { requestId })
     return Response.json(
       { success: false, error: 'Jupyter returned an invalid upload response' },
       { status: 502 }
@@ -256,7 +253,7 @@ export async function executeJupyterUpload(
   const uploadedSize = uploaded.size ?? file.buffer.length
   const lastModified = uploaded.lastModified ?? null
 
-  uploadLogger.info(`[${requestId}] File uploaded to Jupyter: ${uploadedPath}`)
+  uploadLogger.info(`File uploaded to Jupyter: ${uploadedPath}`, { requestId })
   return Response.json({
     success: true,
     output: {

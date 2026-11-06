@@ -265,7 +265,8 @@ function streamPendingRun(
           send({ type: 'final', data: presentRun(result) })
         })
         .catch((error) => {
-          logger.error(`[${requestId}] v2 execute result stream failed`, {
+          logger.error('v2 execute result stream failed', {
+            requestId,
             error: getErrorMessage(error, 'Unknown error'),
           })
           send({ type: 'error', error: 'Internal server error', status: 500 })
@@ -354,7 +355,7 @@ export const POST = withRouteHandler(
     const incomingCallChain = parseCallChain(req.headers.get(SIM_VIA_HEADER))
     const callChainError = validateCallChain(incomingCallChain)
     if (callChainError) {
-      logger.warn(`[${requestId}] Call chain rejected`, { workflowId, error: callChainError })
+      logger.warn('Call chain rejected', { workflowId, error: callChainError })
       return v2Error('CONFLICT', callChainError, { details: { code: 'CALL_CHAIN_DEPTH_EXCEEDED' } })
     }
     const callChain = buildNextCallChain(incomingCallChain, workflowId)
@@ -654,7 +655,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
       if (classified) return classified
-      logger.error(`[${requestId}] v2 execute failed`, {
+      logger.error('v2 execute failed', {
         workflowId,
         error: getErrorMessage(error, 'Unknown error'),
       })

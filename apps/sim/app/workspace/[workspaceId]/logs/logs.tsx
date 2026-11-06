@@ -38,11 +38,7 @@ import type {
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 import { formatDateShort } from '@/lib/core/utils/date-display'
-import {
-  getEndDateFromTimeRange,
-  getStartDateFromTimeRange,
-  hasActiveFilters,
-} from '@/lib/logs/filters'
+import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import {
@@ -51,6 +47,7 @@ import {
   type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'

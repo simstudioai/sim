@@ -1,0 +1,70 @@
+/*
+ * The composer's box, on its frame and on the placeholder that holds its place, so one cannot
+ * outgrow the other.
+ */
+.box {
+  --composer-inset-block-start: var(--design-spacing-16);
+  --composer-inset-inline: var(--design-spacing-12);
+  --composer-inset-block-end: var(--design-spacing-12);
+  --composer-field-block: var(--design-spacing-48);
+  --composer-gap: var(--design-spacing-16);
+  --composer-toolbar-block: var(--design-spacing-app-control-sm);
+  --composer-block: calc(
+    var(--composer-inset-block-start) +
+    var(--composer-field-block) +
+    var(--composer-gap) +
+    var(--composer-toolbar-block) +
+    var(--composer-inset-block-end)
+  );
+}
+@media (pointer: coarse) {
+  .box {
+    --composer-toolbar-block: var(--design-spacing-app-touch-target);
+  }
+}
+@media (max-width: 40rem) {
+  .box {
+    --composer-field-block: var(--design-spacing-40);
+    --composer-gap: var(--design-spacing-12);
+  }
+}
+
+/*
+ * The frame holds legacy components, so it sits outside any surface and reads the design system,
+ * and its palette for them, through `host-bridge.module.css`.
+ */
+.frame {
+  padding: var(--composer-inset-block-start) var(--composer-inset-inline)
+    var(--composer-inset-block-end);
+  -webkit-font-smoothing: antialiased;
+  --prompt-font-family: var(--design-font-sans), sans-serif;
+  --prompt-leading: var(--design-leading-22);
+  --prompt-tracking: normal;
+  --prompt-padding-block: 0;
+  --composer-control-block: var(--design-spacing-app-control-sm);
+}
+.field {
+  min-block-size: var(--composer-field-block);
+  margin-block-end: var(--composer-gap);
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.backdrop > [data-platform-ui] {
+  block-size: 100%;
+}
+.material {
+  block-size: 100%;
+  border-radius: var(--radius-composer);
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.controls button {
+  border-radius: var(--radius-full);
+}

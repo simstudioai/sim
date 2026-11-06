@@ -512,7 +512,8 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
    */
   if (!isBillingEnabled && !isDataRetentionEnabled) {
     logger.info(
-      `[${jobType}] Skipping cleanup dispatch: billing is disabled and data retention is not enabled`
+      'Skipping cleanup dispatch: billing is disabled and data retention is not enabled',
+      { jobType }
     )
     return { jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 }
   }
@@ -551,9 +552,9 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
     })
     await flushBatch()
 
-    logger.info(
-      `[${jobType}] Trigger cleanup chunks: ${succeeded} dispatched in ${jobIds.length} batch(es)`
-    )
+    logger.info(`Trigger cleanup chunks: ${succeeded} dispatched in ${jobIds.length} batch(es)`, {
+      jobType,
+    })
     return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
   }
 
@@ -566,7 +567,8 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
         succeeded++
       } catch (error) {
         failed++
-        logger.error(`[${jobType}] Inline cleanup chunk failed:`, {
+        logger.error('Inline cleanup chunk failed:', {
+          jobType,
           plan: payload.plan,
           label: payload.label,
           error,
@@ -574,7 +576,7 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
       }
     })
 
-    logger.info(`[${jobType}] Inline cleanup chunks: ${succeeded} succeeded, ${failed} failed`)
+    logger.info(`Inline cleanup chunks: ${succeeded} succeeded, ${failed} failed`, { jobType })
     return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
   }
 
@@ -588,10 +590,10 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
       succeeded++
     } catch (reason) {
       failed++
-      logger.error(`[${jobType}] Failed to enqueue chunk:`, { reason })
+      logger.error('Failed to enqueue chunk:', { jobType, reason })
     }
   })
-  logger.info(`[${jobType}] Chunk enqueue: ${succeeded} succeeded, ${failed} failed`)
+  logger.info(`Chunk enqueue: ${succeeded} succeeded, ${failed} failed`, { jobType })
 
   return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
 }

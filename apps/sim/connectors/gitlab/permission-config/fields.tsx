@@ -1,25 +1,12 @@
 'use client'
 
 import { Chip, ChipModalField, ChipModalTabs } from '@sim/emcn'
+import {
+  GITLAB_CSV_FILES,
+  GITLAB_TOKEN_TABS,
+} from '@/connectors/gitlab/permission-config/csv-files'
 import type { GitLabCsvKind } from '@/connectors/gitlab/permission-config/types'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
-
-const TABS = [
-  { value: 'administrator', label: 'Administrator token' },
-  { value: 'csv', label: 'Non-admin token' },
-] as const
-const FILES = {
-  userMapping: {
-    title: 'User mapping',
-    filename: 'gitlab-users.csv',
-    template: 'user_id,email\n123,alice@example.com\n',
-  },
-  projectPermissions: {
-    title: 'Project permissions',
-    filename: 'gitlab-project-permissions.csv',
-    template: 'project_path,user_id\ngroup/project,123\n',
-  },
-} as const
 
 interface GitLabPermissionFieldsProps {
   form: GitLabPermissionForm
@@ -30,7 +17,7 @@ export function GitLabPermissionTabs({ form, disabled }: GitLabPermissionFieldsP
   return (
     <fieldset disabled={disabled} className='mx-2 border-0 p-0'>
       <ChipModalTabs
-        tabs={TABS}
+        tabs={GITLAB_TOKEN_TABS}
         value={form.mode}
         aria-label='GitLab token type'
         onChange={(value) => {
@@ -60,7 +47,7 @@ interface GitLabCsvFileProps extends GitLabPermissionFieldsProps {
 }
 
 function GitLabCsvFile({ kind, form, disabled }: GitLabCsvFileProps) {
-  const definition = FILES[kind]
+  const definition = GITLAB_CSV_FILES[kind]
   const selected = form.files[kind]
   const saved = form.saved?.[kind]
   const filename = selected?.upload?.filename ?? saved?.filename

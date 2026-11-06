@@ -11,9 +11,47 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
+import type { ShareDialogProps } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
+
+/**
+ * How a host draws the shared chat: its typeface, its class names and the parts it replaces. Set once
+ * around the whole chat, since context also reaches what the chat portals out of its own tree. A host
+ * that sets nothing gets the workspace's own look.
+ */
+export interface ChatChrome {
+  fontClassName: string
+  panelClassName?: string
+  tabsClassName?: string
+  sourcesClassName?: string
+  userBubbleClassName?: string
+  /** The reply's action row: copy, votes, fork, and sources. */
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
+  /** Holds the transcript's place while the history loads. */
+  loadingTranscript?: ReactNode
+  /** Holds the composer's place while the history loads. */
+  loadingComposer?: ReactNode
+  /** Draws a reply's action row in place of the default one. `MessageActions` keeps its behavior. */
+  ResponseActionsComponent?: ComponentType<MessageActionsModel>
+  /** Draws the open page-context dialog in place of the default one. */
+  PageContextDialogComponent?: ComponentType<PageContextDialogProps>
+  /** Draws the share dialog in place of the default one. `useShareDialog` keeps its behavior. */
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
+}
+
+const ChatChromeContext = createContext<ChatChrome>({ fontClassName: inter.className })
+
+export const ChatChromeProvider = ChatChromeContext.Provider
+
+export function useChatChrome() {
+  return useContext(ChatChromeContext)
+}
 
 /**
  * Identity and interaction callbacks shared across a Mothership chat surface

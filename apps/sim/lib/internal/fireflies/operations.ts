@@ -111,13 +111,15 @@ export async function executeFirefliesUploadAudio(
       signal: context.signal,
     })
 
-    logger.info(`[${context.requestId}] Fireflies upload request completed`, {
+    logger.info('Fireflies upload request completed', {
+      requestId: context.requestId,
       status: response.status,
     })
     return Response.json(data, { status: response.status })
   } catch (error) {
     if (context.signal?.aborted) throw error
-    logger.error(`[${context.requestId}] Fireflies upload failed`, {
+    logger.error('Fireflies upload failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error, 'Unknown error'),
     })
     return errorResponse('Failed to upload audio', 500)

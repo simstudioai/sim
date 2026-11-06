@@ -428,6 +428,13 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only provider API token.')
       .meta({ writeOnly: true }),
     domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+    providerWorkspaceId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe('Provider workspace identifier, separate from the Sim workspace.'),
     atlassianProduct: atlassianProductSchema
       .optional()
       .describe(
@@ -698,6 +705,13 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only provider API token.')
     .meta({ writeOnly: true }),
   domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  providerWorkspaceId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe('Provider workspace identifier, separate from the Sim workspace.'),
   atlassianProduct: atlassianProductSchema
     .optional()
     .describe(

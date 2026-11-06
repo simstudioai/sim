@@ -110,9 +110,18 @@
     inline-size: var(--spacing-20);
     block-size: var(--spacing-20);
   }
-  .iconButton[data-size="small"] {
+  .iconButton[data-size="small"]:not([data-solid]) {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
+  }
+  /* A filled control keeps its drawn size; only its target grows. */
+  .iconButton[data-size="small"][data-solid] {
+    position: relative;
+  }
+  .iconButton[data-size="small"][data-solid]::after {
+    content: "";
+    position: absolute;
+    inset: calc((var(--spacing-app-control-sm) - var(--spacing-app-touch-target)) / 2);
   }
 }
 
@@ -194,5 +203,24 @@
   }
   .chipRow[data-action-side="start"] > .chip > svg {
     visibility: hidden;
+  }
+}
+
+.iconButton[data-mirrored] svg {
+  transform: scaleX(-1);
+}
+
+.wideLabel {
+  display: contents;
+}
+.narrowLabel {
+  display: none;
+}
+@media (width < 48rem) {
+  .wideLabel {
+    display: none;
+  }
+  .narrowLabel {
+    display: contents;
   }
 }

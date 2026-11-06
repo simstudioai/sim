@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-speech-to-text', () => ({
   useSpeechToText: () => ({ isSupported: false }),
 }))
@@ -52,7 +52,7 @@ nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')
 authClientMockFns.mockUseSession.mockImplementation(() => ({
   data: { user: { id: mocks.userId } },
 }))
-organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+organizationProviderMockFns.mockUseOrganization.mockImplementation(() => ({
   organization: { id: 'organization', name: 'Acme' },
   searchAccess: { memberScoped: true },
 }))

@@ -50,6 +50,7 @@ function* files(dir = ''): Generator<string> {
     if (item.name.startsWith('.') || ['node_modules', 'dist', 'coverage'].includes(item.name))
       continue
     const file = path.join(dir, item.name)
+    if (file === 'platform/embedded') continue
     if (item.isDirectory()) yield* files(file)
     else if (item.isFile() && /\.(?:[cm]?[jt]sx?|css)$/.test(file)) yield file
   }
@@ -125,8 +126,8 @@ for (const [owner, props] of Object.entries(variants)) {
 const dataSeam = 'platform/lib/data/'
 /** Everything under these may cross into the data seam; each wraps a contract or its hook. */
 /**
- * The organization surface mounts Platform views directly (`_redesign/`, its pages). It is the one
- * legacy route allowed across: `check:platform-css` holds every other entry out of `platform/`.
+ * The organization surface mounts Platform views directly (its pages). It is the one legacy route
+ * allowed across: `check:platform-css` holds every other entry out of `platform/`.
  */
 const embeddedHost = 'app/o/[organizationId]/'
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */

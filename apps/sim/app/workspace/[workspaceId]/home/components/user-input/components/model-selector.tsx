@@ -31,6 +31,8 @@ import {
 export interface ModelSelectorOptions {
   showModelPicker?: boolean
   fastModeDescription?: string
+  /** Marks the reasoning effort as a menu, as the model picker beside it always is. */
+  showEffortChevron?: boolean
 }
 
 interface ModelSelectorProps extends ModelSelectorOptions {
@@ -42,6 +44,7 @@ export function ModelSelector({
   plan = false,
   showModelPicker = true,
   fastModeDescription = 'Faster responses at a higher price',
+  showEffortChevron = false,
 }: ModelSelectorProps) {
   const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
   const advanced = useFeatureFlag('mothership-model-selector')
@@ -107,7 +110,12 @@ export function ModelSelector({
         </>
       )}
       <DropdownMenu>
-        <ModelSettingTrigger label='Reasoning effort' valueLabel={effortLabel} icon={Brain} />
+        <ModelSettingTrigger
+          label='Reasoning effort'
+          valueLabel={effortLabel}
+          icon={Brain}
+          showChevron={showEffortChevron}
+        />
         <DropdownMenuContent side='top' align='start'>
           <DropdownMenuRadioGroup aria-label='Reasoning effort'>
             {options.map((option) => (

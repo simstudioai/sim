@@ -4,7 +4,7 @@
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
 import embed from '@/lib/postcss/platform-embed.cjs'
-import { findEntryEscapes, findModuleEscapes } from './check-platform-css'
+import { findBridgeDrift, findEntryEscapes, findModuleEscapes } from './check-platform-css'
 
 const ENTRY = '/repo/apps/sim/platform/design-system/styles/embedded.css'
 
@@ -66,5 +66,39 @@ describe('findModuleEscapes', () => {
       '.local:hover, textarea.input { color: red; } @media (width > 1px) { .local { color: red; } } ' +
       '@keyframes spin { from { rotate: 0; } to { rotate: 1turn; } }'
     expect(findModuleEscapes(css, 'x.module.css')).toEqual([])
+  })
+})
+
+describe('bridge-drift', () => {
+  const entry = `
+    [data-platform-ui] { --color-ink: #111; --ui-ink: var(--color-ink); --gap: 1rem; }
+    [data-platform-ui][data-theme="dark"] { --ui-ink: #eee; }
+    [data-platform-ui][data-theme="dark"] svg { --gap: 9rem; }
+  `
+
+  it('accepts values that resolve to their tokens in both themes', () => {
+    const bridge = `
+      .tokens { --design-ui-ink: #111; --design-gap: 1rem; --composer-block: 3rem; }
+      html[class~="dark"] .tokens { --design-ui-ink: #eee; }
+    `
+    expect(findBridgeDrift(entry, bridge)).toEqual([])
+  })
+
+  it('fails on a light value that drifted', () => {
+    const bridge = `
+      .tokens { --design-ui-ink: #222; }
+      html[class~="dark"] .tokens { --design-ui-ink: #eee; }
+    `
+    expect(findBridgeDrift(entry, bridge).map(({ rule }) => rule)).toEqual(['bridge-drift'])
+  })
+
+  it('fails on a dark value left at the light one', () => {
+    const bridge = '.tokens { --design-ui-ink: #111; }'
+    expect(findBridgeDrift(entry, bridge)).toHaveLength(1)
+  })
+
+  it('fails on a name with no token', () => {
+    const bridge = '.tokens { --design-ui-nothing: #111; }'
+    expect(findBridgeDrift(entry, bridge).map(({ detail }) => detail)[0]).toContain('no token')
   })
 })

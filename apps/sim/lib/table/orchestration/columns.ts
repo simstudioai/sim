@@ -247,7 +247,8 @@ export async function performUpdateTableColumn(
       )
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to update column "${columnName}" on table ${tableId}`, {
+    logger.error(`Failed to update column "${columnName}" on table ${tableId}`, {
+      requestId,
       error,
     })
     return classify(error)

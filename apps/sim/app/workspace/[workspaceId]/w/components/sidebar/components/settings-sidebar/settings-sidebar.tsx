@@ -88,12 +88,19 @@ export function SettingsSidebar({
   const deployment = useDeploymentShape()
   const { hosted, billingEnabled } = deployment
   const { data: generalSettings } = useGeneralSettings()
-  const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
     enabled: !hosted,
   })
 
-  const { config: permissionConfig } = usePermissionConfig()
+  const {
+    config: permissionConfig,
+    isPermissionReady,
+    isPermissionFetching,
+  } = usePermissionConfig()
+  // The server refuses this read for a group that withholds the inbox, so it waits for the answer.
+  const { data: inboxConfig } = useInboxConfig(workspaceId, {
+    enabled: (isPermissionReady || !isPermissionFetching) && !permissionConfig.hideInboxTab,
+  })
   const accessRequests = useWorkspaceAccessRequestFeatures()
   const requestableFeatureKeys = accessRequests.requestableFeatureKeys
   const forkingAvailable = useForkingAvailable(workspaceId)

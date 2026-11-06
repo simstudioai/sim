@@ -1930,6 +1930,7 @@
     "packages/ts-sdk/examples/basic-usage.ts": 4,
     "packages/workflow-types/src/workflow.ts": 1,
     "scripts/create-single-release.ts": 1,
-    "scripts/generate-docs.ts": 2
+    "scripts/generate-docs.ts": 2,
+    "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-dialogs.test.tsx": 8
   }
 }

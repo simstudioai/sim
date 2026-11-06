@@ -2,10 +2,6 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/components/settings/settings-header', () => ({
-  SettingsHeaderProvider: () => null,
-  SettingsHeaderShell: () => null,
-}))
 
 import OrganizationSettingsSectionLayout from '@/app/o/[organizationId]/settings/[section]/layout'
 

@@ -1,8 +1,6 @@
 /**
  * Format bytes to human-readable file size
- * @param bytes - File size in bytes
- * @param options - Formatting options
- * @returns Formatted string (e.g., "1.5 MB", "500 KB")
+ * e.g. "1.5 MB", "500 KB"
  */
 export function formatFileSize(
   bytes: number,

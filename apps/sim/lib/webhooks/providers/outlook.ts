@@ -27,21 +27,22 @@ export const outlookHandler: WebhookProviderHandler = {
     requestId,
     persistProviderConfig,
   }: PollingConfigContext) {
-    logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
+    logger.info(`Setting up Outlook polling for webhook ${webhookData.id}`, { requestId })
 
     try {
       const providerConfig = toRecord(webhookData.providerConfig)
       const credentialId = providerConfig.credentialId as string | undefined
 
       if (!credentialId) {
-        logger.error(`[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}`)
+        logger.error(`Missing credentialId for Outlook webhook ${webhookData.id}`, { requestId })
         return false
       }
 
       const resolvedOutlook = await resolveOAuthAccountId(credentialId)
       if (!resolvedOutlook) {
         logger.error(
-          `[${requestId}] Could not resolve credential ${credentialId} for Outlook webhook ${webhookData.id}`
+          `Could not resolve credential ${credentialId} for Outlook webhook ${webhookData.id}`,
+          { requestId }
         )
         return false
       }
@@ -52,9 +53,9 @@ export const outlookHandler: WebhookProviderHandler = {
         .where(eq(account.id, resolvedOutlook.accountId))
         .limit(1)
       if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-        )
+        logger.error(`Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`, {
+          requestId,
+        })
         return false
       }
 
@@ -66,9 +67,9 @@ export const outlookHandler: WebhookProviderHandler = {
         requestId
       )
       if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
-        )
+        logger.error(`Failed to refresh/access Outlook token for credential ${credentialId}`, {
+          requestId,
+        })
         return false
       }
 
@@ -102,13 +103,14 @@ export const outlookHandler: WebhookProviderHandler = {
           .where(eq(webhook.id, webhookData.id as string))
       }
 
-      logger.info(
-        `[${requestId}] Successfully configured Outlook polling for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully configured Outlook polling for webhook ${webhookData.id}`, {
+        requestId,
+      })
       return true
     } catch (error: unknown) {
       const err = error as Error
-      logger.error(`[${requestId}] Failed to configure Outlook polling`, {
+      logger.error('Failed to configure Outlook polling', {
+        requestId,
         webhookId: webhookData.id,
         error: err.message,
         stack: err.stack,

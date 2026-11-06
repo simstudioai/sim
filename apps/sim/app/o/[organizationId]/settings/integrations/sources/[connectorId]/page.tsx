@@ -5,8 +5,9 @@ import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import OrganizationSourceLoading from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/loading'
-import { OrganizationSourceDetail } from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/source-detail'
+import { LoadingRows } from '@/platform/design-system/components'
+import { SourceDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-detail'
+import { SettingsSubpageHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host'
 
 export const metadata: Metadata = { title: 'Search source' }
 
@@ -35,8 +36,10 @@ export default async function OrganizationSourcePage({ params }: OrganizationSou
     notFound()
 
   return (
-    <Suspense fallback={<OrganizationSourceLoading />}>
-      <OrganizationSourceDetail connectorId={connectorId} />
-    </Suspense>
+    <SettingsSubpageHost section='integrations'>
+      <Suspense fallback={<LoadingRows label='Loading integration' />}>
+        <SourceDetail connectorId={connectorId} />
+      </Suspense>
+    </SettingsSubpageHost>
   )
 }

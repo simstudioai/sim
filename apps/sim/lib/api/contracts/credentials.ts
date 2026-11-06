@@ -149,6 +149,7 @@ export const createCredentialFieldsSchema = z.object({
     .optional(),
   apiToken: z.string().trim().min(1).optional(),
   domain: z.string().trim().min(1).optional(),
+  providerWorkspaceId: z.string().trim().min(1).max(256).optional(),
   atlassianProduct: atlassianProductSchema.optional(),
   /**
    * Client-supplied credential id, honored only for `slack-custom-bot` creates:
@@ -286,6 +287,7 @@ export const updateCredentialByIdBodySchema = z
     /** Atlassian service-account secret rotation (reconnect). */
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    providerWorkspaceId: z.string().trim().min(1).max(256).optional(),
     atlassianProduct: atlassianProductSchema.optional(),
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
@@ -314,6 +316,7 @@ export const updateCredentialByIdBodySchema = z
       data.botToken !== undefined ||
       data.apiToken !== undefined ||
       data.domain !== undefined ||
+      data.providerWorkspaceId !== undefined ||
       data.atlassianProduct !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||

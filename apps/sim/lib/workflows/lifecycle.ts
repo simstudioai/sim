@@ -45,10 +45,11 @@ async function notifyWorkflowArchived(workflowId: string, requestId: string): Pr
     })
 
     if (!socketResponse.ok) {
-      logger.warn(`[${requestId}] Failed to notify Socket.IO about archived workflow ${workflowId}`)
+      logger.warn(`Failed to notify Socket.IO about archived workflow ${workflowId}`, { requestId })
     }
   } catch (error) {
-    logger.warn(`[${requestId}] Error notifying Socket.IO about archived workflow ${workflowId}`, {
+    logger.warn(`Error notifying Socket.IO about archived workflow ${workflowId}`, {
+      requestId,
       error,
     })
   }
@@ -82,14 +83,15 @@ async function cleanupExternalWebhooksForWorkflow(
       } catch (error) {
         if (strict) throw error
         logger.warn(
-          `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} for workflow ${workflowId}`,
-          { error }
+          `Failed to cleanup external webhook ${webhookData.webhook.id} for workflow ${workflowId}`,
+          { requestId, error }
         )
       }
     }
   } catch (error) {
     if (strict) throw error
-    logger.warn(`[${requestId}] Error during external webhook cleanup for workflow ${workflowId}`, {
+    logger.warn(`Error during external webhook cleanup for workflow ${workflowId}`, {
+      requestId,
       error,
     })
   }
@@ -224,7 +226,7 @@ export async function restoreWorkflow(
       )
   })
 
-  logger.info(`[${options.requestId}] Restored workflow ${workflowId}`)
+  logger.info(`Restored workflow ${workflowId}`, { requestId: options.requestId })
 
   return {
     restored: true,
@@ -305,7 +307,7 @@ export async function archiveWorkflowsByIdsInWorkspace(
  */
 export async function disableUserResources(userId: string): Promise<void> {
   const requestId = generateRequestId()
-  logger.info(`[${requestId}] Disabling resources for banned user ${userId}`)
+  logger.info(`Disabling resources for banned user ${userId}`, { requestId })
 
   const { archiveWorkspace } = await import('@/lib/workspaces/lifecycle')
 
@@ -338,7 +340,8 @@ export async function disableUserResources(userId: string): Promise<void> {
       await signalExecutionStops(executions)
     } catch (error) {
       stopFailed = true
-      logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
+      logger.error(`Failed to stop runs for banned user ${userId}`, {
+        requestId,
         workspaceIds,
         error: getErrorMessage(error),
       })
@@ -367,7 +370,8 @@ export async function disableUserResources(userId: string): Promise<void> {
   await Promise.all(stopping)
 
   if (failures.length > 0) {
-    logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {
+    logger.error(`Failed to archive workspaces for banned user ${userId}`, {
+      requestId,
       failures: failures.map(({ workspaceId, error }) => ({
         workspaceId,
         error: getErrorMessage(error),
@@ -380,7 +384,8 @@ export async function disableUserResources(userId: string): Promise<void> {
   }
 
   logger.info(
-    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, ${stopFailed ? 'failed to stop some of their runs' : 'stopped their runs'}`
+    `Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, ${stopFailed ? 'failed to stop some of their runs' : 'stopped their runs'}`,
+    { requestId }
   )
 }
 
@@ -490,10 +495,10 @@ export async function finishWorkflowArchive(
       try {
         mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
       } catch (error) {
-        logger.warn(
-          `[${options.requestId}] MCP tools-changed publish failed for server ${serverId}`,
-          { error }
-        )
+        logger.warn(`MCP tools-changed publish failed for server ${serverId}`, {
+          requestId: options.requestId,
+          error,
+        })
       }
     }
   }

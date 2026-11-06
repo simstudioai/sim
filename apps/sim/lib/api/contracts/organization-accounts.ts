@@ -48,6 +48,17 @@ export const getOrganizationAccountsContract = defineRouteContract({
       availableMcpConnectors: z.array(managedMcpConnectorIdSchema),
       canManage: z.boolean(),
       indexingAvailable: z.boolean(),
+      viewerSavedAccounts: z
+        .array(
+          z.object({
+            credentialId: z.string().min(1).max(128),
+            displayName: z.string().max(512),
+            providerId: z.enum(['jama-service-account', 'flow-service-account']),
+            status: z.enum(['active', 'needs_reauth']),
+          })
+        )
+        .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
+        .optional(),
       viewerMcpAccounts: z
         .array(
           z.object({

@@ -179,8 +179,8 @@ export function SsoProviderSettings({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showMapping, setShowMapping] = useState(false)
 
-  const [formData, setFormData] = useState<SsoProviderForm>(DEFAULT_SSO_FORM)
-  const [originalFormData, setOriginalFormData] = useState<SsoProviderForm>(DEFAULT_SSO_FORM)
+  const [formData, setFormData] = useState(DEFAULT_SSO_FORM)
+  const [originalFormData, setOriginalFormData] = useState(DEFAULT_SSO_FORM)
   const [showErrors, setShowErrors] = useState(false)
 
   const [isReplacingClientSecret, setIsReplacingClientSecret] = useState(false)
@@ -206,8 +206,10 @@ export function SsoProviderSettings({
     onDiscard: () => handleDiscard(),
   })
 
-  const secretMode = { hasStoredClientSecret, isReplacingClientSecret }
-  const errors = validateSsoProviderForm(formData, secretMode)
+  const validateAll = (data: SsoProviderForm) =>
+    validateSsoProviderForm(data, { hasStoredClientSecret, isReplacingClientSecret })
+
+  const errors = validateAll(formData)
 
   const handleDiscard = () => {
     setIsEditing(false)
@@ -224,7 +226,7 @@ export function SsoProviderSettings({
     if (configureSSOMutation.isPending) return
 
     setShowErrors(true)
-    const validation = validateSsoProviderForm(formData, secretMode)
+    const validation = validateAll(formData)
     if (hasSsoFormErrors(validation)) {
       if (validation.scopes.length > 0) setShowAdvanced(true)
       return

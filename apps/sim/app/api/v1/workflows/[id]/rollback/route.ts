@@ -75,10 +75,7 @@ export const POST = withRouteHandler(
         targetVersion = previous.version
       }
 
-      logger.info(
-        `[${requestId}] Rolling back workflow ${id} to version ${targetVersion} via v1 API`,
-        { userId }
-      )
+      logger.info(`Rolling back workflow ${id} to version ${targetVersion} via v1 API`, { userId })
 
       const result = await performActivateVersion({
         workflowId: id,
@@ -117,7 +114,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow rollback error`, { error: message })
+      logger.error('Workflow rollback error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

@@ -396,7 +396,7 @@ export async function upsertSkills(params: {
           .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
 
         touched.push({ id: s.id, name: nextName, operation: 'updated' })
-        logger.info(`[${requestId}] Updated skill ${s.id}`)
+        logger.info(`Updated skill ${s.id}`, { requestId })
         continue
       }
 
@@ -438,7 +438,7 @@ export async function upsertSkills(params: {
       })
 
       touched.push({ id: newId, name: s.name, operation: 'created' })
-      logger.info(`[${requestId}] Created skill "${s.name}"`)
+      logger.info(`Created skill "${s.name}"`, { requestId })
     }
 
     if (params.returnSkills === false) {

@@ -1,0 +1,35 @@
+.frame {
+  position: relative;
+  min-inline-size: 0;
+  /* The shared highlighter colors references through this token. */
+  --brand-secondary: var(--status-info);
+}
+
+.frame[data-typing] input {
+  color: transparent;
+  caret-color: var(--ui-ink);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: calc(var(--spacing-8) + var(--spacing-stroke-default));
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.suggestions {
+  position: absolute;
+  inset-block-start: calc(100% + var(--spacing-4));
+  inset-inline: 0;
+  z-index: 1;
+  max-block-size: calc(var(--spacing-128) * 2);
+  padding: var(--ui-popup-padding);
+  overflow-y: auto;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}

@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { pausedExecutions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -11,6 +10,7 @@ import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
@@ -58,7 +58,7 @@ interface RowResult {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateShortId()
+  const requestId = generateRequestId()
 
   const authError = verifyCronAuth(request, 'Time-pause resume poll')
   if (authError) return authError

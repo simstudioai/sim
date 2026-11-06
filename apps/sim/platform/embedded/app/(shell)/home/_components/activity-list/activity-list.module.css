@@ -1,0 +1,13 @@
+.entries {
+  --ui-row-block: var(--spacing-8);
+  display: grid;
+  min-inline-size: 0;
+}
+.viewport {
+  display: grid;
+  min-block-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.entries > * + * {
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}

@@ -362,6 +362,12 @@ function startAdmissionReads(params: {
   }
 }
 
+/** A gate refusal's warning, emitted alongside its error row so both share the throttle window. */
+interface GateWarning {
+  message: string
+  fields: Record<string, unknown>
+}
+
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
 ): Promise<PreprocessExecutionResult> {
@@ -401,11 +407,15 @@ export async function preprocessExecution(
   const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
     suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
-  /** Records an admission gate's error row, at most once per gate and outcome per window when throttled. */
+  /**
+   * Records an admission gate's warning and error row, at most once per gate and outcome per window
+   * when throttled, so a sender redelivering into a refusal does not log every attempt.
+   */
   const recordGateFailure = async (
     gate: 'ban' | 'usage' | 'rate-limit' | 'reservation',
     failure: PreprocessExecutionError,
-    record: Parameters<typeof logPreprocessingError>[0]
+    record: Parameters<typeof logPreprocessingError>[0],
+    warning?: GateWarning
   ): Promise<void> => {
     if (isFailureLogSuppressed(failure)) return
     if (
@@ -416,10 +426,13 @@ export async function preprocessExecution(
     ) {
       return
     }
+    if (warning)
+      logger.warn(warning.message, { requestId, workflowId, triggerType, ...warning.fields })
     await recordPreprocessingError(record)
   }
 
-  logger.info(`[${requestId}] Starting execution preprocessing`, {
+  logger.debug('Starting execution preprocessing', {
+    requestId,
     workflowId,
     userId,
     triggerType,
@@ -427,7 +440,8 @@ export async function preprocessExecution(
   })
 
   if (prefetchedWorkflowRecord && prefetchedWorkflowRecord.id !== workflowId) {
-    logger.error(`[${requestId}] Prefetched workflow record ID mismatch`, {
+    logger.error('Prefetched workflow record ID mismatch', {
+      requestId,
       expected: workflowId,
       received: prefetchedWorkflowRecord.id,
     })
@@ -454,7 +468,7 @@ export async function preprocessExecution(
       })
 
       if (!workflowRecord) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        logger.warn(`Workflow not found: ${workflowId}`, { requestId })
 
         await recordPreprocessingError({
           workflowId,
@@ -479,7 +493,7 @@ export async function preprocessExecution(
         }
       }
     } catch (error) {
-      logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
+      logger.error('Error fetching workflow', { requestId, error, workflowId })
 
       const failure: PreprocessExecutionError = {
         message: 'Internal error while fetching workflow',
@@ -504,7 +518,7 @@ export async function preprocessExecution(
       return { success: false, error: failure }
     }
   } else if (workflowRecord.archivedAt) {
-    logger.warn(`[${requestId}] Prefetched workflow is archived: ${workflowId}`)
+    logger.warn(`Prefetched workflow is archived: ${workflowId}`, { requestId })
     return {
       success: false,
       error: {
@@ -518,7 +532,7 @@ export async function preprocessExecution(
       label: 'getActiveWorkflowRecord',
     })
     if (!activeWorkflow) {
-      logger.warn(`[${requestId}] Workflow archived before execution started: ${workflowId}`)
+      logger.warn(`Workflow archived before execution started: ${workflowId}`, { requestId })
       return {
         success: false,
         error: {
@@ -534,7 +548,7 @@ export async function preprocessExecution(
   const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''
 
   if (!workspaceId) {
-    logger.warn(`[${requestId}] Workflow ${workflowId} has no workspaceId; execution blocked`)
+    logger.warn(`Workflow ${workflowId} has no workspaceId; execution blocked`, { requestId })
     return {
       success: false,
       error: {
@@ -548,7 +562,7 @@ export async function preprocessExecution(
 
   /** Undeployed workflows are rejected without creating an execution or cost log. */
   if (checkDeployment && !workflowRecord.isDeployed) {
-    logger.warn(`[${requestId}] Workflow not deployed: ${workflowId}`)
+    logger.warn(`Workflow not deployed: ${workflowId}`, { requestId })
 
     return {
       success: false,
@@ -577,7 +591,8 @@ export async function preprocessExecution(
       }
       actorUserId = validatedAttribution.actorUserId
       billingAttribution = validatedAttribution
-      logger.info(`[${requestId}] Reusing serialized billing attribution`, {
+      logger.debug('Reusing serialized billing attribution', {
+        requestId,
         actorUserId,
         billingEntity: billingAttribution.billingEntity,
       })
@@ -585,13 +600,14 @@ export async function preprocessExecution(
 
     if (!actorUserId && useAuthenticatedUserAsActor && userId) {
       actorUserId = userId
-      logger.info(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
+      logger.debug(`Using authenticated user as actor: ${actorUserId}`, { requestId })
     }
 
     if (!actorUserId) {
       billingAttribution = await admission.attributionFor(workspaceId)
       actorUserId = billingAttribution.actorUserId
-      logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
+      logger.debug('Using atomically resolved system actor and payer', {
+        requestId,
         actorUserId,
         billingEntity: billingAttribution.billingEntity,
       })
@@ -599,7 +615,8 @@ export async function preprocessExecution(
 
     if (!actorUserId) {
       const errorLogUserId = userId || 'unknown'
-      logger.warn(`[${requestId}] ${BILLING_ERROR_MESSAGES.BILLING_REQUIRED}`, {
+      logger.warn(BILLING_ERROR_MESSAGES.BILLING_REQUIRED, {
+        requestId,
         workflowId,
         workspaceId,
       })
@@ -629,7 +646,7 @@ export async function preprocessExecution(
       billingAttribution = await admission.attributionFor(workspaceId)
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
+    logger.error('Error resolving billing attribution', { requestId, error, workflowId })
     const errorLogUserId = userId || 'unknown'
     const failure: PreprocessExecutionError = {
       message: 'Error resolving billing account',
@@ -672,6 +689,7 @@ export async function preprocessExecution(
   interface GateFailure {
     response: PreprocessExecutionFailure
     recordError?: Parameters<typeof recordPreprocessingError>[0]
+    warning?: GateWarning
   }
 
   /** Usage figures captured by the read gate and reused by the atomic reservation. */
@@ -690,13 +708,8 @@ export async function preprocessExecution(
     try {
       const bannedUserIds = await gateReads.bannedUserIds
       if (bannedUserIds.length > 0) {
-        logger.warn(`[${requestId}] Execution blocked: banned account`, {
-          workflowId,
-          bannedUserIds,
-          triggerType,
-        })
-
         return {
+          warning: { message: 'Execution blocked: banned account', fields: { bannedUserIds } },
           response: {
             success: false,
             error: {
@@ -720,7 +733,7 @@ export async function preprocessExecution(
       }
       return null
     } catch (error) {
-      logger.error(`[${requestId}] Error checking account ban status`, { error, actorUserId })
+      logger.error('Error checking account ban status', { requestId, error, actorUserId })
 
       return {
         response: {
@@ -774,16 +787,17 @@ export async function preprocessExecution(
           }
         : null
       if (usageCheck.isExceeded) {
-        logger.warn(`[${requestId}] Attributed usage gate blocked actor ${actorUserId}.`, {
-          currentUsage: snapshot?.currentUsage,
-          limit: snapshot?.limit,
-          scope: usageCheck.scope,
-          workflowId,
-          triggerType,
-        })
-
         return {
           failure: {
+            warning: {
+              message: 'Attributed usage gate blocked actor',
+              fields: {
+                actorUserId,
+                currentUsage: snapshot?.currentUsage,
+                limit: snapshot?.limit,
+                scope: usageCheck.scope,
+              },
+            },
             response: {
               success: false,
               error: {
@@ -816,10 +830,7 @@ export async function preprocessExecution(
       }
       return { failure: null, snapshot }
     } catch (error) {
-      logger.error(`[${requestId}] Error checking usage limits`, {
-        error,
-        actorUserId,
-      })
+      logger.error('Error checking usage limits', { requestId, error, actorUserId })
 
       return {
         failure: {
@@ -876,13 +887,11 @@ export async function preprocessExecution(
       )
 
       if (!info.allowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded for user ${actorUserId}`, {
-          triggerType,
-          remaining: info.remaining,
-          resetAt: info.resetAt,
-        })
-
         return {
+          warning: {
+            message: 'Rate limit exceeded',
+            fields: { actorUserId, remaining: info.remaining, resetAt: info.resetAt },
+          },
           response: {
             success: false,
             error: {
@@ -912,7 +921,7 @@ export async function preprocessExecution(
       }
       return null
     } catch (error) {
-      logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
+      logger.error('Error checking rate limits', { requestId, error, actorUserId })
 
       return {
         response: {
@@ -947,7 +956,8 @@ export async function preprocessExecution(
       await recordGateFailure(
         banFailure ? 'ban' : 'usage',
         readGateFailure.response.error,
-        readGateFailure.recordError
+        readGateFailure.recordError,
+        readGateFailure.warning
       )
     }
     return readGateFailure.response
@@ -959,7 +969,8 @@ export async function preprocessExecution(
       await recordGateFailure(
         'rate-limit',
         rateLimitFailure.response.error,
-        rateLimitFailure.recordError
+        rateLimitFailure.recordError,
+        rateLimitFailure.warning
       )
     }
     return rateLimitFailure.response
@@ -1009,12 +1020,6 @@ export async function preprocessExecution(
           reservation.reason
         )
         const message = RESERVATION_DENIAL_MESSAGE[reservation.reason]
-        logger.warn(`[${requestId}] Admission reservation full for user ${actorUserId}`, {
-          workflowId,
-          triggerType,
-          constraint: reservation.reason,
-        })
-
         const failure: PreprocessExecutionError = {
           message,
           statusCode: descriptor.statusCode,
@@ -1026,22 +1031,31 @@ export async function preprocessExecution(
             constraint: reservation.reason,
           },
         }
-        await recordGateFailure('reservation', failure, {
-          workflowId,
-          executionId,
-          triggerType,
-          requestId,
-          userId: actorUserId,
-          workspaceId,
-          errorMessage: message,
-          loggingSession: providedLoggingSession,
-          triggerData,
-        })
+        await recordGateFailure(
+          'reservation',
+          failure,
+          {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage: message,
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
+          {
+            message: 'Admission reservation full',
+            fields: { actorUserId, constraint: reservation.reason },
+          }
+        )
 
         return { success: false, error: failure }
       }
     } catch (error) {
-      logger.error(`[${requestId}] Admission reservation infrastructure unavailable`, {
+      logger.error('Admission reservation infrastructure unavailable', {
+        requestId,
         error,
         actorUserId,
       })
@@ -1068,7 +1082,8 @@ export async function preprocessExecution(
     }
   }
 
-  logger.info(`[${requestId}] All preprocessing checks passed`, {
+  logger.debug('All preprocessing checks passed', {
+    requestId,
     workflowId,
     actorUserId,
     triggerType,
@@ -1133,7 +1148,8 @@ async function logPreprocessingError(params: {
   } = params
 
   if (!workspaceId) {
-    logger.warn(`[${requestId}] Cannot log preprocessing error: no workspaceId available`, {
+    logger.warn('Cannot log preprocessing error: no workspaceId available', {
+      requestId,
       workflowId,
       executionId,
       errorMessage,
@@ -1161,10 +1177,6 @@ async function logPreprocessingError(params: {
       skipCost: true,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Failed to log preprocessing error`, {
-      error,
-      workflowId,
-      executionId,
-    })
+    logger.error('Failed to log preprocessing error', { requestId, error, workflowId, executionId })
   }
 }

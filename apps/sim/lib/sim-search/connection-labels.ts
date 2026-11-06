@@ -10,31 +10,31 @@ const CONNECTION_LABELS: Record<string, SearchConnectionLabels> = {
     add: 'Add Confluence site',
     title: 'Connect Confluence site',
     empty: 'No Confluence sites connected.',
-    searchPlaceholder: 'Search Confluence sites...',
+    searchPlaceholder: 'Search Confluence sites…',
   },
   jira: {
     add: 'Add projects',
     title: 'Add Jira projects',
     empty: 'No Jira projects added.',
-    searchPlaceholder: 'Search Jira projects...',
+    searchPlaceholder: 'Search Jira projects…',
   },
   github: {
     add: 'Add repository',
     title: 'Add GitHub repository',
     empty: 'No GitHub repositories added.',
-    searchPlaceholder: 'Search GitHub repositories...',
+    searchPlaceholder: 'Search GitHub repositories…',
   },
   gitlab: {
     add: 'Add project',
     title: 'Add GitLab project',
     empty: 'No GitLab projects added.',
-    searchPlaceholder: 'Search GitLab projects...',
+    searchPlaceholder: 'Search GitLab projects…',
   },
   slack: {
     add: 'Add channels or DMs',
     title: 'Choose Slack channels and DMs',
     empty: 'No Slack connections yet.',
-    searchPlaceholder: 'Search Slack connections...',
+    searchPlaceholder: 'Search Slack connections…',
   },
 }
 const GOOGLE_NAMES: Record<string, string> = {
@@ -57,7 +57,7 @@ export function getSearchConnectionLabels(
           ? `Set up ${googleName} member accounts`
           : `Connect ${googleName} service account`,
       empty: `No ${googleName} connections yet.`,
-      searchPlaceholder: `Search ${googleName} connections...`,
+      searchPlaceholder: `Search ${googleName} connections…`,
     }
   }
   return (
@@ -65,7 +65,7 @@ export function getSearchConnectionLabels(
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     }
   )
 }

@@ -11,10 +11,15 @@ import { useMothershipChatHistory } from '@/hooks/queries/mothership-chats'
 interface SourcesResourceContentProps {
   resource: MothershipResource
   chatId?: string
+  className?: string
 }
 
 /** The chat already owns this evidence; opening the panel never repeats provider searches. */
-export function SourcesResourceContent({ resource, chatId }: SourcesResourceContentProps) {
+export function SourcesResourceContent({
+  resource,
+  chatId,
+  className,
+}: SourcesResourceContentProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(scrollRef)
   const history = useMothershipChatHistory(chatId)
@@ -32,7 +37,7 @@ export function SourcesResourceContent({ resource, chatId }: SourcesResourceCont
   return (
     <div
       ref={scrollRef}
-      className={cn('h-full overflow-y-auto p-2', scrollFadeClass)}
+      className={cn('h-full overflow-y-auto p-2', scrollFadeClass, className)}
       {...scrollFadeAttributes(edges)}
       aria-label='Cited sources'
     >

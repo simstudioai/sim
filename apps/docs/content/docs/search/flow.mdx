@@ -1,0 +1,35 @@
+---
+title: Flow Engineering
+description: Search current engineering items using your own Flow account
+---
+
+Flow Engineering Search retrieves current engineering items when you search. It uses **Member accounts** and respects the permissions of each person's API key. It does not crawl or index the workspace.
+
+## Connect
+
+1. An admin adds **Flow Engineering** in **Settings → Sources**.
+2. In Flow, open **Settings → API & MCP** and copy your personal API key, API host, and workspace identifier.
+3. In Sim **Integrations → Flow Engineering**, enter those values. The provider account email must match your verified Sim email.
+
+The default API host is `backend.branch.flowengineering.com`; use the host shown by your Flow instance. Sim saves the destination with the credential and verifies the current user before each Search operation. Other members cannot search with your connection. Reconnecting preserves the provider identity and workspace; use a new connection for a different account or workspace.
+
+You can connect up to five accounts per provider. Reconnect an existing account to rotate its credentials.
+
+## Search and read
+
+Use a short phrase, optionally scoped to a known Flow project ID. Without a project, Sim searches at most six accessible projects. Each project returns up to 100 matches, subject to the requested result limit. Flow does not provide a continuation cursor for this search endpoint, so narrow the project or query when results are incomplete.
+
+Sim reads the matched items with the same credential and project scope. Results include current text and scalar field values, formulas, and available modification timestamps. Dates and sorting apply to retrieved candidates. Comments, attached files, and structured field values are not included; item text is limited to 120,000 characters with a truncation notice.
+
+Citations currently point to the exact REST item resource, which may require API authentication to open. Search uses the default project branch.
+
+## Requests and permissions
+
+Search uses `GET /project`, `GET /project/{projectId}/entities/search`, and `GET /project/{projectId}/entities/{entity_ids}`. Reads use the project-scoped entity endpoint; identity checks use `GET /users/me`. Requests carry the saved API key and workspace identifier.
+
+Live Search applies timeouts, response-size limits, and a per-call request budget. These are not a fixed requests-per-minute ceiling. Rate limits and permission denials are reported; inaccessible or deleted items are not returned.
+
+## Related docs
+
+- [Flow API authentication](https://docs.flowengineering.com/api/authentication)
+- [Flow API documentation](https://docs.flowengineering.com/api)

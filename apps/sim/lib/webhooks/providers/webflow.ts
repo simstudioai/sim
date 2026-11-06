@@ -36,7 +36,8 @@ export const webflowHandler: WebhookProviderHandler = {
       }
 
       if (!siteId) {
-        logger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
+        logger.warn('Missing siteId for Webflow webhook creation.', {
+          requestId,
           webhookId: webhookRecord.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -50,7 +51,8 @@ export const webflowHandler: WebhookProviderHandler = {
       }
 
       if (!triggerId) {
-        logger.warn(`[${requestId}] Missing triggerId for Webflow webhook creation.`, {
+        logger.warn('Missing triggerId for Webflow webhook creation.', {
+          requestId,
           webhookId: webhookRecord.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -63,7 +65,8 @@ export const webflowHandler: WebhookProviderHandler = {
         : await getOAuthToken(userId, 'webflow')
       if (!accessToken) {
         logger.warn(
-          `[${requestId}] Could not retrieve Webflow access token for user ${userId}. Cannot create webhook in Webflow.`
+          `Could not retrieve Webflow access token for user ${userId}. Cannot create webhook in Webflow.`,
+          { requestId }
         )
         throw new Error(
           'Webflow account connection required. Please connect your Webflow account in the trigger configuration and try again.'
@@ -81,7 +84,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const webflowTriggerType = triggerTypeMap[triggerId]
       if (!webflowTriggerType) {
-        logger.warn(`[${requestId}] Invalid triggerId for Webflow: ${triggerId}`, {
+        logger.warn(`Invalid triggerId for Webflow: ${triggerId}`, {
+          requestId,
           webhookId: webhookRecord.id,
         })
         throw new Error(`Invalid Webflow trigger type: ${triggerId}`)
@@ -116,30 +120,26 @@ export const webflowHandler: WebhookProviderHandler = {
         const errorMessage =
           responseBody.message || responseBody.error || 'Unknown Webflow API error'
         logger.error(
-          `[${requestId}] Failed to create webhook in Webflow for webhook ${webhookRecord.id}. Status: ${webflowResponse.status}`,
-          { message: errorMessage, response: responseBody }
+          `Failed to create webhook in Webflow for webhook ${webhookRecord.id}. Status: ${webflowResponse.status}`,
+          { requestId, message: errorMessage, response: responseBody }
         )
         throw new Error(errorMessage)
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Webflow for webhook ${webhookRecord.id}.`,
-        {
-          webflowWebhookId: responseBody.id || responseBody._id,
-        }
-      )
+      logger.info(`Successfully created webhook in Webflow for webhook ${webhookRecord.id}.`, {
+        requestId,
+        webflowWebhookId: responseBody.id || responseBody._id,
+      })
 
       return { providerConfigUpdates: { externalId: responseBody.id || responseBody._id } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookRecord.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Webflow webhook creation for webhook ${webhookRecord.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -156,7 +156,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       if (!siteId) {
         logger.warn(
-          `[${requestId}] Missing siteId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing siteId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Webflow siteId for webhook deletion')
         return
@@ -164,7 +165,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${requestId}] Missing externalId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing externalId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Webflow externalId for webhook deletion')
         return
@@ -172,7 +174,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const siteIdValidation = validateAlphanumericId(siteId, 'siteId', 100)
       if (!siteIdValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid Webflow site ID format, skipping deletion`, {
+        logger.warn('Invalid Webflow site ID format, skipping deletion', {
+          requestId,
           webhookId: webhookRecord.id,
           siteId: siteId.substring(0, 30),
         })
@@ -182,7 +185,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const webhookIdValidation = validateAlphanumericId(externalId, 'webhookId', 100)
       if (!webhookIdValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid Webflow webhook ID format, skipping deletion`, {
+        logger.warn('Invalid Webflow webhook ID format, skipping deletion', {
+          requestId,
           webhookId: webhookRecord.id,
           externalId: externalId.substring(0, 30),
         })
@@ -192,17 +196,17 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const credentialId = config.credentialId as string | undefined
       if (!credentialId) {
-        logger.warn(
-          `[${requestId}] Missing credentialId for Webflow webhook deletion ${webhookRecord.id}`
-        )
+        logger.warn(`Missing credentialId for Webflow webhook deletion ${webhookRecord.id}`, {
+          requestId,
+        })
         if (strict) throw new Error('Missing Webflow credentialId for webhook deletion')
         return
       }
 
       const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
-        const message = `[${requestId}] Could not retrieve Webflow access token. Cannot delete webhook.`
-        logger.warn(message, { webhookId: webhookRecord.id })
+        const message = 'Could not retrieve Webflow access token. Cannot delete webhook.'
+        logger.warn(message, { requestId, webhookId: webhookRecord.id })
         if (strict) throw new Error(message)
         return
       }
@@ -219,18 +223,18 @@ export const webflowHandler: WebhookProviderHandler = {
 
       if (!webflowResponse.ok && webflowResponse.status !== 404) {
         const responseBody = await webflowResponse.json().catch(() => ({}))
-        logger.warn(
-          `[${requestId}] Failed to delete Webflow webhook (non-fatal): ${webflowResponse.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete Webflow webhook (non-fatal): ${webflowResponse.status}`, {
+          requestId,
+          response: responseBody,
+        })
         if (strict) {
           throw new Error(`Failed to delete Webflow webhook: ${webflowResponse.status}`)
         }
       } else {
-        logger.info(`[${requestId}] Successfully deleted Webflow webhook ${externalId}`)
+        logger.info(`Successfully deleted Webflow webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Webflow webhook (non-fatal)`, error)
+      logger.warn('Error deleting Webflow webhook (non-fatal)', error, { requestId })
       if (strict) throw error
     }
   },
@@ -296,7 +300,8 @@ export const webflowHandler: WebhookProviderHandler = {
 
       if (payloadCollectionId && payloadCollectionId !== configuredCollectionId) {
         logger.info(
-          `[${requestId}] Webflow collection '${payloadCollectionId}' doesn't match configured collection '${configuredCollectionId}' for webhook ${webhook.id as string}, skipping`
+          `Webflow collection '${payloadCollectionId}' doesn't match configured collection '${configuredCollectionId}' for webhook ${webhook.id as string}, skipping`,
+          { requestId }
         )
         return true
       }

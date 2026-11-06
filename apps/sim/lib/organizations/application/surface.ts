@@ -19,7 +19,7 @@ import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { organizationSurfaceSettingsNavigation } from '@/app/o/[organizationId]/settings/navigation'
+import { organizationSurfaceSettingsNavigation } from '@/platform/embedded/lib/data/settings-sections'
 
 const logger = createLogger('OrganizationSurfaceRead')
 

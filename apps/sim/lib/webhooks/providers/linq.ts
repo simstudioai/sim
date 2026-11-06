@@ -36,7 +36,7 @@ export const linqHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(`[${requestId}] Linq webhook missing signing secret in provider configuration`)
+      logger.warn('Linq webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Linq signing secret is required', { status: 401 })
     }
 
@@ -60,14 +60,15 @@ export const linqHandler: WebhookProviderHandler = {
 
     const expectedType = LINQ_TRIGGER_TO_EVENT_TYPE[triggerId]
     if (!expectedType) {
-      logger.debug(`[${requestId}] Unknown Linq triggerId ${triggerId}, skipping.`)
+      logger.debug(`Unknown Linq triggerId ${triggerId}, skipping.`, { requestId })
       return false
     }
 
     const actualType = (body as Record<string, unknown>)?.event_type as string | undefined
     if (actualType !== expectedType) {
       logger.debug(
-        `[${requestId}] Linq event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`
+        `Linq event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`,
+        { requestId }
       )
       return false
     }
@@ -100,9 +101,7 @@ export const linqHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (!apiKey) {
-      logger.warn(`[${requestId}] Missing apiKey for Linq webhook creation.`, {
-        webhookId: webhook.id,
-      })
+      logger.warn('Missing apiKey for Linq webhook creation.', { requestId, webhookId: webhook.id })
       throw new WebhookDeploymentConfigurationError(
         'Linq API Key is required. Please provide your Linq API Key in the trigger configuration.'
       )
@@ -128,7 +127,8 @@ export const linqHandler: WebhookProviderHandler = {
       requestBody.phone_numbers = phoneNumbers
     }
 
-    logger.info(`[${requestId}] Creating Linq webhook subscription`, {
+    logger.info('Creating Linq webhook subscription', {
+      requestId,
       triggerId,
       events,
       webhookId: webhook.id,
@@ -148,8 +148,8 @@ export const linqHandler: WebhookProviderHandler = {
         (responseBody.message as string) ||
         'Unknown Linq API error'
       logger.error(
-        `[${requestId}] Failed to create Linq webhook subscription for webhook ${webhook.id}. Status: ${response.status}`,
-        { message: errorMessage }
+        `Failed to create Linq webhook subscription for webhook ${webhook.id}. Status: ${response.status}`,
+        { requestId, message: errorMessage }
       )
 
       if (response.status === 401 || response.status === 403) {
@@ -170,7 +170,7 @@ export const linqHandler: WebhookProviderHandler = {
       )
     }
 
-    logger.info(`[${requestId}] Successfully created Linq webhook subscription ${externalId}.`)
+    logger.info(`Successfully created Linq webhook subscription ${externalId}.`, { requestId })
 
     return {
       providerConfigUpdates: {
@@ -189,7 +189,8 @@ export const linqHandler: WebhookProviderHandler = {
 
       if (!apiKey || !externalId) {
         logger.warn(
-          `[${requestId}] Missing apiKey or externalId for Linq webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing apiKey or externalId for Linq webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Missing Linq webhook deletion credentials')
         return
@@ -201,17 +202,17 @@ export const linqHandler: WebhookProviderHandler = {
       })
 
       if (!response.ok && response.status !== 404) {
-        logger.warn(
-          `[${requestId}] Failed to delete Linq webhook subscription (non-fatal): ${response.status}`
-        )
+        logger.warn(`Failed to delete Linq webhook subscription (non-fatal): ${response.status}`, {
+          requestId,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Linq webhook subscription: ${response.status}`)
         }
       } else {
-        logger.info(`[${requestId}] Successfully deleted Linq webhook subscription ${externalId}`)
+        logger.info(`Successfully deleted Linq webhook subscription ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Linq webhook subscription (non-fatal)`, error)
+      logger.warn('Error deleting Linq webhook subscription (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

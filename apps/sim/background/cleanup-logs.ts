@@ -199,7 +199,8 @@ async function cleanupLargeExecutionValues(
   }
 
   logger.info(
-    `[${label}/execution_large_values] Complete: ${stats.largeValuesDeleted}/${stats.largeValuesTotal} deleted, ${stats.largeValuesDeleteFailed} failed`
+    `Complete: ${stats.largeValuesDeleted}/${stats.largeValuesTotal} deleted, ${stats.largeValuesDeleteFailed} failed`,
+    { label: `${label}/execution_large_values` }
   )
 
   return stats
@@ -356,7 +357,8 @@ async function cleanupLegacyLargeExecutionValues(
   }
 
   logger.info(
-    `[${label}/legacy_execution_large_values] Complete: ${stats.largeValuesDeleted}/${stats.largeValuesTotal} deleted, ${stats.largeValuesDeleteFailed} failed`
+    `Complete: ${stats.largeValuesDeleted}/${stats.largeValuesTotal} deleted, ${stats.largeValuesDeleteFailed} failed`,
+    { label: `${label}/legacy_execution_large_values` }
   )
 
   return stats
@@ -378,11 +380,15 @@ async function cleanupLargeValueMetadata(
       dbClient: cleanupDb,
     })
     logger.info(
-      `[${label}/execution_large_value_metadata] Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`
+      `Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`,
+      { label: `${label}/execution_large_value_metadata` }
     )
   } catch (error) {
     if (budgets) throw error
-    logger.error(`[${label}/execution_large_value_metadata] Failed to prune metadata`, { error })
+    logger.error('Failed to prune metadata', {
+      label: `${label}/execution_large_value_metadata`,
+      error,
+    })
   }
 }
 
@@ -467,7 +473,7 @@ export async function runCleanupLogs(
   const retentionDate = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
 
   if (workspaceIds.length === 0) {
-    logger.info(`[${label}] No workspaces to process`)
+    logger.info('No workspaces to process', { label })
     if (runGlobalHousekeeping && plan === 'free') {
       await cleanupFreePlanOrphanedSnapshots(retentionHours, budgets?.orphanSnapshots)
     }
@@ -475,7 +481,8 @@ export async function runCleanupLogs(
   }
 
   logger.info(
-    `[${label}] Cleaning ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
+    `Cleaning ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`,
+    { label }
   )
 
   const workflowResults = await cleanupWorkflowExecutionLogs(
@@ -485,7 +492,8 @@ export async function runCleanupLogs(
     budgets?.workflowLogs
   )
   logger.info(
-    `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
+    `workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`,
+    { label }
   )
   const largeValueResults = await cleanupLargeExecutionValues(
     workspaceIds,
@@ -494,7 +502,8 @@ export async function runCleanupLogs(
     budgets?.largeValues
   )
   logger.info(
-    `[${label}] execution_large_values: ${largeValueResults.largeValuesDeleted}/${largeValueResults.largeValuesTotal} deleted, ${largeValueResults.largeValuesDeleteFailed} failed`
+    `execution_large_values: ${largeValueResults.largeValuesDeleted}/${largeValueResults.largeValuesTotal} deleted, ${largeValueResults.largeValuesDeleteFailed} failed`,
+    { label }
   )
   const legacyLargeValueResults = await cleanupLegacyLargeExecutionValues(
     workspaceIds,
@@ -503,7 +512,8 @@ export async function runCleanupLogs(
     budgets?.legacyLargeValues
   )
   logger.info(
-    `[${label}] legacy_execution_large_values: ${legacyLargeValueResults.largeValuesDeleted}/${legacyLargeValueResults.largeValuesTotal} deleted, ${legacyLargeValueResults.largeValuesDeleteFailed} failed`
+    `legacy_execution_large_values: ${legacyLargeValueResults.largeValuesDeleted}/${legacyLargeValueResults.largeValuesTotal} deleted, ${legacyLargeValueResults.largeValuesDeleteFailed} failed`,
+    { label }
   )
   await cleanupLargeValueMetadata(workspaceIds, label, budgets)
 
@@ -523,7 +533,7 @@ export async function runCleanupLogs(
   }
 
   const timeElapsed = (Date.now() - startTime) / 1000
-  logger.info(`[${label}] Job completed in ${timeElapsed.toFixed(2)}s`)
+  logger.info(`Job completed in ${timeElapsed.toFixed(2)}s`, { label })
 }
 
 export const cleanupLogsTask = task({
