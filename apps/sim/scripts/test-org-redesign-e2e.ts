@@ -2708,20 +2708,32 @@ async function searchChecks() {
     })
   }
   await check("a phone's Search button keeps its size and widens its target to 44px", async () => {
+    const drawnButton = async (page: Page) => {
+      await page.goto(orgUrl('/search?mode=search'))
+      await searchField(page).fill('recall')
+      const button = page.getByRole('button', { name: 'Search', exact: true }).last()
+      const box = await button.boundingBox()
+      assert(box, 'The button is on screen')
+      return { button, box }
+    }
+    let desktopHeight = 0
+    await withSession(MEMBER, async ({ page }) => {
+      desktopHeight = (await drawnButton(page)).box.height
+    })
     await withSession(
       MEMBER,
       async ({ page }) => {
-        await page.goto(orgUrl('/search?mode=search'))
-        await searchField(page).fill('recall')
-        const button = page.getByRole('button', { name: 'Search', exact: true }).last()
-        const box = await button.boundingBox()
-        assert(box, 'The button is on screen')
-        assert.equal(Math.round(box.height), 28)
-        const hit = await button.evaluate(
-          (node, { x, y }) => node === document.elementFromPoint(x, y),
-          { x: box.x + box.width / 2, y: box.y - 6 }
-        )
-        assert(hit, 'A touch above the drawn button still lands on it')
+        const { button, box } = await drawnButton(page)
+        assert.equal(box.height, desktopHeight, 'The phone draws the button at its usual size')
+        assert(box.height < 44, `At ${box.height}px the button needs no wider target`)
+        const reach = (44 - box.height) / 2 - 1
+        for (const y of [box.y - reach, box.y + box.height + reach]) {
+          const hit = await button.evaluate(
+            (node, point) => node.contains(document.elementFromPoint(point.x, point.y)),
+            { x: box.x + box.width / 2, y }
+          )
+          assert(hit, `A touch ${Math.round(reach)}px off the drawn button still lands on it`)
+        }
       },
       { viewport: PHONE }
     )
@@ -3196,10 +3208,12 @@ async function linksChecks() {
         )
       const columnWidth = async (name: string) =>
         (await page.getByRole('columnheader', { name, exact: true }).boundingBox())?.width ?? 0
-      assert(
-        (await columnWidth('Destination')) > 1.5 * (await columnWidth('Name')),
-        'Destination takes the most room'
-      )
+      const destination = await columnWidth('Destination')
+      for (const other of ['Name', 'Description', 'Created by', 'Access', 'Updated'])
+        assert(
+          destination > (await columnWidth(other)),
+          `Destination takes less room than ${other}`
+        )
       const store = context.waitForEvent('page')
       await page.getByRole('button', { name: 'Install Sim for Chrome' }).click()
       await expect(await store).toHaveURL(/chromewebstore\.google\.com/)
