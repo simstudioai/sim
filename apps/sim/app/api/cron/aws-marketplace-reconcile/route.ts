@@ -11,7 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 const logger = createLogger('AwsMarketplaceReconcileCron')
 
 const LOCK_KEY = 'aws-marketplace-reconcile-lock'
-/** Covers a full drain plus the re-verification batch; the schedule runs every 15 minutes. */
+/** Outlasts the reconcile's 6-minute run budget; the schedule runs every 15 minutes. */
 const LOCK_TTL_SECONDS = 10 * 60
 
 export const dynamic = 'force-dynamic'

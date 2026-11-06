@@ -54,12 +54,18 @@ export async function registerAwsMarketplaceBuyer(
     logger.warn('AWS Marketplace registration is for another product')
     return { kind: 'invalid' }
   }
-  if (!customer.CustomerIdentifier || !customer.LicenseArn) {
-    logger.warn('AWS Marketplace registration resolved without a customer or license', {
-      hasCustomer: Boolean(customer.CustomerIdentifier),
-      hasLicense: Boolean(customer.LicenseArn),
-    })
+  /** New SaaS integrations get no `CustomerIdentifier`; the account ID and license ARN name the buyer. */
+  if (!customer.CustomerAWSAccountId) {
+    logger.warn('AWS Marketplace registration resolved without an account')
     return { kind: 'invalid' }
+  }
+  /**
+   * A future-dated agreement gets its license ARN on its start date. Nothing is saved, since the
+   * ARN is the row's key; the License Updated event for it records the row then.
+   */
+  if (!customer.LicenseArn) {
+    logger.info('AWS Marketplace registration is for an agreement that has not started')
+    return { kind: 'not-started' }
   }
 
   const verifiedAt = new Date()
@@ -75,17 +81,23 @@ export async function registerAwsMarketplaceBuyer(
   }
 
   const claim = summary.active ? issueClaimToken() : null
-  const licenseId = await saveRegisteredLicense({
+  const saved = await saveRegisteredLicense({
     licenseArn: customer.LicenseArn,
     productCode,
-    customerIdentifier: customer.CustomerIdentifier,
-    customerAwsAccountId: customer.CustomerAWSAccountId ?? null,
+    customerAwsAccountId: customer.CustomerAWSAccountId,
+    customerIdentifier: customer.CustomerIdentifier ?? null,
+    agreementId: customer.Metadata?.AgreementId ?? null,
     summary,
     verifiedAt,
     claim: claim
       ? { hash: claim.hash, expiresAt: new Date(Date.now() + AWS_MARKETPLACE_CLAIM_TTL_MS) }
       : null,
   })
-  logger.info('Registered an AWS Marketplace license', { licenseId, active: summary.active })
-  return claim ? { kind: 'claimed', claimToken: claim.token } : { kind: 'no-subscription' }
+  logger.info('Registered an AWS Marketplace license', {
+    licenseId: saved.id,
+    active: saved.active,
+  })
+  return claim && saved.active
+    ? { kind: 'claimed', claimToken: claim.token }
+    : { kind: 'no-subscription' }
 }

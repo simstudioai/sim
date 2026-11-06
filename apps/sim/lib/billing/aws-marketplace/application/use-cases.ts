@@ -1,18 +1,21 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
 import { awsMarketplaceOperations } from '@/lib/billing/aws-marketplace/application/operations'
 import { hashClaimToken } from '@/lib/billing/aws-marketplace/claim'
 import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
-import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
+import { type EntitlementSummary, verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
+import {
+  notifyBuyerOfTakenLicense,
+  notifyTeamOfTakenLicense,
+  notifyTeamOfVerification,
+} from '@/lib/billing/aws-marketplace/notifications'
 import {
   type AwsMarketplaceLicenseRecord,
   consumeLicenseClaim,
   findLicenseByClaimHash,
-  getLinkParties,
   listAdministeredOrganizations,
+  listOrganizationLicenses,
   lockLicense,
   recordLicenseVerification,
 } from '@/lib/billing/aws-marketplace/repository'
@@ -23,13 +26,7 @@ import {
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
-import { env } from '@/lib/core/config/env'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getEmailDomain } from '@/lib/core/utils/urls'
-import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-
-const logger = createLogger('AwsMarketplaceLicenses')
 
 /** The same answer as an unknown route, so a deployment that does not sell on AWS shows nothing. */
 function requireProductCode(): string {
@@ -40,6 +37,22 @@ function requireProductCode(): string {
 
 function isClaimOpen(license: AwsMarketplaceLicenseRecord, now: Date): boolean {
   return Boolean(license.claimExpiresAt && license.claimExpiresAt.getTime() > now.getTime())
+}
+
+const NO_ACTIVE_SUBSCRIPTION = 'AWS Marketplace reports no active subscription for this license.'
+
+/**
+ * Under the row lock: a newer verification than this request's wins. If it says the license
+ * lapsed, the take is refused; otherwise it stands and this older read is not written.
+ */
+function newerVerificationGate(
+  locked: AwsMarketplaceLicenseRecord,
+  verifiedAt: Date,
+  summary: EntitlementSummary
+) {
+  if (locked.lastVerifiedAt.getTime() <= verifiedAt.getTime()) return { summary, verifiedAt }
+  if (locked.status !== 'active') throw new OrchestrationError('conflict', NO_ACTIVE_SUBSCRIPTION)
+  return null
 }
 
 const CLAIM_NOT_FOUND =
@@ -109,6 +122,9 @@ interface ClaimInput {
   licenseId: string
   /** The raw claim token from this browser's httpOnly cookie, or null when it holds none. */
   claimToken: string | null
+  /** Whom to contact about provisioning; AWS asks the registration page to collect it. */
+  contactEmail: string
+  companyName: string | null
 }
 
 interface LinkLicenseInput extends ClaimInput {
@@ -139,84 +155,17 @@ async function verifyClaimedLicense(input: ClaimInput, organizationId: string | 
   const verifiedAt = new Date()
   const summary = await verifyLicense(productCode, claimed.licenseArn)
   if (!summary.active) {
-    await recordLicenseVerification({
-      licenseArn: claimed.licenseArn,
-      productCode,
-      summary,
-      verifiedAt,
-    })
-    throw new OrchestrationError(
-      'conflict',
-      'AWS Marketplace reports no active subscription for this license.'
+    await notifyTeamOfVerification(
+      await recordLicenseVerification({
+        licenseArn: claimed.licenseArn,
+        productCode,
+        summary,
+        verifiedAt,
+      })
     )
+    throw new OrchestrationError('conflict', NO_ACTIVE_SUBSCRIPTION)
   }
   return { claimHash, summary, verifiedAt }
-}
-
-const TEAM_INSTRUCTIONS = {
-  organization:
-    'Provision this organization the way Enterprise deals are provisioned. No subscription was changed.',
-  account:
-    'Registered to an account, no organization yet. Create the Enterprise organization for this buyer and link it. No subscription was changed.',
-} as const
-
-/**
- * Tells the team a license is taken, so they provision it the way an Enterprise deal is
- * provisioned. No subscription is created or changed here. A failed send never undoes the
- * committed write; the warning is the fallback trail.
- */
-async function notifyTeam(
-  license: AwsMarketplaceLicenseRecord,
-  organizationId: string | null,
-  userId: string
-): Promise<void> {
-  const parties = await getLinkParties(organizationId, userId)
-  const notice = {
-    licenseId: license.id,
-    organizationId,
-    dimension: license.dimension,
-    quantity: license.quantity,
-    expiresAt: license.expiresAt?.toISOString() ?? null,
-  }
-  const text = `AWS Marketplace license ${organizationId ? 'linked' : 'registered to an account'}
-Taken: ${new Date().toISOString()}
-Organization: ${organizationId ? `${parties.organizationName ?? 'Unknown'} (${organizationId})` : 'None yet'}
-Buyer: ${parties.userName ?? 'Unknown'} <${parties.userEmail ?? 'unknown'}> (${userId})
-License: ${license.licenseArn}
-AWS account: ${license.customerAwsAccountId ?? 'Not provided'}
-Customer identifier: ${license.customerIdentifier}
-Dimension: ${license.dimension ?? 'Not provided'}
-Quantity: ${license.quantity ?? 'Not provided'}
-Expires: ${notice.expiresAt ?? 'No expiry'}
-
-${TEAM_INSTRUCTIONS[organizationId ? 'organization' : 'account']}
-`
-  const subject = organizationId
-    ? (parties.organizationName ?? organizationId)
-    : `${parties.userEmail ?? userId} (no organization)`
-  try {
-    const result = await sendEmail({
-      to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
-      subject: `[AWS MARKETPLACE] ${subject}`,
-      text,
-      from: getFromEmailAddress(),
-      ...(parties.userEmail && { replyTo: parties.userEmail }),
-      emailType: 'transactional',
-    })
-    if (result.success) {
-      logger.info('Notified the team of an AWS Marketplace license', notice)
-      return
-    }
-    logger.warn('Could not notify the team of an AWS Marketplace license', {
-      ...notice,
-      message: result.message,
-    })
-  } catch (error) {
-    logger.warn('Could not notify the team of an AWS Marketplace license', {
-      ...notice,
-      message: getErrorMessage(error, 'Unknown error'),
-    })
-  }
 }
 
 function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
@@ -265,8 +214,8 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
       const license = await consumeLicenseClaim(tx, {
         licenseId: input.licenseId,
         link: newlyLinked ? { organizationId: input.organizationId, userId: context.userId } : null,
-        summary,
-        verifiedAt,
+        contact: { email: input.contactEmail, companyName: input.companyName },
+        verification: newerVerificationGate(locked, verifiedAt, summary),
       })
       return { license, newlyLinked }
     })
@@ -285,7 +234,8 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
       : [],
   afterSuccess: async ({ result, input, context }) => {
     if (result.newlyLinked) {
-      await notifyTeam(result.license, input.organizationId, context.userId)
+      await notifyTeamOfTakenLicense(result.license, input.organizationId, context.userId)
+      await notifyBuyerOfTakenLicense(result.license)
     }
   },
 })
@@ -316,8 +266,8 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
       const consumed = await consumeLicenseClaim(tx, {
         licenseId: input.licenseId,
         link: newlyRegistered ? { organizationId: null, userId: principal.userId } : null,
-        summary,
-        verifiedAt,
+        contact: { email: input.contactEmail, companyName: input.companyName },
+        verification: newerVerificationGate(locked, verifiedAt, summary),
       })
       return { license: consumed, newlyRegistered }
     })
@@ -338,8 +288,21 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
           },
         ]
       )
-      await notifyTeam(license, null, principal.userId)
+      await notifyTeamOfTakenLicense(license, null, principal.userId)
+      await notifyBuyerOfTakenLicense(license)
     }
     return { licenseId: license.id }
   },
 }
+
+/**
+ * The Marketplace licenses linked to an organization, so its members can see their subscription
+ * in Sim. Empty where Sim does not sell on AWS, so the billing page shows nothing there.
+ */
+export const listOrganizationAwsMarketplaceLicenses = defineAuthorizedOrganizationUseCase({
+  operation: awsMarketplaceOperations.listOrganizationLicenses,
+  async execute({ context }: OrganizationUseCaseContext<{ organizationId: string }>) {
+    if (!getAwsMarketplaceProductCode()) return []
+    return listOrganizationLicenses(context.organizationId)
+  },
+})

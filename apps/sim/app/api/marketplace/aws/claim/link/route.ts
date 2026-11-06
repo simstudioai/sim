@@ -22,6 +22,8 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ body }, { request }) => ({
     organizationId: body.organizationId,
     licenseId: body.licenseId,
+    contactEmail: body.contactEmail,
+    companyName: body.companyName || null,
     claimToken: request.cookies.get(AWS_MARKETPLACE_CLAIM_COOKIE)?.value ?? null,
   }),
   present: (_linked, { input }) => ({

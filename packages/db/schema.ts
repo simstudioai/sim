@@ -1934,7 +1934,7 @@ export const awsMarketplaceLicenseStatusEnum = pgEnum('aws_marketplace_license_s
 
 /**
  * An AWS Marketplace SaaS contract license, one row per license ARN: one AWS account can hold
- * several concurrent agreements. `status` mirrors the last Entitlement Service read, never a
+ * several concurrent agreements, so the account ID identifies the buyer but not the license. `status` mirrors the last Entitlement Service read, never a
  * contract amount. The buyer's browser holds a one-time claim token whose hash and expiry live
  * here until an organization owner or admin links the license to their organization.
  */
@@ -1944,8 +1944,13 @@ export const awsMarketplaceLicense = pgTable(
     id: text('id').primaryKey(),
     licenseArn: text('license_arn').notNull(),
     productCode: text('product_code').notNull(),
-    customerIdentifier: text('customer_identifier').notNull(),
-    customerAwsAccountId: text('customer_aws_account_id'),
+    /** Legacy SaaS integrations only; ResolveCustomer leaves it empty for new products. */
+    customerIdentifier: text('customer_identifier'),
+    /** Not unique: one AWS account can hold several concurrent licenses. */
+    customerAwsAccountId: text('customer_aws_account_id').notNull(),
+    agreementId: text('agreement_id'),
+    /** The agreement a renewal event last moved this license to, so each renewal is told once. */
+    renewedAgreementId: text('renewed_agreement_id'),
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
@@ -1954,17 +1959,30 @@ export const awsMarketplaceLicense = pgTable(
     quantity: integer('quantity'),
     expiresAt: timestamp('expires_at'),
     lastVerifiedAt: timestamp('last_verified_at').notNull(),
+    /** Every re-verify attempt, failed ones too, so a license AWS keeps refusing cannot starve the rest. */
+    lastVerificationAttemptAt: timestamp('last_verification_attempt_at'),
     claimTokenHash: text('claim_token_hash'),
     claimExpiresAt: timestamp('claim_expires_at'),
     linkedByUserId: text('linked_by_user_id').references(() => user.id, { onDelete: 'set null' }),
     linkedAt: timestamp('linked_at'),
+    /** Whom to contact about provisioning, as the buyer entered it when taking the license. */
+    contactEmail: text('contact_email'),
+    companyName: text('company_name'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('aws_marketplace_license_arn_unique').on(table.licenseArn),
+    index('aws_marketplace_license_agreement_id_idx').on(table.agreementId),
+    index('aws_marketplace_license_renewed_agreement_id_idx').on(table.renewedAgreementId),
+    index('aws_marketplace_license_account_product_idx').on(
+      table.customerAwsAccountId,
+      table.productCode
+    ),
     uniqueIndex('aws_marketplace_license_claim_token_hash_unique').on(table.claimTokenHash),
-    index('aws_marketplace_license_last_verified_at_idx').on(table.lastVerifiedAt),
+    index('aws_marketplace_license_reverify_due_idx').on(
+      sql`coalesce(${table.lastVerificationAttemptAt}, ${table.lastVerifiedAt})`
+    ),
     index('aws_marketplace_license_organization_id_idx').on(table.organizationId),
   ]
 )

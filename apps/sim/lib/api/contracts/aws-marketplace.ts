@@ -10,6 +10,17 @@ export const awsMarketplaceRegistrationFormSchema = z.object({
   'x-amzn-marketplace-token': z.string().min(1, 'Registration token is required').max(4096),
 })
 
+/** AWS requires the registration page to collect the buyer's email; the company is optional. */
+const buyerContactSchema = z.object({
+  contactEmail: z
+    .string()
+    .trim()
+    .min(1, 'Contact email is required')
+    .max(254, 'Contact email must be at most 254 characters')
+    .email('Enter a valid contact email'),
+  companyName: z.string().trim().max(200, 'Company name must be at most 200 characters').optional(),
+})
+
 const awsMarketplaceLicenseSummarySchema = z.object({
   id: z.string(),
   status: z.enum(['active', 'inactive']),
@@ -49,7 +60,7 @@ export const getAwsMarketplaceClaimContract = defineRouteContract({
 export const linkAwsMarketplaceLicenseContract = defineRouteContract({
   method: 'POST',
   path: '/api/marketplace/aws/claim/link',
-  body: z.object({
+  body: buyerContactSchema.extend({
     licenseId: z.string().min(1, 'License ID is required').max(255),
     organizationId: organizationIdSchema,
   }),
@@ -63,6 +74,28 @@ export const linkAwsMarketplaceLicenseContract = defineRouteContract({
 export const registerAwsMarketplaceLicenseToAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/marketplace/aws/claim/register-account',
-  body: z.object({ licenseId: z.string().min(1, 'License ID is required').max(255) }),
+  body: buyerContactSchema.extend({
+    licenseId: z.string().min(1, 'License ID is required').max(255),
+  }),
   response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
+
+const organizationAwsMarketplaceLicenseSchema = z.object({
+  id: z.string(),
+  status: z.enum(['active', 'inactive']),
+  dimension: z.string().nullable(),
+  quantity: z.number().int().nullable(),
+  expiresAt: z.iso.datetime().nullable(),
+  lastVerifiedAt: z.iso.datetime(),
+})
+
+/** The Marketplace licenses linked to an organization, for its billing page. */
+export const listOrganizationAwsMarketplaceLicensesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/aws-marketplace-licenses',
+  params: z.object({ id: organizationIdSchema }),
+  response: {
+    mode: 'json',
+    schema: z.object({ licenses: z.array(organizationAwsMarketplaceLicenseSchema) }),
+  },
 })

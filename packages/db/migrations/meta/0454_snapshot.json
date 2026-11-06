@@ -1,5 +1,5 @@
 {
-  "id": "dcb900b6-83fb-4bcc-8843-c22bff6659b3",
+  "id": "54cc9081-fd36-49c9-ac52-0d35d68f54a1",
   "prevId": "ae1c3abd-b4a0-4658-8dd6-4858c603d078",
   "version": "7",
   "dialect": "postgresql",
@@ -1154,10 +1154,22 @@
           "name": "customer_identifier",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "customer_aws_account_id": {
           "name": "customer_aws_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agreement_id": {
+          "name": "agreement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "renewed_agreement_id": {
+          "name": "renewed_agreement_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1200,6 +1212,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "last_verification_attempt_at": {
+          "name": "last_verification_attempt_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "claim_token_hash": {
           "name": "claim_token_hash",
           "type": "text",
@@ -1221,6 +1239,18 @@
         "linked_at": {
           "name": "linked_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_name": {
+          "name": "company_name",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1255,6 +1285,57 @@
           "method": "btree",
           "with": {}
         },
+        "aws_marketplace_license_agreement_id_idx": {
+          "name": "aws_marketplace_license_agreement_id_idx",
+          "columns": [
+            {
+              "expression": "agreement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aws_marketplace_license_renewed_agreement_id_idx": {
+          "name": "aws_marketplace_license_renewed_agreement_id_idx",
+          "columns": [
+            {
+              "expression": "renewed_agreement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aws_marketplace_license_account_product_idx": {
+          "name": "aws_marketplace_license_account_product_idx",
+          "columns": [
+            {
+              "expression": "customer_aws_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "product_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "aws_marketplace_license_claim_token_hash_unique": {
           "name": "aws_marketplace_license_claim_token_hash_unique",
           "columns": [
@@ -1270,13 +1351,13 @@
           "method": "btree",
           "with": {}
         },
-        "aws_marketplace_license_last_verified_at_idx": {
-          "name": "aws_marketplace_license_last_verified_at_idx",
+        "aws_marketplace_license_reverify_due_idx": {
+          "name": "aws_marketplace_license_reverify_due_idx",
           "columns": [
             {
-              "expression": "last_verified_at",
-              "isExpression": false,
+              "expression": "coalesce(\"last_verification_attempt_at\", \"last_verified_at\")",
               "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],

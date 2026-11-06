@@ -3,7 +3,7 @@ import {
   GetEntitlementsCommand,
   type GetEntitlementsCommandOutput,
 } from '@aws-sdk/client-marketplace-entitlement-service'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { compareStrings } from '@sim/utils/string'
 import { getEntitlementClient } from '@/lib/billing/aws-marketplace/client'
@@ -87,14 +87,16 @@ export function isInvalidEntitlementRequest(error: unknown): boolean {
 }
 
 async function getEntitlementsPage(
-  command: GetEntitlementsCommand
+  command: GetEntitlementsCommand,
+  signal?: AbortSignal
 ): Promise<GetEntitlementsCommandOutput> {
   for (let attempt = 1; ; attempt++) {
+    signal?.throwIfAborted()
     try {
-      return await getEntitlementClient().send(command)
+      return await getEntitlementClient().send(command, { abortSignal: signal })
     } catch (error) {
-      if (attempt >= MAX_ATTEMPTS || !isRetryable(error)) throw error
-      await sleep(backoffWithJitter(attempt, null, RETRY_BACKOFF))
+      if (attempt >= MAX_ATTEMPTS || !isRetryable(error) || signal?.aborted) throw error
+      await interruptibleSleep(backoffWithJitter(attempt, null, RETRY_BACKOFF), signal)
     }
   }
 }
@@ -102,7 +104,8 @@ async function getEntitlementsPage(
 /** Every entitlement AWS holds for one license of our product, across all pages. */
 export async function fetchLicenseEntitlements(
   productCode: string,
-  licenseArn: string
+  licenseArn: string,
+  signal?: AbortSignal
 ): Promise<Entitlement[]> {
   const entitlements: Entitlement[] = []
   let nextToken: string | undefined
@@ -112,7 +115,8 @@ export async function fetchLicenseEntitlements(
         ProductCode: productCode,
         Filter: { LICENSE_ARN: [licenseArn] },
         NextToken: nextToken,
-      })
+      }),
+      signal
     )
     entitlements.push(...(result.Entitlements ?? []))
     nextToken = result.NextToken
@@ -121,11 +125,12 @@ export async function fetchLicenseEntitlements(
   throw new Error(`GetEntitlements returned more than ${MAX_PAGES} pages for one license`)
 }
 
-/** Reads and summarizes one license's entitlements as of now. */
+/** Reads and summarizes one license's entitlements as of now; `signal` bounds the whole read. */
 export async function verifyLicense(
   productCode: string,
-  licenseArn: string
+  licenseArn: string,
+  signal?: AbortSignal
 ): Promise<EntitlementSummary> {
-  const entitlements = await fetchLicenseEntitlements(productCode, licenseArn)
+  const entitlements = await fetchLicenseEntitlements(productCode, licenseArn, signal)
   return summarizeEntitlements(entitlements, productCode, new Date())
 }

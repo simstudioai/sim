@@ -17,6 +17,9 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AwsMarketplaceRegisterAPI')
 
+/** AWS posts a URL-encoded form; multipart is accepted too, under the same cap. */
+const FORM_MEDIA_TYPES = new Set(['application/x-www-form-urlencoded', 'multipart/form-data'])
+
 /** The form carries one opaque token; anything larger is not from AWS. */
 const MAX_FORM_BYTES = 16 * 1024
 
@@ -34,7 +37,7 @@ function redirectToOnboarding(error?: AwsMarketplaceOnboardingError): NextRespon
 
 async function readRegistrationToken(request: NextRequest): Promise<string | null> {
   const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
-  if (mediaType !== 'application/x-www-form-urlencoded') return null
+  if (!mediaType || !FORM_MEDIA_TYPES.has(mediaType)) return null
   let form: FormData
   try {
     form = await readFormDataWithLimit(request, {
@@ -44,8 +47,9 @@ async function readRegistrationToken(request: NextRequest): Promise<string | nul
   } catch {
     return null
   }
+  const token = form.get('x-amzn-marketplace-token')
   const parsed = awsMarketplaceRegistrationFormSchema.safeParse({
-    'x-amzn-marketplace-token': form.get('x-amzn-marketplace-token'),
+    'x-amzn-marketplace-token': typeof token === 'string' ? token : undefined,
   })
   return parsed.success ? parsed.data['x-amzn-marketplace-token'] : null
 }
@@ -80,4 +84,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   response.headers.append('set-cookie', serializeClaimCookie(outcome.claimToken))
   response.headers.set('Cache-Control', 'no-store')
   return response
+})
+
+/** A refresh, back button, or bookmark of the fulfillment URL lands on the onboarding page. */
+export const GET = withRouteHandler(async () => {
+  if (!getAwsMarketplaceProductCode())
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return redirectToOnboarding()
 })

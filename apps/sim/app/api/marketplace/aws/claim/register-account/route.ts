@@ -21,6 +21,8 @@ export const POST = defineInternalJsonRoute({
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
   mapInput: ({ body }, { request }) => ({
     licenseId: body.licenseId,
+    contactEmail: body.contactEmail,
+    companyName: body.companyName || null,
     claimToken: request.cookies.get(AWS_MARKETPLACE_CLAIM_COOKIE)?.value ?? null,
   }),
   present: () => ({ success: true as const }),

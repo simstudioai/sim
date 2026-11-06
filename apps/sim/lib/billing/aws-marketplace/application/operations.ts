@@ -18,6 +18,13 @@ export const awsMarketplaceOperations = {
     principalKinds: ['session'],
     capability: 'none',
   }),
+  // permission-group-exempt: members see their organization's subscription status, as the billing page shows its plan.
+  listOrganizationLicenses: defineOrganizationOperation({
+    id: 'organization.aws_marketplace_license.list',
+    minimumRole: 'member',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
   // permission-group-exempt: linking a purchased license is organization administration, not a governed capability.
   linkLicense: defineOrganizationOperation({
     id: 'organization.aws_marketplace_license.link',
