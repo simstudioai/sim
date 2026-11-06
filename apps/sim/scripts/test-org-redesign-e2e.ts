@@ -596,6 +596,16 @@ async function clipboard(page: Page) {
   return page.evaluate(() => navigator.clipboard.readText())
 }
 
+/**
+ * Lets everything the last input scheduled run, so a request it caused has left by the time this
+ * returns. How a check proves something did not happen, without guessing at a delay.
+ */
+async function pageTurn(page: Page) {
+  await page.evaluate(
+    () => new Promise((settled) => requestAnimationFrame(() => setTimeout(settled)))
+  )
+}
+
 async function assertNoHorizontalOverflow(page: Page, label: string) {
   const { scrollWidth, width } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -2317,7 +2327,7 @@ async function homeChecks() {
       await expect(composer(page).locator('xpath=ancestor::*[@aria-busy="true"]')).toHaveCount(1)
       await expect(composer(page)).toBeEditable()
       await expect(composer(page).locator('xpath=ancestor::*[@inert]')).toHaveCount(0)
-      await page.waitForTimeout(500)
+      await pageTurn(page)
       assert.deepEqual(sends, [], 'The message waits for the skill lists')
       releaseSkills()
       await expect.poll(() => sends.length, { timeout: 30_000 }).toBeGreaterThan(0)
@@ -3424,14 +3434,17 @@ async function linksChecks() {
             .getByRole('textbox', { name: 'Destination URL' })
             .fill('https://held.example.com')
           const release = createDeferred<void>()
+          const saving = createDeferred<void>()
           await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links`, async (route) => {
+            if (route.request().method() === 'POST') saving.resolve()
             await release.promise
             await route.continue()
           })
           await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await saving.promise
           await page.keyboard.press('Escape')
-          await sleep(300)
-          await expect(modal).toBeVisible()
+          await pageTurn(page)
+          await expect(modal).toHaveJSProperty('open', true)
           release.resolve()
           await expect(modal).toHaveCount(0)
         })
@@ -3729,15 +3742,22 @@ async function settingsChecks() {
           const reason = modal.getByRole('textbox', { name: 'Reason' })
           await reason.fill('Spam')
           await reason.press('Enter')
-          await sleep(300)
+          await pageTurn(page)
           assert.equal(banRequests, 0, 'Enter in the reason submitted the ban')
-          await expect(modal, 'Enter in the reason closed the dialog').toBeVisible()
+          await expect(modal, 'Enter in the reason closed the dialog').toHaveJSProperty(
+            'open',
+            true
+          )
+          await expect(
+            modal.getByRole('button', { name: 'Cancel' }),
+            'Enter in the reason started the ban'
+          ).toBeEnabled()
           await modal.getByRole('button', { name: 'Ban', exact: true }).click()
           await expect.poll(() => banRequests).toBe(1)
           await expect(modal, 'Starting the ban closed the dialog').toBeVisible()
           await page.keyboard.press('Escape')
-          await sleep(300)
-          await expect(modal, 'Escape dismissed a running ban').toBeVisible()
+          await pageTurn(page)
+          await expect(modal, 'Escape dismissed a running ban').toHaveJSProperty('open', true)
           await expect(modal.getByRole('button', { name: 'Cancel' })).toBeDisabled()
           held.resolve()
           await expect(modal.getByText('Ban refused')).toBeVisible()
@@ -3762,9 +3782,9 @@ async function settingsChecks() {
         const search = modal.getByRole('searchbox')
         await search.fill('member')
         await search.press('Enter')
-        await sleep(300)
+        await pageTurn(page)
         assert.equal(writes, 0, 'Enter in the search changed the group')
-        await expect(modal).toBeVisible()
+        await expect(modal).toHaveJSProperty('open', true)
       })
     } finally {
       await sql`update permission_group set is_default = true where id = ${STANDARD_GROUP_ID}`
