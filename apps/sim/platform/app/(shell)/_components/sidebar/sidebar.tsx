@@ -20,10 +20,6 @@ import {
 import { AccountMenu } from '@/platform/app/(shell)/_components/sidebar/account-menu'
 import { ChatsSection } from '@/platform/app/(shell)/_components/sidebar/chats-section'
 import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
-import {
-  copyLinkAction,
-  openInNewTabAction,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/app/(shell)/_components/sidebar/workspaces-section'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
@@ -36,6 +32,7 @@ import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { type OrganizationNavFlags, useOrganizationShell } from '@/platform/lib/data/shell'
 import { useShellActions } from '@/platform/lib/data/shell-actions'
+import { copyLinkAction, openInNewTabAction } from '@/platform/lib/row-links'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'

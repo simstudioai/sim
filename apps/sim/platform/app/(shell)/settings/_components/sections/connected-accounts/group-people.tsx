@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
+import {
+  useOrganizationAccountPeople,
+  useResendOrganizationAccountInvitation,
+  useRevokeOrganizationAccountEnrollment,
+} from '@/hooks/queries/organization-accounts'
+import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   LoadingState,
@@ -28,15 +37,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  personConnectionSummaries,
-  SEARCH_DEBOUNCE_MS,
-  useDebounce,
-  useOrganizationAccountPeople,
-  useOrganizationAccountPeopleSearch,
-  useResendOrganizationAccountInvitation,
-  useRevokeOrganizationAccountEnrollment,
-} from '@/platform/lib/data/credential-groups'
 
 interface PersonConnectionsProps {
   person: Parameters<typeof personConnectionSummaries>[0]
@@ -70,7 +70,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
   const resend = useResendOrganizationAccountInvitation()
   const revoke = useRevokeOrganizationAccountEnrollment()
   const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
-  const search = useDebounce(peopleSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const search = useSearchFilterValue(peopleSearch, SEARCH_DEBOUNCE_MS).trim()
   const people = useOrganizationAccountPeople(organizationId, search, { enabled: true })
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null)

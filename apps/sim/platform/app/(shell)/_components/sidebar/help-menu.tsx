@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SupportModal } from '@/platform/app/(shell)/_components/sidebar/support-modal'
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { useHelp } from '@/platform/lib/data/shell-actions'
+import { openLinkInNewTab } from '@/platform/lib/row-links'
 
 export function HelpMenu() {
   const help = useHelp()

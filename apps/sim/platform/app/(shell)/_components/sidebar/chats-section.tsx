@@ -6,13 +6,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import { useChatSelection } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-chat-selection'
-import type { ShellChat, ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
 import { NameModal } from '@/platform/app/(shell)/_components/sidebar/name-modal'
 import { RailFlyout } from '@/platform/app/(shell)/_components/sidebar/rail-flyout'
-import {
-  copyLinkAction,
-  openInNewTabAction,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { PinnedIndicator, SectionRow } from '@/platform/app/(shell)/_components/sidebar/section-row'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
@@ -20,6 +15,8 @@ import { Disclosure } from '@/platform/design-system/components/disclosure/discl
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
 import { useChatListActions } from '@/platform/lib/data/chat-list'
+import type { ShellChat, ShellQueryStatus } from '@/platform/lib/data/shell-view'
+import { copyLinkAction, openInNewTabAction } from '@/platform/lib/row-links'
 import { useFolderStore } from '@/stores/folders/store'
 
 const CHAT_TITLE_MAX_LENGTH = 200

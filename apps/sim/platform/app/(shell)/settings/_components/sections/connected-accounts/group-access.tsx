@@ -4,6 +4,14 @@ import { type ReactNode, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
+import { credentialGroupWorkspaceSearchParam } from '@/ee/credential-groups/search-params'
+import {
+  useOrganizationAccountWorkspaceAccess,
+  useUpdateOrganizationAccountWorkspaceAccess,
+} from '@/hooks/queries/organization-accounts'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   LoadingState,
   SectionStack,
@@ -21,14 +29,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  credentialGroupWorkspaceSearchParam,
-  ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
-  type OrganizationAccountWorkspaceAccess,
-  useDebouncedSearchSetter,
-  useOrganizationAccountWorkspaceAccess,
-  useUpdateOrganizationAccountWorkspaceAccess,
-} from '@/platform/lib/data/credential-groups'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =

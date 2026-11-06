@@ -1,12 +1,19 @@
 'use client'
 
+import { useState } from 'react'
+import { createLogger } from '@sim/logger'
+import { hashKey, useQueryClient } from '@tanstack/react-query'
 import { useQueryStates } from 'nuqs'
 import { downloadCsvExport } from '@/lib/core/utils/csv-download'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state/constants'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
-import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
+import {
+  type AuditLogFilters,
+  auditLogsInfiniteOptions,
+  useAuditLogs,
+} from '@/ee/audit-logs/hooks/audit-logs'
 import { auditLogExportUrl } from '@/ee/audit-logs/lib/format'
 import {
   auditRefreshReads,
@@ -19,10 +26,11 @@ import {
   auditLogFilterUrlKeys,
   DEFAULT_AUDIT_TIME_RANGE,
 } from '@/ee/audit-logs/search-params'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { currentMinute } from '@/platform/lib/time'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-const WINDOW_STEP_MS = 60_000
+const logger = createLogger('AuditLogFeed')
 
 /**
  * The audit feed under the URL's filters and deep-linked workspace scope. The scope is resolved
@@ -39,22 +47,55 @@ export function useAuditLogFeed(organizationId: string) {
   const workspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
   const scope = resolveAuditWorkspaceScope(workspaceScope, workspaces)
   const [search, setSearch] = useSettingsSearch()
-  const debouncedSearch = useDebounce(search, SEARCH_DEBOUNCE_MS).trim()
+  const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
 
-  /** A preset's start follows the clock by the minute, so a render alone is not a new query key. */
-  const startDate = getStartDateFromTimeRange(
+  /**
+   * What a preset's window is measured from. It is part of the query key, so it holds still while
+   * the viewer reads: loaded pages stay loaded and an export covers the rows on screen. A new set of
+   * filters takes a new anchor, and Refresh moves it once the new window has answered.
+   */
+  const filterIdentity = hashKey([
     timeRange,
     customStart,
-    Math.floor(Date.now() / WINDOW_STEP_MS) * WINDOW_STEP_MS
-  )?.toISOString()
-  const filters: AuditLogFilters = {
+    customEnd,
+    debouncedSearch,
+    urlFilters.types,
+    workspaceScope,
+  ])
+  const queryClient = useQueryClient()
+  const [held, setHeld] = useState(() => ({
+    filterIdentity,
+    anchor: currentMinute(),
+  }))
+  if (held.filterIdentity !== filterIdentity) {
+    setHeld({ filterIdentity, anchor: currentMinute() })
+  }
+  const filtersFrom = (anchor: number): AuditLogFilters => ({
     search: debouncedSearch || undefined,
     resourceType: urlFilters.types.length > 0 ? urlFilters.types.join(',') : undefined,
     workspaceId: scope.workspace?.id,
-    startDate,
+    startDate: getStartDateFromTimeRange(timeRange, customStart, anchor)?.toISOString(),
     endDate: getEndDateFromTimeRange(timeRange, customEnd)?.toISOString(),
-  }
+  })
+  const filters = filtersFrom(held.anchor)
   const feed = useAuditLogs(organizationId, filters, scope.feedEnabled)
+
+  /** The rows on screen stay until the moved window answers, and stay if it cannot. */
+  const refreshFeed = async () => {
+    const anchor = currentMinute()
+    const moved = filtersFrom(anchor)
+    if (moved.startDate === filters.startDate) {
+      await feed.refetch()
+      return
+    }
+    try {
+      await queryClient.fetchInfiniteQuery(auditLogsInfiniteOptions(organizationId, moved))
+    } catch (error) {
+      logger.error('Failed to refresh audit logs', { error })
+      return
+    }
+    setHeld((latest) => (latest.filterIdentity === filterIdentity ? { ...latest, anchor } : latest))
+  }
 
   return {
     entries: presentableAuditEntries(feed.data?.pages, scope.isAnswerable),
@@ -90,7 +131,7 @@ export function useAuditLogFeed(organizationId: string) {
     refresh: async () => {
       const reads = auditRefreshReads(scope, workspaceScope)
       await Promise.all([
-        ...(reads.feed ? [feed.refetch()] : []),
+        ...(reads.feed ? [refreshFeed()] : []),
         ...(reads.workspaces ? [workspaces.refetch()] : []),
       ])
     },

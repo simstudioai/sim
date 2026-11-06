@@ -1,6 +1,6 @@
-import type { ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
+import type { ShellQueryStatus } from '@/platform/lib/data/shell-view'
 
 interface SectionStatusProps {
   status: ShellQueryStatus

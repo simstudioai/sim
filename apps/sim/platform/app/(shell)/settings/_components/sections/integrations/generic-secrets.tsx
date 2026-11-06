@@ -5,7 +5,14 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import {
+  useConfigureOrganizationSecretSource,
+  useRemoveOrganizationSecretSource,
+} from '@/hooks/queries/organization-secrets'
 import {
   ActionRow,
   Muted,
@@ -19,13 +26,6 @@ import {
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  type GenericSecretSource,
-  organizationRoutes,
-  type SecretSourceMode,
-  useConfigureOrganizationSecretSource,
-  useRemoveOrganizationSecretSource,
-} from '@/platform/lib/data/sources'
 
 export const GENERIC_SECRETS_SOURCE_TYPE = 'generic-secrets'
 export const GENERIC_SECRETS_NAME = 'Generic Secrets'

@@ -1,10 +1,5 @@
 import styles from '@/platform/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeListState,
-} from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
@@ -13,6 +8,7 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
+import type { AttentionItem, EmailItem, HomeListState } from '@/platform/lib/data/home-view'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {

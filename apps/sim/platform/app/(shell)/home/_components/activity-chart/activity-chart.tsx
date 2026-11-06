@@ -1,12 +1,6 @@
 'use client'
 
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
-import {
-  ACTIVITY_WINDOW_DAYS,
-  type ActivityPoint,
-  type ActivityWindowDays,
-  type HomeActivityState,
-} from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
@@ -16,6 +10,12 @@ import { usePlotInspection } from '@/platform/design-system/components/chart/use
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
+import {
+  ACTIVITY_WINDOW_DAYS,
+  type ActivityPoint,
+  type ActivityWindowDays,
+  type HomeActivityState,
+} from '@/platform/lib/data/home-view'
 import { formatCalendarDate } from '@/platform/lib/time'
 
 interface HomeActivityChartProps {

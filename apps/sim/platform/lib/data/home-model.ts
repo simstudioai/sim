@@ -17,6 +17,9 @@ import {
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import type {
   AttentionItem,
   CalendarMeeting,
@@ -26,10 +29,7 @@ import type {
   HomeConnectOption,
   HomeWidgetState,
   HomeWorkspaceItem,
-} from '@/platform/app/(shell)/home/_components/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+} from '@/platform/lib/data/home-view'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */

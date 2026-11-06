@@ -162,7 +162,6 @@ interface GroupDetailProps {
   group: PermissionGroup
   organizationId: string
   hosted: boolean
-  projectsEnabled: boolean
   workspaceOptions: { value: string; label: string }[]
   organizationWorkspaces: PermissionGroupWorkspaceRef[]
   workspacesLoading: boolean
@@ -177,7 +176,6 @@ export function GroupDetail({
   group,
   organizationId,
   hosted,
-  projectsEnabled,
   workspaceOptions,
   organizationWorkspaces,
   workspacesLoading,
@@ -528,7 +526,6 @@ export function GroupDetail({
         ))}
         <ProjectIssueRestrictions
           organizationId={organizationId}
-          projectsEnabled={projectsEnabled}
           value={editingConfig.deniedPartialAccessProjectIssues}
           onChange={(value) =>
             setEditingConfig((previous) => ({

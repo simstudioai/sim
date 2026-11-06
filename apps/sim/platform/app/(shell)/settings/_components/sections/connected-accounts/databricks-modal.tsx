@@ -4,13 +4,13 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { InlineNotice, Modal, SecretField, TextField } from '@/platform/design-system/components'
 import {
   useAddOrganizationAccountMcpProvider,
   useConfigureOrganizationMcp,
   useOrganizationDatabricksSetup,
-} from '@/platform/lib/data/credential-groups'
+} from '@/hooks/queries/organization-accounts'
+import { Muted } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { InlineNotice, Modal, SecretField, TextField } from '@/platform/design-system/components'
 
 interface DatabricksModalProps {
   organizationId: string

@@ -16,7 +16,7 @@ import {
   type SettingsSectionKey,
   useSettingsNavigation,
 } from '@/platform/lib/data/settings-navigation'
-import { revealSettingRow, searchSettings } from '@/platform/lib/data/settings-search'
+import { searchSettings } from '@/platform/lib/data/settings-search'
 import { plural } from '@/platform/lib/plural'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -181,10 +181,7 @@ export function SettingsNavigation({ collapsed }: SettingsNavigationProps) {
                       href={result.href}
                       selected={false}
                       onIntent={() => warmSection(group.key)}
-                      onNavigate={() => {
-                        navigateToSection(group.key, result.href)
-                        if (result.rowLabel) revealSettingRow(result.rowLabel)
-                      }}
+                      onNavigate={() => navigateToSection(group.key, result.href)}
                     />
                   ))}
                 </div>
