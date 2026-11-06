@@ -45,4 +45,6 @@ export const chatResourcePanelMock = { ChatResourcePanel: fns.mockChatResourcePa
 /** `@/hooks/queries/mothership-chats` */
 export const mothershipChatsQueriesMock = {
   useMarkMothershipChatRead: () => ({ mutate: fns.mockMarkMothershipChatRead }),
+  useMothershipChatHistory: () => ({ data: undefined }),
+  useSetMothershipChatEffort: () => ({ mutate: vi.fn() }),
 }

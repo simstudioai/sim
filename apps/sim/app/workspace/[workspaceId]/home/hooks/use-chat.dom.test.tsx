@@ -22,6 +22,7 @@
 import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
@@ -48,9 +49,10 @@ const {
     >(),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)

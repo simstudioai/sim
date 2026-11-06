@@ -78,12 +78,7 @@ vi.mock(
     }
   }
 )
-vi.mock('@/hooks/queries/mothership-chats', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  ...mothershipChatsQueriesMock,
-  useMothershipChatHistory: () => ({ data: undefined }),
-  useSetMothershipChatEffort: () => ({ mutate: vi.fn() }),
-}))
+vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: [] }),
 }))
