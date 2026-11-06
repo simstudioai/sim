@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { compareStrings } from '@sim/utils/string'
 import type {
@@ -20,14 +19,14 @@ import {
   findCredentialGroupProviderFromProviderId,
 } from '@/lib/credential-groups/providers'
 import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
-import {
-  ManagedOAuthCredentialError,
-  rejectManagedOAuthToken,
-  resolveManagedOAuthToken,
-} from '@/lib/credentials/managed-oauth'
+import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
+import {
+  type AccountTokenRead,
+  createAccountTokenRead,
+  type ProviderTokenInput,
+} from '@/lib/organizations/home/account-token'
 import {
   HOME_CALENDAR_EVENT_LIMIT,
   HOME_EMAIL_THREAD_LIMIT,
@@ -71,77 +70,6 @@ export const organizationHomeOperations = {
   }),
 } as const
 
-interface ProviderTokenInput {
-  context: OrganizationMembershipContext
-  credentialId: string
-  providerId: string
-}
-
-function resolveToken({ context, credentialId, providerId }: ProviderTokenInput) {
-  return resolveManagedOAuthToken({
-    credentialId,
-    organizationId: context.organizationId,
-    expectedProviderId: providerId,
-    requiredScopes: [],
-  })
-}
-
-function isTokenRejected(error: unknown) {
-  return error instanceof HomeProviderReadError && error.failure === 'token_rejected'
-}
-
-/**
- * One read with the member's token, and one more with a fresh token if the first is refused. A
- * concurrent read of the same account may already have rotated it, so the fresh token is resolved
- * whether or not this call was the one that rejected the old token.
- */
-async function readWithToken<T>(
-  input: ProviderTokenInput,
-  read: (accessToken: string) => Promise<T[]>
-): Promise<T[]> {
-  const { context, credentialId, providerId } = input
-  const { accessToken } = await resolveToken(input)
-  recordCredentialAccess({
-    actorId: context.userId,
-    workspaceId: null,
-    resourceId: credentialId,
-    providerId,
-    credentialType: 'oauth',
-  })
-  try {
-    return await read(accessToken)
-  } catch (error) {
-    if (!isTokenRejected(error)) throw error
-  }
-  const rejected = await rejectManagedOAuthToken({
-    credentialId,
-    organizationId: context.organizationId,
-    expectedProviderId: providerId,
-    requiredScopes: [],
-    rejectedAccessToken: accessToken,
-  })
-  if (rejected)
-    recordAudit({
-      actorId: context.userId,
-      action: AuditAction.CREDENTIAL_UPDATED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: credentialId,
-      description: 'Marked provider-rejected managed OAuth credential as needing reauthorization',
-      metadata: {
-        organizationId: context.organizationId,
-        provider: providerId,
-        credentialType: 'managed_oauth',
-      },
-    })
-  const retry = await resolveToken(input)
-  try {
-    return await read(retry.accessToken)
-  } catch (error) {
-    if (isTokenRejected(error)) throw new HomeProviderReadError('needs_reauth', 401)
-    throw error
-  }
-}
-
 const REAUTH_ERROR_CODES: ReadonlySet<ManagedOAuthCredentialError['code']> = new Set([
   'MANAGED_CREDENTIAL_NEEDS_REAUTH',
   'MANAGED_CREDENTIAL_REVOKED',
@@ -181,6 +109,7 @@ interface WidgetReadResult<T> {
 interface ViewerAccountRead extends ProviderTokenInput {
   accountId: string | null
   readableAccounts: number
+  withToken: AccountTokenRead
 }
 
 type ViewerAccountReader<T> = (accessToken: string, account: ViewerAccountRead) => Promise<T[]>
@@ -254,16 +183,16 @@ async function readViewerAccounts<T>(
       if (!ownedIds.has(credentialId)) return settled('not_offered')
       if (!toRead.has(credentialId)) return settled('not_read')
       try {
+        const tokenInput = { context, credentialId, providerId }
         const account = {
-          context,
-          credentialId,
+          ...tokenInput,
           accountId,
-          providerId,
           readableAccounts: toRead.size,
+          withToken: createAccountTokenRead(tokenInput),
         }
         return settled(
           'ready',
-          await readWithToken(account, (accessToken) => read(accessToken, account))
+          await account.withToken((accessToken) => read(accessToken, account))
         )
       } catch (error) {
         return settled(failedState(error, { organizationId, credentialId, providerId }))
@@ -277,7 +206,7 @@ async function readViewerAccounts<T>(
 }
 
 interface GmailAccountCursor extends GmailThreadCursor {
-  account: ProviderTokenInput
+  account: ViewerAccountRead
 }
 
 /**
@@ -298,7 +227,7 @@ async function readRemainingGmailThreads(
         const cursor = cursors.get(credentialId)
         if (!cursor) return
         try {
-          const threads = await readWithToken(cursor.account, (accessToken) =>
+          const threads = await cursor.account.withToken((accessToken) =>
             readMoreGmailThreads({ accessToken, signal, cursor, count })
           )
           rows.push(...threads.map((thread) => ({ ...thread, credentialId })))
