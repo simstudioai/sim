@@ -3,6 +3,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { toArray, toRecord } from '@sim/utils/object'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +40,7 @@ describe('Search MCP protocol', () => {
       content: 'Evidence',
       chunkIndex: 0,
       similarity: 0.5,
+      queryIndexes: [0],
     }
     mocks.liveSearch.mockResolvedValue({
       results: [row],
@@ -74,12 +76,19 @@ describe('Search MCP protocol', () => {
       expect(searchSchema?.properties).toHaveProperty('nativeQueries')
       expect(readSchema?.properties).toHaveProperty('startOffset')
       expect(readSchema?.properties).not.toHaveProperty('url')
-      const search = await client.callTool({ name: 'search', arguments: { query: 'release' } })
+      const search = await client.callTool({
+        name: 'search',
+        arguments: {
+          query: 'release',
+          nativeQueries: [{ provider: 'google_drive', query: "name contains 'release'" }],
+        },
+      })
       expect(search.isError).not.toBe(true)
-      expect(search.content).toEqual([{ type: 'text', text: expect.stringContaining(documentId) }])
-      expect(mocks.liveSearch).toHaveBeenCalledWith(
-        expect.objectContaining({ input: expect.objectContaining({ topK: 30 }) })
-      )
+      const searchContent = toRecord(toArray(search.content)[0])
+      if (typeof searchContent.text !== 'string') throw new Error('Missing search payload')
+      expect(JSON.parse(searchContent.text)).toMatchObject({
+        results: [{ documentId, queryIndexes: [0] }],
+      })
       const read = await client.callTool({ name: 'read_document', arguments: { documentId } })
       expect(read.isError).not.toBe(true)
       expect(read.content).toEqual([
