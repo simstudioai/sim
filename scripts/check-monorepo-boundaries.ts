@@ -20,11 +20,13 @@
  *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
  *    the adapter.
  *
- * 3. The organization surface's seam points one way. `apps/sim/platform/embedded/lib` never imports
- *    `@/platform/embedded/app` or `@/app/o`, not even for a type: views depend on the data layer, routes
- *    depend on both, and a data file that reached back into either could not be read or tested
- *    without it. Fix by moving what both need under `platform/embedded/lib`, or under `lib/` when a surface
- *    the design system may not reach (the extension, `/workspace`) shares it.
+ * 3. The organization surface's seam points one way, in both data layers. `apps/sim/platform/embedded/lib`
+ *    never imports `@/platform/embedded/app` or `@/app/o`, not even for a type, and
+ *    `apps/sim/platform/lib` never imports `@/app/o`, not even for a type, or `@/platform/app` at
+ *    runtime: views depend on the data layer, routes depend on both, and a data file that reached
+ *    back into either could not be read or tested without it. Fix by moving what both need under
+ *    the data layer, or under `lib/` when a surface the design system may not reach (the extension,
+ *    `/workspace`) shares it.
  * 4. Views (`apps/sim/platform/embedded/app`) read data through `platform/embedded/lib/data`, so a read gets one
  *    adaptation and one place to fix it: no runtime edge to a data hook, in `@/hooks/queries` or
  *    a `hooks` folder under `@/ee`. Domain primitives elsewhere in `@/ee` (`lib`, constants,
@@ -38,7 +40,19 @@
  *    would inherit that surface's components and hooks. Fix by moving the shared part under `lib/`
  *    or `hooks/`.
  *
- * Rules 1 to 3 have no allowlist. Rules 4 to 6 predate their enforcement, so their existing edges
+ * 7. The Platform zone and the organization views are two apps sharing `platform/design-system`. Nothing
+ *    under `apps/sim/platform` outside `embedded` imports `@/platform/embedded`, and `embedded` imports
+ *    nothing under `@/platform` but itself and the design system, tests included: the views are built on
+ *    the host app, so an edge from the zone would pull the host into a separate build, and an edge
+ *    the other way would make the zone part of what every organization ships.
+ *
+ * 8. Views (`apps/sim/platform/embedded/app`) do not import `@/app/workspace`, not even for a type: each
+ *    edge is legacy code that a design-system view cannot be restyled without. Fix by moving the
+ *    shared part under `lib/` or `hooks/`.
+ * 9. `apps/sim/platform/lib` takes the view models it fills from the views, by type. That makes rule 3
+ *    hold only at runtime for this layer. Fix by moving the model under `platform/lib/data`.
+ *
+ * Rules 1 to 3 and 7 have no allowlist. Rules 4 to 6, 8 and 9 predate their enforcement, so their existing edges
  * are counted per file in `scripts/check-monorepo-boundaries.baseline.json`, one section per rule. A
  * file above its count fails, and so does one below it until the baseline is rewritten, so the
  * baseline only shrinks. Regenerate after removing edges with `--update`, which refuses to raise a
@@ -55,8 +69,10 @@ const ROOT = path.resolve(import.meta.dir, '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
 const SIM_DIR = path.join(ROOT, 'apps/sim')
 const PLATFORM_DIR = path.join(SIM_DIR, 'platform')
+const ZONE_LIB_DIR = path.join(PLATFORM_DIR, 'lib')
 const PLATFORM_LIB_DIR = path.join(PLATFORM_DIR, 'embedded/lib')
 const PLATFORM_VIEWS_DIR = path.join(SIM_DIR, 'platform/embedded/app')
+const EMBEDDED_DIR = path.join(PLATFORM_DIR, 'embedded')
 const EE_DATA_HOOK = /^@\/ee\/(?:.+\/)?hooks(?:\/|$)/
 const SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
 
@@ -114,9 +130,26 @@ function applicationViolation(
 function viewSeamViolation(specifier: string, bindings: readonly string[] | 'all'): string | null {
   if (bindings !== 'all' && bindings.length === 0) return null
   if (matchesModule(specifier, '@/hooks/queries') || EE_DATA_HOOK.test(specifier)) {
-    return `view reads a data hook around platform/lib/data: ${specifier}`
+    return `view reads a data hook around platform/embedded/lib/data: ${specifier}`
   }
   return null
+}
+
+/** Why a file under `apps/sim/platform` may not take this edge across the zone/embedded line. */
+function zoneEmbeddedViolation(file: string, specifier: string): string | null {
+  if (!file.startsWith(`${EMBEDDED_DIR}${path.sep}`)) {
+    return matchesModule(specifier, '@/platform/embedded')
+      ? `the Platform zone imports the organization views: ${specifier}`
+      : null
+  }
+  if (
+    !specifier.startsWith('@/platform/') ||
+    matchesModule(specifier, '@/platform/embedded') ||
+    matchesModule(specifier, '@/platform/design-system')
+  ) {
+    return null
+  }
+  return `the organization views import the Platform zone: ${specifier}`
 }
 
 /**
@@ -239,16 +272,26 @@ async function walk(dir: string, results: string[] = []): Promise<string[]> {
   return results
 }
 
-/** Every file under `dir` but tests; a directory that does not exist has none. */
-async function sourceFiles(dir: string): Promise<string[]> {
-  const files = await walk(dir).catch((error: NodeJS.ErrnoException) => {
+/** Every file under `dir`; a directory that does not exist has none. */
+async function allFiles(dir: string): Promise<string[]> {
+  return walk(dir).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return []
     throw error
   })
-  return files.filter((file) => !TEST_FILE.test(file))
 }
 
-const SEAM_RATCHETS = ['viewDataHooks', 'platformToRoutes', 'platformLibToWorkspace'] as const
+/** Every file under `dir` but tests. */
+async function sourceFiles(dir: string): Promise<string[]> {
+  return (await allFiles(dir)).filter((file) => !TEST_FILE.test(file))
+}
+
+const SEAM_RATCHETS = [
+  'viewDataHooks',
+  'platformToRoutes',
+  'platformLibToWorkspace',
+  'viewsToWorkspace',
+  'zoneLibToViewTypes',
+] as const
 
 type SeamRatchet = (typeof SEAM_RATCHETS)[number]
 type SeamCounts = Record<string, number>
@@ -353,6 +396,8 @@ async function main() {
     viewDataHooks: [],
     platformToRoutes: [],
     platformLibToWorkspace: [],
+    viewsToWorkspace: [],
+    zoneLibToViewTypes: [],
   }
 
   const platformLibFiles = await sourceFiles(PLATFORM_LIB_DIR)
@@ -379,8 +424,40 @@ async function main() {
     )
   }
 
+  const zoneLibFiles = await sourceFiles(ZONE_LIB_DIR)
+  for (const file of zoneLibFiles) {
+    offenders.push(
+      ...(await scanImports(file, ({ module, bindings }) => {
+        const specifier = aliasedSpecifier(file, module.text)
+        if (matchesModule(specifier, '@/app/o')) return `platform/lib imports a route: ${specifier}`
+        const runtime = bindings === 'all' || bindings.length > 0
+        return runtime && matchesModule(specifier, '@/platform/app')
+          ? `platform/lib imports a view at runtime: ${specifier}`
+          : null
+      }))
+    )
+    seamHits.zoneLibToViewTypes.push(
+      ...(await scanImports(file, ({ module, bindings }) => {
+        const specifier = aliasedSpecifier(file, module.text)
+        const typeOnly = bindings !== 'all' && bindings.length === 0
+        return typeOnly && matchesModule(specifier, '@/platform/app')
+          ? `platform/lib takes a view's type: ${specifier}`
+          : null
+      }))
+    )
+  }
+
+  for (const file of await allFiles(PLATFORM_DIR)) {
+    offenders.push(
+      ...(await scanImports(file, ({ module }) =>
+        zoneEmbeddedViolation(file, aliasedSpecifier(file, module.text))
+      ))
+    )
+  }
+
+  const zoneLibFileSet = new Set(zoneLibFiles)
   for (const file of await sourceFiles(PLATFORM_DIR)) {
-    if (platformLibFileSet.has(file)) continue
+    if (platformLibFileSet.has(file) || zoneLibFileSet.has(file)) continue
     seamHits.platformToRoutes.push(
       ...(await scanImports(file, ({ module }) => {
         const specifier = aliasedSpecifier(file, module.text)
@@ -394,6 +471,14 @@ async function main() {
       ...(await scanImports(file, ({ module, bindings }) =>
         viewSeamViolation(aliasedSpecifier(file, module.text), bindings)
       ))
+    )
+    seamHits.viewsToWorkspace.push(
+      ...(await scanImports(file, ({ module }) => {
+        const specifier = aliasedSpecifier(file, module.text)
+        return matchesModule(specifier, '@/app/workspace')
+          ? `view imports the workspace surface: ${specifier}`
+          : null
+      }))
     )
   }
 
@@ -423,7 +508,7 @@ async function main() {
   )
   if (violations.length === 0 && dropped.length === 0) {
     console.log(
-      `✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and platform/lib points away from views and routes (${edgeCount} seam edges baselined)`
+      `✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, the zone and the organization views stay apart, and both data layers point away from views and routes (${edgeCount} seam edges baselined)`
     )
     return
   }

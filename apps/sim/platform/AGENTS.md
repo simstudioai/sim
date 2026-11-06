@@ -1,6 +1,6 @@
 # Platform design contract
 
-Applies to this independent Next.js application. In this tree “EMCN” means the Sim Platform design system in `design-system/`. The existing app and `packages/emcn` remain isolated. For new work or design drift, run the repository's `$implement-platform` skill. Its Paper companion is `$sim-paper-design`. Never import the legacy app, styles, chrome, business logic or providers across this boundary. Real data crosses only through the [data seam](#phase-3-data-seam).
+Applies to this independent Next.js application, the zone served at `/org`, and to `design-system/`. `embedded/` is not part of that application; it has [its own section](#embedded-in-the-organization-surface). In this tree “EMCN” means the Sim Platform design system in `design-system/`. The existing app and `packages/emcn` remain isolated. For new work or design drift, run the repository's `$implement-platform` skill. Its Paper companion is `$sim-paper-design`. Never import the legacy app, styles, chrome, business logic or providers across this boundary. Real data crosses only through the [data seam](#phase-3-data-seam).
 
 ## Ownership
 
@@ -74,7 +74,13 @@ Gates live on the server and arrive as data. Hiding an entry is navigation, not 
 
 ## Embedded in the organization surface
 
-The main app's `app/o/[organizationId]/` also mounts these views, on routes flag-off organizations still use. That route is the only legacy code that may import `@/platform/*`; `check:platform-css` holds every other entry out. Whatever needs legacy chrome (`WorkspaceChrome`, the legacy composer, Search's source cards) lives in `platform/embedded/`, which holds the organization surface's own views and data and which the zone never imports. A view shared by both takes what differs as props or slots. `lib/data` modules read `useOrganization()`, which the host's layout fills from the same surface read this app makes, with `routePrefix` set to `/o/<id>`, so `surfaceHref` and `legacyRoutes` serve both. Notices go through `usePlatformNotices`, which a host may redirect, and `PlatformSurface` collapses inside another, so a part can wrap itself when it alternates with legacy chrome.
+`embedded/` holds the organization views and their data (`embedded/app`, `embedded/lib`). It is not a Next app and has no pages: the main app's `app/o/[organizationId]/` routes mount it, for every organization, whatever the `platform-org-ui` flag says. An edit here ships in the main app's build. It is built on the host, not on this project: it imports the host's hooks, stores, providers and packages, legacy chrome included (`WorkspaceChrome`, the legacy composer, Search's source cards), and the data seam and seam closure do not apply to it. `check:boundaries` sets its own seam: views read data through `embedded/lib/data`, and that layer points away from views and routes.
+
+The zone and `embedded/` share only `design-system/`. Neither imports the other, not even for a type (`check:platform-design` rule `zone-embedded`, `check:boundaries` rule 7), so a change to a view here does not change the zone, and a similar view in each is two views. `app/o` is the only legacy code that may import `@/platform/*`, and only those two trees; `check:platform-css` holds every other entry out, and `check:platform-design` holds `app/o` out of the zone.
+
+Org context comes from a different place in each. A view here calls `useOrganization()` from `@/lib/organizations/provider`, which the `app/o` layout fills from `getOrganizationSurfaceContext`. The zone calls its own from `@/platform/lib/data/organization`. `surfaceHref`, `legacyRoutes` and `routePrefix` are the zone's and do not exist here: a link here is a host route (`@/lib/navigation/paths`). Each tree has its own `usePlatformNotices`. `PlatformSurface` collapses inside another, so a part can wrap itself when it alternates with legacy chrome.
+
+The design rules in this contract hold here too. `check:platform-design` walks `embedded/`, excepting its imports of the host and the host tokens it names, and counts what predates that per file and rule in the shrink-only `scripts/check-platform-design.baseline.json`.
 
 ## Product UI and desktop
 
