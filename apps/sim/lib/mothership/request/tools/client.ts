@@ -6,6 +6,7 @@ import {
   type AsyncTerminalCompletionSnapshot,
   getTerminalConfirmationStatus,
   isAsyncTerminalConfirmationStatus,
+  isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { replaceTerminalAsyncToolCallResult } from '@/lib/mothership/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
@@ -30,13 +31,20 @@ import {
   presentWorkflowLogsForModel,
 } from '@/lib/mothership/tools/workflow-output'
 import {
+  buildPausedWorkflowToolCompletion,
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
   getWorkflowToolLaunchError,
+  WORKFLOW_TOOL_PAUSED_STATUS,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
-import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
+import {
+  getHumanPauseResumeUrl,
+  getTrustedWorkflowToolExecution,
+  getWorkflowExecutionCopilotToolCallId,
+  getWorkflowExecutionLogStatus,
+} from '@/lib/workflows/executor/execution-state'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotClientToolWaiter')
@@ -362,6 +370,42 @@ export async function waitForWorkflowToolCompletion({
           ? MothershipStreamV1ToolOutcome.error
           : completion.status
       return structuralWorkflowCompletion(structuralStatus, workflowId, executionId, launchError)
+    }
+
+    if (
+      completion.status === MothershipStreamV1ToolOutcome.success &&
+      isPlainRecord(completion.data) &&
+      completion.data.status === WORKFLOW_TOOL_PAUSED_STATUS
+    ) {
+      // Re-read rather than trust the confirmation; a run resumed since then reads as finished.
+      const [resumeUrl, boundToolCallId, logStatus] = await Promise.all([
+        getHumanPauseResumeUrl(executionId, workflowId),
+        getWorkflowExecutionCopilotToolCallId(executionId, workflowId),
+        getWorkflowExecutionLogStatus(executionId, workflowId),
+      ]).catch((error) => {
+        logger.warn('Failed to read paused workflow tool execution', {
+          toolCallId,
+          workflowId,
+          executionId,
+          error: getErrorMessage(error),
+        })
+        return [null, undefined, undefined] as const
+      })
+      if (boundToolCallId === toolCallId) {
+        if (resumeUrl) {
+          toolRegistry?.markIncomplete('client-tool-completion-deferred')
+          return buildPausedWorkflowToolCompletion(workflowId, executionId, resumeUrl)
+        }
+        // The person answered before this read and the resumed run has no result yet.
+        if (logStatus !== undefined && !isTerminalAsyncStatus(logStatus)) {
+          toolRegistry?.markIncomplete('client-tool-completion-deferred')
+          return structuralWorkflowCompletion(
+            ASYNC_TOOL_CONFIRMATION_STATUS.background,
+            workflowId,
+            executionId
+          )
+        }
+      }
     }
 
     try {

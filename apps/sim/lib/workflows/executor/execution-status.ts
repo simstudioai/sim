@@ -14,6 +14,7 @@ import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
+import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import type { PausePoint } from '@/executor/types'
 
@@ -67,13 +68,6 @@ function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
     if (!best.resumeAt) return current
     return current.resumeAt < best.resumeAt ? current : best
   }, null)
-}
-
-function normalizePausePoints(raw: unknown): PausePoint[] {
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw as PausePoint[]
-  if (typeof raw === 'object') return Object.values(raw as Record<string, PausePoint>)
-  return []
 }
 
 function extractError(executionData: unknown): string | null {
