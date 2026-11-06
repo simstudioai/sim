@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  ActionRow,
+  DraftConflictNotice,
   FieldStack,
   LoadingState,
   Muted,
   SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   Button,
@@ -18,6 +19,7 @@ import {
   EmptyState,
   FailureNotice,
   Modal,
+  SaveActions,
   TextField,
 } from '@/platform/design-system/components'
 import {
@@ -37,6 +39,16 @@ import { plural } from '@/platform/lib/plural'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 
+function hoursOf(configured: SessionPolicy['configured']) {
+  return {
+    maxHours: configured.maxSessionHours?.toString() ?? '',
+    idleHours: configured.idleTimeoutHours?.toString() ?? '',
+  }
+}
+
+const sameHours = (left: ReturnType<typeof hoursOf>, right: ReturnType<typeof hoursOf>) =>
+  left.maxHours === right.maxHours && left.idleHours === right.idleHours
+
 interface SessionPolicyFormProps {
   organizationId: string
   policy: SessionPolicy
@@ -45,28 +57,28 @@ interface SessionPolicyFormProps {
 function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
   const updatePolicy = useUpdateOrganizationSessionPolicy()
   const revokeSessions = useRevokeOrganizationSessions()
-  const initialMax = policy.configured.maxSessionHours?.toString() ?? ''
-  const initialIdle = policy.configured.idleTimeoutHours?.toString() ?? ''
-  const [maxHours, setMaxHours] = useState(initialMax)
-  const [idleHours, setIdleHours] = useState(initialIdle)
-  const [savedMax, setSavedMax] = useState(initialMax)
-  const [savedIdle, setSavedIdle] = useState(initialIdle)
   const [confirmingRevoke, setConfirmingRevoke] = useState(false)
-  const dirty = maxHours !== savedMax || idleHours !== savedIdle
+  const session = useServerDraft({
+    server: hoursOf(policy.configured),
+    isEqual: sameHours,
+    saving: updatePolicy.isPending,
+    merge: (mine, base, theirs) => ({
+      maxHours: mine.maxHours === base.maxHours ? theirs.maxHours : mine.maxHours,
+      idleHours: mine.idleHours === base.idleHours ? theirs.idleHours : mine.idleHours,
+    }),
+  })
+  const { maxHours, idleHours } = session.draft
 
-  function discard() {
-    setMaxHours(savedMax)
-    setIdleHours(savedIdle)
-  }
   useSettingsUnsavedGuard({
-    isDirty: dirty,
+    isDirty: session.dirty,
     navigationBlocked: updatePolicy.isPending,
-    onDiscard: discard,
+    onDiscard: session.takeLatest,
   })
 
   async function save() {
-    if (updatePolicy.isPending) return
-    const parsed = parseSessionPolicyHours(maxHours, idleHours)
+    if (updatePolicy.isPending || session.conflict) return
+    const submitted = session.draft
+    const parsed = parseSessionPolicyHours(submitted.maxHours, submitted.idleHours)
     if (!parsed.ok) {
       toast.error(parsed.error)
       return
@@ -79,12 +91,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
           idleTimeoutHours: parsed.idleTimeoutHours,
         },
       })
-      const nextMax = result.data.configured.maxSessionHours?.toString() ?? ''
-      const nextIdle = result.data.configured.idleTimeoutHours?.toString() ?? ''
-      setMaxHours((current) => (current === maxHours ? nextMax : current))
-      setIdleHours((current) => (current === idleHours ? nextIdle : current))
-      setSavedMax(nextMax)
-      setSavedIdle(nextIdle)
+      session.markSaved(submitted, hoursOf(result.data.configured))
       toast.success('Session policy updated')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update session policy'))
@@ -101,7 +108,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
             inputMode='numeric'
             placeholder='No limit'
             value={maxHours}
-            onChange={setMaxHours}
+            onChange={(value) => session.edit((current) => ({ ...current, maxHours: value }))}
           />
           <TextField
             label='Idle timeout (hours)'
@@ -109,24 +116,20 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
             inputMode='numeric'
             placeholder='No limit'
             value={idleHours}
-            onChange={setIdleHours}
+            onChange={(value) => session.edit((current) => ({ ...current, idleHours: value }))}
           />
         </FieldStack>
       </SettingsSection>
-      <ActionRow>
-        <Button
-          variant='primary'
-          disabled={!dirty || updatePolicy.isPending}
-          onClick={() => void save()}
-        >
-          {updatePolicy.isPending ? 'Saving…' : 'Save'}
-        </Button>
-        {dirty && (
-          <Button variant='quiet' disabled={updatePolicy.isPending} onClick={discard}>
-            Discard
-          </Button>
-        )}
-      </ActionRow>
+      {session.conflict && (
+        <DraftConflictNotice onKeepMine={session.keepMine} onTakeLatest={session.takeLatest} />
+      )}
+      <SaveActions
+        dirty={session.dirty}
+        saving={updatePolicy.isPending}
+        blocked={session.conflict}
+        onSave={() => void save()}
+        onDiscard={session.takeLatest}
+      />
       <SettingsSection title='Active sessions'>
         <SettingsRow
           label='End all sessions'
