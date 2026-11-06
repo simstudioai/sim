@@ -10,12 +10,11 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
-import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
-import { createSearchResource } from '@/lib/mothership/resources/search'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
@@ -46,7 +45,6 @@ import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/re
 import {
   resourceParam,
   searchFilterParsers,
-  searchFiltersFromParams,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
   ChatRequestMode,
@@ -54,7 +52,10 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import {
+  type AttachedFile,
+  useFileAttachments,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
@@ -68,13 +69,43 @@ export interface OrganizationSummaryRequest {
 }
 
 /** Search's Assistant always runs its retrieval at this level. */
-const ASSISTANT_SEARCH_LEVEL = 'fast'
+const ASSISTANT_SEARCH_LEVEL = 'fast' as const
+
+/** A turn's mode, with Assistant's fixed retrieval level and any search scope it carries. */
+export function chatSendOptions(
+  requestMode: ChatRequestMode,
+  assistantSearch?: WorkspaceSearchFilters
+) {
+  return {
+    requestMode,
+    ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),
+    ...(assistantSearch ? { assistantSearch } : {}),
+  }
+}
 
 const serializeSearchConversation = createSerializer({
   ...organizationSearchParsers,
   ...searchFilterParsers,
   [resourceParam.key]: resourceParam.parser,
 })
+
+/** A finished upload as the chat API and the saved draft carry it. */
+function toApiAttachments(files: readonly AttachedFile[]): FileAttachmentForApi[] {
+  return files.flatMap((file) =>
+    file.key
+      ? [
+          {
+            id: file.id,
+            key: file.key,
+            filename: file.name,
+            media_type: file.type,
+            size: file.size,
+            path: file.path,
+          },
+        ]
+      : []
+  )
+}
 
 /** Where the conversation runs: what differs beyond how it is drawn. */
 type ConversationSurface =
@@ -141,7 +172,6 @@ export function useOrganizationConversation({
 }: UseOrganizationConversationOptions) {
   const { organization, canBuild } = useOrganizationContext()
   const panelSurface = surface.kind === 'panel' ? surface : null
-  const isPanel = panelSurface !== null
   const { data: session } = useSession()
   const userId = session?.user?.id
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -152,7 +182,6 @@ export function useOrganizationConversation({
     { ...organizationSearchParsers, ...searchFilterParsers },
     organizationSearchUrlKeys
   )
-  const { q, source, updated, from, to } = searchParams
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat({ organizationId: organization.id }, chatId, {
@@ -186,7 +215,7 @@ export function useOrganizationConversation({
   const initialDraftKey = draftKeyFor(chatId ?? newDraftSlot)
   const draftKey = draftKeyFor(chat.resolvedChatId ?? chatId ?? newDraftSlot)
   const [legacyDraftKey] = useState(() => {
-    if (isPanel || chatId) return null
+    if (panelSurface || chatId) return null
     const key = organizationDraftKey(userId, organization.id, 'new')
     if (!useMothershipDraftsStore.getState().drafts[key]) return null
     const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
@@ -213,40 +242,13 @@ export function useOrganizationConversation({
   const hasChat = Boolean(chatId || chat.messages.length)
   const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
-  /** Restore an explicitly selected results tab before the first turn; closing it clears the URL. */
-  useEffect(() => {
-    if (isPanel || hasChat || !q.trim()) return
-    const resource = createSearchResource({
-      scope: { kind: 'organization', organizationId: organization.id },
-      query: q.trim(),
-      filters: searchFiltersFromParams({ source, updated, from, to }, Date.now()),
-    })
-    if (
-      controller.activeResourceParam !== resource.id ||
-      chat.resources.some((entry) => entry.id === resource.id)
-    )
-      return
-    addResource(resource)
-  }, [
-    hasChat,
-    q,
-    source,
-    updated,
-    from,
-    to,
-    organization.id,
-    controller.activeResourceParam,
-    chat.resources,
-    addResource,
-    isPanel,
-  ])
   const selectResource = async (ref: WorkspaceResourceRef) => {
     if (!ref.workspaceId) {
       toast.error('This resource has no workspace address.')
       return
     }
-    const destination = isPanel ? window.open('about:blank', '_blank') : null
-    if (isPanel && !destination) {
+    const destination = panelSurface ? window.open('about:blank', '_blank') : null
+    if (panelSurface && !destination) {
       toast.error('Allow pop-ups to open this resource in Sim.')
       return
     }
@@ -295,20 +297,7 @@ export function useOrganizationConversation({
   })
   useEffect(() => {
     const store = useMothershipDraftsStore.getState()
-    const fileAttachments = files.attachedFiles.flatMap((file) =>
-      !file.uploading && file.key
-        ? [
-            {
-              id: file.id,
-              key: file.key,
-              filename: file.name,
-              media_type: file.type,
-              size: file.size,
-              path: file.path,
-            },
-          ]
-        : []
-    )
+    const fileAttachments = toApiAttachments(files.attachedFiles.filter((file) => !file.uploading))
     store.setDraft(draftKey, {
       ...(store.drafts[draftKey] ?? { text: '' }),
       fileAttachments,
@@ -331,31 +320,13 @@ export function useOrganizationConversation({
     if (!active || !summaryRequest || consumedSummary.current === summaryRequest.id) return
     consumedSummary.current = summaryRequest.id
     onSummaryConsumed?.(summaryRequest.id)
-    void sendMessage(summaryRequest.message, undefined, undefined, {
-      requestMode: 'assistant',
-      assistantSearchLevel: ASSISTANT_SEARCH_LEVEL,
-      assistantSearch: summaryRequest.assistantSearch,
-    })
-  }, [active, summaryRequest, onSummaryConsumed, sendMessage])
-
-  useEffect(() => {
-    if (isPanel || chatId) return
-    const handoff = MothershipHandoffStorage.consume(
-      { organizationId: organization.id },
+    void sendMessage(
+      summaryRequest.message,
       undefined,
-      requestMode
+      undefined,
+      chatSendOptions('assistant', summaryRequest.assistantSearch)
     )
-    if (handoff && (handoff.message || handoff.fileAttachments?.length)) {
-      void sendMessage(handoff.message ?? '', handoff.fileAttachments, handoff.contexts, {
-        requestMode,
-        ...(handoff.resumeUserMessageId
-          ? { resumeUserMessageId: handoff.resumeUserMessageId }
-          : {}),
-        ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),
-        ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-      })
-    }
-  }, [isPanel, chatId, organization.id, requestMode, sendMessage])
+  }, [active, summaryRequest, onSummaryConsumed, sendMessage])
 
   const send = (
     message: string,
@@ -365,12 +336,13 @@ export function useOrganizationConversation({
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
     if (requestMode === 'assistant') recordQuery(message)
-    if (requestMode !== 'assistant' && !isPanel) panel.prepareResourceViewForAgentTurn()
-    void sendMessage(message, fileAttachments, contexts, {
-      requestMode,
-      ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),
-      ...(assistantSearch ? { assistantSearch } : {}),
-    })
+    if (requestMode !== 'assistant' && !panelSurface) panel.prepareResourceViewForAgentTurn()
+    void sendMessage(
+      message,
+      fileAttachments,
+      contexts,
+      chatSendOptions(requestMode, assistantSearch)
+    )
   }
   const submit = (text: string, contexts?: ChatContext[]) => {
     if (files.attachedFiles.some((file) => file.uploading)) return false
@@ -390,20 +362,7 @@ export function useOrganizationConversation({
         return false
       }
     }
-    const attachments: FileAttachmentForApi[] = files.attachedFiles.flatMap((file) =>
-      file.key
-        ? [
-            {
-              id: file.id,
-              key: file.key,
-              filename: file.name,
-              media_type: file.type,
-              size: file.size,
-              path: file.path,
-            },
-          ]
-        : []
-    )
+    const attachments = toApiAttachments(files.attachedFiles)
     const commit = ({
       message,
       contexts: preparedContexts,
@@ -521,6 +480,7 @@ export function useOrganizationConversation({
     hasChat,
     requestMode,
     allowBuildControls,
+    searchParams,
     send,
     composerProps,
     threadProps,

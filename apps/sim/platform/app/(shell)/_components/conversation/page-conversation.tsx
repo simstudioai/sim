@@ -26,6 +26,7 @@ import {
   ConversationSkeleton,
   TranscriptPlaceholder,
 } from '@/platform/app/(shell)/_components/conversation/skeletons'
+import { usePageConversationEffects } from '@/platform/app/(shell)/_components/conversation/use-page-conversation-effects'
 import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 const PAGE_CHAT_CHROME: ChatChrome = {
@@ -86,6 +87,14 @@ function PageConversationContent({
   draftSlot,
   landing,
 }: PageConversationProps) {
+  const conversation = useOrganizationConversation({
+    surface: { kind: 'page', draftSlot },
+    chatId,
+    requestMode: destinationMode,
+    active,
+    summaryRequest,
+    onSummaryConsumed,
+  })
   const {
     organization,
     chat,
@@ -97,14 +106,8 @@ function PageConversationContent({
     composerProps,
     threadProps,
     reviewProps,
-  } = useOrganizationConversation({
-    surface: { kind: 'page', draftSlot },
-    chatId,
-    requestMode: destinationMode,
-    active,
-    summaryRequest,
-    onSummaryConsumed,
-  })
+  } = conversation
+  usePageConversationEffects({ chatId, requestMode, conversation })
   const header = frameHeader ?? (hasChat ? chatHeader : undefined)
   const composer = <PageComposer {...composerProps} />
   return (
