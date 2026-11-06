@@ -7,7 +7,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -731,7 +731,7 @@ export const sakanaProvider: ProviderConfig = {
       if (
         isAbortError(error) ||
         request.abortSignal?.aborted ||
-        isConversationContextError(error)
+        isPermanentGenerationError(error)
       ) {
         throw error
       }

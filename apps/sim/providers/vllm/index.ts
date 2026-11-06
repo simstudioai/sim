@@ -10,7 +10,7 @@ import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -782,7 +782,7 @@ export const vllmProvider: ProviderConfig = {
       if (
         isAbortError(error) ||
         request.abortSignal?.aborted ||
-        isConversationContextError(error)
+        isPermanentGenerationError(error)
       ) {
         throw error
       }
