@@ -1927,6 +1927,48 @@ export const organization = pgTable('organization', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const awsMarketplaceLicenseStatusEnum = pgEnum('aws_marketplace_license_status', [
+  'active',
+  'inactive',
+])
+
+/**
+ * An AWS Marketplace SaaS contract license, one row per license ARN: one AWS account can hold
+ * several concurrent agreements. `status` mirrors the last Entitlement Service read, never a
+ * contract amount. The buyer's browser holds a one-time claim token whose hash and expiry live
+ * here until an organization owner or admin links the license to their organization.
+ */
+export const awsMarketplaceLicense = pgTable(
+  'aws_marketplace_license',
+  {
+    id: text('id').primaryKey(),
+    licenseArn: text('license_arn').notNull(),
+    productCode: text('product_code').notNull(),
+    customerIdentifier: text('customer_identifier').notNull(),
+    customerAwsAccountId: text('customer_aws_account_id'),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    status: awsMarketplaceLicenseStatusEnum('status').notNull().default('inactive'),
+    dimension: text('dimension'),
+    quantity: integer('quantity'),
+    expiresAt: timestamp('expires_at'),
+    lastVerifiedAt: timestamp('last_verified_at').notNull(),
+    claimTokenHash: text('claim_token_hash'),
+    claimExpiresAt: timestamp('claim_expires_at'),
+    linkedByUserId: text('linked_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    linkedAt: timestamp('linked_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('aws_marketplace_license_arn_unique').on(table.licenseArn),
+    uniqueIndex('aws_marketplace_license_claim_token_hash_unique').on(table.claimTokenHash),
+    index('aws_marketplace_license_last_verified_at_idx').on(table.lastVerifiedAt),
+    index('aws_marketplace_license_organization_id_idx').on(table.organizationId),
+  ]
+)
+
 /** Private navigation snapshots, scoped to the person and organization that recorded them. */
 export const organizationSearchHistory = pgTable(
   'organization_search_history',
