@@ -4691,20 +4691,20 @@ async function run() {
   await mkdir(artifactDirectory, { recursive: true })
   if (phase === 'people') {
     await peoplePhaseChecks()
-    return
+  } else {
+    await landingChecks()
+    await sidebarChecks()
+    await homeChecks()
+    await chatChecks()
+    await searchChecks()
+    await integrationChecks()
+    await linksChecks()
+    await settingsChecks()
+    await firstPaintChecks()
+    await blastRadiusChecks()
+    await walkRoutes([MEMBER, ADMIN, OWNER, CONNECTED, NARROW])
+    await stateScreenshots()
   }
-  await landingChecks()
-  await sidebarChecks()
-  await homeChecks()
-  await chatChecks()
-  await searchChecks()
-  await integrationChecks()
-  await linksChecks()
-  await settingsChecks()
-  await firstPaintChecks()
-  await blastRadiusChecks()
-  await walkRoutes([MEMBER, ADMIN, OWNER, CONNECTED, NARROW])
-  await stateScreenshots()
   section('Health')
   await check('no unexpected browser runtime errors or failed same-origin requests', async () => {
     assert.deepEqual(unexpected, [])
