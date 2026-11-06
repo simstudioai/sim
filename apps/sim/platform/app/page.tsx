@@ -8,7 +8,7 @@ export default async function Page({ searchParams }: PageProps<'/'>) {
   for (const [key, value] of Object.entries(query)) {
     if (typeof value === 'string') search.set(key, value)
   }
-  if (search.has('recipe')) redirect(`/workbench?${search}`)
+  if (resolvePlatformMode() !== 'live' && search.has('recipe')) redirect(`/workbench?${search}`)
   if (resolvePlatformMode() === 'live') {
     const { resolveLiveLanding } = await import('@/platform/lib/data/landing')
     redirect(await resolveLiveLanding())

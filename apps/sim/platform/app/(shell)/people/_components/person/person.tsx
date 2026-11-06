@@ -11,7 +11,6 @@ import { Avatar, Button, FailureNotice, Icon } from '@/platform/design-system/co
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { publicAssetPath } from '@/platform/design-system/navigation'
 import {
-  isRefusal,
   type Person,
   type PersonSummary,
   personHref,
@@ -20,6 +19,7 @@ import {
   usePeopleViewer,
   usePersonProfile,
 } from '@/platform/lib/data/people'
+import { isRefusal } from '@/platform/lib/data/query-view'
 import { formatCalendarDate } from '@/platform/lib/time'
 
 const NOT_PROVIDED = 'Not provided'

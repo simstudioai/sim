@@ -14,6 +14,7 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { canOpenOrganizationChat } from '@/platform/lib/data/chat-open'
 
 export function organizationChatHref(
   chat: { id: string; mode?: string },
@@ -22,20 +23,11 @@ export function organizationChatHref(
   return chat.mode === 'assistant' ? routes.searchChat(chat.id) : routes.chat(chat.id)
 }
 
-/**
- * Whether the chat routes would open this chat for the viewer. An agent or Plan chat is refused to
- * a viewer who can no longer build, and a Plan chat once Plan is off, so neither is offered. A chat
- * with no mode is an optimistic entry the viewer just started.
- */
+/** Whether the chat routes would open this chat for the viewer: {@link canOpenOrganizationChat}. */
 export function useCanOpenOrganizationChat() {
-  const { mothershipAvailable, canBuild, searchAccess } = useOrganization()
+  const organization = useOrganization()
   const planEnabled = useFeatureFlag('mothership-plan-mode')
-  return ({ mode }: { mode?: string }) => {
-    if (!mothershipAvailable) return false
-    if (mode === 'assistant') return searchAccess.memberScoped
-    if (mode === 'plan') return canBuild && planEnabled
-    return mode === 'agent' ? canBuild : canBuild || searchAccess.memberScoped
-  }
+  return ({ mode }: { mode?: string }) => canOpenOrganizationChat(organization, planEnabled, mode)
 }
 
 /** A partial bulk failure still reports which chats went, so the view can narrow what is left. */

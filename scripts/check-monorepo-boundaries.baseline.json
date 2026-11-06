@@ -43,7 +43,6 @@
   },
   "platformLibToWorkspace": {
     "apps/sim/platform/embedded/lib/data/chat-list.ts": 1,
-    "apps/sim/platform/embedded/lib/data/home-model.ts": 1,
     "apps/sim/platform/embedded/lib/data/organization-search.ts": 1,
     "apps/sim/platform/embedded/lib/data/settings-navigation.ts": 1
   }

@@ -16,10 +16,6 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import {
-  externalLinkHostname,
-  linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import {
   FALLBACK_PROVIDER_MARK,
@@ -36,6 +32,7 @@ import type {
   HomeWidgetState,
   HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
+import { groupRecentSources } from '@/platform/lib/data/recent-sources'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */
@@ -244,32 +241,18 @@ export function toTaskPoints(summary: OrganizationActivitySummary) {
   }))
 }
 
-/**
- * The server keeps sources newest first, one per URL. Chips that would read the same from the same
- * place, such as several messages in one channel, are one chip at its latest visit.
- */
 export function toRecentItems(history: SearchHistoryResponse): HomeRecentItem[] {
-  const items = new Map<string, HomeRecentItem & { urls: string[] }>()
-  for (const source of history.sources) {
-    const label = source.title ?? linkSiteName(source.url, source.siteName)
-    const host = externalLinkHostname(source.url)
-    const key = `${source.connectorType ?? host}\0${label.toLowerCase()}`
-    const existing = items.get(key)
-    if (existing) {
-      existing.urls.push(source.url)
-      continue
-    }
+  return groupRecentSources(history).map(({ source, label, host, urls }) => {
     const mark = source.connectorType ? providerMark(source.connectorType) : undefined
-    items.set(key, {
+    return {
       id: source.url,
       label,
       href: source.url,
       icon: typeof mark === 'string' && mark !== FALLBACK_PROVIDER_MARK ? mark : undefined,
       host,
-      urls: [source.url],
-    })
-  }
-  return [...items.values()]
+      urls,
+    }
+  })
 }
 
 export function greetingAt(nowMs: number, timeZone: string): string {

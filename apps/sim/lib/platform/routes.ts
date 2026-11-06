@@ -60,11 +60,29 @@ function mapSettingsRoute(rest: readonly string[], query: URLSearchParams): stri
   return target && `/settings/${target}`
 }
 
+/**
+ * Query keys that give the integrations page a job the zone's page cannot do yet: the Slack onboarding
+ * handoff, a connection request, or a jump to one integration. Those links stay on the legacy page.
+ */
+const LEGACY_INTEGRATIONS_QUERY = [
+  'slack',
+  'integration',
+  'connectorType',
+  'connectorId',
+  'credentialId',
+  'connectionMode',
+  'optionId',
+  'savedProviderId',
+  'provider',
+] as const
+
 function mapRoute(rest: readonly string[], query: URLSearchParams): string | null {
   const [head, detail] = rest
   if (head === undefined) return '/'
   if (head === 'settings') return mapSettingsRoute(rest.slice(1), query)
   if (rest.length === 1) {
+    if (head === 'integrations' && LEGACY_INTEGRATIONS_QUERY.some((key) => query.has(key)))
+      return null
     if (head === 'home' || head === 'people' || head === 'integrations' || head === 'search')
       return `/${head}`
     if (head === 'links') return '/settings/links'
@@ -77,8 +95,7 @@ function mapRoute(rest: readonly string[], query: URLSearchParams): string | nul
 
 /**
  * The Platform URL for a legacy URL under `/o/{organizationId}`, keeping its query, or `null` for a
- * route that stays legacy: Benchmark, Skills, Admin, and the Search and credential pages with
- * legacy management links. Null also covers another organization's URL. A fallback must lead to
+ * route that stays legacy: Benchmark, Skills, Admin, and integrations links the zone cannot serve yet. Null also covers another organization's URL. A fallback must lead to
  * an unmapped route so the two surfaces cannot redirect to each other.
  */
 export function mapLegacyOrganizationUrl(url: string, organizationId: string): string | null {

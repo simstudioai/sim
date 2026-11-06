@@ -15,7 +15,6 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type {
   AttentionItem,
   CalendarMeeting,
@@ -28,6 +27,7 @@ import type {
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { groupRecentSources } from '@/platform/lib/data/recent-sources'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */
@@ -191,7 +191,10 @@ export function toCalendarDay(
   const allDay: HomeCalendarDay['allDay'][number][] = []
   for (const event of calendar.events) {
     const id = `${event.credentialId}:${event.id}`
-    if (event.allDay) {
+    // A timed event filling the whole day would only be a card too tall to read.
+    const fillsDay =
+      event.startAt <= calendar.window.startAt && event.endAt >= calendar.window.endAt
+    if (event.allDay || fillsDay) {
       allDay.push({ id, title: event.title, providerUrl: event.url })
       continue
     }
@@ -223,14 +226,18 @@ export function toTaskPoints(summary: OrganizationActivitySummary) {
   }))
 }
 
-export function toRecentItems(history: SearchHistoryResponse): RecentItem[] {
-  return history.sources.map((source) => {
+/** A recent chip with every source it stands for, so removing it removes them all. */
+export type CollapsedRecent = RecentItem & { urls: string[] }
+
+export function toRecentItems(history: SearchHistoryResponse): CollapsedRecent[] {
+  return groupRecentSources(history).map(({ source, label, urls }) => {
     const mark = source.connectorType ? providerMark(source.connectorType) : undefined
     return {
       id: source.url,
-      label: source.title ?? linkSiteName(source.url, source.siteName),
+      label,
       href: source.url,
       icon: typeof mark === 'string' ? mark : undefined,
+      urls,
     }
   })
 }

@@ -8,7 +8,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useOrganization } from '@/lib/organizations/provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
-import { plural } from '@/platform/embedded/lib/plural'
+import { plural } from '@/platform/lib/plural'
 
 export const ORGANIZATION_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },

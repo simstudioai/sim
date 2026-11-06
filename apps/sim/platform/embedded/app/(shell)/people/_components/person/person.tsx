@@ -23,8 +23,8 @@ import {
   usePeopleViewer,
   usePersonProfile,
 } from '@/platform/embedded/lib/data/people'
-import { isRefusal } from '@/platform/embedded/lib/data/query-view'
-import { formatCalendarDate } from '@/platform/embedded/lib/time'
+import { isRefusal } from '@/platform/lib/data/query-view'
+import { formatCalendarDate } from '@/platform/lib/time'
 
 const NOT_PROVIDED = 'Not provided'
 

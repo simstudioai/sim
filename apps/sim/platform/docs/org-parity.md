@@ -42,7 +42,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Navigation | Skills | `/o/[id]/skills` | Legacy | Unmapped |
 | Settings | Platform administration | `/o/[id]/settings/admin`, `/mothership` | Legacy | Unmapped; linked out for platform admins |
 | Integrations | Credential pages, secrets, Search providers and sources | `/o/[id]/integrations/*`, `/settings/integrations/*`, `/settings/connected-accounts` | Legacy | Unmapped until the Integrations owner maps them |
-| Integrations | Member inventory page | `/o/[id]/integrations` | Open | Integrations owner. `lib/platform/routes.ts` maps this route, but the live page renders "No integrations available" for every member, so a flagged organization loses it |
+| Integrations | Member inventory page | `/o/[id]/integrations` | Open | Integrations owner. `lib/platform/routes.ts` maps the plain page. Slack handoff, connection requests and saved-account connect stay on the legacy page until the zone has them |
 
 ## Settings: personal
 

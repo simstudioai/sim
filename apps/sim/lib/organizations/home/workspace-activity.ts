@@ -53,8 +53,8 @@ export function readRunningWorkflows(
 
 /**
  * Per workspace, one workflow waiting on a person and the newest retained run. Each is a `LIMIT 1`
- * probe, so a workspace with thousands of unanswered pauses costs what one does. The waiting workflow
- * is therefore any of them rather than the newest, since finding the newest would read them all.
+ * probe, so many unanswered pauses cost what one does once a match exists. The waiting workflow is
+ * therefore any of them rather than the newest. With no match, the probe reads every live pause.
  */
 export function readReviewAndLastRun(workspaceIds: readonly string[]) {
   const logs = workflowExecutionLogs

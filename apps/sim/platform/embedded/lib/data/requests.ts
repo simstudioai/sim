@@ -32,7 +32,7 @@ import {
 } from '@/hooks/queries/access-requests'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
-import { formatInstantDate } from '@/platform/embedded/lib/time'
+import { formatInstantDate } from '@/platform/lib/time'
 
 export type RequestScope = AccessRequestScope
 export type RequestTarget = AccessRequestTarget

@@ -16,7 +16,7 @@ import {
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import { queryView } from '@/platform/embedded/lib/data/query-view'
+import { queryView } from '@/platform/lib/data/query-view'
 
 const TEXT_FIELDS = [
   'brandName',

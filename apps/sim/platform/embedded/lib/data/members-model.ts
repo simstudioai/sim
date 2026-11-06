@@ -8,7 +8,7 @@ import type {
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { workspaceRoleLockReason } from '@/lib/workspaces/permissions/role-lock'
 import type { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
-import { formatInstantDate } from '@/platform/embedded/lib/time'
+import { formatInstantDate } from '@/platform/lib/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']

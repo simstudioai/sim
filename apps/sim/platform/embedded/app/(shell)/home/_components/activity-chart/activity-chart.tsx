@@ -15,7 +15,7 @@ import {
   type ActivityWindowDays,
   type HomeActivityState,
 } from '@/platform/embedded/lib/data/home-view'
-import { formatCalendarDate } from '@/platform/embedded/lib/time'
+import { formatCalendarDate } from '@/platform/lib/time'
 
 interface HomeActivityChartProps {
   title: string
