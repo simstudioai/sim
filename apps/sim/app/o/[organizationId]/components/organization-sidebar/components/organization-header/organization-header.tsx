@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import type { OrganizationSurfaceOrganization } from '@/lib/organizations/surface'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
@@ -32,7 +32,7 @@ function getOrganizationInitial(name: string): string {
 }
 
 interface OrganizationHeaderProps {
-  organization: OrganizationSurfaceOrganization
+  organization: OrganizationSurfaceContext['organization']
   /** Organization admins may change its logo and name. */
   canEditIdentity: boolean
   canInviteMembers: boolean

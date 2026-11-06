@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -6,6 +7,7 @@ import {
   revokeAuthorizedAppContract,
 } from '@/lib/api/contracts/user'
 import { client } from '@/lib/auth/client'
+import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 
 export const oauthProviderKeys = {
   all: ['oauth-provider'] as const,

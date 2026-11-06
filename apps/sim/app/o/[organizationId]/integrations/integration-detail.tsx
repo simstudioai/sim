@@ -2,9 +2,10 @@
 
 import { type ReactNode, useState } from 'react'
 import { toast } from '@sim/emcn'
+import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
+import { liveSearchSavedMemberProvider } from '@/lib/sim-search/live/source-catalog'
 import { AccountConnectionActions } from '@/app/o/[organizationId]/integrations/account-connection-actions'
 import { AccountToolPermissionsContent } from '@/app/o/[organizationId]/integrations/accounts/[credentialId]/tool-permissions'
-import type { MemberIntegration } from '@/app/o/[organizationId]/integrations/utils'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
@@ -32,6 +33,13 @@ interface IntegrationDetailProps {
   children?: ReactNode
 }
 
+function savedProviderIdFor(provider: string) {
+  const providerId = liveSearchSavedMemberProvider(provider)
+  return providerId === 'jama-service-account' || providerId === 'flow-service-account'
+    ? providerId
+    : null
+}
+
 /** The selected account owns every permission and connection action in this view. */
 export function IntegrationDetail({
   organizationId,
@@ -50,7 +58,12 @@ export function IntegrationDetail({
       ? integration.accounts[0]
       : undefined
   const target = integration.connectionTarget
-  const [savedOpen, setSavedOpen] = useState(false)
+  const savedProvider = savedProviderIdFor(integration.provider)
+  const [savedConnection, setSavedConnection] = useState<{
+    providerId: 'jama-service-account' | 'flow-service-account'
+    credentialId?: string
+    displayName?: string
+  } | null>(null)
   return (
     <CredentialDetailLayout
       back={back}
@@ -61,16 +74,24 @@ export function IntegrationDetail({
             organizationId={organizationId}
             integrationName={integration.name}
             account={selected}
+            saved={Boolean(savedProvider)}
             connectLabel={integration.accounts.length ? 'Add account' : 'Connect'}
             onConnect={
               !target
                 ? undefined
                 : 'savedProviderId' in target
-                  ? () => setSavedOpen(true)
+                  ? () => savedProvider && setSavedConnection({ providerId: savedProvider })
                   : () => connect.mutate({ organizationId, ...target }, { onError })
             }
             onReconnect={() => {
-              if (selected) reconnect.mutate(selected.credentialId, { onError })
+              if (!selected) return
+              if (savedProvider)
+                setSavedConnection({
+                  providerId: savedProvider,
+                  credentialId: selected.credentialId,
+                  displayName: selected.displayName,
+                })
+              else reconnect.mutate(selected.credentialId, { onError })
             }}
             connectionPending={connect.isPending || reconnect.isPending}
             canConnect={integration.ready}
@@ -127,12 +148,12 @@ export function IntegrationDetail({
           credentialId={selected.credentialId}
         />
       )}
-      {savedOpen && target && 'savedProviderId' in target && (
+      {savedConnection && (
         <SavedSearchCredentialModal
           organizationId={organizationId}
-          connection={{ providerId: target.savedProviderId }}
-          onClose={() => setSavedOpen(false)}
-          onCreated={() => setSavedOpen(false)}
+          connection={savedConnection}
+          onClose={() => setSavedConnection(null)}
+          onCreated={() => setSavedConnection(null)}
         />
       )}
     </CredentialDetailLayout>

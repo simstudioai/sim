@@ -7,7 +7,7 @@ import {
 } from '@/lib/api/contracts/organization-usage'
 import { ACTIVITY_MAX_PAGE } from '@/lib/billing/core/organization-activity'
 import { formatDateShort } from '@/lib/core/utils/date-display'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, isCalendarDate } from '@/lib/core/utils/timezone'
 import { DEFAULT_USAGE_PRESET, PERIOD_LABELS } from '@/ee/organization-usage/constants'
 import {
   organizationUsageParsers,
@@ -16,12 +16,6 @@ import {
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-
-/** A bare `YYYY-MM-DD` that survives a calendar round-trip — the contract's rule, verbatim. */
-function isCalendarDate(value: string | null): value is string {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
-}
 
 /** Match server date validation so invalid links fall back before issuing requests. */
 export function isUsableCustomRange(start: string | null, end: string | null): boolean {

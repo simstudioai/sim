@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -20,10 +21,13 @@ const logger = createLogger('People')
 /**
  * Whether to show the People page to a member with `role`: it is on for `organizationId`, and its
  * directory is open to them — administrators always, other members unless their permission group
- * withholds `organization.member_directory`, the capability its reads enforce. For navigation
- * only, so a lookup that fails hides People rather than failing the page around it.
+ * withholds `organization.member_directory`, the capability its reads enforce. For navigation and
+ * the page gate, so a lookup that fails hides People rather than failing the page around it.
  */
-export async function canBrowsePeople(organizationId: string, role: string): Promise<boolean> {
+export const canBrowsePeople = cache(async function canBrowsePeople(
+  organizationId: string,
+  role: string
+): Promise<boolean> {
   try {
     if (!(await isPeopleEnabled(organizationId))) return false
     return (
@@ -37,4 +41,4 @@ export async function canBrowsePeople(organizationId: string, role: string): Pro
     })
     return false
   }
-}
+})

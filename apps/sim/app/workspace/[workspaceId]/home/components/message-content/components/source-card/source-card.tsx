@@ -46,7 +46,7 @@ const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
  * document matched. Terms are matched as whole words in any script,
  * case-insensitively, by the same rule the snippet was centred with.
  */
-export function highlightTerms(text: string, query: string | undefined): ReactNode {
+function highlightTerms(text: string, query: string | undefined): ReactNode {
   const matches = findTermMatches(text, queryTerms(query))
   if (matches.length === 0) return text
   const parts: ReactNode[] = []

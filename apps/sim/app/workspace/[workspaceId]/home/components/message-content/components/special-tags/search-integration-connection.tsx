@@ -2,12 +2,7 @@
 
 import { Chip } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
-import {
-  getCredentialGroupProviderService,
-  isCredentialGroupProvider,
-} from '@/lib/credential-groups/providers'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import {
   InteractionCard,
   InteractionCardActionRow,
@@ -45,7 +40,6 @@ function SearchIntegrationConnectionControl({
   divided,
   onConnected,
 }: SearchIntegrationConnectionProps) {
-  const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
   const connection = useSearchIntegrationConnection({
     organizationId,
     userId,
@@ -53,22 +47,7 @@ function SearchIntegrationConnectionControl({
     controlId,
     onConnected,
   })
-  const service = isCredentialGroupProvider(target.provider)
-    ? getCredentialGroupProviderService(target.provider)
-    : undefined
-  const name = connector?.meta.name ?? service?.name ?? target.provider
-  const icon = connector?.serviceIcon ?? service?.icon
-  const action = target.credentialId ? 'Reconnect' : 'Connect'
-  const connected = connection.connected
-  const label = connected
-    ? `Connected ${name}`
-    : connection.isLoading
-      ? `Checking ${name} connections`
-      : connection.pending
-        ? `Waiting for ${name} connection`
-        : !connection.available
-          ? `${name} connection is no longer available`
-          : `${action} ${name}`
+  const { icon, label, disabled, connected } = connection
   const handleConnect = () => void connection.connect()
   const content = (
     <>
@@ -83,12 +62,7 @@ function SearchIntegrationConnectionControl({
       <InteractionCardActionRow
         label={label}
         divided={Boolean(divided)}
-        disabled={
-          connection.isLoading ||
-          connection.isStarting ||
-          connected ||
-          (!connection.available && !connection.pending)
-        }
+        disabled={disabled}
         onClick={handleConnect}
         leading={icon && <BrandIcon icon={icon} className='size-[16px] shrink-0' />}
         trailing={connected ? <Check className='size-[16px] text-[var(--text-icon)]' /> : undefined}
