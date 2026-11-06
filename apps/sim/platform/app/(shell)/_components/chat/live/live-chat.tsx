@@ -20,6 +20,7 @@ import { type LiveComposer, useLiveComposer } from '@/platform/lib/data/chat-com
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
 import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
 import { useOrganization } from '@/platform/lib/data/organization'
+import type { SummaryRequest } from '@/platform/lib/data/search-summary'
 
 const CARDS: ChatCards = { Credential: LiveCredentialCard, Usage: LiveUsageNotice }
 
@@ -34,9 +35,18 @@ interface LiveChatProps {
   /** A surface's own controls in place of the chat title. */
   header?: ReactNode
   chatPath?: (chatId: string) => string
+  summaryRequest?: SummaryRequest
+  onSummaryConsumed?: (id: string) => void
 }
 
-function LiveConversation({ chatId, destination, header, chatPath }: LiveChatProps) {
+function LiveConversation({
+  chatId,
+  destination,
+  header,
+  chatPath,
+  summaryRequest,
+  onSummaryConsumed,
+}: LiveChatProps) {
   const [planning, setPlanning] = useState(false)
   const requestMode = destination === 'agent' && !chatId && planning ? 'plan' : destination
   const restore = useRef<LiveComposer['restore']>(() => {})
@@ -44,6 +54,8 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
     chatId,
     requestMode,
     chatPath,
+    summaryRequest,
+    onSummaryConsumed,
     onRestoreQueued: (draft) => restore.current(draft),
   })
   const composer = useLiveComposer({
@@ -75,7 +87,14 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
  * The live conversation surface. It waits for the viewer's session, then remounts per viewer,
  * organization, chat and mode, which is how the hook starts each chat clean.
  */
-export function LiveChat({ chatId, destination, header, chatPath }: LiveChatProps) {
+export function LiveChat({
+  chatId,
+  destination,
+  header,
+  chatPath,
+  summaryRequest,
+  onSummaryConsumed,
+}: LiveChatProps) {
   const { organization } = useOrganization()
   const userId = useViewerId()
   const restored = useChatRestore(chatId, destination)
@@ -87,6 +106,8 @@ export function LiveChat({ chatId, destination, header, chatPath }: LiveChatProp
       destination={destination}
       header={header}
       chatPath={chatPath}
+      summaryRequest={summaryRequest}
+      onSummaryConsumed={onSummaryConsumed}
     />
   )
 }

@@ -33,7 +33,9 @@ One row per capability of the legacy organization surface. Every capability is e
 | Search | Query, stop, re-run, New search, URL state with the legacy parsers | `search.tsx`, `search-params.ts` | Done | "A query lands in the URL". Stop and New search have no live check |
 | Search | Results: searching, updating, error and retry, none, unavailable apps, partial, grouped by document | `knowledge-search-results.tsx` | Unverified | No live check yet. `_components/search/search-results.tsx` |
 | Search | Source and date filters, custom range, keyboard movement | `search-filters.tsx` | Done | "A query lands in the URL" covers the date filter. Source filters and a custom range have no live check |
-| Search | Source row: open, record, copy link, Summarize | `source-card.tsx` | Open | Chat lane. Open, record and copy work; Summarize needs a send into the mounted Assistant, and Create Sim link needs the Sim Links form |
+| Search | Source row: open, record, copy link | `source-card.tsx` | Unverified | No live check yet. `lib/data/search.ts` |
+| Search | Source row: Summarize, scoped to that document, hand-off to Assistant | `source-card.tsx`, `use-organization-conversation.ts` | Done | "Summarize on a result switches to Assistant" |
+| Search | Source row: Create Sim link | `source-card.tsx` | Open | Chat lane. Needs the Sim Links form |
 | Search | History: recently viewed, recent searches, clear, retry | `search-landing-history.tsx` | Unverified | No live check yet. `search-surface.tsx` |
 | Search | Search and Assistant switch, remembered per viewer, gated on `mothershipAvailable` | `search.tsx` | Unverified | No live check yet. `search-surface.tsx`; route gates in `live-search-route.tsx` |
 | Search | Assistant conversation stays mounted under Search and keeps streaming | `search.tsx` | Unverified | No live check yet. `search-surface.tsx` |
