@@ -621,15 +621,18 @@ describe('user aborts are not rendered as errors', () => {
 
 describe('steering in a live turn', () => {
   it('rebuilds the answer around the steering it applied, after the steering record', () => {
-    const event = (seq: number, type: 'text' | 'run', payload: Record<string, unknown>) =>
+    const envelope = (seq: number) => ({
+      v: 1 as const,
+      seq,
+      ts: new Date(seq).toISOString(),
+      stream: { streamId: 'stream-1' },
+    })
+    const text = (seq: number, chunk: string) =>
       toBatchEvent(seq, {
-        v: 1,
-        seq,
-        ts: new Date(seq).toISOString(),
-        type,
-        stream: { streamId: 'stream-1' },
-        payload,
-      } as StreamBatchEvent['event'])
+        ...envelope(seq),
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: chunk },
+      })
     const steeringRecord = normalizeMessage({
       id: 'steer-1',
       role: 'user',
@@ -642,14 +645,16 @@ describe('steering in a live turn', () => {
       activeStreamId: 'stream-1',
       streamSnapshot: {
         events: [
-          event(1, 'text', { channel: 'assistant', text: '1 ' }),
-          event(2, 'run', {
-            kind: MothershipStreamV1RunKind.steering_applied,
-            steeringId: 'steer-1',
+          text(1, '1 '),
+          toBatchEvent(2, {
+            ...envelope(2),
+            type: MothershipStreamV1EventType.run,
+            payload: { kind: 'steering_applied', steeringId: 'steer-1' },
           }),
-          event(3, 'text', { channel: 'assistant', text: '2.' }),
+          text(3, '2.'),
         ],
         status: 'active',
+        previewSessions: [],
       },
     })
 

@@ -192,6 +192,12 @@ export interface ChatMessage {
   content: string
   /** Automation opened this turn, not the user: a system chip, not a bubble. */
   origin?: TurnOrigin
+  /**
+   * Where a message this client is still delivering stands: going out (`sending`),
+   * waiting for the running response to end (`waiting`), or given up on until the
+   * user retries it (`failed`). Absent once delivered.
+   */
+  delivery?: 'sending' | 'waiting' | 'failed'
   /** Sent into a running turn as steering; placed where that turn applied it. */
   steering?: import('@/lib/mothership/chat/steering').SteeringMessageMarker
   contentBlocks?: ContentBlock[]

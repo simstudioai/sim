@@ -176,6 +176,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     stopGeneration,
     resolvedChatId,
     removeResource,
+    retryMessage,
     getCurrentRequestId,
   } = chat
   const panel = useChatResourcePanel(chat, controller, userId)
@@ -483,6 +484,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
             onStopGeneration={handleStopGeneration}
+            onRetryMessage={retryMessage}
             userId={userId}
             chatId={resolvedChatId}
             onContextAdd={handleContextAdd}

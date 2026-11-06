@@ -521,7 +521,8 @@ export function toPlatformTurns(
   { streaming, sentAt, now, isPersisted }: ProjectionOptions
 ): PlatformTurn[] {
   const { byIndex, hidden } = pairInteractions(messages)
-  const lastIndex = messages.length - 1
+  /** The live response is the last assistant: messages on their way into it show after it. */
+  const liveIndex = messages.map((message) => message.role).lastIndexOf('assistant')
   let lastUserText = ''
   const turns: PlatformTurn[] = []
   messages.forEach((message, index) => {
@@ -538,11 +539,12 @@ export function toPlatformTurns(
           id: message.id,
           prompt: { text: message.content, attachments: toUserAttachments(message) },
           sentAt: sentAt(message),
+          ...(message.delivery ? { delivery: message.delivery } : {}),
         })
       )
       return
     }
-    const live = streaming && index === lastIndex
+    const live = streaming && index === liveIndex
     const blocks = message.contentBlocks ?? []
     const pairing = byIndex.get(index)
     const pairingKey = pairing ? JSON.stringify(pairing) : ''

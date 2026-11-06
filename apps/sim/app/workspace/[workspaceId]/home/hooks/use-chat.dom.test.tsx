@@ -20,6 +20,7 @@
  */
 
 import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
@@ -95,6 +96,7 @@ import {
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
@@ -179,7 +181,7 @@ interface NetworkState {
    * How the steer route answers, one per request: a disposition status, or
    * `409` (no live run took it). Once spent, it answers `409`.
    */
-  steerDispositions: Array<'queued' | 'applied' | 'not_applied' | 409>
+  steerDispositions: Array<'queued' | 'applied' | 'not_applied' | 409 | 500>
   /** The `textOffset` an `applied` disposition reports. */
   appliedOffset?: number
 }
@@ -220,6 +222,7 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     const body: CopilotChatSteerBody = JSON.parse(String(init?.body))
     state.steerBodies.push(body)
     const disposition = state.steerDispositions.shift() ?? 409
+    if (disposition === 500) return Response.json({ error: 'Worker failed' }, { status: 500 })
     return disposition === 409
       ? Response.json({ error: 'No running turn accepted this message.' }, { status: 409 })
       : Response.json({
@@ -645,6 +648,11 @@ function userMessages(result: ReturnType<typeof useChat>): string[] {
 /** Lets `ms` pass, on the fake clock when a test runs one. */
 function elapse(ms: number): Promise<unknown> {
   return vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(ms) : sleep(ms)
+}
+
+/** Lets everything already due run: answered requests, their handlers, what those schedule. */
+async function settle(): Promise<void> {
+  for (let tick = 0; tick < 8; tick++) await flushMacrotask()
 }
 
 async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void> {
@@ -3412,7 +3420,7 @@ describe('useChat remount send recovery', () => {
 
       await turn.end()
       await act(async () => {
-        await sleep(100)
+        await settle()
       })
       expect(state.postBodies).toHaveLength(1)
       expect(state.steerBodies).toHaveLength(1)
@@ -3431,7 +3439,7 @@ describe('useChat remount send recovery', () => {
       await waitFor(() => state.postBodies.length === 2)
       await waitFor(() => !view.getResult().isSending)
       await act(async () => {
-        await sleep(100)
+        await settle()
       })
 
       expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId, steeringId])
@@ -3479,7 +3487,7 @@ describe('useChat remount send recovery', () => {
       await waitFor(() => state.steerBodies.length === 1)
       await turn.text('2\n')
       await act(async () => {
-        await sleep(50)
+        await settle()
       })
       expect(state.steerBodies).toHaveLength(1)
       expect(state.postBodies).toHaveLength(1)
@@ -3531,7 +3539,7 @@ describe('useChat remount send recovery', () => {
       })
       await waitFor(() => state.steerBodies.length === 1)
       await act(async () => {
-        await sleep(50)
+        await settle()
       })
 
       const shown = view.getResult().messages
@@ -3580,11 +3588,287 @@ describe('useChat remount send recovery', () => {
       const remounted = renderUseChatInChat(chatId, history)
       await waitFor(() => state.steerBodies.length === 2)
       await act(async () => {
-        await sleep(100)
+        await settle()
       })
 
       expect(state.postBodies).toHaveLength(1)
       expect(userMessages(remounted.getResult())).toContain('Then summarize')
+    })
+
+    it('steers the turn that holds the chat when the server refuses a send as busy', async () => {
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+          state.postBodies.push(JSON.parse(String(init.body)))
+          return Response.json(
+            {
+              error: 'A response is already in progress for this chat.',
+              activeStreamId: 'other-tab',
+            },
+            { status: 409 }
+          )
+        }
+        return fetchStub(input, init)
+      })
+      state.steerDispositions = ['queued', 'queued', 'queued']
+      const view = renderUseChatInChat(chatId, history)
+      await act(async () => {
+        await view.getResult().sendMessage('Add a summary')
+      })
+      await waitFor(() => state.steerBodies.length >= 1)
+
+      expect(state.postBodies).toHaveLength(1)
+      expect(state.steerBodies[0]).toMatchObject({
+        streamId: 'other-tab',
+        steeringId: state.postBodies[0].userMessageId,
+        content: 'Add a summary',
+      })
+      expect(
+        userMessages(view.getResult()).filter((text) => text === 'Add a summary')
+      ).toHaveLength(1)
+    })
+
+    it('settles a steering record its turn ended without marking, sending it on as a turn once', async () => {
+      const steeringId = '5d0a0f8e-1b2c-4d3e-8f90-a1b2c3d4e5f6'
+      const at = '2026-11-05T00:00:00.000Z'
+      const withRecord: MothershipChatHistory = {
+        ...history,
+        messages: [
+          { id: 'earlier-turn', role: 'user', content: 'Count', timestamp: at },
+          {
+            id: steeringId,
+            role: 'user',
+            content: 'Then summarize',
+            timestamp: at,
+            steering: { streamId: 'earlier-turn' },
+          },
+          { id: 'earlier-answer', role: 'assistant', content: '1 2 3', timestamp: at },
+        ],
+      }
+      stubRunningTurn()
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: withRecord }))
+      state.steerDispositions = ['not_applied']
+      const view = renderUseChatInChat(chatId, withRecord)
+      expect(userMessages(view.getResult())).toEqual(['Count', 'Then summarize'])
+
+      await waitFor(() => state.postBodies.length === 1)
+
+      expect(state.steerBodies).toEqual([
+        expect.objectContaining({
+          steeringId,
+          streamId: 'earlier-turn',
+          content: 'Then summarize',
+        }),
+      ])
+      expect(state.postBodies[0]).toMatchObject({
+        message: 'Then summarize',
+        userMessageId: steeringId,
+      })
+      expect(
+        userMessages(view.getResult()).filter((text) => text === 'Then summarize')
+      ).toHaveLength(1)
+    })
+
+    it('treats a turn the worker refuses on the stream as already applied, without an error', async () => {
+      const turn = stubRunningTurn({
+        fallback: new Response(
+          [
+            { type: 'error', payload: { message: 'Already included.', code: 'input_applied' } },
+            { type: 'complete', payload: { status: 'error' } },
+          ]
+            .map(
+              (event, index) =>
+                `data: ${JSON.stringify({
+                  v: 1,
+                  seq: index + 1,
+                  ts: new Date().toISOString(),
+                  stream: { streamId: state.steerBodies[0]?.steeringId ?? 'fallback' },
+                  ...event,
+                })}\n\n`
+            )
+            .join(''),
+          { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
+        ),
+      })
+      const view = renderUseChatInChat(chatId, history)
+      await act(async () => {
+        void view.getResult().sendMessage('Count to fifty')
+      })
+      await waitFor(() => view.getResult().isSending)
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      await waitFor(() => !view.getResult().isSending)
+      await act(async () => {
+        await settle()
+      })
+
+      expect(view.getResult().error).toBeNull()
+      expect(state.postBodies).toHaveLength(2)
+      const liveAnswer = getLiveAssistantMessageId(state.steerBodies[0].steeringId)
+      expect(view.getResult().messages.some((message) => message.id === liveAnswer)).toBe(false)
+    })
+
+    it('marks only a steered message going out on its own for the server to settle', async () => {
+      const { turn, view } = await startTurn()
+      expect(state.postBodies[0]).not.toHaveProperty('steeringFallback')
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1]).toMatchObject({ steeringFallback: true })
+    })
+
+    it('holds a later message behind one steered with no answer yet', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = [500, 'not_applied', 'queued']
+      await act(async () => {
+        await view.getResult().sendMessage('First')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      await act(async () => {
+        await view.getResult().sendMessage('Second')
+      })
+      await turn.text('2\n')
+      await act(async () => {
+        await settle()
+      })
+
+      expect(state.steerBodies.map((body) => body.content)).toEqual(['First'])
+      const shown = view.getResult().messages.filter((message) => message.role === 'user')
+      expect(shown.map((message) => [message.content, message.delivery])).toEqual([
+        ['Count to fifty', undefined],
+        ['First', 'sending'],
+        ['Second', 'sending'],
+      ])
+    })
+
+    it('ends a hung steer at its deadline, so the chat can still settle it', async () => {
+      const deadline = new AbortController()
+      const realTimeout = AbortSignal.timeout.bind(AbortSignal)
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) =>
+        ms === 20_000 ? deadline.signal : realTimeout(ms)
+      )
+      const { turn, view } = await startTurn()
+      const answered = vi.fn()
+      const stubbed = globalThis.fetch
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!String(input).includes('/api/copilot/chat/steer') || answered.mock.calls.length > 0) {
+          return stubbed(input, init)
+        }
+        answered()
+        state.steerBodies.push(JSON.parse(String(init?.body)))
+        return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      })
+      state.steerDispositions = ['not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await turn.end()
+      await act(async () => {
+        await settle()
+      })
+      expect(state.steerBodies).toHaveLength(1)
+      await act(async () => {
+        deadline.abort('timeout')
+      })
+      await waitFor(() => state.steerBodies.length === 2)
+      await waitFor(() => state.postBodies.length === 2)
+    })
+
+    it('shows a message the chat keeps refusing as not delivered, and retries it on request', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return Response.json(
+              { error: 'A response is already in progress.', activeStreamId: 'stuck-run' },
+              { status: 409 }
+            )
+          }
+          return fetchStub(input, init)
+        })
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Add a summary')
+        })
+        for (let second = 0; second < 300; second++) {
+          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        }
+
+        const attempts = state.postBodies.length
+        expect(attempts).toBeLessThanOrEqual(8)
+        const message = view.getResult().messages.find((m) => m.content === 'Add a summary')
+        expect(message?.delivery).toBe('failed')
+
+        await act(async () => {
+          view.getResult().retryMessage(message?.id ?? '')
+          await vi.advanceTimersByTimeAsync(1_000)
+        })
+        expect(state.postBodies.length).toBeGreaterThan(attempts)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('shows an applied message once, in place, when the saved transcript holds it', async () => {
+      const steeringId = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
+      const at = '2026-11-05T00:00:00.000Z'
+      const saved: MothershipChatHistory = {
+        ...history,
+        messages: [
+          { id: 'turn', role: 'user', content: 'Count', timestamp: at },
+          {
+            id: steeringId,
+            role: 'user',
+            content: 'Stop at two',
+            timestamp: at,
+            steering: { streamId: 'turn' },
+          },
+          {
+            id: 'answer',
+            streamId: 'turn',
+            role: 'assistant',
+            content: '1 2.',
+            timestamp: at,
+            contentBlocks: [
+              { type: 'text', channel: 'assistant', content: '1 ' },
+              { type: 'steering', steering: { steeringId } },
+              { type: 'text', channel: 'assistant', content: '2.' },
+            ],
+          },
+        ],
+      }
+      stubRunningTurn()
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: saved }))
+      const view = renderUseChatInChat(chatId, saved)
+      await act(async () => {
+        await settle()
+      })
+
+      expect(view.getResult().messages.map((message) => message.content)).toEqual([
+        'Count',
+        '1 ',
+        'Stop at two',
+        '2.',
+      ])
+      expect(state.steerBodies).toHaveLength(0)
+      expect(state.postBodies).toHaveLength(0)
     })
 
     it('sends a message still unapplied when the user stops the turn as the next turn', async () => {

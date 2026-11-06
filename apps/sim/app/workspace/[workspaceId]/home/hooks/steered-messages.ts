@@ -63,6 +63,17 @@ function withSteeringAt(
   return result
 }
 
+/**
+ * The message a running turn is streaming into: the last assistant message, since
+ * messages still on their way into the turn show after it.
+ */
+export function findLiveResponseId(messages: readonly ChatMessage[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === 'assistant') return messages[index].id
+  }
+  return undefined
+}
+
 function mainText(blocks: ContentBlock[]): string {
   return blocks
     .filter(isMainText)
@@ -76,28 +87,22 @@ function mainText(blocks: ContentBlock[]): string {
  * there: the response before it, the user's message, then the rest. Its last
  * segment keeps the message's id, so the live turn stays the same row.
  *
- * A steering message not applied yet shows after everything else while it may
- * still be: when it is `outgoing` (this client is still delivering it) or its
- * turn (`streamId`) is one of `liveStreamIds`. Otherwise it is dropped, because
- * a turn that ended without applying it hands it on as an ordinary turn, which
- * shows on its own. One the worker said it applied (`textOffset`) is placed in its
- * turn's answer at that offset until the turn's own marker for it arrives.
+ * A steering message not placed shows after everything else, never hidden: it is
+ * still on its way, or its delivery is being settled (a turn that ended without
+ * applying it sends it on as a turn under the same id, which replaces it). One the
+ * worker said it applied (`textOffset`) is placed in its turn's answer at that
+ * offset until the turn's own marker for it arrives.
  */
 export function placeSteeredMessages(
   source: ChatMessage[],
-  outgoing: readonly OutgoingPlacement[],
-  liveStreamIds: ReadonlySet<string>
+  outgoing: readonly OutgoingPlacement[]
 ): ChatMessage[] {
   if (outgoing.length === 0 && !source.some((message) => message.steering)) return source
   const steered = new Map<string, ChatMessage>()
   for (const message of source) {
     if (message.role === 'user' && message.steering) steered.set(message.id, message)
   }
-  const outgoingIds = new Set<string>()
-  for (const { message } of outgoing) {
-    steered.set(message.id, message)
-    outgoingIds.add(message.id)
-  }
+  for (const { message } of outgoing) steered.set(message.id, message)
   let messages = source
   for (const { message, streamId, textOffset } of outgoing) {
     if (!streamId || textOffset === undefined) continue
@@ -148,10 +153,10 @@ export function placeSteeredMessages(
     result.push({ ...message, content: mainText(segment), contentBlocks: segment })
   }
 
+  /* Never hidden: a message not placed in its turn shows after everything else,
+     whether it is still on its way or its delivery is being settled. */
   for (const [id, message] of steered) {
-    if (placed.has(id)) continue
-    const streamId = message.steering?.streamId
-    if (outgoingIds.has(id) || (streamId && liveStreamIds.has(streamId))) result.push(message)
+    if (!placed.has(id)) result.push(message)
   }
   return result
 }

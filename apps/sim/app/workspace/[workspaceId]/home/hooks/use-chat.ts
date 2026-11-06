@@ -249,6 +249,8 @@ interface StartSendMessageOptions {
    * it lets the server deduplicate the attempts instead of billing a second turn.
    */
   userMessageId?: string
+  /** It was sent into a turn that did not apply it; the server settles that before admitting it. */
+  steeringFallback?: boolean
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
@@ -292,6 +294,8 @@ export interface UseChatReturn {
   setTableViewContext: (tableId: string, context: MothershipTableViewContext) => void
   removeResource: (resource: ChatResourceAddress) => void
   reorderResources: (resources: MothershipResource[]) => void
+  /** Tries again to deliver a message shown as not delivered. */
+  retryMessage: (id: string) => void
   previewSession: FilePreviewSession | null
   getCurrentRequestId: () => string | undefined
 }
@@ -319,6 +323,12 @@ const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 
 /** Matches the steer route's content limit; a longer message goes out as its own turn. */
 const MAX_STEERING_CONTENT_LENGTH = 32_768
+/** Automatic delivery attempts of one message (failed sends, refused steers) before it shows as not delivered. */
+const MAX_OUTGOING_DELIVERY_ATTEMPTS = 8
+/** Disposition reads of a message still held after its turn ended, before it shows as not delivered. */
+const MAX_STEERING_RECONCILE_ATTEMPTS = 6
+/** Longer than the steer route's own retries of an unknown run or a full budget. */
+const STEER_REQUEST_TIMEOUT_MS = 20_000
 const OUTGOING_RETRY_BASE_MS = 1_000
 const OUTGOING_RETRY_MAX_MS = 30_000
 
@@ -667,7 +677,9 @@ interface ActiveStreamRecovery {
  * - `sending`: going out as a turn of its own, which shows it; kept until the
  *   server admits it so a remount resends it under the same id (deduplicated);
  * - `applied`: the worker applied it at `textOffset` of that turn's answer; it is
- *   shown there until the chat's history holds the turn's own marker for it.
+ *   shown there until the chat's history holds the turn's own marker for it;
+ * - `failed`: automatic delivery gave up; it shows as not delivered until the
+ *   user retries it (`retryOutgoing`).
  *
  * Every entry of a chat is journaled per tab (`useMothershipOutgoingStore`), so a
  * remount or reload resumes delivery under the same ids.
@@ -687,7 +699,9 @@ interface OutgoingMessage {
   chatKey: string
   payload: SendPayload
   display: ChatMessage
-  status: 'pending' | 'sending' | 'steering' | 'steered' | 'applied'
+  status: 'pending' | 'sending' | 'steering' | 'steered' | 'applied' | 'failed'
+  /** Steered with no answer: the worker may or may not hold it, so nothing written after it may overtake it. */
+  unknown?: boolean
   streamId?: string
   /** Where the turn applied it: the length of the turn's answer at that point (UTF-16). */
   textOffset?: number
@@ -1552,21 +1566,33 @@ export function useChat(
         source.splice(ownerIndex + 1, 0, liveAssistant)
       }
     }
-    const liveStreamIds = new Set<string>()
-    if (pendingTurn) liveStreamIds.add(pendingTurn.userMessageId)
-    if (chatHistory?.activeStreamId) liveStreamIds.add(chatHistory.activeStreamId)
+    const turnRunning = Boolean(pendingTurn) || Boolean(chatHistory?.activeStreamId)
+    const deliveryOf = (message: OutgoingMessage): ChatMessage['delivery'] => {
+      if (message.status === 'failed') return 'failed'
+      if (message.status === 'applied' || (message.status === 'steered' && !message.unknown)) {
+        return undefined
+      }
+      if (
+        message.status === 'pending' &&
+        turnRunning &&
+        (!canSteer(message.payload) || message.resumed || message.refusedBy)
+      ) {
+        return 'waiting'
+      }
+      return 'sending'
+    }
     const outgoingMessages = outgoing.flatMap((message) =>
       message.chatKey === chatKey && message.status !== 'sending'
         ? [
             {
-              message: message.display,
+              message: { ...message.display, delivery: deliveryOf(message) },
               ...(message.streamId ? { streamId: message.streamId } : {}),
               ...(message.textOffset !== undefined ? { textOffset: message.textOffset } : {}),
             },
           ]
         : []
     )
-    return placeSteeredMessages(source, outgoingMessages, liveStreamIds).map((m) =>
+    return placeSteeredMessages(source, outgoingMessages).map((m) =>
       restoreRevealedSimKeysForMessage(m, revealedSimKeys)
     )
   }, [
@@ -3641,7 +3667,13 @@ export function useChat(
       }
       /** A message waiting on this turn goes out next, so the chat is not done yet. */
       const hasFollowUp =
-        !isError && outgoingRef.current.some((message) => message.chatKey === chatKeyRef.current)
+        !isError &&
+        outgoingRef.current.some(
+          (message) =>
+            message.chatKey === chatKeyRef.current &&
+            message.status !== 'applied' &&
+            message.status !== 'failed'
+        )
       const completedChatId = options?.targetChatId ?? chatIdRef.current
       if (!isError && !hasFollowUp && completedChatId) {
         void getDesktopBridge()?.settings?.notify({
@@ -3941,6 +3973,7 @@ export function useChat(
             message,
             ...(organizationId ? { organizationId } : { workspaceId }),
             userMessageId,
+            ...(options?.steeringFallback ? { steeringFallback: true } : {}),
             createNewChat: !requestChatId,
             ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
@@ -4339,6 +4372,10 @@ export function useChat(
       const message = outgoingRef.current.find((candidate) => candidate.id === id)
       if (!message) return
       const attempts = message.attempts + 1
+      if (attempts >= MAX_OUTGOING_DELIVERY_ATTEMPTS) {
+        updateOutgoing(id, { status: 'failed', attempts })
+        return
+      }
       updateOutgoing(id, {
         status: 'pending',
         attempts,
@@ -4391,6 +4428,7 @@ export function useChat(
       const { content, contexts, fileAttachments } = message.payload
       try {
         const disposition = await requestJson(copilotChatSteerContract, {
+          signal: AbortSignal.timeout(STEER_REQUEST_TIMEOUT_MS),
           body: {
             streamId,
             chatId,
@@ -4468,7 +4506,11 @@ export function useChat(
         })
         return
       }
-      updateOutgoing(message.id, { status: 'steered', streamId })
+      updateOutgoing(message.id, {
+        status: 'steered',
+        streamId,
+        unknown: outcome.status === 'unknown',
+      })
     },
     [recordSteeredMessage, requestSteering, updateOutgoing, appliedSteeringIdsSeen]
   )
@@ -4497,6 +4539,46 @@ export function useChat(
     for (const persisted of history?.messages ?? [])
       appliedSteeringIds(persisted.contentBlocks, marked)
     const live = liveStreamId()
+    /* A steering record no turn marked and no entry here delivers (an earlier
+       mount's, or another tab's) is settled like one of this mount's own: its
+       disposition is read, and it is kept, sent as a turn, or shown as not
+       delivered. */
+    const known = new Set(outgoingRef.current.map((message) => message.id))
+    const orphans = (history?.messages ?? []).filter(
+      (persisted) =>
+        persisted.role === 'user' &&
+        persisted.steering &&
+        !marked.has(persisted.id) &&
+        !applied.has(persisted.id) &&
+        !known.has(persisted.id) &&
+        persisted.steering.streamId !== live &&
+        persisted.steering.streamId !== history?.activeStreamId
+    )
+    if (orphans.length > 0) {
+      writeOutgoing((current) => [
+        ...current,
+        ...orphans.map((persisted): OutgoingMessage => {
+          const payload = sendPayload({
+            content: persisted.content,
+            ...(persisted.fileAttachments?.length
+              ? { fileAttachments: persisted.fileAttachments }
+              : {}),
+            ...(persisted.requestMode ? { requestMode: persisted.requestMode } : {}),
+          })
+          return {
+            id: persisted.id,
+            chatKey,
+            payload,
+            display: optimisticUserMessageFor(persisted.id, payload),
+            status: 'steered',
+            streamId: persisted.steering?.streamId,
+            unknown: true,
+            attempts: 0,
+            reconcileAttempts: 0,
+          }
+        }),
+      ])
+    }
     for (const message of outgoingRef.current) {
       if (message.chatKey !== chatKey || !message.streamId) continue
       if (message.status === 'applied') {
@@ -4524,13 +4606,35 @@ export function useChat(
           status: 'applied',
           ...(outcome.textOffset !== undefined ? { textOffset: outcome.textOffset } : {}),
         })
-      } else if (outcome.status === 'not_applied') {
-        updateOutgoing(message.id, { status: 'pending', refusedBy: streamId, streamId: undefined })
-      } else {
-        updateOutgoing(message.id, {
-          reconcileAttempts: message.reconcileAttempts + 1,
-          notBefore: Date.now() + outgoingRetryDelay(message.reconcileAttempts + 1),
+        /* The turn's own marker for it arrives with the chat's saved transcript. */
+        void queryClient.invalidateQueries({
+          queryKey: mothershipChatKeys.detail(chatId),
+          exact: true,
         })
+      } else if (outcome.status === 'not_applied') {
+        updateOutgoing(message.id, {
+          status: 'pending',
+          refusedBy: streamId,
+          streamId: undefined,
+          unknown: false,
+          ...(message.attempts > 0
+            ? { notBefore: Date.now() + outgoingRetryDelay(message.attempts) }
+            : {}),
+        })
+      } else {
+        /* Still held (or no answer): read again later. A run that never settles it,
+           such as one whose owner died, does not keep it waiting forever. */
+        const reconcileAttempts = message.reconcileAttempts + 1
+        updateOutgoing(
+          message.id,
+          reconcileAttempts >= MAX_STEERING_RECONCILE_ATTEMPTS
+            ? { status: 'failed', reconcileAttempts }
+            : {
+                reconcileAttempts,
+                unknown: outcome.status === 'unknown',
+                notBefore: Date.now() + outgoingRetryDelay(reconcileAttempts),
+              }
+        )
       }
     }
   }, [
@@ -4561,7 +4665,20 @@ export function useChat(
       if ((message.notBefore ?? 0) > Date.now()) return
       const streamId = liveStreamId()
       if (streamId) {
-        if (!canSteer(message.payload) || message.resumed || message.refusedBy === streamId) {
+        /* Never overtake: a message steered with no answer yet may still be applied,
+           so one written after it waits for that answer. */
+        const earlierUnsettled = inChat
+          .slice(0, index)
+          .some(
+            (earlier) =>
+              earlier.status === 'steering' || (earlier.status === 'steered' && earlier.unknown)
+          )
+        if (
+          earlierUnsettled ||
+          !canSteer(message.payload) ||
+          message.resumed ||
+          message.refusedBy === streamId
+        ) {
           return
         }
         await steerOutgoing(message, streamId)
@@ -4581,6 +4698,7 @@ export function useChat(
       const sent = startSendMessage(content, fileAttachments, contexts, {
         ...sendOptions,
         userMessageId: message.id,
+        ...(message.refusedBy ? { steeringFallback: true } : {}),
       })
       outgoingTurnSends.set(message.id, sent)
       /* Admitted, it is the turn's own message: nothing is left to deliver. */
@@ -4592,6 +4710,12 @@ export function useChat(
       }
       void sent.then((result) => {
         if (outgoingTurnSends.get(message.id) === sent) outgoingTurnSends.delete(message.id)
+        if (result === false) {
+          /* Nothing went out (the chat refused it before sending); it stays, shown
+             as not delivered. */
+          updateOutgoing(message.id, { status: 'failed' })
+          return
+        }
         if (typeof result !== 'object') {
           settled()
           return
@@ -4610,16 +4734,31 @@ export function useChat(
         /* Back at the head: it was first when it went out, and what was written
            after it stays behind it. */
         writeOutgoing((current) => [
-          { ...message, status: 'pending', streamId: undefined, refusedBy: undefined },
+          {
+            ...message,
+            status: 'pending',
+            streamId: undefined,
+            reconcileAttempts: 0,
+          },
           ...current.filter((candidate) => candidate.id !== message.id),
         ])
         if (result.reason === 'busy') {
-          /* Another turn holds the chat: this message steers that one. A turn that
-             refuses it as well (one closing while it holds the chat lock) backs the
-             next attempt off. */
-          void steerOutgoing(message, result.streamId).then(() => {
+          /* Another turn holds the chat: this message steers that one. Every round
+             of this counts, whatever the steer answers, so a chat that keeps refusing
+             a message it never applies backs off and ends in "not delivered". */
+          const attempts = message.attempts + 1
+          if (attempts >= MAX_OUTGOING_DELIVERY_ATTEMPTS) {
+            updateOutgoing(message.id, { status: 'failed', attempts })
+            return
+          }
+          updateOutgoing(message.id, { attempts })
+          void steerOutgoing({ ...message, attempts }, result.streamId).then(() => {
             const current = outgoingRef.current.find((candidate) => candidate.id === message.id)
-            if (current?.status === 'pending') deferOutgoing(message.id)
+            if (current?.status === 'pending') {
+              updateOutgoing(message.id, {
+                notBefore: Date.now() + outgoingRetryDelay(attempts),
+              })
+            }
             deliverOutgoingRef.current()
           })
           return
@@ -4645,6 +4784,25 @@ export function useChat(
    * something they wait on changes: a send, a turn's end, a Stop settling, the
    * browser coming online, the chat history moving on, and retry timers.
    */
+  /** Whether this chat has a steered message, or a steering record, to settle. */
+  const hasSteeringToSettle = useCallback(() => {
+    const chatKey = chatKeyRef.current
+    if (
+      outgoingRef.current.some(
+        (message) =>
+          message.chatKey === chatKey &&
+          (message.status === 'steered' || message.status === 'applied')
+      )
+    ) {
+      return true
+    }
+    const chatId = chatIdRef.current
+    if (!chatId) return false
+    return queryClient
+      .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+      ?.messages.some((message) => message.steering)
+  }, [queryClient])
+
   const deliverOutgoing = useCallback((): Promise<void> => {
     const delivery = outgoingDeliveryRef.current
     if (delivery.pass) {
@@ -4657,13 +4815,7 @@ export function useChat(
           delivery.again = false
           /* Checked synchronously so a plain send goes out in the same tick as
              `sendMessage`, before any await. */
-          if (
-            outgoingRef.current.some(
-              (message) => message.chatKey === chatKeyRef.current && message.status === 'steered'
-            )
-          ) {
-            await settleOutgoing()
-          }
+          if (hasSteeringToSettle()) await settleOutgoing()
           await pumpOutgoing()
         } while (delivery.again && surfaceMountedRef.current)
       } catch (error) {
@@ -4686,8 +4838,29 @@ export function useChat(
       }
     })()
     return delivery.pass
-  }, [pumpOutgoing, settleOutgoing])
+  }, [hasSteeringToSettle, pumpOutgoing, settleOutgoing])
   deliverOutgoingRef.current = deliverOutgoing
+
+  const retryMessage = useCallback(
+    (id: string) => {
+      writeOutgoing((current) =>
+        current.map((message) =>
+          message.id === id && message.status === 'failed'
+            ? {
+                ...message,
+                /* One already steered reads its disposition again rather than going out twice. */
+                status: message.streamId ? 'steered' : 'pending',
+                attempts: 0,
+                reconcileAttempts: 0,
+                notBefore: undefined,
+              }
+            : message
+        )
+      )
+      void deliverOutgoing()
+    },
+    [deliverOutgoing, writeOutgoing]
+  )
 
   const sendMessage = useCallback(
     async (
@@ -4746,6 +4919,7 @@ export function useChat(
    * browser coming back online retries what could not reach Sim.
    */
   const historyActiveStreamId = chatHistory?.activeStreamId ?? null
+  const historyHoldsSteering = chatHistory?.messages.some((message) => message.steering) ?? false
   useEffect(() => {
     /* A chat this mount has not delivered for yet resumes what its journal holds:
        an earlier mount's messages, under their ids and where their delivery stood. */
@@ -4760,8 +4934,13 @@ export function useChat(
         ])
       }
     }
-    if (outgoingRef.current.some((message) => message.chatKey === chatKey)) void deliverOutgoing()
-  }, [chatKey, historyActiveStreamId, deliverOutgoing, writeOutgoing])
+    if (
+      historyHoldsSteering ||
+      outgoingRef.current.some((message) => message.chatKey === chatKey)
+    ) {
+      void deliverOutgoing()
+    }
+  }, [chatKey, historyActiveStreamId, historyHoldsSteering, deliverOutgoing, writeOutgoing])
   useEffect(() => {
     if (typeof window === 'undefined') return
     const retryOnline = () => {
@@ -5089,6 +5268,7 @@ export function useChat(
     addResource,
     removeResource,
     reorderResources,
+    retryMessage,
     previewSession,
     getCurrentRequestId,
   }

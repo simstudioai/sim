@@ -464,7 +464,6 @@
   "apps/sim/app/workspace/[workspaceId]/home/hooks/index.ts#ResourceEventOptions",
   "apps/sim/app/workspace/[workspaceId]/home/hooks/index.ts#shouldActivateResourceEvent",
   "apps/sim/app/workspace/[workspaceId]/home/hooks/index.ts#useMothershipResize",
-  "apps/sim/app/workspace/[workspaceId]/home/hooks/message-reconcile.ts#findAssistantAfterOwner",
   "apps/sim/app/workspace/[workspaceId]/home/hooks/message-reconcile.ts#findStreamOwnerIndex",
   "apps/sim/app/workspace/[workspaceId]/home/hooks/message-reconcile.ts#isPersistedAssistantMessage",
   "apps/sim/app/workspace/[workspaceId]/home/hooks/stream-protocol.ts#createBatchSchemaValidationError",

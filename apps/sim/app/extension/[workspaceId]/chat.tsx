@@ -162,6 +162,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
           onSubmit={(message, files, contexts) => submit(message, files, contexts, false)}
           onComposerSubmit={submit}
           onStopGeneration={stop}
+          onRetryMessage={chat.retryMessage}
           onViewSources={(messageId, requestId) =>
             void setSourceParams(
               { 'source-message': messageId, 'source-request': requestId ?? null },

@@ -122,6 +122,8 @@ export type PlatformTurn =
       prompt: ComposerDraft
       sentAt?: number
       timeZone?: string
+      /** Where a message this client is still delivering stands; absent once delivered. */
+      delivery?: 'sending' | 'waiting' | 'failed'
     }
   | {
       /** A turn automation opened. The person did not type it, so it is never their bubble. */
@@ -215,6 +217,8 @@ export interface ChatRuntime {
   sendText: (text: string) => void
   /** Runs a failed turn again. Absent when this chat has no failed-turn state to recover. */
   retry?: (turnId: string) => void
+  /** Tries again to deliver a message shown as not delivered. */
+  retryMessage?: (messageId: string) => void
   approvals: ToolApprovalProgress
   registerApproval: (toolCallId: string) => () => void
   decideTools: (ids: readonly string[], decision: ToolDecision) => Promise<'ok' | 'gone'>

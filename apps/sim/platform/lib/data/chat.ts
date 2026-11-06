@@ -265,6 +265,7 @@ export function useLiveChatRuntime({
     stop: () => {
       void stopGeneration()
     },
+    retryMessage: chat.retryMessage,
     approvals,
     registerApproval,
     decideTools,

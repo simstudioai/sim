@@ -523,6 +523,7 @@ function OrganizationConversationContent({
             onStopGeneration={() => {
               void chat.stopGeneration()
             }}
+            onRetryMessage={chat.retryMessage}
             userId={session?.user?.id}
             chatId={chat.resolvedChatId}
             composer={composer}

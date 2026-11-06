@@ -12,7 +12,7 @@ import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 export interface JournaledOutgoing {
   id: string
   payload: SendPayload
-  status: 'pending' | 'steered' | 'applied'
+  status: 'pending' | 'steered' | 'applied' | 'failed'
   streamId?: string
   refusedBy?: string
   resumed?: boolean

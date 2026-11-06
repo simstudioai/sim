@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import {
+  Chip,
   type ClipboardContent,
   cn,
   overflowFadeSizeClass,
@@ -62,6 +63,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
+import { findLiveResponseId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
@@ -100,6 +102,8 @@ interface MothershipChatProps {
     contexts?: ChatContext[]
   ) => unknown
   onStopGeneration: () => void
+  /** Tries again to deliver a message shown as not delivered. */
+  onRetryMessage?: (messageId: string) => void
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -187,7 +191,17 @@ const LAYOUT_STYLES = {
 
 const EMPTY_BLOCKS: ContentBlock[] = []
 
+/** What a message this client is still delivering shows beneath itself. */
+const DELIVERY_LABELS: Record<NonNullable<ChatMessage['delivery']>, string> = {
+  sending: 'Sending',
+  waiting: 'Sends after this response',
+  failed: 'Not delivered',
+}
+
 interface UserMessageRowProps {
+  messageId: string
+  delivery?: ChatMessage['delivery']
+  onRetry?: (messageId: string) => void
   content: string
   contexts?: ChatMessageContext[]
   attachments?: ChatMessageAttachment[]
@@ -233,6 +247,9 @@ const AutomatedTurnRow = memo(function AutomatedTurnRow({
 })
 
 const UserMessageRow = memo(function UserMessageRow({
+  messageId,
+  delivery,
+  onRetry,
   content,
   contexts,
   attachments,
@@ -253,6 +270,19 @@ const UserMessageRow = memo(function UserMessageRow({
       <div className={bubbleClassName} data-chat-find-content>
         <UserMessageContent content={content} contexts={contexts} />
       </div>
+      {delivery && (
+        <div
+          role='status'
+          className='flex items-center gap-[6px] text-[var(--text-muted)] text-caption'
+        >
+          {DELIVERY_LABELS[delivery]}
+          {delivery === 'failed' && onRetry && (
+            <Chip variant='border' onClick={() => onRetry(messageId)}>
+              Retry
+            </Chip>
+          )}
+        </div>
+      )}
     </div>
   )
 })
@@ -396,6 +426,7 @@ export function MothershipChat({
   onSubmit,
   onComposerSubmit,
   onStopGeneration,
+  onRetryMessage,
   userId,
   chatId,
   onContextAdd,
@@ -416,8 +447,12 @@ export function MothershipChat({
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
-  /** The deferred list may still end in the previous turn when a new send starts. */
-  const streamingMessageId = isStreamActive ? messagesProp.at(-1)?.id : undefined
+  /**
+   * The live response is the last assistant message: messages still on their way
+   * into the turn show after it. The deferred list may still end in the previous
+   * turn when a new send starts.
+   */
+  const streamingMessageId = isStreamActive ? findLiveResponseId(messagesProp) : undefined
   /**
    * Defer the streamed message list so its re-render (virtualizer + rows) is
    * low-priority: React yields it to urgent interactions (dragging/panning the
@@ -959,6 +994,9 @@ export function MothershipChat({
                           />
                         ) : (
                           <UserMessageRow
+                            messageId={msg.id}
+                            delivery={msg.delivery}
+                            onRetry={onRetryMessage}
                             content={msg.content}
                             contexts={msg.contexts}
                             attachments={msg.attachments}
@@ -971,7 +1009,7 @@ export function MothershipChat({
                         <AssistantMessageRow
                           message={msg}
                           prepareContentForCopy={prepareContentForCopy}
-                          isStreaming={isLast && msg.id === streamingMessageId}
+                          isStreaming={msg.id === streamingMessageId}
                           isLast={isLast}
                           precedingUserContent={precedingUserByIndex[index]?.content}
                           requestMode={precedingUserByIndex[index]?.requestMode}
@@ -982,7 +1020,11 @@ export function MothershipChat({
                           credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
                           rowClassName={cn(styles.assistantRow, styles.rowGap)}
                           onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                          onAnimatingChange={isLast ? setLastRowAnimating : undefined}
+                          onAnimatingChange={
+                            isLast || msg.id === streamingMessageId
+                              ? setLastRowAnimating
+                              : undefined
+                          }
                         />
                       )}
                     </AssistantActionReviewMessage>
