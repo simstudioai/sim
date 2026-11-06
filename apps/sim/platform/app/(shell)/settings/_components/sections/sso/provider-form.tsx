@@ -303,8 +303,8 @@ export function ProviderForm({
                     query: providerIdQuery,
                     onQueryChange: (query, { reason }) => {
                       setProviderIdQuery(query)
-                      if (reason === 'input-change' || reason === 'input-clear')
-                        set('providerId', query.trim())
+                      // Closing the popup clears its query as `input-clear`; that is not an edit.
+                      if (reason === 'input-change') set('providerId', query.trim())
                     },
                   }}
                 />
