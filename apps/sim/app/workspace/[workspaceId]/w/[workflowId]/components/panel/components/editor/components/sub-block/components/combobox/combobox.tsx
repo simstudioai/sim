@@ -371,8 +371,11 @@ export const ComboBox = memo(function ComboBox({
     setInputValue(displayValue)
   }
 
-  /** Set when the user empties the input, so a field they cleared is not refilled under them. */
-  const userClearedRef = useRef(false)
+  /**
+   * The default in force when the user emptied the input, so a field they cleared is not refilled
+   * under them. A dependency change that brings a different default (a provider switch) ends it.
+   */
+  const userClearedDefaultRef = useRef<string | null>(null)
 
   // Set default value once permissions are loaded
   useEffect(() => {
@@ -381,7 +384,9 @@ export const ComboBox = memo(function ComboBox({
 
     // Set the default on initial block add, and after a dependency change clears an opted-in field
     const clearedByDependency =
-      config.restoreDefaultWhenCleared && value === '' && !userClearedRef.current
+      config.restoreDefaultWhenCleared &&
+      value === '' &&
+      userClearedDefaultRef.current !== defaultOptionValue
     if (value === null || value === undefined || clearedByDependency) {
       setStoreValue(defaultOptionValue)
     }
@@ -547,10 +552,10 @@ export const ComboBox = memo(function ComboBox({
           ? matchedOption
           : matchedOption.id
         : newValue
-      userClearedRef.current = nextValue === ''
+      userClearedDefaultRef.current = nextValue === '' ? (defaultOptionValue ?? null) : null
       setStoreValue(nextValue)
     },
-    [isPreview, evaluatedOptions, setStoreValue]
+    [isPreview, evaluatedOptions, setStoreValue, defaultOptionValue]
   )
 
   return (

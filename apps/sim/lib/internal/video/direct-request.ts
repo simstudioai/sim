@@ -53,6 +53,7 @@ function resolveDirectVideoModel(input: VideoGenerationInput): DirectVideoModel 
   }
   const id = parseCustomModelId(input.model, VIDEO_PROVIDER_LABELS[input.provider])
   assertNoCustomModelSettings(id, {
+    visualReference: input.visualReference,
     duration: input.duration,
     aspectRatio: input.aspectRatio,
     resolution: input.resolution,

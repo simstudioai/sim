@@ -25,7 +25,7 @@ export const imageGenerationInputSchema = z
         message: `Invalid provider. Must be one of: ${imageProviders.join(', ')}`,
       }),
     apiKey: z.string({ error: MISSING_IMAGE_FIELDS_ERROR }).min(1, MISSING_IMAGE_FIELDS_ERROR),
-    model: z.string().optional(),
+    model: z.string().trim().optional(),
     prompt: z.string({ error: MISSING_IMAGE_FIELDS_ERROR }).min(1, MISSING_IMAGE_FIELDS_ERROR),
     size: z.string().optional(),
     aspectRatio: z.string().optional(),

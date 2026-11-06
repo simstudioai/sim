@@ -15,7 +15,7 @@ export const videoToolBodySchema = z
         message: `Invalid provider. Must be one of: ${videoProviders.join(', ')}`,
       }),
     apiKey: z.string({ error: MISSING_VIDEO_FIELDS_ERROR }).min(1, MISSING_VIDEO_FIELDS_ERROR),
-    model: z.string().optional(),
+    model: z.string().trim().optional(),
     prompt: z.string({ error: MISSING_VIDEO_FIELDS_ERROR }).min(1, MISSING_VIDEO_FIELDS_ERROR),
     duration: z.coerce.number().optional(),
     aspectRatio: z.string().optional(),
