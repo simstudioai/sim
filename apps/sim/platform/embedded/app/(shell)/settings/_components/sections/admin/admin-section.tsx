@@ -37,9 +37,9 @@ import { AddUserModal } from '@/platform/embedded/app/(shell)/settings/_componen
 import { toast } from '@/platform/shared/toast'
 
 const USER_COLUMNS = [
-  { key: 'name', label: 'Name', kind: 'text' },
+  { key: 'name', label: 'Name', kind: 'text', showFrom: 'compact' },
   { key: 'email', label: 'Email', kind: 'text' },
-  { key: 'role', label: 'Role', kind: 'status' },
+  { key: 'role', label: 'Role', kind: 'status', showFrom: 'compact' },
   { key: 'status', label: 'Status', kind: 'status' },
 ] as const
 

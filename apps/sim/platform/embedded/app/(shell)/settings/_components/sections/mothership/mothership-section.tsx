@@ -150,10 +150,10 @@ const USER_COLUMNS = [
 
 const REQUEST_COLUMNS = [
   { key: 'id', label: 'Request ID', kind: 'text' },
-  { key: 'model', label: 'Model', kind: 'text' },
-  { key: 'duration', label: 'Duration', kind: 'text' },
-  { key: 'cost', label: 'Cost', kind: 'text' },
-  { key: 'tools', label: 'Tools', kind: 'number' },
+  { key: 'model', label: 'Model', kind: 'text', showFrom: 'compact' },
+  { key: 'duration', label: 'Duration', kind: 'text', showFrom: 'compact' },
+  { key: 'cost', label: 'Cost', kind: 'text', showFrom: 'wide' },
+  { key: 'tools', label: 'Tools', kind: 'number', showFrom: 'wide' },
   { key: 'status', label: 'Status', kind: 'status' },
   { key: 'time', label: 'Time', kind: 'text' },
 ] as const
