@@ -57,7 +57,7 @@ export function HomeConversation({ requestMode }: HomeConversationProps) {
       requestMode={requestMode}
       draftSlot={requestMode === 'assistant' ? HOME_ASSISTANT_DRAFT_SLOT : undefined}
       chatHeader={requestMode === 'assistant' ? assistantChatHeader : undefined}
-      fallback={<HomeDashboardSkeleton requestMode={requestMode} />}
+      fallback={<HomeDashboardSkeleton />}
       landing={(slot) => <LiveHome {...slot} />}
     />
   )

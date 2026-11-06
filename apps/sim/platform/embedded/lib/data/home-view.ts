@@ -69,7 +69,13 @@ export interface HomeCalendarDay {
 export type HomeListState<T> =
   | { status: 'loading' }
   | { status: 'error'; retrying: boolean }
-  | { status: 'ready'; items: readonly T[]; partial?: boolean }
+  | {
+      status: 'ready'
+      items: readonly T[]
+      partial?: boolean
+      /** The rows are final, but what they report is still being read. */
+      settling?: boolean
+    }
 
 export interface ActivityPoint {
   date: string

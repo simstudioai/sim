@@ -128,16 +128,18 @@ function PageConversationContent({
           )}
         >
           {hasChat ? (
-            <AssistantActionReviewProvider {...reviewProps}>
-              <MothershipChat
-                {...threadProps}
-                className={cn(hostBridge.palette, styles.thread)}
-                reserveResourceHeader={!header && threadProps.reserveResourceHeader}
-                SearchConnectionComponent={SearchIntegrationConnection}
-                composer={composer}
-                initialScrollBlocked={panel.initialScrollBlocked}
-              />
-            </AssistantActionReviewProvider>
+            <main className='contents'>
+              <AssistantActionReviewProvider {...reviewProps}>
+                <MothershipChat
+                  {...threadProps}
+                  className={cn(hostBridge.palette, styles.thread)}
+                  reserveResourceHeader={!header && threadProps.reserveResourceHeader}
+                  SearchConnectionComponent={SearchIntegrationConnection}
+                  composer={composer}
+                  initialScrollBlocked={panel.initialScrollBlocked}
+                />
+              </AssistantActionReviewProvider>
+            </main>
           ) : (
             landing?.({ requestMode, composer })
           )}

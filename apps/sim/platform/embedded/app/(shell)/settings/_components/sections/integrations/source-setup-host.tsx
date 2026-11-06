@@ -17,7 +17,6 @@ import {
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { Muted } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { SourceSetupForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup'
 
 interface SourceSetupProps {
@@ -92,11 +91,11 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
           setup.index.isPending ? (
             <LoadingRows label='Loading source' />
           ) : (
-            <Muted>This source is no longer available.</Muted>
+            <EmptyState title='This source is no longer available.' />
           )
         ) : selectedType ? (
           !setup.selectedAvailable ? (
-            <Muted>{`Not available in this ${scope.kind}`}</Muted>
+            <EmptyState title={`Not available in this ${scope.kind}`} />
           ) : prepare.error ? (
             <FailureNotice
               message={getErrorMessage(prepare.error, 'Could not prepare source setup')}

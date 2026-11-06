@@ -5,9 +5,10 @@ import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useOrganization } from '@/lib/organizations/provider'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
-import { LoadingRows } from '@/platform/design-system/components'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import type { PlatformSettingsSection } from '@/platform/embedded/app/(shell)/settings/_components/platform-sections'
+import { SectionSkeleton } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import hostStyles from '@/platform/embedded/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/embedded/app/(shell)/settings/_components/settings-screen/settings-screen'
@@ -22,6 +23,8 @@ const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, 
 }
 
 const loading = () => <LoadingRows label='Loading settings' />
+/** For a section with one heading, so it is on screen from the chunk's load through its first read. */
+const titled = (title: string) => () => <SectionSkeleton title={title} />
 
 /** One chunk per section, so opening Settings loads only the section on screen. */
 const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsSectionProps>> = {
@@ -70,7 +73,7 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       import(
         '@/platform/embedded/app/(shell)/settings/_components/sections/recently-deleted/recently-deleted-section'
       ),
-    { loading }
+    { loading: titled('Deleted chats') }
   ),
   'knowledge-graphs': dynamic(
     () =>
@@ -84,7 +87,7 @@ const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsS
       import(
         '@/platform/embedded/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section'
       ),
-    { loading }
+    { loading: titled('Brand identity') }
   ),
   'audit-logs': dynamic(
     () =>

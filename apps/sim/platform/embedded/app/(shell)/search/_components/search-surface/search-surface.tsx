@@ -199,7 +199,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
         </Suspense>
       }
     >
-      <div className={styles.body}>
+      <main className={styles.body}>
         <Surface>
           {query ? (
             <div className={styles.docked}>
@@ -229,7 +229,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
             </div>
           )}
         </Surface>
-      </div>
+      </main>
     </SearchFrame>
   )
 }

@@ -8,12 +8,36 @@ interface WidgetSkeletonProps {
   rows?: number
   /** Whether the list's rows lead with a glyph. */
   glyph?: boolean
+  /** A page's skeleton announces itself once, rather than per block. */
+  silent?: boolean
+}
+
+interface SkeletonPlaceholderProps {
+  label: string
+  silent?: boolean
+}
+
+/** Text a live region can announce, since these shapes say nothing. */
+function announcement(label: string, silent: boolean | undefined) {
+  return silent
+    ? { props: { 'aria-hidden': true as const }, text: null }
+    : {
+        props: { role: 'status', 'aria-label': label },
+        text: <span data-visually-hidden>{label}</span>,
+      }
 }
 
 /** Holds a widget's list at its final size, so the page does not move when the data arrives. */
-export function WidgetSkeleton({ label, rows = ROW_COUNT, glyph = true }: WidgetSkeletonProps) {
+export function WidgetSkeleton({
+  label,
+  rows = ROW_COUNT,
+  glyph = true,
+  silent,
+}: WidgetSkeletonProps) {
+  const { props, text } = announcement(label, silent)
   return (
-    <div className={styles.rows} role='status' aria-label={label} aria-busy='true'>
+    <div className={styles.rows} {...props}>
+      {text}
       {Array.from({ length: rows }, (_, index) => (
         <span key={index} className={styles.row}>
           {glyph && <i className={styles.glyph} />}
@@ -28,14 +52,21 @@ export function WidgetSkeleton({ label, rows = ROW_COUNT, glyph = true }: Widget
 }
 
 /** The same fill for a chart or schedule, whose shape has no rows. */
-export function SkeletonBlock({ label }: { label: string }) {
-  return <div className={styles.block} role='status' aria-label={label} aria-busy='true' />
+export function SkeletonBlock({ label, silent }: SkeletonPlaceholderProps) {
+  const { props, text } = announcement(label, silent)
+  return (
+    <div className={styles.block} {...props}>
+      {text}
+    </div>
+  )
 }
 
 /** A recents lane holding its height until the history read settles. */
-export function SkeletonLane({ label }: { label: string }) {
+export function SkeletonLane({ label, silent }: SkeletonPlaceholderProps) {
+  const { props, text } = announcement(label, silent)
   return (
-    <div className={styles.lane} role='status' aria-label={label} aria-busy='true'>
+    <div className={styles.lane} {...props}>
+      {text}
       <i />
       <i />
       <i />

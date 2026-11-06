@@ -355,11 +355,12 @@ function useHomeWorkspaces(organizationId: string, hidden: boolean) {
     if (!list.data)
       return list.isError ? { status: 'error', retrying: list.isFetching } : { status: 'loading' }
     if (workspaces.length === 0) return { status: 'ready', items: [] }
-    if (!activity.data && !activity.isError) return { status: 'loading' }
+    const settling = !activity.data && !activity.isError
     return {
       status: 'ready',
       items: toHomeWorkspaceItems(workspaces, activity.data),
-      partial: !activity.data || activity.isRefetchError,
+      settling,
+      partial: !settling && (!activity.data || activity.isRefetchError),
     }
   })()
   return {

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
@@ -20,7 +21,16 @@ vi.mock('@/platform/embedded/lib/data/prefetch-member-inventory', () => ({
 vi.mock(
   '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton',
   () => ({
-    HomeDashboardSkeleton: ({ requestMode }: { requestMode: string }) => (
+    HomeDashboardSkeleton: () => <div>Home skeleton</div>,
+  })
+)
+vi.mock('@/platform/design-system/components/surface/hydrated', () => ({
+  Hydrated: ({ children }: { children: ReactNode }) => children,
+}))
+vi.mock(
+  '@/platform/embedded/app/(shell)/home/_components/home-conversation/home-conversation',
+  () => ({
+    HomeConversation: ({ requestMode }: { requestMode: string }) => (
       <div>Home for {requestMode}</div>
     ),
   })

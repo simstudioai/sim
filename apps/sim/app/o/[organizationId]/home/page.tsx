@@ -28,7 +28,7 @@ export default async function OrganizationHomePage({
 
   const requestMode = context.canBuild ? 'agent' : 'assistant'
   return (
-    <Suspense fallback={<HomeDashboardSkeleton requestMode={requestMode} />}>
+    <Suspense fallback={<HomeDashboardSkeleton />}>
       <Hydrated state={prefetchHome(context, principal)}>
         <HomeConversation requestMode={requestMode} />
       </Hydrated>

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationActivityBreakdownContract,
@@ -46,6 +46,15 @@ interface ActivityQueryOptions {
   keepPreviousWindow?: boolean
 }
 
+/** The same organization and workspace, so only the window differs between two summary keys. */
+function sameSummaryScope(previous: readonly unknown[], next: readonly unknown[]) {
+  const windowAt = next.length - 2
+  return (
+    previous.length === next.length &&
+    next.every((part, index) => index === windowAt || part === previous[index])
+  )
+}
+
 export function useOrganizationActivitySummary(
   organizationId: string,
   window: OrganizationUsageWindowKey,
@@ -61,7 +70,15 @@ export function useOrganizationActivitySummary(
       }),
     enabled: Boolean(organizationId) && enabled,
     staleTime: ORGANIZATION_ACTIVITY_STALE_TIME,
-    placeholderData: keepPreviousWindow ? keepPreviousData : undefined,
+    placeholderData: (previous, query) =>
+      keepPreviousWindow &&
+      query &&
+      sameSummaryScope(
+        query.queryKey,
+        organizationActivityKeys.summary(organizationId, window, workspaceId)
+      )
+        ? previous
+        : undefined,
   })
 }
 

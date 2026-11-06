@@ -2,8 +2,10 @@
 
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { Button, InlineNotice, LoadingRows } from '@/platform/design-system/components'
+import { Button } from '@/platform/design-system/components/button/button'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
+import { InlineNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts.module.css'
 
 interface ChildrenProps {

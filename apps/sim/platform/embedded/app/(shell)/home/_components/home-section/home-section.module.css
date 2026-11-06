@@ -5,6 +5,9 @@
   max-block-size: var(--ui-widget-max-size);
   gap: var(--ui-popup-padding);
 }
+.section[data-uncapped] {
+  max-block-size: none;
+}
 .heading,
 .heading h2 {
   display: flex;

@@ -9,7 +9,7 @@ import { LIVE_SEARCH_SERVICE_PROVIDERS } from '@/lib/sim-search/live/policy-sche
 import { searchSetupParam } from '@/lib/sim-search/params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { serializeOrganizationPeople } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import { LoadingRows } from '@/platform/design-system/components'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { ProviderDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/provider-detail'
 import { SettingsSubpageHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host'
 

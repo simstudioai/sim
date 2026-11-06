@@ -7,6 +7,7 @@ import {
   Disclosure,
   FieldFrame,
   InlineNotice,
+  LoadingRows,
   Modal,
   SecretField,
   StatusTag,
@@ -57,7 +58,7 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
         {prepare.error ? (
           <InlineNotice intent='danger' message={prepare.error.message} />
         ) : (
-          <Muted>Loading Slack setup…</Muted>
+          <LoadingRows label='Loading Slack setup…' rows={2} />
         )}
       </Modal>
     )

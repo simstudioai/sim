@@ -203,6 +203,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
 export default function WhitelabelingSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const read = useWhitelabelRead(organizationId)
+  // One read over settings and entitlement, which also decides the empty state; no single query.
   if (read.status === 'pending') return <SectionSkeleton title='Brand identity' />
   if (read.status === 'error' || !read.settings)
     return <FailureNotice message={read.error} onRetry={read.retry} />

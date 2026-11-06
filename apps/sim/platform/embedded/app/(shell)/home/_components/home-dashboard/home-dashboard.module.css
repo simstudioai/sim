@@ -65,6 +65,7 @@
 }
 .sections {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ui-product-section-gap);
 }
 .recents {

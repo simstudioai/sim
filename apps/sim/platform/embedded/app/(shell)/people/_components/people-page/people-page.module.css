@@ -62,3 +62,6 @@
   min-block-size: 0;
   padding-block-start: var(--spacing-20);
 }
+.loading {
+  padding-inline: var(--ui-page-inline-gutter);
+}

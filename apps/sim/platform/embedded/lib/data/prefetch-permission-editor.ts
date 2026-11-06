@@ -2,7 +2,7 @@ import 'server-only'
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import {
-  PERMISSION_EDITOR_CATALOG_STALE_TIME,
+  PERMISSION_GROUP_EDITOR_CATALOG_STALE_TIME,
   permissionGroupKeys,
 } from '@/hooks/queries/utils/permission-group-keys'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
@@ -19,7 +19,7 @@ export async function prefetchPermissionEditorCatalog(
   const queryClient = makeQueryClient()
   await queryClient.prefetchQuery({
     queryKey: permissionGroupKeys.editorCatalog(organizationId),
-    staleTime: PERMISSION_EDITOR_CATALOG_STALE_TIME,
+    staleTime: PERMISSION_GROUP_EDITOR_CATALOG_STALE_TIME,
     queryFn: async () => {
       const { readPermissionGroupEditorCatalog } = await import(
         '@/lib/permission-groups/application/editor-catalog'

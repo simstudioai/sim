@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { fullPageScreenshot } from '@/scripts/org-redesign-e2e/checks/walk'
 import { ADMIN, MEMBER } from '@/scripts/org-redesign-e2e/fixture'
 import {
@@ -13,13 +14,42 @@ import {
   section,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { navLabels } from '@/scripts/org-redesign-e2e/locators'
+import { mainNav, navLabels } from '@/scripts/org-redesign-e2e/locators'
 
 export async function peoplePhaseChecks() {
   section('People with its flag on')
   await check('nav: People sits after Search', async () => {
     await onHome(MEMBER, async ({ page }) => {
       assert.deepEqual(await navLabels(page), ['Home', 'Search', 'People', 'Integrations', 'Links'])
+    })
+  })
+  await check('loading rows sit on the page gutter the heading and content use', async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      const hold = createDeferred<void>()
+      const isPeoplePayload = (address: URL) =>
+        address.pathname.endsWith('/people') && address.searchParams.has('_rsc')
+      await page.route(isPeoplePayload, async (route) => {
+        if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
+        await route.continue()
+      })
+      const prefetched = page.waitForResponse(
+        async (response) =>
+          isPeoplePayload(new URL(response.url())) &&
+          (await response.text().catch(() => '')).includes('Loading people')
+      )
+      await page.goto(orgUrl('/home'))
+      await prefetched
+      await mainNav(page).getByRole('link', { name: 'People', exact: true }).click()
+      const rows = page.getByRole('status', { name: 'Loading people…' })
+      await expect(rows).toBeVisible()
+      const heading = await page.getByRole('heading', { name: 'People', exact: true }).boundingBox()
+      const loading = await rows.boundingBox()
+      hold.resolve()
+      assert.ok(heading && loading, 'Nothing to measure')
+      assert.ok(
+        Math.abs(heading.x - loading.x) <= 1,
+        `Loading rows start at ${loading.x}, the heading at ${heading.x}`
+      )
     })
   })
   await check(

@@ -12,9 +12,8 @@ import {
 import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { FailureNotice, QueryBoundary } from '@/platform/design-system/components'
+import { FailureNotice, LoadingRows, QueryBoundary } from '@/platform/design-system/components'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { IntegrationDetails } from '@/platform/embedded/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/embedded/app/(shell)/integrations/_components/integration-list/integration-list'
 import {
@@ -48,11 +47,11 @@ export function IntegrationsRouteFallback({ detail }: IntegrationsRouteFallbackP
   return (
     <IntegrationsPage>
       {detail ? (
-        <InlineNotice message={LOADING_CONNECTION} />
+        <LoadingRows label={LOADING_CONNECTION} />
       ) : (
         <>
           <IntegrationsHeading />
-          <InlineNotice message={LOADING_CONNECTIONS} />
+          <LoadingRows label={LOADING_CONNECTIONS} />
         </>
       )}
     </IntegrationsPage>
@@ -165,7 +164,7 @@ export function IntegrationsRoute({
       : { href: indexHref, label: 'Integrations' }
   const unavailable = (loading: boolean) =>
     loading ? (
-      <InlineNotice message={LOADING_CONNECTION} />
+      <LoadingRows label={LOADING_CONNECTION} />
     ) : (
       <EmptyState title='This integration is no longer available.' />
     )

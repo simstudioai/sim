@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
-import { FailureNotice } from '@/platform/design-system/components'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import { HomeActivityChart } from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart'
 import {

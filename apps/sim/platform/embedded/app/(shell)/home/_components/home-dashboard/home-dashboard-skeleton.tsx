@@ -1,3 +1,6 @@
+'use client'
+
+import { useOrganization } from '@/lib/organizations/provider'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import conversationStyles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
@@ -7,16 +10,23 @@ import {
   WidgetSkeleton,
 } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 
-interface HomeDashboardSkeletonProps {
-  requestMode: 'agent' | 'assistant'
-}
-
-/** Home's arrangement before its data, so nothing moves when the page arrives. */
-export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProps) {
+/**
+ * Home's arrangement before its data, so nothing moves when the page arrives. The organization's
+ * provider sits above every boundary this holds, so it shows this viewer's Home rather than a guess.
+ */
+export function HomeDashboardSkeleton() {
+  const { canBuild, searchAccess, viewer, connectedAccountsAvailable } = useOrganization()
+  const showsGetStarted =
+    !canBuild &&
+    searchAccess.memberScoped &&
+    ((viewer.canConnectSearchIntegrations && connectedAccountsAvailable) || viewer.canUseSearchMcp)
   return (
-    <div className={styles.scroller} aria-busy='true'>
+    <div className={styles.scroller}>
       <div className={styles.dashboard}>
         <Surface>
+          <span role='status' data-visually-hidden>
+            Loading Home
+          </span>
           <div className={styles.lead}>
             <div className={styles.placeholderGreeting} />
             <div className={styles.placeholderWordmark} />
@@ -29,19 +39,17 @@ export function HomeDashboardSkeleton({ requestMode }: HomeDashboardSkeletonProp
         </Surface>
         <Surface>
           <div className={styles.sections}>
-            <SkeletonLane label='Loading recents' />
-            {requestMode === 'assistant' && <div className={styles.placeholderGetStarted} />}
+            {searchAccess.memberScoped && <SkeletonLane label='Loading recents' silent />}
+            {showsGetStarted && <div className={styles.placeholderGetStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
-                {requestMode === 'agent' && <SkeletonBlock label='Loading activity' />}
-                <SkeletonBlock label='Loading what needs your attention' />
-                {requestMode === 'agent' && (
-                  <WidgetSkeleton label='Loading workspaces' glyph={false} />
-                )}
+                {canBuild && <SkeletonBlock label='Loading activity' silent />}
+                <SkeletonBlock label='Loading what needs your attention' silent />
+                {canBuild && <WidgetSkeleton label='Loading workspaces' glyph={false} silent />}
               </div>
               <div className={styles.column}>
-                <SkeletonBlock label='Loading email' />
-                <SkeletonBlock label='Loading your calendar' />
+                <SkeletonBlock label='Loading email' silent />
+                <SkeletonBlock label='Loading your calendar' silent />
               </div>
             </div>
           </div>

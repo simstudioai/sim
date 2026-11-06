@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Button } from '@/platform/design-system/components'
+import { Button, LoadingRows } from '@/platform/design-system/components'
 import { PeopleDirectory } from '@/platform/embedded/app/(shell)/people/_components/directory/directory'
 import { PeopleFrame } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-frame'
 import styles from '@/platform/embedded/app/(shell)/people/_components/people-page/people-page.module.css'
@@ -15,20 +15,32 @@ import {
 } from '@/platform/embedded/lib/data/people'
 import { formatRelativeTime } from '@/platform/embedded/lib/time'
 
-const OrgChart = dynamic(() =>
-  import('@/platform/embedded/app/(shell)/people/_components/org-chart/org-chart').then(
-    (module) => module.OrgChart
+function LoadingBody() {
+  return (
+    <div className={styles.loading}>
+      <LoadingRows label='Loading people…' />
+    </div>
   )
+}
+
+const OrgChart = dynamic(
+  () =>
+    import('@/platform/embedded/app/(shell)/people/_components/org-chart/org-chart').then(
+      (module) => module.OrgChart
+    ),
+  { loading: () => <LoadingBody /> }
 )
 const ImportModal = dynamic(() =>
   import('@/platform/embedded/app/(shell)/people/_components/import/import-modal').then(
     (module) => module.ImportModal
   )
 )
-const DirectorySyncPage = dynamic(() =>
-  import(
-    '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync-page'
-  ).then((module) => module.DirectorySyncPage)
+const DirectorySyncPage = dynamic(
+  () =>
+    import(
+      '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync-page'
+    ).then((module) => module.DirectorySyncPage),
+  { loading: () => <LoadingBody /> }
 )
 const ConnectModal = dynamic(() =>
   import('@/platform/embedded/app/(shell)/people/_components/directory-sync/connect-modal').then(

@@ -130,7 +130,7 @@ beforeEach(() => {
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
     canBuild: true,
-    viewer: { isAdmin: false, canUseSearchMcp: true },
+    viewer: { userId: 'reader', isAdmin: false, canUseSearchMcp: true },
   })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
   mockAuthorizedApps([{ apps: [], nextCursor: null }])
@@ -247,12 +247,16 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
   )
   expect(draftText()).toBe('Chat A follow-up')
   expect(composerProps().files.attachedFiles[0]?.key).toBe('image-key')
-  mockSession.mockReturnValue({ data: { user: { id: 'other-user' } } })
+  const reader = toRecord(mockContext())
+  mockContext.mockReturnValue({
+    ...reader,
+    viewer: { ...toRecord(reader.viewer), userId: 'other-user' },
+  })
   await act(async () =>
     renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   expect(draftText()).toBe('')
-  mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
+  mockContext.mockReturnValue(reader)
   mockContext.mockReturnValue({
     ...toRecord(mockContext()),
     organization: { id: 'other-org', name: 'Other' },

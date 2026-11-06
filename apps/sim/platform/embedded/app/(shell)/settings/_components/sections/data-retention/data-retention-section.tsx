@@ -32,8 +32,10 @@ import {
   ActivityRow,
   Button,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   LoadingRows,
+  QueryBoundary,
   RowList,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -285,40 +287,42 @@ function RetentionForm({
 
 export default function DataRetentionSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
+  const retention = useOrganizationRetention(organizationId)
   const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
 
-  if (isLoading || workspacesQuery.isPending) return <LoadingRows label='Loading data retention…' />
-  if (!data) {
-    return (
-      <FailureNotice
-        message='Failed to load data retention settings.'
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
-    )
-  }
-  if (organization.deployment.billingEnabled && !data.isEnterprise) {
-    return <EmptyState title='Data retention is available on Enterprise plans only.' />
-  }
+  if (workspacesQuery.isPending) return <LoadingRows label='Loading data retention…' />
   return (
-    <>
-      {!workspacesQuery.data && (
-        <FailureNotice
-          message='Failed to load workspaces, so overrides cannot be added right now.'
-          retrying={workspacesQuery.isFetching}
-          onRetry={() => void workspacesQuery.refetch()}
-        />
+    <QueryBoundary
+      query={retention}
+      failure={errorMessageOr('Failed to load data retention settings.')}
+      loadingLabel='Loading data retention…'
+      empty={(data) =>
+        organization.deployment.billingEnabled &&
+        !data.isEnterprise && (
+          <EmptyState title='Data retention is available on Enterprise plans only.' />
+        )
+      }
+    >
+      {(data) => (
+        <>
+          {!workspacesQuery.data && (
+            <FailureNotice
+              message='Failed to load workspaces, so overrides cannot be added right now.'
+              retrying={workspacesQuery.isFetching}
+              onRetry={() => void workspacesQuery.refetch()}
+            />
+          )}
+          <RetentionForm
+            key={organizationId}
+            initialData={data}
+            organizationId={organizationId}
+            refetch={retention.refetch}
+            workspaceOptions={(workspacesQuery.data ?? [])
+              .filter((workspace) => workspace.organizationId === organizationId)
+              .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
+          />
+        </>
       )}
-      <RetentionForm
-        key={organizationId}
-        initialData={data}
-        organizationId={organizationId}
-        refetch={refetch}
-        workspaceOptions={(workspacesQuery.data ?? [])
-          .filter((workspace) => workspace.organizationId === organizationId)
-          .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
-      />
-    </>
+    </QueryBoundary>
   )
 }

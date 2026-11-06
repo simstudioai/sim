@@ -9,7 +9,6 @@ import { createSerializer, useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
-import { useSession } from '@/lib/auth/client'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -125,21 +124,19 @@ interface UseConversationGateOptions {
 
 /** Whether the surface may mount, and for which identity. Its key remounts on any change to one. */
 export function useConversationGate({ chatId, requestMode }: UseConversationGateOptions) {
-  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganization()
-  const { data: session } = useSession()
+  const { organization, viewer, searchAccess, canBuild, mothershipAvailable } = useOrganization()
   const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId })
-  const userId = session?.user?.id
   if (
     !mothershipAvailable ||
     (requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
   )
     return { status: 'denied' } as const
   if (isRestoredChatEntry) return { status: 'restoring' } as const
-  if (!isClient || !userId) return { status: 'waiting' } as const
+  if (!isClient) return { status: 'waiting' } as const
   return {
     status: 'ready',
-    instanceKey: `${userId}:${organization.id}:${chatId ?? 'new'}`,
+    instanceKey: `${viewer.userId}:${organization.id}:${chatId ?? 'new'}`,
   } as const
 }
 
@@ -165,10 +162,9 @@ export function useOrganizationConversation({
   summaryRequest,
   onSummaryConsumed,
 }: UseOrganizationConversationOptions) {
-  const { organization, canBuild } = useOrganization()
+  const { organization, viewer, canBuild } = useOrganization()
   const panelSurface = surface.kind === 'panel' ? surface : null
-  const { data: session } = useSession()
-  const userId = session?.user?.id
+  const userId = viewer.userId
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [planning, setPlanning] = useState(false)
   const requestMode =

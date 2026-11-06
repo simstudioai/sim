@@ -1,12 +1,12 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
-import { FailureNotice } from '@/platform/design-system/components'
 import { AvatarGroup } from '@/platform/design-system/components/avatar/avatar'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/home/_components/calendar/calendar-day.module.css'
 import {
   layoutDay,

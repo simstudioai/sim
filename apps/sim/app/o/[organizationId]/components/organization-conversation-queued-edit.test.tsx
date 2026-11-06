@@ -132,6 +132,7 @@ beforeEach(async () => {
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
     canBuild: true,
+    viewer: { userId: 'reader' },
   })
   mocks.speech.mockReturnValue({
     isSupported: false,

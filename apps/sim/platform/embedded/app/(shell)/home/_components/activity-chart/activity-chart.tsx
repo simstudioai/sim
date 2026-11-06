@@ -1,12 +1,12 @@
 'use client'
 
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
-import { FailureNotice } from '@/platform/design-system/components'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
 import { SkeletonBlock } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
