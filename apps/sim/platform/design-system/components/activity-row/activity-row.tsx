@@ -15,6 +15,8 @@ interface ActivityRowProps {
   count?: number
   detail?: string
   detailLead?: string
+  /** Lets the detail take more lines, for a sentence a touch screen has no tooltip to finish. */
+  wrapDetail?: boolean
   metadata?: string
   /** A glyph held beside `metadata`, such as a running spinner. */
   metadataLeading?: ReactNode
@@ -50,6 +52,7 @@ export function ActivityRow({
   count,
   detail,
   detailLead,
+  wrapDetail,
   metadata,
   metadataLeading,
   showChevron = true,
@@ -67,14 +70,18 @@ export function ActivityRow({
         </span>
         {detail && (
           <span className={styles.detail} data-type='T050'>
-            <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
-              {detailLead && (
-                <>
-                  <strong data-type='T051'>{detailLead}</strong>{' '}
-                </>
-              )}
-              {detail}
-            </OverflowText>
+            {wrapDetail ? (
+              detail
+            ) : (
+              <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
+                {detailLead && (
+                  <>
+                    <strong data-type='T051'>{detailLead}</strong>{' '}
+                  </>
+                )}
+                {detail}
+              </OverflowText>
+            )}
           </span>
         )}
       </ActivityBody>

@@ -100,6 +100,7 @@ export function IntegrationList({
                   leading={item.leading}
                   title={item.name}
                   detail={item.detail}
+                  wrapDetail
                   metadata={item.status}
                 />
               ))}
