@@ -1350,7 +1350,7 @@ async function sidebarChecks() {
           .first()
           .evaluate((node) => node.parentElement?.click())
         await second.click({ button: 'right' })
-        await expect(menuEntry(page, 'Delete 2 chats')).toHaveCount(0)
+        await expect(page.getByRole('menu').getByRole('menuitem').last()).toHaveText('Delete')
         await page.keyboard.press('Escape')
         await first.click({ modifiers: ['Shift'] })
         await page.route(`**/api/mothership/chats/${MEMBER_CHATS.bulkTwo.id}`, (route) =>
@@ -1431,6 +1431,9 @@ async function sidebarChecks() {
         await modal.getByRole('button', { name: 'Send', exact: true }).click()
         const request = await sent
         assert.match(request.headers()['content-type'] ?? '', /multipart\/form-data/)
+        const posted = request.postData() ?? ''
+        assert.match(posted, /A question/, 'The request carries its subject')
+        assert.match(posted, /The details/, 'The request carries its message')
         await expect(modal).toHaveCount(0)
       })
     }
@@ -1828,11 +1831,14 @@ async function homeChecks() {
     })
   })
   await check('Unread chats need attention and open under Search', async () => {
+    const { id, title } = MEMBER_CHATS.unread
     await withSession(MEMBER, async ({ page }) => {
-      await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.bulkOne.id}`
+      await sql`update copilot_chats set last_seen_at = null where id = ${id}`
       await page.goto(orgUrl('/home'))
-      const attention = homeRegion(page, 'Needs your attention')
-      await expect(attention.getByText(MEMBER_CHATS.unread.title)).toBeVisible()
+      const row = homeRegion(page, 'Needs your attention').getByRole('link', { name: title })
+      await expect(row).toHaveAttribute('href', `${root}/search/chat/${id}`)
+      await row.click()
+      await expect(page).toHaveURL((address) => address.pathname === `${root}/search/chat/${id}`)
     })
   })
   await check('Get started keeps its steps, with Integrations for a member', async () => {
@@ -1989,17 +1995,25 @@ async function homeChecks() {
 
   section('3 Home: narrow group')
   await check('A narrow group has Home with no dead Connect button', async () => {
-    await withSession(NARROW, async ({ page }) => {
-      await page.goto(orgUrl('/home'))
-      await expect(composer(page)).toBeVisible()
-      for (const title of ['Email', 'Calendar']) {
-        const widget = homeRegion(page, title)
-        await expect(widget.getByRole('status', { name: /Loading/i })).toHaveCount(0)
-        const buttons = widget.getByRole('button').filter({ hasNotText: 'options' })
-        for (const button of await buttons.all()) {
-          const name = (await button.getAttribute('aria-label')) ?? (await button.innerText())
-          if (!/options$/.test(name)) await expect(button).toBeEnabled()
-        }
+    await withSession(NARROW, async ({ page, context }) => {
+      await context.route('https://accounts.google.com/**', (route) =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
+      )
+      for (const [title, provider] of [
+        ['Email', 'Gmail'],
+        ['Calendar', 'Google Calendar'],
+      ]) {
+        await page.goto(orgUrl('/home'))
+        const connect = homeRegion(page, title).getByRole('button', {
+          name: provider,
+          exact: true,
+        })
+        await expect(connect).toBeEnabled()
+        const authorization = context.waitForEvent('request', (request) =>
+          request.url().startsWith('https://accounts.google.com/')
+        )
+        await connect.click()
+        await authorization
       }
     })
   })
@@ -2871,7 +2885,8 @@ async function integrationChecks() {
         )
       )
       await expect(page.getByRole('heading', { level: 1, name: 'Integrations' })).toBeVisible()
-      await expect(page.getByText(/Gmail/).first()).toBeVisible()
+      await expect(page.getByText('Connect Gmail', { exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Connect', exact: true })).toBeEnabled()
     })
   })
   await check(
