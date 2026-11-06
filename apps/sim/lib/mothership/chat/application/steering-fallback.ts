@@ -106,7 +106,9 @@ export async function steeredRunHasEnded(streamId: string, userId: string): Prom
  * can deliver it. A final answer is kept on the record and answers later reads. A
  * `queued` answer counts only while Sim still runs that turn: a run Sim recorded as
  * ended (one whose worker owner died, say) never applies it, and waiting on it
- * would hold the message forever.
+ * would hold the message forever. `unknown` (nothing accepted yet) is held the same
+ * way: the steer that recorded it may still be on its way to the worker, and a
+ * record dropped under it would leave a message the model has with no row.
  *
  * A worker without the read decides from Sim's run alone, never by re-sending the
  * message: a live run may hold it, and an ended one can no longer apply it. If it
@@ -133,8 +135,7 @@ export async function readSteeringRecord(params: {
       ? { status: 'not_held' }
       : { status: 'held' }
   }
-  if (answer.status === 'unknown') return { status: 'not_held' }
-  if (answer.status === 'queued') {
+  if (answer.status === 'queued' || answer.status === 'unknown') {
     if (!(await steeredRunHasEnded(record.streamId, userId))) return { status: 'held' }
     await recordSteeringDisposition(chatId, [messageId], { status: 'not_applied' })
     return { status: 'not_held' }

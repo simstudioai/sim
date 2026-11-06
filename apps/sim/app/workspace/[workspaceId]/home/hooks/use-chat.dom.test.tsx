@@ -4062,6 +4062,24 @@ describe('useChat remount send recovery', () => {
         expect(deliveryOf(view, id)).not.toBe('failed')
       })
 
+      it('shows a dismissed message held by a turn as not delivered once that turn leaves it', async () => {
+        state.dismissAnswers = [{ status: 'busy', streamId: 'earlier-turn' }]
+        state.steerDispositions = ['not_applied']
+        const view = await restoredChat([failedEntry])
+
+        await act(async () => {
+          view.getResult().dismissMessage(id)
+          await settle()
+        })
+        await waitFor(() => state.readBodies.length === 1)
+        await act(async () => {
+          await settle()
+        })
+
+        expect(deliveryOf(view, id)).toBe('failed')
+        expect(state.postBodies).toEqual([])
+      })
+
       it('stays not delivered when the server gave no answer', async () => {
         state.dismissAnswers = [500]
         const view = await restoredChat([failedEntry])

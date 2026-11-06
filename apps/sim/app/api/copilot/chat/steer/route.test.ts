@@ -336,8 +336,17 @@ describe('POST /api/copilot/chat/steer', () => {
       expect(mockAppend).not.toHaveBeenCalled()
     })
 
-    it('steers it afresh once no run holds it', async () => {
+    it('waits on a live run that has not accepted it yet, never sending it twice', async () => {
       worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
+
+      const response = await POST(steerRequest())
+
+      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+      expect(worker.calls).toEqual([READ])
+    })
+
+    it('steers it afresh once no run holds it', async () => {
+      worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
       worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
 
       const response = await POST(steerRequest())

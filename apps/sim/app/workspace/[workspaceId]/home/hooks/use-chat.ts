@@ -4787,11 +4787,14 @@ export function useChat(
           throw error
         })
         if (outcome.status === 'busy') {
+          /* The user gave it up: if that turn ends without applying it, it shows as
+             not delivered again rather than going out as a turn on its own. */
           updateOutgoing(id, {
             status: 'steered',
             streamId: outcome.streamId,
             attempts: 0,
             reads: 0,
+            noAutoSend: true,
           })
           void deliverOutgoing()
           return

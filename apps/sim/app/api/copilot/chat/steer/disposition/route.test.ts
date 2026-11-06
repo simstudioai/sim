@@ -107,15 +107,28 @@ describe('reading or dismissing a steering message', () => {
     })
   })
 
-  it('reads a message a live run never received as not delivered, without delivering it', async () => {
+  it('holds a message a live run has not accepted yet, since its steer may be on its way', async () => {
     recorded()
     worker.answers.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
 
     const response = await read()
 
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
     expect(worker.calls).toEqual([READ])
     expect(mockRecordDisposition).not.toHaveBeenCalled()
+  })
+
+  it('reads a message a run ended without accepting as not delivered, for good', async () => {
+    recorded()
+    runIs('complete')
+    worker.answers.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
+
+    const response = await read()
+
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
+    expect(mockRecordDisposition).toHaveBeenCalledWith('chat-1', [STEERING_ID], {
+      status: 'not_applied',
+    })
   })
 
   it('reads an id the chat holds no record of as not delivered, asking the worker nothing', async () => {
@@ -155,8 +168,20 @@ describe('reading or dismissing a steering message', () => {
     }
   )
 
-  it('never delivers a message it dismisses, even one a live run never received', async () => {
+  it('keeps a message a live run has not accepted yet, and never delivers it', async () => {
     recorded()
+    worker.answers.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
+
+    const response = await dismiss()
+
+    expect(await response.json()).toEqual({ status: 'busy', streamId: TURN_ID })
+    expect(worker.calls).toEqual([READ])
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('dismisses a message once its run ended without accepting it', async () => {
+    recorded()
+    runIs('complete')
     worker.answers.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
 
     const response = await dismiss()
