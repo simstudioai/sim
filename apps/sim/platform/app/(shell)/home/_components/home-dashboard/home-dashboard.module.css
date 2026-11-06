@@ -30,7 +30,7 @@
 .lead {
   display: grid;
   gap: var(--ui-product-section-gap);
-  margin-block-end: var(--ui-section-gap);
+  margin-block-end: var(--ui-content-gap);
 }
 .greeting,
 .composerHeading {
@@ -43,11 +43,15 @@
 }
 .greeting {
   align-items: start;
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
 }
-.greeting > div {
+.greeting > div:first-child {
   display: grid;
-  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+  gap: var(--ui-heading-gap);
+}
+.greeting > :last-child {
+  flex: none;
 }
 .greeting p {
   color: var(--ui-secondary);
@@ -68,7 +72,8 @@
   position: relative;
   z-index: 1;
   min-inline-size: 0;
-  margin-block-end: 1.5rem;
+  margin-inline: calc(-1 * var(--ui-row-inset, 0.5rem));
+  margin-block-end: var(--ui-product-section-gap, 1.5rem);
 }
 /* The composer and its shortcuts cap at the chat column elsewhere; here they span Home's column. */
 .composer > * {
@@ -87,6 +92,7 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
   align-items: start;
   gap: var(--ui-product-section-gap);
+  column-gap: calc(var(--ui-product-section-gap) + 2 * var(--ui-row-inset));
 }
 .column {
   display: grid;

@@ -23,7 +23,7 @@ interface PanelContentProps {
   recents: PanelRecent[]
   workspaces: readonly { id: string; name: string }[]
   onVisit: (view: PanelDestination) => void
-  onHome: () => void
+  onWorkspace: (id: string) => void
   onRecent: (item: PanelRecent) => void
   onRemove: (id: string) => void
 }
@@ -36,7 +36,7 @@ export function PanelContent({
   recents,
   workspaces,
   onVisit,
-  onHome,
+  onWorkspace,
   onRecent,
   onRemove,
 }: PanelContentProps) {
@@ -101,7 +101,7 @@ export function PanelContent({
               target={compact ? 'touch' : 'standard'}
               label='Workspaces'
               items={workspaces}
-              onSelect={onHome}
+              onSelect={onWorkspace}
             />
           </div>
         ) : (

@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { slackSearchOnboardingPath } from '@/lib/slack-search/onboarding'
+import styles from '@/app/o/[organizationId]/_redesign/integrations/slack-search-actions.module.css'
 import {
   useRetrySlackSearchOnboarding,
   useSlackSearchOnboarding,
 } from '@/hooks/queries/slack-search-onboarding'
-import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
 import { Button, InlineNotice } from '@/platform/design-system/components'
 
 interface SlackSearchActionsProps {
@@ -24,7 +24,7 @@ export function SlackSearchActions({ organizationId, token, userId }: SlackSearc
     return status.error ? <InlineNotice intent='danger' message={status.error.message} /> : null
   if (!('organizationId' in data) || data.organizationId !== organizationId)
     return (
-      <div className={styles.handoff}>
+      <div className={styles.actions}>
         <Button render={<Link href={slackSearchOnboardingPath(token)} />}>
           Finish Slack setup
         </Button>
@@ -32,7 +32,7 @@ export function SlackSearchActions({ organizationId, token, userId }: SlackSearc
     )
   const retried = data.status === 'retried' || retry.isSuccess
   return (
-    <div className={styles.handoff}>
+    <div className={styles.actions}>
       {!retried &&
         (data.status === 'ready' ? (
           <Button

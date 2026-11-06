@@ -185,12 +185,15 @@
   .chipAction {
     opacity: 1;
   }
-  .chipRow[data-status] > .chip {
+  .chipRow[data-status="beside"] > .chip {
     padding-inline-end: calc(2 * var(--spacing-app-chip));
   }
-  .chipRow[data-status] > .chipStatus {
+  .chipRow[data-status="beside"] > .chipStatus {
     margin-inline-end: var(--spacing-app-chip);
     visibility: visible;
+  }
+  .chipRow[data-status="replace"]:not(:has([aria-expanded="true"])) > .chipAction {
+    opacity: 0;
   }
   .chipRow[data-action-side="start"] > .chip > svg {
     visibility: hidden;

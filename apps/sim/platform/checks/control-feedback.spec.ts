@@ -149,7 +149,7 @@ for (const theme of ['light', 'dark']) {
       expect(hovered.background.red).toBe(true)
       expect(hovered.background.alpha / 255).toBeCloseTo(0.06, 2)
       await rename.hover()
-      await rename.press('ArrowDown')
+      await rename.press('End')
       expect(await paint(archive)).toEqual(hovered)
       await archive.press('Enter')
 

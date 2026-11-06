@@ -14,7 +14,7 @@ interface HelpMenuProps {
 
 export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
   const [contacting, setContacting] = useState(false)
-  const { support, desktopUpdate, downloadUrl, slackUrl, changelogUrl } = help
+  const { support, desktopUpdate, downloadUrl, slackUrl } = help
   const actions: MenuAction[] = [
     ...(desktopUpdate
       ? [
@@ -57,7 +57,7 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
     {
       id: 'documentation',
       label: 'Documentation',
-      icon: 'I079',
+      icon: 'I082',
       trailingIcon: 'I030',
       onSelect: () => openLinkInNewTab(help.documentationUrl),
     },
@@ -69,17 +69,6 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
             icon: 'I123',
             trailingIcon: 'I030',
             onSelect: () => openLinkInNewTab(slackUrl),
-          } satisfies MenuAction,
-        ]
-      : []),
-    ...(changelogUrl
-      ? [
-          {
-            id: 'changelog',
-            label: 'Changelog',
-            icon: 'I046',
-            separatorBefore: true,
-            onSelect: () => openLinkInNewTab(changelogUrl),
           } satisfies MenuAction,
         ]
       : []),

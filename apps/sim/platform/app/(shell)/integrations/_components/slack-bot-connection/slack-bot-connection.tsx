@@ -144,7 +144,7 @@ export function SlackBotConnection({
                 <Button
                   variant='quiet'
                   size='compact'
-                  icon='I079'
+                  icon='I082'
                   render={
                     <a
                       aria-label='Slack setup documentation'

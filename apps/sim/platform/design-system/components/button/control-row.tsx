@@ -20,6 +20,7 @@ interface ControlRowProps {
   actionSide?: 'start' | 'end'
   /** A read-only state at the row's end. It yields to `action` where a pointer can reveal it. */
   status?: ReactNode
+  replaceActionOnTouch?: boolean
 }
 
 export function ControlRow({
@@ -34,6 +35,7 @@ export function ControlRow({
   action,
   actionSide = 'end',
   status,
+  replaceActionOnTouch,
 }: ControlRowProps) {
   const control = useRender({
     render,
@@ -61,7 +63,7 @@ export function ControlRow({
     <div
       className={styles.chipRow}
       data-action-side={actionSide}
-      data-status={status ? true : undefined}
+      data-status={status ? (replaceActionOnTouch ? 'replace' : 'beside') : undefined}
     >
       {control}
       {status && <span className={styles.chipStatus}>{status}</span>}

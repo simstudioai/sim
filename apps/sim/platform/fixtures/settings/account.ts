@@ -74,7 +74,7 @@ export async function accountFixture(
                 {
                   code: 'shared_workspace',
                   message:
-                    'Transfer ownership of Customer operations to another administrator before deleting your account.',
+                    'Transfer ownership of Workspace to another administrator before deleting your account.',
                 },
               ]
             : [],

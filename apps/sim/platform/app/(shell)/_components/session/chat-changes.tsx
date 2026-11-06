@@ -10,8 +10,9 @@ import type {
 } from '@/platform/app/(shell)/_components/chat/model'
 import type { ChatTurn, ComposerDraft } from '@/platform/app/(shell)/_components/composer/model'
 import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
-import type { ShellItem } from '@/platform/app/(shell)/_components/model'
+import type { ShellChat } from '@/platform/app/(shell)/_components/model'
 import { platformHref } from '@/platform/design-system/navigation'
+import { chatPath } from '@/platform/lib/workspace-navigation'
 
 interface ChatEdits {
   title?: string
@@ -21,16 +22,16 @@ interface ChatEdits {
 
 function useChanges() {
   const [edits, setEdits] = useState<Record<string, ChatEdits>>({})
-  const [created, setCreated] = useState<ShellItem[]>([])
+  const [created, setCreated] = useState<ShellChat[]>([])
   function update(id: string, edit: ChatEdits) {
     setEdits((previous) => ({ ...previous, [id]: { ...previous[id], ...edit } }))
   }
   return {
     created,
-    createChat(title: string, initialTurns?: readonly ChatTurn[]) {
+    createChat(title: string, initialTurns?: readonly ChatTurn[], workspaceId?: string) {
       const id = generateId()
       if (initialTurns) update(id, { turns: initialTurns })
-      setCreated((previous) => [{ id, title }, ...previous])
+      setCreated((previous) => [{ id, title, workspaceId }, ...previous])
       return id
     },
     titleFor(id: string, fallback: string) {
@@ -138,7 +139,8 @@ interface FixtureThread {
 /** The fixture session's answer to `ChatRuntime`: every action edits this tab's memory. */
 export function useFixtureChatRuntime(
   threads: readonly FixtureThread[] | undefined,
-  chatId: string | undefined
+  chatId: string | undefined,
+  workspaceId?: string
 ): ChatRuntime {
   const changes = useChatChanges()
   const router = useRouter()
@@ -172,8 +174,8 @@ export function useFixtureChatRuntime(
       changes.setTurnsFor(id, [...turns, next])
       return
     }
-    const newId = changes.createChat(draftTitle(draft), [next])
-    router.replace(platformHref(`/chat/${newId}`, search))
+    const newId = changes.createChat(draftTitle(draft), [next], workspaceId)
+    router.replace(platformHref(chatPath(newId, workspaceId), search))
   }
   return {
     chatId,

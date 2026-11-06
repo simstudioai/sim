@@ -193,7 +193,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 
 ## Requests
 
-Every row runs on live data through `lib/data/requests.ts`, with the legacy query parsers, so email links keep working.
+Every row runs on live data through `lib/data/requests/queries.ts`, with the legacy query parsers, so email links keep working.
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |

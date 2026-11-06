@@ -1,12 +1,12 @@
 import type {
   ChatAttachment,
   ChatTurn,
-  ComposerReferences,
+  ComposerInventory,
 } from '@/platform/app/(shell)/_components/composer/model'
 
 export interface ConversationData {
   threads: { id: string; title: string; turns: ChatTurn[] }[]
-  references: ComposerReferences
+  composerInventory: ComposerInventory
   draftAttachments: ChatAttachment[]
 }
 

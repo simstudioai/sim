@@ -5,7 +5,7 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 export type HomeMode = 'Build' | 'Search'
 export type HomeWidget = 'Activity' | 'Email' | 'Calendar'
 
-export interface ShellItem {
+interface ShellItem {
   id: string
   title: string
 }
@@ -28,13 +28,15 @@ export interface ShellNotice extends ShellItem {
 export interface ShellWorkspace {
   id: string
   name: string
-  /** Absolute: a workspace opens on the legacy surface. */
+  /** Live workspaces open on the authorized legacy surface until the workspace data seam lands. */
   href?: string
+  workflows?: readonly { id: string; name: string; folder?: string }[]
   permissions?: 'admin' | 'write' | 'read' | null
   isPinned?: boolean
 }
 
 export interface ShellChat extends ShellItem {
+  workspaceId?: string
   mode?: string
   /** Absolute when the chat opens on the legacy surface. */
   href?: string
@@ -82,7 +84,7 @@ export interface ShellData {
   inbox: InboxItem[]
   notifications: ShellNotice[]
   /** Shell features with no backend in this data source. Hidden, because empty would misinform. */
-  unbacked?: readonly ('inbox' | 'sortWorkspaces')[]
+  unbacked?: readonly 'inbox'[]
   /** So a list can tell loading and failure from empty. Absent means the data is simply there. */
   status?: { workspaces: ShellQueryStatus; chats: ShellQueryStatus; profile: ShellQueryStatus }
   workspaceCreation?: { canCreate: boolean; organizationId: string | null; reason: string | null }
@@ -110,7 +112,7 @@ export interface ShellChatActions {
   removeDetail?: (count: number) => string
   rename: (id: string, title: string) => Promise<void>
   remove: (ids: readonly string[]) => Promise<ChatRemoval>
-  setPinned?: (id: string, pinned: boolean) => void
+  setPinned: (id: string, pinned: boolean) => void
   setRead?: (id: string, read: boolean) => void
   /** Reads a chat ahead of an intended open. Returns how to call it off. */
   prefetch?: (chat: ShellChat) => () => void
@@ -119,10 +121,10 @@ export interface ShellChatActions {
 
 export interface ShellWorkspaceActions {
   /** Resolves with where the new workspace opens. */
-  create: (name: string) => Promise<string>
-  rename: (id: string, name: string) => Promise<void>
+  create?: (name: string) => Promise<string>
+  rename?: (id: string, name: string) => Promise<void>
   setPinned: (id: string, pinned: boolean) => void
-  retry: () => void
+  retry?: () => void
 }
 
 export interface ShellOrganizationActions {
@@ -155,7 +157,6 @@ export interface ShellHelp {
   documentationUrl: string
   support: ShellSupport
   slackUrl?: string
-  changelogUrl?: string
   downloadUrl?: string
   desktopUpdate?: { label: string; disabled: boolean; run: () => void }
 }
@@ -166,7 +167,7 @@ export interface ShellHelp {
  */
 export interface ShellActions {
   chats: ShellChatActions
-  workspaces?: ShellWorkspaceActions
+  workspaces: ShellWorkspaceActions
   organization?: ShellOrganizationActions
   /** Absent for the anonymous viewer of an auth-disabled deployment, who cannot sign out. */
   signOut?: () => void

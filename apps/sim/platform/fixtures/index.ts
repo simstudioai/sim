@@ -56,10 +56,12 @@ export const loadPreviewData = fixture(
   async (scenario) => (await import('@/platform/fixtures/data')).scenarios[scenario]
 )
 export const loadShellData = fixture(async (scenario) => {
-  const [{ shellScenarios }, { conversationScenarios }] = await Promise.all([
-    import('@/platform/fixtures/shell-data'),
-    import('@/platform/fixtures/conversation-data'),
-  ])
+  const [{ shellScenarios }, { conversationScenarios }, { workspaceChatThreads }] =
+    await Promise.all([
+      import('@/platform/fixtures/shell-data'),
+      import('@/platform/fixtures/conversation-data'),
+      import('@/platform/fixtures/workspace-chats'),
+    ])
   const { chat } = conversationScenarios[scenario]
   const { settingsSurface } = await import('@/platform/fixtures/settings/surface')
   const { resolveSettingsNavigation } = await import('@/platform/lib/data/settings-navigation')
@@ -70,7 +72,16 @@ export const loadShellData = fixture(async (scenario) => {
       team: resolveSettingsNavigation(settingsSurface(scenario, 'team')),
       free: resolveSettingsNavigation(settingsSurface(scenario, 'free')),
     },
-    chats: chat.threads.map(({ id, title }) => ({ id, title })),
+    chats: [
+      ...chat.threads.map(({ id, title }) => ({ id, title })),
+      ...shellScenarios[scenario].workspaces.flatMap((workspace) =>
+        workspaceChatThreads(workspace.id, scenario).map(({ id, title }) => ({
+          id,
+          title,
+          workspaceId: workspace.id,
+        }))
+      ),
+    ],
   }
 })
 /** A shared layout stays mounted when the fixture query changes on the client. */
@@ -103,10 +114,48 @@ export const loadCredentialGroupsData = fixture(async (scenario) =>
   (await import('@/platform/fixtures/credential-groups-data')).credentialGroupsData(scenario)
 )
 
-export const loadConversationData = fixture(
-  async (scenario) =>
-    (await import('@/platform/fixtures/conversation-data')).conversationScenarios[scenario]
-)
+export const loadConversationData = fixture(async (scenario, workspaceId?: string) => {
+  const [
+    { conversationScenarios },
+    { composerInventory },
+    { shellScenarios },
+    { panelScenarios },
+    { integrationCatalog },
+    { workspaceSkillsData },
+    { credentialGroupsData },
+  ] = await Promise.all([
+    import('@/platform/fixtures/conversation-data'),
+    import('@/platform/fixtures/composer-data'),
+    import('@/platform/fixtures/shell-data'),
+    import('@/platform/fixtures/panel-data'),
+    import('@/platform/lib/integrations/catalog.generated'),
+    import('@/platform/fixtures/workspace-skills-data'),
+    import('@/platform/fixtures/credential-groups-data'),
+  ])
+  const { home, chat, referenceFiles } = conversationScenarios[scenario]
+  const workspaces = shellScenarios[scenario].workspaces.filter(
+    (workspace) => !workspaceId || workspace.id === workspaceId
+  )
+  const threads = workspaceId
+    ? (await import('@/platform/fixtures/workspace-chats')).workspaceChatThreads(
+        workspaceId,
+        scenario
+      )
+    : chat.threads
+  const inventory = composerInventory({
+    threads,
+    files: referenceFiles,
+    workspaces,
+    providers: scenario === 'empty' ? [] : integrationCatalog,
+    skills: workspaceSkillsData(scenario).skills,
+    credentials: credentialGroupsData(scenario),
+    desktopPage: panelScenarios[scenario]?.website?.name,
+  })
+  return {
+    home: { ...home, composerInventory: inventory },
+    chat: { ...chat, threads, composerInventory: inventory },
+  }
+})
 export const loadIntegrationsData = fixture(
   async (scenario, secrets?: string | string[]): Promise<IntegrationsData> => {
     const [{ memberIntegrations }, { memberSecretSource }, { integrationCenterData }] =
@@ -149,4 +198,8 @@ export const loadSlackSettings = fixture(async (scenario) =>
 )
 export const loadAdminExample = fixture(async (scenario) =>
   (await import('@/platform/fixtures/settings/admin')).adminExample(scenario)
+)
+
+export const loadWorkspaceSkills = fixture(async (scenario) =>
+  (await import('@/platform/fixtures/workspace-skills-data')).workspaceSkillsData(scenario)
 )

@@ -16,6 +16,7 @@ interface ActivityRowProps {
   metadata?: ReactNode
   showChevron?: boolean
   trailing?: ReactNode
+  disabled?: boolean
 }
 
 type ActivityTarget = { href: string; onOpen?: never } | { href?: never; onOpen: () => void }
@@ -28,7 +29,8 @@ export function ActivityRow({
   detail,
   detailLead,
   metadata,
-  showChevron = true,
+  disabled = false,
+  showChevron = !disabled,
   trailing,
   onOpen,
   href,
@@ -64,12 +66,12 @@ export function ActivityRow({
   )
   return (
     <li className={styles.entry}>
-      {href !== undefined ? (
+      {href !== undefined && !disabled ? (
         <Link href={href} className={styles.row} onNavigate={onNavigate}>
           {content}
         </Link>
       ) : (
-        <button type='button' className={styles.row} onClick={onOpen}>
+        <button type='button' className={styles.row} onClick={onOpen} disabled={disabled}>
           {content}
         </button>
       )}

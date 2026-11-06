@@ -1,13 +1,15 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useState } from 'react'
+import type { SidebarOrder } from '@/platform/app/(shell)/_components/sidebar/collection-order'
 
 const COLLAPSED_COOKIE_MAX_AGE_SECONDS = 31536000
 
 /** `initialCollapsed` is the cookie the server read; without one, collapse lasts for this session. */
 function useLayoutState(initialCollapsed: boolean | undefined) {
   const [collapsed, setCollapsedState] = useState(initialCollapsed ?? false)
-  const [order, setOrder] = useState('Recent activity')
+  const [workspaceOrder, setWorkspaceOrder] = useState<SidebarOrder>('recent')
+  const [chatOrder, setChatOrder] = useState<SidebarOrder>('recent')
   const [workspacesOpen, setWorkspacesOpen] = useState(true)
   const [chatsOpen, setChatsOpen] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -24,8 +26,10 @@ function useLayoutState(initialCollapsed: boolean | undefined) {
     setWorkspacesOpen,
     chatsOpen,
     setChatsOpen,
-    order,
-    setOrder,
+    workspaceOrder,
+    setWorkspaceOrder,
+    chatOrder,
+    setChatOrder,
     filter,
     setFilter,
     read,

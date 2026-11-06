@@ -101,12 +101,14 @@ function SignedInRows({
           disabled={fixture || signingOut}
           onClick={() => {
             setSigningOut(true)
-            void signOutAndLeave(`${organization.legacyOrigin}/login`).then((left) => {
-              if (!left) {
-                setSigningOut(false)
-                toast.error('Failed to sign out. Please try again.')
+            void signOutAndLeave(`${organization.legacyOrigin}/login?fromLogout=true`).then(
+              (left) => {
+                if (!left) {
+                  setSigningOut(false)
+                  toast.error('Failed to sign out. Please try again.')
+                }
               }
-            })
+            )
           }}
         >
           Sign out

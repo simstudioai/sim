@@ -76,7 +76,7 @@ export function IntegrationDetails({
         leading={
           <Button
             variant='quiet'
-            icon='I079'
+            icon='I082'
             render={
               <Link
                 href={integration.setupGuideUrl}

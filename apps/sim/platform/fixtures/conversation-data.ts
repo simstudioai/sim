@@ -429,17 +429,8 @@ const threads: ConversationData['threads'] = [
     ],
   })),
 ]
-const chat: ConversationData = {
+const chat: Omit<ConversationData, 'composerInventory'> = {
   threads,
-  references: [
-    { group: 'Chats', items: threads.map(({ id, title }) => ({ id, name: title })) },
-    { group: 'Dashboards', items: [{ id: 'activity', name: 'Workspace activity' }] },
-    { group: 'Tables', items: [{ id: 'requests', name: 'Customer requests' }] },
-    { group: 'Files', items: files.map(({ id, name }) => ({ id, name })) },
-    { group: 'Knowledge bases', items: [{ id: 'onboarding', name: 'Onboarding guide' }] },
-    { group: 'Workflows', items: [{ id: 'renewals', name: 'Renewal review' }] },
-    { group: 'Logs', items: [{ id: 'last-run', name: 'Latest run' }] },
-  ],
   draftAttachments: [],
 }
 const emptyHome: HomeData = {
@@ -455,14 +446,25 @@ const batch = Array.from({ length: 20 }, (_, i) => ({
   id: `file-${i}`,
   name: i < 3 ? files[i].name : `Review document ${i + 1}`,
 }))
-export const conversationScenarios: Record<Scenario, { home: HomeData; chat: ConversationData }> = {
-  empty: { home: emptyHome, chat: { threads: [], references: [], draftAttachments: [] } },
-  full: { home: { ...fullHome, references: chat.references }, chat },
+export const conversationScenarios: Record<
+  Scenario,
+  {
+    home: HomeData
+    chat: Omit<ConversationData, 'composerInventory'>
+    referenceFiles: ChatAttachment[]
+  }
+> = {
+  empty: {
+    home: emptyHome,
+    chat: { threads: [], draftAttachments: [] },
+    referenceFiles: [],
+  },
+  full: { home: fullHome, chat, referenceFiles: files },
   stress: {
+    referenceFiles: batch,
     home: {
       ...fullHome,
       activity: activity.filter((day) => new Date(day.date).getUTCDay() !== 0),
-      references: chat.references,
       attention: Array.from({ length: 12 }, (_, i) => ({
         ...fullHome.attention[i % 2],
         id: `review-${i}`,

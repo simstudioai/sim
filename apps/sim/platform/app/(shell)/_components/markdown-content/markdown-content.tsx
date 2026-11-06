@@ -2,7 +2,7 @@
 
 import { memo, type ReactNode } from 'react'
 import { Streamdown } from 'streamdown'
-import styles from '@/platform/app/(shell)/_components/chat/message/markdown.module.css'
+import styles from '@/platform/app/(shell)/_components/markdown-content/markdown.module.css'
 import { CopyButton } from '@/platform/design-system/components'
 import { extractTextContent } from '@/platform/lib/data/node-text'
 
@@ -35,10 +35,7 @@ const COMPONENTS = {
   td: ({ children }: { children?: ReactNode }) => <td data-type='T048'>{children}</td>,
 }
 
-/**
- * Assistant prose. `streamdown` is the parser legacy reads with, so an unfinished code fence or
- * link mid-stream settles the same way; everything visible is this owner's elements and tokens.
- */
+/** Shared Platform rendering of formatted chat responses and skill instructions. */
 export const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }) {
   return (
     <div className={styles.markdown}>

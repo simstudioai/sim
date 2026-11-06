@@ -120,14 +120,13 @@ export function HomeActivityChart({
   initiallyOpen,
 }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
-  const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
   if (hidden || state.status === 'hidden') return null
   const ready = state.status === 'ready'
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
   const points = ready ? calendarWindow(state.points, days) : []
   const total = points.reduce((sum, point) => sum + point.value, 0)
   return (
-    <section ref={scrollEdges} className={styles.chart} aria-label={title}>
+    <section className={styles.chart} aria-label={title}>
       <header className={styles.header}>
         <div className={styles.heading}>
           <h2 data-type='T042'>{title}</h2>

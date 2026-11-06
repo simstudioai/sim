@@ -4,22 +4,26 @@ The new Platform starts here as a standalone Next.js App Router project inside `
 
 To start or resume work in a new Sim chat, say “Use `$implement-platform` to [add, change, consolidate, or remove the UI] on [route].” The [implementation skill](../../../.agents/skills/implement-platform/SKILL.md) reads the [contract](AGENTS.md) and [ownership map](docs/component-ownership.md) for the checkout containing that route. Name the Paper section when implementing an existing design. For a code-first change, describe the desired behavior, where it should apply, and what you want to see on the live page.
 
-From the repository root:
+The shared review URL is **http://localhost:3125**. Use the existing listener and its checkout when another task is active. `next dev` reloads changes from that checkout; a different worktree is a different copy of the code. Reconcile parallel changes there before review. Do not run another review server on a new port. Temporary test servers shut down after verification.
+
+From the agreed review checkout’s repository root:
 
 ```sh
 bun run --cwd apps/sim dev:platform
 SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev:platform
 ```
 
-Open [Home](http://localhost:3100/home), [Chat](http://localhost:3100/chat/weekly-review?state=full), [Settings](http://localhost:3100/settings), [Integrations](http://localhost:3100/integrations?state=full), or the separate [component workbench](http://localhost:3100/workbench). With the flag on, `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. Old catalog links with a recipe still open the workbench.
+Open [Home](http://localhost:3125/home), [Chat](http://localhost:3125/chat/weekly-review?state=full), [Settings](http://localhost:3125/settings), [Integrations](http://localhost:3125/integrations?state=full), or the separate [component workbench](http://localhost:3125/workbench). With the flag on, `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. Old catalog links with a recipe still open the workbench.
 
-Settings uses the same organization catalog and section components in fixture and live routes. [General](http://localhost:3100/settings/general?state=full) includes Privacy and Account details; [Sources](http://localhost:3100/settings/integrations?state=full) is the administrator's Search source inventory. The [integration center](docs/integration-center.md) is the member-facing management surface for Apps, Skills, MCPs and Credentials. Settings examples are loaded only by the server's fixture flag. Their edits belong to the browser session; no account, credential, organization policy or subscription is changed by preview interactions.
+Settings uses the same organization catalog and section components in fixture and live routes. [General](http://localhost:3125/settings/general?state=full) includes Privacy and Account details; [Sources](http://localhost:3125/settings/integrations?state=full) is the administrator's Search source inventory. The [integration center](docs/integration-center.md) is the member-facing management surface for Apps, Skills, MCPs and Credentials. Settings examples are loaded only by the server's fixture flag. Their edits belong to the browser session; no account, credential, organization policy or subscription is changed by preview interactions.
 
 Integration fixtures cover the full workspace app catalog, multiple credentials, OAuth and provider-specific service-account forms, access management, suggested skills and templates. App-level actions use the control bar; credential rows open their own details. Family credentials share a canonical ID across apps. New enrollment and sharing remain UI-only, with secrets confined to the open form. The existing live Search adapter keeps its own authorized inventory and actions until the broader credential seam is connected.
 
-Settings fixtures default to Enterprise at every density. The [Team subscription](http://localhost:3100/settings/billing?state=stress&plan=team) and [Free subscription](http://localhost:3100/settings/billing?state=empty&plan=free) previews apply the selected plan to Billing, Members and the available Settings sections. The [Knowledge graphs preview](http://localhost:3100/settings/knowledge-graphs?state=stress) uses the stress viewer’s platform-admin role, benchmark access and enabled superuser mode.
+Settings fixtures default to Enterprise at every density. The [Team subscription](http://localhost:3125/settings/billing?state=stress&plan=team) and [Free subscription](http://localhost:3125/settings/billing?state=empty&plan=free) previews apply the selected plan to Billing, Members and the available Settings sections. The [Knowledge graphs preview](http://localhost:3125/settings/knowledge-graphs?state=stress) uses the stress viewer’s platform-admin role, benchmark access and enabled superuser mode.
 
 The product routes live under `app/(shell)/`. Their shared App Router layout owns the shell, sidebar scroll viewport, interface preferences and chat edits. Home, Chat, Settings and Integrations pages render their own bodies inside that layout. Navigating between them keeps the sidebar reading position, including when returning from Settings. The shell selects its gated fixture and appearance from the current URL. Each route owns its components and CSS Modules in a private `_components/<component>/` folder: the [Home chart](app/%28shell%29/home/_components/activity-chart/activity-chart.tsx) sits beside its styles; the [dialog](design-system/components/modal/modal.tsx) belongs to EMCN. Shared shell UI lives in `app/(shell)/_components/`. [Rhythm tokens](design-system/styles/rhythm.css) and the [ownership and interaction contract](AGENTS.md) apply throughout the product. The [Paper state inventory](docs/core-chat-states.md) enumerates the source rows in scope. The [organization integrations guide](docs/organization-integrations.md) maps the member inventory, credential actions and tool permissions to their data operations. The integration center lives at the organization root; Home and eligible workspace links open that same destination. Standalone workspaces and viewers without organization Search access retain their existing credential route. Skills, MCPs and new sharing/editor interactions currently use only server-gated fixtures. Paper workspace tabs and the control bar inform the center's anatomy. Wiki is deferred.
+
+Workspace rows and chat panel workspace choices open the selected workspace’s New chat tab in fixture mode. The workspace keeps the Platform sidebar header and footer and replaces its navigation body with Back, New chat, Integrations, Skills, workspace chats, resources and workflows. Integrations opens the organization center. See [workspace UI](docs/workspace-ui.md) for the embedded resource preview and verification.
 
 ## Live data and the zone
 
@@ -50,7 +54,7 @@ Sim Desktop loads **the same routes and styles** in its Electron window. [The sh
 Start the Platform above, then launch the existing desktop shell using a disposable profile:
 
 ```sh
-SIM_DESKTOP_ORIGIN=http://127.0.0.1:3100 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
+SIM_DESKTOP_ORIGIN=http://localhost:3125 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
 ```
 
 ## Using EMCN

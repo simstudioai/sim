@@ -6,15 +6,15 @@ import { useComposerHost } from '@/platform/app/(shell)/_components/session/comp
 import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
 
 interface HomeComposerProps {
-  references?: HomeData['references']
+  inventory?: HomeData['composerInventory']
   mode: HomeMode
 }
 
-export function HomeComposer({ references, mode }: HomeComposerProps) {
+export function HomeComposer({ inventory, mode }: HomeComposerProps) {
   const host = useComposerHost()
   const startChat = host.useStartChat()
   const startSearch = host.useStartSearch()
-  const composer = host.useComposer({ draftKey: 'home', references, requestMode: 'agent' })
+  const composer = host.useComposer({ ...inventory, draftKey: 'home', requestMode: 'agent' })
   return (
     <MessageComposer
       composer={composer}

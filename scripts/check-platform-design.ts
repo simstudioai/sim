@@ -166,6 +166,7 @@ const seamHelpers = new Set([
   'app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry',
   'app/workspace/[workspaceId]/home/search-params',
   'app/workspace/[workspaceId]/home/types',
+  'app/workspace/[workspaceId]/skills/components/utils',
   'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',
   'components/assistant-actions/presentation',

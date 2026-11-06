@@ -69,3 +69,13 @@
 .collection > .disclosure[open] > .summary {
   margin-block-end: var(--ui-list-gap);
 }
+
+.folder > summary::-webkit-details-marker {
+  display: none;
+}
+.folder > summary > svg:last-child {
+  margin-inline-start: auto;
+}
+.folder[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}

@@ -6,6 +6,7 @@ import type {
 } from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 interface CommandMenuProps {
   open: boolean
@@ -36,7 +37,7 @@ export function CommandMenu({
             items: workspaces.map((item) => ({
               id: item.id,
               label: item.name,
-              value: item.href ?? '/home',
+              value: item.href ?? workspaceEntry(item.id),
             })),
           },
           {

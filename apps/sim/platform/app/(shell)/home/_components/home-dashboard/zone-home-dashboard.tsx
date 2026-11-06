@@ -29,7 +29,7 @@ export function ZoneHomeDashboard({ view, actions }: ZoneHomeDashboardProps) {
       actions={actions}
       mode={homeMode}
       prompt={PROMPTS[homeMode]}
-      composer={<HomeComposer mode={homeMode} references={view.references} />}
+      composer={<HomeComposer mode={homeMode} inventory={view.composerInventory} />}
       composerActions={
         <SegmentedControl
           label='Mode'

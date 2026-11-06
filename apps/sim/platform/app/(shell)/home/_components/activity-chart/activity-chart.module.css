@@ -1,11 +1,9 @@
 .chart {
   display: grid;
-  gap: var(--spacing-16);
-  inline-size: 100%;
+  gap: var(--ui-widget-content-gap);
   min-inline-size: 0;
-  max-block-size: var(--ui-widget-max-size);
-  overflow: auto;
-  overscroll-behavior: contain;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding-inline: var(--ui-row-inset);
 }
 
 .header,
@@ -22,7 +20,7 @@
 
 .heading {
   display: grid;
-  gap: var(--ui-stack-gap);
+  gap: var(--ui-heading-gap);
 }
 
 .total,

@@ -56,8 +56,8 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await expect(panel.getByRole('button', { name: 'Panel tabs' })).toBeFocused()
   await page.keyboard.press('Enter')
   await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
-  await panel.getByRole('button', { name: 'Customer operations', exact: true }).last().click()
-  await expect(page).toHaveURL(/\/home\?.*state=full/)
+  await panel.getByRole('button', { name: 'Workspace', exact: true }).last().click()
+  await expect(page).toHaveURL(/\/workspace\/operations\/chat\?.*state=full/)
 })
 
 test('a disabled fixture gate serves no sample entity on any product route', async ({

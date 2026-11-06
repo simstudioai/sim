@@ -13,6 +13,16 @@
 .menu:not([data-menu]):has(.menuItem[data-option]) {
   inline-size: var(--menu-choice-width);
 }
+.menu[data-searchable] {
+  inline-size: var(--menu-search-width);
+  max-block-size: min(var(--available-height), var(--container-440));
+}
+.menu[data-searchable] .hint {
+  max-inline-size: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .menuItem {
   composes: item from "./popup.shared.module.css";
 }

@@ -112,7 +112,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       chats: (chats.data ?? []).map(toShellChat),
       inbox: [],
       notifications: [],
-      unbacked: ['inbox', 'sortWorkspaces'],
+      unbacked: ['inbox'],
       status: {
         workspaces: workspaces.status,
         chats: chatsAvailable ? chats.status : 'success',

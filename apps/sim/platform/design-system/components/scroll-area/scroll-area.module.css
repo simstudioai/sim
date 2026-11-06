@@ -4,7 +4,7 @@
   max-inline-size: 100%;
   max-block-size: 100%;
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 .viewport[data-hide-scrollbar] {
   scrollbar-width: none;

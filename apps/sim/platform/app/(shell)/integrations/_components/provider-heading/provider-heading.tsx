@@ -1,7 +1,7 @@
 import type { ComponentType, Ref } from 'react'
+import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
-import styles from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading.module.css'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 
 interface ProviderHeadingProps {
@@ -24,17 +24,13 @@ export function ProviderHeading({
   peopleTotal,
 }: ProviderHeadingProps) {
   return (
-    <header className={styles.header}>
-      <span className={styles.mark}>
-        <IntegrationMark providerId={providerId} icon={icon} />
-      </span>
-      <div className={styles.copy}>
-        <h1 ref={titleRef} tabIndex={titleRef ? -1 : undefined} data-type='T076'>
-          {name}
-        </h1>
-        <p data-type='T048'>{description}</p>
-        {people && <IntegrationUsage people={people} total={peopleTotal} expanded />}
-      </div>
-    </header>
+    <DirectoryHeading
+      title={name}
+      titleRef={titleRef}
+      description={description}
+      leading={<IntegrationMark providerId={providerId} icon={icon} />}
+    >
+      {people && <IntegrationUsage people={people} total={peopleTotal} expanded />}
+    </DirectoryHeading>
   )
 }

@@ -19,6 +19,7 @@ const ASSET_MARKS = new Set([
   'gitlab',
   'google_drive',
   'google_meet',
+  'google_sheets',
   'granola',
   'hubspot',
   'jira',

@@ -7,7 +7,12 @@ import type {
   ShellChat,
   ShellQueryStatus,
 } from '@/platform/app/(shell)/_components/model'
-import { linkMenuActions, readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { SidebarSortMenu } from '@/platform/app/(shell)/_components/sidebar/collection-order'
+import {
+  linkMenuActions,
+  pinAction,
+  readFormText,
+} from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -27,23 +32,17 @@ const NO_SELECTION: ReadonlySet<string> = new Set()
 const CHAT_TITLE_MAX_LENGTH = 200
 
 function chatStatus(chat: ShellChat, isCurrent: boolean) {
-  if (chat.isActive)
-    return (
-      <span className={styles.indicator} role='img' aria-label='Running'>
-        <span className={styles.dot} data-running='' />
-      </span>
-    )
-  if (chat.isUnread && !isCurrent)
-    return (
-      <span className={styles.indicator} role='img' aria-label='Unread'>
-        <span className={styles.dot} />
-      </span>
-    )
+  const status = chat.isActive ? 'Running' : chat.isUnread && !isCurrent ? 'Unread' : undefined
   if (chat.isPinned)
+    return <Icon name='I131' label={status ? `Pinned, ${status.toLowerCase()}` : 'Pinned'} />
+  if (status)
     return (
-      <span className={styles.indicator} role='img' aria-label='Pinned'>
-        <Icon name='I131' />
-      </span>
+      <span
+        className={styles.dot}
+        role='img'
+        aria-label={status}
+        data-running={chat.isActive || undefined}
+      />
     )
   return null
 }
@@ -51,6 +50,7 @@ function chatStatus(chat: ShellChat, isCurrent: boolean) {
 interface ChatsSectionProps {
   chats: readonly ShellChat[]
   status?: ShellQueryStatus
+  newChatHref?: string
   activeChat?: string
   actions: ShellActions['chats']
   navigate: (href: string) => void
@@ -58,9 +58,16 @@ interface ChatsSectionProps {
 
 type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: readonly ShellChat[] }
 
-export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
+export function ChatsSection({
+  chats,
+  status,
+  activeChat,
+  actions,
+  navigate,
+  newChatHref,
+}: ChatsSectionProps) {
   const query = useSearchParams()
-  const { chatsOpen, setChatsOpen, order, setOrder } = useSidebarLayout()
+  const { chatsOpen, setChatsOpen, chatOrder, setChatOrder } = useSidebarLayout()
   const [editing, setEditing] = useState<ChatEdit | null>(null)
   const [selected, setSelected] = useState(NO_SELECTION)
   const selectionAnchor = useRef<string | null>(null)
@@ -132,16 +139,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
         icon: 'I036',
         onSelect: () => setEditing({ kind: 'rename', chatId: chat.id }),
       },
-      ...(setPinned
-        ? [
-            {
-              id: 'pin',
-              label: chat.isPinned ? 'Unpin' : 'Pin',
-              icon: 'I131',
-              onSelect: () => setPinned(chat.id, !chat.isPinned),
-            } satisfies MenuAction,
-          ]
-        : []),
+      pinAction(chat, setPinned),
       ...(setRead
         ? [
             {
@@ -157,7 +155,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
         destructive: true,
         label: actions.removeLabel,
         icon: 'I061',
-        separatorBefore: Boolean(setPinned),
+        separatorBefore: true,
         onSelect: () => setEditing({ kind: 'remove', chats: [chat] }),
       },
     ]
@@ -166,7 +164,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   /** A removal that only partly lands narrows the dialog to what is left and reports the rest. */
   async function confirmRemoval(targets: readonly ShellChat[]) {
     const { removedIds, failure } = await actions.remove(targets.map((chat) => chat.id))
-    if (activeChat && removedIds.includes(activeChat)) navigate('/home')
+    if (activeChat && removedIds.includes(activeChat)) navigate(newChatHref ?? '/home')
     if (!failure) {
       setSelected(NO_SELECTION)
       return
@@ -189,23 +187,11 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   return (
     <>
       <Disclosure
-        variant='section'
+        variant='navigation'
         label='Chats'
         open={chatsOpen}
         onOpenChange={setChatsOpen}
-        actions={
-          <ActionMenu
-            label='Sort chats'
-            triggerSize='compact'
-            icon='I050'
-            actions={['Recent activity', 'Name (A–Z)', 'Name (Z–A)'].map((label) => ({
-              id: label,
-              label,
-              checked: label === order,
-              onSelect: () => setOrder(label),
-            }))}
-          />
-        }
+        actions={<SidebarSortMenu section='chats' order={chatOrder} onChange={setChatOrder} />}
       >
         <div className={styles.group}>
           <SectionStatus
@@ -246,6 +232,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
                     href={platformHref(href, query)}
                     selected={isCurrent}
                     status={chatStatus(item, isCurrent)}
+                    replaceActionOnTouch={item.isPinned}
                     action={
                       <ActionMenu
                         label={`Actions for ${item.title}`}

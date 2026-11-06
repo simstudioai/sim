@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Collapsible } from '@base-ui/react/collapsible'
+import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import styles from '@/platform/design-system/components/disclosure/disclosure.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 
@@ -10,7 +11,8 @@ type DisclosureProps = {
   onOpenChange?: (open: boolean) => void
   children: ReactNode
 } & (
-  | { variant?: 'section'; actions?: ReactNode; introduction?: never }
+  | { variant?: 'section' | 'navigation'; actions?: ReactNode; introduction?: never }
+  | { variant: 'folder'; actions?: never; introduction?: never }
   | { variant: 'activity'; introduction?: ReactNode; actions?: never }
 )
 
@@ -35,6 +37,14 @@ export function Disclosure({
       </span>
     </>
   )
+  if (variant === 'folder') {
+    return (
+      <details className={styles.folder} open={initiallyOpen}>
+        <ControlRow render={<summary />} label={label} icon='I100' trailingIcon='I090' />
+        {children}
+      </details>
+    )
+  }
   if (variant === 'activity')
     return (
       <Collapsible.Root
@@ -68,11 +78,11 @@ export function Disclosure({
       {children}
     </details>
   )
-  if (!actions) return disclosure
+  if (!actions && variant !== 'navigation') return disclosure
   return (
     <section className={styles.collection} aria-label={label}>
       {disclosure}
-      <div className={styles.collectionActions}>{actions}</div>
+      {actions && <div className={styles.collectionActions}>{actions}</div>}
     </section>
   )
 }

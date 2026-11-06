@@ -65,6 +65,20 @@ function contextId(context: ChatContext, index: number): string {
   return `context:${index}:${context.kind}:${context.label}`
 }
 
+function selectedReferenceId(
+  context: ChatContext,
+  unscopedSkills: ReadonlyMap<string, string | null>
+): string | undefined {
+  if (context.kind === 'workspace') return context.workspaceId
+  if (context.kind === 'workflow' && context.workspaceId)
+    return `${context.workspaceId}:${context.workflowId}`
+  if (context.kind === 'skill') {
+    return context.workspaceId
+      ? `${context.workspaceId}:${context.skillId}`
+      : (unscopedSkills.get(context.skillId) ?? undefined)
+  }
+}
+
 /** Model, effort and Fast, behind the same flags as the legacy selector, and Plan before a chat. */
 function useComposerSettings(
   requestMode: ComposerOptions['requestMode'],
@@ -153,8 +167,10 @@ export function useLiveComposer({
   }, [initialKey, key])
   const [pickerOpened, setPickerOpened] = useState(false)
   const inventoryEnabled = !assistant && pickerOpened
-  const references = useOrganizationReferences(inventoryEnabled)
-  const skills = useOrganizationSkills(inventoryEnabled)
+  const { references, skills, referencesLoading, skillsLoading } = useOrganizationInventory(
+    inventoryEnabled,
+    organization.id
+  )
   const files = useFileAttachments({
     userId,
     organizationId: organization.id,
@@ -189,6 +205,13 @@ export function useLiveComposer({
     store.setDraft(key, { ...current, ...next })
   }
 
+  const unscopedSkills = new Map<string, string | null>()
+  for (const skill of skills ?? []) {
+    if (skill.context?.kind === 'skill') {
+      const id = skill.context.skillId
+      unscopedSkills.set(id, unscopedSkills.has(id) ? null : skill.id)
+    }
+  }
   const attachments: ChatAttachment[] = [
     ...files.attachedFiles.map(
       (file): ChatAttachment => ({
@@ -213,6 +236,7 @@ export function useLiveComposer({
     ...contexts.map(
       (context, index): ChatAttachment => ({
         id: contextId(context, index),
+        referenceId: selectedReferenceId(context, unscopedSkills),
         name: context.label,
         metadata: context.kind,
         kind: 'reference',
@@ -254,7 +278,18 @@ export function useLiveComposer({
 
   return {
     draft: { text, attachments },
-    setText: (value) => write({ text: value }),
+    referencesDisabled: assistant,
+    setText: (value, changes) => {
+      if (!changes?.add?.length && !changes?.remove?.length) {
+        write({ text: value })
+        return
+      }
+      const removed = new Set(changes.remove)
+      const current = useMothershipDraftsStore.getState().drafts[key]?.contexts ?? contexts
+      const kept = current.filter((context, index) => !removed.has(contextId(context, index)))
+      const added = (changes.add ?? []).flatMap((item) => item.context ?? [])
+      write({ text: value, contexts: [...kept, ...added] })
+    },
     addFiles,
     addPastedText: (value) => {
       const file = new File([value], `pasted-${generateId().slice(0, 8)}.txt`, {
@@ -268,13 +303,6 @@ export function useLiveComposer({
         return
       }
       files.removeFile(id)
-    },
-    addReference: (_group, item) => {
-      if (!item.context) return
-      write({
-        text: text === '/' ? '' : text,
-        contexts: [...contexts, item.context],
-      })
     },
     clear: () => {
       useMothershipDraftsStore.getState().clearDraft(key)
@@ -299,7 +327,8 @@ export function useLiveComposer({
       )
     },
     references,
-    listsOnlyLoadedGroups: true,
+    referencesLoading,
+    skillsLoading,
     skills,
     onPickerOpen: () => setPickerOpened(true),
     settings,
@@ -317,28 +346,42 @@ export function useLiveComposer({
   }
 }
 
-function useOwnedWorkspaces(enabled: boolean) {
-  const { organization } = useOrganization()
-  const { data: workspaces = [] } = useWorkspacesQuery(enabled)
-  return enabled ? workspaces.filter((item) => item.organizationId === organization.id) : []
-}
-
 /**
- * What the viewer can reference from this organization's workspaces. Each row carries the owning
- * workspace, since an organization chat has no workspace of its own to resolve it against.
+ * What the viewer can reference from this organization. Each row carries its owning workspace;
+ * each picker stays pending until every workspace has supplied its part of that list.
  */
-function useOrganizationReferences(enabled: boolean): ComposerReferences {
-  const owned = useOwnedWorkspaces(enabled)
+function useOrganizationInventory(enabled: boolean, organizationId: string) {
+  const workspaceQuery = useWorkspacesQuery(enabled)
+  const owned =
+    enabled && !workspaceQuery.isPlaceholderData
+      ? (workspaceQuery.data ?? []).filter(
+          (workspace) => workspace.organizationId === organizationId
+        )
+      : []
   const workflows = useQueries({
     queries: owned.map((workspace) => getWorkflowListQueryOptions(workspace.id)),
   })
-  return [
+  const skillQueries = useQueries({
+    queries: owned.map((workspace) => getSkillsQueryOptions(workspace.id)),
+  })
+  const references: ComposerReferences = [
+    {
+      group: 'Workspaces',
+      items: owned.map(({ id, name }) => ({
+        id,
+        name,
+        workspaceId: id,
+        context: { kind: 'workspace', workspaceId: id, label: name },
+      })),
+    },
     {
       group: 'Workflows',
       items: owned.flatMap((workspace, index) =>
         (workflows[index]?.data ?? []).map((workflow) => ({
           id: `${workspace.id}:${workflow.id}`,
           name: workflow.name,
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
           context: {
             kind: 'workflow',
             workflowId: workflow.id,
@@ -349,21 +392,34 @@ function useOrganizationReferences(enabled: boolean): ComposerReferences {
       ),
     },
   ]
-}
-
-/** Skills in the viewer's workspaces of this organization, as the `/` menu reads them. */
-function useOrganizationSkills(enabled: boolean): ComposerController['skills'] {
-  const owned = useOwnedWorkspaces(enabled)
-  const queries = useQueries({
-    queries: owned.map((workspace) => getSkillsQueryOptions(workspace.id)),
-  })
-  return owned.flatMap((workspace, index) =>
-    (queries[index]?.isPlaceholderData ? [] : (queries[index]?.data ?? [])).map((skill) => ({
-      id: `${workspace.id}:${skill.id}`,
-      name: skill.name,
-      context: { kind: 'skill', skillId: skill.id, label: skill.name } satisfies ChatContext,
-    }))
-  )
+  const skills: NonNullable<ComposerController['skills']>[number][] = []
+  const builtins = new Set<string>()
+  for (const [index, workspace] of owned.entries()) {
+    const query = skillQueries[index]
+    if (query?.isPlaceholderData) continue
+    for (const skill of query?.data ?? []) {
+      if (skill.readOnly && builtins.has(skill.id)) continue
+      if (skill.readOnly) builtins.add(skill.id)
+      const workspaceId = skill.readOnly ? undefined : workspace.id
+      skills.push({
+        id: workspaceId ? `${workspaceId}:${skill.id}` : skill.id,
+        name: skill.name,
+        detail: skill.description,
+        workspaceId,
+        workspaceName: workspaceId ? workspace.name : undefined,
+        context: { kind: 'skill', skillId: skill.id, label: skill.name, workspaceId },
+      })
+    }
+  }
+  const loadingWorkspaces =
+    enabled && (workspaceQuery.isPending || workspaceQuery.isPlaceholderData)
+  return {
+    references,
+    skills,
+    referencesLoading: loadingWorkspaces || workflows.some((query) => query.isPending),
+    skillsLoading:
+      loadingWorkspaces || skillQueries.some((query) => query.isPending || query.isPlaceholderData),
+  }
 }
 
 /** Home's Build entry: hand the draft to a new chat surface, which sends it on mount. */

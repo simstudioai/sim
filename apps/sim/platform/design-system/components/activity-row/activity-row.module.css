@@ -38,7 +38,11 @@
     grid-row: 1 / span 2;
   }
 }
-.entry:hover {
+.row:disabled {
+  color: var(--ui-secondary);
+  cursor: default;
+}
+.entry:hover:not(:has(.row:disabled)) {
   background: var(--ui-hover);
 }
 .trailing {

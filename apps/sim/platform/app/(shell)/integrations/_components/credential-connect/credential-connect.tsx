@@ -326,7 +326,7 @@ function CredentialConnectForm({
       {connection.docsUrl && (
         <Button
           variant='quiet'
-          icon='I079'
+          icon='I082'
           render={<Link href={connection.docsUrl} target='_blank' rel='noopener noreferrer' />}
         >
           Docs

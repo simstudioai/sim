@@ -2,7 +2,7 @@ import type { SettingsFixtureState } from '@/platform/fixtures/settings/state'
 import { whitelabelFixture } from '@/platform/fixtures/settings/whitelabeling'
 
 export const settingsWorkspaces = [
-  { id: '32e2f8a8-c088-4968-ba70-498e182d8e71', name: 'Customer operations' },
+  { id: '32e2f8a8-c088-4968-ba70-498e182d8e71', name: 'Workspace' },
   { id: 'd22aaa4d-3a8e-4b8b-abb4-17cc320707f6', name: 'Finance' },
 ]
 export async function organizationFixture(

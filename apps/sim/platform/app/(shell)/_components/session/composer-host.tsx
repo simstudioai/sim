@@ -7,19 +7,19 @@ import type {
   ChatAttachment,
   ComposerController,
   ComposerDraft,
-  ComposerReferences,
+  ComposerInventory,
 } from '@/platform/app/(shell)/_components/composer/model'
 import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
+import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerDraft } from '@/platform/app/(shell)/_components/session/composer-drafts'
 import { platformHref } from '@/platform/design-system/navigation'
 
-export interface ComposerOptions {
+export interface ComposerOptions extends Partial<ComposerInventory> {
   draftKey: string
-  /** Agent, assistant or plan; a fixture session ignores it. */
+  /** Assistant mode accepts images instead of workspace references. */
   requestMode?: 'agent' | 'assistant' | 'plan'
   chatId?: string
-  references?: ComposerReferences
   initialAttachments?: ChatAttachment[]
 }
 
@@ -50,8 +50,12 @@ function attachmentFor(file: File): ChatAttachment {
 function useMemoryComposer({
   draftKey,
   references = [],
+  skills,
+  tools,
+  requestMode,
   initialAttachments = [],
 }: ComposerOptions): ComposerController {
+  const desktop = useDesktopHost()
   const [draft, updateDraft] = useComposerDraft(draftKey, {
     text: '',
     attachments: initialAttachments,
@@ -59,7 +63,25 @@ function useMemoryComposer({
   return {
     draft,
     references,
-    setText: (text) => updateDraft((current) => ({ ...current, text })),
+    skills,
+    tools: desktop ? tools : undefined,
+    referencesDisabled: requestMode === 'assistant',
+    setText: (text, changes) =>
+      updateDraft((current) => {
+        if (!changes?.add?.length && !changes?.remove?.length) return { ...current, text }
+        const removed = new Set(changes.remove)
+        const added: ChatAttachment[] = (changes.add ?? []).map((item) => ({
+          id: generateId(),
+          referenceId: item.id,
+          kind: 'reference',
+          name: item.name,
+          metadata: item.group,
+        }))
+        return {
+          text,
+          attachments: [...current.attachments.filter((item) => !removed.has(item.id)), ...added],
+        }
+      }),
     addFiles: (files) => {
       const added = files.map(attachmentFor)
       updateDraft((current) => ({ ...current, attachments: [...current.attachments, ...added] }))
@@ -79,23 +101,7 @@ function useMemoryComposer({
         ...current,
         attachments: current.attachments.filter((file) => file.id !== id),
       })),
-    addReference: (group, item) => {
-      const reference: ChatAttachment = {
-        id: generateId(),
-        kind: 'reference',
-        name: item.name,
-        metadata: group,
-      }
-      updateDraft((current) => ({
-        text: current.text === '/' ? '' : current.text,
-        attachments: [...current.attachments, reference],
-      }))
-    },
     clear: () => updateDraft(() => ({ text: '', attachments: [] })),
-    tools: [
-      { id: 'browser', label: 'Browser' },
-      { id: 'terminal', label: 'Terminal' },
-    ],
   }
 }
 

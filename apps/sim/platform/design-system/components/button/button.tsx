@@ -115,8 +115,20 @@ type ChipProps = {
   icon?: IconName
   selected?: boolean
 } & (
-  | { href: string; onClick?: never; action?: ReactNode; status?: ReactNode }
-  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement>; action?: never; status?: never }
+  | {
+      href: string
+      onClick?: never
+      action?: ReactNode
+      status?: ReactNode
+      replaceActionOnTouch?: boolean
+    }
+  | {
+      href?: never
+      onClick?: MouseEventHandler<HTMLButtonElement>
+      action?: never
+      status?: never
+      replaceActionOnTouch?: never
+    }
 )
 
 export function Chip({
@@ -127,6 +139,7 @@ export function Chip({
   href,
   action,
   status,
+  replaceActionOnTouch,
 }: ChipProps) {
   const LinkElement = href && isAbsoluteHref(href) ? 'a' : Link
   return (
@@ -135,6 +148,7 @@ export function Chip({
       icon={icon}
       action={action}
       status={status}
+      replaceActionOnTouch={replaceActionOnTouch}
       render={
         href ? (
           <LinkElement href={href} aria-current={selected ? 'page' : undefined} />
