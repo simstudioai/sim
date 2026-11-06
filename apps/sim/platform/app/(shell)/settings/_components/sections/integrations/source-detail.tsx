@@ -365,8 +365,8 @@ function SourceSettingsForm({
         pendingLabel='Removing…'
         confirmDisabled={removal.disabled}
         pending={removal.pending}
-        onConfirm={() => {
-          removal.onConfirm()
+        onConfirm={async () => {
+          await removal.onConfirm()
           return false
         }}
       >

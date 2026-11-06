@@ -16,7 +16,7 @@ interface ConfirmDialogProps<T> {
   /** A confirm for an action that loses nothing. */
   safe?: boolean
   confirmDisabled?: boolean
-  /** Work tracked outside the confirm, for a handler that returns `false` and settles elsewhere. */
+  /** Work tracked outside the confirm. It never covers the start: see `ConfirmHandler` on `Modal`. */
   pending?: boolean
   /** Anything the choice needs beyond the description: a reason field, a warning. */
   children?: ReactNode

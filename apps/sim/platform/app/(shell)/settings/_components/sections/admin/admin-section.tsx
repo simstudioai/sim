@@ -302,8 +302,8 @@ export default function AdminSection() {
           confirmLabel='Ban'
           pendingLabel='Banning…'
           pending={admin.banUser.isPending}
-          onConfirm={() => {
-            admin.handleConfirmBan()
+          onConfirm={async () => {
+            await admin.handleConfirmBan()
             return false
           }}
         >
@@ -331,8 +331,8 @@ export default function AdminSection() {
           confirmLabel={admin.isDemotion ? 'Demote' : 'Promote'}
           pendingLabel={admin.isDemotion ? 'Demoting…' : 'Promoting…'}
           pending={admin.setUserRole.isPending}
-          onConfirm={() => {
-            admin.handleConfirmRoleChange()
+          onConfirm={async () => {
+            await admin.handleConfirmRoleChange()
             return false
           }}
         >

@@ -178,24 +178,30 @@ export function useAdminConsole() {
     setBanReason('')
   }
 
-  const handleConfirmBan = () => {
+  /** Settles with the ban, for a dialog to hold on. A refusal stays on `banUser.error`. */
+  const handleConfirmBan = async () => {
     if (pendingAction?.type !== 'ban') return
     const trimmedReason = banReason.trim()
-    banUser.mutate(
-      {
+    try {
+      await banUser.mutateAsync({
         userId: pendingAction.userId,
         ...(trimmedReason ? { banReason: trimmedReason } : {}),
-      },
-      { onSuccess: closePendingAction }
-    )
+      })
+      closePendingAction()
+    } catch {
+      return
+    }
   }
 
-  const handleConfirmRoleChange = () => {
+  /** Settles with the change, for a dialog to hold on. A refusal stays on `setUserRole.error`. */
+  const handleConfirmRoleChange = async () => {
     if (pendingAction?.type !== 'role') return
-    setUserRole.mutate(
-      { userId: pendingAction.userId, role: pendingAction.nextRole },
-      { onSuccess: closePendingAction }
-    )
+    try {
+      await setUserRole.mutateAsync({ userId: pendingAction.userId, role: pendingAction.nextRole })
+      closePendingAction()
+    } catch {
+      return
+    }
   }
 
   const pendingUserIds = new Set<string>()

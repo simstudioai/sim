@@ -134,17 +134,16 @@ function WorkspaceAccessList({
         throw new Error(
           `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
         )
-      void save([...access.grants, grant], editor.revision)
-    } else {
-      if (grant.workspaceId !== editor.grant.workspaceId)
-        throw new Error('Cannot change the workspace of an existing grant')
-      void save(
-        access.grants.map((existing) =>
-          existing.workspaceId === grant.workspaceId ? grant : existing
-        ),
-        editor.revision
-      )
+      return save([...access.grants, grant], editor.revision)
     }
+    if (grant.workspaceId !== editor.grant.workspaceId)
+      throw new Error('Cannot change the workspace of an existing grant')
+    return save(
+      access.grants.map((existing) =>
+        existing.workspaceId === grant.workspaceId ? grant : existing
+      ),
+      editor.revision
+    )
   }
 
   return (

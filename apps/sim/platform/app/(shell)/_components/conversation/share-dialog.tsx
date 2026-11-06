@@ -176,8 +176,8 @@ export function ShareDialog(props: ShareDialogProps) {
         confirmLabel={dialog.primaryLabel}
         confirmDisabled={dialog.primaryDisabled}
         destructive={dialog.isUnshareAction}
-        onConfirm={() => {
-          dialog.runPrimaryAction()
+        onConfirm={async () => {
+          await dialog.runPrimaryAction()
           return false
         }}
       >
@@ -255,8 +255,8 @@ export function ShareDialog(props: ShareDialogProps) {
         confirmLabel={pending ? 'Unsharing...' : 'Unshare'}
         confirmDisabled={pending}
         pending={pending}
-        onConfirm={() => {
-          dialog.confirmUnshare()
+        onConfirm={async () => {
+          await dialog.confirmUnshare()
           return false
         }}
       >

@@ -121,13 +121,18 @@ export function useConnectorActions({
       pending: remove.isPending,
       disabled: actionsDisabled,
       error: remove.error,
-      onConfirm: () => {
+      /** Settles with the removal, for a dialog to hold on. A refusal stays on `removal.error`. */
+      onConfirm: async () => {
         if (!canEdit || actionsDisabled) return
-        remove.mutate({
-          knowledgeBaseId,
-          connectorId: connector.id,
-          deleteDocuments: requiresDocumentDeletion || deleteDocuments,
-        })
+        try {
+          await remove.mutateAsync({
+            knowledgeBaseId,
+            connectorId: connector.id,
+            deleteDocuments: requiresDocumentDeletion || deleteDocuments,
+          })
+        } catch {
+          return
+        }
       },
     },
   }

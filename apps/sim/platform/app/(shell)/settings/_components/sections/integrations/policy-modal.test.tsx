@@ -15,13 +15,15 @@ const mocks = vi.hoisted(() => ({ save: vi.fn() }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/search-integrations', () => ({
-  useUpdateSearchIntegration: () => ({ mutate: mocks.save }),
+  useUpdateSearchIntegration: () => ({ mutateAsync: mocks.save }),
 }))
 const mockPush = nextNavigationMockFns.router.push
 const mockSources = kbConnectorsQueriesMockFns.mockUseSearchSources
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  mocks.save.mockReset()
+  mocks.save.mockReturnValue(new Promise(() => {}))
   mockSources.mockReturnValue({ data: [], hasNextPage: false })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.checkVisibility = () => true
@@ -80,15 +82,12 @@ describe('live search policy source preservation', () => {
       document.querySelector<HTMLInputElement>('input[type="radio"][value="member"]')?.click()
     )
     await act(async () => button('Save settings').click())
-    expect(mocks.save).toHaveBeenCalledWith(
-      {
-        organizationId: 'org',
-        connectorType: 'gmail',
-        approved: true,
-        policy: defaultLiveSearchPolicy(),
-      },
-      expect.any(Object)
-    )
+    expect(mocks.save).toHaveBeenCalledWith({
+      organizationId: 'org',
+      connectorType: 'gmail',
+      approved: true,
+      policy: defaultLiveSearchPolicy(),
+    })
   })
   it('can add another connection without clearing the currently configured source', async () => {
     mockSources.mockReturnValue({
@@ -120,15 +119,20 @@ describe('live search policy source preservation', () => {
         />
       )
     )
+    let saved = () => {}
+    mocks.save.mockReturnValue(
+      new Promise<void>((resolve) => {
+        saved = resolve
+      })
+    )
     await act(async () => button('Add connection').click())
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
         policy: expect.objectContaining({ sourceId: 'current-source' }),
-      }),
-      expect.any(Object)
+      })
     )
     expect(mockPush).not.toHaveBeenCalled()
-    await act(async () => mocks.save.mock.calls.at(-1)?.[1].onSuccess())
+    await act(async () => saved())
     expect(mockPush).toHaveBeenCalledWith(
       '/o/org/settings/integrations/providers/gmail?addConnector=gmail'
     )
@@ -159,8 +163,7 @@ describe('live search policy source preservation', () => {
           accessMode: 'service_account',
           sourceId: 'configured-source',
         }),
-      }),
-      expect.any(Object)
+      })
     )
   })
 })

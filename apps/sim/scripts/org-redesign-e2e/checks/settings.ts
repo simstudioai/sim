@@ -466,9 +466,17 @@ export async function settingsChecks() {
             'Enter in the reason started the ban'
           ).toBeEnabled()
           await modal.getByRole('button', { name: 'Ban', exact: true }).click()
+          // Nothing between the click and the first press: a mutation's `isPending` arrives on a timer.
+          await page.keyboard.press('Escape')
+          await pageTurn(page)
+          await expect(
+            modal,
+            'An Escape right behind the click dismissed the ban'
+          ).toHaveJSProperty('open', true)
           await expect.poll(() => banRequests).toBe(1)
           await expect(modal, 'Starting the ban closed the dialog').toBeVisible()
-          for (const press of ['first', 'second']) {
+          // Chromium honored `preventDefault` on `cancel` twice for this input, then closed natively.
+          for (const press of ['second', 'third', 'fourth']) {
             await page.keyboard.press('Escape')
             await pageTurn(page)
             await expect(modal, `The ${press} Escape dismissed a running ban`).toHaveJSProperty(
@@ -479,6 +487,16 @@ export async function settingsChecks() {
           await expect(modal.getByRole('button', { name: 'Cancel' })).toBeDisabled()
           held.resolve()
           await expect(modal.getByText('Ban refused')).toBeVisible()
+          await expect(modal.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+          // Those presses spent the activation, so this `cancel` cannot be prevented: state follows it.
+          await page.keyboard.press('Escape')
+          await expect(modal, 'Escape left a refused ban open').toHaveCount(0)
+          await page.getByRole('button', { name: `${MEMBER.email} actions` }).click()
+          await page.getByRole('menuitem', { name: 'Ban', exact: true }).click()
+          await expect(
+            modal,
+            'An unpreventable Escape left the dialog unable to open'
+          ).toBeVisible()
         })
       },
       { allow: [/500 POST .*ban-user/] }

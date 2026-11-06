@@ -75,8 +75,8 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
         confirmLabel={busy ? 'Connecting…' : 'Continue with Slack'}
         confirmDisabled={busy || unavailable || Boolean(prepare.error)}
         pending={setup.dismissBlocked}
-        onConfirm={() => {
-          setup.installShared()
+        onConfirm={async () => {
+          await setup.installShared()
           return false
         }}
       >
@@ -122,8 +122,8 @@ export function SlackSetupWizard(props: SlackSetupWizardProps) {
               setup.setStep(step === 'credentials' ? 'token' : 'manifest')
             }
       }
-      onConfirm={() => {
-        setup.advance()
+      onConfirm={async () => {
+        await setup.advance()
         return false
       }}
     >

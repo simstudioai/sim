@@ -123,7 +123,8 @@ export function useShareDialog({
     onOpenChange(false)
   }
 
-  const submitPrimaryAction = () => {
+  /** Settles with the save, for a dialog to hold on. A failure stays on `upsertShare.error`. */
+  const submitPrimaryAction = async () => {
     if (!shareReadReady || upsertShare.isPending) return
 
     const base = { workspaceId, fileId, token: saved ? undefined : generateShortId() }
@@ -145,21 +146,22 @@ export function useShareDialog({
             }
           : { ...base, isActive: true as const, authType: 'public' as const }
 
-    upsertShare.mutate(vars, {
-      onSuccess: () => {
-        toast.success(PRIMARY_ACTION_SUCCESS_MESSAGES[primaryAction])
-        setUnshareConfirmOpen(false)
-        resetDraft()
-      },
-    })
+    try {
+      await upsertShare.mutateAsync(vars)
+    } catch {
+      return
+    }
+    toast.success(PRIMARY_ACTION_SUCCESS_MESSAGES[primaryAction])
+    setUnshareConfirmOpen(false)
+    resetDraft()
   }
 
-  const handlePrimaryAction = () => {
+  const handlePrimaryAction = async () => {
     if (isUnshareAction) {
       setUnshareConfirmOpen(true)
       return
     }
-    submitPrimaryAction()
+    await submitPrimaryAction()
   }
 
   const accessHint = (() => {

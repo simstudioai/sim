@@ -55,10 +55,11 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
         ? !integration.approved
         : !sourceId)
 
-  function save(openSetup = needsServiceSetup) {
+  async function save(openSetup = needsServiceSetup) {
     if (update.isPending) return
+    let policy: LiveSearchPolicy
     try {
-      const policy = normalizeLiveSearchPolicy(provider, {
+      policy = normalizeLiveSearchPolicy(provider, {
         ...defaultLiveSearchPolicy(),
         accessMode,
         ...(accessMode === 'service_account' &&
@@ -68,26 +69,25 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
           ? { sourceId }
           : {}),
       })
-      setError('')
-      update.mutate(
-        { organizationId, connectorType: provider, approved: true, policy },
-        {
-          onSuccess: () => {
-            onClose()
-            if (openSetup)
-              router.push(
-                serializeSearchSetup(organizationRoutes(organizationId).searchProvider(provider), {
-                  addConnector: searchSetupParam.parser.parse(provider),
-                  'source-access': null,
-                })
-              )
-            else toast.success('Search settings saved')
-          },
-        }
-      )
     } catch (failure) {
       setError(getErrorMessage(failure, 'Choose a service account connection and try again.'))
+      return
     }
+    setError('')
+    try {
+      await update.mutateAsync({ organizationId, connectorType: provider, approved: true, policy })
+    } catch {
+      return
+    }
+    onClose()
+    if (openSetup)
+      router.push(
+        serializeSearchSetup(organizationRoutes(organizationId).searchProvider(provider), {
+          addConnector: searchSetupParam.parser.parse(provider),
+          'source-access': null,
+        })
+      )
+    else toast.success('Search settings saved')
   }
 
   const hint =
@@ -119,8 +119,8 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
       }
       confirmDisabled={update.isPending}
       pending={update.isPending}
-      onConfirm={() => {
-        save()
+      onConfirm={async () => {
+        await save()
         return false
       }}
     >

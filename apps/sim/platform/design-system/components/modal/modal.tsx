@@ -19,6 +19,8 @@ interface ModalStep {
  * A synchronous confirm closes the dialog in the same update. A returned promise holds it open as
  * pending, closes it on success, and on rejection keeps the draft and shows the error's message.
  * Returning or resolving `false` keeps it open: the confirm reached the dialog's next stage, not its end.
+ * A confirm that starts work returns that work's promise, even when it resolves `false`: the promise
+ * is the only signal that holds the dialog from the input that started the work.
  */
 type ConfirmHandler<Args extends unknown[]> = (...args: Args) => unknown
 
@@ -30,8 +32,9 @@ interface ModalActions {
   /** Names the dialog more specifically than its visible title. */
   accessibleName?: string
   /**
-   * Work the caller is tracking, for a confirm that returns `false` and settles elsewhere. Nothing
-   * dismisses, confirms or steps back until it ends.
+   * Work the caller is tracking. Nothing dismisses, confirms or steps back until it ends. This flag
+   * arrives after the input that started the work (a mutation's `isPending` comes on a timer, and
+   * the browser runs the next key press first), so it never covers the start: see `ConfirmHandler`.
    */
   pending?: boolean
   /**

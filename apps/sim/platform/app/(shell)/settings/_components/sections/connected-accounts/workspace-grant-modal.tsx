@@ -18,7 +18,8 @@ interface WorkspaceGrantModalBaseProps {
   credentialTypes: OrganizationAccountWorkspaceAccess['credentialTypes']
   disabled: boolean
   error?: string
-  onSave: (grant: Grant) => void
+  /** Settles with the save, for the dialog to hold on. */
+  onSave: (grant: Grant) => Promise<void>
   onClose: () => void
 }
 
@@ -38,7 +39,7 @@ export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
     props.mode === 'edit' ? props.grant.access : { mode: 'selected', credentialTypes: [] }
   )
 
-  function save() {
+  async function save() {
     if (!workspaceId) throw new Error('Select a workspace before granting access')
     if (
       props.mode === 'create' &&
@@ -47,7 +48,7 @@ export function WorkspaceGrantModal(props: WorkspaceGrantModalProps) {
       throw new Error('Selected workspace is unavailable')
     if (access.mode === 'selected' && !access.credentialTypes.length)
       throw new Error('Select at least one integration')
-    onSave({ workspaceId, access })
+    await onSave({ workspaceId, access })
     return false
   }
 

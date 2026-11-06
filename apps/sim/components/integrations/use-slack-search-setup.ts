@@ -57,35 +57,41 @@ export function useSlackSearchSetup({
           (!configuredAppId || configuredAppId === prepare.data.sharedAppId)
       )
 
+  /**
+   * Settles with the start of consent, for a dialog to hold on. On desktop consent runs in the
+   * user's browser and they may close the dialog meanwhile, so there is nothing to hold on.
+   */
   function installShared() {
     const controller = new AbortController()
     nativeAbort.current = controller
-    oauth.mutate(
-      {
+    const started = oauth
+      .mutateAsync({
         organizationId,
         installationId,
         name,
         description,
         mode: 'shared',
         signal: controller.signal,
-      },
-      {
-        onSuccess: (result) => {
+      })
+      .then(
+        (result) => {
           if (result) window.location.assign(result.authorizationUrl)
           else onClose()
         },
-      }
-    )
+        () => undefined
+      )
+    return isDesktopApp() ? undefined : started
   }
 
-  function advance() {
+  /** A step forward is immediate; the last one settles with the connection, for a dialog to hold on. */
+  async function advance() {
     if (step === 'manifest') {
       setStep('token')
     } else if (step === 'token') {
       setStep('credentials')
     } else {
-      connect.mutate(
-        {
+      try {
+        await connect.mutateAsync({
           organizationId,
           installationId,
           name,
@@ -94,11 +100,11 @@ export function useSlackSearchSetup({
           ...(clientId.trim() ? { clientId: clientId.trim() } : {}),
           ...(clientSecret.trim() ? { clientSecret: clientSecret.trim() } : {}),
           ...(signingSecret.trim() ? { signingSecret: signingSecret.trim() } : {}),
-        },
-        {
-          onSuccess: onClose,
-        }
-      )
+        })
+      } catch {
+        return
+      }
+      onClose()
     }
   }
 
