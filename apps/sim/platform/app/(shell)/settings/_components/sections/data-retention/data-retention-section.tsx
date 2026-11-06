@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
-import { compareStrings } from '@sim/utils/string'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
@@ -82,23 +81,6 @@ function policyDraftOf(snapshot: RetentionSnapshot, selection: PolicySelection):
 const samePolicy = (left: PolicyDraft, right: PolicyDraft) =>
   normalizePolicyDraft(left) === normalizePolicyDraft(right)
 
-const sameSnapshot = (left: RetentionSnapshot, right: RetentionSnapshot) =>
-  JSON.stringify(buildComparable(left)) === JSON.stringify(buildComparable(right))
-
-/** Rule ids and array order carry no meaning here, and the order differs across a save. */
-function buildComparable(snapshot: RetentionSnapshot) {
-  const byWorkspace = (left: { workspaceId: string }, right: { workspaceId: string }) =>
-    compareStrings(left.workspaceId, right.workspaceId)
-  return {
-    ...snapshot,
-    defaultPii: snapshot.defaultPii?.stages ?? null,
-    piiOverrides: [...snapshot.piiOverrides]
-      .sort(byWorkspace)
-      .map(({ workspaceId, stages }) => ({ workspaceId, stages })),
-    overrides: [...snapshot.overrides].sort(byWorkspace),
-  }
-}
-
 interface PolicyEditorProps {
   selection: PolicySelection
   snapshot: RetentionSnapshot
@@ -147,7 +129,11 @@ function PolicyEditor({
         toast.error('Could not confirm the latest retention settings. Nothing was saved.')
         return null
       }
-      return samePolicy(policyDraftOf(latest, selection), policy.baseline) ? latest : null
+      if (!samePolicy(policyDraftOf(latest, selection), policy.baseline)) {
+        toast.error('This policy changed while you were editing. Nothing was saved.')
+        return null
+      }
+      return latest
     } finally {
       setChecking(false)
     }
@@ -216,7 +202,10 @@ interface RetentionFormProps {
   refetch: () => Promise<{ data?: DataRetentionResponse }>
 }
 
-/** The whole document is one save: the route replaces each key, so all of it is always sent. */
+/**
+ * The whole document is one save: the route replaces each key, so all of it is always sent. It holds
+ * no copy of the document: the query cache does, and a save writes the route's answer there.
+ */
 function RetentionForm({
   initialData,
   organizationId,
@@ -224,12 +213,7 @@ function RetentionForm({
   refetch,
 }: RetentionFormProps) {
   const update = useUpdateOrganizationRetention()
-  const retention = useServerDraft({
-    server: snapshotFrom(initialData),
-    isEqual: sameSnapshot,
-    saving: update.isPending,
-  })
-  const snapshot = retention.baseline
+  const snapshot = snapshotFrom(initialData)
   const [selection, setSelection] = useState<PolicySelection | null>(null)
   const workspaceName = (id: string) =>
     workspaceOptions.find((option) => option.value === id)?.label ?? 'Unknown workspace'
@@ -241,7 +225,6 @@ function RetentionForm({
 
   async function persist(next: RetentionSnapshot) {
     await update.mutateAsync({ orgId: organizationId, settings: buildRetentionUpdate(next) })
-    retention.markSaved(next, next)
   }
 
   if (selection) {
