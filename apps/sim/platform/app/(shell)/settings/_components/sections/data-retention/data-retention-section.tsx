@@ -24,6 +24,7 @@ import { SettingsSection } from '@/platform/design-system/components/settings-se
 import {
   buildRetentionUpdate,
   type DataRetentionResponse,
+  type EditingPolicy,
   hoursToDisplayDays,
   newOverrideDraft,
   normalizePolicyDraft,
@@ -161,9 +162,12 @@ function PolicyEditor({
         await persist(withOrgPolicy(latest, draft))
         toast.success('Organization defaults saved.')
       } else {
-        await persist(
-          withOverridePolicy(latest, { draft, original: baseline, isNew: selection.kind === 'new' })
-        )
+        const editing: EditingPolicy = {
+          draft,
+          original: baseline,
+          isNew: selection.kind === 'new',
+        }
+        await persist(withOverridePolicy(latest, editing))
         toast.success('Workspace override saved.')
       }
       onClose()

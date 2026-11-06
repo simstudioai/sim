@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, type ReactNode } from 'react'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +10,7 @@ interface SearchProps {
   search: { onQueryChange: (query: string, details: { reason: string }) => void }
 }
 
-vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@sim/emcn', () => emcnMock)
 vi.mock('@/platform/lib/data/sso', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/lib/data/sso')>()),
   useConfigureSSO: () => ({ mutateAsync: vi.fn(), isPending: false }),

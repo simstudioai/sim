@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, type ReactNode } from 'react'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PermissionGroup } from '@/platform/lib/data/access-control'
@@ -11,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   members: { data: [] as unknown[], isPending: false, error: null as unknown },
 }))
 
-vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@sim/emcn', () => emcnMock)
 vi.mock('@/platform/lib/data/access-control', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/lib/data/access-control')>()),
   useUpdatePermissionGroup: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
