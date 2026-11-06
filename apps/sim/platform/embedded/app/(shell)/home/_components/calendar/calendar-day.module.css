@@ -28,8 +28,6 @@
   mask-image: none;
 }
 .timeline {
-  --event-gap: var(--spacing-4);
-  --overflow-column: var(--spacing-36);
   display: grid;
   grid-template-columns: var(--spacing-60) minmax(0, 1fr);
   grid-auto-rows: calc(var(--spacing-64) / 60);
@@ -58,39 +56,56 @@
 .overflow {
   grid-column: 2;
   min-inline-size: 0;
-  margin-block: calc(var(--event-gap) / 2);
+  margin-block: calc(var(--spacing-4) / 2);
   border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
 }
 .event {
-  --lane: 0;
-  --lanes: 1;
-  --reserve: 0px;
-  --lane-track: calc((100% - var(--reserve) + var(--event-gap)) / var(--lanes));
   position: relative;
   container: event / inline-size;
-  inline-size: calc(var(--lane-track) - var(--event-gap));
-  margin-inline-start: calc(var(--lane) * var(--lane-track));
+  inline-size: 100%;
   overflow: hidden;
   padding: var(--spacing-4) var(--ui-row-inset);
 }
-.event[data-lane="1"] {
-  --lane: 1;
-}
-.event[data-lane="2"] {
-  --lane: 2;
-}
+/*
+ * A lane's track is the column, less any overflow button, shared with one gap fewer than lanes. Each
+ * card is its track without the gap, and starts that many tracks in.
+ */
 .event[data-lanes="2"] {
-  --lanes: 2;
+  inline-size: calc((100% + var(--spacing-4)) / 2 - var(--spacing-4));
 }
 .event[data-lanes="3"] {
-  --lanes: 3;
+  inline-size: calc((100% + var(--spacing-4)) / 3 - var(--spacing-4));
+}
+.event[data-lanes="2"][data-lane="1"] {
+  margin-inline-start: calc((100% + var(--spacing-4)) / 2);
+}
+.event[data-lanes="3"][data-lane="1"] {
+  margin-inline-start: calc((100% + var(--spacing-4)) / 3);
+}
+.event[data-lanes="3"][data-lane="2"] {
+  margin-inline-start: calc(2 * (100% + var(--spacing-4)) / 3);
 }
 .event[data-reserves-overflow] {
-  --reserve: calc(var(--overflow-column) + var(--event-gap));
+  inline-size: calc(100% - var(--spacing-36) - var(--spacing-4));
 }
-.event[data-density="full"] {
+.event[data-lanes="2"][data-reserves-overflow] {
+  inline-size: calc((100% - var(--spacing-36)) / 2 - var(--spacing-4));
+}
+.event[data-lanes="3"][data-reserves-overflow] {
+  inline-size: calc((100% - var(--spacing-36)) / 3 - var(--spacing-4));
+}
+.event[data-lanes="2"][data-lane="1"][data-reserves-overflow] {
+  margin-inline-start: calc((100% - var(--spacing-36)) / 2);
+}
+.event[data-lanes="3"][data-lane="1"][data-reserves-overflow] {
+  margin-inline-start: calc((100% - var(--spacing-36)) / 3);
+}
+.event[data-lanes="3"][data-lane="2"][data-reserves-overflow] {
+  margin-inline-start: calc(2 * (100% - var(--spacing-36)) / 3);
+}
+.event[data-card="full"] {
   align-items: flex-start;
 }
 .event:has(.eventName[href]:hover) {
@@ -111,7 +126,7 @@
   flex: 1;
   min-inline-size: 0;
 }
-.event[data-density="compact"] .eventName {
+.event[data-card="compact"] .eventName {
   grid-template-columns: minmax(0, max-content) max-content;
   column-gap: var(--ui-row-gap);
   align-items: baseline;
@@ -135,28 +150,28 @@
   display: flex;
   border-radius: var(--ui-control-radius);
 }
-.event[data-density="full"] .people {
+.event[data-card="full"] .people {
   margin-block-start: var(--spacing-5);
 }
 /* Avatars are taller than a one-line card's text, and stay inside its padding. */
-.event[data-density="compact"] .people {
+.event[data-card="compact"] .people {
   margin-block: calc(-1 * var(--spacing-4));
 }
 /* The title outranks the time, and the time the people, who stay a hover or a tab away. */
 @container event (inline-size < 21rem) {
-  .event[data-density="compact"] .people {
+  .event[data-card="compact"] .people {
     position: absolute;
     inset-block-start: var(--spacing-1);
     inset-inline-end: var(--spacing-4);
     background: inherit;
     opacity: 0;
   }
-  .event[data-density="compact"]:is(:hover, :focus-within) .people {
+  .event[data-card="compact"]:is(:hover, :has(:focus-visible)) .people {
     opacity: 1;
   }
 }
 @container event (inline-size < 15rem) {
-  .event[data-density="full"] .people {
+  .event[data-card="full"] .people {
     position: absolute;
     inset-block-start: var(--spacing-1);
     inset-inline-end: var(--spacing-4);
@@ -164,27 +179,27 @@
     background: inherit;
     opacity: 0;
   }
-  .event[data-density="full"]:is(:hover, :focus-within) .people {
+  .event[data-card="full"]:is(:hover, :has(:focus-visible)) .people {
     opacity: 1;
   }
 }
 @container event (inline-size < 13rem) {
-  .event[data-density="compact"] .eventName {
+  .event[data-card="compact"] .eventName {
     grid-template-columns: minmax(0, 1fr);
   }
-  .event[data-density="compact"] .eventName small {
+  .event[data-card="compact"] .eventName small {
     display: none;
   }
 }
 /* Without hover nothing reveals these, and an invisible target would take the card's tap. */
 @media (hover: none) {
   @container event (inline-size < 21rem) {
-    .event[data-density="compact"] .people {
+    .event[data-card="compact"] .people {
       display: none;
     }
   }
   @container event (inline-size < 15rem) {
-    .event[data-density="full"] .people {
+    .event[data-card="full"] .people {
       display: none;
     }
   }
@@ -192,7 +207,7 @@
 .overflow {
   display: flex;
   justify-self: end;
-  inline-size: var(--overflow-column);
+  inline-size: var(--spacing-36);
   overflow: hidden;
 }
 .overflow > button[data-size] {

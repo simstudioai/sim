@@ -61,12 +61,6 @@
   "platform/embedded/app/(shell)/home/_components/activity-list/activity-list.tsx": {
     "prop-spread": 1
   },
-  "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.module.css": {
-    "css-owner": 11,
-    "focus-style": 2,
-    "unknown-token": 11,
-    "variant-selector": 3
-  },
   "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.tsx": {
     "consumer-style": 4
   },

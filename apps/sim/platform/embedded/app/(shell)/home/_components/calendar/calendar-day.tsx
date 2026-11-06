@@ -184,7 +184,7 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
                     data-lane={lane}
                     data-lanes={lanes}
                     data-reserves-overflow={reservesOverflow || undefined}
-                    data-density={density}
+                    data-card={density}
                     style={{ gridRow: timeSlot(startMinute, endMinute - startMinute) }}
                   >
                     <a
