@@ -1,0 +1,124 @@
+{
+  "Avatar": {
+    "organization": {
+      "small": ["C0031", "C0032"],
+      "large": ["C1314", "C1315"]
+    }
+  },
+  "Button": {
+    "variant": {
+      "primary": ["C0092", "C0093"],
+      "secondary": [
+        "C0102",
+        "C0103",
+        "C0104",
+        "C0106",
+        "C0107",
+        "C0078",
+        "C0080",
+        "C0082",
+        "C0084"
+      ],
+      "quiet": ["C0100", "C0101", "C0105", "C0108", "C1302", "C1303", "C0134", "C1012", "C1013"],
+      "destructive": ["C0086"],
+      "pill": ["C0285", "C0286"]
+    },
+    "size": {
+      "regular": ["C0092", "C0093"],
+      "compact": ["C0134", "C0285", "C0286", "C1012", "C1013"]
+    }
+  },
+  "IconButton": {
+    "size": {
+      "small": [
+        "C0120",
+        "C0121",
+        "C0122",
+        "C0128",
+        "C0129",
+        "C0130",
+        "C0509",
+        "C0510",
+        "C0514",
+        "C0515",
+        "C0516",
+        "C0517",
+        "C0518",
+        "C0523",
+        "C0524",
+        "C0525",
+        "C0526",
+        "C0527",
+        "C0528",
+        "C0531",
+        "C0532",
+        "C0537",
+        "C0538"
+      ],
+      "compact": ["C1300", "C1301"],
+      "touch": ["C0522"]
+    },
+    "variant": {
+      "quiet": ["C0523"],
+      "solid": ["C0385", "C0386", "C0388", "C0389"],
+      "floating": ["C0263", "C0264"]
+    }
+  },
+  "RangePicker": {
+    "size": {
+      "regular": ["C0846", "C0848", "C0854"],
+      "compact": ["C0845", "C0847"]
+    }
+  },
+  "SearchField": {
+    "variant": {
+      "outlined": ["C0925", "C0926", "C0928"],
+      "sidebar": ["C1083", "C1084", "C1086", "C1088"],
+      "menu": ["C1308", "C1309"]
+    }
+  },
+  "TextArea": {
+    "density": {
+      "regular": ["C0351", "C0352", "C0354"],
+      "expanded": ["C0350", "C0353"]
+    }
+  },
+  "Modal": {
+    "variant": {
+      "form": ["C0761", "C0762"],
+      "confirm": ["C0770", "C0772"],
+      "feedback": ["C0763", "C0764", "C0775", "C0776"]
+    }
+  },
+  "ComposerInput": {
+    "density": {
+      "compact": ["C0372", "C0375"],
+      "standard": ["C0373", "C0376"]
+    }
+  },
+  "Disclosure": {
+    "variant": {
+      "section": ["C0422", "C0423", "C0424", "C0425"],
+      "activity": ["C0180", "C0181", "C0182"],
+      "more": ["C0288", "C0290"]
+    }
+  },
+  "AttachmentGrid": {
+    "layout": {
+      "grid": ["C0211"],
+      "list": ["C0212"]
+    }
+  },
+  "WorkspaceList": {
+    "target": {
+      "standard": ["C1283", "C1284", "C1286"],
+      "touch": ["C1288"]
+    }
+  },
+  "TasksRunChart": {
+    "inset": {
+      "flush": ["C0160", "C0162"],
+      "padded": ["C0161", "C0163", "C0165", "C0169", "C0175"]
+    }
+  }
+}

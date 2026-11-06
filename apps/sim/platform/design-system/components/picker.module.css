@@ -1,0 +1,65 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--spacing-8);
+  gap: var(--spacing-field-label-gap);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger:hover:enabled {
+  border-color: var(--control-hover-border);
+}
+
+.trigger[aria-invalid="true"] {
+  border-color: var(--control-danger);
+}
+
+.trigger:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.value {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  block-size: var(--spacing-app-control-md);
+  padding-inline: var(--spacing-8);
+  margin-block-end: var(--spacing-4);
+  gap: var(--spacing-8);
+}
+
+.search input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+}
+
+.search input::placeholder,
+.empty {
+  color: var(--ui-secondary);
+}
+
+.empty:not(:empty) {
+  display: block;
+  padding: var(--spacing-8);
+}

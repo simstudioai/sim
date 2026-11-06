@@ -1,0 +1,27 @@
+.catalog {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-24);
+  align-items: start;
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+.picker {
+  display: flex;
+  gap: var(--spacing-12);
+  align-items: end;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+.media {
+  width: 100%;
+  height: 100%;
+  fill: var(--ui-plot-primary);
+  background: var(--ui-reading);
+}
+
+.viewport {
+  max-block-size: var(--spacing-154);
+  min-block-size: 0;
+  overflow: hidden;
+}

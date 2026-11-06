@@ -1,0 +1,95 @@
+.chart {
+  display: grid;
+  gap: var(--spacing-16);
+  inline-size: 100%;
+  max-inline-size: var(--container-560);
+  min-inline-size: 0;
+}
+
+.chart[data-inset="padded"] {
+  padding-inline: var(--spacing-8);
+}
+
+.header,
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  min-block-size: var(--spacing-60);
+}
+
+.heading {
+  display: grid;
+  gap: var(--spacing-4);
+  padding-block-start: var(--spacing-4);
+}
+
+.total,
+.scale {
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--spacing-44) minmax(0, 1fr);
+  row-gap: var(--spacing-8);
+}
+
+.scale,
+.lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.scale,
+.ticks {
+  color: var(--ui-secondary);
+}
+
+.plot {
+  position: relative;
+  min-inline-size: 0;
+  block-size: var(--spacing-chart-plot);
+}
+
+.plot > svg {
+  position: relative;
+}
+
+.lines {
+  position: absolute;
+  inset: var(--spacing-7) 0;
+  pointer-events: none;
+}
+
+.lines i {
+  border-block-start: var(--spacing-stroke-default) solid var(--task-chart-grid);
+}
+
+.ticks {
+  grid-column: 2;
+}
+
+.ticks li {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tooltipPosition {
+  column-gap: var(--spacing-12);
+  inline-size: min(100%, var(--chart-tooltip-width));
+  position: absolute;
+  z-index: 1;
+  translate: 0 calc(-50% - var(--spacing-4));
+  inset-block-start: 0;
+  max-inline-size: 100%;
+  pointer-events: none;
+}

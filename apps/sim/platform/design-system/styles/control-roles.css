@@ -1,0 +1,45 @@
+[data-platform-ui] {
+  --control-people-width: 15rem;
+  --control-on-solid: var(--color-tooltip-text);
+  --control-primary-hover: var(--color-button-primary-hover);
+  --control-primary-pressed: var(--color-light-text-strong);
+  --control-danger: var(--color-light-danger);
+  --control-danger-soft: var(--color-red-soft);
+  --control-danger-hover: var(--color-light-danger);
+  --control-danger-pressed: var(--color-light-danger);
+  --control-hover-border: var(--color-ink-20);
+  --control-avatar: var(--color-surface-muted);
+  --control-retry-fill: var(--color-surface-muted);
+  --control-tooltip: var(--color-tooltip-surface);
+  --control-tooltip-ink: var(--color-tooltip-text);
+}
+
+[data-platform-ui][data-theme="dark"] {
+  --control-on-solid: var(--color-dark-canvas);
+  --control-primary-hover: var(--color-dark-button-primary-hover);
+  --control-primary-pressed: var(--color-dark-button-primary-pressed);
+  --control-danger: var(--color-dark-red);
+  --control-danger-soft: var(--color-dark-red-soft);
+  --control-danger-hover: var(--color-dark-danger-hover);
+  --control-danger-pressed: var(--color-dark-danger-pressed);
+  --control-hover-border: var(--color-white-20);
+  --control-avatar: var(--color-dark-selected);
+  --control-retry-fill: var(--color-dark-raised);
+  --control-tooltip: var(--color-dark-tooltip-surface);
+  --control-tooltip-ink: var(--color-dark-text);
+}
+
+[data-platform-ui][data-theme="dark"] svg {
+  --color-nav-link-muted: var(--color-dark-text-secondary);
+  --color-light-text-secondary: var(--color-dark-text-secondary);
+  --color-app-text-secondary: var(--color-app-dark-text-secondary);
+  --color-app-text-primary: var(--color-app-dark-text-primary);
+  --color-control-text: var(--color-dark-text);
+  --color-chart-series: var(--color-app-dark-chart-series);
+  --color-chart-area: var(--color-app-dark-chart-area);
+}
+
+[data-platform-ui] button:is([data-variant="primary"], [data-variant="destructive"]) svg {
+  --color-nav-link-muted: currentColor;
+  --color-app-text-secondary: currentColor;
+}
