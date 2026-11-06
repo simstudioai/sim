@@ -32,17 +32,10 @@ interface FaviconProps {
 export function Favicon({ host, fallback, className, onLoad }: FaviconProps) {
   const [, rerender] = useReducer((failures: number) => failures + 1, 0)
   if (!host || knownMisses.has(host)) return fallback
-  const recordMiss = () => {
-    knownMisses.set(host, true)
-    rerender()
-  }
   return (
     <img
       ref={(image) => {
-        if (!image?.complete) return
-        if (image.naturalWidth > 0) onLoad?.()
-        // A failure before hydration fires no onError, and a remount would ask for the icon again.
-        else void image.decode().catch(recordMiss)
+        if (onLoad && image?.complete && image.naturalWidth > 0) onLoad()
       }}
       src={faviconSrc(host)}
       alt=''
@@ -50,7 +43,10 @@ export function Favicon({ host, fallback, className, onLoad }: FaviconProps) {
       decoding='async'
       className={cn('rounded-sm', className)}
       onLoad={onLoad}
-      onError={recordMiss}
+      onError={() => {
+        knownMisses.set(host, true)
+        rerender()
+      }}
     />
   )
 }
