@@ -47,6 +47,35 @@ const PER_WORKSPACE_READ = [
 ]
 const isPerWorkspaceRead = (path: string) => PER_WORKSPACE_READ.some((read) => read.test(path))
 
+type FaviconTrace = Window & { faviconTrace?: string[] }
+
+/**
+ * Runs in the page: logs each favicon `<img>` the document gains or loses. React's streamed reveal
+ * moves one (it stays connected), and a discarded boundary removes it for good.
+ */
+function traceFaviconImages() {
+  const trace: string[] = []
+  ;(window as FaviconTrace).faviconTrace = trace
+  const faviconsIn = (node: Node) =>
+    node instanceof Element
+      ? [node, ...node.querySelectorAll('img')].filter(
+          (element) => element.tagName === 'IMG' && element.getAttribute('src')?.includes('favicon')
+        )
+      : []
+  const log = (change: string, nodes: NodeList) => {
+    const stamp = `${Math.round(performance.now())}ms`
+    for (const node of nodes)
+      for (const image of faviconsIn(node))
+        trace.push(`${stamp} ${change} ${image.getAttribute('src')} connected=${image.isConnected}`)
+  }
+  new MutationObserver((mutations) => {
+    for (const { addedNodes, removedNodes } of mutations) {
+      log('added', addedNodes)
+      log('removed', removedNodes)
+    }
+  }).observe(document, { childList: true, subtree: true })
+}
+
 export async function firstPaintChecks() {
   section('6 First paint')
   const pages = [
@@ -177,11 +206,21 @@ export async function firstPaintChecks() {
         async () => {
           await withSession(persona, async (session) => {
             const { page } = session
-            // A returning member's browser already holds the app's scripts.
+            // `open` routes the socket token, which turns off the context's HTTP cache, so both loads
+            // fetch every script: hydration can wait on a route's chunk, as on a first visit.
             await page.goto(orgUrl(`/${entry.path}`))
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
             await session.settle()
             session.requests.length = 0
+            const hydrationErrors: string[] = []
+            page.on('pageerror', ({ message }) => {
+              if (/hydrat|#4(18|19|23|25)\b/i.test(message)) hydrationErrors.push(message)
+            })
+            page.on('console', (message) => {
+              if (/hydrat|#4(18|19|23|25)\b/i.test(message.text()))
+                hydrationErrors.push(message.text())
+            })
+            await page.addInitScript(traceFaviconImages)
             const started = performance.now()
             await page.goto(orgUrl(`/${entry.path}`), { waitUntil: 'commit' })
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
@@ -219,7 +258,18 @@ export async function firstPaintChecks() {
               prefetchedAndRefetched: refetched,
               perWorkspaceReads,
             })
-            assert.deepEqual(duplicates, [], 'A read was fetched twice on first paint')
+            const faviconTrace = await page.evaluate(
+              () => (window as FaviconTrace).faviconTrace ?? []
+            )
+            assert.deepEqual(
+              duplicates,
+              [],
+              [
+                'A read was fetched twice on first paint',
+                `Hydration errors: ${JSON.stringify(hydrationErrors)}`,
+                `Favicon images: ${JSON.stringify(faviconTrace)}`,
+              ].join('\n')
+            )
             assert.deepEqual(refetched, [], 'A prefetched key was fetched again on first paint')
             assert.deepEqual(perWorkspaceReads, [], 'The composer read every workspace on load')
           })

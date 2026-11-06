@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useEffect, useMemo } from 'react'
+import { createContext, useDeferredValue, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/client'
@@ -150,5 +150,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [data, isPending, error, refetch]
   )
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+  // The read settles above every route's Suspense boundary. An urgent context change makes React
+  // discard the server HTML of a boundary whose hydration is waiting on its chunk, so each row is
+  // rebuilt and asks for its images again; deferred, the change waits for hydration to finish.
+  const settledValue = useDeferredValue(value)
+
+  return <SessionContext.Provider value={settledValue}>{children}</SessionContext.Provider>
 }
