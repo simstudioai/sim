@@ -89,6 +89,8 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 
 ## Chip Components (consumer usage)
 
+The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Import components, `cn`, and tokens from the `@sim/emcn` barrel and icons from `@sim/emcn/icons`; never deep-import other component subpaths. Never update global styles; keep styling local to the component.
+
 `ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
