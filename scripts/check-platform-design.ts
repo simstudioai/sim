@@ -348,7 +348,6 @@ const seamHelpers = new Set([
   'lib/sim-search/live/provider-catalog',
   'lib/core/config/deployment-shape',
   'app/workspace/[workspaceId]/home/components/message-content/components/source-link',
-  'app/o/[organizationId]/integrations/search-params',
   'lib/sim-search/live/policy-schema',
   'lib/organization-secrets/validation',
   'lib/integrations/credential-display',

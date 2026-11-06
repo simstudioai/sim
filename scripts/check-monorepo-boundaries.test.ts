@@ -210,7 +210,7 @@ describe('package boundary command', () => {
             ["import { Row } from '@/app/o/[organizationId]/row'", false],
             ["import type { Row } from '@/app/o/[organizationId]/model'", false],
             ["const row = import('@/app/o/[organizationId]/row')", false],
-            ["import { Row } from '@/app/workspace/[workspaceId]/row'", true],
+            ["import { Row } from '@/app/other/row'", true],
           ] as const
           for (const [source, allowed] of cases) {
             writeFileSync(path.join(fixture, file), `${source}\n`)
@@ -258,6 +258,32 @@ describe('package boundary command', () => {
         writeFileSync(path.join(fixture, file), `${source}\n`)
         const result = audit()
         expect(result.status, result.stderr).toBe(0)
+      })
+    })
+
+    it('keeps platform/lib from reaching a route, or a view at runtime', () => {
+      const zoneLib = 'apps/sim/platform/lib/data/widget.ts'
+      withFixture((fixture, audit) => {
+        mkdirSync(path.join(fixture, path.dirname(zoneLib)), { recursive: true })
+        const cases = [
+          ["import { Row } from '@/app/o/[organizationId]/row'", false],
+          ["import type { Row } from '@/app/o/[organizationId]/model'", false],
+          ["const row = import('@/app/o/[organizationId]/row')", false],
+          ["import { Row } from '@/platform/app/(shell)/row'", false],
+          ["export { Row } from '../../app/(shell)/row'", false],
+          ["const row = import('@/platform/app/(shell)/row')", false],
+          ["import { value } from '@/platform/lib/data/value'", true],
+          ["import { useWidgets } from '@/hooks/queries/widgets'", true],
+        ] as const
+        for (const [source, allowed] of cases) {
+          writeFileSync(path.join(fixture, zoneLib), `${source}\n`)
+          const result = audit()
+          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+          if (!allowed) expect.soft(result.stderr).toContain(`${zoneLib}:1`)
+        }
+        writeFileSync(path.join(fixture, zoneLib), "import { Row } from '@/app/o/row'\n")
+        audit('--update', '--init')
+        expect(audit().status).toBe(1)
       })
     })
 
@@ -342,11 +368,14 @@ describe('package boundary command', () => {
     it.each([
       ['platformToRoutes', VIEW_FILE, '@/app/o/[organizationId]/row'],
       ['platformLibToWorkspace', LIB_FILE, '@/app/workspace/[workspaceId]/row'],
+      ['viewsToWorkspace', VIEW_FILE, '@/app/workspace/[workspaceId]/row'],
+      ['zoneLibToViewTypes', 'apps/sim/platform/lib/data/widget.ts', '@/platform/app/(shell)/row'],
     ])('ratchets %s: a new edge fails, and the baseline only shrinks', (ratchet, file, target) => {
       withFixture((fixture, audit) => {
+        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
         const baselinePath = path.join(fixture, 'scripts/check-monorepo-boundaries.baseline.json')
         const counts = () => JSON.parse(readFileSync(baselinePath, 'utf8'))[ratchet]
-        const one = `import { a } from '${target}'\n`
+        const one = `import type { a } from '${target}'\n`
         const two = `${one}import type { b } from '${target}'\n`
 
         writeFileSync(path.join(fixture, file), two)
@@ -354,7 +383,7 @@ describe('package boundary command', () => {
         expect(counts()).toEqual({ [file]: 2 })
         expect(audit().status).toBe(0)
 
-        writeFileSync(path.join(fixture, file), `${two}import { c } from '${target}'\n`)
+        writeFileSync(path.join(fixture, file), `${two}import type { c } from '${target}'\n`)
         expect(audit().status).toBe(1)
         expect(audit('--update').status).toBe(1)
         expect(counts()).toEqual({ [file]: 2 })
