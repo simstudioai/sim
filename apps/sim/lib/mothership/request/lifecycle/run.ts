@@ -694,6 +694,7 @@ export async function runCopilotLifecycle(
         ...(endedWithoutReason ? { error: ENDED_RUN_MESSAGE } : {}),
         ...(failure ? { error: failure.userMessage, errorCode: failure.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
+        ...(context.inputApplied ? { inputApplied: true } : {}),
         usage: context.usage,
         cost: context.cost,
       }

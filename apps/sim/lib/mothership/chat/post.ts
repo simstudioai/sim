@@ -32,6 +32,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
+import { settleSteeringFallback } from '@/lib/mothership/chat/application/steering-fallback'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
@@ -52,7 +53,6 @@ import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-ch
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
-import { resolveSteeringFallback } from '@/lib/mothership/chat/steering-fallback'
 import {
   COPILOT_REQUEST_MODES,
   MOTHERSHIP_CHAT_ID_HEADER,
@@ -129,6 +129,8 @@ const ChatMessageSchema = z
      a client-supplied id longer than the btree entry limit would throw there.
      A generated id is 36 chars. */
     userMessageId: z.string().max(128).optional(),
+    /** This turn is a steering message going out on its own; its disposition settles first. */
+    steeringFallback: z.boolean().optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
@@ -979,11 +981,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       /* A turn under a steering message's id is that message going out on its own
          after its run did not apply it. The worker's disposition settles it first,
          so the message never runs twice. */
-      if (actualChatId && !body.createNewChat) {
-        const fallback = await resolveSteeringFallback({
-          chatId: actualChatId,
-          messageId: userMessageId,
-          userId: authenticatedUserId,
+      if (actualChatId && currentChat && !chatIsNew && body.steeringFallback) {
+        const fallback = await settleSteeringFallback.execute({
+          principal: {
+            kind: 'session',
+            userId: authenticatedUserId,
+            sessionId: session.session.id,
+          },
+          input: { chatId: actualChatId, messageId: userMessageId },
         })
         if (fallback.kind !== 'send') {
           activeOtelRoot.finish('success')

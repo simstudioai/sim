@@ -618,3 +618,51 @@ describe('user aborts are not rendered as errors', () => {
     expect(renderedContent(transcriptWithErrorEvent('api_error'))).toContain('mothership-error')
   })
 })
+
+describe('steering in a live turn', () => {
+  it('rebuilds the answer around the steering it applied, after the steering record', () => {
+    const event = (seq: number, type: 'text' | 'run', payload: Record<string, unknown>) =>
+      toBatchEvent(seq, {
+        v: 1,
+        seq,
+        ts: new Date(seq).toISOString(),
+        type,
+        stream: { streamId: 'stream-1' },
+        payload,
+      } as StreamBatchEvent['event'])
+    const steeringRecord = normalizeMessage({
+      id: 'steer-1',
+      role: 'user',
+      content: 'Stop at two',
+      timestamp: '2026-04-15T12:00:01.000Z',
+      steering: { streamId: 'stream-1', input: { context: [] } },
+    })
+    const result = buildEffectiveChatTranscript({
+      messages: [buildUserMessage('stream-1', 'Count'), steeringRecord],
+      activeStreamId: 'stream-1',
+      streamSnapshot: {
+        events: [
+          event(1, 'text', { channel: 'assistant', text: '1 ' }),
+          event(2, 'run', {
+            kind: MothershipStreamV1RunKind.steering_applied,
+            steeringId: 'steer-1',
+          }),
+          event(3, 'text', { channel: 'assistant', text: '2.' }),
+        ],
+        status: 'active',
+      },
+    })
+
+    expect(result.map((message) => message.id)).toEqual([
+      'stream-1',
+      getLiveAssistantMessageId('stream-1'),
+      'steer-1',
+    ])
+    expect(steeringRecord.steering).toEqual({ streamId: 'stream-1' })
+    expect(result[1].contentBlocks?.map((block) => block.type)).toEqual([
+      MothershipStreamV1EventType.text,
+      'steering',
+      MothershipStreamV1EventType.text,
+    ])
+  })
+})

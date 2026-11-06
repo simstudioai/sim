@@ -16,13 +16,13 @@ import {
   type OwnedChatContextOptions,
   resolveOwnedChatContext,
 } from '@/lib/mothership/chat/application/context'
+import { loadSteeringRecord } from '@/lib/mothership/chat/application/steering-fallback'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { normalizeContexts } from '@/lib/mothership/chat/normalize-contexts'
 import {
   buildPersistedUserMessage,
   type PersistedMessageContext,
 } from '@/lib/mothership/chat/persisted-message'
-import { loadSteeringRecord } from '@/lib/mothership/chat/steering-fallback'
 import { prepareSteeringInput } from '@/lib/mothership/request/application/steering-input'
 import {
   deliverRunStop,

@@ -87,6 +87,34 @@ export async function appendCopilotChatMessages(
 }
 
 /**
+ * Turns a chat's user message back into the steering record it was: the message
+ * a turn under its id carried had already been applied as steering of an earlier
+ * run, which the worker refused the turn for (`input_applied`). Marked again, the
+ * transcript places it in the run that applied it instead of showing it twice.
+ */
+export async function remarkAppliedSteeringMessage(
+  chatId: string,
+  messageId: string,
+  executor: DbOrTx = db
+): Promise<void> {
+  const marker = JSON.stringify({ streamId: messageId })
+  await executor
+    .update(copilotMessages)
+    .set({
+      content: sql`jsonb_set(${copilotMessages.content}, '{steering}', ${marker}::jsonb)`,
+      displayContent: sql`case when ${copilotMessages.displayContent} is null then null else jsonb_set(${copilotMessages.displayContent}, '{steering}', ${marker}::jsonb) end`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(copilotMessages.chatId, chatId),
+        eq(copilotMessages.messageId, messageId),
+        eq(copilotMessages.role, 'user')
+      )
+    )
+}
+
+/**
  * Persist one completed turn — the user message and the assistant reply — into
  * a chat's transcript, bumping the chat's `updatedAt` so it sorts by recency.
  *

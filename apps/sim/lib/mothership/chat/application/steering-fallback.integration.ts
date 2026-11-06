@@ -8,23 +8,25 @@
  * refuses); an ordinary message id costs a worker call.
  */
 import { db } from '@sim/db'
-import { copilotChats, copilotMessages, user } from '@sim/db/schema'
+import { copilotChats, copilotMessages, copilotRuns, user } from '@sim/db/schema'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { asc, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
+import { resolveSteeringFallback } from '@/lib/mothership/chat/application/steering-fallback'
+import { buildOnComplete } from '@/lib/mothership/chat/completion'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
   buildPersistedUserMessage,
   type PersistedMessage,
 } from '@/lib/mothership/chat/persisted-message'
-import { resolveSteeringFallback } from '@/lib/mothership/chat/steering-fallback'
 
 const WORKER = 'http://worker.integration.test'
 const RECORDED_INPUT = {
@@ -128,14 +130,30 @@ describe('steering fallback gate in PostgreSQL', () => {
     expect(await transcriptIds(chatId)).toContain(steeringId)
   })
 
-  it('answers busy for a message its run still holds', async () => {
+  it('answers busy for a message a run Sim still runs holds', async () => {
     const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+    await db
+      .insert(copilotRuns)
+      .values({ executionId: generateId(), chatId, userId, streamId: turnId, status: 'active' })
     worker.answers.push(Response.json({ steeringId, status: 'queued' }))
 
     const fallback = await resolveSteeringFallback({ chatId, messageId: steeringId, userId })
 
     expect(fallback).toEqual({ kind: 'busy', streamId: turnId })
     expect(await transcriptIds(chatId)).toContain(steeringId)
+  })
+
+  it('sends a message a run Sim recorded as ended still lists as queued', async () => {
+    const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+    await db
+      .insert(copilotRuns)
+      .values({ executionId: generateId(), chatId, userId, streamId: turnId, status: 'error' })
+    worker.answers.push(Response.json({ steeringId, status: 'queued' }))
+
+    const fallback = await resolveSteeringFallback({ chatId, messageId: steeringId, userId })
+
+    expect(fallback).toEqual({ kind: 'send' })
+    expect(await transcriptIds(chatId)).not.toContain(steeringId)
   })
 
   it('clears the record of a message no run applied, so the turn stores it after the turn it missed', async () => {
@@ -165,5 +183,45 @@ describe('steering fallback gate in PostgreSQL', () => {
     expect(forTurn).toEqual({ kind: 'send' })
     expect(forNew).toEqual({ kind: 'send' })
     expect(worker.bodies).toHaveLength(0)
+  })
+
+  it('stores no duplicate turn when the worker refuses one for a message a run already applied', async () => {
+    const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+    await db
+      .update(copilotChats)
+      .set({ conversationId: steeringId })
+      .where(eq(copilotChats.id, chatId))
+    await appendCopilotChatMessages(
+      chatId,
+      [buildPersistedUserMessage({ id: steeringId, content: 'Then summarize' })],
+      { streamId: steeringId }
+    )
+
+    await buildOnComplete({ chatId, userMessageId: steeringId, requestId: 'request-1', userId })({
+      success: false,
+      inputApplied: true,
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+      error: 'This message was already included in the response it steered.',
+    })
+
+    const rows = await db
+      .select({
+        id: copilotMessages.messageId,
+        role: copilotMessages.role,
+        content: copilotMessages.content,
+      })
+      .from(copilotMessages)
+      .where(eq(copilotMessages.chatId, chatId))
+      .orderBy(asc(copilotMessages.seq))
+    expect(rows.map((row) => row.role)).toEqual(['user', 'user', 'assistant'])
+    expect(rows[0].id).toBe(turnId)
+    expect(toRecord(rows[1].content).steering).toMatchObject({ streamId: steeringId })
+    const [chat] = await db
+      .select({ conversationId: copilotChats.conversationId })
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+    expect(chat.conversationId).toBeNull()
   })
 })

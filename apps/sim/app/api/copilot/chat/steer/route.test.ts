@@ -1,5 +1,7 @@
+import { copilotMessages } from '@sim/db/schema'
 import { createMockRequest } from '@sim/testing'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -12,19 +14,32 @@ import {
   mothershipChatMessagesMock,
   mothershipChatMessagesMockFns,
 } from '@sim/testing/mocks/mothership-chat-messages.mock'
+import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import {
   workspaceAuthorizationMock,
   workspaceAuthorizationMockFns,
 } from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-const { mockChatContext } = vi.hoisted(() => ({
+const { mockChatContext, mockProcessContexts } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
+  mockProcessContexts: vi.fn(),
 }))
+vi.mock('@/lib/mothership/chat/process-contents', () => ({
+  processContextsServer: mockProcessContexts,
+}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,
 }))
@@ -188,6 +203,68 @@ describe('POST /api/copilot/chat/steer', () => {
 
     expect(response.status).toBe(409)
     expect(worker.calls).toEqual(['/api/streams/steer/v2'])
+  })
+
+  it('renders files and mentions as a turn does, and records that exact input', async () => {
+    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+    mockProcessContexts.mockResolvedValueOnce([{ type: 'workflow', content: 'mentioned' }])
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('write')
+    workspaceFileManagerMockFns.mockTrackChatUpload.mockResolvedValueOnce({
+      displayName: 'notes.pdf',
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        streamId: STREAM_ID,
+        chatId: 'chat-1',
+        steeringId: STEERING_ID,
+        content: 'use these',
+        contexts: [{ kind: 'workflow', workflowId: 'wf-1', label: 'Invoices' }],
+        fileAttachments: [
+          {
+            id: 'file-1',
+            key: 'uploads/file-1',
+            filename: 'notes.pdf',
+            media_type: 'application/pdf',
+            size: 10,
+          },
+        ],
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const sent = worker.bodies[0] as { context: Array<{ type: string }> }
+    expect(sent.context.map((item) => item.type)).toEqual(['workflow', 'uploaded_file'])
+    const recorded = mockAppend.mock.calls[0][1] as Array<{ steering: { input: unknown } }>
+    expect(recorded[0].steering.input).toEqual({ context: sent.context })
+  })
+
+  it('re-sends the recorded input on a retry, even if its mentions would now render differently', async () => {
+    const recordedInput = { context: [{ type: 'workflow', content: 'as first rendered' }] }
+    queueTableRows(copilotMessages, [
+      {
+        content: {
+          content: 'focus on the tests',
+          steering: { streamId: STREAM_ID, input: recordedInput },
+        },
+      },
+    ])
+    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        streamId: STREAM_ID,
+        chatId: 'chat-1',
+        steeringId: STEERING_ID,
+        content: 'focus on the tests',
+        contexts: [{ kind: 'workflow', workflowId: 'wf-1', label: 'Invoices' }],
+      })
+    )
+
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
+    expect(worker.bodies[0]).toMatchObject(recordedInput)
+    expect(mockProcessContexts).not.toHaveBeenCalled()
+    expect(mockAppend).not.toHaveBeenCalled()
   })
 
   it('passes on where an applied message landed', async () => {
