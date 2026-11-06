@@ -5,8 +5,6 @@ import {
   listSearchHistoryContract,
   type RecordSearchHistoryBody,
   recordSearchHistoryContract,
-  removeSearchHistorySourceContract,
-  type SearchHistoryResponse,
 } from '@/lib/api/contracts/knowledge/search-history'
 import {
   SEARCH_HISTORY_STALE_TIME,

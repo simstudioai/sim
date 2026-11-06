@@ -11,7 +11,6 @@ export type SearchHistory = Pick<HistoryRow, 'sources' | 'queries'>
 export type SearchHistoryEvent =
   | { kind: 'source'; source: Omit<HistoryRow['sources'][number], 'viewedAt'> }
   | { kind: 'query'; query: string }
-  | { kind: 'remove-source'; url: string }
 
 interface HistoryOwner {
   organizationId: string
@@ -73,8 +72,6 @@ export async function updateSearchHistory(
         { query: event.query, searchedAt: now },
         ...history.queries.filter((entry) => entry.query !== event.query),
       ].slice(0, SEARCH_HISTORY_LIMIT)
-    } else if (event?.kind === 'remove-source') {
-      history.sources = history.sources.filter((source) => source.url !== event.url)
     }
     await tx.update(organizationSearchHistory).set(history).where(ownerCondition(owner))
   })
