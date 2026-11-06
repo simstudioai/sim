@@ -14,6 +14,7 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 const SOUL_ENDPOINT = 'higgsfield-ai/soul/standard'
+const SOUL_BATCH_SIZES = new Set([1, 4])
 
 export const higgsfieldGenerateSoulImageTool: ToolConfig<
   HiggsfieldGenerateSoulImageParams,
@@ -104,7 +105,12 @@ export const higgsfieldGenerateSoulImageTool: ToolConfig<
       const body: Record<string, unknown> = { prompt: params.prompt }
       if (params.aspectRatio) body.aspect_ratio = params.aspectRatio
       if (params.resolution) body.resolution = params.resolution
-      if (params.batchSize !== undefined) body.batch_size = params.batchSize
+      if (params.batchSize !== undefined) {
+        if (!SOUL_BATCH_SIZES.has(params.batchSize)) {
+          throw new Error('Number of images must be 1 or 4')
+        }
+        body.batch_size = params.batchSize
+      }
       if (params.styleId?.trim()) body.style_id = params.styleId.trim()
       if (params.styleStrength !== undefined) body.style_strength = params.styleStrength
       if (params.characterId?.trim()) body.custom_reference_id = params.characterId.trim()

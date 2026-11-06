@@ -397,7 +397,11 @@ export const HiggsfieldBlock: BlockConfig = {
       description:
         'Character (id, name, modelVersion, status, thumbnailUrl, createdAt, inProgressAt, failReason)',
     },
-    characters: { type: 'json', description: 'Characters on this page' },
+    characters: {
+      type: 'array',
+      description:
+        'Characters on this page (id, name, modelVersion, status, thumbnailUrl, createdAt, inProgressAt, failReason)',
+    },
     characterId: { type: 'string', description: 'ID of the deleted character' },
     total: { type: 'number', description: 'Total number of characters' },
     page: { type: 'number', description: 'Current page number' },
