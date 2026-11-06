@@ -88,9 +88,9 @@ export function IntegrationDetails({
   return (
     <>
       <ProviderHeading
-        name={name}
+        name={selected?.label ?? name}
         titleRef={titleRef}
-        description={integration.description}
+        description={selected ? name : integration.description}
         providerId={providerId}
         icon={integration.icon}
       />
