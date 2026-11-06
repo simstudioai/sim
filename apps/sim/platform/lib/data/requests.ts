@@ -30,8 +30,8 @@ import {
   useResolveAccessRequest,
   useUpdateAccessRequestSettings,
 } from '@/hooks/queries/access-requests'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { formatInstantDate } from '@/platform/lib/time'
 
 export type RequestScope = AccessRequestScope
@@ -95,7 +95,7 @@ export function useMyRequests(scope: RequestScope, view: 'requests' | 'catalog' 
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setParams({ search: value, page: 0 }, options)
   )
-  const debounced = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const debounced = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const offset = page * ACCESS_REQUEST_PAGE_SIZE
   const requests = useMyAccessRequests(scope, offset, undefined, view === 'requests')
   const catalog = useDiscoverAccessRequests({
@@ -212,7 +212,7 @@ export function useReviewList(organizationId: string) {
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setParams({ 'request-search': value, 'request-page': 0 }, options)
   )
-  const debounced = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const debounced = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const searching = search.trim() !== debounced
   const requests = useOrganizationAccessRequests(
     organizationId,

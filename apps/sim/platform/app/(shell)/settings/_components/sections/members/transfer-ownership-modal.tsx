@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Button, InlineNotice, Modal, SearchableSelect } from '@/platform/design-system/components'
-import { type RosterModel, useOwnershipTransfer } from '@/platform/lib/data/members'
+import { useOwnershipTransfer } from '@/platform/lib/data/members'
+import type { RosterModel } from '@/platform/lib/data/members-model'
 
 interface TransferOwnershipModalProps {
   open: boolean

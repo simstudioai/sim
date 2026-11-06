@@ -9,6 +9,7 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/use-organization-conversation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -34,7 +35,7 @@ interface UseOrganizationSearchProps {
 }
 
 function searchDraftKeys(userId: string | undefined, organizationId: string) {
-  const latest = `${userId}:organization:${organizationId}:search`
+  const latest = organizationDraftKey(userId, organizationId, 'search')
   return {
     latest,
     assistant: `${latest}-assistant`,

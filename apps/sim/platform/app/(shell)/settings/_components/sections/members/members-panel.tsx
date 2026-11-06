@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
 import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import { SectionToolbar } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -28,12 +29,8 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  filterRoster,
-  type MemberRowModel,
-  useMemberSearch,
-  useMembers,
-} from '@/platform/lib/data/members'
+import { useMembers } from '@/platform/lib/data/members'
+import { filterRoster, type MemberRowModel } from '@/platform/lib/data/members-model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization'
 
 interface MembersPanelProps {
@@ -44,7 +41,7 @@ const LOAD_FAILED = 'Failed to load organization members'
 
 export function MembersPanel({ organization }: MembersPanelProps) {
   const members = useMembers(organization)
-  const { search, setSearch } = useMemberSearch()
+  const [search, setSearch] = useSettingsSearch()
   const [inviting, setInviting] = useState(false)
   const [removal, setRemoval] = useState<RemovalTarget | null>(null)
   const [transferring, setTransferring] = useState(false)

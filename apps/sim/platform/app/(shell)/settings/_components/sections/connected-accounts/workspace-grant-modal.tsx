@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import { isOrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import {
   Button,
   InlineNotice,
@@ -8,10 +10,6 @@ import {
   MultiSelect,
   SearchableSelect,
 } from '@/platform/design-system/components'
-import {
-  isOrganizationCredentialType,
-  type OrganizationAccountWorkspaceAccess,
-} from '@/platform/lib/data/credential-groups'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 const ALL_INTEGRATIONS = 'all'

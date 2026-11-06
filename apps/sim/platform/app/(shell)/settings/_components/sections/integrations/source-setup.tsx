@@ -3,8 +3,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { getCanonicalScopesForProvider } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import { useAddConnectorForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-add-connector-form'
 import { BesideSurface } from '@/platform/app/(shell)/settings/_components/section-parts/beside-surface'
 import {
   ActionRow,
@@ -33,7 +35,6 @@ import {
   SelectField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { getCanonicalScopesForProvider, useAddConnectorForm } from '@/platform/lib/data/sources'
 
 interface SourceSetupFormProps {
   scope: Extract<ResourceScope, { kind: 'organization' }>
