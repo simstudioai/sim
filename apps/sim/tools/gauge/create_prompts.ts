@@ -17,6 +17,16 @@ import {
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
+const MAX_PROMPT_TEXT_LENGTH = 500
+
+/** Matches Gauge's code-point limit without expanding oversized strings. */
+function isPromptTextWithinLimit(text: string): boolean {
+  return (
+    text.length <= MAX_PROMPT_TEXT_LENGTH ||
+    (text.length <= MAX_PROMPT_TEXT_LENGTH * 2 && Array.from(text).length <= MAX_PROMPT_TEXT_LENGTH)
+  )
+}
+
 /** Validates the batch before selecting only the text Gauge sends to AI engines. */
 function parseGaugePrompts(value: unknown): GaugePromptIn[] {
   const parsed = parseGaugeJson(value, 'prompts')
@@ -28,7 +38,7 @@ function parseGaugePrompts(value: unknown): GaugePromptIn[] {
       !isRecordLike(prompt) ||
       typeof prompt.text !== 'string' ||
       !prompt.text.trim() ||
-      prompt.text.length > 500 ||
+      !isPromptTextWithinLimit(prompt.text) ||
       typeof prompt.topicId !== 'string' ||
       !prompt.topicId.trim()
     ) {

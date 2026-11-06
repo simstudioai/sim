@@ -61,6 +61,25 @@ describe('Gauge tracked prompt model input', () => {
     { text: 'Compare analytics tools', topicId: 'top_other' },
   ]
 
+  it.each([
+    ['surrogate pairs', '😀'.repeat(500)],
+    ['mixed Unicode and ASCII', `${'😀'.repeat(250)}${'a'.repeat(250)}`],
+  ])('accepts 500 code points containing %s without changing the text', (_label, text) => {
+    expect(body({ ...requestParams, prompts: [{ text, topicId: 'top_example' }] })).toMatchObject({
+      prompts: [{ text, topicId: 'top_example' }],
+    })
+  })
+
+  it.each([
+    ['mixed Unicode and ASCII', `${'😀'.repeat(251)}${'a'.repeat(250)}`],
+    ['ASCII', 'a'.repeat(501)],
+    ['surrogate pairs', '😀'.repeat(501)],
+  ])('rejects 501 code points containing %s', (_label, text) => {
+    expect(() => body({ ...requestParams, prompts: [{ text, topicId: 'top_example' }] })).toThrow(
+      'Each prompt must have text (1 to 500 characters) and a topicId'
+    )
+  })
+
   it('selects prompt text and preserves control fields when rebuilding projected JSON', () => {
     const original = JSON.stringify(prompts)
     expect(select({ ...requestParams, prompts: original })).toEqual({
