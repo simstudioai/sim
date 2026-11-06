@@ -8,10 +8,10 @@
  */
 
 import { act } from 'react'
-import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
-import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import type { SearchSourceRow } from '@/platform/app/(shell)/_components/search/model'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 
@@ -21,12 +21,6 @@ const mocks = vi.hoisted(() => ({
   search: { isFetching: false },
 }))
 
-vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/lib/auth/client', () => authClientMock)
-vi.mock('@tanstack/react-query', () => ({
-  useIsFetching: () => 0,
-  useQueryClient: () => ({ invalidateQueries: vi.fn(), cancelQueries: vi.fn() }),
-}))
 vi.mock('nuqs', () => ({
   useQueryStates: () => [
     mocks.params,
@@ -71,6 +65,12 @@ vi.mock('@/hooks/queries/search-history', () => ({
 
 import { useSearchSurface } from '@/platform/lib/data/search'
 
+const SESSION = {
+  data: { user: { id: 'viewer' } },
+  isPending: false,
+  error: null,
+  refetch: async () => {},
+} as SessionHookResult
 const mounted: Root[] = []
 
 function renderHook<P, T>(useHook: (props: P) => T, initialProps: P) {
@@ -81,7 +81,17 @@ function renderHook<P, T>(useHook: (props: P) => T, initialProps: P) {
     result.current = useHook(props)
     return null
   }
-  const rerender = (props: P = initialProps) => act(() => root.render(<Probe props={props} />))
+  const client = new QueryClient()
+  const rerender = (props: P = initialProps) =>
+    act(() =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <SessionContext.Provider value={SESSION}>
+            <Probe props={props} />
+          </SessionContext.Provider>
+        </QueryClientProvider>
+      )
+    )
   rerender(initialProps)
   return { result, rerender }
 }
@@ -97,7 +107,6 @@ afterEach(() => {
 })
 
 beforeEach(() => {
-  authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'viewer' } } })
   mocks.organization.mothershipAvailable = true
   mocks.search.isFetching = false
   mocks.params = {

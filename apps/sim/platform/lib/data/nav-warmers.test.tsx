@@ -6,12 +6,8 @@
  * under a key the page does not look at.
  */
 import { act } from 'react'
-import {
-  apiClientRequestMock,
-  apiClientRequestMockFns,
-} from '@sim/testing/mocks/api-client-request.mock'
-import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
@@ -29,14 +25,21 @@ const { surface } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/platform/lib/data/organization', () => ({ useOrganization: () => surface }))
-vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 
 const mounted: Root[] = []
+const router = {
+  back: vi.fn(),
+  forward: vi.fn(),
+  refresh: vi.fn(),
+  push: vi.fn(),
+  replace: vi.fn(),
+  prefetch: vi.fn(),
+}
 let queryClient: QueryClient
+let reads: unknown[]
 
 function renderWarmers() {
   const root = createRoot(document.createElement('div'))
@@ -48,20 +51,18 @@ function renderWarmers() {
   }
   act(() =>
     root.render(
-      <QueryClientProvider client={queryClient}>
-        <Probe />
-      </QueryClientProvider>
+      <AppRouterContext.Provider value={router}>
+        <QueryClientProvider client={queryClient}>
+          <Probe />
+        </QueryClientProvider>
+      </AppRouterContext.Provider>
     )
   )
   if (!warmers) throw new Error('The probe did not render')
   return warmers
 }
 
-const cachedKeys = () =>
-  queryClient
-    .getQueryCache()
-    .getAll()
-    .map(({ queryKey }) => JSON.stringify(queryKey))
+const readKeys = () => reads.map((key) => JSON.stringify(key))
 
 async function settleDwell() {
   await act(() => vi.advanceTimersByTimeAsync(100))
@@ -70,12 +71,12 @@ async function settleDwell() {
 beforeEach(() => {
   vi.useFakeTimers()
   queryClient = new QueryClient()
-  apiClientRequestMockFns.mockRequestJson.mockReset()
-  apiClientRequestMockFns.mockRequestJson.mockResolvedValue({
-    data: [],
-    links: [],
-    nextCursor: null,
-  })
+  reads = []
+  const record = async ({ queryKey }: { queryKey: unknown }) => {
+    reads.push(queryKey)
+  }
+  vi.spyOn(queryClient, 'prefetchQuery').mockImplementation(record as never)
+  vi.spyOn(queryClient, 'prefetchInfiniteQuery').mockImplementation(record as never)
   surface.viewer.isAdmin = false
   surface.viewer.canConnectSearchIntegrations = true
   surface.navFlags.simLinks = true
@@ -92,14 +93,14 @@ describe('warming a nav row', () => {
     warmers.schedule('integrations')
     warmers.cancel()
     await settleDwell()
-    expect(apiClientRequestMockFns.mockRequestJson).not.toHaveBeenCalled()
+    expect(reads).toEqual([])
   })
 
   it('reads Integrations under the keys its page reads after a dwell', async () => {
     const warmers = renderWarmers()
     warmers.schedule('integrations')
     await settleDwell()
-    expect(cachedKeys()).toEqual(
+    expect(readKeys()).toEqual(
       expect.arrayContaining([
         JSON.stringify(organizationAccountsKeys.detail('org-1')),
         JSON.stringify(searchIntegrationsQueryOptions('org-1').queryKey),
@@ -115,19 +116,19 @@ describe('warming a nav row', () => {
       warmers.schedule(destination)
       await settleDwell()
     }
-    expect(apiClientRequestMockFns.mockRequestJson).not.toHaveBeenCalled()
+    expect(reads).toEqual([])
   })
 
   it('warms a Settings section’s route and roster, and seats only for an admin', async () => {
     const warmers = renderWarmers()
     warmers.warmSettings('members')
     await settleDwell()
-    expect(nextNavigationMockFns.router.prefetch).toHaveBeenCalledWith('/settings/members')
-    expect(cachedKeys()).toContain(JSON.stringify(organizationKeys.roster('org-1')))
-    expect(cachedKeys()).not.toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
+    expect(router.prefetch).toHaveBeenCalledWith('/settings/members')
+    expect(readKeys()).toContain(JSON.stringify(organizationKeys.roster('org-1')))
+    expect(readKeys()).not.toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
     surface.viewer.isAdmin = true
     renderWarmers().warmSettings('members')
     await settleDwell()
-    expect(cachedKeys()).toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
+    expect(readKeys()).toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
   })
 })
