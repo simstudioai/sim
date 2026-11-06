@@ -1,6 +1,5 @@
 import styles from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list.module.css'
-import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
-import { ActionMenu, ActivityRow } from '@/platform/design-system/components'
+import { ActionMenu, ActivityRow, Icon } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
@@ -32,15 +31,14 @@ export function CredentialList({
           {credentials.map((credential) => (
             <ActivityRow
               key={credential.id}
+              leading={<Icon name='I137' />}
               title={credential.displayName}
               detail={credentialDescription(credential, integrationName)}
               onOpen={() => onOpen(credential)}
-              metadata={
-                <IntegrationUsage
-                  people={credential.members.filter((member) => member.status === 'active')}
-                  label='People with access'
-                />
-              }
+              people={{
+                people: credential.members.filter((member) => member.status === 'active'),
+                label: 'People with access',
+              }}
               trailing={
                 credential.role === 'admin' && credential.scope.kind !== 'organization-managed' ? (
                   <ActionMenu

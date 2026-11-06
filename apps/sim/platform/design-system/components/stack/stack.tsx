@@ -15,7 +15,7 @@ const compactCount = new Intl.NumberFormat('en-US', {
 
 /** A compact visual roster; the remaining count is text, not another interaction. */
 export function Stack({ items, total = items.length, label }: StackProps) {
-  const visible = items.slice(0, 2)
+  const visible = items.slice(0, 3)
   const remaining = Math.max(0, total - visible.length)
   if (!visible.length && !remaining) return null
   return (
@@ -26,7 +26,11 @@ export function Stack({ items, total = items.length, label }: StackProps) {
         </span>
       ))}
       {remaining > 0 && (
-        <span className={styles.count} data-type='T052' aria-label={`${remaining} others`}>
+        <span
+          className={styles.count}
+          data-type='T052'
+          aria-label={`${remaining} ${remaining === 1 ? 'other' : 'others'}`}
+        >
           +{compactCount.format(remaining).replace(/K$/, 'k')}
         </span>
       )}

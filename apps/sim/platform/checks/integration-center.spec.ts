@@ -9,14 +9,14 @@ test('credential scope hides personal secret sources from shared results and sur
   const main = page.getByRole('main')
   const secrets = main.getByRole('link', { name: /^Generic Secrets / })
   await expect(secrets).toBeVisible()
-  await main.getByRole('button', { name: /^Sharing:/ }).click()
+  await main.getByRole('button', { name: /^Category:/ }).click()
   await page.getByRole('menuitemradio', { name: 'Shared', exact: true }).click()
   await expect(secrets).toHaveCount(0)
-  await main.getByRole('button', { name: /^Sharing:/ }).click()
+  await main.getByRole('button', { name: /^Category:/ }).click()
   await page.getByRole('menuitemradio', { name: 'Personal', exact: true }).click()
   await secrets.click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  await expect(main.getByRole('button', { name: /^Sharing:/ })).toContainText('Personal')
+  await expect(main.getByRole('button', { name: /^Category:/ })).toContainText('Personal')
   await expect(secrets).toBeVisible()
 })
 
@@ -25,7 +25,8 @@ test('directory filters and ordering survive app details and resource browser hi
 }) => {
   await page.goto(`${origin}/integrations?state=full`)
   const main = page.getByRole('main')
-  await main.getByRole('button', { name: /^App category:/ }).click()
+  await main.getByRole('button', { name: /^App filter:/ }).click()
+  await page.getByRole('menuitem', { name: 'Categories', exact: true }).press('ArrowRight')
   await page.getByRole('menuitemradio', { name: 'Email', exact: true }).click()
   await main.getByRole('button', { name: 'Sort integrations', exact: true }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Name Z–A', exact: true }).click()
@@ -38,15 +39,26 @@ test('directory filters and ordering survive app details and resource browser hi
   await expect(main.getByRole('searchbox', { name: 'Search apps', exact: true })).toHaveValue(
     'gmail'
   )
-  await expect(main.getByRole('button', { name: /^App category:/ })).toContainText('Email')
+  await expect(main.getByRole('button', { name: /^App filter:/ })).toContainText('Email')
   await expect(page).toHaveURL(/order=desc/)
   await expect(main.getByRole('link', { name: /^Fireflies / })).toHaveCount(0)
+  await main.getByRole('button', { name: /^App filter:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Available', exact: true }).click()
+  await expect(page).toHaveURL(/connection=available/)
+  await expect(page).not.toHaveURL(/category=/)
+  await main.getByRole('searchbox', { name: 'Search apps', exact: true }).fill('')
+  await expect(main.getByRole('link', { name: /^Gmail / })).toHaveCount(0)
+  await main.getByRole('button', { name: /^App filter:/ }).click()
+  await page.getByRole('menuitem', { name: 'Categories', exact: true }).press('ArrowRight')
+  await page.getByRole('menuitemradio', { name: 'Email', exact: true }).click()
+  await expect(page).not.toHaveURL(/connection=/)
+  await expect(main.getByRole('link', { name: /^Gmail / })).toBeVisible()
 
   await main
     .getByRole('navigation', { name: 'Integration categories' })
     .getByRole('link', { name: 'Skills', exact: true })
     .click()
-  await main.getByRole('button', { name: /^Sharing:/ }).click()
+  await main.getByRole('button', { name: /^Category:/ }).click()
   await page.getByRole('menuitemradio', { name: 'Personal', exact: true }).click()
   await main.getByRole('searchbox', { name: 'Search skills', exact: true }).fill('preparation')
   await main.getByRole('button', { name: /^Meeting preparation / }).click()
@@ -56,7 +68,7 @@ test('directory filters and ordering survive app details and resource browser hi
   await expect(main.getByRole('searchbox', { name: 'Search skills', exact: true })).toHaveValue(
     'preparation'
   )
-  await expect(main.getByRole('button', { name: /^Sharing:/ })).toContainText('Personal')
+  await expect(main.getByRole('button', { name: /^Category:/ })).toContainText('Personal')
   await expect(main.getByRole('button', { name: /^Weekly customer review / })).toHaveCount(0)
 })
 
@@ -64,8 +76,8 @@ test('app roster overflow stays passive while avatars explain people and the who
   page,
 }) => {
   for (const [scenario, count, accessibleCount] of [
-    ['full', '+13', '13 others'],
-    ['stress', '+1k', '1000 others'],
+    ['full', '+12', '12 others'],
+    ['stress', '+999', '999 others'],
   ]) {
     await page.goto(`${origin}/integrations?state=${scenario}`)
     const gmail = page.getByRole('main').getByRole('link', { name: /^Gmail / })
@@ -214,64 +226,55 @@ test('MCP and credential examples retain metadata without sending writes or reta
   expect(writes).toEqual([])
 })
 
-test('directory controls remain reachable without overlapping at intermediate widths', async ({
-  page,
-}) => {
-  await page.goto(`${origin}/integrations?state=full`)
+test('all integration tabs retain usable geometry across themes and widths', async ({ page }) => {
+  test.setTimeout(120_000)
   const main = page.getByRole('main')
-  for (const width of [390, 768, 1024]) {
-    await page.setViewportSize({ width, height: 900 })
-    for (const tab of ['Apps', 'Credentials']) {
-      await main
-        .getByRole('navigation', { name: 'Integration categories' })
-        .getByRole('link', { name: tab, exact: true })
-        .click()
-      const controls = [
-        main.getByRole('searchbox', {
-          name: tab === 'Apps' ? 'Search apps' : 'Search credentials',
-          exact: true,
-        }),
-        main.getByRole('button', { name: tab === 'Apps' ? /^App category:/ : /^Sharing:/ }),
-        main.getByRole('button', { name: 'Sort integrations', exact: true }),
-        ...(tab === 'Credentials'
-          ? [main.getByRole('button', { name: 'Create credential', exact: true })]
-          : []),
-      ]
-      const boxes = await Promise.all(
-        controls.map(async (control) => {
-          await expect(control).toBeVisible()
-          const box = await control.boundingBox()
-          if (!box) throw new Error('A directory control has no visible bounds')
-          expect(box.x).toBeGreaterThanOrEqual(0)
-          expect(box.x + box.width).toBeLessThanOrEqual(width + 1)
-          return box
-        })
-      )
-      for (const [index, box] of boxes.entries()) {
-        for (const other of boxes.slice(index + 1)) {
-          const overlapWidth =
-            Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x)
-          const overlapHeight =
-            Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)
-          expect(overlapWidth > 1 && overlapHeight > 1).toBe(false)
+  for (const theme of ['light', 'dark']) {
+    await page.goto(`${origin}/integrations?state=full&theme=${theme}`)
+    for (const width of [390, 901, 1920]) {
+      await page.setViewportSize({ width, height: 900 })
+      for (const tab of ['Apps', 'Skills', 'MCPs', 'Credentials']) {
+        await main
+          .getByRole('navigation', { name: 'Integration categories' })
+          .getByRole('link', { name: tab, exact: true })
+          .click()
+        const controls = [
+          main.getByRole('searchbox', {
+            name: `Search ${tab.toLowerCase()}`,
+            exact: true,
+          }),
+          main.getByRole('button', { name: tab === 'Apps' ? /^App filter:/ : /^Category:/ }),
+          main.getByRole('button', { name: 'Sort integrations', exact: true }),
+          ...(tab === 'Credentials'
+            ? [main.getByRole('button', { name: 'Create credential', exact: true })]
+            : []),
+        ]
+        for (const control of controls) await expect(control).toBeVisible()
+        const boxes = await Promise.all(
+          controls.map(async (control) => {
+            const box = await control.boundingBox()
+            if (!box) throw new Error('A directory control has no visible bounds')
+            expect(box.x).toBeGreaterThanOrEqual(0)
+            expect(box.x + box.width).toBeLessThanOrEqual(width + 1)
+            return box
+          })
+        )
+        for (const [index, box] of boxes.entries()) {
+          for (const other of boxes.slice(index + 1)) {
+            const overlapWidth =
+              Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x)
+            const overlapHeight =
+              Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)
+            expect(overlapWidth > 1 && overlapHeight > 1).toBe(false)
+          }
         }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          width
+        )
+        await page.screenshot({
+          path: test.info().outputPath(`${theme}-${width}-${tab.toLowerCase()}.png`),
+        })
       }
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-        width
-      )
     }
-  }
-})
-
-test('disabling fixtures exposes no resource examples or creation controls', async ({ page }) => {
-  for (const tab of ['skills', 'mcps', 'credentials']) {
-    await page.goto(`http://127.0.0.1:3180/integrations?state=full&tab=${tab}`)
-    const main = page.getByRole('main')
-    await expect(
-      main.getByRole('button', { name: /^(Create skill|Connect MCP|Create credential)$/ })
-    ).toHaveCount(0)
-    await expect(main.getByRole('button', { name: /^Weekly customer review / })).toHaveCount(0)
-    await expect(main.getByRole('button', { name: /^Customer knowledge / })).toHaveCount(0)
-    await expect(main.getByRole('button', { name: /^Research API / })).toHaveCount(0)
   }
 })

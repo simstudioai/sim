@@ -11,7 +11,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-8) var(--spacing-16);
-  padding-inline: var(--ui-page-inline-gutter);
 }
 
 .search {
@@ -176,7 +175,7 @@ button.cardBody {
   align-items: center;
   min-block-size: var(--spacing-app-control-md);
   gap: var(--spacing-8);
-  padding: var(--spacing-8) var(--ui-page-inline-gutter) var(--spacing-16);
+  padding-block: var(--spacing-8) var(--spacing-16);
 }
 
 .pager {
@@ -214,16 +213,12 @@ button.cardBody {
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-border);
 }
 
-.inset {
-  padding-inline: var(--ui-page-inline-gutter);
-}
-
 .firstUse {
   display: flex;
   flex: 1;
   flex-direction: column;
   align-items: center;
-  padding: calc(var(--spacing-96) - var(--spacing-20)) var(--ui-page-inline-gutter);
+  padding-block: calc(var(--spacing-96) - var(--spacing-20));
   gap: var(--spacing-24);
   text-align: center;
 }

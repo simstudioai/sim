@@ -164,6 +164,7 @@ function TriggeredMenu({
         <Button
           render={<Menu.Trigger ref={trigger} />}
           variant='quiet'
+          size={triggerSize === 'compact' ? 'compact' : 'regular'}
           disabled={!actions.length && !search}
         >
           {label}
@@ -327,7 +328,7 @@ interface SubmenuItemProps {
   children: ReactNode
 }
 
-function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
+export function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
   const { trigger, container } = usePopoverContainer()
   return (
     <Menu.SubmenuRoot>

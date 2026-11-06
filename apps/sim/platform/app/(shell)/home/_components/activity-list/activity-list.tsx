@@ -43,7 +43,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
               count={mail.count}
               detailLead={mail.subject}
               detail={mail.excerpt}
-              metadata={relativeTime(mail.receivedAt, asOf)}
+              textMetadata={relativeTime(mail.receivedAt, asOf)}
               onOpen={() => onOpen(mail)}
             />
           ))}
@@ -69,7 +69,7 @@ function AttentionRow({
       leading={leading}
       title={row.title}
       detail={row.detail}
-      metadata={metadata}
+      textMetadata={metadata}
       onOpen={row.onOpen}
     />
   ) : (
@@ -77,7 +77,7 @@ function AttentionRow({
       leading={leading}
       title={row.title}
       detail={row.detail}
-      metadata={metadata}
+      textMetadata={metadata}
       href={platformHref(row.href ?? '/home', search)}
     />
   )

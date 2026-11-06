@@ -7,7 +7,13 @@ import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/pe
 import styles from '@/platform/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/app/(shell)/people/_components/person/person-modal'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
-import { Avatar, Button, FailureNotice, Icon } from '@/platform/design-system/components'
+import {
+  Avatar,
+  Button,
+  FailureNotice,
+  Icon,
+  PageColumn,
+} from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { publicAssetPath } from '@/platform/design-system/navigation'
 import {
@@ -141,120 +147,122 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
   const canEdit = isAdmin && Boolean(data) && !data?.person.directorySource
   const unavailable = isRefusal(profile.error)
   return (
-    <main className={styles.page}>
-      <div className={styles.nav}>
-        {!unavailable && (
-          <div className={styles.back}>
-            <Button variant='quiet' icon='I093' render={<Link href={profile.backHref} />}>
-              {profile.originView === 'chart' ? 'Back to org chart' : 'Back to directory'}
-            </Button>
-          </div>
-        )}
-        {data && (
-          <Button
-            icon={copied ? 'I072' : 'I006'}
-            onClick={() =>
-              void copy(
-                `${window.location.origin}${publicAssetPath(personHref(peoplePath, memberId))}`
-              )
-            }
-          >
-            {copied ? 'Copied' : 'Copy profile link'}
-          </Button>
-        )}
-      </div>
-      {profile.error ? (
-        unavailable ? (
-          <ProfileUnavailable
-            action={
-              <Button render={<Link href={profile.directoryHref} />}>Back to directory</Button>
-            }
-          />
-        ) : (
-          <FailureNotice
-            title='Could not load this person'
-            message={profile.error.message}
-            retrying={profile.retrying}
-            onRetry={profile.retry}
-          />
-        )
-      ) : !data ? (
-        <PeopleStatus>Loading profile…</PeopleStatus>
-      ) : (
-        <>
-          <header className={styles.heading}>
-            <div className={styles.identity}>
-              <Avatar name={data.person.name} src={data.person.image ?? undefined} size='hero' />
-              <div className={styles.titles}>
-                <h1 data-type='T102'>{data.person.name}</h1>
-                {data.person.title && (
-                  <p className={styles.secondary} data-type='T106'>
-                    {data.person.title}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className={styles.actions}>
-              <Button icon='I133' render={<Link href={profile.chartHref} />}>
-                View in org chart
+    <PageColumn>
+      <main className={styles.page}>
+        <div className={styles.nav}>
+          {!unavailable && (
+            <div className={styles.back}>
+              <Button variant='quiet' icon='I093' render={<Link href={profile.backHref} />}>
+                {profile.originView === 'chart' ? 'Back to org chart' : 'Back to directory'}
               </Button>
-              {canEdit && <Button onClick={() => setEditing(true)}>Edit</Button>}
             </div>
-          </header>
-          <div className={styles.columns}>
-            <About person={data.person} departmentHref={profile.departmentHref} />
-            <div className={styles.lines}>
-              <section className={styles.lineSection} aria-labelledby='person-manager'>
-                <h2 id='person-manager' data-type='T081'>
-                  Reports to
-                </h2>
-                {data.chain.length > 0 ? (
-                  <PersonRows originQuery={profile.originQuery} people={data.chain.slice(0, 1)} />
-                ) : (
-                  <p className={styles.secondary} data-type='T043'>
-                    {data.person.managerMemberId
-                      ? 'Their manager is suspended.'
-                      : 'No manager listed. This person is still part of your organization, and their reporting line will appear when it is provided.'}
-                  </p>
-                )}
-              </section>
-              <section className={styles.lineSection} aria-labelledby='person-reports'>
-                <div className={styles.lineHeading}>
-                  <h2 id='person-reports' data-type='T081'>
-                    Direct reports
-                  </h2>
-                  {data.totalReports > 0 && (
-                    <span className={styles.secondary} data-type='T050'>
-                      {data.totalReports === 1 ? '1 person' : `${data.totalReports} people`}
-                    </span>
+          )}
+          {data && (
+            <Button
+              icon={copied ? 'I072' : 'I006'}
+              onClick={() =>
+                void copy(
+                  `${window.location.origin}${publicAssetPath(personHref(peoplePath, memberId))}`
+                )
+              }
+            >
+              {copied ? 'Copied' : 'Copy profile link'}
+            </Button>
+          )}
+        </div>
+        {profile.error ? (
+          unavailable ? (
+            <ProfileUnavailable
+              action={
+                <Button render={<Link href={profile.directoryHref} />}>Back to directory</Button>
+              }
+            />
+          ) : (
+            <FailureNotice
+              title='Could not load this person'
+              message={profile.error.message}
+              retrying={profile.retrying}
+              onRetry={profile.retry}
+            />
+          )
+        ) : !data ? (
+          <PeopleStatus>Loading profile…</PeopleStatus>
+        ) : (
+          <>
+            <header className={styles.heading}>
+              <div className={styles.identity}>
+                <Avatar name={data.person.name} src={data.person.image ?? undefined} size='hero' />
+                <div className={styles.titles}>
+                  <h1 data-type='T102'>{data.person.name}</h1>
+                  {data.person.title && (
+                    <p className={styles.secondary} data-type='T106'>
+                      {data.person.title}
+                    </p>
                   )}
                 </div>
-                {data.reports.length > 0 ? (
-                  <PersonRows originQuery={profile.originQuery} people={data.reports} />
-                ) : (
-                  <p className={styles.secondary} data-type='T043'>
-                    No one reports to this person.
-                  </p>
-                )}
-                {data.totalReports > data.reports.length && (
-                  <div>
-                    <Button render={<Link href={profile.chartHref} />}>
-                      {`Browse all ${data.totalReports} reports`}
-                    </Button>
+              </div>
+              <div className={styles.actions}>
+                <Button icon='I133' render={<Link href={profile.chartHref} />}>
+                  View in org chart
+                </Button>
+                {canEdit && <Button onClick={() => setEditing(true)}>Edit</Button>}
+              </div>
+            </header>
+            <div className={styles.columns}>
+              <About person={data.person} departmentHref={profile.departmentHref} />
+              <div className={styles.lines}>
+                <section className={styles.lineSection} aria-labelledby='person-manager'>
+                  <h2 id='person-manager' data-type='T081'>
+                    Reports to
+                  </h2>
+                  {data.chain.length > 0 ? (
+                    <PersonRows originQuery={profile.originQuery} people={data.chain.slice(0, 1)} />
+                  ) : (
+                    <p className={styles.secondary} data-type='T043'>
+                      {data.person.managerMemberId
+                        ? 'Their manager is suspended.'
+                        : 'No manager listed. This person is still part of your organization, and their reporting line will appear when it is provided.'}
+                    </p>
+                  )}
+                </section>
+                <section className={styles.lineSection} aria-labelledby='person-reports'>
+                  <div className={styles.lineHeading}>
+                    <h2 id='person-reports' data-type='T081'>
+                      Direct reports
+                    </h2>
+                    {data.totalReports > 0 && (
+                      <span className={styles.secondary} data-type='T050'>
+                        {data.totalReports === 1 ? '1 person' : `${data.totalReports} people`}
+                      </span>
+                    )}
                   </div>
-                )}
-              </section>
+                  {data.reports.length > 0 ? (
+                    <PersonRows originQuery={profile.originQuery} people={data.reports} />
+                  ) : (
+                    <p className={styles.secondary} data-type='T043'>
+                      No one reports to this person.
+                    </p>
+                  )}
+                  {data.totalReports > data.reports.length && (
+                    <div>
+                      <Button render={<Link href={profile.chartHref} />}>
+                        {`Browse all ${data.totalReports} reports`}
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              </div>
             </div>
-          </div>
-          {editing && canEdit && (
-            <PersonModal
-              organizationId={organizationId}
-              person={data.person}
-              onClose={() => setEditing(false)}
-            />
-          )}
-        </>
-      )}
-    </main>
+            {editing && canEdit && (
+              <PersonModal
+                organizationId={organizationId}
+                person={data.person}
+                onClose={() => setEditing(false)}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </PageColumn>
   )
 }

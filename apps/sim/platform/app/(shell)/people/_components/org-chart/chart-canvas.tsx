@@ -16,7 +16,13 @@ import {
 } from '@xyflow/react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
-import { Avatar, Icon, IconButton, OverflowText } from '@/platform/design-system/components'
+import {
+  Avatar,
+  Icon,
+  IconButton,
+  OverflowText,
+  PageColumn,
+} from '@/platform/design-system/components'
 import {
   type ChartBranch,
   type PersonSummary,
@@ -291,10 +297,12 @@ export function ChartCanvas({ branch, profileQuery, compact, onFocus, pager }: C
           />
         </div>
       </div>
-      <div className={styles.footer}>
-        {pager}
-        <ChartControls compact={compact} />
-      </div>
+      <PageColumn>
+        <div className={styles.footer}>
+          {pager}
+          <ChartControls compact={compact} />
+        </div>
+      </PageColumn>
     </ReactFlowProvider>
   )
 }

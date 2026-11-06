@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
+import fieldStyles from '@/platform/design-system/components/field/field.shared.module.css'
 import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
@@ -143,7 +144,7 @@ export function RecipientField({
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint}>
       <div
-        className={styles.recipients}
+        className={`${fieldStyles.inputFrame} ${fieldStyles.textareaFrame} ${styles.recipients}`}
         data-invalid={error ? true : undefined}
         data-disabled={disabled || undefined}
         role='presentation'

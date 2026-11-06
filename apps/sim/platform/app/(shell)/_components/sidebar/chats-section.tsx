@@ -266,6 +266,7 @@ export function ChatsSection({
           }}
         >
           <TextField
+            placeholder='Chat name'
             label='Chat name'
             name='title'
             required

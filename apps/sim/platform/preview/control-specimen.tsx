@@ -123,7 +123,13 @@ function FeedbackFields({ notes }: { notes?: string }) {
         <SegmentedControl label='Response quality' options={ratings} defaultValue='bad' />
       </FieldFrame>
       <FieldFrame id={id} label='Details' optional>
-        <TextArea id={id} label='Details' defaultValue={notes} density='expanded' />
+        <TextArea
+          placeholder='Add details'
+          id={id}
+          label='Details'
+          defaultValue={notes}
+          density='expanded'
+        />
       </FieldFrame>
     </>
   )
@@ -392,7 +398,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'OverflowText':
       return <OverflowText text={value || label} />
     case 'Input':
-      return <Input label={label} defaultValue={value} />
+      return <Input placeholder={label} label={label} defaultValue={value} />
     case 'Select':
       return family.startsWith('Select/Theme') ? (
         <Select
@@ -407,17 +413,18 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'TextArea':
       return (
         <TextArea
+          placeholder={label}
           label={label}
           density={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
           defaultValue={sample?.notes}
         />
       )
     case 'TextField':
-      return <TextField label={label} defaultValue={value} />
+      return <TextField placeholder={label} label={label} defaultValue={value} />
     case 'SelectField':
       return <SelectField label={label} options={options} defaultValue={value} />
     case 'TextAreaField':
-      return <TextAreaField label={label} defaultValue={sample?.notes} />
+      return <TextAreaField placeholder={label} label={label} defaultValue={sample?.notes} />
     case 'MenuSearchField':
       return <MenuSearchField label='Search' />
     case 'SearchField':
@@ -602,7 +609,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         )
       return (
         <Modal variant='form' triggerLabel='Open dialog' title='Workspace' confirmLabel='Save'>
-          <TextField label='Name' defaultValue={value} />
+          <TextField placeholder='Name' label='Name' defaultValue={value} />
         </Modal>
       )
     }
@@ -613,7 +620,15 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           title='Create workspace'
           confirmLabel='Create'
           steps={[
-            { content: <TextField label='Workspace name' defaultValue={value} /> },
+            {
+              content: (
+                <TextField
+                  placeholder='Workspace name'
+                  label='Workspace name'
+                  defaultValue={value}
+                />
+              ),
+            },
             { content: <LogoUploadField label='Logo' optional /> },
             {
               content: (

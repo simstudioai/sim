@@ -86,9 +86,20 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
       }}
       onConfirm={save}
     >
-      <TextField label='Name' name='name' defaultValue={resource?.name} required maxLength={120} />
+      {kind === 'credential' && resource && (
+        <TextField label='Credential ID' placeholder='Credential ID' value={resource.id} viewOnly />
+      )}
+      <TextField
+        label='Name'
+        placeholder={`${TITLES[kind]} name`}
+        name='name'
+        defaultValue={resource?.name}
+        required
+        maxLength={120}
+      />
       <TextAreaField
         label='Description'
+        placeholder='Describe what this is for'
         name='description'
         defaultValue={resource?.description}
         maxLength={500}
@@ -96,6 +107,7 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
       {kind === 'skill' && (
         <TextAreaField
           label='Instructions'
+          placeholder='Describe what this skill should do'
           name='instructions'
           defaultValue={resource?.kind === 'skill' ? resource.instructions : ''}
           required
@@ -127,6 +139,7 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
           {auth === 'bearer' && (
             <SecretField
               label='Token'
+              placeholder='Paste a bearer token'
               name='token'
               optional={Boolean(resource)}
               required={!resource}
@@ -156,6 +169,7 @@ export function ResourceEditor({ kind, resource, data, onSave, onClose }: Resour
           />
           <SecretField
             label={resource ? 'Replace value' : 'Value'}
+            placeholder='Paste the secret value'
             name='value'
             optional={Boolean(resource)}
             required={!resource}

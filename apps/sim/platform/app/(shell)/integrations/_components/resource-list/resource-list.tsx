@@ -1,5 +1,4 @@
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
 import { ActionMenu, ActivityRow, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
@@ -40,14 +39,14 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
       leading={<IntegrationMark providerId={app.providerId ?? app.id} icon={app.icon} />}
       title={app.name}
       detail={app.description}
-      metadata={
-        app.people?.length || app.peopleTotal ? (
-          <IntegrationUsage
-            people={app.people ?? []}
-            total={app.peopleTotal}
-            label={app.scope ? 'People with access' : undefined}
-          />
-        ) : undefined
+      people={
+        app.people?.length || app.peopleTotal
+          ? {
+              people: app.people ?? [],
+              total: app.peopleTotal,
+              label: app.scope ? 'People with access' : 'Used by',
+            }
+          : undefined
       }
     />
   )
@@ -93,33 +92,33 @@ export function ResourceGroup({
               }
               title={resource.name}
               detail={resource.description}
-              showChevron={false}
               onOpen={() => onOpen(resource)}
-              metadata={
-                resource.scope === 'shared' ? (
-                  <IntegrationUsage people={resource.people} label='Shared with' />
-                ) : undefined
+              people={
+                resource.scope === 'shared'
+                  ? {
+                      people: resource.people,
+                      label: 'Shared with',
+                    }
+                  : undefined
               }
               trailing={
-                <>
-                  {resource.canEdit && (
-                    <ActionMenu
-                      label={`Manage ${resource.name}`}
-                      icon='I108'
-                      actions={[
-                        { id: 'edit', label: 'Edit', onSelect: () => onOpen(resource) },
-                        { id: 'share', label: 'Manage access', onSelect: () => onOpen(resource) },
-                        {
-                          id: 'delete',
-                          label: 'Delete',
-                          destructive: true,
-                          separatorBefore: true,
-                          onSelect: () => onDelete(resource),
-                        },
-                      ]}
-                    />
-                  )}
-                </>
+                resource.canEdit ? (
+                  <ActionMenu
+                    label={`Manage ${resource.name}`}
+                    icon='I108'
+                    actions={[
+                      { id: 'edit', label: 'Edit', onSelect: () => onOpen(resource) },
+                      { id: 'share', label: 'Manage access', onSelect: () => onOpen(resource) },
+                      {
+                        id: 'delete',
+                        label: 'Delete',
+                        destructive: true,
+                        separatorBefore: true,
+                        onSelect: () => onDelete(resource),
+                      },
+                    ]}
+                  />
+                ) : undefined
               }
             />
           ) : (

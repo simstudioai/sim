@@ -14,6 +14,7 @@ import {
   FailureNotice,
   InlineNotice,
   Modal,
+  PageColumn,
   StatusTag,
 } from '@/platform/design-system/components'
 import {
@@ -203,101 +204,104 @@ export function DirectorySyncPage({
   const [disconnecting, setDisconnecting] = useState(false)
   const syncing = sync?.state === 'syncing' || directory.pending
   return (
-    <main className={styles.page}>
-      <div className={styles.back}>
-        <Button variant='quiet' icon='I093' onClick={onBack}>
-          Back to people
-        </Button>
-      </div>
-      <header className={styles.heading}>
-        <h1 data-type='T076'>Directory sync</h1>
-        <p className={styles.secondary} data-type='T043'>
-          Keep people, roles, and reporting lines up to date from your identity provider.
-        </p>
-      </header>
-      {directory.loading ? (
-        <PeopleStatus>Loading directory connection…</PeopleStatus>
-      ) : directory.loadError ? (
-        <FailureNotice
-          message={directory.loadError.message}
-          retrying={directory.fetching}
-          onRetry={directory.retry}
-        />
-      ) : sync ? (
-        <div className={styles.columns}>
-          <div className={styles.main}>
-            <SyncCard
-              sync={sync}
-              syncing={syncing}
-              running={directory.running}
-              onUpdate={() => {
-                directory.reset()
-                onConnect(sync.source)
-              }}
-              onRun={directory.run}
-            />
-            {directory.actionError && !disconnecting && (
-              <InlineNotice intent='danger' message={directory.actionError.message} />
-            )}
-            <section className={styles.disconnect} aria-labelledby='directory-disconnect'>
-              <h2 id='directory-disconnect' data-type='T042'>
-                Disconnect directory
-              </h2>
-              <p className={styles.secondary} data-type='T043'>
-                Remove synced profiles and reporting lines. Existing Sim memberships stay unchanged.
-              </p>
-              <div>
-                <Button
-                  variant='destructive'
-                  disabled={directory.pending}
-                  onClick={() => {
-                    directory.reset()
-                    setDisconnecting(true)
-                  }}
-                >
-                  {`Disconnect ${SYNC_SOURCE_NAMES[sync.source]}`}
-                </Button>
+    <PageColumn>
+      <main className={styles.page}>
+        <div className={styles.back}>
+          <Button variant='quiet' icon='I093' onClick={onBack}>
+            Back to people
+          </Button>
+        </div>
+        <header className={styles.heading}>
+          <h1 data-type='T076'>Directory sync</h1>
+          <p className={styles.secondary} data-type='T043'>
+            Keep people, roles, and reporting lines up to date from your identity provider.
+          </p>
+        </header>
+        {directory.loading ? (
+          <PeopleStatus>Loading directory connection…</PeopleStatus>
+        ) : directory.loadError ? (
+          <FailureNotice
+            message={directory.loadError.message}
+            retrying={directory.fetching}
+            onRetry={directory.retry}
+          />
+        ) : sync ? (
+          <div className={styles.columns}>
+            <div className={styles.main}>
+              <SyncCard
+                sync={sync}
+                syncing={syncing}
+                running={directory.running}
+                onUpdate={() => {
+                  directory.reset()
+                  onConnect(sync.source)
+                }}
+                onRun={directory.run}
+              />
+              {directory.actionError && !disconnecting && (
+                <InlineNotice intent='danger' message={directory.actionError.message} />
+              )}
+              <section className={styles.disconnect} aria-labelledby='directory-disconnect'>
+                <h2 id='directory-disconnect' data-type='T042'>
+                  Disconnect directory
+                </h2>
+                <p className={styles.secondary} data-type='T043'>
+                  Remove synced profiles and reporting lines. Existing Sim memberships stay
+                  unchanged.
+                </p>
+                <div>
+                  <Button
+                    variant='destructive'
+                    disabled={directory.pending}
+                    onClick={() => {
+                      directory.reset()
+                      setDisconnecting(true)
+                    }}
+                  >
+                    {`Disconnect ${SYNC_SOURCE_NAMES[sync.source]}`}
+                  </Button>
+                </div>
+              </section>
+            </div>
+            <aside className={styles.notes}>
+              <div className={styles.note}>
+                <h2 data-type='T042'>One directory for your organization</h2>
+                <p className={styles.secondary} data-type='T043'>
+                  Names, titles, departments, locations, and managers come from{' '}
+                  {SYNC_SOURCE_NAMES[sync.source]}. Update these details at the source.
+                </p>
               </div>
-            </section>
+              <div className={styles.note}>
+                <h2 data-type='T042'>Include everyone</h2>
+                <p className={styles.secondary} data-type='T043'>
+                  People can appear before they have a Sim account. Directory sync does not grant
+                  access or assign a seat.
+                </p>
+              </div>
+            </aside>
+            {disconnecting && (
+              <Modal
+                open
+                onOpenChange={() => setDisconnecting(false)}
+                title='Disconnect directory'
+                confirmLabel='Disconnect'
+                destructive
+                onConfirm={directory.disconnect}
+              >
+                <p data-type='T060'>
+                  Disconnecting removes the profile details and reporting lines supplied by this
+                  directory. Sim keeps organization memberships and manually recorded profiles.
+                </p>
+              </Modal>
+            )}
           </div>
-          <aside className={styles.notes}>
-            <div className={styles.note}>
-              <h2 data-type='T042'>One directory for your organization</h2>
-              <p className={styles.secondary} data-type='T043'>
-                Names, titles, departments, locations, and managers come from{' '}
-                {SYNC_SOURCE_NAMES[sync.source]}. Update these details at the source.
-              </p>
-            </div>
-            <div className={styles.note}>
-              <h2 data-type='T042'>Include everyone</h2>
-              <p className={styles.secondary} data-type='T043'>
-                People can appear before they have a Sim account. Directory sync does not grant
-                access or assign a seat.
-              </p>
-            </div>
-          </aside>
-          {disconnecting && (
-            <Modal
-              open
-              onOpenChange={() => setDisconnecting(false)}
-              title='Disconnect directory'
-              confirmLabel='Disconnect'
-              destructive
-              onConfirm={directory.disconnect}
-            >
-              <p data-type='T060'>
-                Disconnecting removes the profile details and reporting lines supplied by this
-                directory. Sim keeps organization memberships and manually recorded profiles.
-              </p>
-            </Modal>
-          )}
-        </div>
-      ) : (
-        <div className={styles.unconnected}>
-          <DirectorySources canProvision={canProvision} onConnect={onConnect} />
-          <ImportPrompt onImport={onImport} />
-        </div>
-      )}
-    </main>
+        ) : (
+          <div className={styles.unconnected}>
+            <DirectorySources canProvision={canProvision} onConnect={onConnect} />
+            <ImportPrompt onImport={onImport} />
+          </div>
+        )}
+      </main>
+    </PageColumn>
   )
 }

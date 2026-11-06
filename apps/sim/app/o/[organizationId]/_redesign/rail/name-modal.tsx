@@ -40,6 +40,7 @@ export function NameModal({
     >
       <TextField
         label={fieldLabel}
+        placeholder={fieldLabel}
         name='name'
         required
         maxLength={maxLength}

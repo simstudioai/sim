@@ -9,8 +9,7 @@ export interface IntegrationCatalogEntry {
   docsUrl: string
   authType: 'oauth' | 'api-key' | 'none'
   connections: readonly CredentialConnection[]
-  operations: readonly { name: string; description: string }[]
-  triggers: readonly { id: string; name: string; description: string }[]
+  example: string
   skills: readonly { name: string; description: string; content: string }[]
   templates: readonly {
     title: string

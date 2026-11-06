@@ -1,6 +1,6 @@
 [data-platform-ui] {
   --ui-page-max-size: calc(var(--container-app-dashboard) + 2 * var(--spacing-48));
-  --ui-page-inline-gutter: clamp(var(--spacing-16), 4cqi, var(--spacing-48));
+  --ui-page-inline-gutter: clamp(var(--spacing-16), 4%, var(--spacing-48));
   --ui-product-section-gap: var(--spacing-24);
   --ui-widget-max-size: var(--spacing-320);
   --ui-page-inset-block: var(--ui-product-section-gap);

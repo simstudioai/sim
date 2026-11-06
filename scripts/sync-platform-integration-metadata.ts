@@ -259,10 +259,30 @@ const catalogOutput = resolve(root, 'apps/sim/platform/lib/integrations/catalog.
 const catalogByType = new Map(
   catalog.integrations.map((integration) => [integration.type.replace(/_v\d+$/, ''), integration])
 )
+const exampleSentences = new Intl.Segmenter('en', { granularity: 'sentence' })
 const integrationCatalog: IntegrationCatalogEntry[] = catalog.integrations.map((integration) => {
   const { authType } = integration
   if (authType !== 'oauth' && authType !== 'api-key' && authType !== 'none')
     throw new Error(`Unknown catalog authentication method for ${integration.slug}: ${authType}`)
+  const skills = getSuggestedSkillsForBlock(integration.type)
+  const templates = getTemplatesForBlock(integration.type)
+  const featured =
+    templates.find((template) =>
+      template.title.toLowerCase().startsWith(integration.name.toLowerCase())
+    ) ?? templates[0]
+  const example =
+    integration.type.replace(/_v\d+$/, '') === 'fireflies'
+      ? 'Use Fireflies to remember the interests prospects mention on calls. Turn those details into thoughtful gifts and personal follow-ups.'
+      : [
+          featured?.prompt ?? `Explore what you can do with ${integration.name}.`,
+          skills[0]?.description ?? integration.description,
+        ]
+          .map((text) => {
+            const sentence =
+              exampleSentences.segment(text)[Symbol.iterator]().next().value?.segment ?? text
+            return `${sentence.trim().replace(/[.!?]+$/, '')}.`
+          })
+          .join(' ')
   return {
     id: integration.type.replace(/_v\d+$/, ''),
     type: integration.type,
@@ -273,10 +293,9 @@ const integrationCatalog: IntegrationCatalogEntry[] = catalog.integrations.map((
     docsUrl: integration.docsUrl,
     authType,
     connections: integrationConnections({ ...integration, authType }),
-    operations: integration.operations,
-    triggers: integration.triggers,
-    skills: getSuggestedSkillsForBlock(integration.type),
-    templates: getTemplatesForBlock(integration.type).map(({ title, prompt, otherBlockTypes }) => ({
+    example,
+    skills,
+    templates: templates.map(({ title, prompt, otherBlockTypes }) => ({
       title,
       prompt,
       integrations: [integration.type, ...otherBlockTypes].flatMap((type) => {

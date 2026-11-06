@@ -1,8 +1,6 @@
 import type { ComponentType, Ref } from 'react'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
-import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 
 interface ProviderHeadingProps {
   name: string
@@ -10,8 +8,6 @@ interface ProviderHeadingProps {
   providerId?: string
   icon?: ComponentType<{ className?: string }>
   titleRef?: Ref<HTMLHeadingElement>
-  people?: readonly IntegrationPerson[]
-  peopleTotal?: number
 }
 
 export function ProviderHeading({
@@ -20,8 +16,6 @@ export function ProviderHeading({
   providerId,
   icon,
   titleRef,
-  people,
-  peopleTotal,
 }: ProviderHeadingProps) {
   return (
     <DirectoryHeading
@@ -29,8 +23,6 @@ export function ProviderHeading({
       titleRef={titleRef}
       description={description}
       leading={<IntegrationMark providerId={providerId} icon={icon} />}
-    >
-      {people && <IntegrationUsage people={people} total={peopleTotal} expanded />}
-    </DirectoryHeading>
+    />
   )
 }

@@ -6,6 +6,7 @@
 }
 .usage {
   flex-wrap: wrap;
+  padding-inline: var(--ui-row-inset);
   color: var(--ui-secondary);
 }
 .person {

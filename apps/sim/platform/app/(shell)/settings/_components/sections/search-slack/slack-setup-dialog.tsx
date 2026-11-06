@@ -124,19 +124,19 @@ export function SlackSetupDialog({ target, manifest, onClose, onConnect }: Slack
               </Muted>
               <TextField
                 label='Client ID'
-                placeholder={placeholder}
+                placeholder={placeholder ?? 'Slack client ID'}
                 value={clientId}
                 onChange={setClientId}
               />
               <SecretField
                 label='Client Secret'
-                placeholder={placeholder}
+                placeholder={placeholder ?? 'Slack client secret'}
                 value={clientSecret}
                 onChange={setClientSecret}
               />
               <SecretField
                 label='Signing Secret'
-                placeholder={placeholder}
+                placeholder={placeholder ?? 'Slack signing secret'}
                 value={signingSecret}
                 onChange={setSigningSecret}
               />

@@ -1,26 +1,42 @@
 .section,
-.heading,
+.groups,
 .group,
 .items {
   display: grid;
   min-inline-size: 0;
 }
-.section {
+.section,
+.groups {
   gap: var(--ui-section-gap);
-}
-.heading {
-  gap: var(--ui-stack-gap);
 }
 .group {
   gap: var(--ui-row-gap);
 }
+.group h3 {
+  color: var(--ui-secondary);
+}
 .items {
-  gap: var(--ui-list-gap);
-  list-style: disc outside;
-  padding-inline-start: var(--spacing-16);
+  gap: var(--ui-row-gap);
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-row-gap);
   overflow-wrap: anywhere;
 }
-.items li::marker,
-.heading p {
+.item > :first-child {
+  flex: none;
+}
+.viewport {
+  display: grid;
+  min-block-size: 0;
+  max-block-size: var(--ui-widget-max-size);
+}
+
+.copy {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.description {
   color: var(--ui-secondary);
 }

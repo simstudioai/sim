@@ -21,10 +21,10 @@ export function CopyField({ label, value, hint }: CopyFieldProps) {
         id={id}
         label={label}
         value={value}
-        readOnly
+        placeholder={label}
+        viewOnly
         spellCheck={false}
         describedBy={fieldDescription(id, undefined, hint)}
-        trailing={<CopyButton label={`Copy ${label}`} text={value} />}
       />
     </FieldFrame>
   )
@@ -34,7 +34,7 @@ interface SecretFieldProps extends TextValueProps {
   label: string
   defaultValue?: string
   name?: string
-  placeholder?: string
+  placeholder: string
   optional?: boolean
   required?: boolean
   disabled?: boolean

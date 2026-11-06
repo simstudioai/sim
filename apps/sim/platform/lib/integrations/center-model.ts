@@ -42,6 +42,7 @@ export type IntegrationResource = ResourceIdentity &
   )
 
 export interface IntegrationCenterData {
+  organization: { id: string; name: string }
   viewer: IntegrationPerson
   workspaces: readonly { id: string; name: string; memberIds: readonly string[] }[]
   people: IntegrationPerson[]

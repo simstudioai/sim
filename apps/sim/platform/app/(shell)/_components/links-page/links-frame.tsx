@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/_components/links-page/links-page.module.css'
-import { ActionMenu, Button, SearchField } from '@/platform/design-system/components'
+import { ActionMenu, Button, PageColumn, SearchField } from '@/platform/design-system/components'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { openChromeStore, useLinksHosted } from '@/platform/lib/data/links'
 
@@ -31,32 +31,34 @@ export function LinksFrame({
 }: LinksFrameProps) {
   const hosted = useLinksHosted()
   return (
-    <main className={styles.page} inert={loading} aria-busy={loading || undefined}>
-      <header className={styles.heading}>
-        <h1 data-type='T076'>Links</h1>
-        <div className={styles.actions}>
-          {hosted && (
-            <Button icon='I041' onClick={openChromeStore}>
-              Install Sim for Chrome
+    <PageColumn>
+      <main className={styles.page} inert={loading} aria-busy={loading || undefined}>
+        <header className={styles.heading}>
+          <h1 data-type='T076'>Links</h1>
+          <div className={styles.actions}>
+            {hosted && (
+              <Button icon='I041' onClick={openChromeStore}>
+                Install Sim for Chrome
+              </Button>
+            )}
+            <Button variant='primary' icon='I074' onClick={onCreate}>
+              New link
             </Button>
-          )}
-          <Button variant='primary' icon='I074' onClick={onCreate}>
-            New link
-          </Button>
+          </div>
+        </header>
+        <div className={styles.options}>
+          <SearchField
+            variant='quiet'
+            label='Search links'
+            placeholder='Search links...'
+            value={search}
+            onValueChange={onSearch}
+          />
+          <ActionMenu label={sortLabel} icon={null} align='end' actions={sortActions} />
         </div>
-      </header>
-      <div className={styles.options}>
-        <SearchField
-          variant='quiet'
-          label='Search links'
-          placeholder='Search links...'
-          value={search}
-          onValueChange={onSearch}
-        />
-        <ActionMenu label={sortLabel} icon={null} align='end' actions={sortActions} />
-      </div>
-      {children}
-    </main>
+        {children}
+      </main>
+    </PageColumn>
   )
 }
 

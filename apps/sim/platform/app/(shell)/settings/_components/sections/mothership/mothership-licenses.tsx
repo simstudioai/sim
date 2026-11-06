@@ -79,12 +79,14 @@ function LicenseForm({ generate }: LicenseFormProps) {
       ) : (
         <FieldStack>
           <TextField
+            placeholder='Company name'
             label='Enterprise name'
             required
             value={draft.name}
             onChange={(value) => setDraft({ ...draft, name: value })}
           />
           <TextField
+            placeholder='Order form or approval reference'
             label='Approval reference'
             required
             hint='Enter the signed order form or written approval reference.'

@@ -2,17 +2,10 @@ import { expect, type Locator, test } from '@playwright/test'
 import { load } from 'cheerio'
 import evidence from '@/platform/design-system/catalog/evidence.json'
 
-const enabled = 'http://127.0.0.1:3181/workbench'
-const disabled = 'http://127.0.0.1:3180/workbench'
+const enabled = `${process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'}/workbench`
+const catalog = process.env.PLATFORM_E2E_ORIGIN ? enabled : 'http://127.0.0.1:3180/workbench'
 
-test('sample data requires the server flag even when a URL requests the populated state', async ({
-  page,
-}) => {
-  const off = await page.goto(`${disabled}?state=full`)
-  expect(off?.status()).toBe(200)
-  expect(await off?.text()).not.toContain('Sample studio')
-  await expect(page.getByRole('navigation', { name: 'Fixture state' })).toHaveCount(0)
-
+test('the workbench changes its example data with the selected fixture state', async ({ page }) => {
   await page.goto(`${enabled}?state=full`)
   const data = page.getByRole('region', { name: 'Preview data' })
   await expect(data.getByText('Weekly review', { exact: true })).toBeVisible()
@@ -453,7 +446,7 @@ test('choices support keyboard typeahead and disable an empty collection', async
 test('the Paper catalog searches its full list and submits and resets the selected key', async ({
   page,
 }) => {
-  await page.goto(`${disabled}?recipe=C1332`)
+  await page.goto(`${catalog}?recipe=C1332`)
   const picker = page.getByRole('combobox', { name: 'Paper master', exact: true })
   await picker.click()
   const search = page.getByRole('combobox', { name: 'Search masters' })

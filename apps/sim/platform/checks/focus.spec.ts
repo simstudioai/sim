@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-test('typing keeps the field at rest, apart from the frame that shows keyboard focus', async ({
-  page,
-}) => {
+const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+
+test('typing preserves field fill, shadow and outline', async ({ page }) => {
   for (const [theme, input, textarea, search] of [
     ['light', 'C0343', 'C0352', 'C1084'],
     ['dark', 'C0341', 'C0350', 'C1083'],
@@ -12,7 +12,7 @@ test('typing keeps the field at rest, apart from the frame that shows keyboard f
       [textarea, 'ChipTextarea'],
       [search, 'Search'],
     ]) {
-      await page.goto(`http://127.0.0.1:3181/workbench?recipe=${key}&theme=${theme}&state=full`)
+      await page.goto(`${origin}/workbench?recipe=${key}&theme=${theme}&state=full`)
       const field =
         key === search
           ? page.getByRole('searchbox')

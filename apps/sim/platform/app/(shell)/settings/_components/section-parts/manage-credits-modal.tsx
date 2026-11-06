@@ -47,6 +47,7 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
       ) : (
         <>
           <TextField
+            placeholder='Credits used'
             label={
               usage
                 ? `Credits used this ${usage.billingInterval === 'year' ? 'year' : 'month'}`
@@ -58,7 +59,7 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
           <TextField
             label='Credit limit'
             inputMode='numeric'
-            placeholder={usage ? 'No limit' : undefined}
+            placeholder='No limit'
             value={draft}
             onChange={setEdit}
             disabled={!usage}

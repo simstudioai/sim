@@ -63,7 +63,7 @@
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   flex: none;
-  inline-size: var(--ui-icon-size);
+  min-inline-size: var(--ui-icon-size);
   block-size: var(--leading-app-control);
 }
 .copy {

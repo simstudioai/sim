@@ -56,12 +56,14 @@ function ActionCard({
                 {editing && field.editable ? (
                   field.multiline ? (
                     <TextArea
+                      placeholder={field.label}
                       label={field.label}
                       value={value}
                       onChange={(next) => onEdit(field.name, next)}
                     />
                   ) : (
                     <Input
+                      placeholder={field.label}
                       label={field.label}
                       value={value}
                       onChange={(next) => onEdit(field.name, next)}

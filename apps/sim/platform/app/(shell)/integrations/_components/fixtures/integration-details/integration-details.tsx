@@ -5,7 +5,6 @@ import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import { CredentialConnect } from '@/platform/app/(shell)/integrations/_components/credential-connect/credential-connect'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
@@ -16,6 +15,8 @@ import {
 } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
 import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
+import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
@@ -30,6 +31,7 @@ interface IntegrationDetailsProps {
   integration: OrganizationIntegration
   onChange: (next: OrganizationIntegration) => void
   knownCredentials: readonly IntegrationCredential[]
+  organization: { id: string; name: string }
   viewer: IntegrationPerson
   eligiblePeople: readonly IntegrationPerson[]
   workspaces: readonly { id: string; name: string; memberIds: readonly string[] }[]
@@ -44,6 +46,7 @@ export function IntegrationDetails({
   integration,
   onChange,
   knownCredentials,
+  organization,
   viewer,
   eligiblePeople,
   workspaces,
@@ -71,7 +74,9 @@ export function IntegrationDetails({
       : undefined
   const allowedPeople = workspace
     ? eligiblePeople.filter((person) => workspace.memberIds.includes(person.id))
-    : []
+    : selectedScope?.kind === 'organization'
+      ? eligiblePeople
+      : []
   function canReconnect(credential: IntegrationCredential) {
     if (credential.providerId === 'microsoft-dataverse' && !credential.instanceUrl) return false
     return (
@@ -106,7 +111,7 @@ export function IntegrationDetails({
     const scope = credential.scope
     if (
       (credential.type !== 'oauth' && credential.type !== 'service_account') ||
-      scope.kind !== 'workspace'
+      (scope.kind !== 'workspace' && scope.kind !== 'organization')
     )
       return
     if (
@@ -114,7 +119,7 @@ export function IntegrationDetails({
         (entry) =>
           entry.id !== credential.id &&
           entry.type === credential.type &&
-          entry.scope.kind === 'workspace' &&
+          entry.scope.kind === scope.kind &&
           entry.scope.id === scope.id &&
           (credential.type === 'oauth'
             ? entry.displayName.trim().toLowerCase() === credential.displayName.trim().toLowerCase()
@@ -122,7 +127,7 @@ export function IntegrationDetails({
               entry.displayName === credential.displayName)
       )
     )
-      throw new Error('A credential with this display name already exists in this workspace.')
+      throw new Error(`A credential with this display name already exists in this ${scope.kind}.`)
   }
   function remove(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
@@ -139,7 +144,8 @@ export function IntegrationDetails({
   }
   function leave(credential: IntegrationCredential) {
     const current = integration.credentials.find((entry) => entry.id === credential.id)
-    if (!current || current.scope.kind !== 'workspace') return
+    if (!current || (current.scope.kind !== 'workspace' && current.scope.kind !== 'organization'))
+      return
     const members = current.members.filter((member) => member.status === 'active')
     const member = members.find((entry) => entry.userId === viewer.id)
     if (
@@ -174,10 +180,6 @@ export function IntegrationDetails({
       setEnrollment(null)
       return
     }
-    const workspace = enrollment.connection.personalOnly
-      ? undefined
-      : workspaces.find((entry) => entry.id === draft.workspaceId)
-    if (!enrollment.connection.personalOnly && !workspace) return
     const credential: IntegrationCredential = {
       id: generateId(),
       appId: integration.providerId,
@@ -190,9 +192,9 @@ export function IntegrationDetails({
       role: 'admin',
       status: 'active',
       canReconnect: true,
-      scope: workspace
-        ? { kind: 'workspace', id: workspace.id, name: workspace.name }
-        : { kind: 'personal', ownerId: viewer.id },
+      scope: enrollment.connection.personalOnly
+        ? { kind: 'personal', ownerId: viewer.id }
+        : { kind: 'organization', id: organization.id, name: organization.name },
       members: enrollment.connection.personalOnly
         ? []
         : [
@@ -214,6 +216,7 @@ export function IntegrationDetails({
     <>
       {selected ? (
         <CredentialDetail
+          key={selected.id}
           credential={selected}
           integrationName={integration.name}
           viewer={viewer}
@@ -230,37 +233,40 @@ export function IntegrationDetails({
             name={integration.name}
             description={integration.description}
             providerId={integration.providerId}
-            people={people}
-            peopleTotal={peopleTotal}
+          />
+          <IntegrationIdea
+            providerId={integration.providerId}
+            name={integration.name}
+            example={
+              catalog?.example ??
+              `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
+            }
           />
           <IntegrationControls
-            leading={
-              <Button
-                variant='quiet'
-                icon='I082'
-                render={
-                  <Link
-                    href={integration.setupGuideUrl}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  />
-                }
-              >
-                Docs
-              </Button>
-            }
+            leading={<IntegrationUsage people={people ?? []} total={peopleTotal} />}
           >
+            <Button
+              variant='quiet'
+              size='compact'
+              icon='I082'
+              render={
+                <Link href={integration.setupGuideUrl} target='_blank' rel='noopener noreferrer' />
+              }
+            >
+              Docs
+            </Button>
             {integration.canAddCredential && connections.length === 1 ? (
               <Button
                 icon='I074'
                 size='compact'
                 onClick={() => setEnrollment({ connection: connections[0] })}
               >
-                Add credential
+                Connect integration
               </Button>
             ) : integration.canAddCredential && connections.length > 1 ? (
               <ActionMenu
-                label='Add credential'
+                label='Connect integration'
+                triggerSize='compact'
                 icon={null}
                 tooltip={false}
                 actions={connections.map((connection) => ({
@@ -279,7 +285,6 @@ export function IntegrationDetails({
             canReconnect={canReconnect}
             onDisconnect={setDisconnecting}
           />
-          <ConnectionAccess integration={{ ...integration, requestedScopes: null }} />
           {catalog && (
             <IntegrationCapabilities
               catalog={catalog}
@@ -294,7 +299,7 @@ export function IntegrationDetails({
           key={enrollment.credential?.id ?? enrollment.connection.id}
           integrationName={integration.name}
           connection={enrollment.connection}
-          workspaces={workspaces}
+          access={integration.searchReads}
           initial={enrollment.credential}
           onClose={() => setEnrollment(null)}
           onSubmit={connect}

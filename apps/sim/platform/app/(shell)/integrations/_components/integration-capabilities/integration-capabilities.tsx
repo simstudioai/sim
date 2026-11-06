@@ -4,20 +4,18 @@ import { useState } from 'react'
 import { useQueryStates } from 'nuqs'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities.module.css'
 import { catalogParams } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/search-params'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   ActivityRow,
   CopyButton,
+  Icon,
   Modal,
   ModalBody,
   Pagination,
-  ScrollArea,
   Stack,
   TextAreaField,
 } from '@/platform/design-system/components'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 
 type CatalogSkill = IntegrationCatalogEntry['skills'][number]
@@ -46,22 +44,19 @@ export function IntegrationCapabilities({
     templatePage * TEMPLATES_PER_PAGE
   )
   const installed = new Set(addedSkills)
-  const information = [
-    { title: 'Actions', items: catalog.operations },
-    { title: 'Triggers', items: catalog.triggers },
-  ]
   return (
     <>
       {catalog.skills.length > 0 && (
-        <section className={styles.section} aria-label='Suggested skills'>
-          <h2 data-type='T093'>Suggested skills</h2>
+        <section className={styles.section} aria-label='Skills'>
+          <h2 data-type='T093'>Skills</h2>
           <ul className={styles.links}>
             {catalog.skills.map((entry) => (
               <ActivityRow
                 key={entry.name}
+                leading={<Icon name='I044' />}
                 title={entry.name}
                 detail={entry.description}
-                metadata={installed.has(entry.name) ? 'Added' : undefined}
+                textMetadata={installed.has(entry.name) ? 'Added' : undefined}
                 onOpen={() => setSkill(entry)}
               />
             ))}
@@ -69,34 +64,30 @@ export function IntegrationCapabilities({
         </section>
       )}
       {catalog.templates.length > 0 && (
-        <section className={styles.section} aria-label='Templates'>
+        <section className={styles.section} aria-label='Agent templates'>
           <h2 data-type='T093'>
-            <CountedLabel label='Templates' count={catalog.templates.length} />
+            <CountedLabel label='Agent templates' count={catalog.templates.length} />
           </h2>
-          <div className={styles.bounded}>
-            <ScrollArea key={templatePage} label={`${catalog.name} templates`}>
-              <ul className={styles.links}>
-                {templates.map((entry) => (
-                  <ActivityRow
-                    key={entry.title}
-                    title={entry.title}
-                    detail={entry.prompt}
-                    metadata={
-                      <Stack
-                        label='Integrations used'
-                        items={entry.integrations.map((integration) => ({
-                          id: integration.id,
-                          label: integration.name,
-                          content: <IntegrationMark providerId={integration.id} />,
-                        }))}
-                      />
-                    }
-                    onOpen={() => setTemplate(entry)}
+          <ul className={styles.links}>
+            {templates.map((entry) => (
+              <ActivityRow
+                key={entry.title}
+                title={entry.title}
+                detail={entry.prompt}
+                leading={
+                  <Stack
+                    label='Integrations used'
+                    items={entry.integrations.map((integration) => ({
+                      id: integration.id,
+                      label: integration.name,
+                      content: <Icon providerId={integration.id} label={integration.name} />,
+                    }))}
                   />
-                ))}
-              </ul>
-            </ScrollArea>
-          </div>
+                }
+                onOpen={() => setTemplate(entry)}
+              />
+            ))}
+          </ul>
           {templatePages > 1 && (
             <Pagination
               label='Template pages'
@@ -106,26 +97,6 @@ export function IntegrationCapabilities({
             />
           )}
         </section>
-      )}
-      {information.map(({ title, items }) =>
-        items.length ? (
-          <section key={title} className={styles.section} aria-label={title}>
-            <h2 data-type='T093'>
-              <CountedLabel label={title} count={items.length} />
-            </h2>
-            <div className={styles.bounded}>
-              <ScrollArea label={`${catalog.name} ${title.toLowerCase()}`}>
-                {items.map((entry) => (
-                  <SettingsRow
-                    key={entry.name}
-                    label={entry.name}
-                    description={entry.description}
-                  />
-                ))}
-              </ScrollArea>
-            </div>
-          </section>
-        ) : null
       )}
       {skill &&
         (onAddSkill ? (
@@ -140,7 +111,12 @@ export function IntegrationCapabilities({
             }}
             onConfirm={() => onAddSkill(skill)}
           >
-            <TextAreaField label='Instructions' value={skill.content} readOnly />
+            <TextAreaField
+              label='Instructions'
+              placeholder='Skill instructions'
+              value={skill.content}
+              readOnly
+            />
           </Modal>
         ) : (
           <OverlayDialog
@@ -150,14 +126,24 @@ export function IntegrationCapabilities({
             onClose={() => setSkill(null)}
           >
             <ModalBody>
-              <TextAreaField label='Instructions' value={skill.content} readOnly />
+              <TextAreaField
+                label='Instructions'
+                placeholder='Skill instructions'
+                value={skill.content}
+                readOnly
+              />
             </ModalBody>
           </OverlayDialog>
         ))}
       {template && (
         <OverlayDialog open title={template.title} onClose={() => setTemplate(null)}>
           <ModalBody>
-            <TextAreaField label='Prompt' value={template.prompt} readOnly />
+            <TextAreaField
+              label='Prompt'
+              placeholder='Agent prompt'
+              value={template.prompt}
+              readOnly
+            />
             <CopyButton label='Copy prompt' text={template.prompt} />
           </ModalBody>
         </OverlayDialog>

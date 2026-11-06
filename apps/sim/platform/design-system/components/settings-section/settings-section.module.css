@@ -9,7 +9,8 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ui-list-gap);
   container: settings-rows / inline-size;
-  padding: var(--spacing-4) var(--spacing-20);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: var(--spacing-4) calc(var(--ui-row-inset) - var(--spacing-stroke-default));
   border: var(--spacing-stroke-default) solid var(--ui-divider);
   border-radius: var(--radius-12);
 }
@@ -76,11 +77,5 @@
     max-inline-size: none;
     min-block-size: var(--spacing-44);
     align-items: stretch;
-  }
-}
-
-@media (max-width: 40rem) {
-  .surface {
-    padding-inline: var(--spacing-16);
   }
 }

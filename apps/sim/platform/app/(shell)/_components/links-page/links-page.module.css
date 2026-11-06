@@ -10,8 +10,6 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
-  margin-inline: auto;
   padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
   gap: var(--ui-product-section-gap);
 }

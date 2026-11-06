@@ -15,6 +15,7 @@ const alex: IntegrationPerson = { id: 'alex', name: 'Alex Chen', src: alexPhoto.
 const maya: IntegrationPerson = { id: 'maya', name: 'Maya Thompson', src: mayaPhoto.src }
 const daniel: IntegrationPerson = { id: 'daniel', name: 'Daniel Kim' }
 const people = [emir, nina, alex, maya, daniel]
+const organization = { id: 'sim', name: 'Sim Enterprise' }
 
 const resources: IntegrationResource[] = [
   {
@@ -150,7 +151,15 @@ const workspaces = [
 
 export function integrationCenterData(scenario: Scenario): IntegrationCenterData {
   if (scenario === 'empty')
-    return { viewer: emir, people, workspaces, appPeople: {}, appUsageTotal: {}, resources: [] }
+    return {
+      organization,
+      viewer: emir,
+      people,
+      workspaces,
+      appPeople: {},
+      appUsageTotal: {},
+      resources: [],
+    }
   const extra =
     scenario === 'stress'
       ? Array.from({ length: 60 }, (_, index): IntegrationResource => {
@@ -166,6 +175,7 @@ export function integrationCenterData(scenario: Scenario): IntegrationCenterData
         })
       : []
   return {
+    organization,
     viewer: emir,
     workspaces,
     people,

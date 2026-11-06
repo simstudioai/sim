@@ -1,12 +1,14 @@
 'use client'
 
-import { type ReactNode, useLayoutEffect, useRef } from 'react'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
+import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { Button, Chip, EmptyState } from '@/platform/design-system/components'
+import { Button, Chip, EmptyState, Modal } from '@/platform/design-system/components'
 import {
   accountStatus,
   isConnectable,
@@ -42,6 +44,7 @@ export function IntegrationDetails({
   peopleTotal,
 }: IntegrationDetailsProps) {
   const { accounts, availability, connectionTarget, providerId, name } = integration
+  const [connecting, setConnecting] = useState(false)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const accountCount = useRef(accounts.length)
   useLayoutEffect(() => {
@@ -69,30 +72,40 @@ export function IntegrationDetails({
         description={integration.description}
         providerId={providerId}
         icon={integration.icon}
-        people={people}
-        peopleTotal={peopleTotal}
       />
-      <IntegrationControls
-        leading={
-          <Button
-            variant='quiet'
-            icon='I082'
-            render={
-              <Link
-                href={integration.setupGuideUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                aria-label='Docs (opens in a new tab)'
-              />
-            }
-          >
-            Docs
-          </Button>
+      <IntegrationIdea
+        providerId={providerId}
+        name={name}
+        example={
+          providerId === 'fireflies'
+            ? 'Use Fireflies to remember the interests prospects mention on calls. Turn those details into thoughtful gifts and personal follow-ups.'
+            : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
         }
-      >
+      />
+      <IntegrationControls leading={<IntegrationUsage people={people ?? []} total={peopleTotal} />}>
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I082'
+          render={
+            <Link
+              href={integration.setupGuideUrl}
+              target='_blank'
+              rel='noopener noreferrer'
+              aria-label='Docs (opens in a new tab)'
+            />
+          }
+        >
+          Docs
+        </Button>
         {connectionTarget && (
-          <Button size='compact' icon='I074' disabled={pending || !canConnect} onClick={onConnect}>
-            Add credential
+          <Button
+            size='compact'
+            icon='I074'
+            disabled={pending || !canConnect}
+            onClick={() => setConnecting(true)}
+          >
+            Connect integration
           </Button>
         )}
       </IntegrationControls>
@@ -120,7 +133,24 @@ export function IntegrationDetails({
         />
       )}
       {selected?.hasToolPermissions && renderToolPermissions(selected.id)}
-      {!stale && <ConnectionAccess integration={integration} />}
+      {connecting && (
+        <Modal
+          open
+          title={`Connect ${name}`}
+          description={`Review access before continuing to ${name}.`}
+          confirmLabel='Continue'
+          confirmDisabled={pending || !canConnect}
+          onOpenChange={setConnecting}
+          onConfirm={onConnect}
+        >
+          <ConnectionAccess
+            permissions={integration.requestedScopes ?? integration.searchReads}
+            title={
+              integration.requestedScopes?.length ? 'Requested permissions' : 'Connection access'
+            }
+          />
+        </Modal>
+      )}
     </>
   )
 }

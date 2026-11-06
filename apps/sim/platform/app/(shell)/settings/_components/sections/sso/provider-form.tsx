@@ -79,6 +79,7 @@ function ClientSecretField({
     return (
       <>
         <TextField
+          placeholder='Saved client secret'
           label='Client secret'
           value={maskedClientSecret(storedHint)}
           readOnly

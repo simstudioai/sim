@@ -31,11 +31,6 @@
   gap: var(--ui-product-section-gap);
   overflow-wrap: anywhere;
 }
-.thread,
-.dockInner {
-  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
-  margin-inline: auto;
-}
 .turn:last-child {
   margin-block-end: var(--ui-product-section-gap);
 }

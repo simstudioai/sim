@@ -16,7 +16,10 @@ import {
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 import type { AppSummary, IntegrationCenterData } from '@/platform/lib/integrations/center-model'
-import { credentialDescription } from '@/platform/lib/integrations/credential-display'
+import {
+  credentialDescription,
+  credentialSharing,
+} from '@/platform/lib/integrations/credential-display'
 import {
   type IntegrationsData,
   memberIntegrationHref,
@@ -59,7 +62,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
     description: credentialDescription(credential, providerNames.get(credential.appId)),
     category: 'Credentials',
     connected: true,
-    scope: credential.scope.kind === 'personal' ? 'personal' : 'shared',
+    scope: credentialSharing(credential),
     people: credential.members.filter((member) => member.status === 'active'),
     href: serializeCredential(
       memberIntegrationHref(`/integrations/${encodeURIComponent(credential.appId)}`, search),
@@ -82,6 +85,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               integration={item}
               onChange={save}
               knownCredentials={integrations.flatMap((entry) => entry.credentials)}
+              organization={center.organization}
               viewer={center.viewer}
               eligiblePeople={center.people}
               workspaces={center.workspaces}

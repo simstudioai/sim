@@ -12,7 +12,7 @@ export function CountedLabel({ label, count }: CountedLabelProps) {
     <OverflowText text={`${label} ${count}`}>
       <span className={styles.counted}>
         <span>{label}</span>
-        <small data-type='T036'>{count}</small>
+        <span className={styles.count}>{count}</span>
       </span>
     </OverflowText>
   )

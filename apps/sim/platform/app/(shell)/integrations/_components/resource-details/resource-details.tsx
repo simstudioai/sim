@@ -1,4 +1,9 @@
-import { ModalBody, PropertyList, TextAreaField } from '@/platform/design-system/components'
+import {
+  ModalBody,
+  PropertyList,
+  TextAreaField,
+  TextField,
+} from '@/platform/design-system/components'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import type { IntegrationResource } from '@/platform/lib/integrations/center-model'
 
@@ -11,6 +16,14 @@ export function ResourceDetails({ resource, onClose }: ResourceDetailsProps) {
   return (
     <OverlayDialog title={resource.name} description={resource.description} open onClose={onClose}>
       <ModalBody>
+        {resource.kind === 'credential' && (
+          <TextField
+            label='Credential ID'
+            placeholder='Credential ID'
+            value={resource.id}
+            viewOnly
+          />
+        )}
         <PropertyList
           title='Details'
           titleHidden
@@ -43,7 +56,12 @@ export function ResourceDetails({ resource, onClose }: ResourceDetailsProps) {
           ]}
         />
         {resource.kind === 'skill' && (
-          <TextAreaField label='Instructions' value={resource.instructions} readOnly />
+          <TextAreaField
+            label='Instructions'
+            placeholder='Skill instructions'
+            value={resource.instructions}
+            readOnly
+          />
         )}
       </ModalBody>
     </OverlayDialog>

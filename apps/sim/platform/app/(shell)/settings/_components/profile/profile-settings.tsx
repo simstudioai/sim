@@ -79,6 +79,7 @@ export function ProfileForm({
           }}
         >
           <TextField
+            placeholder='Your name'
             name='name'
             label='Display name'
             defaultValue={name}

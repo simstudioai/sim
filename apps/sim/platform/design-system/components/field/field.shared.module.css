@@ -1,4 +1,4 @@
-.inputFrame:has(.input:disabled) {
+.inputFrame:is(:has(.input:disabled), [data-disabled]) {
   opacity: var(--opacity-disabled);
   cursor: default;
 }
@@ -42,15 +42,11 @@
   opacity: 1;
 }
 
-.inputFrame:has(.input:enabled:hover) {
-  border-color: var(--control-hover-border);
+.inputFrame:not(:has(.input:disabled), [data-disabled]):hover {
+  background: var(--ui-hover);
 }
 
-.inputFrame:has(.input:focus-visible) {
-  border-color: var(--ui-secondary);
-}
-
-.inputFrame:has(.input[aria-invalid="true"]) {
+.inputFrame:is(:has(.input[aria-invalid="true"]), [data-invalid]) {
   border-color: var(--control-danger);
 }
 
@@ -67,6 +63,25 @@
   align-items: center;
   gap: var(--ui-action-gap);
   padding-inline-end: var(--spacing-1);
+}
+
+.trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.inputFrame[data-view-only] > .input {
+  grid-area: row;
+  padding-inline-end: calc(var(--spacing-app-chip) - var(--spacing-stroke-default));
+}
+
+.copyAction {
+  margin-inline: calc(
+    (var(--spacing-app-chip) - var(--spacing-24)) /
+    2 -
+    var(--spacing-stroke-default)
+  );
 }
 
 .fileDrop {
@@ -138,12 +153,16 @@
   flex: none;
 }
 
+.textareaFrame {
+  block-size: var(--spacing-76);
+}
+
 textarea.input {
-  height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
-  min-height: calc(var(--spacing-76) - 2 * var(--spacing-stroke-default));
+  height: 100%;
+  min-height: 0;
   padding-block: var(--spacing-8);
 }
 
-textarea.input[data-density="expanded"] {
-  height: calc(2 * (var(--spacing-56) - var(--spacing-stroke-default)));
+.textareaFrame[data-density="expanded"] {
+  block-size: calc(2 * var(--spacing-56));
 }

@@ -34,8 +34,6 @@
   display: grid;
   align-content: start;
   gap: var(--ui-product-section-gap);
-  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
-  margin-inline: auto;
   padding-block-end: var(--ui-page-inset-block);
 }
 .field {

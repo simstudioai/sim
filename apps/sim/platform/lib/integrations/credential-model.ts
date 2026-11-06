@@ -25,6 +25,7 @@ export interface IntegrationCredential {
   canReconnect: boolean
   scope:
     | { kind: 'workspace'; id: string; name: string }
+    | { kind: 'organization'; id: string; name: string }
     | { kind: 'personal'; ownerId: string }
     | { kind: 'organization-managed'; id: string; name: string }
   members: readonly CredentialMember[]
@@ -50,8 +51,7 @@ export interface CredentialConnection {
   kind: IntegrationCredential['type']
   label: string
   providerId: string
-  setup: 'oauth' | 'fields' | 'google-json' | 'slack-bot' | 'oracle-database'
-  docsUrl?: string
+  setup: 'oauth' | 'mcp-oauth' | 'fields' | 'google-json' | 'slack-bot' | 'oracle-database'
   requiredScopes?: readonly { id: string; label: string }[]
   fields: readonly CredentialField[]
   personalOnly?: boolean

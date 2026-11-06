@@ -26,10 +26,12 @@
 
 .counted {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--spacing-4);
   vertical-align: top;
 }
-.counted small {
+.count {
   color: var(--ui-secondary);
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
 }

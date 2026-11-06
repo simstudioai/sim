@@ -13,8 +13,8 @@ import {
   SelectField,
   Tooltip,
 } from '@/platform/design-system/components'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import type {
   CredentialMember,
@@ -45,15 +45,18 @@ export function CredentialAccess({
   const [personId, setPersonId] = useState<string | null>(null)
   const [role, setRole] = useState<CredentialMember['role']>('member')
   const [removing, setRemoving] = useState<CredentialMember | null>(null)
-  const members = credential.members.filter((member) => member.status === 'active')
-  const existing = new Set(members.map((member) => member.userId))
+  const members = credential.members.filter((member) => member.status !== 'revoked')
+  const active = members.filter((member) => member.status === 'active')
+  const existing = new Set(
+    members.filter((member) => member.status !== 'revoked').map((member) => member.userId)
+  )
   const available = people.filter((person) => !existing.has(person.id))
-  const admins = members.filter((member) => member.explicitAdmin).length
+  const admins = active.filter((member) => member.explicitAdmin).length
   const editable = credential.role === 'admin'
   function lockReason(member: CredentialMember) {
     return member.roleSource === 'workspace-admin'
       ? 'Access follows workspace admin permissions.'
-      : member.role === 'admin' && member.explicitAdmin && admins <= 1
+      : member.status === 'active' && member.role === 'admin' && member.explicitAdmin && admins <= 1
         ? 'Make someone else an admin before removing or changing this access.'
         : undefined
   }
@@ -73,59 +76,73 @@ export function CredentialAccess({
     <section className={styles.section} aria-label='People with access'>
       <div className={styles.heading}>
         <h2 data-type='T093'>
-          <CountedLabel label='People with access' count={members.length} />
+          <CountedLabel label='People with access' count={active.length} />
         </h2>
         {editable && (
-          <Button variant='quiet' size='compact' onClick={() => setAdding(true)}>
+          <Button
+            variant='quiet'
+            size='compact'
+            disabled={!available.length}
+            onClick={() => setAdding(true)}
+          >
             Add people
           </Button>
         )}
       </div>
-      {members.map((member) => {
-        const reason = lockReason(member)
-        const own = member.userId === viewer.id
-        return (
-          <SettingsRow
-            key={member.id}
-            label={member.name}
-            description={member.email}
-            leading={<Avatar name={member.name} src={member.src} />}
-          >
-            <div className={styles.actions}>
-              {editable && !reason ? (
-                <ChoiceMenu
-                  label={`Role for ${member.name}`}
-                  value={member.role === 'admin' ? 'Admin' : 'Member'}
-                  options={['Member', 'Admin']}
-                  onValueChange={(value) => update(member, value === 'Admin' ? 'admin' : 'member')}
-                />
-              ) : (
-                <Tooltip label={reason ?? 'Only credential admins can change access.'}>
-                  <span data-type='T060'>{member.role === 'admin' ? 'Admin' : 'Member'}</span>
-                </Tooltip>
-              )}
-              {(own || editable) && (
-                <ActionMenu
-                  label={`Manage access for ${member.name}`}
-                  icon='I108'
-                  triggerSize='row'
-                  tooltip={false}
-                  align='end'
-                  actions={[
-                    {
-                      id: own ? 'leave' : 'remove',
-                      label: own ? 'Leave' : 'Remove',
-                      destructive: true,
-                      disabled: Boolean(reason),
-                      onSelect: () => setRemoving(member),
-                    },
-                  ]}
-                />
-              )}
-            </div>
-          </SettingsRow>
-        )
-      })}
+      <ul className={styles.rows}>
+        {members.map((member) => {
+          const reason = lockReason(member)
+          const own = member.userId === viewer.id
+          return (
+            <li key={member.id} className={styles.row}>
+              <ActivityBody leading={<Avatar name={member.name} src={member.src} />}>
+                <span data-type='T059'>{member.name}</span>
+                <span className={styles.detail} data-type='T050'>
+                  {member.email ?? (own ? 'You' : 'Organization member')}
+                </span>
+              </ActivityBody>
+              <div className={styles.actions}>
+                {member.status !== 'active' ? (
+                  <span className={styles.detail} data-type='T060'>
+                    {member.status === 'pending' ? 'Pending' : 'Revoked'}
+                  </span>
+                ) : editable && !reason ? (
+                  <ChoiceMenu
+                    label={`Role for ${member.name}`}
+                    value={member.role === 'admin' ? 'Admin' : 'Member'}
+                    options={['Member', 'Admin']}
+                    onValueChange={(value) =>
+                      update(member, value === 'Admin' ? 'admin' : 'member')
+                    }
+                  />
+                ) : (
+                  <Tooltip label={reason ?? 'Only credential admins can change access.'}>
+                    <span data-type='T060'>{member.role === 'admin' ? 'Admin' : 'Member'}</span>
+                  </Tooltip>
+                )}
+                {(own || editable) && member.status !== 'revoked' && (
+                  <ActionMenu
+                    label={`Manage access for ${member.name}`}
+                    icon='I108'
+                    triggerSize='row'
+                    tooltip={false}
+                    align='end'
+                    actions={[
+                      {
+                        id: own ? 'leave' : 'remove',
+                        label: own ? 'Leave' : 'Remove',
+                        destructive: true,
+                        disabled: Boolean(reason),
+                        onSelect: () => setRemoving(member),
+                      },
+                    ]}
+                  />
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
       {!members.length && <EmptyState title='No people have access' />}
       {adding && (
         <Modal
@@ -191,7 +208,9 @@ export function CredentialAccess({
             else if (editable)
               onChange({
                 ...credential,
-                members: credential.members.filter((entry) => entry.id !== removing.id),
+                members: credential.members.map((entry) =>
+                  entry.id === removing.id ? { ...entry, status: 'revoked' } : entry
+                ),
               })
           }}
         />

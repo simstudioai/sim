@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { CredentialAccess } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access'
+import styles from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail.module.css'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
@@ -9,16 +11,11 @@ import {
   ActionMenu,
   Button,
   Chip,
-  CopyField,
-  Modal,
   TextAreaField,
   TextField,
 } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
+import { credentialSharing } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
 interface CredentialDetailProps {
@@ -52,8 +49,19 @@ export function CredentialDetail({
   onDisconnect,
   onLeave,
 }: CredentialDetailProps) {
-  const [editing, setEditing] = useState(false)
+  const [displayName, setDisplayName] = useState(credential.displayName)
+  const [description, setDescription] = useState(credential.description)
+  const [error, setError] = useState<string>()
   const editable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
+  const dirty = displayName !== credential.displayName || description !== credential.description
+  const access =
+    credential.scope.kind === 'workspace'
+      ? credential.scope.name
+      : credential.scope.kind === 'organization-managed'
+        ? `Managed by ${credential.scope.name}`
+        : credentialSharing(credential) === 'shared'
+          ? 'Shared with selected people'
+          : 'Only you'
   return (
     <>
       <ProviderHeading
@@ -88,54 +96,94 @@ export function CredentialDetail({
           />
         )}
       </IntegrationControls>
-      <SettingsSection title='Details'>
-        <SettingsRow label='Connection method' description={METHOD_LABELS[credential.type]} />
-        <SettingsRow label='Display name' description={credential.displayName}>
-          {editable && (
-            <Button variant='quiet' size='compact' onClick={() => setEditing(true)}>
-              Edit
-            </Button>
-          )}
-        </SettingsRow>
-        <SettingsRow
+      <form
+        className={styles.form}
+        aria-label='Credential details'
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!editable || !displayName.trim()) return
+          try {
+            const name = displayName.trim()
+            const detail = description.trim()
+            onChange({ ...credential, displayName: name, description: detail })
+            setDisplayName(name)
+            setDescription(detail)
+            setError(undefined)
+          } catch (error) {
+            setError(getErrorMessage(error, 'Could not save this credential.'))
+          }
+        }}
+      >
+        <TextField
+          label='Credential ID'
+          placeholder='Credential ID'
+          value={credential.id}
+          viewOnly
+        />
+        <TextField
+          label='Display name'
+          placeholder={`${integrationName} connection`}
+          value={displayName}
+          onChange={setDisplayName}
+          maxLength={255}
+          required
+          readOnly={!editable}
+          error={error}
+        />
+        <TextAreaField
           label='Description'
-          description={credential.description || 'Add a description'}
-        >
-          {editable && (
-            <Button variant='quiet' size='compact' onClick={() => setEditing(true)}>
-              Edit description
+          placeholder='What will you use this connection for?'
+          value={description}
+          onChange={setDescription}
+          maxLength={500}
+          readOnly={!editable}
+          optional
+        />
+        {credential.instanceUrl && (
+          <TextField
+            label={
+              credential.providerId === 'microsoft-dataverse'
+                ? 'Environment URL'
+                : 'GitLab instance'
+            }
+            placeholder='Connection URL'
+            value={credential.instanceUrl}
+            viewOnly
+          />
+        )}
+        <div className={styles.metadata} data-type='T060'>
+          <span>{METHOD_LABELS[credential.type]}</span>
+          <span>{access}</span>
+        </div>
+        {editable && dirty && (
+          <div className={styles.actions}>
+            <Button
+              variant='quiet'
+              size='compact'
+              onClick={() => {
+                setDisplayName(credential.displayName)
+                setDescription(credential.description)
+                setError(undefined)
+              }}
+            >
+              Cancel
             </Button>
-          )}
-        </SettingsRow>
-        <SettingsRow
-          label='Access'
-          description={
-            credential.scope.kind === 'workspace'
-              ? credential.scope.name
-              : credential.scope.kind === 'organization-managed'
-                ? `Managed by ${credential.scope.name}`
-                : 'Only you'
-          }
-        />
-      </SettingsSection>
-      <CopyField label='Credential ID' value={credential.id} />
-      {credential.instanceUrl && (
-        <CopyField
-          label={
-            credential.providerId === 'microsoft-dataverse' ? 'Environment URL' : 'GitLab instance'
-          }
-          value={credential.instanceUrl}
-        />
-      )}
-      {credential.scope.kind === 'workspace' && credential.type !== 'personal_token' && (
-        <CredentialAccess
-          credential={credential}
-          viewer={viewer}
-          people={people}
-          onChange={onChange}
-          onLeave={onLeave}
-        />
-      )}
+            <Button size='compact' submit disabled={!displayName.trim()}>
+              Save changes
+            </Button>
+          </div>
+        )}
+      </form>
+      {(credential.scope.kind === 'workspace' || credential.scope.kind === 'organization') &&
+        credential.type !== 'personal_token' && (
+          <CredentialAccess
+            credential={credential}
+            viewer={viewer}
+            people={people}
+            onChange={onChange}
+            onLeave={onLeave}
+          />
+        )}
       {credential.permissions && (
         <ToolPermissions
           account={credential}
@@ -143,38 +191,6 @@ export function CredentialDetail({
           readOnly={!editable}
           onChange={(permissions) => onChange({ ...credential, permissions })}
         />
-      )}
-      {editing && (
-        <Modal
-          open
-          title='Edit credential'
-          confirmLabel='Save'
-          onOpenChange={setEditing}
-          onConfirm={(values) => {
-            const displayName = String(values.get('displayName') ?? '').trim()
-            if (!displayName) return false
-            onChange({
-              ...credential,
-              displayName,
-              description: String(values.get('description') ?? '').trim(),
-            })
-          }}
-        >
-          <TextField
-            label='Display name'
-            name='displayName'
-            defaultValue={credential.displayName}
-            maxLength={255}
-            required
-          />
-          <TextAreaField
-            label='Description'
-            name='description'
-            defaultValue={credential.description}
-            maxLength={500}
-            optional
-          />
-        </Modal>
       )}
     </>
   )

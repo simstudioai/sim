@@ -75,6 +75,7 @@ export function IntegrationCenter({
       tab: tab.id,
       q: null,
       category: null,
+      connection: null,
       scope: null,
       resource: null,
     }),
@@ -88,6 +89,7 @@ export function IntegrationCenter({
     .filter(
       (app) =>
         (view.category === 'all' || app.category === view.category) &&
+        (view.connection === 'all' || app.connected === (view.connection === 'connected')) &&
         `${app.name} ${app.description} ${app.category} ${app.searchable ?? ''}`
           .toLowerCase()
           .includes(term)
@@ -151,33 +153,42 @@ export function IntegrationCenter({
         >
           {current === 'apps' ? (
             <ChoiceMenu
-              label='App category'
-              value={view.category === 'all' ? 'All categories' : view.category}
-              options={['All categories', ...categories]}
-              onValueChange={(value) =>
-                void setView({ category: value === 'All categories' ? 'all' : value })
-              }
+              label='App filter'
+              value={view.category === 'all' ? view.connection : `category:${view.category}`}
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'Connected', value: 'connected' },
+                { label: 'Available', value: 'available' },
+                {
+                  label: 'Categories',
+                  options: categories.map((category) => ({
+                    label: category,
+                    value: `category:${category}`,
+                  })),
+                },
+              ]}
+              onValueChange={(value) => {
+                if (value.startsWith('category:')) {
+                  void setView({ category: value.slice(9), connection: 'all' })
+                } else if (value === 'all' || value === 'connected' || value === 'available') {
+                  void setView({ category: 'all', connection: value })
+                }
+              }}
             />
           ) : (
-            library && (
-              <ChoiceMenu
-                label='Sharing'
-                value={
-                  view.scope === 'all'
-                    ? 'Everyone'
-                    : view.scope === 'shared'
-                      ? 'Shared'
-                      : 'Personal'
-                }
-                options={['Everyone', 'Shared', 'Personal']}
-                onValueChange={(value) =>
-                  void setView({
-                    scope:
-                      value === 'Shared' ? 'shared' : value === 'Personal' ? 'personal' : 'all',
-                  })
-                }
-              />
-            )
+            <ChoiceMenu
+              label='Category'
+              value={view.scope}
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'Shared', value: 'shared' },
+                { label: 'Personal', value: 'personal' },
+              ]}
+              onValueChange={(scope) => {
+                if (scope === 'all' || scope === 'shared' || scope === 'personal')
+                  void setView({ scope })
+              }}
+            />
           )}
           <ActionMenu
             label='Sort integrations'
@@ -219,7 +230,7 @@ export function IntegrationCenter({
               onNavigate={navigate}
             />
             <AppGroup
-              title='Explore apps'
+              title='Available'
               apps={visibleApps.filter((app) => !app.connected)}
               onNavigate={navigate}
             />

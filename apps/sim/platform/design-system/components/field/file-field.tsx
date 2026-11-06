@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react'
 import { IconButton } from '@/platform/design-system/components/button/button'
-import styles from '@/platform/design-system/components/field/field.module.css'
+import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import { FieldFrame, fieldDescription } from '@/platform/design-system/components/field/fields'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 

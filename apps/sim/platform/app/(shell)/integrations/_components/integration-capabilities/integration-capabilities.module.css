@@ -1,16 +1,10 @@
 .section {
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-section-gap);
+  gap: var(--ui-widget-content-gap);
 }
 .links {
   display: grid;
   gap: var(--ui-list-gap);
   margin-inline: calc(-1 * var(--ui-row-inset));
-}
-.bounded {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-block-size: 0;
-  max-block-size: var(--ui-widget-max-size);
 }

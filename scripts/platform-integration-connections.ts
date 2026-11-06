@@ -1,4 +1,8 @@
 import {
+  getManagedMcpConnector,
+  isManagedMcpConnectorId,
+} from '../apps/sim/lib/credential-groups/managed-mcp-connectors'
+import {
   type ClientCredentialAccountField,
   getClientCredentialAccountDescriptor,
 } from '../apps/sim/lib/credentials/client-credential-accounts/descriptors'
@@ -28,7 +32,6 @@ interface CatalogSource {
   type: string
   authType: 'oauth' | 'api-key' | 'none'
   oauthServiceId?: string
-  docsUrl: string
 }
 
 const services = new Map(getAllOAuthServices().map((service) => [service.serviceId, service]))
@@ -60,14 +63,11 @@ function descriptorField(
 }
 
 /** Bespoke requirements mirror the existing workspace connection forms. */
-function bespokeSetup(
-  providerId: string
-): Pick<CredentialConnection, 'setup' | 'docsUrl' | 'fields'> | null {
+function bespokeSetup(providerId: string): Pick<CredentialConnection, 'setup' | 'fields'> | null {
   switch (providerId) {
     case GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID:
       return {
         setup: 'google-json',
-        docsUrl: 'https://docs.sim.ai/integrations/google-service-account',
         fields: [
           {
             id: 'serviceAccountJson',
@@ -81,7 +81,6 @@ function bespokeSetup(
     case ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID:
       return {
         setup: 'fields',
-        docsUrl: 'https://docs.sim.ai/integrations/atlassian-service-account',
         fields: [
           { id: 'apiToken', label: 'API token', placeholder: 'Paste the API token', secret: true },
           { id: 'domain', label: 'Site domain', placeholder: 'your-team.atlassian.net' },
@@ -90,7 +89,6 @@ function bespokeSetup(
     case SLACK_CUSTOM_BOT_PROVIDER_ID:
       return {
         setup: 'slack-bot',
-        docsUrl: 'https://docs.sim.ai/integrations/slack',
         fields: [
           { id: 'botToken', label: 'Bot token', placeholder: 'xoxb-...', secret: true },
           {
@@ -104,7 +102,6 @@ function bespokeSetup(
     case OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID:
       return {
         setup: 'fields',
-        docsUrl: 'https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm',
         fields: [
           { id: 'tenancyOcid', label: 'Tenancy OCID', placeholder: 'ocid1.tenancy.oc1..' },
           { id: 'userOcid', label: 'User OCID', placeholder: 'ocid1.user.oc1..' },
@@ -132,7 +129,6 @@ function bespokeSetup(
     case ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID:
       return {
         setup: 'oracle-database',
-        docsUrl: 'https://docs.sim.ai/integrations/oracledb',
         fields: [
           { id: 'host', label: 'Host', placeholder: 'db.example.com' },
           { id: 'port', label: 'Port', placeholder: '1521', defaultValue: '1521' },
@@ -204,7 +200,6 @@ function serviceAccountConnection(providerId: string): CredentialConnection | nu
   const setup = descriptor
     ? {
         setup: 'fields' as const,
-        docsUrl: descriptor.docsUrl,
         fields: descriptor.fields.map((field) => descriptorField(field, client?.defaultAuthMethod)),
       }
     : bespokeSetup(providerId)
@@ -232,7 +227,6 @@ export function integrationConnections(integration: CatalogSource): CredentialCo
         label: 'Add personal token',
         providerId: 'gitlab',
         setup: 'fields',
-        docsUrl: 'https://docs.gitlab.com/user/profile/personal_access_tokens/',
         personalOnly: true,
         fields: [
           {
@@ -252,7 +246,22 @@ export function integrationConnections(integration: CatalogSource): CredentialCo
       },
     ]
   const service = services.get(integration.oauthServiceId ?? type)
-  if (!service) return []
+  if (!service) {
+    if (!isManagedMcpConnectorId(type)) return []
+    const connector = getManagedMcpConnector(type)
+    if (!('url' in connector)) return []
+    return [
+      {
+        id: `${connector.id}-mcp`,
+        kind: 'mcp',
+        providerId: connector.id,
+        label: 'Connect your account',
+        setup: 'mcp-oauth',
+        personalOnly: true,
+        fields: [],
+      },
+    ]
+  }
   const config = getServiceConfigByServiceId(service.serviceId)
   const methods: CredentialConnection[] = []
   if (integration.authType === 'oauth' && service.authType === 'oauth' && config) {
@@ -267,7 +276,6 @@ export function integrationConnections(integration: CatalogSource): CredentialCo
         label,
         providerId,
         setup: 'oauth',
-        docsUrl: integration.docsUrl,
         requiredScopes: (config.scopes ?? []).map((id) => ({
           id,
           label: getScopeDescription(id, providerId),

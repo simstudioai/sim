@@ -225,7 +225,7 @@ export function LiveCredentialCard({
                 <SecretField
                   key={controlId}
                   label={item.name ?? 'Secret'}
-                  placeholder={item.name}
+                  placeholder={item.name ?? 'Enter a secret'}
                   value={drafts[index] ?? ''}
                   onChange={(value) => setDrafts((current) => ({ ...current, [index]: value }))}
                 />
@@ -245,7 +245,14 @@ export function LiveCredentialCard({
               return <FolderRow key={controlId} item={item} />
             case 'sim_key':
               return item.value ? (
-                <SecretField key={controlId} label='Sim key' value={item.value} readOnly copyable />
+                <SecretField
+                  placeholder='Sim API key'
+                  key={controlId}
+                  label='Sim key'
+                  value={item.value}
+                  readOnly
+                  copyable
+                />
               ) : null
             default:
               return null

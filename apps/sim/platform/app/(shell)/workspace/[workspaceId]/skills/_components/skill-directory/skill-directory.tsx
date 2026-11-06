@@ -95,7 +95,7 @@ export function SkillsDirectory({ data, workspaceId, skillId }: SkillsDirectoryP
                 leading={<Icon name='I044' />}
                 title={skill.name}
                 detail={skill.description}
-                metadata={skill.access === 'built-in' ? 'Built-in' : undefined}
+                textMetadata={skill.access === 'built-in' ? 'Built-in' : undefined}
               />
             ))}
           </DirectoryGroup>

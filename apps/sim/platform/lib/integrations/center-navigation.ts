@@ -11,6 +11,7 @@ export const centerParams = {
   tab: parseAsStringLiteral(['apps', 'skills', 'mcps', 'credentials']).withDefault('apps'),
   q: parseAsString.withDefault(''),
   category: parseAsString.withDefault('all'),
+  connection: parseAsStringLiteral(['all', 'connected', 'available']).withDefault('all'),
   scope: parseAsStringLiteral(['all', 'shared', 'personal']).withDefault('all'),
   order: parseAsStringLiteral(['asc', 'desc']).withDefault('asc'),
   resource: parseAsString,
@@ -30,6 +31,7 @@ export function integrationCenterHref(
     tab: search.get('tab') ?? undefined,
     q: query ?? undefined,
     category: search.get('category') ?? undefined,
+    connection: search.get('connection') ?? undefined,
     scope: search.get('scope') ?? undefined,
     order: search.get('order') ?? undefined,
   })

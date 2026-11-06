@@ -155,7 +155,7 @@ function RetentionForm({ initialData, organizationId, workspaceOptions }: Retent
           <ActivityRow
             title='Organization'
             detail={orgPolicySummary(snapshot)}
-            metadata='Default'
+            textMetadata='Default'
             onOpen={() => open(orgPolicyDraft(snapshot))}
           />
           {withOverrides.map((workspaceId) => (

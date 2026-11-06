@@ -11,7 +11,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-8) var(--spacing-16);
-  padding-inline: var(--ui-page-inline-gutter);
 }
 
 .actions {
@@ -30,7 +29,6 @@
   display: flex;
   gap: var(--spacing-24);
   margin-block-start: var(--spacing-24);
-  padding-inline: var(--ui-page-inline-gutter);
   border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 

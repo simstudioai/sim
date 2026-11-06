@@ -3,65 +3,54 @@ import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
+import { Icon, ScrollArea } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { OrganizationIntegration } from '@/platform/lib/data/integrations-types'
-
-interface AccessGroupProps {
-  title: string
-  items: readonly { id: string; label: string }[]
-}
-
-function AccessGroup({ title, items }: AccessGroupProps) {
-  if (!items.length) return null
-  return (
-    <div className={styles.group}>
-      <h3 data-type='T059'>
-        <CountedLabel label={title} count={items.length} />
-      </h3>
-      <ul className={styles.items} aria-label={title}>
-        {items.map(({ id, label }) => (
-          <li data-type='T060' key={id}>
-            {label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
 
 interface ConnectionAccessProps {
-  integration: Pick<
-    OrganizationIntegration,
-    'searchReads' | 'searchResource' | 'requestedScopes' | 'accessDescription'
-  > & { availability: string }
+  permissions: readonly { id: string; label: string; description?: string }[]
+  title?: string
 }
 
-export function ConnectionAccess({ integration }: ConnectionAccessProps) {
-  const { searchReads, searchResource, requestedScopes, availability, accessDescription } =
-    integration
+export function ConnectionAccess({
+  permissions,
+  title = 'Requested permissions',
+}: ConnectionAccessProps) {
+  if (!permissions.length) return null
   return (
-    <>
-      {searchResource && availability === 'ready' && (
-        <section className={styles.section} aria-label='Search access'>
-          <header className={styles.heading}>
-            <h2 data-type='T093'>Search access</h2>
-            <p data-type='T060'>{accessDescription}</p>
-          </header>
-          <AccessGroup title='Read-only tools' items={searchReads} />
-        </section>
-      )}
-      {requestedScopes && requestedScopes.length > 0 && (
-        <section className={styles.section} aria-label='Requested permissions'>
-          <h2 data-type='T093'>Requested permissions</h2>
-          {SCOPE_GROUPS.map((group) => (
-            <AccessGroup
-              key={group}
-              title={group}
-              items={requestedScopes.filter(({ id }) => scopeGroup(id) === group)}
-            />
-          ))}
-        </section>
-      )}
-    </>
+    <section className={styles.section} aria-label={title}>
+      <h2 data-type='T059'>
+        <CountedLabel label={title} count={permissions.length} />
+      </h2>
+      <div className={styles.viewport}>
+        <ScrollArea label={`${title} list`}>
+          <div className={styles.groups}>
+            {SCOPE_GROUPS.map((group) => {
+              const items = permissions.filter(({ id }) => scopeGroup(id) === group)
+              if (!items.length) return null
+              return (
+                <section className={styles.group} key={group} aria-label={group}>
+                  <h3 data-type='T052'>{group}</h3>
+                  <ul className={styles.items}>
+                    {items.map(({ id, label, description }) => (
+                      <li className={styles.item} key={id}>
+                        <Icon name='I137' />
+                        <span className={styles.copy}>
+                          <span data-type='T060'>{label}</span>
+                          {description && (
+                            <span className={styles.description} data-type='T050'>
+                              {description}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    </section>
   )
 }

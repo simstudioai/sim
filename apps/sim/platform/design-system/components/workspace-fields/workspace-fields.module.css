@@ -1,5 +1,4 @@
-.upload,
-.recipients {
+.upload {
   border: var(--spacing-stroke-default) solid var(--ui-border);
   border-radius: var(--radius-control);
   background: var(--ui-reading);
@@ -37,22 +36,8 @@
 }
 
 .recipients {
-  block-size: var(--spacing-76);
   padding-inline: var(--spacing-8);
   cursor: text;
-}
-
-.recipients:hover:where(:not([data-disabled])) {
-  border-color: var(--control-hover-border);
-}
-
-.recipients[data-disabled] {
-  opacity: var(--opacity-disabled);
-  cursor: default;
-}
-
-.recipients[data-invalid] {
-  border-color: var(--control-danger);
 }
 
 .tag {

@@ -20,10 +20,11 @@
 }
 .search[data-variant="quiet"] {
   border-color: transparent;
+  border-radius: 0;
   background: transparent;
 }
-.search[data-variant="quiet"]:hover {
-  background: var(--ui-hover);
+.search:is(:hover, :focus-within) {
+  border-block-end-color: var(--control-hover-border);
 }
 .menuSearch {
   display: flex;

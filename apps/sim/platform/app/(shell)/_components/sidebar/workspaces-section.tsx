@@ -154,6 +154,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
           }}
         >
           <TextField
+            placeholder='Workspace name'
             label='Workspace name'
             name='name'
             required
@@ -174,6 +175,7 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
           }}
         >
           <TextField
+            placeholder='Workspace name'
             label='Workspace name'
             name='name'
             required

@@ -1,0 +1,14 @@
+.column {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: min(
+    var(--ui-page-max-size, 81rem),
+    calc(100% - 2 * var(--ui-page-inline-gutter, clamp(1rem, 4%, 3rem)))
+  );
+  margin-inline: auto;
+}
+
+.overflow {
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset, 0.5rem));
+}

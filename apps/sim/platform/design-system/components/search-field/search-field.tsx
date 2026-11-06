@@ -88,6 +88,7 @@ export function SearchField({
         <IconButton
           label='Clear search'
           icon='I105'
+          size='compact'
           onClick={() => {
             change('')
             input.current?.focus()

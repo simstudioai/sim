@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { toRecord } from '@sim/utils/object'
-import Link from 'next/link'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { SlackBotConnection } from '@/platform/app/(shell)/integrations/_components/slack-bot-connection/slack-bot-connection'
 import {
-  Button,
   CopyField,
   FileField,
   Modal,
@@ -25,8 +23,8 @@ import type {
 interface CredentialConnectProps {
   integrationName: string
   connection: CredentialConnection
-  workspaces: readonly { id: string; name: string }[]
   initial?: IntegrationCredential
+  access?: readonly { id: string; label: string }[]
   onClose: () => void
   onSubmit: (draft: CredentialDraft) => void
 }
@@ -55,7 +53,7 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
         label={field.label}
         value={value}
         onChange={onChange}
-        placeholder={field.placeholder}
+        placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
         hint={field.hint}
         optional={field.optional}
         required={!field.optional}
@@ -67,7 +65,7 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
         label={field.label}
         value={value}
         onChange={onChange}
-        placeholder={field.placeholder}
+        placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
         hint={field.hint}
         optional={field.optional}
         required={!field.optional}
@@ -79,7 +77,7 @@ function ConnectionField({ field, value, onChange }: ConnectionFieldProps) {
       label={field.label}
       value={value}
       onChange={onChange}
-      placeholder={field.placeholder}
+      placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
       hint={field.hint}
       optional={field.optional}
       required={!field.optional}
@@ -92,7 +90,6 @@ export function CredentialConnect(props: CredentialConnectProps) {
   if (props.connection.setup === 'slack-bot')
     return (
       <SlackBotConnection
-        workspaces={props.workspaces}
         initial={props.initial}
         onClose={props.onClose}
         onSubmit={props.onSubmit}
@@ -102,8 +99,8 @@ export function CredentialConnect(props: CredentialConnectProps) {
     <CredentialConnectForm
       integrationName={props.integrationName}
       connection={props.connection}
-      workspaces={props.workspaces}
       initial={props.initial}
+      access={props.access}
       onClose={props.onClose}
       onSubmit={props.onSubmit}
     />
@@ -113,8 +110,8 @@ export function CredentialConnect(props: CredentialConnectProps) {
 function CredentialConnectForm({
   integrationName,
   connection,
-  workspaces,
   initial,
+  access,
   onClose,
   onSubmit,
 }: CredentialConnectProps) {
@@ -127,9 +124,6 @@ function CredentialConnectForm({
           : (field.defaultValue ?? ''),
       ])
     )
-  )
-  const [workspaceId, setWorkspaceId] = useState(
-    initial?.scope.kind === 'workspace' ? initial.scope.id : (workspaces[0]?.id ?? '')
   )
   const [displayName, setDisplayName] = useState(initial?.displayName ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -150,9 +144,7 @@ function CredentialConnectForm({
     return true
   })
   const disabled =
-    fields.some((field) => !field.optional && !values[field.id]?.trim()) ||
-    (!connection.personalOnly && !workspaceId) ||
-    (connection.setup === 'oauth' && !displayName.trim())
+    fields.some((field) => !field.optional && !values[field.id]?.trim()) || !displayName.trim()
   function change(id: string, value: string) {
     setValues((current) => ({ ...current, [id]: value }))
   }
@@ -160,7 +152,18 @@ function CredentialConnectForm({
     <Modal
       open
       title={initial ? `Reconnect ${initial.displayName}` : `Connect ${integrationName}`}
-      confirmLabel={initial ? 'Reconnect' : 'Connect'}
+      confirmLabel={
+        initial
+          ? 'Reconnect'
+          : connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
+            ? 'Continue'
+            : 'Connect'
+      }
+      description={
+        connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
+          ? `Review access before continuing to ${integrationName}.`
+          : undefined
+      }
       confirmDisabled={disabled}
       onOpenChange={(open) => {
         if (!open) onClose()
@@ -191,7 +194,7 @@ function CredentialConnectForm({
         }
         const host = values.domain?.trim()
         let instanceUrl = initial?.instanceUrl
-        if (connection.personalOnly && !instanceUrl) {
+        if (connection.kind === 'personal_token' && !instanceUrl) {
           let instance: URL
           try {
             instance = new URL(host?.includes('://') ? host : `https://${host}`)
@@ -231,24 +234,31 @@ function CredentialConnectForm({
           displayName: name || integrationName,
           description: description.trim(),
           accountLabel,
-          workspaceId: connection.personalOnly ? undefined : workspaceId,
           instanceUrl:
-            connection.personalOnly || connection.providerId === 'microsoft-dataverse'
+            connection.kind === 'personal_token' || connection.providerId === 'microsoft-dataverse'
               ? instanceUrl
               : undefined,
         }
-        setValues({})
         onSubmit(draft)
+        setValues({})
       }}
     >
-      {!connection.personalOnly && !initial && (
-        <SelectField
-          label='Workspace'
-          value={workspaceId}
-          onValueChange={setWorkspaceId}
-          options={workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name }))}
-        />
-      )}
+      <TextField
+        label='Display name'
+        placeholder={`${integrationName} connection`}
+        value={displayName}
+        onChange={setDisplayName}
+        maxLength={255}
+        required
+      />
+      <TextAreaField
+        label='Description'
+        placeholder='What will you use this connection for?'
+        value={description}
+        onChange={setDescription}
+        maxLength={500}
+        optional
+      />
       {fields.map((field) =>
         initial?.instanceUrl &&
         ((initial.type === 'personal_token' && field.id === 'domain') ||
@@ -293,45 +303,10 @@ function CredentialConnectForm({
           }}
         />
       )}
-      {connection.kind !== 'personal_token' && (
-        <>
-          <TextField
-            label='Display name'
-            value={displayName}
-            onChange={setDisplayName}
-            maxLength={255}
-            required={connection.setup === 'oauth'}
-            optional={connection.setup !== 'oauth'}
-          />
-          <TextAreaField
-            label='Description'
-            value={description}
-            onChange={setDescription}
-            maxLength={500}
-            optional
-          />
-        </>
-      )}
-      {connection.requiredScopes && connection.requiredScopes.length > 0 && (
-        <ConnectionAccess
-          integration={{
-            searchReads: [],
-            searchResource: null,
-            requestedScopes: connection.requiredScopes,
-            accessDescription: '',
-            availability: 'catalog',
-          }}
-        />
-      )}
-      {connection.docsUrl && (
-        <Button
-          variant='quiet'
-          icon='I082'
-          render={<Link href={connection.docsUrl} target='_blank' rel='noopener noreferrer' />}
-        >
-          Docs
-        </Button>
-      )}
+      <ConnectionAccess
+        permissions={connection.requiredScopes?.length ? connection.requiredScopes : (access ?? [])}
+        title={connection.requiredScopes?.length ? 'Requested permissions' : 'Connection access'}
+      />
     </Modal>
   )
 }

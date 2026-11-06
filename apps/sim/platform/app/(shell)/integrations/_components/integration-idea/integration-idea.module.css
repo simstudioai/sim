@@ -1,0 +1,67 @@
+.idea {
+  position: relative;
+  isolation: isolate;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-128);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  overflow: clip;
+  border-radius: var(--radius-composer);
+  background: var(--ui-reading);
+}
+
+.artwork {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-row-gap);
+  max-inline-size: var(--container-440);
+  padding: var(--spacing-16);
+  color: var(--ui-ink);
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  flex: none;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--spacing-20);
+}
+
+.message p {
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+[data-platform-ui][data-theme="dark"] .artwork {
+  filter: invert(0.92) hue-rotate(180deg);
+  opacity: var(--opacity-0-6);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-platform-ui][data-theme="system"] .artwork {
+    filter: invert(0.92) hue-rotate(180deg);
+    opacity: var(--opacity-0-6);
+  }
+}
+
+@media (max-width: 40rem) {
+  .idea {
+    min-block-size: var(--spacing-192);
+  }
+
+  .artwork {
+    object-position: right bottom;
+    opacity: var(--opacity-0-4);
+  }
+}

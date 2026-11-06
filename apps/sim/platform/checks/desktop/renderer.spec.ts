@@ -2,10 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { _electron, expect, test } from '@playwright/test'
+import { checkCredentialFields } from '@/platform/checks/field-checks'
 
 test('the actual desktop renderer shares product routes, reserves native chrome and preserves panel tabs', async () => {
   const testInfo = test.info()
-  const origin = 'http://127.0.0.1:3182'
+  const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3182'
   const profile = await mkdtemp(path.join(tmpdir(), 'sim-platform-renderer-'))
   const app = await _electron.launch({
     cwd: path.resolve(__dirname, '../../../../desktop'),
@@ -17,6 +18,11 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
   try {
     await window.evaluate((native) => native.setContentSize(960, 720))
     await page.waitForURL((url) => url.origin === origin)
+    for (const theme of ['light', 'dark']) {
+      await checkCredentialFields(page, origin, theme, testInfo, () =>
+        app.evaluate(({ clipboard }) => clipboard.readText())
+      )
+    }
     await page.goto(`${origin}/home?theme=dark&state=full`)
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
     await expect(

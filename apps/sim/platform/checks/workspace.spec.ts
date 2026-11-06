@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const origin = 'http://127.0.0.1:3181'
+const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
 test('opening an immediately filtered skill preserves the destination and its saved edit across a workspace pane', async ({
   page,

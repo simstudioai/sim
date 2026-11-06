@@ -1,21 +1,13 @@
-/*
- * The composer between the surfaces cannot read design-system tokens, so the frame that shares a
- * column with it uses the values behind `--ui-page-max-size` and `--ui-page-inline-gutter`.
- */
 .scroller {
   flex: 1;
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding-inline: clamp(1rem, 4%, 3rem);
 }
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  inline-size: 100%;
-  max-inline-size: 81rem;
-  margin-inline: auto;
   padding-block: var(--ui-page-heading-inset, 4rem) 1.5rem;
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
@@ -72,7 +64,6 @@
   position: relative;
   z-index: 1;
   min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset, 0.5rem));
   margin-block-end: var(--ui-product-section-gap, 1.5rem);
 }
 /* The composer and its shortcuts cap at the chat column elsewhere; here they span Home's column. */

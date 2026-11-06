@@ -1,13 +1,17 @@
 import type { ReactNode, Ref } from 'react'
 import styles from '@/platform/app/(shell)/_components/resource-directory/resource-directory.module.css'
-import { Chip } from '@/platform/design-system/components'
+import { Chip, PageColumn } from '@/platform/design-system/components'
 
 interface DirectoryContentProps {
   children: ReactNode
 }
 
 export function DirectoryPage({ children }: DirectoryContentProps) {
-  return <main className={styles.page}>{children}</main>
+  return (
+    <PageColumn>
+      <main className={styles.page}>{children}</main>
+    </PageColumn>
+  )
 }
 
 interface DirectoryHeadingProps {

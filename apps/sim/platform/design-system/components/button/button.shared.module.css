@@ -158,6 +158,9 @@
 .chipAction:has([aria-expanded="true"]) {
   opacity: 1;
 }
+.chipAction:has([data-copy-feedback]) {
+  opacity: 1;
+}
 .chipRow[data-action-side="start"]:is(:hover, :has(:focus-visible)) > .chip > svg {
   visibility: hidden;
 }

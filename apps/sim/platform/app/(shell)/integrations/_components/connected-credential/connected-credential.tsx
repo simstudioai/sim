@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
-import { ActionMenu, Modal } from '@/platform/design-system/components'
+import { ActionMenu, ActivityRow, Icon, Modal } from '@/platform/design-system/components'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
 
 interface CredentialRow extends IntegrationAccount {
@@ -32,46 +33,58 @@ export function ConnectedCredential({
   const heading = accounts.length > 1 ? 'Connected credentials' : 'Connected credential'
   return (
     <section aria-label={heading} className={styles.section}>
-      <h2 data-type='T042'>{heading}</h2>
-      {accounts.map((account) => (
-        <div key={account.id} className={styles.row}>
-          <div className={styles.identity}>
-            {account.href ? (
-              <Link href={account.href} className={styles.link} data-type='T059'>
-                {account.label}
-              </Link>
-            ) : (
-              <p data-type='T059'>{account.label}</p>
-            )}
-            <p className={styles.muted} data-type='T050'>
-              {account.statusLabel}
-            </p>
-          </div>
-          <ActionMenu
-            label={`Manage ${account.label}`}
-            icon='I108'
-            triggerSize='row'
-            align='end'
-            tooltip={false}
-            actions={[
-              {
-                id: 'reconnect',
-                label: 'Reconnect account',
-                disabled: pending || !account.canReconnect,
-                onSelect: () => onReconnect(account.id),
-              },
-              {
-                id: 'disconnect',
-                label: 'Disconnect account',
-                destructive: true,
-                separatorBefore: true,
-                disabled: pending,
-                onSelect: () => setConfirmingId(account.id),
-              },
-            ]}
-          />
-        </div>
-      ))}
+      <h2 data-type='T093'>
+        <CountedLabel label={heading} count={accounts.length} />
+      </h2>
+      <ul className={styles.rows}>
+        {accounts.map((account) => {
+          const action = (
+            <ActionMenu
+              label={`Manage ${account.label}`}
+              icon='I108'
+              triggerSize='row'
+              align='end'
+              tooltip={false}
+              actions={[
+                {
+                  id: 'reconnect',
+                  label: 'Reconnect account',
+                  disabled: pending || !account.canReconnect,
+                  onSelect: () => onReconnect(account.id),
+                },
+                {
+                  id: 'disconnect',
+                  label: 'Disconnect account',
+                  destructive: true,
+                  separatorBefore: true,
+                  disabled: pending,
+                  onSelect: () => setConfirmingId(account.id),
+                },
+              ]}
+            />
+          )
+          return account.href ? (
+            <ActivityRow
+              key={account.id}
+              href={account.href}
+              leading={<Icon name='I137' />}
+              title={account.label}
+              detail={account.statusLabel}
+              trailing={action}
+            />
+          ) : (
+            <li key={account.id} className={styles.row}>
+              <ActivityBody leading={<Icon name='I137' />}>
+                <span data-type='T059'>{account.label}</span>
+                <span className={styles.muted} data-type='T050'>
+                  {account.statusLabel}
+                </span>
+              </ActivityBody>
+              {action}
+            </li>
+          )
+        })}
+      </ul>
       {confirming && (
         <Modal
           open

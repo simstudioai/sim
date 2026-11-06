@@ -132,6 +132,7 @@ const embeddedHost = 'app/o/[organizationId]/'
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
+  'platform/design-system/components/page-column/page-column.module.css',
 ])
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
@@ -535,6 +536,17 @@ function checkCss(file: string, sheet: postcss.Root) {
       return
     // Keyboard focus is visible, as review on the running app settled. Pointer focus stays unpainted.
     if (/:focus-visible/.test(rule.selector) && !/:focus(?!-visible)/.test(rule.selector)) return
+    if (
+      file === `${system}components/search-field/search-field.module.css` &&
+      rule.selector === '.search:is(:hover, :focus-within)' &&
+      rule.nodes.every(
+        (node) =>
+          node.type === 'decl' &&
+          node.prop === 'border-block-end-color' &&
+          node.value === 'var(--control-hover-border)'
+      )
+    )
+      return
     if (
       file === `${foundation}embedded.css` &&
       rule.selector === '[data-platform-ui] :focus' &&

@@ -23,7 +23,7 @@ export function HelpMenu() {
     {
       id: 'documentation',
       label: 'Docs',
-      icon: 'I079',
+      icon: 'I082',
       trailingIcon: 'I030',
       separatorBefore: Boolean(desktopUpdate),
       onSelect: help.openDocumentation,

@@ -209,7 +209,13 @@ export function AdminDirectory({
           onConfirm={confirmAction}
         >
           {action === 'Ban' && (
-            <TextField label='Reason' optional value={reason} onChange={setReason} />
+            <TextField
+              placeholder='Add a reason'
+              label='Reason'
+              optional
+              value={reason}
+              onChange={setReason}
+            />
           )}
         </Modal>
       )}

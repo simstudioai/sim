@@ -67,6 +67,12 @@
       "floating": ["C0263", "C0264"]
     }
   },
+  "CopyButton": {
+    "size": {
+      "small": [],
+      "compact": []
+    }
+  },
   "SearchField": {
     "variant": {
       "outlined": ["C0925", "C0926", "C0928"],

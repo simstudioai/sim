@@ -143,6 +143,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
                       description: 'Review workspace details.',
                       content: (
                         <TextField
+                          placeholder='Organization name'
                           label='Organization'
                           disabled
                           defaultValue={organization?.name}
@@ -157,7 +158,7 @@ export function Workbench({ theme, scenario, data, recipe, destination }: Workbe
                   description='Choose a workspace name.'
                   confirmLabel='Save'
                 >
-                  <TextField label='Name' defaultValue={workspace?.name} />
+                  <TextField placeholder='Name' label='Name' defaultValue={workspace?.name} />
                 </Modal>
               </div>
             </div>

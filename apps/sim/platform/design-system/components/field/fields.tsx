@@ -1,5 +1,5 @@
 import { type ReactNode, useId } from 'react'
-import styles from '@/platform/design-system/components/field/field.module.css'
+import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import {
   Input,
   TextArea,
@@ -84,7 +84,7 @@ export function FieldFrame({
 interface TextFieldProps extends FieldProps, TextValueProps, TextEntryProps {
   required?: boolean
   pattern?: string
-  placeholder?: string
+  placeholder: string
 }
 
 export function TextField({
@@ -105,6 +105,7 @@ export function TextField({
   autoComplete,
   maxLength,
   readOnly,
+  viewOnly,
 }: TextFieldProps) {
   const id = useId()
   return (
@@ -116,6 +117,7 @@ export function TextField({
         autoComplete={autoComplete}
         maxLength={maxLength}
         readOnly={readOnly}
+        viewOnly={viewOnly}
         required={required}
         pattern={pattern}
         label={label}
@@ -133,7 +135,7 @@ export function TextField({
 }
 
 interface TextAreaFieldProps extends FieldProps, TextValueProps {
-  placeholder?: string
+  placeholder: string
   required?: boolean
   maxLength?: number
   readOnly?: boolean
