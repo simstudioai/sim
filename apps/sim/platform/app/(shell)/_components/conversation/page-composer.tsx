@@ -32,11 +32,9 @@ const MODEL_SELECTOR_OPTIONS = { showEffortChevron: true } as const
 /** A surface holding only design-system controls, so the legacy field and selector can sit around it. */
 function ControlIsland({ children }: { children: ReactNode }) {
   return (
-    <div className={styles.island}>
-      <RedesignSurface>
-        <div className={styles.controls}>{children}</div>
-      </RedesignSurface>
-    </div>
+    <RedesignSurface>
+      <div className={styles.controls}>{children}</div>
+    </RedesignSurface>
   )
 }
 

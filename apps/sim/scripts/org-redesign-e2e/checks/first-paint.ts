@@ -33,7 +33,7 @@ const PREFETCHED_SECRET_SOURCE = [
 ]
 const PREFETCHED_LINKS = [{ label: 'links first page', pattern: /\/sim-links(\?(?!.*cursor=)|$)/ }]
 
-/** The composer's lists: about a dozen for each workspace, so they wait until someone asks. */
+/** The composer's per-workspace lists, which wait until someone asks. */
 const PER_WORKSPACE_READ = [
   /^\/api\/skills\?/,
   /^\/api\/workflows\?/,

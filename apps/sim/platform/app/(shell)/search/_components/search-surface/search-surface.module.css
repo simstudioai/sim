@@ -10,10 +10,6 @@
   flex-direction: column;
   min-block-size: 0;
 }
-.body > [data-platform-ui],
-.transparentSurface > [data-platform-ui] {
-  background: transparent;
-}
 .header {
   display: flex;
   align-items: center;

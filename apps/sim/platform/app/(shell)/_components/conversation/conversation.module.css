@@ -49,9 +49,6 @@
     min-inline-size: var(--design-spacing-app-control-sm);
   }
 }
-.responseActions > [data-platform-ui] {
-  background: transparent;
-}
 .responseActionRow {
   display: flex;
   align-items: center;
@@ -59,9 +56,6 @@
 }
 .dialogHost {
   user-select: text;
-}
-.dialogHost > [data-platform-ui] {
-  background: transparent;
 }
 .shareFields {
   display: contents;
@@ -126,7 +120,6 @@
 }
 .landing > [data-platform-ui] {
   max-inline-size: 100%;
-  background: transparent;
 }
 .landingField {
   inline-size: 100%;
@@ -140,10 +133,6 @@
 .landingGetStarted {
   margin-block-start: var(--design-spacing-24);
 }
-.landingGetStarted > [data-platform-ui] {
-  background: transparent;
-}
-
 .skeleton {
   display: flex;
   flex-direction: column;
@@ -151,11 +140,6 @@
   min-block-size: 0;
   min-inline-size: 0;
   background: var(--bg);
-}
-.landingField > [data-platform-ui],
-.transcriptSkeleton > [data-platform-ui],
-.composerSkeleton > [data-platform-ui] {
-  background: transparent;
 }
 .placeholderHeading,
 .placeholderField {

@@ -55,14 +55,10 @@
 }
 .backdrop > [data-platform-ui] {
   block-size: 100%;
-  background: transparent;
 }
 .material {
   block-size: 100%;
   border-radius: var(--radius-composer);
-}
-.island > [data-platform-ui] {
-  background: transparent;
 }
 .controls {
   display: flex;

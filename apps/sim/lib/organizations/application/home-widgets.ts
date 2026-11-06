@@ -283,7 +283,7 @@ interface GmailAccountCursor extends GmailThreadCursor {
 /**
  * Completes the merge a per-account budget started, so the rows match reading every thread of every
  * account: a busy mailbox still fills the list, and a quiet one leaves its share to the others. A
- * failure here fails the account, as a thread that would not read always has.
+ * failure here fails the account.
  */
 async function readRemainingGmailThreads(
   { accounts, rows }: WidgetReadResult<HomeEmailThread>,
