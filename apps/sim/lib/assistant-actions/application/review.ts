@@ -66,7 +66,14 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
       .limit(1)
     if (!latest) return { runId: null, streamId: null, actions: [], nextCursor: null }
     const runId = latest.id
-    const run = await requireAssistantRun(principal, { ...input, runId }, context.userId)
+    // The run can close between the lookup above and this one, which means nothing is waiting.
+    const run = await requireAssistantRun(principal, { ...input, runId }, context.userId).catch(
+      (error: unknown) => {
+        if (error instanceof OrchestrationError && error.code === 'conflict') return null
+        throw error
+      }
+    )
+    if (!run) return { runId: null, streamId: null, actions: [], nextCursor: null }
     const records = await db
       .select()
       .from(copilotAsyncToolCalls)
