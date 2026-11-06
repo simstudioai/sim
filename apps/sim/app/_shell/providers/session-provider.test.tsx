@@ -1,11 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, useContext } from 'react'
+import { act, type ComponentType, lazy, Suspense, useContext } from 'react'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createRoot, type Root } from 'react-dom/client'
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/client', () => authClientMock)
@@ -19,12 +20,9 @@ vi.mock('posthog-js', () => ({
   },
 }))
 
+import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import type { AppSession } from '@/lib/auth/session-response'
-import {
-  SessionContext,
-  type SessionHookResult,
-  SessionProvider,
-} from '@/app/_shell/providers/session-provider'
+import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { sessionKeys } from '@/hooks/queries/session'
 
 const {
@@ -249,5 +247,40 @@ describe('SessionProvider', () => {
 
     invalidateSpy.mockRestore()
     h.unmount()
+  })
+
+  it('keeps server-rendered rows when the session settles while their chunk is still loading', async () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    setSearch('')
+    const session = createDeferred<{ data: AppSession }>()
+    mockGetSession.mockReturnValue(session.promise)
+    const chunk = createDeferred<{ default: ComponentType }>()
+    const Row = () => <img alt='' src='/api/favicon?host=example.com' />
+    const Chunked = lazy(() => chunk.promise)
+    const page = (Content: ComponentType) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <SessionProvider>
+          <main>
+            <Suspense fallback={null}>
+              <Content />
+            </Suspense>
+          </main>
+        </SessionProvider>
+      </QueryClientProvider>
+    )
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(page(Row))
+    const served = container.querySelector('img')
+    expect(served).not.toBeNull()
+
+    const root = await act(async () => hydrateRoot(container, page(Chunked)))
+    await flush()
+    await act(async () => session.resolve({ data: FRESH_SESSION }))
+    await flush()
+    await act(async () => chunk.resolve({ default: Row }))
+    await flush()
+
+    expect(container.querySelector('img')).toBe(served)
+    act(() => root.unmount())
   })
 })

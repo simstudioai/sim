@@ -1,6 +1,6 @@
 'use client'
 
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 
 /**
  * Whether this workspace's payer may not use Chat, so sends that run admission would refuse are

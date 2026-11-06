@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseStatus } from '@sim/desktop-bridge'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { getDesktopBridge } from '@/lib/desktop'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
 /** Refresh native permissions when the user returns from System Settings and on activity changes. */
 export function useComputerUseStatus() {

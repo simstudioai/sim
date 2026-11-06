@@ -7,7 +7,7 @@ vi.mock('@/lib/mothership/resources/extraction', () => ({
   extractResourcesFromToolResult: vi.fn(() => []),
 }))
 vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
+  '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation',
   () => ({ invalidateResourceQueries: vi.fn() })
 )
 

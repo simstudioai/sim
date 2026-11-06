@@ -1,0 +1,23 @@
+import { notFound } from 'next/navigation'
+import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
+import { AdminPanel } from '@/platform/app/(shell)/settings/_components/sections/admin/admin-panel'
+import { readScenario } from '@/platform/design-system/navigation'
+import { loadAdminExample } from '@/platform/fixtures'
+import { readAdminPreferences } from '@/platform/lib/data/admin'
+import { legacyRoutes } from '@/platform/lib/data/organization-model'
+
+export default async function AdminSection({ organization, fixture, query }: SettingsSectionProps) {
+  if (!organization.navFlags.platformAdmin) notFound()
+  const example = fixture ? await loadAdminExample(readScenario(query.state)) : null
+  const preferences = example ?? (await readAdminPreferences().catch(() => null))
+  const origin = fixture ? process.env.NEXT_PUBLIC_APP_URL : organization.legacyOrigin
+  return (
+    <AdminPanel
+      preferences={preferences}
+      example={example}
+      benchmarkAvailable={example ? true : organization.navFlags.benchmark}
+      benchmarkHref={origin ? new URL('/benchmark', origin).href : undefined}
+      manageHref={legacyRoutes(organization).settingsSection('admin')}
+    />
+  )
+}

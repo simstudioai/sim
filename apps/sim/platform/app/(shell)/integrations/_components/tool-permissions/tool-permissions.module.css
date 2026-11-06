@@ -1,0 +1,56 @@
+.section,
+.group,
+.list,
+.intro,
+.copy {
+  display: grid;
+  min-inline-size: 0;
+}
+.section {
+  gap: var(--ui-section-gap);
+  container: permission-tools / inline-size;
+}
+.intro,
+.copy {
+  gap: var(--ui-stack-gap);
+}
+.detail {
+  color: var(--ui-secondary);
+}
+.group {
+  gap: var(--ui-stack-gap);
+}
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: var(--ui-list-gap);
+}
+.tool {
+  padding-block: var(--ui-row-block);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: var(--ui-action-gap);
+  max-inline-size: 100%;
+}
+.copy {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+@container permission-tools (max-width: 32rem) {
+  .tool {
+    align-items: start;
+    flex-direction: column;
+  }
+}

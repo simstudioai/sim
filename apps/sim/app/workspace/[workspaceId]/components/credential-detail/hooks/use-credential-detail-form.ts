@@ -6,8 +6,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { useRouter } from 'next/navigation'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('CredentialDetailForm')

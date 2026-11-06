@@ -16,11 +16,11 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { DataDrainCreate } from '@/ee/data-drains/components/data-drain-create'
 import { DataDrainDetail } from '@/ee/data-drains/components/data-drain-detail'
 import { useDataDrains } from '@/ee/data-drains/hooks/data-drains'
 import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 interface DataDrainsSettingsProps {
   organizationId: string

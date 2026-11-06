@@ -1,0 +1,110 @@
+/*
+ * The composer sits between the surfaces, so the frame that shares a column with it reads the design
+ * system through `host-bridge.module.css`.
+ */
+.scroller {
+  flex: 1;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding-inline: clamp(var(--design-spacing-16), 4cqi, var(--design-spacing-48));
+}
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  max-inline-size: var(--design-ui-page-max-size);
+  margin-inline: auto;
+  padding-block: var(--design-spacing-64) var(--design-spacing-24);
+}
+@media (max-width: 48rem) {
+  .dashboard {
+    padding-block-start: var(--design-spacing-24);
+  }
+}
+/* Customize Home's menu opens over the composer, whose own stacking stays within its row. */
+.dashboard > :first-child {
+  position: relative;
+  z-index: 2;
+}
+.lead {
+  display: grid;
+  gap: var(--ui-product-section-gap);
+  margin-block-end: var(--ui-section-gap);
+}
+.greeting {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}
+.greeting > div {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.greeting p {
+  color: var(--ui-secondary);
+  text-wrap: pretty;
+}
+.wordmark {
+  display: flex;
+  inline-size: var(--spacing-40);
+  block-size: var(--spacing-28);
+}
+.wordmark svg {
+  width: 100%;
+  height: 100%;
+}
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  z-index: 1;
+  min-inline-size: 0;
+  margin-block-end: var(--design-spacing-24);
+}
+/* The composer caps at the chat column elsewhere; here it spans Home's column. */
+.composer > * {
+  max-width: none;
+}
+.sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-product-section-gap);
+}
+.recents {
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
+  align-items: start;
+  gap: var(--ui-product-section-gap);
+}
+.column {
+  display: grid;
+  gap: var(--ui-product-section-gap);
+  min-inline-size: 0;
+}
+.column:empty {
+  display: none;
+}
+.placeholderGreeting,
+.placeholderWordmark,
+.placeholderGetStarted {
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}
+.placeholderGreeting {
+  block-size: var(--spacing-56);
+  inline-size: 60%;
+}
+.placeholderWordmark {
+  block-size: var(--spacing-28);
+  inline-size: var(--spacing-40);
+}
+.placeholderGetStarted {
+  block-size: var(--spacing-132);
+}

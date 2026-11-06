@@ -11,5 +11,4 @@ export {
   MothershipResourcesProvider,
   useMothershipResources,
 } from './mothership-resources-context'
-export { QueuedMessages } from './queued-messages'
 export { UserInput, type UserInputHandle } from './user-input'

@@ -68,6 +68,7 @@ const ROLE_FOLDERS: Record<string, string[]> = {
 }
 const STUTTER_ROOTS = [
   /^apps\/sim\/(?:lib|executor|providers|stores|hooks|serializer)\//,
+  /^apps\/sim\/platform\/lib\//,
   /^packages\/[^/]+\/src\//,
 ]
 

@@ -9,6 +9,7 @@ import {
   type CreatePermissionGroupBody,
   createPermissionGroupContract,
   deletePermissionGroupContract,
+  getPermissionGroupEditorCatalogContract,
   getUserPermissionConfigContract,
   listOrganizationWorkspacesContract,
   listPermissionGroupMembersContract,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/api/contracts/permission-groups'
 import { accessRequestKeys } from '@/hooks/queries/utils/access-request-keys'
 import {
+  PERMISSION_GROUP_EDITOR_CATALOG_STALE_TIME,
   PERMISSION_GROUP_MEMBERS_STALE_TIME,
   PERMISSION_GROUPS_STALE_TIME,
   permissionGroupKeys,
@@ -68,6 +70,22 @@ export function usePermissionGroupMembers(organizationId?: string, permissionGro
     },
     enabled: Boolean(organizationId) && Boolean(permissionGroupId),
     staleTime: PERMISSION_GROUP_MEMBERS_STALE_TIME,
+  })
+}
+
+/** The group editor's block and provider catalog; requires organization admin, like the groups. */
+export function usePermissionGroupEditorCatalog(organizationId: string, enabled = true) {
+  return useQuery({
+    queryKey: permissionGroupKeys.editorCatalog(organizationId),
+    queryFn: ({ signal }) =>
+      requestJson(getPermissionGroupEditorCatalogContract, {
+        params: { id: organizationId },
+        signal,
+      }),
+    enabled: Boolean(organizationId) && enabled,
+    staleTime: PERMISSION_GROUP_EDITOR_CATALOG_STALE_TIME,
+    retry: shouldRetrySettingsRead,
+    retryOnMount: true,
   })
 }
 

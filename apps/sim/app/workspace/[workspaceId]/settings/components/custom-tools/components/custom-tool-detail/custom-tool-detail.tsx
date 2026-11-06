@@ -6,7 +6,6 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -28,6 +27,7 @@ import {
   useDeleteCustomTool,
   useUpdateCustomTool,
 } from '@/hooks/queries/custom-tools'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('CustomToolDetail')
 

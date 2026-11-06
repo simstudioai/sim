@@ -55,9 +55,12 @@ export interface PlusMenuHandle {
   selectActive: () => 'selected' | 'empty' | 'hydrating'
 }
 
-/** Shared draft typography for Build and Search composers. */
-export const PROMPT_TEXT_CLASSES =
-  'font-body text-md leading-[24px] tracking-[-0.015em] md:pointer-fine:text-sm'
+/**
+ * Shared draft typography for Build and Search composers. A host's frame retunes it through these
+ * variables, which reach the field and its mirror overlay alike; unset, it is the default type.
+ */
+const PROMPT_TEXT_CLASSES =
+  '[font-family:var(--prompt-font-family,theme(--font-body))] text-md leading-[var(--prompt-leading,24px)] tracking-[var(--prompt-tracking,-0.015em)] md:pointer-fine:text-sm'
 
 /**
  * Box and typography shared by the textarea and its mirror overlay — both must
@@ -67,7 +70,7 @@ export const PROMPT_TEXT_CLASSES =
  */
 export const PROMPT_FIELD_CLASSES = cn(
   'm-0 box-border min-h-[24px] w-full [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1',
+  'px-1 py-[var(--prompt-padding-block,0.25rem)]',
   PROMPT_TEXT_CLASSES
 )
 

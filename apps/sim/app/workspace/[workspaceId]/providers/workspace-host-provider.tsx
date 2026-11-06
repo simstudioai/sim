@@ -1,13 +1,15 @@
 'use client'
 
-import { createContext, type ReactNode, useContext } from 'react'
+import type { ReactNode } from 'react'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
+import {
+  useOptionalWorkspaceHostContext,
+  WorkspaceHostContextValue,
+} from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
-
-const WorkspaceHostContextValue = createContext<WorkspaceHostContext | null>(null)
 
 interface WorkspaceHostProviderProps {
   children: ReactNode
@@ -43,14 +45,9 @@ export function WorkspaceHostProvider({
 }
 
 export function useWorkspaceHostContext(): WorkspaceHostContext {
-  const context = useContext(WorkspaceHostContextValue)
+  const context = useOptionalWorkspaceHostContext()
   if (!context) {
     throw new Error('useWorkspaceHostContext must be used within a WorkspaceHostProvider')
   }
   return context
-}
-
-/** Returns route-derived host context when called inside a workspace route. */
-export function useOptionalWorkspaceHostContext(): WorkspaceHostContext | null {
-  return useContext(WorkspaceHostContextValue)
 }

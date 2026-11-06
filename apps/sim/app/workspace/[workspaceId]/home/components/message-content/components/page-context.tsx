@@ -13,7 +13,16 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
+
+export interface PageContextDialogProps {
+  snapshot: PageSnapshot
+  title: string
+  hostname: string
+  isDraft: boolean
+  onClose: () => void
+}
 
 interface PageContextProps {
   snapshot: PageSnapshot
@@ -22,6 +31,7 @@ interface PageContextProps {
 }
 
 export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
+  const { PageContextDialogComponent: PageContextDialog } = useChatChrome()
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<HTMLPreElement | null>(null)
   const edges = useScrollEdges(preview)
@@ -46,8 +56,17 @@ export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
         onRemove={onRemove}
         removeLabel='Remove page context'
       />
+      {PageContextDialog && open && (
+        <PageContextDialog
+          snapshot={snapshot}
+          title={title}
+          hostname={hostname}
+          isDraft={Boolean(onRemove)}
+          onClose={() => setOpen(false)}
+        />
+      )}
       <ChipModal
-        open={open}
+        open={open && !PageContextDialog}
         onOpenChange={setOpen}
         srTitle='Page context'
         size='sm'

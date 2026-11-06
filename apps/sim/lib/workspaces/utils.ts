@@ -108,28 +108,29 @@ export async function listAccessibleWorkspaceRowsForUser(
     viaOrgAdmin: boolean
   }>
 > {
-  const explicit = await db
-    .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
-    .from(permissions)
-    .innerJoin(workspaceTable, eq(permissions.entityId, workspaceTable.id))
-    .where(
-      scope === 'all'
-        ? and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace'))
-        : scope === 'archived'
-          ? and(
-              eq(permissions.userId, userId),
-              eq(permissions.entityType, 'workspace'),
-              sql`${workspaceTable.archivedAt} IS NOT NULL`
-            )
-          : and(
-              eq(permissions.userId, userId),
-              eq(permissions.entityType, 'workspace'),
-              isNull(workspaceTable.archivedAt)
-            )
-    )
-    .orderBy(desc(workspaceTable.createdAt))
-
-  const orgRows = await getOrgAdminWorkspaceRows(userId, scope, organizationId)
+  const [explicit, orgRows] = await Promise.all([
+    db
+      .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
+      .from(permissions)
+      .innerJoin(workspaceTable, eq(permissions.entityId, workspaceTable.id))
+      .where(
+        scope === 'all'
+          ? and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace'))
+          : scope === 'archived'
+            ? and(
+                eq(permissions.userId, userId),
+                eq(permissions.entityType, 'workspace'),
+                sql`${workspaceTable.archivedAt} IS NOT NULL`
+              )
+            : and(
+                eq(permissions.userId, userId),
+                eq(permissions.entityType, 'workspace'),
+                isNull(workspaceTable.archivedAt)
+              )
+      )
+      .orderBy(desc(workspaceTable.createdAt)),
+    getOrgAdminWorkspaceRows(userId, scope, organizationId),
+  ])
   if (orgRows.length === 0) {
     return explicit.map((row) => ({ ...row, viaOrgAdmin: false }))
   }

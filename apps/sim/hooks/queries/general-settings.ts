@@ -44,12 +44,12 @@ export async function refreshGeneralSettings(queryClient: QueryClient): Promise<
  * Hook to fetch general settings.
  * TanStack Query is now the single source of truth for general settings.
  */
-export function useGeneralSettings() {
+export function useGeneralSettings({ persistTheme = true }: { persistTheme?: boolean } = {}) {
   const query = useQuery(generalSettingsQuery)
 
   useEffect(() => {
-    if (query.data?.theme) syncThemeToNextThemes(query.data.theme)
-  }, [query.data?.theme])
+    if (persistTheme && query.data?.theme) syncThemeToNextThemes(query.data.theme)
+  }, [persistTheme, query.data?.theme])
 
   return query
 }
@@ -152,7 +152,7 @@ type UpdateSettingParams = {
   }
 }[keyof GeneralSettings]
 
-export function useUpdateGeneralSetting() {
+export function useUpdateGeneralSetting({ persistTheme = true }: { persistTheme?: boolean } = {}) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -174,7 +174,7 @@ export function useUpdateGeneralSetting() {
 
         queryClient.setQueryData<GeneralSettings>(generalSettingsKeys.settings(), newSettings)
 
-        if (key === 'theme') {
+        if (persistTheme && key === 'theme') {
           syncThemeToNextThemes(value as GeneralSettings['theme'])
         }
       }
@@ -184,7 +184,7 @@ export function useUpdateGeneralSetting() {
     onError: (err, _variables, context) => {
       if (context?.previousSettings) {
         queryClient.setQueryData(generalSettingsKeys.settings(), context.previousSettings)
-        syncThemeToNextThemes(context.previousSettings.theme)
+        if (persistTheme) syncThemeToNextThemes(context.previousSettings.theme)
       }
       logger.error('Failed to update setting:', err)
     },

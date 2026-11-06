@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

@@ -3,7 +3,6 @@ export { EmbeddedProjectFile, ResourceActions, ResourceContent } from './resourc
 export type { ResourceTypeConfig } from './resource-registry'
 export {
   getResourceConfig,
-  invalidateResourceQueries,
   RESOURCE_REGISTRY,
 } from './resource-registry'
 export { ResourceTabs } from './resource-tabs'

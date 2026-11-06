@@ -202,19 +202,44 @@ export function useUpdateUsageLimit() {
   })
 }
 
-/**
- * Open billing portal mutation
- */
 type OpenBillingPortalParams = ContractBodyInput<typeof createBillingPortalContract>
 
-export function useOpenBillingPortal() {
-  return useMutation({
-    mutationFn: async (body: OpenBillingPortalParams) => {
-      const data = await requestJson(createBillingPortalContract, {
-        body,
-      })
+interface OpenBillingPortalVariables {
+  body: OpenBillingPortalParams
+  portalWindow: Window | null
+  onError: (error: Error) => void
+}
 
-      return data
+/**
+ * Opens the billing portal in a new tab. The tab opens before the request so a popup blocker still
+ * treats it as the viewer's click, and it reaches the portal or closes even if the page that asked
+ * has gone, so it is never stranded blank. If a blocker stops the tab, the portal takes the current
+ * tab, but only while that page is still mounted: a viewer who moved on is not pulled away.
+ */
+export function useOpenBillingPortal() {
+  const portal = useMutation({
+    mutationFn: ({ body }: OpenBillingPortalVariables) =>
+      requestJson(createBillingPortalContract, { body }),
+    onSuccess: (data, { portalWindow }) => {
+      if (portalWindow) portalWindow.location.href = data.url
+    },
+    onError: (error, { portalWindow, onError }) => {
+      portalWindow?.close()
+      onError(error)
     },
   })
+  return {
+    isPending: portal.isPending,
+    open: (body: OpenBillingPortalParams, onError: (error: Error) => void) => {
+      const portalWindow = window.open('', '_blank')
+      portal.mutate(
+        { body, portalWindow, onError },
+        {
+          onSuccess: (data) => {
+            if (!portalWindow) window.location.href = data.url
+          },
+        }
+      )
+    },
+  }
 }

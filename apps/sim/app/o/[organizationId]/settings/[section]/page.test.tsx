@@ -9,14 +9,14 @@ vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/settings/application/organization-section-access', () => ({
   authorizeOrganizationSettingsSection: mocks.authorize,
 }))
-vi.mock('@/components/settings/account-settings-renderer', () => ({
-  AccountSettingsRenderer: () => null,
-}))
 vi.mock('@/components/settings/prefetch-standalone-general', () => ({
   prefetchStandaloneGeneral: vi.fn(),
 }))
-vi.mock('@/app/o/[organizationId]/settings/[section]/settings', () => ({
-  OrganizationSettings: () => null,
+vi.mock('@/platform/embedded/app/(shell)/settings/_components/settings-section-host', () => ({
+  PlatformSettingsSectionHost: () => null,
+}))
+vi.mock('@/platform/embedded/lib/data/prefetch-permission-editor', () => ({
+  prefetchPermissionEditorCatalog: vi.fn(),
 }))
 
 import OrganizationSettingsSectionPage from '@/app/o/[organizationId]/settings/[section]/page'
@@ -31,7 +31,7 @@ describe('organization settings access', () => {
   })
 
   it('conceals requests from viewers rejected by the organization gate', async () => {
-    mocks.authorize.mockResolvedValue(false)
+    mocks.authorize.mockImplementation(async ({ section }) => section !== 'requests')
     await expect(
       OrganizationSettingsSectionPage({
         params: Promise.resolve({ organizationId: 'organization', section: 'access-control' }),

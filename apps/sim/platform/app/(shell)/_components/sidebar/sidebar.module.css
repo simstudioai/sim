@@ -1,0 +1,61 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: var(--shell-edge-inset) var(--ui-row-inset);
+  border-inline-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.sidebarHeader,
+.actions,
+.sidebarFooter {
+  display: flex;
+  align-items: center;
+}
+.sidebarHeader {
+  justify-content: space-between;
+  margin-block-end: var(--ui-product-section-gap);
+}
+.sidebarFooter {
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-app-chip);
+  margin-block-start: var(--shell-edge-inset);
+}
+.help {
+  display: flex;
+  margin-inline-start: auto;
+}
+.accountPhoto {
+  display: inline-flex;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
+.actions {
+  gap: var(--ui-action-gap);
+  flex: none;
+}
+.sidebarBody {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  min-block-size: 0;
+}
+.nav,
+.group {
+  display: grid;
+  min-inline-size: 0;
+}
+.nav {
+  gap: var(--ui-product-section-gap);
+}
+.group {
+  gap: var(--ui-list-gap);
+}
+.accountMenu {
+  inline-size: min(
+    calc(var(--shell-org-menu-width) - 2 * var(--ui-popup-padding)),
+    calc(100vw - var(--spacing-32))
+  );
+}

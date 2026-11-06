@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { ChipConfirmModal, ChipSwitch, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { OrganizationSsoPolicy } from '@/lib/api/contracts/organization'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -11,23 +10,7 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/sso/hooks/sso-policy'
-
-const OPTIONS = [
-  { value: 'any', label: 'Any method' },
-  { value: 'sso-only', label: 'Single sign-on' },
-] as const
-
-function describePolicy(policy: OrganizationSsoPolicy): string {
-  if (policy.requireSso && !policy.isEnforced) {
-    return 'Nothing can satisfy the requirement right now, so it is not enforced. Restore an identity provider on a verified domain, or switch back to any method.'
-  }
-  if (!policy.hasVerifiedProvider) {
-    return 'Add an identity provider on a verified domain to require single sign-on.'
-  }
-  return policy.requireSso
-    ? 'Members sign in through your identity provider. Password and email sign-in are refused.'
-    : 'Members can sign in with a password, email code, or your identity provider.'
-}
+import { describeSsoPolicy, SSO_POLICY_OPTIONS } from '@/ee/sso/lib/provider-form'
 
 interface RequireSsoSectionProps {
   organizationId: string
@@ -99,9 +82,9 @@ export function RequireSsoSection({ organizationId }: RequireSsoSectionProps) {
             /** Turning it off stays available: losing the provider must not strand the setting. */
             disabled={updatePolicy.isPending || (!data.hasVerifiedProvider && !data.requireSso)}
             aria-label='Allowed sign-in methods'
-            options={OPTIONS}
+            options={SSO_POLICY_OPTIONS}
           />
-          <p className='text-[var(--text-muted)] text-caption'>{describePolicy(data)}</p>
+          <p className='text-[var(--text-muted)] text-caption'>{describeSsoPolicy(data)}</p>
         </SettingRow>
       </SettingsSection>
 

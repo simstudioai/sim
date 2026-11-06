@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|org-redesign|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo|platform-live-zone|platform-live-flag-off>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -32,6 +32,12 @@ status_log=''
 realtime_pid=''
 realtime_tag=''
 realtime_log=''
+platform_pid=''
+platform_tag=''
+platform_log=''
+agent_pid=''
+failing_zone_pid=''
+appconfig_pid=''
 browsers_pid=''
 local_app_url=''
 # `dev` or `start`; a group sets it before start_app.
@@ -62,6 +68,25 @@ finish() {
     if [ "$status" -ne 0 ]; then
       tail -n 100 "$realtime_log"
     fi
+  fi
+  if [ -n "$platform_pid" ]; then
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$platform_pid" "$platform_tag" || status=1
+    wait "$platform_pid" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "$platform_log"
+    fi
+  fi
+  if [ -n "$agent_pid" ]; then
+    kill "$agent_pid" 2>/dev/null || true
+    wait "$agent_pid" 2>/dev/null || true
+  fi
+  if [ -n "$failing_zone_pid" ]; then
+    kill "$failing_zone_pid" 2>/dev/null || true
+    wait "$failing_zone_pid" 2>/dev/null || true
+  fi
+  if [ -n "$appconfig_pid" ]; then
+    kill "$appconfig_pid" 2>/dev/null || true
+    wait "$appconfig_pid" 2>/dev/null || true
   fi
   if [ -n "$browsers_pid" ]; then
     kill -- "-$browsers_pid" 2>/dev/null || true
@@ -131,6 +156,86 @@ start_realtime() {
     > "$realtime_log" 2>&1) &
   realtime_pid=$!
   wait_ready "$realtime_pid" "http://127.0.0.1:$port/health" "$name realtime server"
+}
+
+# stop_app: stops the app start_app started, so a group can start it again under other flags.
+stop_app() {
+  bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag"
+  wait "$server_pid" 2>/dev/null || true
+  server_pid=''
+}
+
+# start_platform <port>: the production build of apps/sim/platform, behind the main app's rewrite.
+start_platform() {
+  local port=$1
+  platform_tag="platform-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$"
+  platform_log="$report_dir/platform-live-platform.log"
+  E2E_APP="$platform_tag" SIM_PLATFORM_API_ORIGIN="$local_app_url" SIM_PLATFORM_BASE_PATH=/org setsid node \
+    ../../node_modules/next/dist/bin/next start platform --hostname 127.0.0.1 --port "$port" \
+    >> "$platform_log" 2>&1 &
+  platform_pid=$!
+  wait_ready "$platform_pid" "http://127.0.0.1:$port/org" 'Platform zone'
+}
+
+# stop_platform: takes the zone away from under a running main app, as an outage does.
+stop_platform() {
+  bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$platform_pid" "$platform_tag"
+  wait "$platform_pid" 2>/dev/null || true
+  platform_pid=''
+}
+
+# platform_live_environment: one hosted Enterprise organization, the deterministic seed its specs
+# read, and a scripted worker in place of the model. Hosted is decided by the app's hostname, which
+# the job maps to loopback. Google and Microsoft answer only to real credentials, so those clients
+# are fixtures, and what no fixture can reach is reported by the specs as a skip. Each group starts
+# the realtime server after its app, as org-redesign does, and holds the same tripwire and tool
+# permissions, so a route that passes one suite cannot fail on the same stack in the other.
+platform_live_environment() {
+  app_server=start
+  export REDIS_URL=redis://127.0.0.1:6379
+  export E2E_APP_PUBLIC_URL=http://platform-live.sim.ai:3027
+  export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
+  export INTERNAL_API_BASE_URL=http://127.0.0.1:3027 TRUSTED_ORIGINS=http://127.0.0.1:3027
+  export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+  export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+  export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
+  export SCIM_ENABLED=true NEXT_PUBLIC_SCIM_ENABLED=true
+  export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+  export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+  export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
+  export SIM_LINKS=true PEOPLE=true
+  export INTERNAL_API_SECRET=platform-live-ci-local-secret-at-least-32-characters
+  export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+  export DB_TX_TRIPWIRE=throw
+  export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3030 SOCKET_SERVER_URL=http://127.0.0.1:3030
+  export COPILOT_API_KEY=platform-live-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+  export SIM_AGENT_API_URL=http://127.0.0.1:3029
+  export GOOGLE_CLIENT_ID=platform-live-google-client GOOGLE_CLIENT_SECRET=platform-live-google-secret
+  export MICROSOFT_CLIENT_ID=platform-live-microsoft-client MICROSOFT_CLIENT_SECRET=platform-live-microsoft-secret
+  export STRIPE_SECRET_KEY=sk_test_platform_live STRIPE_WEBHOOK_SECRET=whsec_platform_live
+
+  export PLATFORM_LIVE_ORIGIN="$E2E_APP_PUBLIC_URL"
+  export PLATFORM_LIVE_PASSWORD=platform-live-password-1
+  export PLATFORM_LIVE_ORGANIZATION_ID=platform-live-organization
+  export PLATFORM_LIVE_ORGANIZATION_NAME='Sim Live Org'
+  export PLATFORM_LIVE_OWNER_EMAIL=olive@platform-live.test
+  export PLATFORM_LIVE_EMAIL=ada@platform-live.test
+  export PLATFORM_LIVE_MEMBER_EMAIL=mia@platform-live.test
+  export PLATFORM_LIVE_CONNECTED_EMAIL=cory@platform-live.test
+  export PLATFORM_LIVE_ROLE_TARGET_EMAIL=rae@platform-live.test
+  export PLATFORM_LIVE_REMOVABLE_EMAIL=remy@platform-live.test
+  export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
+  export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
+  export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
+  export PLATFORM_LIVE_ORCHESTRATOR=1
+  bun --no-env-file scripts/platform-live-seed.ts
+}
+
+# run_platform_live <project> <report-name>
+run_platform_live() {
+  local project=$1 name=$2
+  PLATFORM_LIVE_REPORT_PATH="$report_dir/$name/report.json" \
+    bun run test:platform:live --project="$project" ${PLATFORM_LIVE_GREP:+--grep "$PLATFORM_LIVE_GREP"}
 }
 
 # wait_ready <pid> <health-url> <label>
@@ -268,6 +373,59 @@ case "$group" in
     esac
     ;;
 
+  # One hosted Enterprise organization, a scripted worker in place of the
+  # model, and the app twice: with People off, then on. Hosted is decided by the
+  # app's hostname, which the job maps to loopback. Both phases report, whichever fails.
+  org-redesign)
+    app_server=start
+    export REDIS_URL=redis://127.0.0.1:6379
+    export E2E_APP_PUBLIC_URL=http://org-redesign.sim.ai:3029
+    export NEXT_PUBLIC_APP_URL="$E2E_APP_PUBLIC_URL"
+    export INTERNAL_API_BASE_URL=http://127.0.0.1:3029 TRUSTED_ORIGINS=http://127.0.0.1:3029
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3030 SOCKET_SERVER_URL=http://127.0.0.1:3030
+    export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+    export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+    export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true SIM_LINKS=true
+    export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+    export INTERNAL_API_SECRET=org-redesign-ci-local-secret-at-least-32-characters
+    export COPILOT_API_KEY=org-redesign-ci-local-copilot-key MOTHERSHIP_SIM_TRANSPORT=direct
+    export SIM_AGENT_API_URL=http://127.0.0.1:3031
+    export GOOGLE_CLIENT_ID=org-redesign-google-client GOOGLE_CLIENT_SECRET=org-redesign-google-secret
+    export JIRA_CLIENT_ID=org-redesign-jira-client JIRA_CLIENT_SECRET=org-redesign-jira-secret
+    export CONFLUENCE_CLIENT_ID=org-redesign-confluence-client CONFLUENCE_CLIENT_SECRET=org-redesign-confluence-secret
+    export STRIPE_SECRET_KEY=sk_test_org_redesign STRIPE_WEBHOOK_SECRET=whsec_org_redesign
+    export DB_TX_TRIPWIRE=throw
+    export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
+    bun --no-env-file scripts/org-redesign-seed.ts
+    start_browser_install org-redesign --only-shell chromium
+    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3031 \
+      > "$report_dir/org-redesign-agent.log" 2>&1 &
+    agent_pid=$!
+    wait_ready "$agent_pid" http://127.0.0.1:3031/health 'scripted agent'
+    start_app org-redesign 3029 'organization redesign' record-http-status
+    start_realtime org-redesign 3030
+    wait_for_browsers
+    run_status=0
+    ORG_REDESIGN_E2E_ORIGIN="$E2E_APP_PUBLIC_URL" \
+    ORG_REDESIGN_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORG_REDESIGN_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-ui-report.json" \
+      bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
+    stop_app
+    export PEOPLE=true
+    start_app org-redesign-people 3029 'organization redesign, People on'
+    ORG_REDESIGN_E2E_PHASE=people \
+    ORG_REDESIGN_E2E_ORIGIN="$E2E_APP_PUBLIC_URL" \
+    ORG_REDESIGN_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORG_REDESIGN_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORG_REDESIGN_E2E_REPORT_PATH="$report_dir/org-redesign-people-ui-report.json" \
+      bun --no-env-file scripts/test-org-redesign-e2e.ts || run_status=$?
+    exit "$run_status"
+    ;;
+
   browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access)
     extension_group=all
     case "$group" in
@@ -347,6 +505,76 @@ JS
     LANDING_SEO_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
     LANDING_SEO_E2E_REPORT_PATH="$report_dir/landing-seo-e2e-report.json" \
       bun run test:landing-seo:e2e
+    ;;
+
+  # The zone as deployed: flag on, /org rewritten to the Platform build. Then, on that running app,
+  # the zone goes away, answers 503 to everything, and comes back. Then the same build with the flag
+  # off, which must put everyone back on the legacy surface. Then that build with its flags read from
+  # AppConfig, the real rollout path, targeting one organization by id. Last, that zone's build
+  # misconfigured, which must refuse to start. Every phase reports, whichever fails.
+  platform-live-zone)
+    platform_live_environment
+    export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
+    start_browser_install platform-live --only-shell chromium
+    PLATFORM_ORG_UI=true start_app platform-live 3027 'Platform main' record-http-status
+    start_realtime platform-live 3030
+    start_platform 3028
+    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3029 \
+      > "$report_dir/platform-live-agent.log" 2>&1 &
+    agent_pid=$!
+    wait_for_browsers
+    live_status=0
+    run_platform_live zone platform-live || live_status=$?
+    stop_platform
+    run_platform_live zone-down platform-live-zone-down || live_status=$?
+    bun --no-env-file platform/checks/live/support/failing-zone.ts 3028 \
+      > "$report_dir/platform-live-failing-zone.log" 2>&1 &
+    failing_zone_pid=$!
+    wait_ready "$failing_zone_pid" http://127.0.0.1:3028/health 'failing zone'
+    run_platform_live zone-down platform-live-zone-5xx || live_status=$?
+    kill "$failing_zone_pid"
+    wait "$failing_zone_pid" 2>/dev/null || true
+    failing_zone_pid=''
+    start_platform 3028
+    run_platform_live zone-recovered platform-live-zone-recovered || live_status=$?
+    stop_app
+    start_app platform-live-flag-off 3027 'Platform main, flag off' record-http-status
+    run_platform_live flag-off platform-live-flag-off || live_status=$?
+    stop_app
+    bun --no-env-file platform/checks/live/support/appconfig-service.ts 3033 \
+      > "$report_dir/platform-live-appconfig.log" 2>&1 &
+    appconfig_pid=$!
+    wait_ready "$appconfig_pid" http://127.0.0.1:3033/health 'AppConfig fixture'
+    export APPCONFIG_APPLICATION=platform-live APPCONFIG_ENVIRONMENT=ci AWS_REGION=us-east-1
+    export AWS_ACCESS_KEY_ID=platform-live-ci AWS_SECRET_ACCESS_KEY=platform-live-ci
+    export AWS_ENDPOINT_URL_APPCONFIGDATA=http://127.0.0.1:3033
+    export PLATFORM_LIVE_APPCONFIG_URL=http://127.0.0.1:3033
+    start_app platform-live-rollout 3027 'Platform main, per-organization rollout' record-http-status
+    run_platform_live rollout platform-live-rollout || live_status=$?
+    run_platform_live zone-boot platform-live-zone-boot || live_status=$?
+    exit "$live_status"
+    ;;
+
+  # No zone at all: built without SIM_PLATFORM_ORIGIN, so even with the flag on nothing may change.
+  # Then that image as a self-hoster runs it: not on a Sim hostname, billing off, no rollout flag.
+  # Both report, whichever fails.
+  platform-live-flag-off)
+    platform_live_environment
+    export PLATFORM_ORG_UI=true
+    export ALLOWED_ORIGINS=http://127.0.0.1:3027
+    start_browser_install platform-live --only-shell chromium
+    start_app platform-live-flag-off 3027 'Main, no zone' record-http-status
+    start_realtime platform-live-flag-off 3030
+    wait_for_browsers
+    live_status=0
+    run_platform_live flag-off platform-live-flag-off || live_status=$?
+    stop_app
+    unset PLATFORM_ORG_UI BILLING_ENABLED NEXT_PUBLIC_BILLING_ENABLED
+    unset ENTERPRISE_ENABLED NEXT_PUBLIC_ENTERPRISE_ENABLED
+    export E2E_APP_PUBLIC_URL=http://127.0.0.1:3027 PLATFORM_LIVE_ORIGIN=http://127.0.0.1:3027
+    start_app platform-live-self-hosted 3027 'Main, self-hosted' record-http-status
+    run_platform_live self-hosted platform-live-self-hosted || live_status=$?
+    exit "$live_status"
     ;;
 
   *)

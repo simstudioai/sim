@@ -10,7 +10,7 @@ const { mockPrefetch } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: vi.fn() }))
-vi.mock('@/app/_shell/providers/get-query-client', () => ({ getQueryClient: vi.fn() }))
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({ getQueryClient: vi.fn() }))
 vi.mock('@/components/settings/prefetch-standalone-general', () => ({
   prefetchStandaloneGeneral: mockPrefetch,
 }))

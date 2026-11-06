@@ -37,7 +37,7 @@ vi.mock('@/lib/auth/stale-session-recovery', () => ({
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: () => ({}),
 }))
 
@@ -55,8 +55,8 @@ vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: mockGetOrganizationSurfaceContext,
 }))
 
-vi.mock('@/app/o/[organizationId]/components/organization-sidebar', () => ({
-  OrganizationSidebar: () => null,
+vi.mock('@/platform/embedded/app/(shell)/_components/sidebar/sidebar', () => ({
+  Sidebar: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({

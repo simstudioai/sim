@@ -6,7 +6,7 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
-export function isPeopleEnabled(organizationId: string): Promise<boolean> {
+function isPeopleEnabled(organizationId: string): Promise<boolean> {
   return isFeatureEnabled('people', { orgId: organizationId })
 }
 

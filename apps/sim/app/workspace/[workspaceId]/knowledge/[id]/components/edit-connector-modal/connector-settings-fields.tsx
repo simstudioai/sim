@@ -1,34 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import {
-  Chip,
-  ChipCombobox,
-  ChipModalError,
-  ChipModalField,
-  ChipSelect,
-  type ComboboxOption,
-} from '@sim/emcn'
+import { Chip, ChipCombobox, ChipModalError, ChipModalField, ChipSelect } from '@sim/emcn'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
-import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
-import {
-  getProviderIdFromServiceId,
-  getServiceAccountProviderForProviderId,
-  type OAuthProvider,
-} from '@/lib/oauth'
-import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
-import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
-import {
-  ConnectServiceAccountModal,
-  useServiceAccountConnectTarget,
-} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import {
-  derivedAclCapFieldIds,
-  isConnectorFieldRequired,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import {
   ConnectorAccessField,
   type ConnectorAccessSelection,
@@ -39,12 +15,15 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import {
+  CONNECTOR_SWITCH_NOTICE,
+  useConnectorSettingsFields,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
   GitLabPermissionTabs,
@@ -52,17 +31,6 @@ import {
 } from '@/connectors/gitlab/permission-config/fields'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
-import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
-
-const SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
-  workspace: 'Every workspace member can read every synced document once the next sync completes.',
-  members:
-    'Teammates are invited to connect their accounts. Documents become available after their next sync. Item limits are removed.',
-  admin:
-    'Documents become available after the next sync updates their source permissions. Item limits are removed.',
-}
 
 export interface ConnectorSettingsFieldsProps {
   gitlabPermissions?: GitLabPermissionForm
@@ -158,109 +126,55 @@ export function ConnectorSettingsFields({
   onContentCredentialChange,
   onWorkspaceCredentialChange,
 }: ConnectorSettingsFieldsProps) {
-  const liveSearch = isSearchIndex
-  const connectorConfig = liveSearchSourceMeta(originalConfig, Boolean(liveSearch), {
-    githubInstallation: usesGitHubInstallation && scope.kind === 'organization',
-  })
-  const providerId =
-    connectorConfig?.auth.mode === 'oauth'
-      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
-      : null
-  const syncsPerMember = access.accessMode === 'members'
-  const isGitHubInstallationSource =
-    usesGitHubInstallation &&
-    isSearchIndex &&
-    scope.kind === 'organization' &&
-    connectorConfig?.id === 'github' &&
-    syncsPerMember
-  const requiresServiceAccount = Boolean(
-    connectorConfig &&
-      !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
-  )
-  const serviceAccountProviderId = providerId
-    ? getServiceAccountProviderForProviderId(providerId)
-    : undefined
-  const serviceAccountTarget = useServiceAccountConnectTarget({
-    serviceAccountProviderId:
-      isSearchIndex || requiresServiceAccount
-        ? asServiceAccountProviderId(serviceAccountProviderId)
-        : undefined,
-    serviceName: connectorConfig?.name,
-    serviceIcon: connectorConfig?.icon,
-  })
-  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
-  const githubSetup = useGitHubInstallationSetup({
-    organizationId:
-      isGitHubInstallationSource && canAdmin && scope.kind === 'organization'
-        ? scope.organizationId
-        : undefined,
-    onConnected: onContentCredentialChange,
-  })
-  const [showMoreOptions, setShowMoreOptions] = useState(false)
-  const isContentCredentialChange = accessDirty && !accessModeChanged
   const {
-    data: rawCredentials = [],
-    isLoading: credentialsLoading,
-    isFetching: credentialsFetching,
-    error: credentialsError,
-    refetch: refetchCredentials,
-  } = useOAuthCredentials(providerId ?? undefined, {
-    enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId),
-    purpose: syncsPerMember ? 'browsing' : undefined,
-    ...resourceScopeFields(scope),
+    browseCredentialId,
+    configFieldsProps,
+    connectorConfig,
+    credentialOptions,
+    credentialsError,
+    credentialsFetching,
+    credentialsLoading,
+    githubSetup,
+    hiddenCapFieldIds,
+    hideFixedAccessMode,
+    installations,
+    isContentCredentialChange,
+    isGitHubInstallationSource,
+    isOptionalSetupField,
+    rawCredentials,
+    refetchCredentials,
+    requiresServiceAccount,
+    serviceAccountTarget,
+    setBrowseCredentialId,
+    setShowMoreOptions,
+    setShowServiceAccountModal,
+    showMoreOptions,
+    showServiceAccountModal,
+    syncsPerMember,
+  } = useConnectorSettingsFields({
+    gitlabPermissions,
+    isSearchIndex,
+    usesGitHubInstallation,
+    connectorConfig: originalConfig,
+    sourceConfig,
+    selectionLabels,
+    credentialId,
+    canonicalGroups,
+    canonicalModes,
+    onToggleCanonicalMode,
+    onFieldChange,
+    isSaving,
+    access,
+    canAdmin,
+    allowAdmin,
+    accessDirty,
+    accessModeChanged,
+    scope,
+    needsWorkspaceCredential,
+    workspaceCredentialId,
+    contentCredentialId,
+    onContentCredentialChange,
   })
-  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', scope)
-  const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
-  const selectorCredentialId = isGitHubInstallationSource
-    ? contentCredentialId
-    : syncsPerMember
-      ? browseCredentialId
-      : (workspaceCredentialId ?? credentialId)
-  const selectorCredential = rawCredentials.find((item) => item.id === selectorCredentialId)
-  const installations = rawCredentials.filter(
-    (credential) => credential.provider === GITHUB_INSTALLATION_PROVIDER_ID
-  )
-  const credentialOptions = useMemo<ComboboxOption[]>(
-    () =>
-      rawCredentials
-        .filter(
-          (credential) =>
-            !connectorConfig ||
-            isConnectorCredentialTypeAllowed(
-              connectorConfig.auth,
-              access.accessMode,
-              credential.type
-            )
-        )
-        .map((credential) => ({
-          label: credential.name || credential.provider,
-          value: credential.id,
-        })),
-    [rawCredentials, connectorConfig, access.accessMode]
-  )
-
-  const hideFixedAccessMode = isSearchIndex && needsWorkspaceCredential && canAdmin && allowAdmin
-  const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
-  const isOptionalSetupField = (field: ConnectorConfigField) =>
-    Boolean(gitlabPermissions && connectorConfig) &&
-    field.setupGroup === 'options' &&
-    !isConnectorFieldRequired(field, connectorConfig!, access.accessMode)
-  const configFieldsProps = connectorConfig
-    ? {
-        scope,
-        accessMode: access.accessMode,
-        connectorConfig,
-        sourceConfig,
-        selectionLabels,
-        credentialId: selectorCredential?.id ?? null,
-        credentialType: selectorCredential?.type,
-        canonicalGroups,
-        canonicalModes,
-        onFieldChange,
-        onToggleCanonicalMode,
-        disabled: isSaving,
-      }
-    : null
 
   return (
     <>
@@ -398,7 +312,7 @@ export function ConnectorSettingsFields({
                     {accessSetupHint ??
                       (isContentCredentialChange
                         ? 'The next sync uses this account. Members keep their connected accounts and source permissions.'
-                        : SWITCH_NOTICE[access.accessMode])}
+                        : CONNECTOR_SWITCH_NOTICE[access.accessMode])}
                   </p>
                 </div>
               ) : undefined

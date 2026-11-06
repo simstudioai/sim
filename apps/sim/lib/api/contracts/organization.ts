@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { deploymentShapeSchema } from '@/lib/api/contracts/workspaces'
 import { memberCreditLimitUpdateSchema } from '@/lib/billing/application/usage-limit-validation'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import {
@@ -520,6 +521,68 @@ export const getOrganizationContract = defineRouteContract({
   params: organizationParamsSchema,
   query: getOrganizationQuerySchema,
   response: { mode: 'json', schema: getOrganizationResponseSchema },
+})
+
+const organizationSurfaceResponseSchema = z.object({
+  organization: z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    slug: z.string(),
+    logo: z.string().nullable(),
+    memberCount: z.number().int().nonnegative(),
+  }),
+  viewer: z.object({
+    role: organizationRoleSchema,
+    isAdmin: z.boolean(),
+    canInviteMembers: z.boolean(),
+    canConnectSearchIntegrations: z.boolean(),
+    canUsePersonalApiKeys: z.boolean(),
+    canUseSearchMcp: z.boolean(),
+  }),
+  mothershipAvailable: z.boolean(),
+  canBuild: z.boolean(),
+  searchAccess: z.object({
+    sourceMirrored: z.boolean(),
+    memberScoped: z.boolean(),
+  }),
+  connectedAccountsAvailable: z.boolean(),
+  settingsFeatures: z.object({
+    billingEnabled: z.boolean(),
+    hasEnterprisePlan: z.boolean(),
+    governanceActive: z.boolean(),
+    hosted: z.boolean(),
+    selfHosted: z.record(z.string(), z.boolean().optional()),
+  }),
+  deployment: deploymentShapeSchema,
+  /** Whether the Platform zone is open to this organization at all. */
+  platformOrgUi: z.boolean(),
+  /** Which destinations the viewer's navigation lists; none of these authorizes the page behind it. */
+  navFlags: z.object({
+    people: z.boolean(),
+    simLinks: z.boolean(),
+    benchmark: z.boolean(),
+    platformAdmin: z.boolean(),
+    anonymous: z.boolean(),
+  }),
+  featureFlags: z.object({
+    dashboards: z.boolean(),
+    'workflow-tests': z.boolean(),
+    changelog: z.boolean(),
+    'mothership-model-selector': z.boolean(),
+    'mothership-computer-use': z.boolean(),
+    'mothership-plan-mode': z.boolean(),
+    'mothership-memory-spaces': z.boolean(),
+    projects: z.boolean(),
+  }),
+  /** Settings sections the viewer may reach, from the same rule the legacy settings sidebar uses. */
+  settingsSections: z.array(z.string().min(1)),
+})
+export type OrganizationSurfaceResponse = z.output<typeof organizationSurfaceResponseSchema>
+/** The viewer's own organization is resolved from their membership, so the route names none. */
+export const getOrganizationSurfaceContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/surface',
+  response: { mode: 'json', schema: organizationSurfaceResponseSchema },
 })
 
 export const updateOrganizationContract = defineRouteContract({

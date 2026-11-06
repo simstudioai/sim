@@ -3,7 +3,10 @@ import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 
 const memorySpaceParamsSchema = z.object({ id: organizationIdSchema })
-const createMemorySpaceBodySchema = z.object({ name: z.string().trim().min(1).max(100) }).strict()
+export const MEMORY_SPACE_NAME_MAX_LENGTH = 100
+const createMemorySpaceBodySchema = z
+  .object({ name: z.string().trim().min(1).max(MEMORY_SPACE_NAME_MAX_LENGTH) })
+  .strict()
 const selectMemorySpaceBodySchema = z.object({ spaceId: z.uuid().nullable() }).strict()
 const memorySpaceSelectionSchema = z.object({ activeSpaceId: z.uuid().nullable() })
 const memorySpaceListSchema = memorySpaceSelectionSchema.extend({

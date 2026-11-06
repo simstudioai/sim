@@ -26,6 +26,7 @@ import {
   AccessStateSelect,
   BulkAccessSelect,
 } from '@/ee/access-control/components/access-state-select'
+import { inheritedPermissionResolvers } from '@/ee/access-control/lib/editor'
 import type {
   AccessRequestTarget,
   PermissionGroupAccessState,
@@ -41,36 +42,12 @@ import type { ProviderName } from '@/stores/providers'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Resolves draft policy and inheritance, checks request support, and stages edits without saving. */
-export interface PermissionEditorControls {
+interface PermissionEditorControls {
   getState: (target: AccessRequestTarget) => PermissionGroupAccessState
   isInherited: (target: AccessRequestTarget) => boolean
   getInheritedFrom: (target: AccessRequestTarget) => string | null
   canRequest: (target: AccessRequestTarget) => boolean
   onSet: (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => void
-}
-
-function inheritedControls(
-  parent: AccessRequestTarget,
-  parentLabel: string,
-  controls: PermissionEditorControls
-): PermissionEditorControls {
-  const parentState = controls.getState(parent)
-  return {
-    ...controls,
-    getState: (target) => {
-      const state = controls.getState(target)
-      return parentState === 'unavailable' || state === 'unavailable'
-        ? 'unavailable'
-        : parentState === 'requestable'
-          ? 'requestable'
-          : state
-    },
-    isInherited: (target) => parentState !== 'allowed' || controls.isInherited(target),
-    getInheritedFrom: (target) =>
-      parentState !== 'allowed'
-        ? (controls.getInheritedFrom(parent) ?? parentLabel)
-        : controls.getInheritedFrom(target),
-  }
 }
 
 interface PermissionRowProps extends PermissionEditorControls {
@@ -331,7 +308,11 @@ export function ProviderRow({ providerId, workspaceId, ...controls }: ProviderRo
   const ProviderIcon = definition?.icon
   const name = definition?.name ?? providerId
   const dynamic = (DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)
-  const childControls = inheritedControls({ kind: 'provider', id: providerId }, name, controls)
+  const childControls = inheritedPermissionResolvers(
+    { kind: 'provider', id: providerId },
+    name,
+    controls
+  )
   const items = useMemo(
     () => getProviderModels(providerId).map((id) => ({ id, label: id })),
     [providerId]
@@ -368,7 +349,7 @@ interface BlockToolRowProps extends PermissionEditorControls {
 
 /** Edits a block and its tool operations, preserving child choices while a parent restricts access. */
 export function BlockToolRow({ block, ...controls }: BlockToolRowProps) {
-  const childControls = inheritedControls(
+  const childControls = inheritedPermissionResolvers(
     { kind: 'integration', id: block.type },
     block.name,
     controls

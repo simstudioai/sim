@@ -16,6 +16,7 @@ import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'
 import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
 import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
+import { canMakeProviderPrimary, nextSignInProvider } from '@/ee/sso/lib/provider-form'
 import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 
@@ -63,28 +64,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const [pendingPrimaryId, setPendingPrimaryId] = useState<string | null>(null)
   const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
   const pendingPrimary = providerList.find((entry) => entry.providerId === pendingPrimaryId)
-  /**
-   * Who signs in the domain once the provider is deleted: the first other
-   * verified provider by id when deleting the primary, otherwise the domain's
-   * current primary. The list arrives ordered by provider id, so this is the
-   * provider the server uses.
-   */
   const deleteSignInProvider = pendingDelete
-    ? pendingDelete.isPrimary
-      ? providerList.find(
-          (entry) =>
-            entry.domainKey === pendingDelete.domainKey &&
-            entry.providerId !== pendingDelete.providerId &&
-            entry.domainVerified
-        )
-      : providerList.find((entry) => entry.domainKey === pendingDelete.domainKey && entry.isPrimary)
+    ? nextSignInProvider(providerList, pendingDelete)
     : undefined
   const deleteDomain = pendingDelete?.domain ?? 'its domain'
   const canMakeSelectedPrimary =
-    selectedProvider !== undefined &&
-    selectedProvider.domainVerified === true &&
-    !selectedProvider.isPrimary &&
-    providerList.some((entry) => entry.domainKey === selectedProvider.domainKey && entry.isPrimary)
+    selectedProvider !== undefined && canMakeProviderPrimary(providerList, selectedProvider)
 
   const handleConfirmPrimary = async () => {
     if (!pendingPrimary?.providerId) return

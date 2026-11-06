@@ -32,6 +32,7 @@ import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import type { DeploymentFeatures, DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationMemberSectionAccess } from '@/lib/settings/section-availability'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
@@ -528,7 +529,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Credential Groups',
+    label: 'Credential groups',
     icon: GridOffset,
     unified: {
       id: 'connected-accounts',
@@ -755,7 +756,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
     unified: {
       id: 'whitelabeling',
-      description: 'Customize your workspace branding and appearance.',
+      description:
+        'Customize branding across your organization’s workspaces. Clear a field to restore its default.',
       group: 'organization',
       order: 6,
       requiresHosted: true,
@@ -945,7 +947,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   if (id === 'connected-accounts') {
     return {
       id,
-      label: 'Credential Groups',
+      label: 'Credential groups',
       description: 'Manage integrations and workspace access for workflows and Chat.',
       icon: GridOffset,
       group,
@@ -998,7 +1000,7 @@ export function getOrganizationSettingsHref(
 /**
  * Unified section id to the organization-scoped section it acts on, for the gates
  * that take an {@link OrganizationSettingsSection} (`canOpenOrganizationSettingsSection`,
- * `isOrganizationSettingsSectionAvailable`).
+ * `organizationPlanAllowsSettingsSection`).
  *
  * Derived from the registry rather than hand-listed: a section added to one and
  * forgotten in the other used to mean the page applied *no* organization gate at
@@ -1038,11 +1040,7 @@ export function resolveOrganizationSectionAccess({
   isTargetOrganizationAdmin,
 }: ResolveOrganizationSectionAccessOptions): OrganizationSectionAccess {
   if (!isTargetOrganizationMember) return 'unavailable'
-  if (section === 'search-mcp' || section === 'recently-deleted' || section === 'knowledge-graphs')
-    return 'view'
-  if (section === 'members' || section === 'requests')
-    return isTargetOrganizationAdmin ? 'manage' : 'view'
-  return isTargetOrganizationAdmin ? 'manage' : 'unavailable'
+  return organizationMemberSectionAccess(section, isTargetOrganizationAdmin)
 }
 
 export interface OrganizationSettingsFeatures {
@@ -1082,36 +1080,6 @@ export function getOrganizationSettingsFeatures(
       whitelabeling: features.whitelabeling,
     },
   }
-}
-
-/**
- * Applies deployment and target-organization plan gates without consulting the
- * viewer's active organization.
- */
-export function isOrganizationSettingsSectionAvailable(
-  section: OrganizationSettingsSection,
-  features: OrganizationSettingsFeatures
-): boolean {
-  if (
-    section === 'members' ||
-    section === 'search-mcp' ||
-    section === 'knowledge-graphs' ||
-    section === 'recently-deleted' ||
-    section === 'requests'
-  )
-    return true
-  if (section === 'billing') return features.billingEnabled
-  /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */
-  if (section === 'integrations' || section === 'search-slack')
-    return !features.hosted || features.hasEnterprisePlan
-  /**
-   * Access Control follows governance rather than the plan gate: its restrictions keep applying
-   * through a failing payment, so hiding the page that edits them would leave an organization
-   * governed by rules it cannot see or loosen until the invoice clears.
-   */
-  if (section === 'access-control' && features.hosted) return features.governanceActive
-  if (features.hosted) return features.hasEnterprisePlan
-  return features.selfHosted[section] ?? false
 }
 
 export interface WorkspacePermissionConfig {

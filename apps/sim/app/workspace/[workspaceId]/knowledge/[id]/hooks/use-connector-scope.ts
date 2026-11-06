@@ -2,16 +2,16 @@
 
 import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { useOptionalOrganization } from '@/lib/organizations/provider'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 /** Shared connector UI reads the permissions of its actual resource owner. */
 export function useConnectorScope(explicitScope?: ResourceScope) {
   const params = useParams<{ workspaceId?: string; organizationId?: string }>()
   const scope = explicitScope ?? resourceScopeFromOwner(params)
-  const organization = useOptionalOrganizationContext()
+  const organization = useOptionalOrganization()
   const workspace = useOptionalWorkspaceHostContext()
   const permissions = useOptionalWorkspacePermissionsContext()
 

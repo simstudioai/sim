@@ -74,7 +74,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
   useUserPermissionsContext: () => ({}),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/use-settings-search', () => ({
+vi.mock('@/hooks/use-settings-search', () => ({
   useSettingsSearch: () => ['', vi.fn()],
 }))
 

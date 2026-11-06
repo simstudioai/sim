@@ -54,6 +54,18 @@ function isEmpty(payload: DraftPayload): boolean {
   )
 }
 
+/** The first draft among `keys`: a surface's current key, then the older keys it moves from. */
+export function readDraft(
+  drafts: Record<string, DraftPayload>,
+  keys: readonly string[]
+): DraftPayload | undefined {
+  for (const key of keys) {
+    const draft = drafts[key]
+    if (draft) return draft
+  }
+  return undefined
+}
+
 export const useMothershipDraftsStore = create<MothershipDraftsState>()(
   devtools(
     persist(

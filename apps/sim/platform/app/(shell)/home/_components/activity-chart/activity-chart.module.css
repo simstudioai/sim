@@ -1,0 +1,90 @@
+.chart {
+  display: grid;
+  gap: var(--spacing-16);
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-block-size: var(--ui-widget-max-size);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.header,
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.heading {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+
+.total,
+.scale {
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--spacing-44) minmax(0, 1fr);
+  row-gap: var(--spacing-8);
+}
+
+.scale,
+.lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.scale,
+.ticks {
+  color: var(--ui-secondary);
+}
+
+.plot {
+  position: relative;
+  min-inline-size: 0;
+  block-size: calc(var(--spacing-chart-plot) + var(--spacing-32));
+}
+
+.plot > svg {
+  position: relative;
+}
+
+.lines {
+  position: absolute;
+  inset: var(--spacing-7) 0;
+  pointer-events: none;
+}
+
+.lines i {
+  border-block-start: var(--spacing-stroke-default) solid var(--activity-chart-grid);
+}
+
+.ticks {
+  grid-column: 2;
+}
+
+.ticks li {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tooltipPosition {
+  column-gap: var(--spacing-12);
+  inline-size: min(100%, var(--chart-tooltip-width));
+  position: absolute;
+  z-index: 1;
+  translate: 0 calc(-50% - var(--spacing-4));
+  inset-block-start: 0;
+  max-inline-size: 100%;
+  pointer-events: none;
+}

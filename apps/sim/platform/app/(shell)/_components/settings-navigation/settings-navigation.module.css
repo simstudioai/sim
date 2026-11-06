@@ -1,0 +1,28 @@
+.navHeading,
+.navigation p {
+  color: var(--ui-secondary);
+}
+.navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+}
+
+.group {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
+.navHeading {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--ui-row-inset);
+}
+
+.result {
+  display: grid;
+  gap: var(--ui-stack-gap);
+  padding-inline: var(--ui-row-inset);
+}

@@ -46,7 +46,6 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
@@ -62,6 +61,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const logger = createLogger('WorkflowMcpServers')
 

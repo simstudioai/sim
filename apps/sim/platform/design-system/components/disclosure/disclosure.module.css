@@ -1,0 +1,75 @@
+.disclosure {
+  min-inline-size: 0;
+}
+.summary {
+  display: flex;
+  align-items: center;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  gap: var(--spacing-8);
+  min-height: var(--spacing-18);
+  list-style: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.expanded,
+:is(.disclosure[open], .activity[data-open]) > .summary .collapsed {
+  display: none;
+}
+:is(.disclosure[open], .activity[data-open]) > .summary .expanded {
+  display: inline-flex;
+}
+.collapsed {
+  display: inline-flex;
+}
+
+.activity {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.activity > .summary {
+  color: var(--ui-secondary);
+}
+.activity > .summary:hover {
+  color: var(--ui-ink);
+}
+.summary:not(:hover) svg {
+  visibility: hidden;
+}
+.disclosure[data-chevron] > .summary svg {
+  visibility: visible;
+}
+
+.collection {
+  position: relative;
+}
+.collection > .disclosure > .summary {
+  min-block-size: var(--spacing-28);
+  inline-size: 100%;
+  padding-inline: var(--ui-row-inset);
+  gap: var(--spacing-4);
+  color: var(--ui-secondary);
+}
+.collection:has(> .collectionActions:hover) > .disclosure > .summary svg {
+  visibility: visible;
+}
+.collection > .disclosure > .summary:hover {
+  color: var(--ui-ink);
+}
+.collectionActions {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  min-block-size: var(--spacing-28);
+  display: flex;
+  align-items: center;
+}
+
+.collection > .disclosure[open] > .summary {
+  margin-block-end: var(--ui-list-gap);
+}

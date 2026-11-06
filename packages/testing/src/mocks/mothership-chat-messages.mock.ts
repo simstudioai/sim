@@ -17,6 +17,8 @@ import { vi } from 'vitest'
 export const mothershipChatMessagesMockFns = {
   mockAppendCopilotChatMessages: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockPersistCopilotChatTurn: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockAppendSteeringMessageIfAbsent: vi.fn(async (..._args: unknown[]): Promise<boolean> => true),
+  mockRecordSteeringDisposition: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
 }
 
 /**
@@ -30,4 +32,6 @@ export const mothershipChatMessagesMockFns = {
 export const mothershipChatMessagesMock = {
   appendCopilotChatMessages: mothershipChatMessagesMockFns.mockAppendCopilotChatMessages,
   persistCopilotChatTurn: mothershipChatMessagesMockFns.mockPersistCopilotChatTurn,
+  appendSteeringMessageIfAbsent: mothershipChatMessagesMockFns.mockAppendSteeringMessageIfAbsent,
+  recordSteeringDisposition: mothershipChatMessagesMockFns.mockRecordSteeringDisposition,
 }

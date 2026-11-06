@@ -1,0 +1,19 @@
+.icon {
+  display: inline-block;
+  flex: none;
+  width: var(--ui-glyph-size);
+  height: var(--ui-glyph-size);
+}
+
+.icon[data-interface-icon] {
+  color: var(--ui-icon-ink);
+  transition: color var(--ui-motion-color) ease-out;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--ui-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon[data-interface-icon] :is(path, rect, circle, line, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
+}

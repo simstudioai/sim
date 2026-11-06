@@ -1,0 +1,72 @@
+.viewport {
+  min-inline-size: 0;
+  min-block-size: 0;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.viewport[data-hide-scrollbar] {
+  scrollbar-width: none;
+}
+.viewport[data-axis="horizontal"] {
+  overflow-y: hidden;
+}
+.viewport[data-axis="horizontal"] > .content {
+  inline-size: max-content;
+}
+.viewport[data-axis="vertical"] {
+  overflow-x: hidden;
+}
+.shell {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+}
+.shell .viewport {
+  flex: 1;
+}
+.previous,
+.next {
+  display: none;
+  width: var(--spacing-36);
+  flex: none;
+  justify-content: center;
+}
+.shell:has(> .viewport:is([data-edges="start"], [data-edges="both"])) > .previous,
+.shell:has(> .viewport:is([data-edges="end"], [data-edges="both"])) > .next {
+  display: flex;
+}
+@media (pointer: coarse) {
+  .previous,
+  .next {
+    width: var(--spacing-app-touch-target);
+  }
+}
+
+.previous,
+.next:dir(rtl) {
+  transform: scaleX(-1);
+}
+.previous:dir(rtl) {
+  transform: none;
+}
+.viewport[data-axis="horizontal"] > .content {
+  min-inline-size: 100%;
+}
+.sentinel {
+  block-size: var(--spacing-1);
+}
+.loadStatus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: var(--spacing-app-control-md);
+  padding-inline: var(--ui-row-inset);
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.loadStatus[data-failed] {
+  color: var(--control-danger);
+}

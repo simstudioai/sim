@@ -5,7 +5,6 @@ import { Plus, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useSession } from '@/lib/auth/client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -25,7 +24,6 @@ import {
   TeamSeatsOverview,
   TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCreateOrganization,
   useMemberRemovalImpact,
@@ -38,6 +36,8 @@ import {
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('TeamManagement')
 
@@ -315,28 +315,17 @@ export function TeamManagement({
 
   const handleOpenTransferBillingPortal = () => {
     setTransferPortalError(null)
-    const portalWindow = window.open('', '_blank')
-    openBillingPortal.mutate(
+    openBillingPortal.open(
       {
         context: 'organization',
         organizationId,
         returnUrl: `${getBaseUrl()}${APP_ENTRY_PATH}`,
       },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) {
-            portalWindow.location.href = data.url
-          } else {
-            window.location.href = data.url
-          }
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal from transfer dialog', { error })
-          setTransferPortalError(
-            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
-          )
-        },
+      (error) => {
+        logger.error('Failed to open billing portal from transfer dialog', { error })
+        setTransferPortalError(
+          getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
+        )
       }
     )
   }

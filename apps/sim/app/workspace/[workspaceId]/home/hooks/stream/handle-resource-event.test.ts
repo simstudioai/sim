@@ -19,7 +19,7 @@ vi.mock('@/lib/workflows/external-update', () => ({
 }))
 
 vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
+  '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation',
   () => ({ invalidateResourceQueries: mocks.invalidateResourceQueries })
 )
 vi.mock('@/hooks/queries/utils/workflow-cache', () => ({

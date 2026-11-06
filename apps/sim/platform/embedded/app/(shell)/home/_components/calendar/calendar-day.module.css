@@ -1,0 +1,263 @@
+.toolbar,
+.dayControls,
+.hour,
+.event,
+.now {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+.toolbar {
+  flex: none;
+  justify-content: space-between;
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+  color: var(--ui-secondary);
+}
+.dayControls {
+  gap: var(--ui-stack-gap);
+}
+.viewport {
+  position: relative;
+  block-size: var(--ui-widget-max-size);
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The design clips the grid: a fade would dissolve the card the edge happens to cross. */
+[data-platform-ui] .viewport[data-scroll-axis][data-edges] {
+  mask-image: none;
+}
+.timeline {
+  display: grid;
+  grid-template-columns: var(--spacing-60) minmax(0, 1fr);
+  grid-auto-rows: calc(var(--spacing-64) / 60);
+  column-gap: var(--ui-row-gap);
+  padding-block: var(--ui-row-inset);
+  min-inline-size: 0;
+}
+.hour,
+.now {
+  grid-column: 1 / -1;
+  align-self: start;
+  color: var(--ui-secondary);
+}
+.hour {
+  margin-block-start: -0.5lh;
+  font-variant-numeric: tabular-nums;
+}
+.hour::after,
+.now::after {
+  content: "";
+  flex: 1;
+  block-size: var(--spacing-stroke-default);
+  background: var(--ui-divider);
+}
+/* Above the now line, which would otherwise rule through a short card's title. */
+.event,
+.overflow {
+  z-index: 2;
+  grid-column: 2;
+  min-inline-size: 0;
+  margin-block: calc(var(--spacing-4) / 2);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}
+.event {
+  position: relative;
+  container: event / inline-size;
+  inline-size: 100%;
+  overflow: hidden;
+  padding: var(--spacing-4) var(--ui-row-inset);
+}
+/*
+ * A lane's track is the column, less any overflow button, shared with one gap fewer than lanes. Each
+ * card is its track without the gap, and starts that many tracks in.
+ */
+.event[data-lanes="2"] {
+  inline-size: calc((100% + var(--spacing-4)) / 2 - var(--spacing-4));
+}
+.event[data-lanes="3"] {
+  inline-size: calc((100% + var(--spacing-4)) / 3 - var(--spacing-4));
+}
+.event[data-lanes="2"][data-lane="1"] {
+  margin-inline-start: calc((100% + var(--spacing-4)) / 2);
+}
+.event[data-lanes="3"][data-lane="1"] {
+  margin-inline-start: calc((100% + var(--spacing-4)) / 3);
+}
+.event[data-lanes="3"][data-lane="2"] {
+  margin-inline-start: calc(2 * (100% + var(--spacing-4)) / 3);
+}
+.event[data-reserves-overflow] {
+  inline-size: calc(100% - var(--spacing-36) - var(--spacing-4));
+}
+.event[data-lanes="2"][data-reserves-overflow] {
+  inline-size: calc((100% - var(--spacing-36)) / 2 - var(--spacing-4));
+}
+.event[data-lanes="3"][data-reserves-overflow] {
+  inline-size: calc((100% - var(--spacing-36)) / 3 - var(--spacing-4));
+}
+.event[data-lanes="2"][data-lane="1"][data-reserves-overflow] {
+  margin-inline-start: calc((100% - var(--spacing-36)) / 2);
+}
+.event[data-lanes="3"][data-lane="1"][data-reserves-overflow] {
+  margin-inline-start: calc((100% - var(--spacing-36)) / 3);
+}
+.event[data-lanes="3"][data-lane="2"][data-reserves-overflow] {
+  margin-inline-start: calc(2 * (100% - var(--spacing-36)) / 3);
+}
+.event[data-card="full"] {
+  align-items: flex-start;
+}
+.event:has(.eventName[href]:hover) {
+  background: var(--control-muted-hover);
+}
+.event:has(.eventName[href]:active) {
+  background: var(--control-muted-pressed);
+}
+.eventName[href]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.eventName {
+  display: grid;
+  text-align: start;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-inline-size: 0;
+}
+.event[data-card="compact"] .eventName {
+  grid-template-columns: minmax(0, max-content) max-content;
+  column-gap: var(--ui-row-gap);
+  align-items: baseline;
+}
+.eventName small {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The stretched link is the card's target, so the ring belongs on the card. */
+[data-platform-ui] :is(.event, .allDayEvent) .eventName:focus-visible {
+  outline: none;
+}
+:is(.event, .allDayEvent):has(.eventName:focus-visible) {
+  outline: var(--spacing-stroke-focus) solid var(--ui-secondary);
+  outline-offset: calc(-1 * var(--spacing-stroke-focus));
+}
+.people {
+  position: relative;
+  flex: none;
+  display: flex;
+  border-radius: var(--ui-control-radius);
+}
+.event[data-card="full"] .people {
+  margin-block-start: var(--spacing-5);
+}
+/* Avatars are taller than a one-line card's text, and stay inside its padding. */
+.event[data-card="compact"] .people {
+  margin-block: calc(-1 * var(--spacing-4));
+}
+/* The title outranks the time, and the time the people, who stay a hover or a tab away. */
+@container event (inline-size < 21rem) {
+  .event[data-card="compact"] .people {
+    position: absolute;
+    inset-block-start: var(--spacing-1);
+    inset-inline-end: var(--spacing-4);
+    background: inherit;
+    opacity: 0;
+  }
+  .event[data-card="compact"]:is(:hover, :has(:focus-visible)) .people {
+    opacity: 1;
+  }
+}
+@container event (inline-size < 15rem) {
+  .event[data-card="full"] .people {
+    position: absolute;
+    inset-block-start: var(--spacing-1);
+    inset-inline-end: var(--spacing-4);
+    margin-block-start: 0;
+    background: inherit;
+    opacity: 0;
+  }
+  .event[data-card="full"]:is(:hover, :has(:focus-visible)) .people {
+    opacity: 1;
+  }
+}
+@container event (inline-size < 13rem) {
+  .event[data-card="compact"] .eventName {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .event[data-card="compact"] .eventName small {
+    display: none;
+  }
+}
+/* Without hover nothing reveals these, and an invisible target would take the card's tap. */
+@media (hover: none) {
+  @container event (inline-size < 21rem) {
+    .event[data-card="compact"] .people {
+      display: none;
+    }
+  }
+  @container event (inline-size < 15rem) {
+    .event[data-card="full"] .people {
+      display: none;
+    }
+  }
+}
+.overflow {
+  display: flex;
+  justify-self: end;
+  inline-size: var(--spacing-36);
+  overflow: hidden;
+}
+.overflow > button[data-size] {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding-inline: 0;
+  justify-content: center;
+}
+.overflow > button[data-size] span {
+  inline-size: auto;
+}
+.now {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  pointer-events: none;
+}
+.now::before {
+  content: "";
+  order: 1;
+  inline-size: var(--spacing-4);
+  block-size: var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: var(--ui-secondary);
+}
+.now::after {
+  order: 2;
+  background: var(--ui-border);
+}
+.allDay {
+  flex: none;
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+.allDayEvent:has(.eventName[href]:hover) {
+  background: var(--control-muted-hover);
+}
+.allDayEvent:has(.eventName[href]:active) {
+  background: var(--control-muted-pressed);
+}
+.allDayEvent {
+  position: relative;
+  display: flex;
+  min-inline-size: 0;
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}

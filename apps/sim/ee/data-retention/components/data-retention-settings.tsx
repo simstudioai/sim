@@ -18,30 +18,20 @@ import {
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
-import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
-  type CustomPiiPattern,
-  emptyPiiStages,
   getEntityGroupsForLanguage,
-  isEntitySupportedForLanguage,
   normalizeRuleStages,
   PII_LANGUAGES,
   PII_STAGE_META,
-  PII_STAGES,
   type PIIEntityType,
   type PIILanguage,
   type PiiStageKey,
   type PiiStagePolicy,
-  type PiiStages,
-  sanitizeCustomPatterns,
-  stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -55,213 +45,31 @@ import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
+import {
+  buildRetentionUpdate,
+  type EditingPolicy,
+  hoursToDisplayDays,
+  newOverrideDraft,
+  normalizePolicyDraft,
+  orgPolicyDraft,
+  orgPolicySummary,
+  overrideDraft,
+  overridePolicySummary,
+  overrideWorkspaceIds,
+  type PolicyDraft,
+  pruneEntitiesForLanguage,
+  type RetentionSnapshot,
+  retentionSelectOptions,
+  stageHasContent,
+  updateStagePolicy,
+  withOrgPolicy,
+  withOverridePolicy,
+  withoutOverride,
+} from '@/ee/data-retention/lib/policy-draft'
 import { useWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
+import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 
 const logger = createLogger('DataRetentionSettings')
-
-/** Sentinel `RetentionSelect` value meaning "inherit the org-level value". */
-const INHERIT = 'inherit'
-
-const DAY_OPTIONS = [
-  { value: '1', label: '1 day' },
-  { value: '3', label: '3 days' },
-  { value: '7', label: '7 days' },
-  { value: '14', label: '14 days' },
-  { value: '30', label: '30 days' },
-  { value: '60', label: '60 days' },
-  { value: '90', label: '90 days' },
-  { value: '180', label: '180 days' },
-  { value: '365', label: '1 year' },
-  { value: '1825', label: '5 years' },
-  { value: 'never', label: 'Forever' },
-] as const
-
-interface PiiOverride {
-  id: string
-  workspaceId: string
-  stages: PiiStages
-}
-
-/**
- * Unified editable shape for one retention policy — the organization default
- * (`isOrgDefault`) or a workspace override. Retention fields hold
- * `RetentionSelect` values; for overrides `INHERIT` means "use the org value".
- * `piiOverride` gates the PII grid (always on for the org default; toggled by
- * the inherit/override switch for workspace overrides).
- */
-interface PolicyDraft {
-  isOrgDefault: boolean
-  workspaceIds: string[]
-  logDays: string
-  softDeleteDays: string
-  taskCleanupDays: string
-  piiOverride: boolean
-  piiStages: PiiStages
-}
-
-interface EditingPolicy {
-  draft: PolicyDraft
-  original: PolicyDraft
-  isNew: boolean
-}
-
-/** Day bounds the retention contract accepts (1 day … 5 years). */
-const MIN_RETENTION_DAYS = 1
-const MAX_RETENTION_DAYS = 1825
-
-/**
- * Hours → display days, clamped to the contract's range. Sub-day values would
- * otherwise round to `0` and be re-sent as `0`, wedging every save on the page.
- */
-function clampDisplayDays(hours: number): string {
-  const days = Math.round(hours / 24)
-  return String(Math.min(MAX_RETENTION_DAYS, Math.max(MIN_RETENTION_DAYS, days)))
-}
-
-/** Day count → hours. Throws rather than send a value the contract rejects. */
-function toRetentionHours(days: string): number {
-  const parsed = Number(days)
-  if (!Number.isFinite(parsed) || parsed < MIN_RETENTION_DAYS) {
-    throw new Error(`Invalid retention period: ${JSON.stringify(days)}`)
-  }
-  return Math.min(MAX_RETENTION_DAYS, Math.round(parsed)) * 24
-}
-
-function hoursToDisplayDays(hours: number | null): string {
-  if (hours === null) return 'never'
-  return clampDisplayDays(hours)
-}
-
-function daysToHours(days: string): number | null {
-  if (days === 'never') return null
-  return toRetentionHours(days)
-}
-
-/** Override field: `INHERIT` ⇄ undefined, `'never'` ⇄ null (forever), day count ⇄ hours. */
-function hoursToOverrideValue(hours: number | null | undefined): string {
-  if (hours === undefined) return INHERIT
-  if (hours === null) return 'never'
-  return clampDisplayDays(hours)
-}
-
-function overrideValueToHours(value: string): number | null | undefined {
-  if (value === INHERIT) return undefined
-  if (value === 'never') return null
-  return toRetentionHours(value)
-}
-
-/**
- * Builds a workspace override from the editable fields, starting from the override being replaced so
- * fields this form does not edit (such as the API-only `fileVersionRetentionHours`) survive a save.
- */
-function buildRetentionOverride(
-  workspaceId: string,
-  draft: PolicyDraft,
-  existing: RetentionOverride | undefined
-): RetentionOverride | null {
-  const override: RetentionOverride = { ...existing, workspaceId }
-  const edited = {
-    logRetentionHours: overrideValueToHours(draft.logDays),
-    softDeleteRetentionHours: overrideValueToHours(draft.softDeleteDays),
-    taskCleanupHours: overrideValueToHours(draft.taskCleanupDays),
-  }
-  for (const [field, hours] of Object.entries(edited) as [
-    keyof typeof edited,
-    number | null | undefined,
-  ][]) {
-    if (hours === undefined) delete override[field]
-    else override[field] = hours
-  }
-  return Object.keys(override).length > 1 ? override : null
-}
-
-/** Stable serialization of a stage set for dirty-detection. */
-function serializeStages(
-  stages: PiiStages
-): Array<[PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]> {
-  return PII_STAGES.map((key) => {
-    const policy = stages[key]
-    return [
-      key,
-      policy.enabled,
-      [...policy.entityTypes].sort(),
-      policy.language,
-      policy.customPatterns ?? [],
-    ] as [PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]
-  })
-}
-
-function normalizePolicyDraft(draft: PolicyDraft): string {
-  return JSON.stringify({
-    isOrgDefault: draft.isOrgDefault,
-    workspaceIds: [...draft.workspaceIds].sort(),
-    logDays: draft.logDays,
-    softDeleteDays: draft.softDeleteDays,
-    taskCleanupDays: draft.taskCleanupDays,
-    piiOverride: draft.piiOverride,
-    piiStages: draft.piiOverride ? serializeStages(draft.piiStages) : [],
-  })
-}
-
-/** A stage is "on" iff it has at least one entity type or custom pattern. */
-function stageHasContent(policy: PiiStagePolicy): boolean {
-  return policy.entityTypes.length > 0 || (policy.customPatterns?.length ?? 0) > 0
-}
-
-function anyStageHasContent(stages: PiiStages): boolean {
-  return PII_STAGES.some((key) => stageHasContent(stages[key]))
-}
-
-/** Persist-time guarantee that `enabled` mirrors "has content" for every stage. */
-function withSyncedEnabled(stages: PiiStages): PiiStages {
-  return PII_STAGES.reduce((acc, key) => {
-    // Block outputs are regex-only — strip any NER before persisting.
-    const entityTypes =
-      key === 'blockOutputs' ? stripNerEntities(stages[key].entityTypes) : stages[key].entityTypes
-    // Drop half-typed rows (empty regex) so the boundary contract never rejects the save.
-    const customPatterns = sanitizeCustomPatterns(stages[key].customPatterns)
-    acc[key] = {
-      ...stages[key],
-      entityTypes,
-      customPatterns,
-      enabled: entityTypes.length > 0 || customPatterns.length > 0,
-    }
-    return acc
-  }, {} as PiiStages)
-}
-
-/** Prune entity selections that the chosen language has no recognizer for. */
-function pruneEntitiesForLanguage(entityTypes: string[], language: PIILanguage): string[] {
-  return entityTypes.filter((t) => isEntitySupportedForLanguage(t as PIIEntityType, language))
-}
-
-/** Row-summary fragment, e.g. "Input 3 · Outputs off · Logs 5". */
-function stageSummary(stages: PiiStages): string {
-  const short: Record<PiiStageKey, string> = {
-    input: 'Input',
-    blockOutputs: 'Outputs',
-    logs: 'Logs',
-  }
-  return PII_STAGES.map((key) => {
-    const policy = stages[key]
-    const count = policy.entityTypes.length + (policy.customPatterns?.length ?? 0)
-    return `${short[key]} ${stageHasContent(policy) ? count : 'off'}`
-  }).join(' · ')
-}
-
-/** Row-summary label for a retention field driven by stored hours. */
-function retentionLabel(hours: number | null | undefined): string {
-  if (hours === undefined) return 'inherited'
-  if (hours === null) return 'forever'
-  return `${Math.round(hours / 24)}d`
-}
-
-/** Row-summary label for a retention field driven by a `RetentionSelect` day value. */
-function dayValueLabel(days: string): string {
-  if (days === 'never') return 'forever'
-  if (!days) return '—'
-  return `${days}d`
-}
 
 interface RetentionSelectProps {
   value: string
@@ -271,16 +79,14 @@ interface RetentionSelectProps {
 }
 
 function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSelectProps) {
-  const base = DAY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
-  const withInherit = allowInherit
-    ? [{ value: INHERIT, label: 'Inherit from organization' }, ...base]
-    : base
-  const isKnown = value === INHERIT || DAY_OPTIONS.some((o) => o.value === value)
-  const options = isKnown
-    ? withInherit
-    : [...withInherit, { value, label: `${value} days (custom)` }]
-
-  return <ChipSelect value={value} onChange={onChange} options={options} align='start' />
+  return (
+    <ChipSelect
+      value={value}
+      onChange={onChange}
+      options={retentionSelectOptions(value, allowInherit)}
+      align='start'
+    />
+  )
 }
 
 interface EntityCheckboxGridProps {
@@ -394,9 +200,7 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
   })
 
   function update(patch: Partial<PiiStagePolicy>) {
-    const merged = { ...value, ...patch }
-    const enabled = merged.entityTypes.length > 0 || (merged.customPatterns?.length ?? 0) > 0
-    onChange({ ...merged, enabled })
+    onChange(updateStagePolicy(value, patch))
   }
 
   return (
@@ -702,13 +506,13 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const [taskCleanupDays, setTaskCleanupDays] = useState(() =>
     hoursToDisplayDays(data.effective.taskCleanupHours)
   )
-  const [defaultPii, setDefaultPii] = useState<Omit<PiiOverride, 'workspaceId'> | null>(() => {
+  const [defaultPii, setDefaultPii] = useState<RetentionSnapshot['defaultPii']>(() => {
     const defaultRule = data.configured.piiRedaction?.rules?.find(
       (rule) => rule.workspaceId === null
     )
     return defaultRule ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) } : null
   })
-  const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>(() =>
+  const [piiOverrides, setPiiOverrides] = useState<RetentionSnapshot['piiOverrides']>(() =>
     (data.configured.piiRedaction?.rules ?? [])
       .filter((rule) => rule.workspaceId !== null)
       .map((rule) => ({
@@ -731,42 +535,24 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     onDiscard: handleDiscard,
   })
 
-  const overrideWorkspaceIds = Array.from(
-    new Set([...overrides.map((o) => o.workspaceId), ...piiOverrides.map((p) => p.workspaceId)])
-  ).sort((a, b) => workspaceName(a).localeCompare(workspaceName(b)))
-  const takenWorkspaceIds = new Set(overrideWorkspaceIds)
+  const current: RetentionSnapshot = {
+    logDays,
+    softDeleteDays,
+    taskCleanupDays,
+    defaultPii,
+    piiOverrides,
+    overrides,
+  }
+  const overriddenWorkspaceIds = overrideWorkspaceIds(current).sort((a, b) =>
+    workspaceName(a).localeCompare(workspaceName(b))
+  )
+  const takenWorkspaceIds = new Set(overriddenWorkspaceIds)
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
 
   /** Options for the detail workspace picker — excludes workspaces taken by OTHER overrides. */
   function workspacePickerOptions(draft: PolicyDraft): { value: string; label: string }[] {
-    const others = new Set(overrideWorkspaceIds.filter((id) => !draft.workspaceIds.includes(id)))
+    const others = new Set(overriddenWorkspaceIds.filter((id) => !draft.workspaceIds.includes(id)))
     return workspaceOptions.filter((w) => !others.has(w.value))
-  }
-
-  function orgRowSummary(): string {
-    const parts = [
-      `Log ${dayValueLabel(logDays)}`,
-      `Soft-delete ${dayValueLabel(softDeleteDays)}`,
-      `Task ${dayValueLabel(taskCleanupDays)}`,
-    ]
-    parts.push(
-      defaultPii && anyStageHasContent(defaultPii.stages)
-        ? `PII: ${stageSummary(defaultPii.stages)}`
-        : 'No PII'
-    )
-    return parts.join(' · ')
-  }
-
-  function overrideRowSummary(workspaceId: string): string {
-    const ov = overrides.find((o) => o.workspaceId === workspaceId)
-    const pii = piiOverrides.find((p) => p.workspaceId === workspaceId)
-    const parts = [
-      `Log ${retentionLabel(ov?.logRetentionHours)}`,
-      `Soft-delete ${retentionLabel(ov?.softDeleteRetentionHours)}`,
-      `Task ${retentionLabel(ov?.taskCleanupHours)}`,
-    ]
-    parts.push(pii ? `PII: ${stageSummary(pii.stages)}` : 'PII inherited')
-    return parts.join(' · ')
   }
 
   /**
@@ -774,35 +560,9 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
    * one PUT. The route replaces each provided key, so always sending the whole
    * state keeps the three editable surfaces consistent.
    */
-  async function persistSnapshot(next: {
-    logDays: string
-    softDeleteDays: string
-    taskCleanupDays: string
-    defaultPii: Omit<PiiOverride, 'workspaceId'> | null
-    piiOverrides: PiiOverride[]
-    overrides: RetentionOverride[]
-  }) {
+  async function persistSnapshot(next: RetentionSnapshot) {
     if (!orgId) return
-    const settings: UpdateOrganizationDataRetentionBody = {
-      logRetentionHours: daysToHours(next.logDays),
-      softDeleteRetentionHours: daysToHours(next.softDeleteDays),
-      taskCleanupHours: daysToHours(next.taskCleanupDays),
-      retentionOverrides: next.overrides,
-    }
-    const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
-      next.piiOverrides.map((p) => ({
-        id: p.id,
-        workspaceId: p.workspaceId,
-        stages: withSyncedEnabled(p.stages),
-      }))
-    if (next.defaultPii) {
-      rules.unshift({
-        id: next.defaultPii.id,
-        workspaceId: null,
-        stages: withSyncedEnabled(next.defaultPii.stages),
-      })
-    }
-    settings.piiRedaction = { rules }
+    const settings = buildRetentionUpdate(next)
     await updateMutation.mutateAsync({ orgId, settings })
     setLogDays(next.logDays)
     setSoftDeleteDays(next.softDeleteDays)
@@ -812,49 +572,19 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     setPiiOverrides(next.piiOverrides)
   }
 
-  function snapshot() {
-    return { logDays, softDeleteDays, taskCleanupDays, defaultPii, piiOverrides, overrides }
-  }
-
   function openEditOrg() {
-    const draft: PolicyDraft = {
-      isOrgDefault: true,
-      workspaceIds: [],
-      logDays,
-      softDeleteDays,
-      taskCleanupDays,
-      piiOverride: true,
-      piiStages: defaultPii?.stages ?? emptyPiiStages(),
-    }
+    const draft = orgPolicyDraft(current)
     setEditing({ draft, original: draft, isNew: false })
   }
 
   function openAddOverride() {
     if (freeWorkspaces.length === 0) return
-    const draft: PolicyDraft = {
-      isOrgDefault: false,
-      workspaceIds: [],
-      logDays: INHERIT,
-      softDeleteDays: INHERIT,
-      taskCleanupDays: INHERIT,
-      piiOverride: false,
-      piiStages: emptyPiiStages(),
-    }
+    const draft = newOverrideDraft()
     setEditing({ draft, original: draft, isNew: true })
   }
 
   function openEditOverride(workspaceId: string) {
-    const ov = overrides.find((o) => o.workspaceId === workspaceId)
-    const pii = piiOverrides.find((p) => p.workspaceId === workspaceId)
-    const draft: PolicyDraft = {
-      isOrgDefault: false,
-      workspaceIds: [workspaceId],
-      logDays: hoursToOverrideValue(ov?.logRetentionHours),
-      softDeleteDays: hoursToOverrideValue(ov?.softDeleteRetentionHours),
-      taskCleanupDays: hoursToOverrideValue(ov?.taskCleanupHours),
-      piiOverride: Boolean(pii),
-      piiStages: pii?.stages ?? emptyPiiStages(),
-    }
+    const draft = overrideDraft(current, workspaceId)
     setEditing({ draft, original: draft, isNew: false })
   }
 
@@ -871,54 +601,14 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     const draft = editing.draft
     try {
       if (draft.isOrgDefault) {
-        await persistSnapshot({
-          ...snapshot(),
-          logDays: draft.logDays,
-          softDeleteDays: draft.softDeleteDays,
-          taskCleanupDays: draft.taskCleanupDays,
-          defaultPii: anyStageHasContent(draft.piiStages)
-            ? {
-                id: defaultPii?.id ?? generateId(),
-                stages: draft.piiStages,
-              }
-            : null,
-        })
+        await persistSnapshot(withOrgPolicy(current, draft))
         closeEditing()
         toast.success('Organization defaults saved.')
         return
       }
 
-      const ids = draft.workspaceIds
-      if (ids.length === 0) return
-      const clearIds = new Set([...editing.original.workspaceIds, ...ids])
-      const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
-      const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
-      /** An edited override moved to another workspace keeps what only the API can set. */
-      const replacedOverride =
-        editing.original.workspaceIds.length === 1
-          ? overrides.find((o) => o.workspaceId === editing.original.workspaceIds[0])
-          : undefined
-      for (const workspaceId of ids) {
-        const ov = buildRetentionOverride(
-          workspaceId,
-          draft,
-          overrides.find((o) => o.workspaceId === workspaceId) ?? replacedOverride
-        )
-        if (ov) nextOverrides.push(ov)
-        if (draft.piiOverride) {
-          const existing = piiOverrides.find((p) => p.workspaceId === workspaceId)
-          nextPiiOverrides.push({
-            id: existing?.id ?? generateId(),
-            workspaceId,
-            stages: draft.piiStages,
-          })
-        }
-      }
-      await persistSnapshot({
-        ...snapshot(),
-        overrides: nextOverrides,
-        piiOverrides: nextPiiOverrides,
-      })
+      if (draft.workspaceIds.length === 0) return
+      await persistSnapshot(withOverridePolicy(current, editing))
       closeEditing()
       toast.success('Workspace override saved.')
     } catch (error) {
@@ -930,13 +620,8 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
 
   async function removeCurrentOverride() {
     if (!editing || editing.draft.isOrgDefault) return
-    const idSet = new Set(editing.original.workspaceIds)
     try {
-      await persistSnapshot({
-        ...snapshot(),
-        overrides: overrides.filter((o) => !idSet.has(o.workspaceId)),
-        piiOverrides: piiOverrides.filter((p) => !idSet.has(p.workspaceId)),
-      })
+      await persistSnapshot(withoutOverride(current, editing.original.workspaceIds))
       closeEditing()
       toast.success('Workspace override removed.')
     } catch (error) {
@@ -981,17 +666,17 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
             <div className={RESOURCE_LIST_STACK}>
               <SettingsResourceRow
                 title='Organization'
-                description={orgRowSummary()}
+                description={orgPolicySummary(current)}
                 badge={<ChipTag variant='gray'>Default</ChipTag>}
                 onClick={openEditOrg}
                 clickLabel='Open organization retention policy'
                 navigable
               />
-              {overrideWorkspaceIds.map((workspaceId) => (
+              {overriddenWorkspaceIds.map((workspaceId) => (
                 <SettingsResourceRow
                   key={workspaceId}
                   title={workspaceName(workspaceId)}
-                  description={overrideRowSummary(workspaceId)}
+                  description={overridePolicySummary(current, workspaceId)}
                   onClick={() => openEditOverride(workspaceId)}
                   clickLabel={`Open ${workspaceName(workspaceId)} retention override`}
                   navigable

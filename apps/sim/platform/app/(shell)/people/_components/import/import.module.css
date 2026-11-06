@@ -1,0 +1,44 @@
+.secondary {
+  color: var(--ui-secondary);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}
+
+.attention {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.attentionTitle {
+  color: var(--status-warning);
+}
+
+.issues {
+  display: grid;
+  gap: var(--spacing-8);
+  max-block-size: var(--spacing-192);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-4) var(--spacing-12);
+}
+
+.issueMessage {
+  flex: 1;
+  min-inline-size: var(--spacing-128);
+}
+
+.inlineLink {
+  color: var(--ui-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}

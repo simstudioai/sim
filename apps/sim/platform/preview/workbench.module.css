@@ -1,0 +1,99 @@
+.page {
+  min-block-size: 100svh;
+  padding: clamp(var(--spacing-20), 5vw, var(--spacing-64)) var(--spacing-app-gutter-mobile);
+}
+.sheet {
+  max-inline-size: var(--container-800);
+  margin-inline: auto;
+}
+.header,
+.stack,
+.group,
+.caption {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+}
+.header {
+  gap: var(--spacing-16);
+  padding-block-end: var(--spacing-40);
+}
+.kicker {
+  color: var(--ui-secondary);
+  font: var(--text-caption) / var(--leading-18) var(--font-mono);
+}
+.title {
+  font: var(--font-weight-medium) var(--text-title) / var(--leading-40) var(--font-sans);
+  letter-spacing: var(--tracking-minus-0-02em);
+}
+.toolbar,
+.links,
+.actions,
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.toolbar {
+  justify-content: space-between;
+}
+.link,
+.current {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--spacing-app-control-md);
+  padding-inline: var(--spacing-control-inline);
+  border-radius: var(--radius-control);
+  color: var(--ui-secondary);
+  font-size: var(--text-control);
+}
+.link:hover {
+  background: var(--ui-hover);
+}
+.current {
+  color: var(--ui-ink);
+  background: var(--ui-selected);
+}
+.section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-sidebar)), 1fr));
+  gap: var(--spacing-24);
+  align-items: start;
+  border-top: var(--spacing-stroke-hairline) solid var(--ui-border);
+  padding-block: var(--spacing-32);
+}
+.caption {
+  gap: var(--spacing-6);
+}
+.heading {
+  font: var(--font-weight-medium) var(--text-reading) / var(--leading-24) var(--font-sans);
+}
+.note {
+  color: var(--ui-secondary);
+  font-size: var(--text-control);
+  line-height: var(--leading-20);
+}
+.stack {
+  gap: var(--spacing-field-stack);
+}
+.name {
+  overflow-wrap: anywhere;
+  font: var(--font-weight-medium) var(--text-body) / var(--leading-20) var(--font-sans);
+}
+.identity {
+  flex-wrap: nowrap;
+}
+.group {
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-8);
+}
+.list {
+  block-size: var(--spacing-154);
+  min-block-size: 0;
+}
+.chat {
+  overflow-wrap: anywhere;
+  font-size: var(--text-control);
+  color: var(--ui-secondary);
+}

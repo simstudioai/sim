@@ -200,6 +200,13 @@ export function formatRelativeTime(dateString: string): string {
   return `${years}y ago`
 }
 
+/** A magnitude for a chart or summary: `1.2k`, `3.4m`. */
+export function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+    .format(value)
+    .toLowerCase()
+}
+
 /**
  * Formats a count as a lower-bound claim, rounded down to two significant
  * figures (272 → "270+", 5421 → "5,400+"), so a published figure stays true

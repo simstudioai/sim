@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
+import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import {
   mothershipResourceRemovalSchema,
   mothershipResourceSchema,
@@ -147,13 +148,28 @@ export const copilotChatAbortBodySchema = z
   })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
+/** A file the composer already uploaded, as a turn's body carries it. */
+const copilotChatSteerFileAttachmentSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  filename: z.string(),
+  media_type: z.string(),
+  size: z.number(),
+  path: z.string().optional(),
+})
+
+/** A steering message: what a turn sends, sent into a running turn. Contexts share the turn's cap. */
 export const copilotChatSteerBodySchema = z.object({
   streamId: z.string().min(1, 'streamId is required'),
   chatId: z.string().min(1, 'chatId is required'),
-  steeringId: z.string().min(1, 'steeringId is required'),
+  steeringId: z.string().uuid(),
   content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+  contexts: chatContextsSchema.optional(),
+  fileAttachments: z.array(copilotChatSteerFileAttachmentSchema).max(100).optional(),
 })
 export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
+/** The steer body as the route hands it to its use case, once parsed. */
+export type CopilotChatSteerInput = z.output<typeof copilotChatSteerBodySchema>
 
 export const copilotToolExecuteInternalBodySchema = z
   .object({
@@ -543,12 +559,63 @@ export const copilotChatAbortContract = defineRouteContract({
     }),
   },
 })
+/**
+ * What became of a steering message, keyed by its `steeringId`. Re-sending the
+ * same id and content reads it again. `not_applied` (the run closed first), like
+ * a 409 (no live run to steer, or a worker that refused it), means the sender
+ * delivers the message as its own turn instead.
+ */
+const copilotChatSteerDispositionSchema = z.discriminatedUnion('status', [
+  z.object({ steeringId: z.string(), status: z.literal('queued') }),
+  z.object({
+    steeringId: z.string(),
+    status: z.literal('applied'),
+    eventSeq: z.number().int().nonnegative().optional(),
+    textOffset: z.number().int().nonnegative().optional(),
+  }),
+  z.object({ steeringId: z.string(), status: z.literal('not_applied') }),
+])
+
+/**
+ * Drops a steering message the user gave up on. `dismissed`: nothing holds it any
+ * more. `applied`: a run already applied it, so it stays in the conversation.
+ * `busy`: the running turn `streamId` still holds it and may yet apply it.
+ */
+export const copilotChatDismissSteeringContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/steer/dismiss',
+  body: z.object({
+    chatId: z.string().min(1, 'chatId is required'),
+    steeringId: z.string().uuid(),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('dismissed') }),
+      z.object({ status: z.literal('applied') }),
+      z.object({ status: z.literal('busy'), streamId: z.string() }),
+    ]),
+  },
+})
+
+/**
+ * What became of a steering message, read without sending it: `queued` while a run
+ * holds it, `applied` once one did, and `not_applied` when none holds it or ever
+ * will, so its sender may deliver it as a turn of its own.
+ */
+export const copilotChatReadSteeringContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/steer/disposition',
+  body: z.object({
+    chatId: z.string().min(1, 'chatId is required'),
+    steeringId: z.string().uuid(),
+  }),
+  response: { mode: 'json', schema: copilotChatSteerDispositionSchema },
+})
+
 export const copilotChatSteerContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/steer',
   body: copilotChatSteerBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({ ok: z.boolean(), queued: z.boolean(), goStatus: z.number().optional() }),
-  },
+  response: { mode: 'json', schema: copilotChatSteerDispositionSchema },
 })

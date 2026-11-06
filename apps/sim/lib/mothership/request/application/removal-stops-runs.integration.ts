@@ -90,7 +90,8 @@ import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { deleteCopilotChat, softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { chatPubSub } from '@/lib/mothership/chat-status'
-import { abortRun, steerRun } from '@/lib/mothership/request/application/controls'
+import { abortRun } from '@/lib/mothership/request/application/controls'
+import { steerRun } from '@/lib/mothership/request/application/steer-run'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import {
   acquirePendingChatStream,

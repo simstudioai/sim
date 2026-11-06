@@ -1,0 +1,63 @@
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  margin-inline: auto;
+  padding-block: var(--spacing-24) var(--ui-page-inset-block);
+  inline-size: min(calc(100% - 2 * var(--spacing-24)), var(--container-app-settings));
+}
+.heading {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+}
+.title {
+  display: grid;
+  flex: 1;
+  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+}
+.title p {
+  color: var(--ui-secondary);
+}
+.docs {
+  flex: none;
+  /* A text button's own padding: its label ends on the column's edge, at any pointer. */
+  margin-inline-end: calc(-1 * var(--spacing-8));
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-block-size: var(--spacing-48);
+  padding-block-start: var(--workspace-content-title-bar-inset, 0px);
+  padding-inline: var(--spacing-24);
+  background: var(--ui-canvas);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.parent {
+  color: var(--ui-secondary);
+}
+.mobileTitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 48rem) {
+  .breadcrumb {
+    display: none;
+  }
+  .content {
+    inline-size: calc(100% - 2 * var(--spacing-16));
+  }
+}

@@ -10,8 +10,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import type { CredentialGroupEnrollmentDetail } from '@/lib/api/contracts/credential-groups'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
-import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
 
 interface OrganizationPersonConnectionsProps {
   person: CredentialGroupEnrollmentDetail
@@ -20,41 +19,9 @@ interface OrganizationPersonConnectionsProps {
 export function OrganizationPersonConnections({ person }: OrganizationPersonConnectionsProps) {
   const connectionsRef = useRef<HTMLSpanElement>(null)
 
-  const connections = person.connections
-    .filter((connection) => connection.status === 'active')
-    .map((connection) => {
-      const display =
-        connection.provider === 'gitlab'
-          ? resolveCredentialDisplay({
-              type: 'personal_token',
-              providerId: 'gitlab',
-              displayName: 'GitLab',
-            })
-          : undefined
-      const service =
-        connection.provider !== 'gitlab'
-          ? getCredentialGroupProviderService(connection.provider)
-          : undefined
-      return {
-        key: `${connection.provider}:${connection.status}`,
-        name: service?.name ?? display?.detailTitle ?? 'GitLab',
-        icon: service?.icon ?? display?.icon ?? undefined,
-        count: connection.count,
-      }
-    })
-  const accounts = [
-    ...connections,
-    ...person.mcpConnections
-      .filter((connection) => connection.status === 'active')
-      .map((connection) => ({
-        key: `mcp:${connection.mcpServerId}`,
-        name: connection.name,
-        count: connection.count,
-        icon: undefined,
-      })),
-  ]
+  const accounts = personConnectionSummaries(person)
 
-  const visible = person.status !== 'revoked' && accounts.length > 0
+  const visible = accounts.length > 0
   const edges = useScrollEdges(connectionsRef, { axis: 'x', enabled: visible })
 
   if (!visible) return null

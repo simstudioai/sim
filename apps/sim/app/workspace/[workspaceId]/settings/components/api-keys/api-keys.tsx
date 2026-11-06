@@ -10,7 +10,7 @@ import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ApiKey } from '@/lib/api/contracts/api-keys'
 import { useSession } from '@/lib/auth/client'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -21,7 +21,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import type { ApiKeyScope } from '@/hooks/queries/api-key-list'
 import {
@@ -29,6 +28,7 @@ import {
   useDeleteApiKey,
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')

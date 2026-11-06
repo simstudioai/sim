@@ -1,0 +1,53 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  position: fixed;
+  inset-block-end: calc(var(--spacing-20) + env(safe-area-inset-bottom));
+  inset-inline-end: calc(var(--spacing-20) + env(safe-area-inset-right));
+  inline-size: min(
+    var(--shell-notice-width),
+    calc(100vw - var(--spacing-40) - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
+  max-block-size: min(
+    var(--ui-widget-max-size),
+    calc(100dvh - var(--spacing-40) - env(safe-area-inset-top) - env(safe-area-inset-bottom))
+  );
+  gap: var(--ui-row-gap);
+  pointer-events: none;
+}
+.stack > button {
+  align-self: flex-end;
+  pointer-events: auto;
+}
+.surface,
+.notices {
+  display: grid;
+  min-block-size: 0;
+}
+.surface {
+  border-radius: var(--radius-dialog);
+}
+.notices {
+  overflow-y: auto;
+  gap: var(--ui-row-gap);
+}
+.notice,
+.actions {
+  display: flex;
+  align-items: center;
+}
+.notice {
+  gap: var(--ui-row-gap);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-radius: var(--radius-dialog);
+  padding: var(--spacing-12);
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+}
+.actions {
+  gap: var(--ui-action-gap);
+}
+.description {
+  color: var(--ui-secondary);
+}

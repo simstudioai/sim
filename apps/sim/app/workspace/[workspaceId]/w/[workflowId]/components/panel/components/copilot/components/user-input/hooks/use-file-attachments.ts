@@ -337,6 +337,9 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
   const fileDrop = useFileDrop({ processFiles, target: props.fileDropTarget, disabled })
 
+  /** The latest list, fresher than `attachedFiles` between an edit and its render. */
+  const getAttachedFiles = useCallback(() => attachedFilesRef.current, [])
+
   /**
    * Clears all attached files and cleanup preview URLs
    */
@@ -377,6 +380,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleFileChange,
     removeFile,
     handleFileClick,
+    getAttachedFiles,
     clearAttachedFiles,
     restoreAttachedFiles,
     processFiles,

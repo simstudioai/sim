@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-queue-policy'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,

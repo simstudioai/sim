@@ -8,7 +8,7 @@
  * misclassified as one. Neither is possible when the producer states what it built.
  */
 
-import { formatFileSize } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 
 /**
  * `oversized` — the file is intact but reading it was refused on size, so the read

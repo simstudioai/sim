@@ -23,8 +23,8 @@ export const recentlyDeletedSortParams = createSortParams(RECENTLY_DELETED_SORT_
  * - `sort` / `dir` live in {@link recentlyDeletedSortParams} (shared sort
  *   convention).
  * - The name filter is the settings-wide `?search=` key, owned by
- *   `settingsSearchParam` and consumed through `useSettingsSearch` — it is
- *   deliberately not redeclared here (two definitions of one wire key drift).
+ *   `useSettingsSearch` — it is deliberately not redeclared here (two
+ *   definitions of one wire key drift).
  */
 export const recentlyDeletedParsers = {
   tab: parseAsStringLiteral(RECENTLY_DELETED_FILTERS).withDefault('all'),

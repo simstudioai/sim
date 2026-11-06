@@ -38,6 +38,13 @@ import {
 import { NebiusIcon } from '@/components/icons/nebius'
 import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import {
+  findProviderForModel,
+  isAutoModel,
+  isCustomModelIn,
+  isKnownModelIn,
+  SIM_AUTO_MODEL_ID,
+} from '@/providers/model-lookup'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
 /** How a model's thinking appears on the agent-events stream. */
@@ -6236,7 +6243,7 @@ export const DYNAMIC_MODEL_PROVIDERS = [
 ] as const
 
 /** Providers whose adapter accepts namespaced IDs, rather than only a native model-family name. */
-const NAMESPACED_MODEL_PROVIDERS = new Set(
+export const NAMESPACED_MODEL_PROVIDERS = new Set(
   Object.entries(PROVIDER_DEFINITIONS)
     .filter(
       ([providerId, provider]) =>
@@ -6259,18 +6266,7 @@ function getAllStaticModelIds(): string[] {
 const STATIC_MODEL_ID_SET = new Set(getAllStaticModelIds().map((id) => id.toLowerCase()))
 
 export function isKnownModelId(modelId: string): boolean {
-  if (!modelId || typeof modelId !== 'string') return false
-  const trimmed = modelId.trim()
-  if (!trimmed) return false
-
-  if (STATIC_MODEL_ID_SET.has(trimmed.toLowerCase())) return true
-
-  const lowered = trimmed.toLowerCase()
-  for (const provider of DYNAMIC_MODEL_PROVIDERS) {
-    if (lowered.startsWith(`${provider}/`) && lowered.slice(provider.length + 1).trim()) return true
-  }
-
-  return false
+  return isKnownModelIn(STATIC_MODEL_ID_SET, DYNAMIC_MODEL_PROVIDERS, modelId)
 }
 
 const MODEL_SUNSET_STATUS = new Map<string, 'legacy' | 'deprecated'>()
@@ -6322,18 +6318,7 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
     .slice(0, limit)
 }
 
-/**
- * Pseudo-model id for the agent block's automatic model. Not a real catalog
- * entry: at execution time the resolver (lib/model-router) classifies the task
- * via mothership and swaps in a concrete model from the hosted Fireworks pool
- * before any provider/pricing lookup runs. Hosted Sim only.
- */
-export const SIM_AUTO_MODEL_ID = 'sim-auto'
-
-/** True when the configured model is the sim-auto pseudo-model. */
-export function isAutoModel(model: string): boolean {
-  return model.trim().toLowerCase() === SIM_AUTO_MODEL_ID
-}
+export { isAutoModel, SIM_AUTO_MODEL_ID }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
@@ -6371,33 +6356,11 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
  * model and be judged against an allowlist that was never about it.
  */
 export function findProviderFromModel(model: string): ProviderId | null {
-  const normalizedModel = model.toLowerCase()
-
-  /** Explicit provider namespaces take precedence over names discovered on a local server. */
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if (
-      NAMESPACED_MODEL_PROVIDERS.has(providerId) &&
-      provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))
-    ) {
-      return providerId as ProviderId
-    }
-  }
-
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if (
-      provider.models.some((providerModel) => providerModel.id.toLowerCase() === normalizedModel)
-    ) {
-      return providerId as ProviderId
-    }
-  }
-
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
-      return providerId as ProviderId
-    }
-  }
-
-  return null
+  return findProviderForModel(
+    Object.entries(PROVIDER_DEFINITIONS),
+    NAMESPACED_MODEL_PROVIDERS,
+    model
+  ) as ProviderId | null
 }
 
 export function getProviderFromModel(model: string): ProviderId {
@@ -6406,11 +6369,7 @@ export function getProviderFromModel(model: string): ProviderId {
 
 /** Recognized provider namespaces accept deployment and model IDs outside the static catalog. */
 export function isCustomModelId(modelId: string): boolean {
-  const separator = modelId.indexOf('/')
-  if (separator < 1 || modelId.slice(separator + 1).trim().length === 0) return false
-
-  const providerId = findProviderFromModel(modelId)
-  return providerId !== null && NAMESPACED_MODEL_PROVIDERS.has(providerId)
+  return isCustomModelIn(findProviderFromModel, NAMESPACED_MODEL_PROVIDERS, modelId)
 }
 
 export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {

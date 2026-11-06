@@ -34,7 +34,6 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
   type McpServer,
@@ -50,6 +49,7 @@ import {
   useUpdateMcpServer,
 } from '@/hooks/queries/mcp'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'

@@ -1,0 +1,266 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import styles from '@/platform/app/(shell)/_components/composer/composer.module.css'
+import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/message-attachments'
+import type {
+  ComposerController,
+  ComposerReferences,
+} from '@/platform/app/(shell)/_components/composer/model'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { IconButton } from '@/platform/design-system/components/button/button'
+import { ComposerInput } from '@/platform/design-system/components/composer-input/composer-input'
+import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
+import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
+
+const GROUPS: readonly [string, IconName][] = [
+  ['Chats', 'I073'],
+  ['Dashboards', 'I025'],
+  ['Tables', 'I033'],
+  ['Files', 'I015'],
+  ['Knowledge bases', 'I082'],
+  ['Workflows', 'I118'],
+  ['Logs', 'I075'],
+]
+
+interface MessageComposerProps {
+  composer: ComposerController
+  placeholder: string
+  /** Returns false to keep the draft, when the message was refused before it went anywhere. */
+  onSubmit: (draft: ComposerController['draft']) => false | undefined
+  onStop?: () => void
+}
+
+export function MessageComposer({ composer, placeholder, onSubmit, onStop }: MessageComposerProps) {
+  const compact = useCompactViewport()
+  const { draft, setText, references, settings, drop } = composer
+  const { text, attachments: files } = draft
+  const [slash, setSlash] = useState<'typed' | 'button' | null>(null)
+  const [notice, setNotice] = useState('')
+  const editor = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  const folder = useRef<HTMLInputElement>(null)
+  const uploading = files.some((file) => file.uploading)
+  function addReference(group: string, item: ComposerReferences[number]['items'][number]) {
+    composer.addReference(group, item)
+    requestAnimationFrame(() => editor.current?.focus())
+  }
+  const resources: MenuAction[] = GROUPS.flatMap(([group, icon]): MenuAction[] => {
+    const items = references.find((item) => item.group === group)?.items ?? []
+    const [first, ...rest] = items.map((item) => ({
+      id: item.id,
+      label: item.name,
+      onSelect: () => addReference(group, item),
+    }))
+    if (first) return [{ id: group, label: group, icon, children: [first, ...rest] }]
+    return composer.listsOnlyLoadedGroups
+      ? []
+      : [
+          {
+            id: group,
+            label: group,
+            icon,
+            onSelect: () => setNotice(`No ${group.toLowerCase()} available`),
+          },
+        ]
+  })
+  const upload: MenuAction[] = [
+    { id: 'upload', label: 'Upload files', icon: 'I117', onSelect: () => picker.current?.click() },
+    { id: 'folder', label: 'Upload folder', icon: 'I100', onSelect: () => folder.current?.click() },
+  ]
+  const tools: MenuAction[] = (composer.tools ?? []).map((tool, index) => ({
+    id: tool.id,
+    label: tool.label,
+    icon: tool.id === 'browser' ? 'I041' : 'I107',
+    separatorBefore: index === 0,
+    onSelect: () => addReference('Tool', { id: tool.id, name: tool.label, context: tool.context }),
+  }))
+  const [firstSkill, ...restSkills] = (composer.skills ?? []).map((skill) => ({
+    id: skill.id,
+    label: skill.name,
+    onSelect: () => addReference('Skill', skill),
+  }))
+  const skills: MenuAction[] = firstSkill
+    ? [{ id: 'skills', label: 'Skills', icon: 'I044', children: [firstSkill, ...restSkills] }]
+    : []
+  function submit() {
+    if (uploading) return
+    if (!text.trim() && !files.length) return
+    if (onSubmit({ text: text.trim(), attachments: files }) === false) return
+    composer.clear()
+    setNotice('')
+  }
+  const settingsMenu = settings && <ComposerSettingsMenu settings={settings} />
+  return (
+    <div
+      className={styles.composer}
+      data-material='reading'
+      data-elevation='composer'
+      data-dragging={drop?.dragging || undefined}
+      onDragEnter={drop?.onDragEnter}
+      onDragOver={drop?.onDragOver}
+      onDragLeave={drop?.onDragLeave}
+      onDrop={drop?.onDrop}
+      onKeyDownCapture={(event) => {
+        if (
+          slash !== 'typed' ||
+          !(event.target instanceof HTMLElement) ||
+          event.target.role !== 'menu'
+        )
+          return
+        if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') {
+          event.stopPropagation()
+          editor.current?.focus()
+          setSlash(null)
+        }
+      }}
+    >
+      <MessageAttachments items={files} onRemove={composer.removeAttachment} />
+      <ComposerInput
+        density={compact ? 'compact' : 'standard'}
+        label={placeholder}
+        placeholder={placeholder}
+        inputRef={editor}
+        value={text}
+        onValueChange={(value) => {
+          setText(value)
+          setSlash(value === '/' ? 'typed' : null)
+          if (value === '/') composer.onPickerOpen?.()
+        }}
+        onSubmit={submit}
+        onPasteFiles={composer.addFiles}
+        onPasteText={composer.addPastedText}
+      />
+      <div className={styles.toolbar} data-type='T060'>
+        <div className={styles.actions}>
+          <ActionMenu
+            label='Add attachment'
+            icon='I074'
+            onOpenChange={(open) => {
+              if (open) composer.onPickerOpen?.()
+            }}
+            actions={[...upload, ...resources, ...tools]}
+          />
+          <ActionMenu
+            label='Commands'
+            icon='I044'
+            open={Boolean(slash)}
+            onOpenChange={(open) => {
+              if (open) composer.onPickerOpen?.()
+              setSlash(open ? 'button' : null)
+            }}
+            actions={[...skills, ...resources, ...tools]}
+          />
+          {settings?.plan && (
+            <SegmentedControl
+              label='Mode'
+              options={[
+                { value: 'build', label: 'Build' },
+                { value: 'plan', label: 'Plan' },
+              ]}
+              value={settings.plan.active ? 'plan' : 'build'}
+              onSelect={(value) => settings.plan?.onChange(value === 'plan')}
+            />
+          )}
+        </div>
+        <div className={styles.actions}>
+          {settingsMenu}
+          {composer.voice ? (
+            <IconButton
+              tooltip
+              label={composer.voice.listening ? 'Stop voice input' : 'Voice input'}
+              icon='I083'
+              onClick={composer.voice.toggle}
+            />
+          ) : (
+            <IconButton tooltip label='Voice input' icon='I083' disabled />
+          )}
+          {onStop ? (
+            <IconButton
+              tooltip
+              label='Stop response'
+              icon='I035'
+              variant='solid'
+              onClick={onStop}
+            />
+          ) : (
+            <IconButton
+              tooltip
+              label='Send message'
+              icon='I023'
+              variant='solid'
+              disabled={uploading || (!text.trim() && !files.length)}
+              onClick={submit}
+            />
+          )}
+        </div>
+      </div>
+      {notice && (
+        <span role='status' data-type='T052'>
+          {notice}
+        </span>
+      )}
+      <input
+        ref={picker}
+        type='file'
+        hidden
+        multiple
+        accept={composer.accept}
+        onChange={(e) => {
+          composer.addFiles(Array.from(e.currentTarget.files ?? []))
+          e.currentTarget.value = ''
+        }}
+      />
+      <input
+        ref={(node) => {
+          folder.current = node
+          node?.setAttribute('webkitdirectory', '')
+        }}
+        type='file'
+        hidden
+        multiple
+        onChange={(e) => {
+          composer.addFiles(Array.from(e.currentTarget.files ?? []))
+          e.currentTarget.value = ''
+        }}
+      />
+    </div>
+  )
+}
+
+interface ComposerSettingsMenuProps {
+  settings: NonNullable<ComposerController['settings']>
+}
+
+function ComposerSettingsMenu({ settings }: ComposerSettingsMenuProps) {
+  const { effort, model, fastMode } = settings
+  const actions: MenuAction[] = []
+  if (effort) {
+    const [first, ...rest] = effort.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      checked: option.id === effort.value,
+      onSelect: () => effort.onChange(option.id),
+    }))
+    if (first) actions.push({ id: 'effort', label: 'Reasoning effort', children: [first, ...rest] })
+  }
+  if (model) {
+    const [first, ...rest] = model.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      checked: option.id === model.value,
+      onSelect: () => model.onChange(option.id),
+    }))
+    if (first) actions.push({ id: 'model', label: 'Model', children: [first, ...rest] })
+  }
+  if (fastMode) {
+    actions.push({
+      id: 'fast',
+      label: 'Fast mode',
+      checked: fastMode.enabled,
+      onSelect: () => fastMode.onChange(!fastMode.enabled),
+    })
+  }
+  return actions.length ? <ActionMenu label='Model settings' icon='I069' actions={actions} /> : null
+}

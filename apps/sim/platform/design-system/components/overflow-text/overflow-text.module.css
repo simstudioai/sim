@@ -1,0 +1,35 @@
+.overflowFrame,
+.overflowFrame > span,
+.overflowText {
+  display: flex;
+  min-inline-size: 0;
+  inline-size: 100%;
+}
+
+.overflowText {
+  overflow: clip;
+}
+
+.overflowLabel {
+  flex: none;
+  inline-size: max-content;
+  white-space: pre;
+}
+
+.accessibleLabel {
+  position: absolute;
+  inline-size: var(--spacing-1);
+  block-size: var(--spacing-1);
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+.counted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  vertical-align: top;
+}
+.counted small {
+  color: var(--ui-secondary);
+}

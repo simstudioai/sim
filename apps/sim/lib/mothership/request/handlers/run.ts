@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { readAppliedSteeringId } from '@/lib/mothership/chat/steering'
 import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
   MothershipStreamV1RunKind,
@@ -111,6 +112,17 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     context.awaitingAsyncContinuation = undefined
     context.streamComplete = false
     logger.info('Received run resumed event')
+    return
+  }
+
+  const steeringId = readAppliedSteeringId(event.payload)
+  if (steeringId) {
+    const applied = context.contentBlocks.some(
+      (block) =>
+        block.type === ContentBlockType.steering && block.steering?.steeringId === steeringId
+    )
+    if (!applied)
+      addContentBlock(context, { type: ContentBlockType.steering, steering: { steeringId } })
     return
   }
 

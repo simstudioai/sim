@@ -1,4 +1,3 @@
-import type { ComboboxOption } from '@sim/emcn'
 import {
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
@@ -20,7 +19,7 @@ export const PERIOD_LABELS: Record<UsageWindowPreset, string> = {
   custom: 'Custom range',
 }
 
-export const PERIOD_OPTIONS: ComboboxOption[] = USAGE_WINDOW_PRESETS.map((preset) => ({
+export const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => ({
   value: preset,
   label: PERIOD_LABELS[preset],
 }))
@@ -38,6 +37,9 @@ export type UsageTab =
  * Activity ranks retained executions; the member, workspace, and model tabs rank
  * ledger spend. Workflow spend remains within the workspace drill-down because
  * charges from other sources do not carry workflow attribution.
+ *
+ * BYOK is withheld, not removed: its tab has nothing to show yet. Its dimension, labels, token
+ * unit and query work.
  */
 export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   USAGE_OVERVIEW_TAB,
@@ -45,12 +47,6 @@ export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   'member',
   'workspace',
   'model',
-  /*
-    'byok' is withheld, not removed: no usage has been recorded against a
-    bring-your-own-key provider yet, so the tab could only show its empty state.
-    Re-add it here once the ledger carries BYOK rows — the dimension, its labels,
-    its token unit, and the breakdown query all still work.
-  */
 ]
 
 export const USAGE_TAB_LABELS: Record<UsageTab, string> = {
@@ -141,3 +137,16 @@ export const USAGE_SOURCE_CATEGORY: Record<OrganizationUsageSource, UsageSourceC
   'voice-output': 'other',
   'api-tool': 'other',
 }
+
+export const ACTIVITY_DIMENSION_OPTIONS = [
+  { value: 'workspace', label: 'Workspaces' },
+  { value: 'workflow', label: 'Workflows' },
+  { value: 'member', label: 'Members' },
+  { value: 'trigger', label: 'Triggers' },
+] as const
+
+export const ACTIVITY_SORT_OPTIONS = [
+  { value: 'runs', label: 'Most runs' },
+  { value: 'failures', label: 'Most failures' },
+  { value: 'duration', label: 'Longest duration' },
+] as const

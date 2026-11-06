@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Sim Platform"
+  short_description: "Build and review the code-first Sim Platform"
+  default_prompt: "Use $implement-platform to implement the next Platform product change in Sim."

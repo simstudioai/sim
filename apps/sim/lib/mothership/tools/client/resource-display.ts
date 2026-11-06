@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { QueryKey } from '@tanstack/react-query'
 import type { ResourceAddress } from '@/lib/mothership/generated/resources'
+import { resolveBlockName } from '@/lib/mothership/tools/client/block-name'
 import {
   blockDisplayName,
   cliFirstPositional,
@@ -8,11 +9,10 @@ import {
   cliFlagValues,
   getToolDisplayTitle,
 } from '@/lib/mothership/tools/display'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { getBlock } from '@/blocks/registry'
 import { skillsKeys } from '@/hooks/queries/skills'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -190,8 +190,8 @@ export function resolveNamedCliToolDisplayTitle(
     workspaceName ? `${title} in ${workspaceName}` : title
   const base = getToolDisplayTitle(name, args)
   if (name === 'cli_blocks_get' || name === 'cli_blocks_tips') {
-    const block = target ? getBlock(target) : undefined
-    return block && target ? base.replace(blockDisplayName(target), () => block.name) : undefined
+    const blockName = target ? resolveBlockName(target) : undefined
+    return blockName && target ? base.replace(blockDisplayName(target), () => blockName) : undefined
   }
   if (name.startsWith('cli_logs_')) {
     const names = workflowIds.map((id) => resolveResourceDisplayName('workflow', id, scoped))

@@ -1,5 +1,6 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
+import { readAppliedSteeringId, type SteeringBlockInfo } from '@/lib/mothership/chat/steering'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
 import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
@@ -126,7 +127,17 @@ export interface TaskNode extends NodeBase {
   task: TaskBlockInfo
 }
 
-export type LifecycleNode = ToolNode | AgentNode | TextNode | TaskNode
+/**
+ * Where the turn applied a steering message the user sent while it ran
+ * (`run`/`steering_applied`). Breaks every open text lane, so the response after
+ * it starts a new segment the transcript can show below the message.
+ */
+interface SteeringNode extends NodeBase {
+  kind: 'steering'
+  steering: SteeringBlockInfo
+}
+
+export type LifecycleNode = ToolNode | AgentNode | TextNode | TaskNode | SteeringNode
 
 export interface TurnModel {
   status: TurnStatus
@@ -673,7 +684,21 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.run: {
       const payload = envelope.payload
       const kind = payload.kind
-      if (kind === 'task_armed' || kind === 'task_delivered') {
+      const steeringId = readAppliedSteeringId(payload)
+      if (steeringId) {
+        const id = `steering:${steeringId}`
+        if (model.nodes.has(id)) break
+        breakLane(model, MAIN_SPAN, tsMs)
+        for (const agentSpanId of model.agentBySpanId.keys()) breakLane(model, agentSpanId, tsMs)
+        model.nodes.set(id, {
+          id,
+          kind: 'steering',
+          spanId: MAIN_SPAN,
+          seq,
+          steering: { steeringId },
+        })
+        model.order.push(id)
+      } else if (kind === 'task_armed' || kind === 'task_delivered') {
         const id = `task:${payload.taskId}`
         const node = model.nodes.get(id)
         const task = reduceTaskState(node?.kind === 'task' ? node.task : undefined, payload)
@@ -787,7 +812,7 @@ export function applyTurnTerminal(model: TurnModel, turn: Exclude<TurnStatus, 's
   const nodeStatus = turnTerminalNodeStatus(turn)
   for (const id of model.order) {
     const node = model.nodes.get(id)
-    if (!node || node.kind === 'text' || node.kind === 'task') continue
+    if (!node || node.kind === 'text' || node.kind === 'task' || node.kind === 'steering') continue
     // An unanswered permission prompt is a straggler too: the turn ended, so
     // the card must stop offering actions rather than sit there forever.
     if (node.status === 'running' || node.status === 'awaiting_approval') {

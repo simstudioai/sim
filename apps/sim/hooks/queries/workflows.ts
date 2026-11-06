@@ -26,7 +26,7 @@ import {
   restoreWorkflowContract,
   updateWorkflowContract,
 } from '@/lib/api/contracts/workflows'
-import { deploymentKeys } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -49,7 +49,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowQueries')
 
-export { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+export type { WorkflowQueryScope } from '@/hooks/queries/utils/workflow-keys'
 
 export const WORKFLOW_STATE_STALE_TIME = 30 * 1000
 export const WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME = 5 * 60 * 1000

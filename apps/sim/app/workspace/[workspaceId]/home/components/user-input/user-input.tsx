@@ -15,7 +15,6 @@ import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
-import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -40,7 +39,6 @@ import type {
   ChatMessage,
   FileAttachmentForApi,
   MothershipResource,
-  QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
@@ -78,13 +76,10 @@ interface UserInputProps {
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
-  onSendQueuedHead?: () => void
-  onEditQueuedTail?: () => boolean
   getMessages?: () => readonly ChatMessage[]
 }
 
 export interface UserInputHandle {
-  loadQueuedMessage: (msg: QueuedMessage) => void
   /** Populates the textarea with a CURATED prompt (suggested action, template,
    * etc. — never free-form user prose), running it through `mentionifyIntegrations`
    * (bare `Slack` → `@Slack`) and then auto-mention chipification so integration
@@ -96,7 +91,7 @@ export interface UserInputHandle {
 /**
  * The chat input: the {@link PromptEditor} editing core wrapped with the
  * chat-specific chrome — file attachments (browse, drag-drop, paste), voice
- * input, draft persistence, queued-message recall, and the send/stop button.
+ * input, draft persistence, and the send/stop button.
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
@@ -113,8 +108,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isSending,
     onStopGeneration,
     isInitialView = true,
-    onSendQueuedHead,
-    onEditQueuedTail,
     getMessages,
   },
   ref
@@ -345,7 +338,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
    * landing prompt panel as well as curated CTAs. Curated producers opt their
    * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
    * is never bare-chipped (the scunthorpe constraint).
-   * An empty seed must not erase a queued message loaded for editing.
+   * An empty seed must not erase what the user has typed.
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
@@ -384,36 +377,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     onUsageLimitExceeded: handleUsageLimitExceeded,
   })
 
-  const onSendQueuedHeadRef = useRef(onSendQueuedHead)
-  onSendQueuedHeadRef.current = onSendQueuedHead
-  const onEditQueuedTailRef = useRef(onEditQueuedTail)
-  onEditQueuedTailRef.current = onEditQueuedTail
-  const isSendingRef = useRef(isSending)
-  isSendingRef.current = isSending
   const wasSendingRef = useRef(false)
   const composerOwnsFocusRef = useRef(false)
 
   useImperativeHandle(
     ref,
     () => ({
-      loadQueuedMessage: (msg: QueuedMessage) => {
-        const currentEditor = editorRef.current
-        history.reset()
-        const { hasUnavailableContexts } = currentEditor.restorePrompt(msg.content, msg.contexts)
-        if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
-        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
-          id: a.id,
-          name: a.filename,
-          size: a.size,
-          type: a.media_type,
-          path: a.path ?? '',
-          key: a.key,
-          uploading: false,
-          previewUrl: getMothershipAttachmentPreviewUrl(a),
-        }))
-        filesRef.current.restoreAttachedFiles(restored)
-        currentEditor.focusAtEnd()
-      },
       populatePrompt: (text: string) => {
         // `text` is a curated prompt, so opt its bare integration names into
         // `@`-mention form before chipification (the auto-mention pipeline only
@@ -581,8 +550,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter
-   * reads refs, not rendered state), queue the head message when Enter lands
-   * on an empty input mid-stream, and otherwise submit.
+   * reads refs, not rendered state), and submit only when there is something to send.
    */
   const handleEnterSubmit = useCallback(() => {
     if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
@@ -590,25 +558,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       editorRef.current.getValue().trim().length > 0 ||
       hasAdditionalAttachments ||
       filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
-    if (!hasSubmitPayload) {
-      if (isSendingRef.current) {
-        onSendQueuedHeadRef.current?.()
-      }
-      return
-    }
+    if (!hasSubmitPayload) return
     handleSubmit()
   }, [handleSubmit, hasAdditionalAttachments])
-
-  /**
-   * ArrowUp-on-empty policy: recall the queued tail message for editing. Only
-   * claims the key when there are no attachments and a queue handler exists.
-   */
-  const handleArrowUpOnEmpty = useCallback((): boolean => {
-    if (hasAdditionalAttachments || filesRef.current.attachedFiles.length > 0) return false
-    const onEditQueuedTail = onEditQueuedTailRef.current
-    if (!onEditQueuedTail) return false
-    return onEditQueuedTail()
-  }, [hasAdditionalAttachments])
 
   const handlePlusClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -657,7 +609,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
-        onArrowUpOnEmpty={handleArrowUpOnEmpty}
         onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
         className={cn(
           'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',

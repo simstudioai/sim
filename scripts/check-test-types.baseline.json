@@ -465,7 +465,7 @@
   "apps/sim/app/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/o/[organizationId]/settings/components/integrations/search-source-setup.test.tsx": {
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-dialogs.test.tsx": {
     "TS2339": 31,
     "TS2345": 2
   },
@@ -538,7 +538,7 @@
   },
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
-    "TS2322": 4,
+    "TS2322": 2,
     "TS2353": 1,
     "TS2550": 1
   },

@@ -11,32 +11,10 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/utils/oauth-credential-keys'
 
 export const OAUTH_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
 export const OAUTH_CREDENTIAL_DETAIL_STALE_TIME = 60 * 1000
-
-export const oauthCredentialKeys = {
-  all: ['oauthCredentials'] as const,
-  lists: () => [...oauthCredentialKeys.all, 'list'] as const,
-  list: (
-    providerId?: string,
-    workspaceId?: string,
-    workflowId?: string,
-    organizationId?: string,
-    purpose?: 'browsing'
-  ) =>
-    [
-      ...oauthCredentialKeys.lists(),
-      providerId ?? 'none',
-      workspaceId ?? 'none',
-      workflowId ?? 'none',
-      organizationId ?? 'none',
-      purpose ?? 'indexing',
-    ] as const,
-  details: () => [...oauthCredentialKeys.all, 'detail'] as const,
-  detail: (credentialId?: string, workflowId?: string) =>
-    [...oauthCredentialKeys.details(), credentialId ?? 'none', workflowId ?? 'none'] as const,
-}
 
 interface FetchOAuthCredentialsParams {
   providerId: string

@@ -29,7 +29,7 @@ interface SizerFloorResult {
  * early in a turn, or in any short chat. Flooring at the raw extent invents
  * scrollable space no content occupies, which stays invisible only while the
  * container keeps its height. The moment it shrinks mid-turn — the composer
- * growing, the queued-message banner appearing, a window or panel resize — that
+ * growing, an attachment strip appearing, a window or panel resize — that
  * space becomes real scrollable room, the bottom-pin scrolls into it, and the
  * transcript is dragged upward until the floor drains at the end of the turn.
  *
@@ -39,7 +39,7 @@ interface SizerFloorResult {
  * - Live content alone would release the debt on the very commit that created
  *   it, since holding space a shrink just took away is the floor's whole purpose.
  * - Ignoring the applied floor would dump undrained debt in a single frame when
- *   a queued message re-engages the floor mid-drain — the end-of-turn jump the
+ *   a shrink re-engages the floor mid-drain — the end-of-turn jump the
  *   eased drain exists to prevent.
  *
  * Together they say: never exceed the space content has actually held this turn.

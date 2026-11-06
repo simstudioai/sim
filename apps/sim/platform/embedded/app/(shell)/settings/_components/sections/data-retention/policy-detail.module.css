@@ -1,0 +1,17 @@
+.pattern {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.group {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--settings-control-width)), 1fr));
+  gap: var(--spacing-4) var(--spacing-8);
+}

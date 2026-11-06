@@ -4,9 +4,9 @@ import {
   isResourceNameQuery,
   resolveNamedCliToolDisplayTitle,
 } from '@/lib/mothership/tools/client/resource-display'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 
 /** Refresh existing rows when the sidebar inventory arrives or a resource is renamed. */
 export function useToolResourceTitles(blocks: ContentBlock[]): ContentBlock[] {

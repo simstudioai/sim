@@ -1,4 +1,5 @@
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
+import type { SteeringBlockInfo } from '@/lib/mothership/chat/steering'
 import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -95,6 +96,7 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
   task: 'task',
+  steering: 'steering',
 } as const
 
 /**
@@ -141,6 +143,8 @@ export interface ContentBlock {
   parentSpanId?: string
   /** The background task this block announces (task blocks only). */
   task?: TaskBlockInfo
+  /** The steering message the turn applied at this point (steering blocks only). */
+  steering?: SteeringBlockInfo
 }
 
 export interface ActiveFileIntent {
@@ -225,6 +229,8 @@ export interface StreamingContext {
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  /** The worker refused the turn: a run of the chat already applied its message as steering. */
+  inputApplied?: boolean
   /**
    * Terminal status carried by the backend's `complete` event. Set only once
    * the backend declares the turn finished, so it can outrank in-band failures
@@ -311,6 +317,8 @@ export interface OrchestratorResult {
   /** Machine-readable cause of `error`, forwarded as the stream error event's `code`. */
   errorCode?: string
   errors?: string[]
+  /** The worker refused the turn because a run already applied its message as steering. */
+  inputApplied?: boolean
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }
 }

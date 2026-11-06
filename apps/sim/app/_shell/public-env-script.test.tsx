@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PUBLIC_ENV_ATTRIBUTE } from '@/lib/core/config/env'
-import {
-  PublicEnvScript,
-  publicEnvHtmlAttributes,
-  serializePublicEnv,
-} from '@/app/_shell/public-env-script'
+import { publicEnvHtmlAttributes } from '@/lib/core/config/public-env'
+import { PublicEnvScript, serializePublicEnv } from '@/app/_shell/public-env-script'
 
 vi.unmock('@/lib/core/config/env')
 

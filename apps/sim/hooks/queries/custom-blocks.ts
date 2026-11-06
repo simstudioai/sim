@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type CustomBlock,
@@ -11,6 +11,13 @@ import {
   type UpdateCustomBlockBody,
   updateCustomBlockContract,
 } from '@/lib/api/contracts/custom-blocks'
+import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
+
+/** A group editor's catalog overlays the organization's custom blocks, so a change here reaches it. */
+function invalidateCustomBlockReaders(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: permissionGroupKeys.editorCatalogs() })
+}
 
 export const CUSTOM_BLOCK_LIST_STALE_TIME = 60 * 1000
 /** Short — the usage count is a pre-delete safety check and must stay fresh. */
@@ -79,9 +86,7 @@ export function usePublishCustomBlock() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: PublishCustomBlockBody) => requestJson(publishCustomBlockContract, { body }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
-    },
+    onSettled: () => invalidateCustomBlockReaders(queryClient),
   })
 }
 
@@ -90,9 +95,7 @@ export function useUpdateCustomBlock() {
   return useMutation({
     mutationFn: ({ id, ...body }: UpdateCustomBlockBody & { id: string }) =>
       requestJson(updateCustomBlockContract, { params: { id }, body }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
-    },
+    onSettled: () => invalidateCustomBlockReaders(queryClient),
   })
 }
 
@@ -100,8 +103,6 @@ export function useDeleteCustomBlock() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => requestJson(deleteCustomBlockContract, { params: { id } }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
-    },
+    onSettled: () => invalidateCustomBlockReaders(queryClient),
   })
 }

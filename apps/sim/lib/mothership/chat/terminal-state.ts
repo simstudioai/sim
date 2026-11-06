@@ -3,7 +3,10 @@ import { copilotChats, copilotMessages, copilotRuns } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { buildLiveAssistantMessage } from '@/lib/mothership/chat/effective-transcript'
-import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import {
+  appendCopilotChatMessages,
+  recordSteeringDisposition,
+} from '@/lib/mothership/chat/messages-store'
 import {
   type PersistedMessage,
   withStoppedContentBlock,
@@ -206,6 +209,14 @@ export async function finalizeAssistantTurn({
             chatId,
             [response],
             { streamId: userMessageId, chatModel },
+            tx
+          )
+          await recordSteeringDisposition(
+            chatId,
+            (response.contentBlocks ?? []).flatMap((block) =>
+              block.steering ? [block.steering.steeringId] : []
+            ),
+            { status: 'applied' },
             tx
           )
           return {

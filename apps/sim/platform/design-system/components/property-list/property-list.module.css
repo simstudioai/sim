@@ -1,0 +1,52 @@
+.list,
+.rows {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--spacing-80) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-8);
+  min-block-size: var(--spacing-32);
+}
+
+.row dd {
+  overflow-wrap: anywhere;
+}
+
+.row dt,
+.row dd[data-kind="metadata"],
+.row dd[data-kind="person"] {
+  color: var(--ui-secondary);
+}
+
+.row dd[data-kind="person"] {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.row :is(dt, dd) {
+  min-inline-size: 0;
+  white-space: pre-wrap;
+}
+
+.row a {
+  color: var(--ui-ink);
+}
+
+.row a:hover {
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  .row a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--spacing-app-touch-target);
+  }
+}

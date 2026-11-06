@@ -69,7 +69,7 @@ vi.mock('@/hooks/queries/deployments', () => ({
 }))
 
 import * as requestModule from '@/lib/api/client/request'
-import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import * as getQueryClientModule from '@/hooks/queries/utils/get-query-client'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**

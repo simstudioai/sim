@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
+import { formatInvoiceAmount, getInvoiceStatusBadge } from '@/lib/billing/invoices'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
@@ -38,6 +39,7 @@ import {
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
+import { getSubscriptionPermissions } from '@/lib/billing/subscription-permissions'
 import {
   getEffectiveSeats,
   hasPaidSubscriptionStatus,
@@ -48,7 +50,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AwsMarketplaceSubscriptionSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/aws-marketplace-subscription-section/aws-marketplace-subscription-section'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
-import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -68,50 +69,6 @@ import {
 } from '@/hooks/queries/subscription'
 
 const logger = createLogger('Billing')
-
-type InvoiceStatusBadge = {
-  variant: 'green' | 'amber' | 'red' | 'gray'
-  label: string
-}
-
-const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
-  paid: { variant: 'green', label: 'Paid' },
-  open: { variant: 'amber', label: 'Open' },
-  uncollectible: { variant: 'red', label: 'Uncollectible' },
-  void: { variant: 'gray', label: 'Void' },
-}
-
-/** Resolve a Stripe invoice status to its badge presentation. */
-function getInvoiceStatusBadge(status: string | null): InvoiceStatusBadge {
-  return (
-    INVOICE_STATUS_BADGES[status ?? ''] ?? {
-      variant: 'gray',
-      label: status ?? 'Unknown',
-    }
-  )
-}
-
-/** Cached currency formatters, keyed by upper-cased ISO currency code. */
-const invoiceAmountFormatters = new Map<string, Intl.NumberFormat>()
-
-/** Resolve (and memoize) an `Intl.NumberFormat` for a currency code. */
-function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
-  const code = currency.toUpperCase()
-  let formatter = invoiceAmountFormatters.get(code)
-  if (!formatter) {
-    formatter = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: code,
-    })
-    invoiceAmountFormatters.set(code, formatter)
-  }
-  return formatter
-}
-
-/** Format a minor-unit (e.g. cents) amount as a localized currency string. */
-function formatInvoiceAmount(amountMinor: number, currency: string): string {
-  return getInvoiceAmountFormatter(currency).format(amountMinor / 100)
-}
 
 interface BillingProps {
   scope: 'account' | 'organization'
@@ -343,33 +300,24 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       })
       return
     }
-    const portalWindow = window.open('', '_blank')
     const context = subscription.isOrgScoped ? 'organization' : 'user'
     if (context === 'organization' && !billingOrganizationId) {
-      portalWindow?.close()
       toast.error('Billing unavailable', {
         description: 'Organization billing context is unavailable. Please refresh and try again.',
       })
       return
     }
-    openBillingPortal.mutate(
+    openBillingPortal.open(
       {
         context,
         organizationId: billingOrganizationId ?? undefined,
         returnUrl: window.location.href,
       },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          toast.error("Couldn't open billing portal", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        toast.error("Couldn't open billing portal", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     )
   }

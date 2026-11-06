@@ -1,0 +1,42 @@
+[data-platform-ui] {
+  --shell-inbox-width: 27rem;
+  --shell-notice-width: 22.5rem;
+  --shell-org-menu-width: 16.5rem;
+  --shell-edge-inset: var(--spacing-12);
+  --shell-toolbar-end: calc(var(--shell-edge-inset) + var(--spacing-app-chip));
+  --shell-home-row-start: calc(var(--shell-toolbar-end) + var(--ui-product-section-gap));
+  --shell-page-opener-space: 0px;
+  --ui-navigation-inset: 0px;
+}
+@container scrolling-shell (width < 75rem) {
+  [data-platform-ui] [data-page-opener] {
+    --shell-page-opener-space: var(--shell-toolbar-end);
+    --shell-home-row-start: var(--ui-product-section-gap);
+  }
+}
+[data-platform-ui] [data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-52);
+}
+@media (max-width: 48rem) {
+  [data-platform-ui] {
+    --ui-navigation-inset: var(--spacing-52);
+  }
+}
+[data-platform-ui] [data-desktop] {
+  --ui-navigation-inset: 0px;
+}
+
+[data-platform-ui] [data-desktop][data-conversation][data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-128);
+}
+[data-sim-desktop-title-bar="inset"] [data-desktop][data-conversation][data-sidebar-collapsed] {
+  --ui-navigation-inset: var(--spacing-192);
+}
+@media (max-width: 48rem) {
+  [data-platform-ui] [data-desktop][data-conversation] {
+    --ui-navigation-inset: var(--spacing-128);
+  }
+  [data-sim-desktop-title-bar="inset"] [data-desktop][data-conversation] {
+    --ui-navigation-inset: var(--spacing-192);
+  }
+}

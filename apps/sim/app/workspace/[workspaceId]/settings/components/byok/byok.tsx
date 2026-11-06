@@ -66,7 +66,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useBYOKKeys,
   useDeleteBYOKKey,
@@ -76,6 +75,7 @@ import {
   useUpsertBYOKKey,
   useUpsertOrganizationBYOKKey,
 } from '@/hooks/queries/byok-keys'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   {

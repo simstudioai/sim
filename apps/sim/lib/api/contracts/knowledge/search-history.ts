@@ -33,6 +33,7 @@ export const searchHistoryResponseSchema = z.object({
     .array(z.object({ query: z.string().min(1).max(4000), searchedAt: z.iso.datetime() }))
     .max(SEARCH_HISTORY_LIMIT),
 })
+export type SearchHistoryResponse = z.output<typeof searchHistoryResponseSchema>
 
 export const listSearchHistoryContract = defineRouteContract({
   method: 'GET',
@@ -51,5 +52,12 @@ export const clearSearchHistoryContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/organizations/[id]/search/history',
   params: searchHistoryParamsSchema,
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
+export const removeSearchHistorySourceContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/organizations/[id]/search/history/sources',
+  params: searchHistoryParamsSchema,
+  body: z.object({ url: z.string().min(1).max(4096) }),
   response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
 })

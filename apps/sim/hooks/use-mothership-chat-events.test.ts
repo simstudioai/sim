@@ -18,7 +18,6 @@ import {
   reflectBackgroundChatStatus,
   resyncMothershipChatCaches,
 } from '@/hooks/use-mothership-chat-events'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 describe('handleMothershipChatStatusEvent', () => {
   const queryClient = {
@@ -138,27 +137,6 @@ describe('handleMothershipChatStatusEvent', () => {
     })
     expect(suspendBrowserScope).toHaveBeenCalledWith('chat-1')
     expect(suspendTerminalScope).toHaveBeenCalledWith('chat-1')
-  })
-
-  it('drops the queue of a chat deleted elsewhere and takes sends again once it is restored', () => {
-    useMothershipQueueStore.getState().reset()
-    const queued = { id: 'm1', content: 'follow-up' }
-    const publish = (type: 'deleted' | 'created') =>
-      handleMothershipChatStatusEvent(
-        queryClient,
-        'ws-1',
-        JSON.stringify({ chatId: 'chat-1', type, timestamp: Date.now() })
-      )
-
-    useMothershipQueueStore.getState().enqueue('chat-1', queued)
-    publish('deleted')
-    expect(useMothershipQueueStore.getState().queues['chat-1']).toBeUndefined()
-    useMothershipQueueStore.getState().enqueue('chat-1', queued)
-    expect(useMothershipQueueStore.getState().queues['chat-1']).toBeUndefined()
-
-    publish('created')
-    useMothershipQueueStore.getState().enqueue('chat-1', queued)
-    expect(useMothershipQueueStore.getState().queues['chat-1']?.map((m) => m.id)).toEqual(['m1'])
   })
 
   it('keeps started task detail when a stale started stream is older than the active stream', () => {

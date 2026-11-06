@@ -3,9 +3,9 @@
 import { type ReactNode, useState } from 'react'
 import { Chip, DropdownMenuItem, toast, useCopyToClipboard } from '@sim/emcn'
 import { Check, Link, Plus } from '@sim/emcn/icons'
+import { SimLinkModal } from '@/components/sim-links/sim-link-modal'
 import { simLinkUrl } from '@/lib/navigation/paths'
 import { suggestSimLinkName } from '@/lib/sim-links/validation'
-import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 import { useSimLinkOrganizationId } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { useSimLinksForUrl } from '@/hooks/queries/sim-links'
 
@@ -40,8 +40,8 @@ function useNestedSimLinkCreator(url: string, title: string): SimLinkCreator {
 }
 
 /** The first link that already opens `url`, and a copy of its address. */
-function useExistingSimLink(organizationId: string, url: string) {
-  const { data, isPending, isError } = useSimLinksForUrl(organizationId, url)
+export function useExistingSimLink(organizationId: string, url: string, enabled = true) {
+  const { data, isPending, isError } = useSimLinksForUrl(organizationId, url, enabled)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const existing = data?.at(0)
   const copyExisting = async () => {

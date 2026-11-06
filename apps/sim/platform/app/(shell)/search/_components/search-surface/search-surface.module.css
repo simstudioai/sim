@@ -1,0 +1,60 @@
+.surface,
+.assistant {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.assistant[hidden] {
+  display: none;
+}
+.search {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  gap: var(--ui-row-gap);
+  height: var(--spacing-56);
+  padding-inline: max(var(--ui-navigation-inset), var(--spacing-24)) var(--spacing-16);
+}
+.switch {
+  display: flex;
+  min-inline-size: 0;
+}
+.column {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-product-section-gap);
+  inline-size: min(var(--ui-page-max-size), calc(100% - 2 * var(--ui-page-inline-gutter)));
+  margin-inline: auto;
+  padding-block-end: var(--ui-page-inset-block);
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+}
+.field > :first-child {
+  flex: 1;
+  min-inline-size: 0;
+}
+.history {
+  display: grid;
+  gap: var(--ui-section-gap);
+  justify-items: start;
+}
+.fieldPlaceholder {
+  block-size: var(--spacing-app-control-sm);
+  border-radius: var(--ui-control-radius);
+  background: var(--control-muted-fill);
+}

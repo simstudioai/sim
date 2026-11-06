@@ -8,6 +8,8 @@ paths:
 
 # Styling Rules
 
+This guide applies to the existing app. For `apps/sim/platform/**`, use `apps/sim/platform/AGENTS.md`.
+
 ## Tailwind
 
 1. **No inline styles** - Use Tailwind classes. Exception: a genuinely dynamic

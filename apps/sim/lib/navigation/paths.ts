@@ -26,7 +26,7 @@ export const WORKSPACES_PATH = '/workspace'
 export const WORKSPACE_SETTINGS_PATH = `${WORKSPACES_PATH}?redirect=settings`
 
 /** Root of the organization surface; `/o` alone resolves like {@link APP_ENTRY_PATH}. */
-const ORGANIZATIONS_PATH = '/o'
+export const ORGANIZATIONS_PATH = '/o'
 
 /**
  * Every destination under one organization's surface, built from one place so the
@@ -87,12 +87,13 @@ export function isAppSurfacePath(pathname: string): boolean {
 }
 
 /**
- * Non-app routes that must never appear in search results: deployed chats,
- * paused-run resume links, invitations, unsubscribe links, shared files, the
- * legacy `/w` redirects, the design playground, and account, self-host, and
- * upgrade utility pages.
+ * Non-app routes that must never appear in search results: the Platform zone at `/org`,
+ * deployed chats, paused-run resume links, invitations, unsubscribe links, shared
+ * files, the legacy `/w` redirects, the design playground, and account, self-host,
+ * and upgrade utility pages.
  */
 const NOINDEX_PATH_ROOTS = [
+  '/org',
   '/sim',
   '/chat',
   '/extension',

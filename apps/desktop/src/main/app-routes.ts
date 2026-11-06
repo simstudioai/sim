@@ -43,6 +43,11 @@ function organizationIdFromRoute(lastRoute: string | undefined): string | null {
   return null
 }
 
+/** The organization's Platform pages, mounted at `/org`, which name no organization in the path. */
+function isOrganizationZoneRoute(lastRoute: string | undefined): boolean {
+  return isSafeInternalPath(lastRoute) && /^\/org(?:[/?#]|$)/.test(lastRoute)
+}
+
 /**
  * Route for "New Chat": the home (chat) surface of the workspace the user was
  * last in, falling back to the app entry when the last route carries no
@@ -63,5 +68,8 @@ export function settingsRoute(lastRoute: string | undefined): string {
     return `/workspace/${workspaceId}/settings/desktop`
   }
   const organizationId = organizationIdFromRoute(lastRoute)
-  return organizationId ? `/o/${organizationId}/settings/general` : SETTINGS_ENTRY_ROUTE
+  if (organizationId) {
+    return `/o/${organizationId}/settings/general`
+  }
+  return isOrganizationZoneRoute(lastRoute) ? '/org/settings/general' : SETTINGS_ENTRY_ROUTE
 }

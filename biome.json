@@ -154,7 +154,11 @@
   },
   "overrides": [
     {
-      "includes": ["apps/sim/app/_styles/tailwind.css", "packages/auth-ui/src/utilities.css"],
+      "includes": [
+        "apps/sim/app/_styles/tailwind.css",
+        "apps/sim/platform/design-system/styles/tailwind.css",
+        "packages/auth-ui/src/utilities.css"
+      ],
       "linter": { "enabled": false },
       "formatter": { "enabled": false }
     },

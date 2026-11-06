@@ -13,7 +13,7 @@ import {
   RESOURCE_LIST_GRID,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 function siteLabel(origin: string): string {
   return origin.replace(/^https?:\/\//, '')

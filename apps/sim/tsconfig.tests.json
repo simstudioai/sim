@@ -1,4 +1,20 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", ".next", "vitest.config.ts", "vitest.setup.ts"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "platform/app",
+    "platform/lib",
+    "platform/fixtures",
+    "platform/checks",
+    "platform/preview",
+    "platform/design-system",
+    "platform/.next",
+    "platform/node_modules",
+    "platform/next-env.d.ts",
+    "platform/next.config.ts",
+    "platform/proxy.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ]
 }

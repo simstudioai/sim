@@ -1,0 +1,8 @@
+---
+description: "Sim Platform implementation from Paper"
+globs: ["apps/sim/platform/**"]
+---
+
+<!-- Generated from .claude/rules/platform-design.md by `bun run skills:sync`. Edit the source, not this file. -->
+
+Use the canonical contract in `apps/sim/platform/AGENTS.md` and the `implement-platform` skill. Legacy EMCN and app styling rules do not govern this separate project.

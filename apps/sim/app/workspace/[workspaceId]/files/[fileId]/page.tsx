@@ -2,10 +2,10 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/auth'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import FilesFileLoading from '@/app/workspace/[workspaceId]/files/[fileId]/loading'
 import { Files } from '@/app/workspace/[workspaceId]/files/files'
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 
 export const metadata: Metadata = {
   title: 'Files',
