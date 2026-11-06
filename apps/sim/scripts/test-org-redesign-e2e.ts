@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -92,6 +93,8 @@ interface Viewport {
 const DESKTOP: Viewport = { name: 'desktop', width: 1440, height: 900 }
 const PHONE: Viewport = { name: 'phone', width: 390, height: 844 }
 const CHECK_TIMEOUT_MS = 180_000
+/** A check whose sessions are closed fails its next step at once; this leaves its restores time. */
+const CHECK_CANCEL_GRACE_MS = 30_000
 const WALK_CONCURRENCY = 4
 
 interface Problem {
@@ -147,6 +150,13 @@ const STREAMED_FAILURE = /Minified React error #419/
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\//
 
 const browser: Browser = await chromium.launch()
+
+/** What a running check holds, so a timeout can stop it instead of leaving it running behind the next. */
+interface CheckScope {
+  cancelled: boolean
+  sessions: Set<Session>
+}
+const checkScope = new AsyncLocalStorage<CheckScope>()
 
 function reportCounts() {
   const counts = { passed: 0, failed: 0, skipped: 0 }
@@ -308,6 +318,8 @@ interface OpenOptions {
 }
 
 async function open(persona: Persona | null, options: OpenOptions = {}): Promise<Session> {
+  const scope = checkScope.getStore()
+  if (scope?.cancelled) throw new Error('The check timed out; it may not open another session')
   const viewport = options.viewport ?? DESKTOP
   clientAddress += 1
   const context = await browser.newContext({
@@ -356,7 +368,9 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
     })
   })
   if (persona) await context.addCookies([await sessionCookie(persona)])
-  return new Session(context, await context.newPage())
+  const session = new Session(context, await context.newPage())
+  scope?.sessions.add(session)
+  return session
 }
 
 async function withSession(
@@ -376,6 +390,7 @@ async function withSession(
       .catch(() => {})
     throw error
   } finally {
+    checkScope.getStore()?.sessions.delete(session)
     await session.context.close().catch(() => {})
   }
 }
@@ -413,20 +428,43 @@ function record(name: string, section: string, started: number, error?: string) 
   writeReport()
 }
 
+/**
+ * Closes what a timed-out check has open, which fails its next browser step, then waits for it to
+ * unwind so its restores finish before the next check starts. Reports whether it stopped in time.
+ */
+async function cancelCheck(scope: CheckScope, running: Promise<void>) {
+  scope.cancelled = true
+  await Promise.all([...scope.sessions].map(({ context }) => context.close().catch(() => {})))
+  return Promise.race([
+    running.then(
+      () => true,
+      () => true
+    ),
+    sleep(CHECK_CANCEL_GRACE_MS).then(() => false),
+  ])
+}
+
 async function check(name: string, run: () => Promise<void>, options: CheckOptions = {}) {
   currentCheck = `${currentSection}: ${name}`
   allowedFailures = options.allow ?? []
   const started = performance.now()
+  const scope: CheckScope = { cancelled: false, sessions: new Set() }
+  const running = checkScope.run(scope, run)
   const timeout = createDeferred<never>()
-  const timer = setTimeout(
-    () => timeout.reject(new Error(`Timed out after ${CHECK_TIMEOUT_MS}ms`)),
-    CHECK_TIMEOUT_MS
-  )
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    timeout.reject(new Error(`Timed out after ${CHECK_TIMEOUT_MS}ms`))
+  }, CHECK_TIMEOUT_MS)
   try {
-    await Promise.race([run(), timeout.promise])
+    await Promise.race([running, timeout.promise])
     record(name, currentSection, started)
   } catch (error) {
-    record(name, currentSection, started, truncate(getErrorMessage(error), 2000))
+    const stopped = !timedOut || (await cancelCheck(scope, running))
+    const message = stopped
+      ? getErrorMessage(error)
+      : `${getErrorMessage(error)}, and it was still running ${CHECK_CANCEL_GRACE_MS}ms after its sessions closed`
+    record(name, currentSection, started, truncate(message, 2000))
   } finally {
     clearTimeout(timer)
     allowedFailures = []
