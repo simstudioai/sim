@@ -11,6 +11,7 @@
   list-style: none;
   cursor: pointer;
   overflow-wrap: anywhere;
+  text-align: start;
 }
 .summary::-webkit-details-marker {
   display: none;
