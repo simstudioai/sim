@@ -8,6 +8,8 @@ import styles from '@/platform/design-system/components/surface/surface.module.c
 interface SurfaceProps {
   /** Paints the canvas, for a surface that fills a region. */
   canvas?: boolean
+  /** For a tree portalled out of its parent surface, whose context still says it is inside one. */
+  detached?: boolean
   children: ReactNode
 }
 
@@ -18,9 +20,9 @@ interface SurfaceProps {
  * Never render a legacy component inside: the surface redefines tokens legacy utilities read. Compose
  * one beside a surface instead.
  */
-export function Surface({ canvas, children }: SurfaceProps) {
+export function Surface({ canvas, detached, children }: SurfaceProps) {
   return (
-    <PlatformSurface theme='system' canvas={canvas}>
+    <PlatformSurface theme='system' canvas={canvas} detached={detached}>
       {children}
     </PlatformSurface>
   )

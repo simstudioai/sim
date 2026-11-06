@@ -21,7 +21,7 @@ interface BodyDialogProps {
 export function BodyDialog({ className, children }: BodyDialogProps) {
   return createPortal(
     <div className={className ? `${className} ${styles.dialogHost}` : styles.dialogHost}>
-      <Surface>{children}</Surface>
+      <Surface detached>{children}</Surface>
     </div>,
     document.body
   )

@@ -11,6 +11,8 @@ interface PlatformSurfaceProps {
   systemMono?: boolean
   /** Paints the canvas, for a surface that fills a region. Otherwise whatever is behind shows through. */
   canvas?: boolean
+  /** Starts a surface even inside another, for a tree a portal carries out of the outer one's DOM. */
+  detached?: boolean
   children: ReactNode
 }
 
@@ -24,9 +26,10 @@ export function PlatformSurface({
   systemFont,
   systemMono,
   canvas,
+  detached,
 }: PlatformSurfaceProps) {
   const nested = useContext(InsideSurface)
-  if (nested) return children
+  if (nested && !detached) return children
   return (
     <div
       data-platform-ui=''
