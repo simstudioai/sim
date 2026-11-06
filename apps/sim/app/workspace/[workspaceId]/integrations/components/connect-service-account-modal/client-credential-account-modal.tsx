@@ -45,7 +45,8 @@ const FALLBACK_ERROR_MESSAGE = "We couldn't save this credential. Try again in a
 function messageForClientCredentialError(
   err: unknown,
   descriptor: ClientCredentialAccountDescriptor,
-  requiredFields: ClientCredentialAccountField[]
+  requiredFields: ClientCredentialAccountField[],
+  fallbackMessage = FALLBACK_ERROR_MESSAGE
 ): string {
   if (isApiClientError(err) && err.code) {
     // Names the fields the *selected* auth method needed, so a JWT failure
@@ -68,10 +69,10 @@ function messageForClientCredentialError(
       case 'duplicate_display_name':
         return 'A credential with that name already exists in this workspace.'
       default:
-        return FALLBACK_ERROR_MESSAGE
+        return fallbackMessage
     }
   }
-  return FALLBACK_ERROR_MESSAGE
+  return fallbackMessage
 }
 
 type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
@@ -237,9 +238,12 @@ function ClientCredentialAccountModalForm({
       onOpenChange(false)
     } catch (err: unknown) {
       setError(
-        onSubmitCredentials
-          ? getErrorMessage(err, FALLBACK_ERROR_MESSAGE)
-          : messageForClientCredentialError(err, descriptor, required)
+        messageForClientCredentialError(
+          err,
+          descriptor,
+          required,
+          onSubmitCredentials ? getErrorMessage(err, FALLBACK_ERROR_MESSAGE) : undefined
+        )
       )
       logger.error(`Failed to save ${descriptor.serviceLabel} service account credential`, err)
     }
