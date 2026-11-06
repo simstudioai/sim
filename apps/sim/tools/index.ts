@@ -2009,6 +2009,12 @@ async function executeToolImplementation(
           if (data.idToken) {
             contextParams.idToken = data.idToken
           }
+          if (
+            data.providerWorkspaceId &&
+            credentialTool.oauth?.authoritativeParams?.includes('providerWorkspaceId')
+          ) {
+            contextParams.providerWorkspaceId = data.providerWorkspaceId
+          }
           if (data.instanceUrl) {
             contextParams.instanceUrl = data.instanceUrl
           }

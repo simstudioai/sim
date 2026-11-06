@@ -7,6 +7,7 @@ import {
   InteractionCard,
   InteractionCardActionRow,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
+import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
@@ -50,6 +51,14 @@ function SearchIntegrationConnectionControl({
   const handleConnect = () => void connection.connect()
   const content = (
     <>
+      {connection.savedConnection && (
+        <SavedSearchCredentialModal
+          organizationId={organizationId}
+          connection={connection.savedConnection}
+          onClose={connection.closeSavedConnection}
+          onCreated={connection.completeSavedConnection}
+        />
+      )}
       <InteractionCardActionRow
         label={label}
         divided={Boolean(divided)}

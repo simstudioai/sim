@@ -329,6 +329,7 @@ export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCas
         'description',
         'apiToken',
         'domain',
+        'providerWorkspaceId',
       ])
       if (
         Object.entries(fields).some(

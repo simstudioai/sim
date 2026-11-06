@@ -23,6 +23,7 @@ import {
   writeSearchConnectionAttempt,
 } from '@/lib/knowledge/search/connection-attempt'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { refreshConnectedAccounts } from '@/hooks/queries/organization-accounts'
 import {
@@ -52,6 +53,7 @@ export function useSearchIntegrationConnection({
     `${controlId}:${JSON.stringify(target)}`
   )
   const [attempt, setAttempt] = useState(() => readSearchConnectionAttempt(key))
+  const [savedOpen, setSavedOpen] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const popup = useRef<Window | null>(null)
   const starting = useRef(false)
@@ -150,6 +152,10 @@ export function useSearchIntegrationConnection({
       popup.current.focus()
       return
     }
+    if (target.savedProviderId) {
+      setSavedOpen(true)
+      return true
+    }
     const desktop = isDesktopApp()
     if (desktop && pending) return
     const tab = desktop ? null : window.open('about:blank', '_blank', 'width=600,height=700')
@@ -214,13 +220,33 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
+  const closeSavedConnection = useCallback(() => setSavedOpen(false), [])
+  const completeSavedConnection = useCallback(
+    (credentialId: string) => {
+      writeSearchConnectionAttempt(key, {
+        completionId: generateId(),
+        requestedAt: Date.now(),
+        status: 'connected',
+        credentialId,
+        error: null,
+      })
+      setSavedOpen(false)
+    },
+    [key]
+  )
   const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
   const service = isCredentialGroupProvider(target.provider)
     ? getCredentialGroupProviderService(target.provider)
-    : undefined
+    : getServiceConfigByProviderId(target.provider)
   const name = connector?.meta.name ?? service?.name ?? target.provider
   const action = target.credentialId ? 'Reconnect' : 'Connect'
   return {
+    savedConnection:
+      savedOpen && target.savedProviderId
+        ? { providerId: target.savedProviderId, credentialId: target.credentialId }
+        : null,
+    closeSavedConnection,
+    completeSavedConnection,
     action,
     icon: connector?.serviceIcon ?? service?.icon,
     label: connected

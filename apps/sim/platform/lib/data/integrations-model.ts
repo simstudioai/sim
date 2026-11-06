@@ -7,6 +7,7 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
+import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import {
   memberSecretMetadata,
   providerMetadata,
@@ -49,8 +50,13 @@ function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegr
     icon: entry.icon,
     name: entry.name,
     description: metadata?.description ?? `Connect your ${entry.name} account to use it here`,
-    setupGuideUrl: metadata?.setupGuideUrl ?? CONNECT_ACCOUNT_GUIDE,
-    searchResource: metadata?.searchResource ?? null,
+    setupGuideUrl:
+      metadata?.setupGuideUrl ??
+      (LIVE_SEARCH_SCOPE_FIELDS[entry.provider]
+        ? `${SIM_DOCS_URL}/search/${entry.provider}`
+        : CONNECT_ACCOUNT_GUIDE),
+    searchResource:
+      metadata?.searchResource ?? LIVE_SEARCH_SCOPE_FIELDS[entry.provider]?.label ?? null,
     searchReads: metadata?.searchReads ?? [],
     requestedScopes: metadata?.requestedScopes ?? null,
     accessDescription: entry.description ?? 'Access follows your account permissions',

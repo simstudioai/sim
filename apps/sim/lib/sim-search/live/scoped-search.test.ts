@@ -38,4 +38,61 @@ describe('scoped native query composition', () => {
     )
     expect(scopeAtlassianQuery('space = TEAM')).toBe('space = TEAM')
   })
+  it.each(['jama', 'flow'] as const)(
+    'targets approved %s projects with bounded fanout and no scope widening',
+    async (provider) => {
+      const search = async (request: NativeSearchInput) => ({
+        documents: [
+          {
+            id: `item-${request.native?.project ?? 'unscoped'}`,
+            container: request.native?.project,
+            title: 'Current item',
+            url: 'https://provider.example/item',
+            content: 'Current source content',
+          },
+        ],
+      })
+      const policyInput: NativeSearchInput = {
+        ...input(['1', '2', '3', '4', '5', '6', '7', '8']),
+        scopes: [],
+        policy: {
+          ...defaultLiveSearchPolicy(),
+          mode: 'selected',
+          included: ['1', '2', '3', '4', '5', '6', '7', '8'],
+          excluded: ['2'],
+        },
+      }
+      const result = await searchWithinPolicy(provider, null, policyInput, search)
+      expect(result.documents.map((document) => document.container)).toEqual([
+        '1',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+      ])
+      expect(result.partial).toBe(true)
+      expect(
+        await searchWithinPolicy(
+          provider,
+          null,
+          {
+            ...policyInput,
+            native: { provider, query: 'incident', project: '2' },
+          },
+          search
+        )
+      ).toEqual({ documents: [] })
+      const narrowed = await searchWithinPolicy(
+        provider,
+        null,
+        {
+          ...policyInput,
+          native: { provider, query: 'incident', project: '8', cursor: '10' },
+        },
+        search
+      )
+      expect(narrowed.documents.map((document) => document.container)).toEqual(['8'])
+    }
+  )
 })

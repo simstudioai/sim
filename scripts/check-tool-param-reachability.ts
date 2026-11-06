@@ -96,6 +96,7 @@ const TOKEN_RESPONSE_FIELDS = new Set([
   'apiDomain',
   'cloudId',
   'domain',
+  'providerWorkspaceId',
   'realmId',
   'quickBooksEnvironment',
   'authStyle',

@@ -31,6 +31,10 @@ const hoisted = vi.hoisted(() => ({
   configuredTypes: vi.fn(),
   accounts: vi.fn(),
   completion: vi.fn(),
+  providerCatalog: vi.fn(),
+}))
+vi.mock('@/lib/credentials/application/provider-catalog', () => ({
+  listCredentialProviderCatalog: hoisted.providerCatalog,
 }))
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/viewer-accounts', () => ({
@@ -109,6 +113,7 @@ beforeEach(() => {
   })
   m.accounts.mockResolvedValue([])
   m.completion.mockResolvedValue(null)
+  m.providerCatalog.mockResolvedValue([])
   queueTableRows(user, [{ emailVerified: true }])
   organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue(undefined)
   m.sources.mockResolvedValue({ sources: [source], nextCursor: null })
@@ -123,6 +128,32 @@ beforeEach(() => {
 })
 
 describe('live Search connection controls', () => {
+  it.each(['jama', 'flow'])(
+    'withholds %s setup when the credential provider is unavailable',
+    async (connectorType) => {
+      mockListOrganizationSearchApprovals.mockResolvedValue(new Map([[connectorType, true]]))
+      m.providerCatalog.mockResolvedValue([
+        {
+          type: 'service_account',
+          providerId: `${connectorType}-service-account`,
+          available: false,
+        },
+      ])
+      const request = { principal, input: { ...input, connectorType } }
+      expect((await listPersonalSearchIntegrations.execute(request)).available).toEqual([])
+
+      m.providerCatalog.mockResolvedValue([
+        {
+          type: 'service_account',
+          providerId: `${connectorType}-service-account`,
+          available: true,
+        },
+      ])
+      queueTableRows(user, [{ emailVerified: true }])
+      expect((await listPersonalSearchIntegrations.execute(request)).available).toHaveLength(1)
+    }
+  )
+
   const liveTarget = {
     type: 'link',
     provider: 'slack',

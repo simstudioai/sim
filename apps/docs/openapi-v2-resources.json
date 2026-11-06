@@ -18884,6 +18884,12 @@
             "minLength": 1,
             "maxLength": 2048
           },
+          "providerWorkspaceId": {
+            "description": "Provider workspace identifier, separate from the Sim workspace.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
           "atlassianProduct": {
             "description": "Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.",
             "type": "string",

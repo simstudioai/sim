@@ -8,6 +8,12 @@ import {
   listPersonalSearchIntegrationsContract,
   type PersonalSearchIntegrationsQuery,
 } from '@/lib/api/contracts/knowledge/personal-integrations'
+import {
+  type RemoveSearchPersonalCredentialBody,
+  removeSearchPersonalCredentialContract,
+  type SaveSearchPersonalCredentialBody,
+  saveSearchPersonalCredentialContract,
+} from '@/lib/api/contracts/search-personal-credentials'
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
@@ -58,6 +64,49 @@ export function useConnectPersonalSearchIntegration() {
         }),
         client.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(body.organizationId),
+        }),
+      ]),
+  })
+}
+
+/** Saves a member-owned provider credential and refreshes both Search connection inventories. */
+export function useSavePersonalSearchCredential() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: SaveSearchPersonalCredentialBody) =>
+      requestJson(saveSearchPersonalCredentialContract, { body }),
+    onSuccess: (_result, body) =>
+      Promise.all([
+        client.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(body.organizationId),
+        }),
+        client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
+        client.invalidateQueries({
+          queryKey: searchSourceKeys.list({
+            kind: 'organization',
+            organizationId: body.organizationId,
+          }),
+        }),
+      ]),
+  })
+}
+
+export function useRemovePersonalSearchCredential() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: RemoveSearchPersonalCredentialBody) =>
+      requestJson(removeSearchPersonalCredentialContract, { body }),
+    onSuccess: (_result, body) =>
+      Promise.all([
+        client.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(body.organizationId),
+        }),
+        client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
+        client.invalidateQueries({
+          queryKey: searchSourceKeys.list({
+            kind: 'organization',
+            organizationId: body.organizationId,
+          }),
         }),
       ]),
   })
