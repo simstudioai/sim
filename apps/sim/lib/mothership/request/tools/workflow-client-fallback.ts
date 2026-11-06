@@ -20,6 +20,7 @@ import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
 import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'
 import { toolStartWindowClosed } from '@/lib/mothership/request/tools/deadline'
+import { reportPausedClientWorkflowTool } from '@/lib/mothership/request/tools/workflow-client-settlement'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionMessage,
@@ -98,6 +99,16 @@ async function detachClientRunAfterWait(params: {
     const logged = await getWorkflowExecutionLogStatus(executionId, workflowId).catch(
       () => undefined
     )
+    // A paused run's log stays `pending`. The execute route answers a run waiting on a person;
+    // this covers that best-effort report failing.
+    if (logged === 'pending') {
+      const answered = await reportPausedClientWorkflowTool({
+        toolCallId,
+        executionId,
+        workflowId,
+      }).catch(() => false)
+      if (answered) return
+    }
     if (logged !== 'running') continue
     const status = ASYNC_TOOL_CONFIRMATION_STATUS.background
     const settled = await settleClientToolCall({
