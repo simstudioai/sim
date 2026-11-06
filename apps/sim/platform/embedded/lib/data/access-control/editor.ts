@@ -1,10 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { skipToken, useQuery } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import type { ModelFacts } from '@/lib/permission-groups/model-gate'
+import { usePermissionGroupEditorCatalog } from '@/ee/access-control/hooks/permission-groups'
 import { createEditorCatalog } from '@/ee/access-control/lib/editor'
 import type { PermissionGroupEditorCatalog } from '@/ee/access-control/lib/editor-catalog-model'
 import {
@@ -18,10 +17,6 @@ import {
   groupTabUrlKeys,
 } from '@/ee/access-control/search-params'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
-import {
-  PERMISSION_EDITOR_CATALOG_STALE_TIME,
-  permissionGroupKeys,
-} from '@/hooks/queries/utils/permission-group-keys'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import {
@@ -116,22 +111,9 @@ function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonl
 
 export type EditorModel = ReturnType<typeof toEditorModel>
 
-/**
- * The route's server read seeds this; a failed read leaves it empty and a refresh repeats it. Nothing
- * can refetch it, so the section holds an observer to keep it through time spent on the group list.
- */
-export function usePermissionEditorCatalog(organizationId: string) {
-  return useQuery<PermissionGroupEditorCatalog>({
-    queryKey: permissionGroupKeys.editorCatalog(organizationId),
-    queryFn: skipToken,
-    staleTime: PERMISSION_EDITOR_CATALOG_STALE_TIME,
-  })
-}
-
 /** The block and provider catalog the editor resolves access against, or the read's failure. */
 export function usePermissionEditorModel(organizationId: string) {
-  const router = useRouter()
-  const catalog = usePermissionEditorCatalog(organizationId)
+  const catalog = usePermissionGroupEditorCatalog(organizationId)
   const blacklist = useBlacklistedProviders()
   const model = useMemo(
     () =>
@@ -145,7 +127,7 @@ export function usePermissionEditorModel(organizationId: string) {
   )
   return {
     model,
-    retryCatalog: () => router.refresh(),
+    retryCatalog: () => void catalog.refetch(),
     providers: {
       pending: blacklist.isPending,
       failed: blacklist.isError,

@@ -15,6 +15,5 @@ export type { EditorBlock, EditorModel } from './editor'
 export {
   useAccessControlParams,
   useGroupDetailParams,
-  usePermissionEditorCatalog,
   usePermissionEditorModel,
 } from './editor'

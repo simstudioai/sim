@@ -50,15 +50,15 @@ export function useRemoveSearchHistorySource(organizationId: string, userId: str
   const queryClient = useQueryClient()
   const queryKey = searchHistoryKeys.list(organizationId, userId)
   return useMutation({
-    mutationFn: (urls: readonly string[]) =>
-      Promise.all(
-        urls.map((url) =>
-          requestJson(removeSearchHistorySourceContract, {
-            params: { id: organizationId },
-            body: { url },
-          })
-        )
-      ),
+    mutationFn: async (urls: readonly string[]) => {
+      // One at a time: the route has no bulk form, and a collapsed chip is a handful of sources.
+      for (const url of urls) {
+        await requestJson(removeSearchHistorySourceContract, {
+          params: { id: organizationId },
+          body: { url },
+        })
+      }
+    },
     onMutate: async (urls) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<SearchHistoryResponse>(queryKey)

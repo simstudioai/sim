@@ -33,7 +33,6 @@ import {
   useAccessControlParams,
   useCreatePermissionGroup,
   useOrganizationWorkspaces,
-  usePermissionEditorCatalog,
   usePermissionGroups,
 } from '@/platform/embedded/lib/data/access-control'
 import { plural } from '@/platform/embedded/lib/plural'
@@ -134,7 +133,6 @@ function CreateGroupModal({
 
 export default function AccessControlSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  usePermissionEditorCatalog(organizationId)
   const groups = usePermissionGroups(organizationId)
   const workspaces = useOrganizationWorkspaces(organizationId)
   const params = useAccessControlParams()
