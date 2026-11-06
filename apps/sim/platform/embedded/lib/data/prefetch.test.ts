@@ -49,7 +49,7 @@ const principal = createSessionPrincipal({ userId: 'viewer' })
 const surface = (memberScoped: boolean, canConnect = true) => ({
   organization: { id: 'org-1' },
   searchAccess: { memberScoped },
-  viewer: { canConnectSearchIntegrations: canConnect },
+  viewer: { canConnectSearchIntegrations: canConnect, isAdmin: false },
   connectedAccountsAvailable: true,
 })
 
