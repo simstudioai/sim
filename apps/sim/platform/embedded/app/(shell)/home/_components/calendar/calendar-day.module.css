@@ -52,8 +52,10 @@
   block-size: var(--spacing-stroke-default);
   background: var(--ui-divider);
 }
+/* Above the now line, which would otherwise rule through a short card's title. */
 .event,
 .overflow {
+  z-index: 2;
   grid-column: 2;
   min-inline-size: 0;
   margin-block: calc(var(--spacing-4) / 2);
