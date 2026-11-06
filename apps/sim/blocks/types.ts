@@ -313,7 +313,7 @@ export interface SubBlockConfig {
   mediaModelOptions?: boolean
   /**
    * Refills a combobox's default when a dependency change clears it, as a dropdown does. Text
-   * the user deletes themselves stays empty, so they can type a new value.
+   * the user deletes themselves stays empty while they edit, so they can type a new value.
    */
   restoreDefaultWhenCleared?: boolean
   /** Clears a persisted id after its authoritative single-option fetch confirms deletion. */

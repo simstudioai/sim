@@ -372,8 +372,9 @@ export const ComboBox = memo(function ComboBox({
   }
 
   /**
-   * The default in force when the user emptied the input, so a field they cleared is not refilled
-   * under them. A dependency change that brings a different default (a provider switch) ends it.
+   * The default in force when the user emptied the input, so the field is not refilled while they
+   * type. A dependency change that brings a different default (a provider switch) ends it, and so
+   * does a remount: a required field saved empty gets its default back when reopened.
    */
   const userClearedDefaultRef = useRef<string | null>(null)
 

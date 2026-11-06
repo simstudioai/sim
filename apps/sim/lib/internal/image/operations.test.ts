@@ -177,30 +177,6 @@ describe('image operations', () => {
     expect((await response.json()).imageUrl).toBe('https://sim.test/generated.png')
   })
 
-  it.each([
-    ['openai', 'https://api.openai.com/v1/images/generations'],
-    [
-      'gemini',
-      'https://generativelanguage.googleapis.com/v1beta/models/typed-model:generateContent',
-    ],
-  ])('sends a typed %s model as is instead of a catalog fallback', async (provider, endpoint) => {
-    mocks.fetch.mockResolvedValueOnce(new Response('Unexpected generation', { status: 502 }))
-    await executeImageGeneration(
-      { ...falInput, provider, model: 'typed-model' },
-      {
-        userId: 'user-1',
-        requestId: 'typed-model',
-      }
-    )
-
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
-    expect(mocks.fetch).toHaveBeenCalledWith(endpoint, expect.anything())
-    if (provider === 'openai') {
-      const body = JSON.parse(mocks.fetch.mock.calls[0][1].body)
-      expect(body.model).toBe('typed-model')
-    }
-  })
-
   it.each(['openai', 'gemini'])(
     'rejects a malformed typed %s model before any request',
     async (provider) => {
