@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   describePolicyChange,
   describePolicyValue,
-} from '@/ee/access-requests/components/policy-changes'
+} from '@/ee/access-requests/lib/policy-description'
 
 const target = { kind: 'integration', id: 'slack_v2' } as const
 
