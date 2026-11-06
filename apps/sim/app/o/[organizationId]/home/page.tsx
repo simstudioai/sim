@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
-import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { redirect } from 'next/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
+import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import { HomeConversation } from '@/platform/app/(shell)/home/_components/home-conversation/home-conversation'
 import { HomeDashboardSkeleton } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton'
 import { prefetchHome } from '@/platform/lib/data/prefetch-member-inventory'
@@ -19,23 +19,17 @@ export default async function OrganizationHomePage({
   params: Promise<{ organizationId: string }>
 }) {
   const { organizationId } = await params
-  const session = await getSession()
-  if (!session?.user?.id) notFound()
-  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-  if (!context) notFound()
+  const { principal, surface: context } = await requireOrganizationViewer(
+    organizationId,
+    organizationRoutes(organizationId).home
+  )
   const homeRedirect = getOrganizationHomeRedirect(context, organizationId)
   if (homeRedirect) redirect(homeRedirect)
 
   const requestMode = context.canBuild ? 'agent' : 'assistant'
   return (
     <Suspense fallback={<HomeDashboardSkeleton requestMode={requestMode} />}>
-      <Hydrated
-        state={prefetchHome(context, {
-          kind: 'session',
-          userId: session.user.id,
-          sessionId: session.session.id,
-        })}
-      >
+      <Hydrated state={prefetchHome(context, principal)}>
         <HomeConversation requestMode={requestMode} />
       </Hydrated>
     </Suspense>

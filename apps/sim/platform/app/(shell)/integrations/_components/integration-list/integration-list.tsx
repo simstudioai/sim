@@ -1,8 +1,9 @@
 import styles from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list.module.css'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { SectionSearch } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { SearchField } from '@/platform/design-system/components/search-field/search-field'
+import { RowList } from '@/platform/design-system/components/settings-section/row-list'
 import {
   type GenericSecrets,
   isConnectable,
@@ -77,12 +78,7 @@ export function IntegrationList({
   const matches = entries.filter((entry) => entry.searchable.includes(term))
   return (
     <div className={styles.list}>
-      <SearchField
-        label='Search integrations'
-        placeholder='Search integrations…'
-        value={query}
-        onValueChange={onQueryChange}
-      />
+      <SectionSearch subject='integrations' value={query} onValueChange={onQueryChange} />
       {settled &&
         matches.length === 0 &&
         (term ? (
@@ -96,7 +92,7 @@ export function IntegrationList({
         return (
           <section key={section} className={styles.group} aria-label={section}>
             <h2 data-type='T059'>{section}</h2>
-            <ul className={styles.rows}>
+            <RowList>
               {items.map((item) => (
                 <ActivityRow
                   key={item.id}
@@ -107,7 +103,7 @@ export function IntegrationList({
                   metadata={item.status}
                 />
               ))}
-            </ul>
+            </RowList>
           </section>
         )
       })}

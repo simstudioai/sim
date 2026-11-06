@@ -7,18 +7,14 @@ import {
   MAX_MEETING_LANES,
   maxLanesForWidth,
 } from '@/platform/app/(shell)/home/_components/calendar/day-layout'
-import type {
-  CalendarMeeting,
-  HomeCalendarDay,
-} from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { FailureNotice } from '@/platform/design-system/components'
 import { AvatarGroup } from '@/platform/design-system/components/avatar/avatar'
 import { Button, IconButton } from '@/platform/design-system/components/button/button'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
+import type { CalendarMeeting, HomeCalendarDay } from '@/platform/lib/data/home-view'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/lib/time'
 
 interface CalendarDayProps {
@@ -106,7 +102,8 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
   function returnToNow() {
     focusOnReturn.current = true
     onReturnToToday()
-    // Replacing the viewport cancels an in-flight native keyboard or momentum scroll.
+    // Remounting the viewport cancels iOS momentum, which can otherwise override a position assigned
+    // while it runs. Not tested on a device.
     setReturnCount((count) => count + 1)
   }
 
@@ -120,17 +117,19 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
               Now
             </Button>
           )}
-          <IconButton icon='I032' label='Previous day' tooltip onClick={() => onDayChange(-1)} />
+          <IconButton
+            icon='I032'
+            mirrored
+            label='Previous day'
+            tooltip
+            onClick={() => onDayChange(-1)}
+          />
           <IconButton icon='I032' label='Next day' tooltip onClick={() => onDayChange(1)} />
         </div>
       </div>
       {calendar.status === 'loading' && <SkeletonBlock label='Loading this day' />}
       {calendar.status === 'error' && (
-        <InlineNotice
-          intent='warning'
-          message='This day could not load.'
-          action={<RetryButton onRetry={onRetry} />}
-        />
+        <FailureNotice intent='warning' message='This day could not load.' onRetry={onRetry} />
       )}
       {calendar.status === 'ready' && calendar.allDay.length > 0 && (
         <ul className={styles.allDay} aria-label='All-day events'>

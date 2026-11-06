@@ -57,6 +57,78 @@ const INVOICE_INTENTS = {
   gray: 'neutral',
 } as const
 
+interface UsageLimitDraftOptions {
+  current: number
+  minimum: number
+  canEdit: boolean
+  organizationId: string
+  update: ReturnType<typeof useUpdateOrganizationUsageLimit>
+}
+
+/**
+ * The usage limit's draft in credits, saved shortly after typing stops. Limits are stored in dollars.
+ * The save decides against the limit and minimum as they stand when the wait ends, not when the key
+ * was pressed, and `discard` drops a wait another write to the same limit has overtaken.
+ */
+function useUsageLimitDraft({
+  current,
+  minimum,
+  canEdit,
+  organizationId,
+  update,
+}: UsageLimitDraftOptions) {
+  const save = update.mutate
+  const [draft, setDraft] = useState<string | null>(null)
+  const latest = useRef({ current, minimum })
+  useEffect(() => {
+    latest.current = { current, minimum }
+  })
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelPendingSave = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+  }
+  useEffect(() => cancelPendingSave, [])
+  const discard = () => {
+    cancelPendingSave()
+    setDraft(null)
+  }
+  useSettingsUnsavedGuard({
+    isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, current),
+    navigationBlocked: update.isPending,
+    onDiscard: discard,
+  })
+  const change = (next: string) => {
+    setDraft(next)
+    cancelPendingSave()
+    if (!canEdit) return
+    saveTimer.current = setTimeout(() => {
+      const settle = () => setDraft((value) => (value === next ? null : value))
+      const decision = resolveUsageLimitDraft(next, latest.current.current, latest.current.minimum)
+      if (decision.kind === 'settled') settle()
+      if (decision.kind === 'invalid') toast.error(decision.message)
+      if (decision.kind === 'save') {
+        save(
+          { organizationId, limit: decision.limitDollars },
+          {
+            onSuccess: settle,
+            onError: (error) => reportFailure("Couldn't update usage limit", error),
+          }
+        )
+      }
+    }, AUTOSAVE_DELAY_MS)
+  }
+  const unlimited = current >= ON_DEMAND_UNLIMITED
+  return {
+    field: {
+      value: draft ?? (unlimited ? '' : String(dollarsToCredits(current))),
+      placeholder: unlimited ? 'No usage limit' : String(dollarsToCredits(current)),
+      disabled: !canEdit || update.isPending,
+      change,
+    },
+    discard,
+  }
+}
+
 /**
  * The organization's subscription, with the legacy panel's rules. A failed read is an error, never
  * a plan: nothing here reports over-limit or blocked from a summary that did not load, so usage that
@@ -108,6 +180,13 @@ export function useBillingSection(organization: PlatformOrganization) {
   })
   const usablePaidAccess =
     paid && hasUsableSubscriptionAccess(status, Boolean(billing?.billingBlocked))
+  const usageLimit = useUsageLimitDraft({
+    current: limit,
+    minimum: included,
+    canEdit: canManage,
+    organizationId,
+    update: updateLimit,
+  })
 
   const planName = getDisplayPlanName(plan)
   const interval = billing?.billingInterval === 'year' ? 'billed annually' : 'billed monthly'
@@ -119,20 +198,11 @@ export function useBillingSection(organization: PlatformOrganization) {
 
   function openPortal() {
     if (!canManage) return
-    // Opened before the request so a popup blocker still treats it as the viewer's click.
-    const portalWindow = window.open('', '_blank')
-    portal.mutate(
+    portal.open(
       { context: 'organization', organizationId, returnUrl: window.location.href },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          reportFailure("Couldn't open billing portal", error)
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        reportFailure("Couldn't open billing portal", error)
       }
     )
   }
@@ -154,7 +224,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     showExplorePlans: !enterprise,
     explorePlansHref: permissions.showUpgradePlans ? upgradeHref : null,
     showUsageLimit: paid && !enterprise,
-    usageLimit: { current: limit, minimum: included, canEdit: canManage, organizationId },
+    usageLimit: usageLimit.field,
     showOnDemand: usablePaidAccess && !enterprise,
     onDemand: {
       active: onDemandActive,
@@ -162,6 +232,7 @@ export function useBillingSection(organization: PlatformOrganization) {
       disabled: onDemandLocked || updateLimit.isPending || !canManage,
       toggle: async () => {
         if (!canManage || onDemandLocked || updateLimit.isPending) return
+        usageLimit.discard()
         try {
           await updateLimit.mutateAsync({
             organizationId,
@@ -227,68 +298,5 @@ export function useBillingSection(organization: PlatformOrganization) {
     hasMoreInvoices: Boolean(invoiceList.data?.hasMore),
     invoicesFailed: !free && invoiceList.isError && !invoiceList.data,
     retryInvoices: () => void invoiceList.refetch(),
-  }
-}
-
-interface UsageLimitOptions {
-  current: number
-  minimum: number
-  canEdit: boolean
-  organizationId: string
-}
-
-/** The usage limit's draft in credits, saved shortly after typing stops. Limits are stored in dollars. */
-export function useUsageLimitField({
-  current,
-  minimum,
-  canEdit,
-  organizationId,
-}: UsageLimitOptions) {
-  const update = useUpdateOrganizationUsageLimit()
-  const save = update.mutate
-  const [draft, setDraft] = useState<string | null>(null)
-  const latestCurrent = useRef(current)
-  useEffect(() => {
-    latestCurrent.current = current
-  })
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cancelPendingSave = () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-  }
-  useEffect(() => cancelPendingSave, [])
-  useSettingsUnsavedGuard({
-    isDirty: canEdit && draft !== null && isUsageLimitDraftDirty(draft, current),
-    navigationBlocked: update.isPending,
-    onDiscard: () => {
-      cancelPendingSave()
-      setDraft(null)
-    },
-  })
-  const change = (next: string) => {
-    setDraft(next)
-    cancelPendingSave()
-    if (!canEdit) return
-    saveTimer.current = setTimeout(() => {
-      const settle = () => setDraft((value) => (value === next ? null : value))
-      const decision = resolveUsageLimitDraft(next, latestCurrent.current, minimum)
-      if (decision.kind === 'settled') settle()
-      if (decision.kind === 'invalid') toast.error(decision.message)
-      if (decision.kind === 'save') {
-        save(
-          { organizationId, limit: decision.limitDollars },
-          {
-            onSuccess: settle,
-            onError: (error) => reportFailure("Couldn't update usage limit", error),
-          }
-        )
-      }
-    }, AUTOSAVE_DELAY_MS)
-  }
-  const unlimited = current >= ON_DEMAND_UNLIMITED
-  return {
-    value: draft ?? (unlimited ? '' : String(dollarsToCredits(current))),
-    placeholder: unlimited ? 'No usage limit' : String(dollarsToCredits(current)),
-    disabled: !canEdit || update.isPending,
-    change,
   }
 }

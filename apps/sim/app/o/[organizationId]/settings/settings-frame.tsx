@@ -1,12 +1,12 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useContext } from 'react'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
-import { MOBILE_TITLE_SLOT_ID } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
+import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import {
   SettingsBreadcrumb,
   SettingsMobileTitle,
@@ -17,17 +17,9 @@ interface SettingsFrameProps {
   children: ReactNode
 }
 
-/**
- * The breadcrumb over every section. Each section mounts its own surface below it.
- *
- * A clicked section paints its heading over an empty body while its route resolves. The current
- * section stays mounted underneath, invisible and inert, so its state survives if the navigation
- * settles back on it.
- */
 /** On a phone the title joins the navigation toggle, so one bar sits above the page's heading. */
 function PhoneTitle({ title }: { title: string }) {
-  const [slot, setSlot] = useState<HTMLElement | null>(null)
-  useEffect(() => setSlot(document.getElementById(MOBILE_TITLE_SLOT_ID)), [])
+  const slot = useContext(MobileTitleSlot)
   if (!slot) return null
   return createPortal(
     <RedesignSurface>
@@ -37,6 +29,13 @@ function PhoneTitle({ title }: { title: string }) {
   )
 }
 
+/**
+ * The breadcrumb over every section. Each section mounts its own surface below it.
+ *
+ * A clicked section paints its heading over an empty body while its route resolves. The current
+ * section stays mounted underneath, invisible and inert, so its state survives if the navigation
+ * settles back on it.
+ */
 export function SettingsFrame({ children }: SettingsFrameProps) {
   const pathname = usePathname()
   const { pendingSection } = useSettingsNavigationState()

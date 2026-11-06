@@ -46,10 +46,10 @@ import {
   usePeopleSyncActions,
   usePeopleSyncStatus,
 } from '@/hooks/queries/people-sync'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { isRefusal } from '@/platform/lib/data/query-view'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult
@@ -86,13 +86,6 @@ export function personHref(organizationId: string, memberId: string, originQuery
 
 export function isApiConflict(error: unknown): boolean {
   return isApiClientError(error) && error.status === 409
-}
-
-const REFUSAL_STATUSES = new Set([400, 401, 403, 404])
-
-/** A refusal replaces what is on screen; a transient failure, including a 429, keeps it. */
-export function isRefusal(error: unknown): boolean {
-  return isApiClientError(error) && REFUSAL_STATUSES.has(error.status)
 }
 
 export function usePeopleUrl() {
@@ -222,7 +215,7 @@ export function usePeoplePicker(
 ) {
   const [open, setOpen] = useState(false)
   const [term, setTerm] = useState('')
-  const debounced = useDebounce(term.trim(), SEARCH_DEBOUNCE_MS)
+  const debounced = useSearchFilterValue(term, SEARCH_DEBOUNCE_MS).trim()
   const query = usePeople(organizationId, debounced, '', { scope, enabled: open })
   const waiting = term.trim() !== debounced || query.isPlaceholderData
   const pages = waiting || query.isRefetchError ? undefined : query.data?.pages

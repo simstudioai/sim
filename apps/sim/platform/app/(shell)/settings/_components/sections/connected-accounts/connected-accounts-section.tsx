@@ -2,9 +2,13 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { credentialGroupsParsers } from '@/ee/credential-groups/search-params'
+import {
+  useEnsureOrganizationAccounts,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
 import {
   ActionRow,
-  LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -15,17 +19,13 @@ import {
   Button,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  credentialGroupsParsers,
-  useEnsureOrganizationAccounts,
-  useOrganizationAccounts,
-} from '@/platform/lib/data/credential-groups'
 
 const VIEWS = [
   { value: 'providers', label: 'Providers' },
@@ -50,7 +50,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
         }}
       />
     )
-  if (!accounts.data) return <LoadingState label='Loading credential groups…' />
+  if (!accounts.data) return <LoadingRows label='Loading credential groups…' />
   if (!accounts.data.canManage)
     return <EmptyState title='An organization admin manages credential groups.' />
   const group = accounts.data.credentialGroup

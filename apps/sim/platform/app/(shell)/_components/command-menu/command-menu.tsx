@@ -1,12 +1,8 @@
 'use client'
 
-import type {
-  ShellChat,
-  ShellDestination,
-  ShellWorkspace,
-} from '@/platform/app/(shell)/_components/model'
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
+import type { ShellChat, ShellDestination, ShellWorkspace } from '@/platform/lib/data/shell-view'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
 interface CommandMenuProps {

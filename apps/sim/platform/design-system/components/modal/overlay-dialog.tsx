@@ -106,6 +106,13 @@ export function OverlayDialog({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
+      onClose={(event) => {
+        // Once user activation is spent the browser's `cancel` cannot be prevented: Escape closes
+        // the element itself, so state and element are put back in step here.
+        if (!open || event.currentTarget.open) return
+        if (busy) event.currentTarget.showModal()
+        else onClose()
+      }}
     >
       {open &&
         (onSubmit ? (

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button } from '@/platform/design-system/components'
+import { Button, InlineNotice, LoadingRows } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ChildrenProps {
@@ -72,11 +72,6 @@ export function Preformatted({ children }: ChildrenProps) {
   )
 }
 
-/** The list element `ActivityRow` rows sit in. */
-export function ResourceList({ children }: ChildrenProps) {
-  return <ul className={styles.list}>{children}</ul>
-}
-
 interface DetailHeaderContent {
   backLabel: string
   title: string
@@ -126,26 +121,29 @@ export function DetailHeader({
   )
 }
 
-interface LoadingStateProps {
-  /** Announced, since the rows themselves say nothing. */
-  label: string
-  rows?: number
+interface DraftConflictNoticeProps {
+  onKeepMine: () => void
+  onTakeLatest: () => void
 }
 
-/** Rows the height of the ones being read, at the place they will appear, so nothing reads as empty. */
-export function LoadingState({ label, rows = 3 }: LoadingStateProps) {
+/** The choice `useServerDraft` holds a save behind: the edits stay on screen until it is made. */
+export function DraftConflictNotice({ onKeepMine, onTakeLatest }: DraftConflictNoticeProps) {
   return (
-    <>
-      <span role='status' data-visually-hidden>
-        {label}
-      </span>
-      {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className={styles.skeletonRow} aria-hidden='true'>
-          <span className={styles.skeletonLabel} />
-          <span className={styles.skeletonControl} />
-        </div>
-      ))}
-    </>
+    <InlineNotice
+      intent='warning'
+      title='This changed while you were editing'
+      message='Your edits are still here and have not been saved. Keep them to save over the newer version, or use the latest and lose them.'
+      action={
+        <>
+          <Button size='compact' onClick={onKeepMine}>
+            Keep my edits
+          </Button>
+          <Button size='compact' variant='quiet' onClick={onTakeLatest}>
+            Use the latest
+          </Button>
+        </>
+      }
+    />
   )
 }
 
@@ -157,7 +155,7 @@ interface SectionSkeletonProps {
 export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
   return (
     <SettingsSection title={title}>
-      <LoadingState label={`Loading ${title}`} rows={rows} />
+      <LoadingRows label={`Loading ${title}`} rows={rows} />
     </SettingsSection>
   )
 }

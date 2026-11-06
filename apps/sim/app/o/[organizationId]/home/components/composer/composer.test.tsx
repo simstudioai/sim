@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, useState } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider, toast } from '@sim/emcn'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,
@@ -16,12 +16,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useComposerSubmission } from '@/hooks/use-composer-submission'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
 } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
+  workspacesLoading: false,
   plan: false,
   advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
@@ -51,7 +53,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
-  useWorkspacesQuery: () => ({ data: mocks.workspaces }),
+  useWorkspacesQuery: () =>
+    mocks.workspacesLoading ? { data: undefined, isPending: true } : { data: mocks.workspaces },
+  fetchWorkspacesList: async () => {
+    mocks.workspacesLoading = false
+    return mocks.workspaces
+  },
 }))
 vi.mock('@/hooks/queries/skills', () => ({
   useSkills: () => ({ data: [] }),
@@ -88,9 +95,14 @@ vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () 
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
-import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { PageComposer as Composer } from '@/platform/app/(shell)/_components/conversation/page-composer'
+
+const DRAFT_KEY = 'composer-test-draft'
+const DRAFT_KEYS = [DRAFT_KEY]
+const writeDraft = (text: string) =>
+  useMothershipDraftsStore.getState().setDraft(DRAFT_KEY, { text })
 
 const deploymentShape = () => createMockDeploymentShape()
 deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
@@ -104,9 +116,12 @@ let container: HTMLDivElement
 let queryClient: QueryClient
 
 beforeEach(() => {
+  vi.spyOn(toast, 'error')
   mocks.advanced = false
+  mocks.workspacesLoading = false
   useMothershipEffortStore.getState().reset()
   useMothershipPlanEffortStore.getState().reset()
+  useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   vi.clearAllMocks()
   mocks.workspaces = [
@@ -201,8 +216,8 @@ async function render(
     'isSending' | 'restoredContexts' | 'onSendQueuedHead'
   > = { isSending: false }
 ) {
+  writeDraft(initialValue)
   function Harness() {
-    const [value, setValue] = useState(initialValue)
     const submission = useComposerSubmission({ mode: requestMode })
     const files = useFileAttachments({
       userId: 'user-a',
@@ -215,9 +230,8 @@ async function render(
         requestMode={requestMode}
         submission={submission}
         restoredContexts={controls.restoredContexts}
-        value={value}
+        draftKeys={DRAFT_KEYS}
         files={files}
-        onChange={setValue}
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
@@ -225,7 +239,7 @@ async function render(
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
           mocks.contexts(contexts)
-          setValue('')
+          useMothershipDraftsStore.getState().clearDraft(DRAFT_KEY)
           files.clearAttachedFiles()
         }}
       />
@@ -276,12 +290,12 @@ it.each([false, true])(
   'keeps restored queued skills scoped and warns about lost context (%s)',
   async (invalidContext) => {
     let restore: () => void = () => {}
+    writeDraft('Original draft')
     function Harness() {
-      const [value, setValue] = useState('Original draft')
       const [contexts, setContexts] =
         useState<ComponentProps<typeof Composer>['restoredContexts']>()
       restore = () => {
-        setValue('/review fix this @Browser')
+        writeDraft('/review fix this @Browser')
         setContexts([
           { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
           ...(invalidContext
@@ -307,8 +321,7 @@ it.each([false, true])(
         <Composer
           requestMode='agent'
           submission={submission}
-          value={value}
-          onChange={setValue}
+          draftKeys={DRAFT_KEYS}
           restoredContexts={contexts}
           files={files}
           isInitialView={false}
@@ -578,4 +591,122 @@ it('editing a held message cancels the hold', async () => {
   await act(async () => typeInto(input, '/review this now'))
   expect(input.closest('[aria-busy="true"]')).toBeNull()
   expect(mocks.contexts).not.toHaveBeenCalled()
+})
+
+function holdThenExpire() {
+  const expire = new AbortController()
+  vi.spyOn(AbortSignal, 'timeout').mockReturnValue(expire.signal)
+  return expire
+}
+
+it('tells the viewer when the lists never land, keeps the message, and sends plain on the next try', async () => {
+  const expire = holdThenExpire()
+  mocks.skillQuery.mockReturnValue(new Promise(() => {}))
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(input.closest('[aria-busy="true"]')).not.toBeNull()
+  await act(async () => expire.abort())
+  expect(mocks.submit).not.toHaveBeenCalled()
+  expect(input.value).toBe('/review this')
+  expect(input.closest('[aria-busy="true"]')).toBeNull()
+  expect(toast.error).toHaveBeenCalledOnce()
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(mocks.submit).toHaveBeenCalledOnce()
+  expect(mocks.submit.mock.lastCall?.[0]).toBe('/review this')
+})
+
+it('a list that fails while the send waits tells the viewer the same way', async () => {
+  let failSkills: (error: Error) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((_resolve, reject) => {
+      failSkills = reject
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => failSkills(new Error('down')))
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(toast.error).toHaveBeenCalledOnce()
+  })
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('a path in a held message goes out as written once the lists land', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, 'read /etc/hosts'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => resolveSkills([]))
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(mocks.submit).toHaveBeenCalledOnce()
+  })
+  expect(mocks.submit.mock.lastCall?.[0]).toBe('read /etc/hosts')
+  expect(toast.error).not.toHaveBeenCalled()
+})
+
+it('editing away and back does not revive a cancelled hold', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => typeInto(input, '/review this now'))
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => resolveSkills([]))
+  await settleQueries()
+  await act(async () => {})
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('sends nothing once the composer has unmounted', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await act(async () => resolveSkills([]))
+  await act(async () => {})
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('holds for the workspace list too, then chips against the skills it names', async () => {
+  mocks.workspacesLoading = true
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(mocks.contexts).toHaveBeenLastCalledWith([
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
+  })
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
 })

@@ -205,3 +205,22 @@
     visibility: hidden;
   }
 }
+
+.iconButton[data-mirrored] svg {
+  transform: scaleX(-1);
+}
+
+.wideLabel {
+  display: contents;
+}
+.narrowLabel {
+  display: none;
+}
+@media (width < 48rem) {
+  .wideLabel {
+    display: none;
+  }
+  .narrowLabel {
+    display: contents;
+  }
+}

@@ -12,7 +12,6 @@ import {
   submitHelpRequest,
   validateHelpImage,
 } from '@/lib/help/request'
-import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
 import {
   SelectField,
@@ -21,6 +20,7 @@ import {
 } from '@/platform/design-system/components/field/fields'
 import { FileField } from '@/platform/design-system/components/field/file-field'
 import { Modal } from '@/platform/design-system/components/modal/modal'
+import { readFormText } from '@/platform/lib/row-links'
 
 interface SupportImage {
   id: string

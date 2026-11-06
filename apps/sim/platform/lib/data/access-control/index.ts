@@ -42,7 +42,7 @@ export type {
   PermissionGroupAccessState,
 } from '@/ee/access-requests/lib/targets'
 export { useOrganizationRoster } from '@/hooks/queries/organization'
-export { useProjectList } from '@/hooks/queries/project-list'
+export { useProjects } from '@/hooks/queries/projects'
 export { useProviderModelLists, useProviderModels } from '@/hooks/queries/providers'
 export { SIM_AUTO_MODEL_ID } from '@/providers/model-lookup'
 export type { EditorBlock, EditorModel } from './editor'

@@ -91,7 +91,6 @@
 }
 .placeholderGreeting,
 .placeholderWordmark,
-.placeholderComposer,
 .placeholderGetStarted {
   border-radius: var(--ui-control-radius);
   background: var(--control-muted-fill);
@@ -106,8 +105,4 @@
 }
 .placeholderGetStarted {
   block-size: var(--spacing-132);
-}
-.placeholderComposer {
-  block-size: var(--composer-block);
-  border-radius: var(--radius-composer);
 }

@@ -19,10 +19,10 @@ import {
 } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/member-secrets/member-secrets'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
 import { SearchConnectionRequest } from '@/platform/app/(shell)/integrations/_components/search-connection-request/search-connection-request'
 import { SlackSearchActions } from '@/platform/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions'
 import { ToolPermissionsPanel } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions-panel'
+import { FailureNotice, QueryBoundary } from '@/platform/design-system/components'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { useIntegrationActions, useMemberIntegrations } from '@/platform/lib/data/integrations'
@@ -85,18 +85,30 @@ export function IntegrationsRoute({
   const indexHref = serializeIntegrationView(routes.integrations, { q: search })
   const memberSecretsHref = serializeIntegrationView(routes.memberSecrets, { q: search })
 
-  const inventoryStatus = inventory.error ? (
-    <QueryFailure message='Could not load your connections' query={inventory} />
-  ) : !inventory.data ? (
-    <InlineNotice message={LOADING_CONNECTIONS} />
+  const inventoryStatus = !inventory.data ? (
+    <QueryBoundary
+      query={inventory}
+      failure='Could not load your connections'
+      loadingLabel={LOADING_CONNECTIONS}
+    >
+      {() => null}
+    </QueryBoundary>
   ) : null
   const readFailures = (
     <>
       {policies.error && (
-        <QueryFailure message='Could not load Search connections' query={policies} />
+        <FailureNotice
+          message='Could not load Search connections'
+          retrying={policies.isFetching}
+          onRetry={() => void policies.refetch()}
+        />
       )}
       {secrets.error && (
-        <QueryFailure message='Could not load secret connections' query={secrets} />
+        <FailureNotice
+          message='Could not load secret connections'
+          retrying={secrets.isFetching}
+          onRetry={() => void secrets.refetch()}
+        />
       )}
     </>
   )

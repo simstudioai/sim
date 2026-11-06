@@ -1,20 +1,30 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { ActionMenu, Avatar, Select, StatusTag, Tooltip } from '@/platform/design-system/components'
+import {
+  ActionMenu,
+  Avatar,
+  ConfirmDialog,
+  Select,
+  StatusTag,
+  Tooltip,
+} from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import type { MembersActions } from '@/platform/lib/data/members'
 import type {
   InvitationRowModel,
   MemberRowModel,
-  MembersActions,
   WorkspaceInvitationRowModel,
   WorkspaceMemberRowModel,
   WorkspacePermission,
-} from '@/platform/lib/data/members'
-import { ORGANIZATION_ROLE_LABELS, ORGANIZATION_ROLE_OPTIONS } from '@/platform/lib/data/members'
+} from '@/platform/lib/data/members-model'
+import {
+  ORGANIZATION_ROLE_LABELS,
+  ORGANIZATION_ROLE_OPTIONS,
+} from '@/platform/lib/data/members-model'
 
 const WORKSPACE_ROLES = [
   { value: 'read', label: 'Read' },
@@ -36,9 +46,20 @@ interface RowFrameProps {
   control: ReactNode
   menuLabel: string
   actions: readonly MenuAction[]
+  /** The row's own confirm, kept beside it so the row never renders one per roster. */
+  dialog?: ReactNode
 }
 
-function RowFrame({ name, email, image, status, control, menuLabel, actions }: RowFrameProps) {
+function RowFrame({
+  name,
+  email,
+  image,
+  status,
+  control,
+  menuLabel,
+  actions,
+  dialog,
+}: RowFrameProps) {
   return (
     <SettingsRow
       label={name}
@@ -56,6 +77,7 @@ function RowFrame({ name, email, image, status, control, menuLabel, actions }: R
       <span className={styles.controls}>
         <span className={styles.role}>{control}</span>
         <ActionMenu label={menuLabel} icon='I108' align='end' actions={actions} />
+        {dialog}
       </span>
     </SettingsRow>
   )
@@ -86,6 +108,7 @@ export function MemberRow({ row, actions, onRemove, onManageCredits, onTransfer 
       control={
         row.canEditRole ? (
           <Select
+            block
             variant='quiet'
             label={`Role for ${row.name}`}
             options={ORGANIZATION_ROLE_OPTIONS}
@@ -129,6 +152,7 @@ interface InvitationRowProps {
 
 function useInvitationMenu(row: InvitationRowModel, canManage: boolean, actions: MembersActions) {
   const copyEmail = useCopyEmail(row.email)
+  const [revoking, setRevoking] = useState(false)
   const manage: readonly MenuAction[] = canManage
     ? [
         {
@@ -141,17 +165,31 @@ function useInvitationMenu(row: InvitationRowModel, canManage: boolean, actions:
           label: 'Revoke invite',
           destructive: true,
           separatorBefore: true,
-          onSelect: () => void actions.revokeInvitation(row.id),
+          onSelect: () => setRevoking(true),
         },
       ]
     : []
-  return [copyEmail, ...manage]
+  return {
+    menu: [copyEmail, ...manage],
+    revokeDialog: (
+      <ConfirmDialog
+        target={revoking}
+        onClose={() => setRevoking(false)}
+        title='Revoke invite'
+        description={`${row.email} will no longer be able to accept this invite.`}
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
+        onConfirm={() => actions.revokeInvitation(row.id)}
+      />
+    ),
+  }
 }
 
 export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
-  const menu = useInvitationMenu(row, canManage, actions)
+  const { menu, revokeDialog } = useInvitationMenu(row, canManage, actions)
   return (
     <RowFrame
+      dialog={revokeDialog}
       name={row.name}
       email={row.email}
       image={row.image}
@@ -163,6 +201,7 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
           <StatusTag label={row.isExternal ? 'External' : ORGANIZATION_ROLE_LABELS[row.role]} />
         ) : (
           <Select
+            block
             variant='quiet'
             label={`Role for ${row.email}`}
             options={ORGANIZATION_ROLE_OPTIONS}
@@ -192,8 +231,10 @@ export function WorkspaceMemberRow({
   actions,
 }: WorkspaceMemberRowProps) {
   const copyEmail = useCopyEmail(row.email)
+  const [removing, setRemoving] = useState(false)
   const select = (
     <Select
+      block
       variant='quiet'
       label={`Access to ${workspaceName} for ${row.name}`}
       options={WORKSPACE_ROLES}
@@ -210,11 +251,22 @@ export function WorkspaceMemberRow({
       email={row.email}
       image={row.image}
       status={row.status}
+      dialog={
+        <ConfirmDialog
+          target={removing}
+          onClose={() => setRemoving(false)}
+          title='Remove from workspace'
+          description={`${row.name} will lose access to ${workspaceName}.`}
+          confirmLabel='Remove'
+          pendingLabel='Removing…'
+          onConfirm={() => actions.removeFromWorkspace(row.userId, workspaceId)}
+        />
+      }
       menuLabel={`Actions for ${row.name} in ${workspaceName}`}
       control={
         row.lockReason ? (
           <Tooltip label={row.lockReason}>
-            <span>{select}</span>
+            <span className={styles.roleTooltip}>{select}</span>
           </Tooltip>
         ) : (
           select
@@ -229,7 +281,7 @@ export function WorkspaceMemberRow({
                 label: 'Remove from workspace',
                 destructive: true,
                 separatorBefore: true,
-                onSelect: () => void actions.removeFromWorkspace(row.userId, workspaceId),
+                onSelect: () => setRemoving(true),
               },
             ]
           : []),
@@ -253,9 +305,10 @@ export function WorkspaceInvitationRow({
   canManage,
   actions,
 }: WorkspaceInvitationRowProps) {
-  const menu = useInvitationMenu(row, canManage, actions)
+  const { menu, revokeDialog } = useInvitationMenu(row, canManage, actions)
   return (
     <RowFrame
+      dialog={revokeDialog}
       name={row.name}
       email={row.email}
       image={row.image}
@@ -264,6 +317,7 @@ export function WorkspaceInvitationRow({
       actions={menu}
       control={
         <Select
+          block
           variant='quiet'
           label={`Access to ${workspaceName} for ${row.email}`}
           options={WORKSPACE_ROLES}

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import styles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
-import dashboardStyles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 
 /** The transcript's shape while its history loads. It sits in the thread's own scroller. */
 export function TranscriptPlaceholder() {
@@ -28,7 +27,7 @@ export function ComposerPlaceholder() {
   return (
     <div className={styles.composerSkeleton}>
       <RedesignSurface>
-        <div className={dashboardStyles.placeholderComposer} />
+        <div className={styles.placeholderComposer} />
       </RedesignSurface>
     </div>
   )
@@ -63,6 +62,15 @@ export function ConversationSkeleton({ header }: ConversationSkeletonProps) {
   )
 }
 
+/** Search's docked results before they can mount: only the band holds still, as the rows vary. */
+export function ResultsSkeleton() {
+  return (
+    <div className={styles.skeleton} aria-busy='true'>
+      <HeaderBand />
+    </div>
+  )
+}
+
 interface LandingSkeletonProps {
   /** Which field the landing will show, and so how far the placeholder reaches. */
   field: 'search' | 'composer'
@@ -83,9 +91,7 @@ export function LandingSkeleton({ field, header }: LandingSkeletonProps) {
             <RedesignSurface>
               <div
                 className={
-                  field === 'composer'
-                    ? dashboardStyles.placeholderComposer
-                    : styles.placeholderField
+                  field === 'composer' ? styles.placeholderComposer : styles.placeholderField
                 }
               />
             </RedesignSurface>

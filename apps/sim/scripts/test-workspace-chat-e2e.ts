@@ -482,8 +482,8 @@ async function seed() {
     await tx`insert into user_table_definitions (id, workspace_id, name, schema, created_by)
       values (${tableId}, ${workspaceId}, ${MENTION_NAMES.table},
         ${tx.json({ columns: [{ id: 'col_note', name: 'Note', type: 'string' }] })}, ${userId})`
-    await tx`insert into workspace_files (id, project_id, key, user_id, workspace_id, context, original_name, content_type, size_bytes)
-      values (${fileId}, ${workspaceId}, ${`workspace/${fileId}.md`}, ${userId}, ${workspaceId}, 'workspace', ${MENTION_NAMES.file}, 'text/markdown', 1)`
+    await tx`insert into workspace_files (id, key, user_id, workspace_id, context, original_name, content_type, size_bytes)
+      values (${fileId}, ${`workspace/${fileId}.md`}, ${userId}, ${workspaceId}, 'workspace', ${MENTION_NAMES.file}, 'text/markdown', 1)`
     await tx`insert into knowledge_base (id, user_id, workspace_id, name)
       values (${knowledgeId}, ${userId}, ${workspaceId}, ${MENTION_NAMES.knowledge})`
     await tx`insert into skill (id, workspace_id, user_id, name, description, content)

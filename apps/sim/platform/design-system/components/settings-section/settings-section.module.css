@@ -110,3 +110,29 @@
     padding-inline: var(--spacing-16);
   }
 }
+
+.saveActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}
+
+.rowList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  list-style: none;
+}
+
+.rowList[data-dividers] {
+  --ui-row-block: var(--spacing-8);
+  gap: 0;
+}
+
+.rowList[data-dividers] > * + * {
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}

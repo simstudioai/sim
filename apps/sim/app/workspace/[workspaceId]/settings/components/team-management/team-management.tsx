@@ -315,28 +315,17 @@ export function TeamManagement({
 
   const handleOpenTransferBillingPortal = () => {
     setTransferPortalError(null)
-    const portalWindow = window.open('', '_blank')
-    openBillingPortal.mutate(
+    openBillingPortal.open(
       {
         context: 'organization',
         organizationId,
         returnUrl: `${getBaseUrl()}${APP_ENTRY_PATH}`,
       },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) {
-            portalWindow.location.href = data.url
-          } else {
-            window.location.href = data.url
-          }
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal from transfer dialog', { error })
-          setTransferPortalError(
-            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
-          )
-        },
+      (error) => {
+        logger.error('Failed to open billing portal from transfer dialog', { error })
+        setTransferPortalError(
+          getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
+        )
       }
     )
   }

@@ -64,18 +64,6 @@
   overflow-wrap: anywhere;
 }
 
-.list {
-  display: grid;
-  gap: var(--ui-list-gap);
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  padding-block: var(--spacing-4);
-}
-
-.list > li > :is(a, button) {
-  min-block-size: var(--spacing-64);
-}
-
 .rows {
   display: grid;
   gap: var(--ui-list-gap);
@@ -103,28 +91,4 @@
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.skeletonRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-24);
-  min-block-size: var(--spacing-64);
-}
-
-.skeletonLabel,
-.skeletonControl {
-  display: block;
-  block-size: var(--spacing-12);
-  border-radius: var(--radius-4);
-  background: var(--control-muted-fill);
-}
-
-.skeletonLabel {
-  inline-size: var(--spacing-128);
-}
-
-.skeletonControl {
-  inline-size: var(--spacing-64);
 }

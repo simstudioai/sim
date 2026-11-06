@@ -5,10 +5,14 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   FieldStack,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { FailureNotice, Modal, SegmentedControl } from '@/platform/design-system/components'
+import {
+  ConfirmDialog,
+  FailureNotice,
+  LoadingRows,
+  SegmentedControl,
+} from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   describeSsoPolicy,
@@ -67,20 +71,21 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
             onRetry={() => void refetch()}
           />
         ) : (
-          <LoadingState label='Loading sign-in requirement…' />
+          <LoadingRows label='Loading sign-in requirement…' />
         )}
       </FieldStack>
-      <Modal
-        variant='confirm'
-        open={confirmingEnable}
-        onOpenChange={setConfirmingEnable}
+      <ConfirmDialog
+        target={confirmingEnable}
+        onClose={() => setConfirmingEnable(false)}
         title='Require single sign-on'
         description='Members will have to sign in through your identity provider from their next sign-in. Nobody is signed out, and owners keep password sign-in so you can undo this if the provider breaks.'
-        confirmLabel={updatePolicy.isPending ? 'Saving…' : 'Require SSO'}
+        confirmLabel='Require SSO'
+        pendingLabel='Saving…'
         onConfirm={async () => {
           await updatePolicy.mutateAsync({ organizationId, requireSso: true })
           toast.success('Members must now sign in through SSO')
         }}
+        safe
       />
     </SettingsSection>
   )

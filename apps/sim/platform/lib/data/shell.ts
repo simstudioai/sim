@@ -14,9 +14,9 @@ import {
   usePinnedWorkspaceIds,
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
-import { buildOrganizationNavItems } from '@/platform/app/(shell)/_components/destinations'
-import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
+import { buildOrganizationNavItems } from '@/platform/lib/data/shell-destinations'
+import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/lib/data/shell-view'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
 
 function toShellWorkspace(

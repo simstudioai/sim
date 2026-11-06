@@ -1,16 +1,9 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
-import type { OrganizationConversationProps } from '@/app/o/[organizationId]/components/organization-conversation'
 import type { OrganizationSearchState } from '@/app/o/[organizationId]/search/use-organization-search'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-
-const OrganizationConversation = lazy(() =>
-  import('@/app/o/[organizationId]/components/organization-conversation').then((module) => ({
-    default: module.OrganizationConversation,
-  }))
-)
 
 interface SearchFrameProps {
   search: OrganizationSearchState
@@ -18,8 +11,8 @@ interface SearchFrameProps {
   header: ReactNode
   /** The Search view. It renders beside the conversation, never around it. */
   children: ReactNode
-  /** How the Assistant view looks: its own chrome, its landing, and what stands in for it loading. */
-  assistant: Pick<OrganizationConversationProps, 'appearance' | 'fallback' | 'landing'>
+  /** The Assistant view, mounted beside the Search view once it has been opened. */
+  assistant: ReactNode
   /** Shown while the viewer's saved view has not resolved. */
   unresolvedFallback: ReactNode
 }
@@ -47,18 +40,7 @@ export function SearchFrame({
               activeMode === 'assistant' ? 'flex' : 'hidden'
             )}
           >
-            <Suspense fallback={assistant.fallback}>
-              <OrganizationConversation
-                key={search.conversationInstance}
-                {...assistant}
-                requestMode='assistant'
-                chatId={search.chatId}
-                header={header}
-                active={activeMode === 'assistant'}
-                summaryRequest={search.pendingSummary}
-                onSummaryConsumed={search.consumeSummary}
-              />
-            </Suspense>
+            {assistant}
           </div>
         )}
         {!activeMode && unresolvedFallback}

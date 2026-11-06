@@ -3,20 +3,20 @@
 import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type {
-  HomeAccountView,
-  HomeWidgetActions,
-  HomeWidgetState,
-} from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { FailureNotice } from '@/platform/design-system/components'
 import { Button } from '@/platform/design-system/components/button/button'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
+import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { InlineNotice } from '@/platform/design-system/components/status/status'
+import type {
+  HomeAccountView,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/lib/data/home-view'
 
 const DISCONNECT_NOTICE =
   'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.'
@@ -64,11 +64,11 @@ function AccountNotices({ accounts, onReconnect, onRetry }: AccountNoticesProps)
       )
     if (account.problem === 'unavailable')
       return (
-        <InlineNotice
+        <FailureNotice
           key={account.id}
           intent='warning'
           message={`${account.label} could not be reached.`}
-          action={<RetryButton onRetry={onRetry} />}
+          onRetry={onRetry}
         />
       )
     if (account.problem === 'not_offered')
@@ -160,10 +160,11 @@ export function ConnectedWidget<T>({
         />
       )}
       {state.status === 'error' && (
-        <InlineNotice
+        <FailureNotice
           intent='warning'
           message={`Your ${noun} could not load.`}
-          action={<RetryButton retrying={state.retrying} onRetry={actions.retry} />}
+          retrying={state.retrying}
+          onRetry={actions.retry}
         />
       )}
       {state.status === 'ready' && (
@@ -176,15 +177,12 @@ export function ConnectedWidget<T>({
           {children(state.data)}
         </>
       )}
-      <Modal
-        open={disconnecting !== null}
-        onOpenChange={(open) => {
-          if (!open) setDisconnecting(null)
-        }}
-        variant='confirm'
+      <ConfirmDialog
+        target={disconnecting !== null}
+        onClose={() => setDisconnecting(null)}
         title={`Disconnect ${several && disconnecting ? disconnecting.label : title}?`}
         confirmLabel='Disconnect'
-        destructive
+        pendingLabel='Disconnecting…'
         description={DISCONNECT_NOTICE}
         onConfirm={async () => {
           if (disconnecting) await actions.disconnect(disconnecting.id)

@@ -2,7 +2,6 @@
 
 import { useId } from 'react'
 import {
-  ActionRow,
   FieldStack,
   SectionSkeleton,
   SectionStack,
@@ -10,12 +9,12 @@ import {
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import {
-  Button,
   EmptyState,
   FailureNotice,
   FieldFrame,
   FileField,
   Input,
+  SaveActions,
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -195,16 +194,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
             />
           </FieldStack>
         </SettingsSection>
-        <ActionRow>
-          <Button submit variant='primary' disabled={!form.dirty || form.saving}>
-            {form.saving && !form.uploading ? 'Saving…' : 'Save'}
-          </Button>
-          {form.dirty && (
-            <Button variant='quiet' disabled={form.saving} onClick={form.discard}>
-              Discard
-            </Button>
-          )}
-        </ActionRow>
+        <SaveActions dirty={form.dirty} saving={form.saving} onDiscard={form.discard} />
       </SectionStack>
     </form>
   )

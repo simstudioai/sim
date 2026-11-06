@@ -7,7 +7,7 @@ import {
   MAX_MEETING_LANES,
   maxLanesForWidth,
 } from '@/platform/app/(shell)/home/_components/calendar/day-layout'
-import type { CalendarMeeting } from '@/platform/app/(shell)/home/_components/model'
+import type { CalendarMeeting } from '@/platform/lib/data/home-view'
 
 function meeting(id: string, startMinute: number, duration: number): CalendarMeeting {
   return { id, title: id, startMinute, duration, people: [] }

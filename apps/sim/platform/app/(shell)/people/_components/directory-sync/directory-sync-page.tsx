@@ -8,11 +8,11 @@ import {
   SOURCE_MARKS,
 } from '@/platform/app/(shell)/people/_components/directory-sync/directory-sources'
 import styles from '@/platform/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import {
   Button,
   FailureNotice,
   InlineNotice,
+  LoadingRows,
   Modal,
   StatusTag,
 } from '@/platform/design-system/components'
@@ -216,7 +216,7 @@ export function DirectorySyncPage({
         </p>
       </header>
       {directory.loading ? (
-        <PeopleStatus>Loading directory connection…</PeopleStatus>
+        <LoadingRows label='Loading directory connection…' />
       ) : directory.loadError ? (
         <FailureNotice
           message={directory.loadError.message}

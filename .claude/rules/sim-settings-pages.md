@@ -1,404 +1,65 @@
 ---
-description: Settings page layout and SettingsPanel design-system compliance
+description: One pattern per job across the organization views (Settings, People, Integrations, Links, Home)
 paths:
-  - "apps/sim/app/workspace/*/settings/**"
-  - "apps/sim/app/o/*/settings/**"
-  - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
-  - "apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**"
-  - "apps/sim/components/{settings,permissions}/**"
-  - "apps/sim/ee/**/components/**"
+  - "apps/sim/platform/app/(shell)/{settings,people,integrations,links,home}/**"
+  - "apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
+  - "apps/sim/app/o/*/**"
 ---
 
-# Settings Pages
+# Organization Views
 
-Workspace and organization `settings/[section]/layout.tsx` own page chrome via
-`SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
-action chips), a scroll region, and a centered `max-w-[48rem]` content column led
-by a **title + description from navigation metadata**. The chrome stays mounted
-across section navigation. Its routed title and description are available before
-the section body resolves. Each section renders through the **`SettingsPanel`**
-registrar
-(`@/components/settings/settings-panel`), which feeds
-the shell its header data and renders only the section body. Sections supply
-**data**, never chrome.
+The organization views live in `apps/sim/platform/app/(shell)/` and take everything shared from
+`@/platform/design-system/components`. Each job below has one pattern. A view that differs needs a
+reason written where it differs; "it was already like that" is not one.
 
-Do NOT hand-roll any of these in a settings page — they are owned by the layout
-shell (fed through `SettingsPanel`):
+| Job | Use | Never |
+| --- | --- | --- |
+| First read of a view | `QueryBoundary` (`query`, `failure`, `loadingLabel`, optional `empty`, `loading`), which renders `LoadingRows`, then `FailureNotice`, then `empty`, then `children(data)` | Inline `isPending ? … : error ? …`, a raw `<p>Loading…</p>`, a loading `InlineNotice` |
+| Loading | `LoadingRows` by default. A placeholder shaped like its content (`WidgetSkeleton`, usage charts) only where rows would misrepresent it | A second generic skeleton |
+| Failed read | `FailureNotice`, labelled Retry. `intent='warning'` where the read partly answered | A hand-built retry button or `InlineNotice` + `Button` |
+| Failed background refresh | `FailureNotice` outside the boundary, over the content it keeps | Replacing content already on screen |
+| Empty | `EmptyState`, with no create button when the page already has one | `Muted` or a raw `<p>` |
+| Confirm | `ConfirmDialog` (`target`, `title`, `confirmLabel`, `pendingLabel`, `onConfirm`, `safe` when nothing is lost). Removing a person, revoking an invite and any destructive row action always ask first | `Modal variant='confirm'`, `window.confirm`, an unconfirmed destructive action |
+| Save | `SaveActions`, end-aligned in the page flow under the fields it commits: Discard while dirty, then Save. Save is visible and disabled while clean | Save in a header, Save before Discard, a Cancel beside Discard |
+| Editing a server value | `useServerDraft`. Adopts a newer value while clean; while dirty it keeps the edits and sets `conflict`. Show `DraftConflictNotice`, and block Save until the viewer chooses | Seeding `useState` from a query once |
+| Autosave vs Save | One or the other per page. A page with `SaveActions` holds every field in one draft and writes it in one request. List actions with their own dialog, such as adding or removing a member, are not field edits | A page mixing both |
+| Create | A primary compact button in `SectionToolbar`, or in the page header on a page with one | Create in both the toolbar and the empty state |
+| Search over a section's rows | `SectionSearch subject='members'` | `SearchField` with its own copy, unless the search covers more than the subject's name |
+| Row | `ActivityRow` for a row that opens something, `SettingsRow` for a row holding a control | A hand-built row |
+| List of rows | `RowList` (`dividers` for a list read as one block). `ActivityRow density='comfortable'` in settings | `calc(-1 * var(--ui-row-inset))` around a list; styling a row's height from outside |
+| Row actions | `ActionMenu` with icon `I108`, destructive item last with a separator | The same action in the row and its menu |
+| Section heading | `SettingsSection title` (h2), `DetailHeader` for a sub-view's way back | A hand-written heading |
+| Toolbar | `SectionToolbar grow={<SectionSearch />}` with its actions as children | A hand-built flex row |
 
-- `<div className='flex h-full flex-col bg-[var(--bg)]'>` shell
-- the header bar — compose `PAGE_HEADER_BAR` (`@/components/page-header-bar`); never rewrite its padding
-- the scroll container (`min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]`)
-- the content column (`mx-auto … max-w-[48rem] … gap-7`)
-- a title block (`<h1 className='font-medium text-[var(--text-body)] text-lg'>` + `<p className='text-[var(--text-muted)] text-md'>`)
-- the page-level search input
+## Failure feedback
 
-## Canonical page shape
+- Form validation is inline, on the field (`error`), once a save has been attempted.
+- A dialog's own action failing stays in the dialog: `Modal` shows a rejected `onConfirm`'s message and keeps the draft.
+- Any other action failing is a toast. Nothing fails silently.
 
-```tsx
-import { SettingsPanel } from '@/components/settings/settings-panel'
+## Page gates
 
-return (
-  <SettingsPanel
-    actions={[{ text: 'Create', icon: Plus, variant: 'primary', onSelect: onCreate }]}
-    search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search …' }}
-  >
-    {/* body only — sections, lists, forms */}
-  </SettingsPanel>
-)
-```
+Every page under `app/o/[organizationId]` calls
+`requireOrganizationViewer(organizationId, callbackUrl)` from `@/app/o/[organizationId]/viewer`. It
+redirects a signed-out viewer to sign-in and back, 404s a viewer with no access, and returns
+`{ userId, principal, surface }`. Never write `{ kind: 'session', ... }` in a page.
 
-When the page has modal/dialog siblings, wrap them with the panel in a fragment:
+## Dialogs
 
-```tsx
-return (
-  <>
-    <SettingsPanel actions={…}>{body}</SettingsPanel>
-    <SomeModal … />
-  </>
-)
-```
+`Modal` holds itself open while `onConfirm`'s promise or its `pending` prop runs. Escape, the backdrop
+and Close do nothing until it settles, including when the browser closes the `<dialog>` itself: once
+user activation is spent, `cancel` cannot be prevented, so `OverlayDialog` reopens from `close`.
 
-## `SettingsPanel` props
+## Files
 
-- `actions?: SettingsAction[]` — right-aligned header chips, **data only**:
-  `{ id?, text, textTone?: 'error', icon?, variant?: 'primary'|'destructive', active?,
-  onSelect, onPrefetch?, disabled?, tooltip? }`.
-  The shell renders each as a `Chip` — never pass JSX, a `<div>`, or `className`
-  (the locked contract: it's structurally impossible to vibe-code a padding
-  change). Multiple/conditional actions are a plain array
-  (`[...(canManage ? [{…}] : []), …]`). Labels are **sentence case** (`Add override`,
-  not `Add Override`). A disabled action that needs to explain itself sets
-  `tooltip` (the shell renders the hover tooltip, disabled chip included). An action
-  that wants to warm a route on hover sets `onPrefetch`; the shell wires it. A label
-  that flips while pending (`Delete` → `Deleting...`) sets a stable `id`, or the chip
-  remounts mid-action. Save/Discard pairs come from the `saveDiscardActions()`
-  helper (spread it into `actions`).
-- `back?: SettingsBackAction` (`{ text, icon?, onSelect }`) — left-aligned back
-  chip for a **detail sub-view** (e.g. a selected MCP server, a permission group,
-  a retention policy). Detail sub-views render through `SettingsPanel` like list
-  pages — they do NOT hand-roll their own shell.
-- `docsLink?: string` — renders the header's `Docs` `ChipLink`.
-- `search?: { value; onChange: (value: string) => void; placeholder?; disabled? }` —
-  renders the canonical search field directly below the title. Pass `setSearchTerm`
-  straight to `onChange`. Use this for a standalone search; if search shares a row
-  with other controls (sort, filters, a date picker), render that whole row in
-  `children` instead and omit the prop.
-- `title?` / `description?` — overrides for the nav-driven defaults. **Only** for a
-  detail sub-view that needs a different heading; normal pages never pass these.
-  A top-level page's header identity must remain stable while its data loads:
-  never replace navigation metadata with client-fetched copy after first paint.
-  Put data-dependent context in the page body instead.
-- `scrollContainerRef?: React.Ref<HTMLDivElement>` — forwards a ref to the scroll
-  region (e.g. programmatic scroll-to-bottom).
+- A section with more than one job splits by job: `group-detail.tsx` is the shell, `group-general-tab.tsx`
+  and `group-catalog-tabs.tsx` its bodies, `use-group-draft.ts` its write.
+- Merge logic worth a test is a pure module next to the view, such as `secrets-draft.ts`.
+- `section-parts/` holds what only settings needs: `SectionStack`, `FieldStack`, `SectionToolbar`,
+  `DetailHeader`, `Muted`, `SectionSkeleton`, `DraftConflictNotice`, `useServerDraft`.
 
-## Title + description live in navigation metadata
+## Legacy workspace settings
 
-`apps/sim/components/settings/navigation.ts` is the single source of truth (the
-`settings/navigation.ts` in the route tree is only a re-export shim). Each `SETTINGS_SECTION_REGISTRY` entry's one-line description is
-`unified.description` (a plane projection's `planes.<plane>.description` overrides it where that
-plane's scope differs), or, for a section that exists only on a standalone plane, its
-`planes.<plane>.description`; `SettingsPanel`
-resolves both via `getSettingsSectionMeta(plane, section)` and the
-`SettingsSectionProvider` the settings shell wraps around the active section.
-
-Adding a new settings page:
-
-1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
-   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
-   ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
-2. Register its module in `SECTION_MODULES` (`settings/section-warmers.ts`) and render it
-   inside the shell's `effectiveSection` switch in `settings/[section]/settings.tsx`.
-3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
-4. When a real second consumer or server boundary needs it, extract client-safe React Query options;
-   otherwise keep them with the hook. Approved intent warmers reuse those exact options and must keep
-   `check-tool-registry-boundary` green. Warm only authorized destinations, preserve the current
-   section during the transition, and follow `sim-react-performance.md` recovery rules; never render
-   temporary default data that will be replaced after load.
-
-## Text-scale tokens (no literal pixel sizes)
-
-Settings pages never use a literal `text-[Npx]` class — always a named token from
-the scale in `sim-styling.md` ("Text Scale"). Find stragglers with
-`rg 'text-\[1[0-8]px\]' apps/sim/app/workspace apps/sim/ee`.
-
-The two-line list row (title over a muted subtitle — a name + email, a tool name
-+ description, a server name + status) is **not something you build**: it is
-`SettingsResourceRow`, which owns the pairing
-(`text-[var(--text-body)] text-sm` over `text-[var(--text-muted)] text-caption`).
-See "The resource row" below.
-
-For a toggle row (a `Switch` with a title and optional description), use the emcn
-`Label` component for the title — never a hand-rolled `<span>` — paired with
-`Switch`'s `id`/`Label`'s `htmlFor`:
-
-```tsx
-<div className='flex items-center justify-between'>
-  <div className='flex flex-col gap-1'>
-    <Label htmlFor='my-toggle'>Enable thing</Label>
-    <p className='text-[var(--text-muted)] text-caption'>One-line description.</p>
-  </div>
-  <Switch id='my-toggle' checked={enabled} onCheckedChange={onToggle} />
-</div>
-```
-
-`Label`'s own default styling (`font-medium text-[var(--text-primary)]
-text-small`) already matches the established title treatment — do not add a
-`className` overriding its size/color unless the row genuinely needs something
-different.
-
-`--text-primary`/`--text-secondary` and `--text-body`/`--text-muted` are both real,
-independently-defined tokens (not interchangeable — they resolve to different
-colors) and both see legitimate use across settings pages; this rule only pins
-down the **row title/subtitle** shape above, not every text element on every page.
-
-## The resource row
-
-**`SettingsResourceRow`** (`…/components/settings-resource-row`) is *the* list row
-for every settings resource — and for skills, integrations, and the `ee/` surfaces
-too. It owns the tile, the title/subtitle tokens, the row padding and bleed
-(`-mx-2 … rounded-lg p-2`), the hit area, the focus ring, the navigation chevron,
-and — on activatable rows only — the hover band. Never hand-roll any of it, and never wrap the row in your own
-`<button>` or `<Link>` — that is what `onClick`/`href` are for.
-
-```tsx
-<div className={RESOURCE_LIST_STACK}>
-  {items.map((item) => (
-    <SettingsResourceRow
-      key={item.id}
-      icon={<Wrench className='text-[var(--text-icon)]' />}
-      iconFilled
-      title={item.name}
-      description={item.summary}
-      onClick={() => open(item.id)}   // or href={`…/${item.id}`}
-      clickLabel={`Open ${item.name}`}
-      navigable
-    />
-  ))}
-</div>
-```
-
-- `icon?` + `iconVariant` — `tile` (default, the 36px bordered tile), `plain` (a
-  bare 14px glyph), `custom` (you supply the whole tile, e.g. the brand-tinted
-  `IntegrationTile`). Omit `icon` entirely for resources with no identity glyph
-  (an API key, a permission group). `iconFilled` uses the skills/tools fill;
-  `iconFill` lets an uploaded image reach the tile edge.
-- `onClick` / `href` — makes the **whole row** activatable via a stretched
-  overlay. Prefer `href` when the destination is a route, so the row keeps
-  prefetch, middle-click, and open-in-new-tab. Always pass `clickLabel` with
-  either — the overlay holds no text, so it is the control's *only* accessible
-  name. The prop is optional in the type (nothing enforces it), so omitting it
-  ships a nameless button rather than failing the build.
-- `navigable` — appends the one canonical chevron. Set it on rows that open a
-  detail page; leave it off when `onClick` acts in place (revealing a folder).
-  Never import an arrow yourself: `lucide-react` and `@sim/emcn/icons` ship
-  visibly different glyphs, and the row already picked one. A sanctioned bespoke
-  row (below) draws it with `RESOURCE_ROW_ARROW_CLASSES` from the same module.
-- `trailing` vs `badge` — `trailing` is for **interactive** controls (a `Chip`, a
-  `RowActionsMenu`) and sits above the hit area. `badge` is for **decoration** (a
-  status tag) and is click-through. Putting a badge in `trailing` turns the row's
-  right edge into a dead zone.
-- `RESOURCE_LIST_STACK` / `RESOURCE_LIST_GRID` — the single-column and two-up
-  containers. A `SettingsResourceRow` carries its own `-mx-2` bleed and padding,
-  so a container holding one only sets rhythm: never add a second `-mx-2` (they
-  stack into a 16px bleed) and never a different gap. A list of hand-rolled rows
-  is the opposite — there the container owns the bleed. A row inside a
-  fixed-height `overflow-y-auto` box, or a heading that must line up with the
-  section labels under it, passes `flush` to drop the bleed and padding.
-  `RESOURCE_LIST_GRID` budgets its column gap for the bleed (24px of track gap
-  minus 16px of bleed = an 8px gutter); narrowing that gap makes neighbouring
-  rows — and their stretched hit areas — overlap, so a click in the gutter opens
-  the wrong card.
-
-**Three-dots vs. chevron** is not a taste call:
-
-- Opens a **detail page** → `navigable` + a whole-row click, and no `Delete` in
-  the row (it lives in the detail header).
-- **No detail page** → a `RowActionsMenu` in `trailing`, and no `navigable`
-  chevron. The row may still take an `onClick` for an in-place action — a folder
-  mount reveals itself in Finder and also carries a `...` menu — but a row must
-  never offer both a chevron and a menu.
-
-## Other shared settings primitives (do not re-roll these)
-
-- **`SettingsSection`** (`…/components/settings-section/settings-section` — this
-  directory has no barrel) — muted label, hairline
-  divider, body. Also carries `headerAccessory` and `action` slots. Never
-  re-derive the label/divider chrome; `sim-styling.md` owns those tokens.
-- **`SettingsField`** (`…/components/settings-field`) — a read-only label/value
-  pair in a detail body: muted caption over the value. Pass the value as text and it
-  renders the value paragraph itself; pass a node when the value needs its own
-  presentation (a control, an icon beside the value, status styling).
-- **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
-  muted status message for empty lists, "no results", loading gates, and failed
-  reads. `variant='fill'` (default) centers in the available height;
-  `variant='inline'` sits in flow. Never hand-roll its layout.
-- **`SettingsQueryErrorState`** (same module) — the muted read-failure message
-  with an accessible alert and retry control. Show an initial failure when data
-  is unavailable; preserve cached content, mounted editors, and unsaved drafts
-  during background failures, using an inline status. Validation and mutation
-  failures retain their error styling.
-- **`RowActionsMenu`** (`…/components/row-actions-menu`) — the trailing `...`
-  actions menu for a list row. Pass `label` (aria-label) and
-  `actions: RowAction[]` (`{ label, onSelect, destructive?, disabled? }`); the
-  component renders the canonical flush `...` trigger + `DropdownMenuContent`.
-  Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
-  hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
-- **`RESOURCE_TILE_BASE`** + one of `RESOURCE_TILE_FILL` / `RESOURCE_TILE_PLAIN`
-  (`app/workspace/[workspaceId]/components/resource-tile` — note: *not* under
-  `settings/`, unlike the other `…/` paths on this page) — the 36px tile chrome, for
-  any tile the row does not draw itself: a detail heading, or a caller-supplied
-  `iconVariant='custom'` tile. `ResourceTile` wraps the filled pairing. Use
-  `RESOURCE_TILE_FILL` for a glyph, `RESOURCE_TILE_PLAIN` for a brand logo or favicon.
-
-
-**One member avatar.** Every member list, owner cell, and ranking renders emcn
-`<Avatar size='xs' name={…} src={…} />` — a 14px photo, or the initial on the
-neutral disc. Pass `aria-hidden` only when the member's name is visibly rendered
-beside it; an email-only row (`MemberRow`) keeps the avatar labelled because it
-carries the name. Never hand-roll an avatar or give a person a `getUserColor`
-hash; per-person colors belong to live collaboration (presence, cursors), where
-the color matches that person's cursor.
-
-## Header action order
-
-Every detail header reads left→right:
-
-```
-← Back        [secondary actions] → Delete → Discard → Save
-```
-
-You do not have to get the array order right — `orderHeaderActions()` ranks them
-(secondary → `id:'delete'` → `id:'discard'` → `variant:'primary'`), order-stable
-within each band, so spreading `saveDiscardActions()` first still renders Save
-last. Three stacks apply it: `SettingsHeaderShell`, `SettingsActionChips`, and
-`Resource.Header` — so tables, files, knowledge and logs get the same ordering
-as settings.
-
-Delete is placed by its **`id`**, not by position, which is why `id:'delete'` is
-required rather than cosmetic: a page with no primary action still must not
-leave a destructive chip in the slot a primary would occupy.
-
-The bar geometry and the action cluster are both single-sourced in
-`@/components/page-header-bar` — `PAGE_HEADER_BAR` (or `Resource.Header`'s
-bordered variant) and `HEADER_ACTION_CLUSTER`. Never re-derive `h-[30px]`,
-`gap-1`, or the lane padding per header.
-Covered by `settings-header-order.test.ts` and `settings-header-shell.test.tsx`
-— the latter pins that a reordered chip still routes to its own handler.
-
-Two consequences worth knowing:
-
-- **The primary chip is always right-most**, and it is not always Save — on a
-  page with no save state it is whatever the primary action is (`Add workflows`,
-  `Import`). Delete still precedes it.
-- `CredentialDetailLayout` takes a `ReactNode`, so the chips you write directly
-  are in your order — only what you route through `SettingsActionChips` /
-  `SaveDiscardChips` is ranked. Put `<SaveDiscardChips>` last (skills, secrets,
-  connected credentials already do).
-
-## Deleting a resource
-
-Delete lives in the **detail header**, as `{ id: 'delete', text: 'Delete',
-onSelect: … }` behind a `ChipConfirmModal` — a **plain chip**, never
-`textTone: 'error'`, and never unconfirmed. In a `SettingsPanel` header it is
-action *data*, never a hand-rolled `<Chip>`; only `CredentialDetailLayout`
-surfaces, which take a `ReactNode`, render one directly. Always set `id: 'delete'`; without a
-stable id the chip remounts when the label flips to `Deleting...`.
-
-`variant: 'destructive'` is reserved for actions that are destructive at
-**scale** — `Delete all` passwords, `Clear all` browsing data, `Sign out all
-members`. Removing the single resource you are already looking at is confirmed
-by the modal, so it does not also need a red chip.
-
-A list row does not carry Delete when the resource has a detail page.
-
-## Save / Discard + unsaved-changes guard
-
-Any settings surface with editable state uses **one** shared stack — never
-hand-roll a Save button, a Discard button, a `beforeunload`, or an "Unsaved
-changes" modal:
-
-- **`saveDiscardActions(config)`** (`@/components/settings/save-discard-actions`)
-  — returns the canonical **Discard + Save** `SettingsAction[]`. **Save is always
-  rendered** (primary), disabled until there is something to save, so every
-  editable surface announces its primary action in the same place and a create
-  form is never a page with no visible way to commit it; **Discard appears only
-  when dirty**. Spread it into a `SettingsPanel` `actions` array, beside any
-  sibling actions (a detail view's Delete / Remove override). Config: `dirty`,
-  `saving`, `onSave`, `onDiscard`, `saveDisabled?`, `saveTooltip?`, `creating?`,
-  `saveLabel?`, `savingLabel?`. Create flows pass `creating` — the
-  Create / Creating... labels come as a pair and can never drift apart.
-  `saveLabel`/`savingLabel` are only for genuinely bespoke wording (SSO's
-  `Update`); never hand-roll the pair to get a create label.
-- **`<SaveDiscardChips {...config} />`** (same module) — the identical rule
-  rendered as chips, for surfaces whose header takes a `ReactNode` instead of
-  action data (`CredentialDetailLayout`: skills, secrets, connected credentials).
-  Both stacks derive from the one function; never hand-roll a Save chip.
-
-`CredentialDetailLayout` stays slot-driven for exactly two reasons: its back
-control is a real `<ChipLink href>` (deep-linkable / middle-clickable, which
-`SettingsBackAction`'s `onSelect` cannot express), and actions like
-`SkillImportButton` own a hidden file input and their own pending state.
-**Everything else in one of those headers should be `SettingsAction` data**
-rendered through `<SettingsActionChips actions={…} />` from
-`@/components/settings/settings-header` — that is the shared chip path, and it
-is what keeps tone/icon/variant/tooltip handling from drifting between the two
-shells. Reach for it before hand-rolling a `Chip`.
-- **`useSettingsUnsavedGuard({ isDirty, navigationBlocked, onDiscard })`** from
-  `@/components/settings/use-settings-unsaved-guard` registers one editor with the
-  shared settings store. Register every full-page draft, including inline creation
-  forms. Dirty computation stays local and derived; fetched defaults stay clean.
-- **`onDiscard` resets the registered draft.** The root `SettingsNavigationGuard`
-  owns the discard dialog, internal link interception, browser Back/Forward, and
-  refresh protection for registered editors. Do not add a per-page dialog or
-  history listener for an editor using this hook. Skill create/detail pages retain
-  their existing `useUnsavedChangesGuard` and local dialog until they migrate to
-  the shared registration.
-- **Native history needs entry indexes.** The Navigation API supplies them for
-  legacy entries. Without it, native traversal to an unindexed entry cannot be
-  cancelled reliably; never guess a direction or rewrite the history stack.
-- **History confirmation authorizes traversal before discarding.** Drafts are
-  discarded only when the browser reports the confirmed traversal, so a no-op
-  Back or Forward retains edits. Known cross-document traversal uses native unload
-  protection. An unknown cross-document target on a classic History browser can
-  require a second native confirmation after the shared dialog.
-- **Detail back controls** call `guard.guardBack(closeFn)`. Other destructive view
-  transitions, such as switching an editor's direction or environment, also use
-  the shared `requestLeave` action before resetting their draft.
-- **`navigationBlocked` covers pending saves and uploads.** The shared guard blocks
-  navigation while requests are pending. Attempts are not queued; retry after they
-  settle. Disable or preserve edits made during requests;
-  failed saves retain drafts, and successful saves only clear committed values.
-- **Call the hook unconditionally, before every early-return gate** (entitlement,
-  loading, or empty-state return), so gated renders preserve hook order.
-
-## Detail sub-views
-
-A drill-down view reached from a list row (selected MCP server, workflow MCP
-server, permission group, retention policy) renders through
-`SettingsPanel` like a list page: pass `back={{ text, icon: ArrowLeft, onSelect }}`
-for the left back chip, `title` (the entity name), and the header `actions`, then
-render the body. Do NOT hand-roll a shell or header bar; a tab bar renders as the
-first body child. Gate/early-return states (not-entitled, loading, upgrade
-prompts) stay as-is.
-
-The route-based credential detail (`settings/secrets/[credentialId]`) is the lone
-exception — it lives outside `[section]` and keeps its own `CredentialDetailLayout`.
-
-## Audit checklist
-
-A settings page is design-system-clean when:
-
-- [ ] Its main return is a `<SettingsPanel>` (or `<>…<SettingsPanel>…</>` with modal siblings) — no hand-rolled shell/header/scroll/column.
-- [ ] It renders **no** hand-rolled `<h1>`/description title block — the title comes from nav metadata.
-- [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
-- [ ] Its registry entry has an accurate, consistent-length `description`.
-- [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
-- [ ] If it has editable state: Save/Discard go through `saveDiscardActions()`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
-- [ ] No business logic, handlers, or conditional rendering changed by the migration — except where the shared primitive makes a gate structural (a permission gate becomes `onClick={can ? … : undefined}` + `navigable={can}`, which renders a plain non-interactive row).
-- [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
-- [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
-- [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
-- [ ] Decorative trailing content is in `badge`, not `trailing`.
-- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/read-failure messages use `SettingsEmptyState`, with `SettingsQueryErrorState` when offering retry.
-- [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
-- [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.
+`apps/sim/app/workspace/*/settings/**` keeps `SettingsPanel` from `@/components/settings/settings-panel`,
+which owns chrome through `settings/[section]/layout.tsx`. The `add-settings-page` skill describes it.
+New organization work never imports it.
