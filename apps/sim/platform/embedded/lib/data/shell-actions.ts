@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/use-desktop-update-state'
 import type { ShellActions } from '@/platform/embedded/lib/data/shell-view'
 import { openLinkInNewTab } from '@/platform/embedded/lib/row-links'
+import { toast } from '@/platform/shared/toast'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /** The only desktop build offered is for macOS. iPadOS reports itself as a Mac, but with touch. */

@@ -9,10 +9,10 @@ import {
   cliFlagValues,
   getToolDisplayTitle,
 } from '@/lib/mothership/tools/display'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { skillsKeys } from '@/hooks/queries/skills'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'

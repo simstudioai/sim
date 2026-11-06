@@ -23,16 +23,18 @@ import {
 } from '@/platform/design-system/components/icon/provider-marks'
 import type {
   AttentionItem,
-  CalendarMeeting,
   EmailItem,
-  HomeAccountView,
-  HomeCalendarDay,
-  HomeConnectOption,
   HomeRecentItem,
-  HomeWidgetState,
   HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
 import { placeMeeting } from '@/platform/shared/calendar-meeting'
+import type {
+  CalendarMeeting,
+  HomeAccountView,
+  HomeCalendarDay,
+  HomeConnectOption,
+  HomeWidgetState,
+} from '@/platform/shared/home'
 import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {

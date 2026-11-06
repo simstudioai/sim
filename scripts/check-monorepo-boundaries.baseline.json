@@ -7,9 +7,6 @@
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-providers.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-drains/data-drains-section.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-create.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-detail.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-retention/data-retention-section.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets.tsx": 1,
@@ -21,18 +18,12 @@
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/mothership/mothership-section.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/security/security-section.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/domains-panel.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/group-mappings.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/provider-form.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/require-sso.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/scim-panel.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/sso-section.tsx": 2
+    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/sso/scim-panel.tsx": 1
   },
   "platformToRoutes": {
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/page-composer.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/page-conversation.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/share-dialog.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/use-page-conversation-effects.ts": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/integrations-section.tsx": 1,
@@ -42,9 +33,7 @@
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1
   },
   "platformLibToWorkspace": {
-    "apps/sim/platform/embedded/lib/data/chat-list.ts": 1,
-    "apps/sim/platform/embedded/lib/data/organization-search.ts": 1,
-    "apps/sim/platform/embedded/lib/data/settings-navigation.ts": 1
+    "apps/sim/platform/embedded/lib/data/organization-search.ts": 1
   },
   "viewsToWorkspace": {
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/dialogs.tsx": 1,

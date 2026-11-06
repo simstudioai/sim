@@ -5,9 +5,9 @@ import {
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
 import type { EnvironmentVariable } from '@/lib/environment/api'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { environmentKeys } from '@/hooks/queries/environment'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { tools } from '@/tools/registry'
 import type { ExecutableToolConfig, InternalToolConfig } from '@/tools/types'
 

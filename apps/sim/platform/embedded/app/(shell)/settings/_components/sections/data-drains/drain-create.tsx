@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import { type CADENCE_TYPES, DESTINATION_TYPES, type SOURCE_TYPES } from '@/lib/data-drains/types'
@@ -10,7 +9,6 @@ import {
   type DestinationField,
   type DestinationState,
 } from '@/ee/data-drains/destinations/specs'
-import { useCreateDataDrain } from '@/ee/data-drains/hooks/data-drains'
 import { CADENCE_OPTIONS, DESTINATION_OPTIONS, SOURCE_OPTIONS } from '@/ee/data-drains/labels'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
@@ -31,6 +29,7 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useDrainCreate } from '@/platform/embedded/lib/data/drains'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
 const DEFAULT_CADENCE = 'daily' satisfies (typeof CADENCE_TYPES)[number]
@@ -99,7 +98,7 @@ interface DrainCreateProps {
 }
 
 export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreateProps) {
-  const createDrain = useCreateDataDrain()
+  const createDrain = useDrainCreate(organizationId, onCreated)
   const [name, setName] = useState('')
   const [source, setSource] = useState<(typeof SOURCE_TYPES)[number]>(DEFAULT_SOURCE)
   const [cadence, setCadence] = useState<(typeof CADENCE_TYPES)[number]>(DEFAULT_CADENCE)
@@ -118,7 +117,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
     destinationType !== DEFAULT_DESTINATION
   const guard = useSettingsUnsavedGuard({
     isDirty,
-    navigationBlocked: createDrain.isPending,
+    navigationBlocked: createDrain.pending,
     onDiscard: () => {
       setName('')
       setSource(DEFAULT_SOURCE)
@@ -129,20 +128,14 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
   })
 
   async function submit() {
-    if (!canSubmit || createDrain.isPending) return
+    if (!canSubmit || createDrain.pending) return
     const body = {
       name: name.trim(),
       source,
       scheduleCadence: cadence,
       ...spec.toDestinationBranch(destState),
     } as CreateDataDrainBody
-    try {
-      const drain = await createDrain.mutateAsync({ organizationId, body })
-      toast.success('Drain created')
-      onCreated(drain.id)
-    } catch (error) {
-      toast.error("Couldn't create drain", { description: toError(error).message })
-    }
+    await createDrain.create(body)
   }
 
   return (
@@ -153,7 +146,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
         title='New drain'
         description='Export logs, chats, and runs to your own storage or observability stack on a schedule.'
       />
-      <FormFieldset disabled={createDrain.isPending}>
+      <FormFieldset disabled={createDrain.pending}>
         <SettingsSection title='Drain'>
           <FieldStack>
             <TextField
@@ -183,7 +176,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
               options={DESTINATION_OPTIONS}
               value={destinationType}
               onValueChange={(value) => {
-                if (createDrain.isPending) return
+                if (createDrain.pending) return
                 const next = value as typeof destinationType
                 setDestinationType(next)
                 setDestState(DESTINATION_SPECS[next].initialState)
@@ -195,7 +188,7 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
                 field={field}
                 state={destState}
                 onChange={(next) => {
-                  if (!createDrain.isPending) setDestState(next)
+                  if (!createDrain.pending) setDestState(next)
                 }}
               />
             ))}
@@ -207,10 +200,10 @@ export function DrainCreate({ organizationId, onBack, onCreated }: DrainCreatePr
         <ActionRow>
           <Button
             variant='primary'
-            disabled={!canSubmit || createDrain.isPending}
+            disabled={!canSubmit || createDrain.pending}
             onClick={() => void submit()}
           >
-            {createDrain.isPending ? 'Creating…' : 'Create'}
+            {createDrain.pending ? 'Creating…' : 'Create'}
           </Button>
           {!canSubmit && <Muted>Name the drain and complete its destination</Muted>}
         </ActionRow>

@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
-import { useRemovedRowFocus } from '@/platform/embedded/app/(shell)/_components/use-removed-row-focus'
+import { useRemovedRowFocus } from '@/platform/shared/use-removed-row-focus'
 
 const previousFocus = new WeakMap<HTMLDialogElement, HTMLElement | null>()
 
@@ -113,7 +113,6 @@ describe('useRemovedRowFocus', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   async function render(

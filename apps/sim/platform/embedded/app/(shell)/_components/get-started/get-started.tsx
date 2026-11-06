@@ -3,7 +3,7 @@ import { RowList } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
-import type { HomeGetStartedStep } from '@/platform/embedded/lib/data/home-view'
+import type { HomeGetStartedStep } from '@/platform/shared/home'
 
 const STEP_ICONS: Readonly<Record<string, IconName>> = {
   'connect-integration': 'I070',

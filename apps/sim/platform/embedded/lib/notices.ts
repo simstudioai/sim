@@ -1,5 +1,5 @@
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/platform/shared/toast'
 
 interface Notice {
   id: string

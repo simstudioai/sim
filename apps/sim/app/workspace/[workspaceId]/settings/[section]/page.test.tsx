@@ -22,7 +22,7 @@ vi.mock('@/lib/settings/application/workspace-section-access', () => ({
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetHostContext,
 }))
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({

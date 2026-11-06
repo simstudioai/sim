@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 

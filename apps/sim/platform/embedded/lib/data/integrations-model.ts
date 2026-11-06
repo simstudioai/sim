@@ -5,18 +5,19 @@ import {
   type MemberIntegration,
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import {
   memberSecretMetadata,
   providerMetadata,
 } from '@/platform/embedded/lib/integrations/metadata.generated'
+import { integrationGuide } from '@/platform/shared/integration-guide'
 import {
   type GenericSecrets,
   integrationSegment,
   type OrganizationIntegration,
   type ToolPermissionsModel,
-} from '@/platform/embedded/lib/integrations/model'
-import { integrationGuide } from '@/platform/shared/integration-guide'
+} from '@/platform/shared/integrations'
 import { plural } from '@/platform/shared/plural'
 
 function availabilityOf(entry: MemberIntegration): OrganizationIntegration['availability'] {
@@ -95,4 +96,8 @@ export function toToolPermissions(data: AssistantToolPermissionsResponse): ToolP
       inherited: tool.inherited,
     })),
   }
+}
+
+export function integrationPath(organizationId: string, segment: string) {
+  return `${organizationRoutes(organizationId).integrations}/${encodeURIComponent(segment)}`
 }

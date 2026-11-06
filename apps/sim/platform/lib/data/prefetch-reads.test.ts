@@ -24,7 +24,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/platform/lib/data/server-request', () => ({ prefetchRequestJson }))
 
 import { prefetchHome } from '@/platform/lib/data/prefetch-home'
-import { prefetchIntegrations } from '@/platform/lib/data/prefetch-member-inventory'
+import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
 import { prefetchSimLinks } from '@/platform/lib/data/prefetch-sim-links'
 

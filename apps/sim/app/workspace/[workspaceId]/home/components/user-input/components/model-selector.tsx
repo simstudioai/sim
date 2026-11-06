@@ -8,6 +8,7 @@ import {
   DropdownMenuRadioGroup,
 } from '@sim/emcn'
 import { Brain, Check, Sparkles } from '@sim/emcn/icons'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
@@ -18,7 +19,6 @@ import {
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { ModelSettingTrigger } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-setting-trigger'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,

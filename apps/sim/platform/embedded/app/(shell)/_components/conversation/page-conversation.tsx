@@ -7,7 +7,7 @@ import type { OrganizationSummaryRequest } from '@/lib/organizations/search-para
 import {
   useConversationGate,
   useOrganizationConversation,
-} from '@/app/o/[organizationId]/components/use-organization-conversation'
+} from '@/app/_organization-conversation/use-organization-conversation'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import {
   type ChatChrome,

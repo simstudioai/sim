@@ -8,7 +8,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 const NAME_MAX_LENGTH = 100
 const MAX_PICTURE_BYTES = 5 * 1024 * 1024

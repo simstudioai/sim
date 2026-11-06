@@ -9,7 +9,8 @@ import { FailureNotice, Spinner } from '@/platform/design-system/components/stat
 import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type { HomeListState, HomeWorkspaceItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeWorkspaceItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */

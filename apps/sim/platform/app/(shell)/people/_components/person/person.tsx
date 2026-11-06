@@ -10,15 +10,13 @@ import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person
 import { Avatar, Button, FailureNotice, Icon } from '@/platform/design-system/components'
 import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { publicAssetPath } from '@/platform/design-system/navigation'
+import { usePeoplePath, usePeopleViewer, usePersonProfile } from '@/platform/lib/data/people'
 import {
   type Person,
   type PersonSummary,
   personHref,
   SYNC_SOURCE_NAMES,
-  usePeoplePath,
-  usePeopleViewer,
-  usePersonProfile,
-} from '@/platform/lib/data/people'
+} from '@/platform/shared/people'
 import { isRefusal } from '@/platform/shared/query-view'
 import { formatCalendarDate } from '@/platform/shared/time'
 

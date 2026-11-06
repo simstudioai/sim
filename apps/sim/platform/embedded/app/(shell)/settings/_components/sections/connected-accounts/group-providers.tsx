@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -44,6 +43,7 @@ import {
 import { DatabricksModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal'
 import { ProviderCatalogModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
+import { toast } from '@/platform/shared/toast'
 
 interface GroupProvidersProps {
   organizationId: string

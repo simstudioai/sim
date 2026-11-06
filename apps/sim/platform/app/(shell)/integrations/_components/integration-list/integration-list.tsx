@@ -5,7 +5,7 @@ import {
   type GenericSecrets,
   isConnectable,
   type OrganizationIntegration,
-} from '@/platform/lib/data/integrations-types'
+} from '@/platform/shared/integrations'
 
 const SECTIONS = [
   'Your accounts',

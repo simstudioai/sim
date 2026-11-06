@@ -3,9 +3,9 @@
 import { type ReactNode, useState } from 'react'
 import { Chip, DropdownMenuItem, toast, useCopyToClipboard } from '@sim/emcn'
 import { Check, Link, Plus } from '@sim/emcn/icons'
+import { SimLinkModal } from '@/components/sim-links/sim-link-modal'
 import { simLinkUrl } from '@/lib/navigation/paths'
 import { suggestSimLinkName } from '@/lib/sim-links/validation'
-import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 import { useSimLinkOrganizationId } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { useSimLinksForUrl } from '@/hooks/queries/sim-links'
 

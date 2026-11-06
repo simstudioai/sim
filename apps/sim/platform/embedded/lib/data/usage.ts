@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
@@ -38,8 +37,9 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
-import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/embedded/lib/data/usage/model'
 import { DAY_MS } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
+import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'
 
 const logger = createLogger('PlatformUsage')
 

@@ -2,7 +2,7 @@ import 'server-only'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { seedMemberInventory } from '@/platform/lib/data/prefetch-member-inventory'
+import { seedMemberInventory } from '@/platform/lib/data/prefetch-integrations'
 import { seedSearchHistory } from '@/platform/lib/data/prefetch-search'
 
 /**

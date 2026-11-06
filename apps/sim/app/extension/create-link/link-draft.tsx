@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SimLinkModal } from '@/components/sim-links/sim-link-modal'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { consumeLinkDraft } from '@/app/extension/create-link/destination'
-import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
 
 interface LinkDraftProps {
   organization: { id: string; name: string }

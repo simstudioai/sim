@@ -18,7 +18,8 @@ import {
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 import { ProviderMark } from '@/platform/embedded/app/(shell)/_components/provider-mark/provider-mark'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { EMPTY_COPY, type UsageList } from '@/platform/embedded/lib/data/usage'
+import type { UsageList } from '@/platform/embedded/lib/data/usage'
+import { EMPTY_COPY } from '@/platform/shared/usage'
 
 type BreakdownRow = OrganizationUsageBreakdown['rows'][number]
 

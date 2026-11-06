@@ -1,6 +1,6 @@
 'use client'
 
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'

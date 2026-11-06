@@ -9,7 +9,7 @@ import { Button, IconButton } from '@/platform/design-system/components/button/b
 import { useFeedbackExpiry } from '@/platform/design-system/components/feedback/use-feedback-expiry'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { connectToastSink } from '@/platform/lib/data/toast'
+import { connectToastSink } from '@/platform/shared/toast'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
 

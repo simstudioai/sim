@@ -6,7 +6,7 @@ import {
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
 import type { ShellWorkspaceActions } from '@/platform/app/(shell)/_components/model'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 /** The legacy sidebar's workspace mutations. `hrefFor` names where a workspace opens. */
 export function useWorkspaceActions(

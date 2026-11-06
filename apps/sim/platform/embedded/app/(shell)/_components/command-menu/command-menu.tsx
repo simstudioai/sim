@@ -2,11 +2,8 @@
 
 import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
-import type {
-  ShellChat,
-  ShellDestination,
-  ShellWorkspace,
-} from '@/platform/embedded/lib/data/shell-view'
+import type { ShellChat, ShellWorkspace } from '@/platform/embedded/lib/data/shell-view'
+import type { ShellDestination } from '@/platform/shared/shell'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
 interface CommandMenuProps {

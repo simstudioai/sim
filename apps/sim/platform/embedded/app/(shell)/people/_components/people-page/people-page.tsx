@@ -6,13 +6,13 @@ import { Button, LoadingRows } from '@/platform/design-system/components'
 import { PeopleDirectory } from '@/platform/embedded/app/(shell)/people/_components/directory/directory'
 import { PeopleFrame } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-frame'
 import styles from '@/platform/embedded/app/(shell)/people/_components/people-page/people-page.module.css'
+import { usePeopleViewer } from '@/platform/embedded/lib/data/people'
 import {
   type SyncSource,
   useChartRoots,
   useDirectorySyncStatus,
   usePeopleUrl,
-  usePeopleViewer,
-} from '@/platform/embedded/lib/data/people'
+} from '@/platform/shared/people'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 function LoadingBody() {

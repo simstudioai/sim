@@ -1,7 +1,7 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { getProjectFileContract } from '@/lib/api/contracts/project-files'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { projectListKeys, useProjectList } from '@/hooks/queries/project-list'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 

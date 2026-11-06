@@ -26,12 +26,12 @@ import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { SiteMark } from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark'
-import { useRemovedRowFocus } from '@/platform/embedded/app/(shell)/_components/use-removed-row-focus'
 import { LinkEditor } from '@/platform/embedded/app/(shell)/links/_components/links-page/link-editor'
 import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
 import { openLink, useLinksPage } from '@/platform/embedded/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
+import { useRemovedRowFocus } from '@/platform/shared/use-removed-row-focus'
 
 const LINK_SKELETON_ROWS = 6
 

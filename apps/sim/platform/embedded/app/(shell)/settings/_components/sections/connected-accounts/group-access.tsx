@@ -1,7 +1,6 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
@@ -30,6 +29,7 @@ import {
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { WorkspaceGrantModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/workspace-grant-modal'
+import { toast } from '@/platform/shared/toast'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =

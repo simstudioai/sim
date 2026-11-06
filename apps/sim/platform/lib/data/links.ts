@@ -37,7 +37,7 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SimLinks')
 const COPY_NOTICE_ID = 'sim-link-copy'

@@ -3,12 +3,7 @@
 import { Activity, type ReactNode, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
-import type {
-  ShellActions,
-  ShellChat,
-  ShellData,
-  ShellDestination,
-} from '@/platform/app/(shell)/_components/model'
+import type { ShellActions, ShellChat, ShellData } from '@/platform/app/(shell)/_components/model'
 import { OrganizationMenu } from '@/platform/app/(shell)/_components/organization-menu/organization-menu'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { SettingsNavigation } from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation'
@@ -28,6 +23,7 @@ import {
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { platformHref } from '@/platform/design-system/navigation'
+import type { ShellDestination } from '@/platform/shared/shell'
 
 interface SidebarProps {
   data: ShellData | null

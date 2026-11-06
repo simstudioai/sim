@@ -5,9 +5,9 @@ import type { AppToExtensionMessage } from '@sim/browser-extension-protocol'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { ChatInputFocusContext, type ChatInputFocusHandle } from '@/hooks/use-chat-input-focus'
 
 interface ExtensionIdentity {

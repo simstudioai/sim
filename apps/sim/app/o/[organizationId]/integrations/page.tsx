@@ -15,11 +15,8 @@ import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
 import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
 import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
-import {
-  GENERIC_SECRETS_SEGMENT,
-  integrationPath,
-  integrationSegment,
-} from '@/platform/embedded/lib/integrations/model'
+import { integrationPath } from '@/platform/embedded/lib/data/integrations-model'
+import { GENERIC_SECRETS_SEGMENT, integrationSegment } from '@/platform/shared/integrations'
 
 export const metadata: Metadata = {
   title: 'Integrations',

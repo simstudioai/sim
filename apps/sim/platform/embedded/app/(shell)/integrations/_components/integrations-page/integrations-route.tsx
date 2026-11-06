@@ -29,10 +29,8 @@ import {
   useIntegrationActions,
   useMemberIntegrations,
 } from '@/platform/embedded/lib/data/integrations'
-import {
-  GENERIC_SECRETS_SEGMENT,
-  integrationPath,
-} from '@/platform/embedded/lib/integrations/model'
+import { integrationPath } from '@/platform/embedded/lib/data/integrations-model'
+import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'

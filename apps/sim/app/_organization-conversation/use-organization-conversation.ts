@@ -9,6 +9,7 @@ import { createSerializer, useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -30,7 +31,7 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
+import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import {
   getMothershipUseChatOptions,
@@ -51,7 +52,6 @@ import type {
   FileAttachmentForApi,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   type AttachedFile,
   useFileAttachments,

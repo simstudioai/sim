@@ -10,9 +10,9 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings'
 import {
   useAppearanceSettings,
-  useProfileSettings,
   useSnapToGridSetting,
 } from '@/platform/embedded/lib/data/preferences'
+import { useProfileSettings } from '@/platform/shared/preferences'
 
 const THEMES = [
   { value: 'system', label: 'System' },

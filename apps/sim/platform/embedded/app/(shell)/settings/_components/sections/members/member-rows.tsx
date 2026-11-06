@@ -20,11 +20,8 @@ import type {
   WorkspaceInvitationRowModel,
   WorkspaceMemberRowModel,
   WorkspacePermission,
-} from '@/platform/embedded/lib/data/members-model'
-import {
-  ORGANIZATION_ROLE_LABELS,
-  ORGANIZATION_ROLE_OPTIONS,
-} from '@/platform/embedded/lib/data/members-model'
+} from '@/platform/shared/members'
+import { ORGANIZATION_ROLE_LABELS, ORGANIZATION_ROLE_OPTIONS } from '@/platform/shared/members'
 
 const WORKSPACE_ROLES = [
   { value: 'read', label: 'Read' },

@@ -8,7 +8,7 @@ import {
   type GenericSecrets,
   isConnectable,
   type OrganizationIntegration,
-} from '@/platform/embedded/lib/integrations/model'
+} from '@/platform/shared/integrations'
 
 const SECTIONS = [
   'Your accounts',

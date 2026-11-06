@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -62,6 +61,7 @@ import {
 import { PolicyModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/policy-modal'
 import { SlackAccountSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 import { SourceSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host'
+import { toast } from '@/platform/shared/toast'
 
 export default function IntegrationsSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer, searchAccess } = context

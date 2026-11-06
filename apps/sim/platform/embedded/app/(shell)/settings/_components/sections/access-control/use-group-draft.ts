@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { PermissionGroup } from '@/ee/access-control/hooks/permission-groups'
 import { hasPermissionConfigChanges } from '@/ee/access-control/lib/editor'
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import { useUpdatePermissionGroup } from '@/platform/embedded/lib/data/access-control'
+import { toast } from '@/platform/shared/toast'
 
 /** Every edit on the page, so one Save commits them together in one atomic request. */
 interface GroupDraft {

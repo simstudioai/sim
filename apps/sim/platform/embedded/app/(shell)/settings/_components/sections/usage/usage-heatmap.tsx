@@ -3,11 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { FailureNotice, ScrollArea, Tooltip } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import {
-  layoutUsageCalendar,
-  type UsageCalendarDay,
-  useUsageCalendar,
-} from '@/platform/embedded/lib/data/usage'
+import { useUsageCalendar } from '@/platform/embedded/lib/data/usage'
+import { layoutUsageCalendar, type UsageCalendarDay } from '@/platform/shared/usage'
 
 const LEVELS = [0, 1, 2, 3, 4] as const
 const WEEKDAYS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'] as const

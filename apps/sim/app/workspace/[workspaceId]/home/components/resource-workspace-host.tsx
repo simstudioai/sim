@@ -6,10 +6,8 @@ import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/b
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
-import {
-  useOptionalWorkspaceHostContext,
-  WorkspaceHostProvider,
-} from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
+import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkflowScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'

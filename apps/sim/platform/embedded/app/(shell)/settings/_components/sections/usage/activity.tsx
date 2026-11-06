@@ -19,13 +19,11 @@ import {
 import { HeadingRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
-  ACTIVITY_DIMENSIONS,
-  ACTIVITY_SORTS,
-  formatDurationMs,
   useActivityBreakdown,
   useActivitySummary,
   useUsageView,
 } from '@/platform/embedded/lib/data/usage'
+import { ACTIVITY_DIMENSIONS, ACTIVITY_SORTS, formatDurationMs } from '@/platform/shared/usage'
 
 interface ActivityOverviewProps {
   organizationId: string

@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Modal, RecipientField, SelectField } from '@/platform/design-system/components'
-import { ORGANIZATION_ROLE_OPTIONS, useInviteMembers } from '@/platform/lib/data/members'
+import { useInviteMembers } from '@/platform/lib/data/members'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { ORGANIZATION_ROLE_OPTIONS } from '@/platform/shared/members'
 
 interface InviteModalProps {
   open: boolean

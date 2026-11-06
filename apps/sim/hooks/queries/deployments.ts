@@ -31,7 +31,6 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('DeploymentQueries')
 
 export type { ChatDetail, DeploymentVersionsResponse }
-export { deploymentKeys, invalidateDeploymentQueries }
 
 export const DEPLOYMENT_INFO_STALE_TIME = 30 * 1000
 export const DEPLOYMENT_STATUS_REFETCH_INTERVAL = 5 * 1000

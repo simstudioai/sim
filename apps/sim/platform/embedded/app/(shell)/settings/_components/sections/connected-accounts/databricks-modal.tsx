@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import {
@@ -17,6 +16,7 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 interface DatabricksModalProps {
   organizationId: string

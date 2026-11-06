@@ -6,13 +6,13 @@ import { PeopleDirectory } from '@/platform/app/(shell)/people/_components/direc
 import { PeopleFrame } from '@/platform/app/(shell)/people/_components/people-page/people-frame'
 import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
 import { Button } from '@/platform/design-system/components'
+import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   type SyncSource,
   useChartRoots,
   useDirectorySyncStatus,
   usePeopleUrl,
-  usePeopleViewer,
-} from '@/platform/lib/data/people'
+} from '@/platform/shared/people'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const OrgChart = dynamic(() =>

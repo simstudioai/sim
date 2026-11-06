@@ -3,11 +3,11 @@
 import { type ReactNode, useRef } from 'react'
 import { ChipModal, ChipModalHeader } from '@sim/emcn'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
-import { PanelComposer } from '@/app/extension/o/[organizationId]/panel-composer'
 import {
   useConversationGate,
   useOrganizationConversation,
-} from '@/app/o/[organizationId]/components/use-organization-conversation'
+} from '@/app/_organization-conversation/use-organization-conversation'
+import { PanelComposer } from '@/app/extension/o/[organizationId]/panel-composer'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'

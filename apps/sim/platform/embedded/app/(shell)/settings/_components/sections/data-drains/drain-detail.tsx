@@ -1,17 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
-import { toError } from '@sim/utils/errors'
 import type { DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'
-import {
-  useDataDrainRuns,
-  useDeleteDataDrain,
-  useRunDataDrainNow,
-  useTestDataDrain,
-  useUpdateDataDrain,
-} from '@/ee/data-drains/hooks/data-drains'
 import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import { formatConfigValue, humanizeConfigKey } from '@/ee/data-drains/lib/config-display'
 import {
@@ -33,9 +24,8 @@ import {
   FieldStack,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useDrainDetail } from '@/platform/embedded/lib/data/drains'
 import { formatTimestamp } from '@/platform/shared/time'
-
-const RECENT_RUN_LIMIT = 10
 
 const RUN_STATUS_INTENT = { success: 'success', failed: 'danger', running: 'info' } as const
 
@@ -61,23 +51,8 @@ interface DrainDetailProps {
  * changing one means recreating the drain.
  */
 export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps) {
-  const updateDrain = useUpdateDataDrain()
-  const deleteDrain = useDeleteDataDrain()
-  const runDrain = useRunDataDrainNow()
-  const testDrain = useTestDataDrain()
-  const runs = useDataDrainRuns(organizationId, drain.id, RECENT_RUN_LIMIT)
-  // The runs query keeps previous data, which would read as another drain's history.
-  const runsLoading = runs.isPending || runs.isPlaceholderData
+  const detail = useDrainDetail(organizationId, drain)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-
-  async function report(work: Promise<unknown>, success: string) {
-    try {
-      await work
-      toast.success(success)
-    } catch (error) {
-      toast.error(toError(error).message)
-    }
-  }
 
   return (
     <SectionStack>
@@ -95,17 +70,8 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           <Switch
             label='Enabled'
             checked={drain.enabled}
-            disabled={updateDrain.isPending}
-            onCheckedChange={() =>
-              void report(
-                updateDrain.mutateAsync({
-                  organizationId,
-                  drainId: drain.id,
-                  body: { enabled: !drain.enabled },
-                }),
-                drain.enabled ? 'Drain disabled' : 'Drain enabled'
-              )
-            }
+            disabled={detail.updatePending}
+            onCheckedChange={detail.toggleEnabled}
           />
         </SettingsRow>
       </SettingsSection>
@@ -164,15 +130,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           />
         </FieldStack>
         <SettingsRow label='Connection'>
-          <Button
-            disabled={testDrain.isPending}
-            onClick={() =>
-              void report(
-                testDrain.mutateAsync({ organizationId, drainId: drain.id }),
-                'Connection test passed'
-              )
-            }
-          >
+          <Button disabled={detail.testPending} onClick={detail.testConnection}>
             Test connection
           </Button>
         </SettingsRow>
@@ -182,17 +140,12 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
           label='Manual export'
           description={drain.enabled ? undefined : 'Enable the drain to run it.'}
         >
-          <Button
-            disabled={!drain.enabled || runDrain.isPending}
-            onClick={() =>
-              void report(runDrain.mutateAsync({ organizationId, drainId: drain.id }), 'Run queued')
-            }
-          >
+          <Button disabled={!drain.enabled || detail.runPending} onClick={detail.runNow}>
             Run now
           </Button>
         </SettingsRow>
         <QueryBoundary
-          query={{ ...runs, data: runsLoading ? undefined : runs.data }}
+          query={detail.runs}
           failure={errorMessageOr('Could not load runs')}
           loadingLabel='Loading runs…'
           empty={(data) => data.length === 0 && <EmptyState title='No runs yet' />}
@@ -204,7 +157,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         <SettingsRow label='Delete drain'>
           <Button
             variant='destructive'
-            disabled={deleteDrain.isPending}
+            disabled={detail.deletePending}
             onClick={() => setConfirmingDelete(true)}
           >
             Delete
@@ -219,8 +172,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
         confirmLabel='Delete'
         pendingLabel='Deleting…'
         onConfirm={async () => {
-          await deleteDrain.mutateAsync({ organizationId, drainId: drain.id })
-          toast.success('Drain deleted')
+          await detail.remove()
           onBack()
         }}
       />

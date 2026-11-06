@@ -10,7 +10,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { warning } = vi.hoisted(() => ({ warning: vi.fn() }))
-vi.mock('@/platform/lib/data/toast', () => ({ toast: { warning } }))
+vi.mock('@/platform/shared/toast', () => ({ toast: { warning } }))
 
 import { PasteGuard } from '@/platform/lib/data/paste-guard'
 

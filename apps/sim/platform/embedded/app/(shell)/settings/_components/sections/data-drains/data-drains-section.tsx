@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useDataDrains } from '@/ee/data-drains/hooks/data-drains'
 import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import {
@@ -21,17 +20,16 @@ import {
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { DrainCreate } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-drains/drain-detail'
-import { useDataDrainParam } from '@/platform/shared/data-drains/params'
+import { useDrainSelection } from '@/platform/embedded/lib/data/drains'
 import { formatTimestamp } from '@/platform/shared/time'
 
 export default function DataDrainsSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  const { data: drains, isPending, error, isFetching, refetch } = useDataDrains(organizationId)
+  const { read, drains, isPending, selectedId, setSelectedId, selected } =
+    useDrainSelection(organizationId)
   const [search, setSearch] = useSettingsSearch()
-  const [selectedId, setSelectedId] = useDataDrainParam()
   /** The create flow has no entity id and is not deep-linkable, so it stays local. */
   const [creating, setCreating] = useState(false)
-  const selected = selectedId ? drains?.find((drain) => drain.id === selectedId) : undefined
 
   /** A valid deep link never flashes the list before jumping to it; a dead id falls back to it. */
   if (selectedId !== null && isPending) return null
@@ -88,7 +86,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
       </SectionToolbar>
       <SettingsSection title='Data drains'>
         <QueryBoundary
-          query={{ data: drains, error, isFetching, refetch }}
+          query={read}
           failure={errorMessageOr("Couldn't load data drains")}
           loadingLabel='Loading data drains…'
           empty={(all) => all.length === 0 && <EmptyState title='No data drains yet' />}

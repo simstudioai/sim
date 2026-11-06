@@ -34,7 +34,7 @@ import {
   useCreateDataDrain,
 } from '@/platform/lib/data/data-drains'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
 const DEFAULT_CADENCE = 'daily' satisfies (typeof CADENCE_TYPES)[number]

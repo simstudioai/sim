@@ -12,11 +12,8 @@ import {
 } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory/directory.module.css'
 import { PersonIdentity } from '@/platform/embedded/app/(shell)/people/_components/person-identity/person-identity'
-import {
-  personHref,
-  useDepartmentOptions,
-  usePeopleDirectory,
-} from '@/platform/embedded/lib/data/people'
+import { personHref } from '@/platform/embedded/lib/data/people'
+import { useDepartmentOptions, usePeopleDirectory } from '@/platform/shared/people'
 
 const COLUMNS = [
   { key: 'person', label: 'Person', kind: 'text', primary: true },

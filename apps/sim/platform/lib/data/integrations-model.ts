@@ -7,16 +7,16 @@ import {
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import {
-  type GenericSecrets,
-  integrationSegment,
-  type OrganizationIntegration,
-  type ToolPermissionsModel,
-} from '@/platform/lib/data/integrations-types'
-import {
   memberSecretMetadata,
   providerMetadata,
 } from '@/platform/lib/integrations/metadata.generated'
 import { integrationGuide } from '@/platform/shared/integration-guide'
+import {
+  type GenericSecrets,
+  integrationSegment,
+  type OrganizationIntegration,
+  type ToolPermissionsModel,
+} from '@/platform/shared/integrations'
 
 function availabilityOf(entry: MemberIntegration): OrganizationIntegration['availability'] {
   if (entry.managed) return 'managed'

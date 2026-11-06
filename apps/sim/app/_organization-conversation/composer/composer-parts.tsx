@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer/use-composer'
+import type { ConversationComposerProps } from '@/app/_organization-conversation/composer/use-composer'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 

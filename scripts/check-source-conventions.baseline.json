@@ -143,7 +143,6 @@
     "apps/sim/executor/variables/resolvers/parallel.test.ts": 2,
     "apps/sim/executor/variables/resolvers/reference.test.ts": 1,
     "apps/sim/executor/variables/resolvers/workflow.test.ts": 2,
-    "apps/sim/hooks/queries/chats.ts": 1,
     "apps/sim/instrumentation-node.ts": 7,
     "apps/sim/instrumentation.ts": 3,
     "apps/sim/lib/api/contracts/mothership-management-tools.ts": 2,

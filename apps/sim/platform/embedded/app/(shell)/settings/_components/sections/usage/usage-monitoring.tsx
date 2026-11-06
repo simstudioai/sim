@@ -29,14 +29,11 @@ import { UsageCalendar } from '@/platform/embedded/app/(shell)/settings/_compone
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
   exportUsageCsv,
-  OVERVIEW_TAB,
-  SECTION_LABELS,
-  topRows,
-  USAGE_TABS,
   useUsageBreakdown,
   useUsageOverview,
   useUsageView,
 } from '@/platform/embedded/lib/data/usage'
+import { OVERVIEW_TAB, SECTION_LABELS, topRows, USAGE_TABS } from '@/platform/shared/usage'
 
 export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'organization'>) {
   const organizationId = organization.organization.id

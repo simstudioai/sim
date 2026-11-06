@@ -17,7 +17,6 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-modal/invite-modal'
 import { SectionToolbar } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { useRemovedRowFocus } from '@/platform/embedded/app/(shell)/_components/use-removed-row-focus'
 import { ManageCreditsModal } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import {
   InvitationRow,
@@ -33,7 +32,8 @@ import {
 import { SeatsOverview } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/seats-overview'
 import { TransferOwnershipModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/transfer-ownership-modal'
 import { useMembers } from '@/platform/embedded/lib/data/members'
-import { filterRoster, type MemberRowModel } from '@/platform/embedded/lib/data/members-model'
+import { filterRoster, type MemberRowModel } from '@/platform/shared/members'
+import { useRemovedRowFocus } from '@/platform/shared/use-removed-row-focus'
 
 interface MembersPanelProps {
   organization: OrganizationSurfaceContext

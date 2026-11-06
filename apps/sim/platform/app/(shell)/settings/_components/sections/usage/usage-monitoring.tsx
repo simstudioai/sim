@@ -28,15 +28,12 @@ import {
 } from '@/platform/design-system/components'
 import {
   exportUsageCsv,
-  OVERVIEW_TAB,
-  SECTION_LABELS,
-  topRows,
-  USAGE_TABS,
   type UsageBreakdownDimension,
   useUsageBreakdown,
   useUsageOverview,
   useUsageView,
 } from '@/platform/lib/data/usage'
+import { OVERVIEW_TAB, SECTION_LABELS, topRows, USAGE_TABS } from '@/platform/shared/usage'
 
 export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'organization'>) {
   const organizationId = organization.organization.id

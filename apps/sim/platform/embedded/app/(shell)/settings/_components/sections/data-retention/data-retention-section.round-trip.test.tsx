@@ -7,7 +7,7 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
-import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,6 +66,7 @@ vi.mock(
 
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import DataRetentionSection from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/data-retention-section'
+import { toast } from '@/platform/shared/toast'
 
 const days = (count: number) => count * 24
 
@@ -146,6 +147,7 @@ describe('DataRetentionSection across saves', () => {
           return { success: true, data: server.document }
         }
       )
+    vi.spyOn(toast, 'error').mockClear()
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     container = window.document.createElement('div')
     window.document.body.appendChild(container)
@@ -186,7 +188,7 @@ describe('DataRetentionSection across saves', () => {
     await saveLogs(14)
 
     expect(server.writes).toHaveLength(1)
-    expect(emcnMockFns.mockToast.error).toHaveBeenCalledWith(
+    expect(toast.error).toHaveBeenCalledWith(
       'This policy changed while you were editing. Nothing was saved.'
     )
     expect(container.textContent).toContain('changed while you were editing')
@@ -208,7 +210,7 @@ describe('DataRetentionSection across saves', () => {
     await saveLogs(14)
 
     expect(server.writes.map((write) => write.logRetentionHours)).toEqual([days(7), days(14)])
-    expect(emcnMockFns.mockToast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   describe('the read before a write fails', () => {
@@ -227,7 +229,7 @@ describe('DataRetentionSection across saves', () => {
       await failNextReads(() => click('Save'))
 
       expect(server.writes).toEqual([])
-      expect(emcnMockFns.mockToast.error).toHaveBeenCalledWith(
+      expect(toast.error).toHaveBeenCalledWith(
         'Could not confirm the latest retention settings. Nothing was saved.'
       )
     })

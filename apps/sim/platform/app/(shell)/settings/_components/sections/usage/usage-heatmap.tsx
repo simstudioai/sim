@@ -3,11 +3,8 @@
 import { useMemo, useState } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import { FailureNotice, ScrollArea } from '@/platform/design-system/components'
-import {
-  layoutUsageCalendar,
-  type UsageCalendarDay,
-  useUsageCalendar,
-} from '@/platform/lib/data/usage'
+import { useUsageCalendar } from '@/platform/lib/data/usage'
+import { layoutUsageCalendar, type UsageCalendarDay } from '@/platform/shared/usage'
 
 const CELL = 12
 const SIZE = 10

@@ -1,13 +1,9 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import {
-  isOrganizationSettingsSectionAvailable,
-  resolveOrganizationSectionAccess,
-} from '@/components/settings/navigation'
+import { resolveOrganizationSectionAccess } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
 import {
@@ -17,6 +13,7 @@ import {
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
@@ -57,23 +54,26 @@ import {
   type ActivityWindowDays,
   type AttentionItem,
   type EmailItem,
-  type HomeAccountView,
   type HomeActions,
-  type HomeActivityState,
-  type HomeCalendarDay,
-  type HomeListState,
   type HomeRecentItem,
   type HomeView,
-  type HomeWidgetActions,
-  type HomeWidgetState,
   type HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/embedded/lib/data/integrations'
 import { workspaceHref } from '@/platform/embedded/lib/data/workspaces'
 import { wallClockMinute } from '@/platform/shared/calendar-meeting'
+import type {
+  HomeAccountView,
+  HomeActivityState,
+  HomeCalendarDay,
+  HomeListState,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/shared/home'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { currentMinute, MINUTE_MS } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,
@@ -238,7 +238,7 @@ function useHomeActivity(
       isTargetOrganizationMember: true,
       isTargetOrganizationAdmin: organization.viewer.isAdmin,
     }) !== 'unavailable' &&
-    isOrganizationSettingsSectionAvailable('usage', organization.settingsFeatures)
+    organizationPlanAllowsSettingsSection('usage', organization.settingsFeatures)
   const summary = useOrganizationActivitySummary(
     organization.organization.id,
     {

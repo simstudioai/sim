@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
@@ -9,6 +8,7 @@ import { useOrganization } from '@/lib/organizations/provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 export const ORGANIZATION_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },

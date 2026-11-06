@@ -1,5 +1,5 @@
 import { compareStrings } from '@sim/utils/string'
-import type { CalendarMeeting } from '@/platform/embedded/lib/data/home-view'
+import type { CalendarMeeting } from '@/platform/shared/home'
 
 const MINUTES_PER_DAY = 24 * 60
 /** A card shorter than this slot cannot hold one line of text. */

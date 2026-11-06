@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -42,6 +41,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ClientSecretField } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
+import { toast } from '@/platform/shared/toast'
 
 const PROVIDER_TYPE_OPTIONS: { value: SsoProviderForm['providerType']; label: string }[] = [
   { label: 'OIDC', value: 'oidc' },

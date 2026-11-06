@@ -84,7 +84,8 @@ export function isConnectable(integration: OrganizationIntegration) {
   return integration.availability === 'ready' && Boolean(integration.connectionTarget)
 }
 
+/** A blocked integration's reason wins: reconnecting an account cannot unblock it. */
 export function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
-  if (account.status === 'needs_reauth') return 'Reconnect needed'
-  return integration.availability === 'blocked' ? integration.status : 'Connected'
+  if (integration.availability === 'blocked') return integration.status
+  return account.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'
 }

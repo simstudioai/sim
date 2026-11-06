@@ -30,7 +30,7 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { platformHref } from '@/platform/design-system/navigation'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 interface GroupProvidersProps {
   databricks?: DatabricksConfiguration

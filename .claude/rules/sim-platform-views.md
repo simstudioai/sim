@@ -2,6 +2,8 @@
 description: One pattern per job across the organization views (Settings, People, Integrations, Links, Home)
 paths:
   - "apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**"
+  - "apps/sim/platform/embedded/lib/**"
+  - "apps/sim/platform/shared/**"
   - "apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
   - "apps/sim/app/o/*/**"
   - "apps/sim/app/o/*/settings/**"
@@ -58,6 +60,10 @@ user activation is spent, `cancel` cannot be prevented, so `OverlayDialog` reope
 - Merge logic worth a test is a pure module next to the view, such as `secrets-draft.ts`.
 - `(shell)/_components/section-parts/` holds what settings and the secrets page share: `SectionStack`, `FieldStack`, `SectionToolbar`,
   `DetailHeader`, `HeadingRow`, `Muted`, `SectionSkeleton`, `DraftConflictNotice`. `useServerDraft` is in `_components/`, since Integrations uses it too.
+
+## Non-UI code lives once
+
+A view's data and logic belong in `apps/sim/platform/embedded/lib/data` when only these views use them, and in `apps/sim/platform/shared` when the zone has the same thing. A view reads hooks through that layer; a real adapter owns the mutation, its toasts and any mapping, and is never a re-export. Before adding a file to `embedded/`, look for its counterpart under `apps/sim/platform/lib` and follow "Converging a domain" in `apps/sim/platform/AGENTS.md`. `check:platform-convergence` fails a new file here or a new path both trees hold.
 
 ## Legacy workspace settings
 

@@ -11,11 +11,7 @@ import { FailureNotice, InlineNotice } from '@/platform/design-system/components
 import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type {
-  HomeAccountView,
-  HomeWidgetActions,
-  HomeWidgetState,
-} from '@/platform/embedded/lib/data/home-view'
+import type { HomeAccountView, HomeWidgetActions, HomeWidgetState } from '@/platform/shared/home'
 
 const DISCONNECT_NOTICE =
   'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.'

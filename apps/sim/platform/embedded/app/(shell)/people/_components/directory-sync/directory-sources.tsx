@@ -1,6 +1,6 @@
 import { Icon } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
-import { SYNC_SOURCE_NAMES, type SyncSource } from '@/platform/embedded/lib/data/people'
+import { SYNC_SOURCE_NAMES, type SyncSource } from '@/platform/shared/people'
 
 export const SOURCE_MARKS: Record<SyncSource, string> = { okta: 'O', entra: 'E', scim: 'S' }
 

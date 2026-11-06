@@ -7,11 +7,8 @@ import { FailureNotice } from '@/platform/design-system/components/status/status
 import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeListState,
-} from '@/platform/embedded/lib/data/home-view'
+import type { AttentionItem, EmailItem } from '@/platform/embedded/lib/data/home-view'
+import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 interface EmailListProps {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import Link from 'next/link'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -32,6 +31,7 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 interface AssistantAppsProps {
   organizationId: string

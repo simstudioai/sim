@@ -15,14 +15,8 @@ import { ProfileUnavailable } from '@/platform/embedded/app/(shell)/people/_comp
 import styles from '@/platform/embedded/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/embedded/app/(shell)/people/_components/person/person-modal'
 import { PersonIdentity } from '@/platform/embedded/app/(shell)/people/_components/person-identity/person-identity'
-import {
-  type Person,
-  type PersonSummary,
-  personHref,
-  SYNC_SOURCE_NAMES,
-  usePeopleViewer,
-  usePersonProfile,
-} from '@/platform/embedded/lib/data/people'
+import { personHref, usePeopleViewer, usePersonProfile } from '@/platform/embedded/lib/data/people'
+import { type Person, type PersonSummary, SYNC_SOURCE_NAMES } from '@/platform/shared/people'
 import { isRefusal } from '@/platform/shared/query-view'
 import { formatCalendarDate } from '@/platform/shared/time'
 

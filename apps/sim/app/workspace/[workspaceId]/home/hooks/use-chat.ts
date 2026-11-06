@@ -95,7 +95,6 @@ import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-c
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { initTerminalTransport } from '@/lib/terminal/transport'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import {
   type DesktopToolSession,
@@ -135,6 +134,7 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'

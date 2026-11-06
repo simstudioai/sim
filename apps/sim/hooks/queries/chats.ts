@@ -20,8 +20,8 @@ import {
   verifyChatEmailOtpContract,
 } from '@/lib/api/contracts/chats'
 import { parseInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
+import { deploymentKeys, invalidateDeploymentQueries } from '@/hooks/queries/utils/deployment-keys'
 import type { OutputConfig } from '@/stores/chat/types'
-import { deploymentKeys, invalidateDeploymentQueries } from './deployments'
 
 const logger = createLogger('ChatMutations')
 

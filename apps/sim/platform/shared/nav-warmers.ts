@@ -1,11 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganization } from '@/lib/organizations/provider'
 import { simLinksSortParams } from '@/lib/sim-links/search-params'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
 import { peopleListQueryOptions } from '@/hooks/queries/people'
@@ -15,17 +12,28 @@ import {
   dropFailedSpeculativeQuery,
   prefetchQueryOnIntent,
 } from '@/hooks/queries/utils/prefetch-query-on-intent'
-import { warmOrganizationSettingsSectionQuery } from '@/platform/embedded/lib/data/settings-warmers'
 
 const NAV_WARM_DWELL_MS = 80
+
+type WarmedSettingsSection = 'general' | 'members'
+
+/** What a surface knows about its viewer and routes. */
+interface NavWarmerHost {
+  organizationId: string
+  isAdmin: boolean
+  canReadIntegrations: boolean
+  /** The destination id of Sim links on this surface, absent where they are not offered. */
+  simLinksDestination?: string
+  settingsHref: (section: WarmedSettingsSection) => string
+  warmSettingsSection: (queryClient: QueryClient, section: WarmedSettingsSection) => void
+}
 
 /**
  * Reads a nav row's page ahead of an intended open, through the options its hooks read, so the keys
  * and payloads are the same ones. Only the cheap database reads: slow provider reads stay on the page.
  */
-export function useNavWarmers() {
-  const context = useOrganization()
-  const organizationId = context.organization.id
+export function useNavWarmers(host: NavWarmerHost) {
+  const { organizationId } = host
   const queryClient = useQueryClient()
   const router = useRouter()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -38,17 +46,17 @@ export function useNavWarmers() {
   useEffect(() => cancel, [])
 
   function warm(destination: string) {
-    if (destination === 'integrations' && canReadMemberIntegrations(context)) {
+    if (destination === 'integrations' && host.canReadIntegrations) {
       prefetchQueryOnIntent(queryClient, organizationAccountsQueryOptions(organizationId))
       prefetchQueryOnIntent(queryClient, searchIntegrationsQueryOptions(organizationId))
     }
-    if (destination === 'people' && context.viewer.isAdmin) {
+    if (destination === 'people' && host.isAdmin) {
       const options = peopleListQueryOptions(organizationId, '', '', { scope: 'roots' })
       void queryClient
         .prefetchInfiniteQuery(options)
         .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
     }
-    if (destination === 'sim-links') {
+    if (destination === host.simLinksDestination) {
       const { column, direction } = simLinksSortParams.default
       const options = simLinksQueryOptions(organizationId, '', column, direction)
       void queryClient
@@ -64,13 +72,9 @@ export function useNavWarmers() {
       timer.current = setTimeout(() => warm(destination), NAV_WARM_DWELL_MS)
     },
     /** A menu holding a Settings entry just opened, so its section's route and reads go ahead. */
-    warmSettings(section: 'general' | 'members') {
-      router.prefetch(organizationRoutes(organizationId).settingsSection(section))
-      warmOrganizationSettingsSectionQuery(
-        queryClient,
-        { organizationId, isAdmin: context.viewer.isAdmin },
-        section
-      )
+    warmSettings(section: WarmedSettingsSection) {
+      router.prefetch(host.settingsHref(section))
+      host.warmSettingsSection(queryClient, section)
     },
   }
 }

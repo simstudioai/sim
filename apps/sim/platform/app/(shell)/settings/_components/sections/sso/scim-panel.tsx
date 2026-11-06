@@ -41,9 +41,9 @@ import {
   useSettingsNavigationBlocked,
   useSettingsUnsavedGuard,
 } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/shared/plural'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'

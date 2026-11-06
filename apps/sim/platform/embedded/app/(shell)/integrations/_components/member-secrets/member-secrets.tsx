@@ -1,6 +1,6 @@
 import { Chip } from '@/platform/design-system/components/button/button'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
-import type { GenericSecrets } from '@/platform/embedded/lib/integrations/model'
+import type { GenericSecrets } from '@/platform/shared/integrations'
 
 interface MemberSecretsProps {
   source: GenericSecrets
