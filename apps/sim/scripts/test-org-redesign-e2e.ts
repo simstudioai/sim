@@ -4056,20 +4056,28 @@ async function blastRadiusChecks() {
       }
     }
   )
-  await check(
-    "a workspace's Credential groups link opens the organization's page",
-    async () => {
-      await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
-        await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/connected-accounts/)
-        await expect(
-          page.getByRole('heading', { level: 1, name: 'Credential groups', exact: true })
-        ).toBeVisible()
-      })
-    },
-    // The workspace shell reads its inbox whatever the group's hideInboxTab says.
-    { allow: [/403 GET .*\/inbox/] }
-  )
+  await check("a workspace's Credential groups link opens the organization's page", async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/connected-accounts`))
+      await expect(page).toHaveURL(/\/o\/[^/]+\/settings\/connected-accounts/)
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Credential groups', exact: true })
+      ).toBeVisible()
+    })
+  })
+  await check('workspace settings never read an inbox the group withholds', async () => {
+    await withSession(MEMBER, async (session) => {
+      await session.page.goto(url(`/workspace/${MEMBER_ADMIN_WORKSPACE.id}/settings/general`))
+      await expect(
+        session.page.getByRole('complementary', { name: 'Workspace sidebar' })
+      ).toBeVisible()
+      await session.settle()
+      assert.deepEqual(
+        session.requests.filter(({ path }) => /^\/api\/workspaces\/[^/]+\/inbox/.test(path)),
+        []
+      )
+    })
+  })
   await check('the extension panel has no platform surface and reads no Home data', async () => {
     await withSession(
       MEMBER,
