@@ -100,7 +100,7 @@ describe('DataRetentionSection', () => {
     })
   const render = () =>
     act(async () => {
-      root.render(<DataRetentionSection organization={ORGANIZATION} />)
+      root.render(<DataRetentionSection organization={ORGANIZATION} subpath={[]} query={{}} />)
     })
 
   beforeEach(() => {
