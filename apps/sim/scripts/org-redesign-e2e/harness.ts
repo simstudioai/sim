@@ -213,6 +213,16 @@ export function refused(status: number, method: string, path: string) {
   return new RegExp(`^http \\S+ ${status} ${method} ${escapeRegExp(path)}${query}$`)
 }
 
+/**
+ * A read this page is waiting on. Router prefetches, static chunks and other hosts come and go on
+ * their own schedule, and no check reasons about them.
+ */
+function isPageRead(request: Request) {
+  if (request.resourceType() === 'eventsource' || !isSameOrigin(request.url())) return false
+  if (new URL(request.url()).pathname.startsWith('/_next/static/')) return false
+  return request.headers()['next-router-prefetch'] === undefined
+}
+
 class Session {
   private readonly inflight = new Set<Request>()
   private lastActivity = Date.now()
@@ -239,8 +249,13 @@ class Session {
     })
     page.on('request', (request) => {
       if (HIGH_VOLUME_REQUEST.test(request.url())) return
-      if (request.resourceType() !== 'eventsource') this.inflight.add(request)
-      this.lastActivity = Date.now()
+      // A navigation does not report every request it cancels, and none of them still matters.
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+        this.inflight.clear()
+      if (isPageRead(request)) {
+        this.inflight.add(request)
+        this.lastActivity = Date.now()
+      }
       if (isSameOrigin(request.url()))
         this.requests.push({
           method: request.method(),
@@ -249,8 +264,7 @@ class Session {
         })
     })
     const settled = (request: Request) => {
-      this.inflight.delete(request)
-      this.lastActivity = Date.now()
+      if (this.inflight.delete(request)) this.lastActivity = Date.now()
     }
     page.on('requestfinished', settled)
     page.on('requestfailed', (request) => {
@@ -278,8 +292,9 @@ class Session {
   }
 
   /**
-   * Quiet for 400ms, ignoring the SSE and socket connections that never finish. Fails at its
-   * deadline, naming what is still out, because every caller goes on to reason about a quiet page.
+   * Quiet for 400ms on the page's own reads (`isPageRead`), ignoring the SSE and socket connections
+   * that never finish. Fails at its deadline, naming what is still out, because every caller goes on
+   * to reason about a quiet page.
    */
   async settle(maxMs = 8_000) {
     const deadline = Date.now() + maxMs
