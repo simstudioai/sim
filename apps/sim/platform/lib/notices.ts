@@ -34,10 +34,7 @@ function notify({ id, title, description, action, onAction, variant }: Notice) {
 
 const NOTICES = { notify, dismiss }
 
-/**
- * Delivers design-system notices through the app's existing toast stack, in place of the Platform
- * shell's tray. Same module path and hook as the tray, so ported components stay unchanged.
- */
+/** Delivers design-system notices through the app's existing toast stack. */
 export function usePlatformNotices() {
   return NOTICES
 }

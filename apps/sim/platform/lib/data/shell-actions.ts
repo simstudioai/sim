@@ -18,8 +18,8 @@ import {
   runDesktopUpdateAction,
   useDesktopUpdateState,
 } from '@/hooks/use-desktop-update-state'
-import type { ShellActions } from '@/platform/app/(shell)/_components/model'
-import { openLinkInNewTab } from '@/platform/app/(shell)/_components/sidebar/row-links'
+import type { ShellActions } from '@/platform/lib/data/shell-view'
+import { openLinkInNewTab } from '@/platform/lib/row-links'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /** The only desktop build offered is for macOS. iPadOS reports itself as a Mac, but with touch. */

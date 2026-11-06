@@ -2,14 +2,8 @@
 
 import { useState } from 'react'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import type {
-  ShellActions,
-  ShellData,
-  ShellWorkspace,
-} from '@/platform/app/(shell)/_components/model'
 import { NameModal } from '@/platform/app/(shell)/_components/sidebar/name-modal'
 import { RailFlyout } from '@/platform/app/(shell)/_components/sidebar/rail-flyout'
-import { openInNewTabAction } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { PinnedIndicator, SectionRow } from '@/platform/app/(shell)/_components/sidebar/section-row'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
@@ -17,7 +11,9 @@ import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { Chip, IconButton } from '@/platform/design-system/components/button/button'
 import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
 import { type MenuAction, MenuItem } from '@/platform/design-system/components/menu/action-menu'
+import type { ShellActions, ShellData, ShellWorkspace } from '@/platform/lib/data/shell-view'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
+import { openInNewTabAction } from '@/platform/lib/row-links'
 
 const PAGE_SIZE = 5
 const WORKSPACE_NAME_MAX_LENGTH = 100

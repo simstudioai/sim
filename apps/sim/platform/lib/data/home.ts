@@ -31,22 +31,6 @@ import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
-import {
-  ACTIVITY_WINDOW_DAYS,
-  type ActivityWindowDays,
-  type AttentionItem,
-  type EmailItem,
-  type HomeAccountView,
-  type HomeActions,
-  type HomeActivityState,
-  type HomeCalendarDay,
-  type HomeListState,
-  type HomeView,
-  type HomeWidgetActions,
-  type HomeWidgetState,
-  type HomeWorkspaceItem,
-} from '@/platform/app/(shell)/home/_components/model'
-import { homeDayParam } from '@/platform/app/(shell)/home/search-params'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { organizationChatHref, useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
@@ -67,6 +51,22 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
+import { homeDayParam } from '@/platform/lib/data/home-params'
+import {
+  ACTIVITY_WINDOW_DAYS,
+  type ActivityWindowDays,
+  type AttentionItem,
+  type EmailItem,
+  type HomeAccountView,
+  type HomeActions,
+  type HomeActivityState,
+  type HomeCalendarDay,
+  type HomeListState,
+  type HomeView,
+  type HomeWidgetActions,
+  type HomeWidgetState,
+  type HomeWorkspaceItem,
+} from '@/platform/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { isRefusal } from '@/platform/lib/data/query-view'
 import { workspaceHref } from '@/platform/lib/data/workspaces'
