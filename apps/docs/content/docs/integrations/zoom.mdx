@@ -550,6 +550,8 @@ Trigger workflow when a Zoom meeting starts
 
 Trigger workflow when a participant joins a Zoom meeting
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -579,13 +581,14 @@ Trigger workflow when a participant joins a Zoom meeting
 |       ↳ `leave_time` | string | Time participant left \(ISO 8601, present on participant_left\) |
 |       ↳ `duration` | number | Seconds the participant was in the meeting \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Participant Left
 
 Trigger workflow when a participant leaves a Zoom meeting
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -615,12 +618,13 @@ Trigger workflow when a participant leaves a Zoom meeting
 |       ↳ `leave_time` | string | Time participant left \(ISO 8601, present on participant_left\) |
 |       ↳ `duration` | number | Seconds the participant was in the meeting \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Recording Completed
 
 Trigger workflow when a Zoom cloud recording is completed
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -652,12 +656,13 @@ Trigger workflow when a Zoom cloud recording is completed
 |     ↳ `share_url` | string | URL to share the recording |
 |     ↳ `recording_files` | json | Array of recording file objects \(e.g. id, file_type, play_url, download_url\) per Zoom cloud recording payloads |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Webhook (All Events)
 
 Trigger workflow on any Zoom webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -672,4 +677,6 @@ Trigger workflow on any Zoom webhook event
 | `event` | string | The webhook event type \(e.g., meeting.started, recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
+
+</ReferenceDetails>
 

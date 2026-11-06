@@ -6,11 +6,12 @@ integration:
   color: "#333333"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Jina AI](https://jina.ai/) Reader to extract content from a URL, or Search to retrieve web results. Configure the parsing and output-format options for the content your downstream blocks need.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Search the web and get LLM-friendly results, or extract clean content from speci
 ### Jina Reader
 
 Extract and process web content into clean, LLM-friendly text using Jina AI Reader. Supports advanced content parsing, link gathering, and multiple output formats with configurable processing options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +52,13 @@ Extract and process web content into clean, LLM-friendly text using Jina AI Read
 | `content` | string | The extracted content from the URL, processed into clean, LLM-friendly text |
 | `tokensUsed` | number | Number of Jina tokens consumed by this request |
 
+</ReferenceDetails>
+
 ### Jina Search
 
 Search the web and return top 5 results with LLM-friendly content. Each result is automatically processed through Jina Reader API. Supports geographic filtering, site restrictions, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,5 +89,7 @@ Search the web and return top 5 results with LLM-friendly content. Each result i
 |   ↳ `usage` | object | Token usage information |
 |     ↳ `tokens` | number | Number of tokens consumed by this request |
 | `tokensUsed` | number | Number of Jina tokens consumed by this request |
+
+</ReferenceDetails>
 
 

@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Cloud Translation](https://cloud.google.com/translate) translates text and detects its source language. Provide text and a target language for translation, or use language detection when the source language is unknown.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Translate and detect languages using the Google Cloud Translation API. Supports 
 ### Google Translate
 
 Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -39,9 +42,13 @@ Translate text between languages using the Google Cloud Translation API. Support
 | `translatedText` | string | The translated text |
 | `detectedSourceLanguage` | string | The detected source language code \(if source was not specified\) |
 
+</ReferenceDetails>
+
 ### Google Translate Detect Language
 
 Detect the language of text using the Google Cloud Translation API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,5 +63,7 @@ Detect the language of text using the Google Cloud Translation API.
 | --------- | ---- | ----------- |
 | `language` | string | The detected language code \(e.g., "en", "es", "fr"\) |
 | `confidence` | number | Confidence score of the detection |
+
+</ReferenceDetails>
 
 

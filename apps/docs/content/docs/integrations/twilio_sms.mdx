@@ -6,11 +6,12 @@ integration:
   color: "#F22F46"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Twilio SMS](https://www.twilio.com/en-us/sms) to send a text message from a workflow. Configure the Twilio credentials, sending number, recipient, and message body documented below.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Send SMS messages.
 ### Twilio Send SMS
 
 Send text messages to single or multiple recipients using the Twilio API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -41,5 +44,7 @@ Send text messages to single or multiple recipients using the Twilio API.
 | `status` | string | Message delivery status from Twilio |
 | `fromNumber` | string | Phone number message was sent from |
 | `toNumber` | string | Phone number message was sent to |
+
+</ReferenceDetails>
 
 

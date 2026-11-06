@@ -6,6 +6,8 @@ integration:
   color: "#764ABC"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [LogRocket](https://logrocket.com/) to request Galileo Highlights for a user's sessions, update user names, emails, and traits, retrieve JSON Lines export URLs, inspect the session-access audit log, and register releases for source-map decoding.
@@ -14,7 +16,6 @@ Use [LogRocket](https://logrocket.com/) to request Galileo Highlights for a user
 
 For session, issue, and metric queries beyond this block, inspect LogRocket's [MCP server](https://docs.logrocket.com/docs/mcp) at `https://mcp.logrocket.com/mcp` and add it as a separate MCP connection in Sim.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -25,6 +26,8 @@ Request AI session highlights for a user, poll for the result, list exported ses
 ### LogRocket Request Highlights
 
 Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -47,9 +50,13 @@ Start a Galileo session highlights job for a user. Returns a request ID to poll 
 | --------- | ---- | ----------- |
 | `id` | string | Request ID used to retrieve the highlights result |
 
+</ReferenceDetails>
+
 ### LogRocket Get Highlights
 
 Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +81,13 @@ Retrieve the result of a Galileo session highlights request. Status is PENDING u
 |   ↳ `sessionID` | number | Session number within the recording |
 |   ↳ `highlights` | string | Highlights for this session |
 
+</ReferenceDetails>
+
 ### LogRocket List Exported Sessions
 
 List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,9 +109,13 @@ List exported session files from the LogRocket Data Export API. Returns download
 |   ↳ `url` | string | Download URL for the JSON Lines export file |
 | `cursor` | string | Opaque cursor for the next page of results |
 
+</ReferenceDetails>
+
 ### LogRocket Get Audit Logs
 
 Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +141,13 @@ Export audit log entries from LogRocket, recording who viewed sessions and what 
 | `cursor` | string | Opaque cursor for the next page of results |
 | `hasNext` | boolean | Whether more audit logs exist beyond this page |
 
+</ReferenceDetails>
+
 ### LogRocket Identify User
 
 Create or update a LogRocket user profile with demographic, financial, and engagement traits.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -153,9 +172,13 @@ Create or update a LogRocket user profile with demographic, financial, and engag
 | `email` | string | Email stored on the profile |
 | `traits` | json | Custom traits stored on the profile, with every value coerced to a string |
 
+</ReferenceDetails>
+
 ### LogRocket Create Release
 
 Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,5 +195,7 @@ Register a release version in LogRocket so uploaded source maps can decode stack
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `version` | string | Release version that was registered |
+
+</ReferenceDetails>
 
 

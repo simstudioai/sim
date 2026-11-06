@@ -6,13 +6,14 @@ integration:
   color: "#0C0C0C"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the Deployments block to manage other workflows in the current workspace. Deploy creates a new version; Promote Version to Live makes an existing version live without creating another. Undeploy takes a workflow offline and removes its triggers, webhooks, and schedules.
 
 For the deployment UI and execution model, see [Workflow Deployment](/workflows/deployment).
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Deploy, undeploy, and roll back workflows in the current workspace. Promote a pr
 ### Deploy Workflow
 
 Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires admin permission on the workflow’s workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +45,13 @@ Deploy a workflow’s current draft state, creating a new deployment version and
 | `version` | number | The deployment version that is now active |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
+</ReferenceDetails>
+
 ### Undeploy Workflow
 
 Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires admin permission on the workflow’s workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +68,13 @@ Take a deployed workflow offline. API execution stops and schedules, webhooks, a
 | `deployedAt` | string | Always null after an undeploy |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule cleanup still in progress\) |
 
+</ReferenceDetails>
+
 ### Promote Version to Live
 
 Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,9 +93,13 @@ Make a specific deployment version the live one without creating a new version �
 | `version` | number | The deployment version that is now live |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
+</ReferenceDetails>
+
 ### List Deployment Versions
 
 List every deployment version of a workflow, newest first, including which version is currently live.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +114,13 @@ List every deployment version of a workflow, newest first, including which versi
 | `workflowId` | string | ID of the workflow |
 | `versions` | array | Deployment versions, newest first \(id, version, name, description, isActive, createdAt, createdBy, deployedByName\) |
 
+</ReferenceDetails>
+
 ### Get Deployment Version
 
 Fetch a single deployment version of a workflow, including its metadata and the full workflow state snapshot that was deployed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,5 +140,7 @@ Fetch a single deployment version of a workflow, including its metadata and the 
 | `isActive` | boolean | Whether this version is currently live |
 | `createdAt` | string | When this version was deployed \(ISO 8601\) |
 | `deployedState` | json | The full workflow state snapshot \(blocks, edges, loops, parallels, variables\) |
+
+</ReferenceDetails>
 
 

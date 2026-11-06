@@ -2127,6 +2127,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a comment is added on a commit, merge request, or issue
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2157,12 +2159,13 @@ Trigger workflow when a comment is added on a commit, merge request, or issue
 |   ↳ `action` | string | Action \(create, update\) |
 |   ↳ `url` | string | Comment URL |
 
-
----
+</ReferenceDetails>
 
 ### GitLab Event
 
 Trigger workflow from any GitLab webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2186,8 +2189,7 @@ Trigger workflow from any GitLab webhook event
 |   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | json | Event-specific attributes \(varies by object_kind\) |
 
-
----
+</ReferenceDetails>
 
 ### GitLab Issue
 
@@ -2320,6 +2322,8 @@ Trigger workflow when a pipeline status changes in GitLab
 
 Trigger workflow when commits are pushed to a GitLab project
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2349,4 +2353,6 @@ Trigger workflow when commits are pushed to a GitLab project
 |   ↳ `web_url` | string | Project web URL |
 |   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `commits` | json | Array of commit objects included in this push |
+
+</ReferenceDetails>
 

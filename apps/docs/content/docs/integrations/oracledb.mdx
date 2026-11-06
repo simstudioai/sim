@@ -48,6 +48,8 @@ Query, modify, and inspect Oracle Database over Oracle Net using TCP or verified
 
 Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -67,9 +69,13 @@ Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional n
 | `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
 | `truncationReason` | string | The response ceiling that was reached |
 
+</ReferenceDetails>
+
 ### Oracle Database Insert
 
 Insert one JSON object as a row in an Oracle Database table using bound values
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +97,13 @@ Insert one JSON object as a row in an Oracle Database table using bound values
 | `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
 | `truncationReason` | string | The response ceiling that was reached |
 
+</ReferenceDetails>
+
 ### Oracle Database Update
 
 Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +126,13 @@ Update Oracle Database rows selected by a required WHERE expression, using bound
 | `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
 | `truncationReason` | string | The response ceiling that was reached |
 
+</ReferenceDetails>
+
 ### Oracle Database Delete
 
 Delete Oracle Database rows selected by a required WHERE expression
+
+<ReferenceDetails>
 
 #### Input
 
@@ -140,9 +154,13 @@ Delete Oracle Database rows selected by a required WHERE expression
 | `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
 | `truncationReason` | string | The response ceiling that was reached |
 
+</ReferenceDetails>
+
 ### Oracle Database Execute
 
 Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,6 +180,8 @@ Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE,
 | `rowCount` | number | Number of rows returned or affected |
 | `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
 | `truncationReason` | string | The response ceiling that was reached |
+
+</ReferenceDetails>
 
 ### Oracle Database Introspect
 

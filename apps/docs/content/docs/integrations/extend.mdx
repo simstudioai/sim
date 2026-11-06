@@ -6,11 +6,12 @@ integration:
   color: "#000000"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Extend](https://www.extend.ai/) to parse a document supplied as a file or file reference. The result includes structured chunks and block-level elements, the page count, and credits consumed. Pass those outputs to later steps for extraction or document review.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Parse and extract structured content from documents or file references.
 ### Extend Document Parser
 
 Parse and extract content from documents using Extend AI
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,5 +45,7 @@ Parse and extract content from documents using Extend AI
 | `blocks` | json | Block-level document elements with type and content |
 | `pageCount` | number | Number of pages processed |
 | `creditsUsed` | number | API credits consumed |
+
+</ReferenceDetails>
 
 
