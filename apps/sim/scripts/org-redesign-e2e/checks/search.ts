@@ -247,7 +247,7 @@ export async function searchChecks() {
     { allow: [/500 GET .*\/sim-links\?/] }
   )
   await check(
-    'states: failure with Try again, partial coverage, no results, custom range',
+    'states: failure with Retry, partial coverage, no results, custom range',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         let failing = true
@@ -290,7 +290,7 @@ export async function searchChecks() {
         await page.goto(orgUrl('/search?mode=search&q=recall'))
         await expect(page.getByText('Search couldn’t run.')).toBeVisible()
         failing = false
-        await page.getByRole('button', { name: 'Try again', exact: true }).click()
+        await page.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(page.getByText('Service bulletin', { exact: true }).first()).toBeVisible()
         partial = true
         await page.goto(orgUrl('/search?mode=search&q=partial'))
@@ -311,18 +311,23 @@ export async function searchChecks() {
   await check(
     'history states: failure retries, Clear history empties',
     async () => {
-      await withSession(ADMIN, async ({ page }) => {
+      await withSession(ADMIN, async (session) => {
+        const { page } = session
         await withTableHidden('organization_search_history', async (restore) => {
           await page.goto(orgUrl('/search?mode=search'))
           await expect(page.getByText('Recent activity couldn’t load.')).toBeVisible({
             timeout: 40_000,
           })
           await restore()
-          await page.getByRole('button', { name: 'Try again', exact: true }).click()
+          await page.getByRole('button', { name: 'Retry', exact: true }).click()
         })
         const clear = page.getByRole('button', { name: 'Clear history', exact: true })
         await expect(clear).toBeVisible()
         await clear.click()
+        await expect(page.getByRole('region', { name: 'Recent activity' })).toHaveCount(0)
+        await page.reload()
+        await expect(searchField(page)).toBeVisible()
+        await session.settle()
         await expect(page.getByRole('region', { name: 'Recent activity' })).toHaveCount(0)
       })
     },

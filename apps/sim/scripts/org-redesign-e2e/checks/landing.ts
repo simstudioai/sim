@@ -75,7 +75,8 @@ export async function landingChecks() {
   await check(
     'an agent chat is not found for a member and renders for an admin',
     async () => {
-      await withSession(MEMBER, async ({ page }) => {
+      await withSession(MEMBER, async (session) => {
+        const { page } = session
         await page.goto(orgUrl(`/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
         await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
@@ -87,6 +88,7 @@ export async function landingChecks() {
             await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
             await page.goto(orgUrl('/home'))
             await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
+            await session.settle()
             await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
             await expect(
               homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)

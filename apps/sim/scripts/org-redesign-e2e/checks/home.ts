@@ -342,13 +342,16 @@ export async function homeChecks() {
     })
   })
   await check('a member gets no Tasks run chart rather than a broken one', async () => {
-    await onHome(MEMBER, async ({ page }) => {
+    await onHome(MEMBER, async (session) => {
+      const { page } = session
       await expect(homeRegion(page, 'Email')).toBeVisible()
+      await session.settle()
       await expect(homeRegion(page, 'Tasks run')).toHaveCount(0)
     })
   })
   await check('Recents list real history and × removes it for good', async () => {
-    await onHome(MEMBER, async ({ page }) => {
+    await onHome(MEMBER, async (session) => {
+      const { page } = session
       const recents = homeRegion(page, 'Recents')
       const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
       await expect(row).toBeVisible()
@@ -359,6 +362,7 @@ export async function homeChecks() {
       await expect(row).toHaveCount(0)
       await page.reload()
       await expect(homeRegion(page, 'Email')).toBeVisible()
+      await session.settle()
       await expect(recents.getByRole('link', { name: SEEDED_SOURCE.title })).toHaveCount(0)
     })
   })
@@ -496,7 +500,8 @@ export async function homeChecks() {
     { allow: [/500 GET .*workspace-activity/] }
   )
   await check('Customize Home hides Workspaces across a reload, and stops its read', async () => {
-    await onHome(MEMBER, async ({ page }) => {
+    await onHome(MEMBER, async (session) => {
+      const { page } = session
       await expect(homeRegion(page, 'Workspaces')).toBeVisible()
       await page.getByRole('button', { name: 'Customize Home' }).click()
       await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
@@ -507,6 +512,7 @@ export async function homeChecks() {
       )
       await page.reload()
       await expect(composer(page)).toBeVisible()
+      await session.settle()
       await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
       assert.deepEqual(reads, [], 'A hidden widget still read its activity')
       await page.getByRole('button', { name: 'Customize Home' }).click()

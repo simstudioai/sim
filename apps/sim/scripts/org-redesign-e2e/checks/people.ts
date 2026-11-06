@@ -25,10 +25,13 @@ export async function peoplePhaseChecks() {
   await check(
     'a member reads that an organization admin connects the directory, and no name',
     async () => {
-      await withSession(MEMBER, async ({ page }) => {
+      await withSession(MEMBER, async (session) => {
+        const { page } = session
         await page.goto(orgUrl('/people'))
         await expect(page.getByRole('button', { name: 'Org chart' })).toBeVisible()
         await expect(page.getByText(/organization admin/i).first()).toBeVisible()
+        await session.settle()
+        await expect(page.getByText(ADMIN.name, { exact: true })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Directory sync' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Connect Okta' })).toHaveCount(0)
@@ -64,8 +67,13 @@ async function walkPeopleRoutes() {
                 ['chart', 'people'],
                 ['directory', 'people?view=directory'],
               ]) {
-                await session.page.goto(orgUrl(`/${path}`))
+                const response = await session.page.goto(orgUrl(`/${path}`))
+                assert((response?.status() ?? 500) < 400, `${path} ${response?.status()}`)
                 await session.settle()
+                await expect(
+                  session.page.getByRole('button', { name: 'Org chart' }),
+                  `${path} rendered no People page`
+                ).toBeVisible()
                 await fullPageScreenshot(
                   session.page,
                   resolve(

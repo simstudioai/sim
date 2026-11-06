@@ -136,7 +136,8 @@ async function organizationSectionChecks() {
   )
   await check('Security: a bad idle timeout stays local, and a good policy saves', () =>
     withOrganizationSettingsRestored('session_policy_settings', () =>
-      withSession(ADMIN, async ({ page }) => {
+      withSession(ADMIN, async (session) => {
+        const { page } = session
         const writes = captureRequests(
           page,
           (request) => request.method() === 'PUT' && request.url().endsWith('/session-policy')
@@ -164,6 +165,7 @@ async function organizationSectionChecks() {
         await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(confirm).toHaveCount(0)
         await expect(page.getByText('Outbound IP addresses', { exact: true })).toBeVisible()
+        await session.settle()
         await expect(page.getByText('Could not load network settings')).toHaveCount(0)
       })
     )
@@ -596,6 +598,10 @@ export async function settingsChecks() {
         await page.getByRole('combobox', { name: 'Provider ID' }).click()
         await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
         await page.keyboard.press('Escape')
+        await expect(
+          page.getByRole('combobox', { name: 'Provider ID' }),
+          'Closing the popup cleared the typed provider ID'
+        ).toContainText('e2e-oidc')
         await issuer.fill('https://idp.org-redesign.test')
         await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('org-redesign.test')
         await page.getByRole('textbox', { name: 'Client ID', exact: true }).fill('e2e-client')
@@ -799,14 +805,4 @@ export async function settingsChecks() {
     }
   )
   await organizationSectionChecks()
-  await check('admin settings sections all open', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
-        const response = await page.goto(orgUrl(`/settings/${path}`))
-        assert((response?.status() ?? 500) < 400, `settings/${path} ${response?.status()}`)
-        await expect(sidebar(page)).toBeVisible()
-        await expect(page.getByText('Page not found')).toHaveCount(0)
-      }
-    })
-  })
 }

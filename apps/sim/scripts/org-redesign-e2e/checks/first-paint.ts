@@ -135,7 +135,8 @@ export async function firstPaintChecks() {
   await check(
     'Links paints its first page from the server, even with the client read refused',
     async () => {
-      await withSession(MEMBER, async ({ page }) => {
+      await withSession(MEMBER, async (session) => {
+        const { page } = session
         const reads: string[] = []
         await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links**`, (route) => {
           reads.push(route.request().url())
@@ -145,6 +146,7 @@ export async function firstPaintChecks() {
         await expect(
           page.getByRole('row').filter({ hasText: NAMED_LINKS.handbook.name })
         ).toBeVisible()
+        await session.settle()
         await expect(page.getByRole('button', { name: /Retry/ })).toHaveCount(0)
         assert.deepEqual(
           reads.filter((address) => !address.includes('cursor=')),
@@ -155,6 +157,7 @@ export async function firstPaintChecks() {
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
         await page.goto(orgUrl(`/links?search=${NAMED_LINKS.mostUsed.name}`))
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
+        await session.settle()
         assert.deepEqual(
           reads.filter((address) => !address.includes('cursor=')),
           [],

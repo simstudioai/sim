@@ -10,6 +10,7 @@ import {
   notProvable,
   orgUrl,
   PHONE,
+  pathOf,
   refused,
   root,
   section,
@@ -61,8 +62,10 @@ export async function integrationChecks() {
         const field = page.getByRole('searchbox', { name: 'Search integrations' })
         await field.fill('jira')
         await expect(page).toHaveURL((address) => address.searchParams.get('q') === 'jira')
+        const jira = page.getByRole('link', { name: /^Jira/ })
+        await expect(jira).toBeVisible()
         await expect(page.getByRole('link', { name: /^Gmail/ })).toHaveCount(0)
-        await page.getByRole('link', { name: /^Jira/ }).click()
+        await jira.click()
         await expect(page).toHaveURL((address) => address.pathname === `${root}/integrations/jira`)
         await page
           .getByRole('navigation', { name: 'Integration navigation' })
@@ -229,7 +232,7 @@ export async function integrationChecks() {
   await check(
     'the inventory and Search reads fail separately, each with its retry',
     async () => {
-      const retry = (page: Page) => page.getByRole('button', { name: /Retry|Try again/ }).first()
+      const retry = (page: Page) => page.getByRole('button', { name: 'Retry', exact: true }).first()
       await withSession(MEMBER, async ({ page }) => {
         await withTableHidden('credential_group', async (restore) => {
           await page.goto(orgUrl('/integrations'))
@@ -248,7 +251,13 @@ export async function integrationChecks() {
             timeout: 40_000,
           })
           await restore()
+          const reread = page.waitForResponse(
+            (response) =>
+              pathOf(response.url()) === '/api/knowledge/sim-search/integrations' &&
+              response.request().method() === 'GET'
+          )
           await retry(page).click()
+          assert((await reread).ok(), 'Retry did not recover the Search connections read')
           await expect(page.getByText('Could not load Search connections')).toHaveCount(0)
         })
       })
