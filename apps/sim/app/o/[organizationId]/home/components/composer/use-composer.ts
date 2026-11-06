@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { flushSync } from 'react-dom'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { usePromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
@@ -12,7 +13,7 @@ import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { filterContextsPresentInMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { fetchWorkspacesList, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import type {
   PendingComposerSubmission,
@@ -53,15 +54,23 @@ interface UseComposerOptions extends ConversationComposerProps {
 
 /** A `/` starting a token: typed, pasted, or carried in by a draft, all of which skills can chip. */
 const SLASH_TOKEN = /(^|\s)\//
-/** A list that never lands must not eat the message: it goes out as written after this long. */
-const HELD_SEND_MAX_MS = 10_000
+/**
+ * How long a send waits on the skill lists. The request layer sets no deadline, so this is the only
+ * bound on a list that never lands, and the message waits in the field when it passes.
+ */
+const SKILL_LISTS_WAIT_MS = 10_000
 
 /** A send waiting for the skill lists, so a `/name` in it is not sent as plain text. */
 interface HeldSend {
   text: string
-  /** The text has been chipped against the landed lists, including a token still being typed. */
-  chipped: boolean
-  expired: boolean
+  /** Editing the text aborts this, ending the wait. */
+  cancel: AbortController
+}
+
+function whenAborted(signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    signal.addEventListener('abort', () => resolve(), { once: true })
+  })
 }
 
 /**
@@ -90,6 +99,7 @@ export function useComposer({
   const value = useMothershipDraftsStore((state) => readDraft(state.drafts, draftKeys)?.text ?? '')
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
+  const queryClient = useQueryClient()
   const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
   const waitsForLists = waitsForFullLists && !imagesOnly
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -98,6 +108,8 @@ export function useComposer({
   // The field takes focus on load, so focus alone says nothing about wanting these per-workspace lists.
   const [resourceIntent, setResourceIntent] = useState(false)
   const [heldSend, setHeldSend] = useState<HeldSend | null>(null)
+  /** The text the viewer was told would go out unchipped if they sent it again. */
+  const [declinedWaitText, setDeclinedWaitText] = useState<string | null>(null)
   const skillsWanted = resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
     queries: workspaces.map((workspace) => ({
@@ -203,39 +215,61 @@ export function useComposer({
     )
   }
 
+  /** A continuation resumes after renders it did not see, so it sends through the latest closure. */
+  const sendRef = useRef(send)
+  sendRef.current = send
+
+  const settleSkillLists = async () => {
+    const pendingIds = workspacesPending
+      ? (await fetchWorkspacesList(queryClient))
+          .filter((workspace) => workspace.organizationId === organization.id)
+          .map((workspace) => workspace.id)
+      : workspaces.flatMap((workspace, index) =>
+          skillQueries[index].isPending ? [workspace.id] : []
+        )
+    const results = await Promise.allSettled(
+      pendingIds.map((id) => queryClient.fetchQuery(getSkillsQueryOptions(id)))
+    )
+    return results.every((result) => result.status === 'fulfilled')
+  }
+
+  const holdSend = async (text: string) => {
+    const cancel = new AbortController()
+    setHeldSend({ text, cancel })
+    const timeout = AbortSignal.timeout(SKILL_LISTS_WAIT_MS)
+    const allLanded = await Promise.race([
+      settleSkillLists().catch(() => false),
+      whenAborted(timeout).then(() => false),
+      whenAborted(cancel.signal).then(() => false),
+    ])
+    if (cancel.signal.aborted || !textareaRef.current || getPlainValue() !== text) return
+    // Query observers notify on their own schedule. Render now, so the editor has the lists to chip with.
+    flushSync(() => setHeldSend({ text, cancel }))
+    flushSync(() => setValue(text))
+    setHeldSend(null)
+    if (!allLanded && SLASH_TOKEN.test(getValue())) {
+      setDeclinedWaitText(text)
+      toast.error(
+        "Your skills didn't load, so this wasn't sent. Send again to send it as plain text."
+      )
+      return
+    }
+    sendRef.current()
+  }
+
   const submit = () => {
     const text = getPlainValue()
-    if (waitsForLists && skillListsPending && SLASH_TOKEN.test(text)) {
-      setHeldSend((held) => held ?? { text, chipped: false, expired: false })
+    if (waitsForLists && skillListsPending && SLASH_TOKEN.test(text) && text !== declinedWaitText) {
+      if (heldSend?.text !== text) void holdSend(text)
       return
     }
     send()
   }
-  const sendRef = useRef(send)
-  sendRef.current = send
   useEffect(() => {
-    if (!heldSend || heldSend.expired) return
-    const timer = setTimeout(
-      () => setHeldSend((held) => held && { ...held, expired: true }),
-      HELD_SEND_MAX_MS
-    )
-    return () => clearTimeout(timer)
-  }, [heldSend])
-  useEffect(() => {
-    if (!heldSend) return
-    if (getPlainValue() !== heldSend.text) {
-      setHeldSend(null)
-      return
-    }
-    if (skillListsPending && !heldSend.expired) return
-    if (!heldSend.chipped) {
-      setValue(heldSend.text)
-      setHeldSend({ ...heldSend, chipped: true })
-      return
-    }
+    if (!heldSend || getPlainValue() === heldSend.text) return
+    heldSend.cancel.abort()
     setHeldSend(null)
-    sendRef.current()
-  }, [heldSend, skillListsPending, editor.value, getPlainValue, setValue])
+  }, [heldSend, editor.value, getPlainValue])
 
   const openResourceMenu = (event: { currentTarget: Element }) => {
     const rect = event.currentTarget.getBoundingClientRect()

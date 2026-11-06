@@ -22,7 +22,10 @@ import {
   useMothershipPlanEffortStore,
 } from '@/stores/mothership-effort/store'
 
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
+
 const mocks = vi.hoisted(() => ({
+  workspacesLoading: false,
   plan: false,
   advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
@@ -50,9 +53,18 @@ const mocks = vi.hoisted(() => ({
   ],
 }))
 
+vi.mock('@sim/emcn', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sim/emcn')>()
+  return { ...actual, toast: { ...actual.toast, error: toastError } }
+})
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
-  useWorkspacesQuery: () => ({ data: mocks.workspaces }),
+  useWorkspacesQuery: () =>
+    mocks.workspacesLoading ? { data: undefined, isPending: true } : { data: mocks.workspaces },
+  fetchWorkspacesList: async () => {
+    mocks.workspacesLoading = false
+    return mocks.workspaces
+  },
 }))
 vi.mock('@/hooks/queries/skills', () => ({
   useSkills: () => ({ data: [] }),
@@ -111,6 +123,7 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
+  mocks.workspacesLoading = false
   useMothershipEffortStore.getState().reset()
   useMothershipPlanEffortStore.getState().reset()
   useMothershipDraftsStore.setState({ drafts: {} })
@@ -194,6 +207,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.restoreAllMocks()
   vi.useRealTimers()
   container.remove()
   queryClient.clear()
@@ -583,4 +597,122 @@ it('editing a held message cancels the hold', async () => {
   await act(async () => typeInto(input, '/review this now'))
   expect(input.closest('[aria-busy="true"]')).toBeNull()
   expect(mocks.contexts).not.toHaveBeenCalled()
+})
+
+function holdThenExpire() {
+  const expire = new AbortController()
+  vi.spyOn(AbortSignal, 'timeout').mockReturnValue(expire.signal)
+  return expire
+}
+
+it('tells the viewer when the lists never land, keeps the message, and sends plain on the next try', async () => {
+  const expire = holdThenExpire()
+  mocks.skillQuery.mockReturnValue(new Promise(() => {}))
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(input.closest('[aria-busy="true"]')).not.toBeNull()
+  await act(async () => expire.abort())
+  expect(mocks.submit).not.toHaveBeenCalled()
+  expect(input.value).toBe('/review this')
+  expect(input.closest('[aria-busy="true"]')).toBeNull()
+  expect(toastError).toHaveBeenCalledOnce()
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  expect(mocks.submit).toHaveBeenCalledOnce()
+  expect(mocks.submit.mock.lastCall?.[0]).toBe('/review this')
+})
+
+it('a list that fails while the send waits tells the viewer the same way', async () => {
+  let failSkills: (error: Error) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((_resolve, reject) => {
+      failSkills = reject
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => failSkills(new Error('down')))
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(toastError).toHaveBeenCalledOnce()
+  })
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('a path in a held message goes out as written once the lists land', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, 'read /etc/hosts'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => resolveSkills([]))
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(mocks.submit).toHaveBeenCalledOnce()
+  })
+  expect(mocks.submit.mock.lastCall?.[0]).toBe('read /etc/hosts')
+  expect(toastError).not.toHaveBeenCalled()
+})
+
+it('editing away and back does not revive a cancelled hold', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => typeInto(input, '/review this now'))
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => resolveSkills([]))
+  await settleQueries()
+  await act(async () => {})
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('sends nothing once the composer has unmounted', async () => {
+  let resolveSkills: (skills: unknown[]) => void = () => {}
+  mocks.skillQuery.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSkills = resolve
+    })
+  )
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await act(async () => resolveSkills([]))
+  await act(async () => {})
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('holds for the workspace list too, then chips against the skills it names', async () => {
+  mocks.workspacesLoading = true
+  await render(true, '', 'agent')
+  const input = required<HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+  await act(async () => typeInto(input, '/review this'))
+  await act(async () => required<HTMLButtonElement>('button[aria-label="Send"]').click())
+  await settleQueries()
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(mocks.contexts).toHaveBeenLastCalledWith([
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
+  })
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
 })
