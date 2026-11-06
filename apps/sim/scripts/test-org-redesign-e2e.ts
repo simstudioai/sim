@@ -413,6 +413,27 @@ async function withSession(
   }
 }
 
+/**
+ * Runs a check that changes seeded data, and always puts it back, so a failure part-way cannot leave
+ * the next check on a different fixture. A failed restore fails the check, beside its own failure.
+ */
+async function withRestore<T>(restore: () => Promise<unknown>, run: () => Promise<T>): Promise<T> {
+  let outcome: { value: T } | { error: unknown }
+  try {
+    outcome = { value: await run() }
+  } catch (error) {
+    outcome = { error }
+  }
+  try {
+    await restore()
+  } catch (restoreError) {
+    const failures = 'error' in outcome ? `${getErrorMessage(outcome.error)}; ` : ''
+    throw new Error(`${failures}and the restore failed: ${getErrorMessage(restoreError)}`)
+  }
+  if ('error' in outcome) throw outcome.error
+  return outcome.value
+}
+
 /** Admin and Mothership are for platform admins, which no persona is outside this scope. */
 async function asPlatformAdmin<T>(run: () => Promise<T>) {
   await sql`update "user" set role = 'admin' where email = ${ADMIN.email}`
@@ -626,14 +647,19 @@ async function landingChecks() {
         await expectPageNotFound(page)
         await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
         await expectPageNotFound(page)
-        await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
-        await page.goto(orgUrl('/home'))
-        await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
-        await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
-        await expect(
-          homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)
-        ).toHaveCount(0)
-        await sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`
+        await withRestore(
+          () =>
+            sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`,
+          async () => {
+            await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
+            await page.goto(orgUrl('/home'))
+            await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
+            await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
+            await expect(
+              homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)
+            ).toHaveCount(0)
+          }
+        )
       })
       await withSession(ADMIN, async ({ page }) => {
         await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.agent.id}`))
@@ -1048,42 +1074,43 @@ async function sidebarChecks() {
       })
     }
   )
-  await check(
-    'an admin renames inline: Enter saves, Escape cancels, and it survives reload',
-    async () => {
-      await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl('/home'))
-        const chip = orgChip(page)
-        const card = orgCard(page)
-        async function startRename() {
-          await card.getByRole('button', { name: 'Rename organization' }).click()
-          return card.getByRole('textbox', { name: 'Organization name' })
-        }
-        const renamed = `${ORGANIZATION_NAME} Group`
-        await chip.click()
-        const field = await startRename()
-        await field.fill('Discarded name')
-        await field.press('Escape')
-        await expect(card.getByText(ORGANIZATION_NAME, { exact: true })).toBeVisible()
-        const again = await startRename()
-        await again.fill(renamed)
-        await again.press('Enter')
-        await expect(chip).toContainText(renamed)
-        await page.reload()
-        await expect(chip).toContainText(renamed)
-        await chip.click()
-        const restore = await startRename()
-        await restore.fill(ORGANIZATION_NAME)
-        await restore.press('Enter')
-        await expect
-          .poll(
-            async () =>
-              (await sql`select name from organization where id = ${ORGANIZATION_ID}`)[0]?.name
-          )
-          .toBe(ORGANIZATION_NAME)
-        await expect(chip).toContainText(ORGANIZATION_NAME)
-      })
-    }
+  await check('an admin renames inline: Enter saves, Escape cancels, and it survives reload', () =>
+    withRestore(
+      () => sql`update organization set name = ${ORGANIZATION_NAME} where id = ${ORGANIZATION_ID}`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl('/home'))
+          const chip = orgChip(page)
+          const card = orgCard(page)
+          async function startRename() {
+            await card.getByRole('button', { name: 'Rename organization' }).click()
+            return card.getByRole('textbox', { name: 'Organization name' })
+          }
+          const renamed = `${ORGANIZATION_NAME} Group`
+          await chip.click()
+          const field = await startRename()
+          await field.fill('Discarded name')
+          await field.press('Escape')
+          await expect(card.getByText(ORGANIZATION_NAME, { exact: true })).toBeVisible()
+          const again = await startRename()
+          await again.fill(renamed)
+          await again.press('Enter')
+          await expect(chip).toContainText(renamed)
+          await page.reload()
+          await expect(chip).toContainText(renamed)
+          await chip.click()
+          const restore = await startRename()
+          await restore.fill(ORGANIZATION_NAME)
+          await restore.press('Enter')
+          await expect
+            .poll(
+              async () =>
+                (await sql`select name from organization where id = ${ORGANIZATION_ID}`)[0]?.name
+            )
+            .toBe(ORGANIZATION_NAME)
+          await expect(chip).toContainText(ORGANIZATION_NAME)
+        })
+    )
   )
   await check(
     'a failed rename shows inline and holds the menu open',
@@ -1107,37 +1134,42 @@ async function sidebarChecks() {
     },
     { allow: [/400 (PATCH|PUT) \/api\/organizations\//] }
   )
-  await check('an admin can change the logo from the card', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/home'))
-      await orgChip(page).click()
-      const card = orgCard(page)
-      await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
-      const started = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' && pathOf(response.url()) === '/api/files/uploads'
-      )
-      await page.getByLabel('Organization logo').setInputFiles({
-        name: 'logo.png',
-        mimeType: 'image/png',
-        buffer: Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-          'base64'
-        ),
-      })
-      const response = await started
-      assert(
-        response.ok(),
-        `Starting the upload answered ${response.status()}: ${await response.text()}`
-      )
-      await expect
-        .poll(
-          async () =>
-            (await sql`select logo from organization where id = ${ORGANIZATION_ID}`)[0]?.logo
-        )
-        .toBeTruthy()
-    })
-  })
+  await check('an admin can change the logo from the card', () =>
+    withRestore(
+      () => sql`update organization set logo = null where id = ${ORGANIZATION_ID}`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl('/home'))
+          await orgChip(page).click()
+          const card = orgCard(page)
+          await expect(card.getByRole('button', { name: 'Change organization logo' })).toBeEnabled()
+          const started = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'POST' &&
+              pathOf(response.url()) === '/api/files/uploads'
+          )
+          await page.getByLabel('Organization logo').setInputFiles({
+            name: 'logo.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+              'base64'
+            ),
+          })
+          const response = await started
+          assert(
+            response.ok(),
+            `Starting the upload answered ${response.status()}: ${await response.text()}`
+          )
+          await expect
+            .poll(
+              async () =>
+                (await sql`select logo from organization where id = ${ORGANIZATION_ID}`)[0]?.logo
+            )
+            .toBeTruthy()
+        })
+    )
+  )
   await check('Invite follows the default group, and an admin invites when it allows', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/home'))
@@ -1251,41 +1283,50 @@ async function sidebarChecks() {
       })
     }
   )
-  await check('an admin creates a workspace and enters it', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/home'))
-      await sidebar(page).getByRole('button', { name: 'New workspace', exact: true }).click()
-      const modal = dialog(page, 'Create workspace')
-      await modal.getByRole('textbox', { name: 'Name' }).fill('Created in acceptance')
-      await modal.getByRole('button', { name: 'Create', exact: true }).click()
-      await expect(page).toHaveURL((address) => address.pathname.startsWith('/workspace/'), {
-        timeout: 45_000,
-      })
-    })
-  })
-  await check('rename a workspace from its menu', async () => {
-    await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/home'))
-      await openRowMenu(page, MEMBER_ADMIN_WORKSPACE.name)
-      await menuEntry(page, 'Rename').click()
-      const modal = dialog(page, 'Rename workspace')
-      const field = modal.getByRole('textbox', { name: 'Name' })
-      await field.fill('Operations East')
-      await modal.getByRole('button', { name: 'Save', exact: true }).click()
-      await expect(sidebar(page).getByRole('link', { name: 'Operations East' })).toBeVisible()
-      await openRowMenu(page, 'Operations East')
-      await menuEntry(page, 'Rename').click()
-      await dialog(page, 'Rename workspace')
-        .getByRole('textbox', { name: 'Name' })
-        .fill(MEMBER_ADMIN_WORKSPACE.name)
-      await dialog(page, 'Rename workspace')
-        .getByRole('button', { name: 'Save', exact: true })
-        .click()
-      await expect(
-        sidebar(page).getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })
-      ).toBeVisible()
-    })
-  })
+  await check('an admin creates a workspace and enters it', () =>
+    withRestore(
+      () => sql`delete from workspace where name = 'Created in acceptance'`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl('/home'))
+          await sidebar(page).getByRole('button', { name: 'New workspace', exact: true }).click()
+          const modal = dialog(page, 'Create workspace')
+          await modal.getByRole('textbox', { name: 'Name' }).fill('Created in acceptance')
+          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await expect(page).toHaveURL((address) => address.pathname.startsWith('/workspace/'), {
+            timeout: 45_000,
+          })
+        })
+    )
+  )
+  await check('rename a workspace from its menu', () =>
+    withRestore(
+      () =>
+        sql`update workspace set name = ${MEMBER_ADMIN_WORKSPACE.name} where id = ${MEMBER_ADMIN_WORKSPACE.id}`,
+      () =>
+        withSession(MEMBER, async ({ page }) => {
+          await page.goto(orgUrl('/home'))
+          await openRowMenu(page, MEMBER_ADMIN_WORKSPACE.name)
+          await menuEntry(page, 'Rename').click()
+          const modal = dialog(page, 'Rename workspace')
+          const field = modal.getByRole('textbox', { name: 'Name' })
+          await field.fill('Operations East')
+          await modal.getByRole('button', { name: 'Save', exact: true }).click()
+          await expect(sidebar(page).getByRole('link', { name: 'Operations East' })).toBeVisible()
+          await openRowMenu(page, 'Operations East')
+          await menuEntry(page, 'Rename').click()
+          await dialog(page, 'Rename workspace')
+            .getByRole('textbox', { name: 'Name' })
+            .fill(MEMBER_ADMIN_WORKSPACE.name)
+          await dialog(page, 'Rename workspace')
+            .getByRole('button', { name: 'Save', exact: true })
+            .click()
+          await expect(
+            sidebar(page).getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })
+          ).toBeVisible()
+        })
+    )
+  )
 
   section('2 Sidebar: chats')
   await check('rows link by mode, and an empty list says so', async () => {
@@ -1324,46 +1365,51 @@ async function sidebarChecks() {
       await expect(row.getByRole('img', { name: 'Unread' })).toHaveCount(0)
     })
   })
-  await check('menu: Copy link, Pin, Rename inline, right click opens the same menu', async () => {
-    await withSession(MEMBER, async ({ page, context }) => {
-      await page.goto(orgUrl('/home'))
-      const title = MEMBER_CHATS.assistant.title
-      const row = railLink(page, title)
-      await row.click({ button: 'right' })
-      await expect(page.getByRole('menu').getByRole('menuitem')).toHaveText([
-        'Open in new tab',
-        'Copy link',
-        'Mark as unread',
-        'Pin',
-        'Rename',
-        'Delete',
-      ])
-      await menuEntry(page, 'Copy link').click()
-      await expect
-        .poll(() => clipboard(page))
-        .toBe(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
-      await openRowMenu(page, title)
-      await menuEntry(page, 'Pin').click()
-      await expect(railRow(page, title).getByRole('img', { name: 'Pinned' })).toBeVisible()
-      await openRowMenu(page, title)
-      await menuEntry(page, 'Unpin').click()
-      await openRowMenu(page, title)
-      await menuEntry(page, 'Rename').click()
-      const modal = dialog(page, 'Rename chat')
-      await modal.getByRole('textbox', { name: 'Chat name' }).fill(`${title} renamed`)
-      await modal.getByRole('button', { name: 'Save', exact: true }).click()
-      await expect(sidebar(page).getByRole('link', { name: `${title} renamed` })).toBeVisible()
-      await openRowMenu(page, `${title} renamed`)
-      const popup = context.waitForEvent('page')
-      await menuEntry(page, 'Open in new tab').click()
-      await expect(await popup).toHaveURL(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
-      await openRowMenu(page, `${title} renamed`)
-      await menuEntry(page, 'Rename').click()
-      await modal.getByRole('textbox', { name: 'Chat name' }).fill(title)
-      await modal.getByRole('button', { name: 'Save', exact: true }).click()
-      await expect(sidebar(page).getByRole('link', { name: title, exact: true })).toBeVisible()
-    })
-  })
+  await check('menu: Copy link, Pin, Rename inline, right click opens the same menu', () =>
+    withRestore(
+      () =>
+        sql`update copilot_chats set title = ${MEMBER_CHATS.assistant.title} where id = ${MEMBER_CHATS.assistant.id}`,
+      () =>
+        withSession(MEMBER, async ({ page, context }) => {
+          await page.goto(orgUrl('/home'))
+          const title = MEMBER_CHATS.assistant.title
+          const row = railLink(page, title)
+          await row.click({ button: 'right' })
+          await expect(page.getByRole('menu').getByRole('menuitem')).toHaveText([
+            'Open in new tab',
+            'Copy link',
+            'Mark as unread',
+            'Pin',
+            'Rename',
+            'Delete',
+          ])
+          await menuEntry(page, 'Copy link').click()
+          await expect
+            .poll(() => clipboard(page))
+            .toBe(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
+          await openRowMenu(page, title)
+          await menuEntry(page, 'Pin').click()
+          await expect(railRow(page, title).getByRole('img', { name: 'Pinned' })).toBeVisible()
+          await openRowMenu(page, title)
+          await menuEntry(page, 'Unpin').click()
+          await openRowMenu(page, title)
+          await menuEntry(page, 'Rename').click()
+          const modal = dialog(page, 'Rename chat')
+          await modal.getByRole('textbox', { name: 'Chat name' }).fill(`${title} renamed`)
+          await modal.getByRole('button', { name: 'Save', exact: true }).click()
+          await expect(sidebar(page).getByRole('link', { name: `${title} renamed` })).toBeVisible()
+          await openRowMenu(page, `${title} renamed`)
+          const popup = context.waitForEvent('page')
+          await menuEntry(page, 'Open in new tab').click()
+          await expect(await popup).toHaveURL(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
+          await openRowMenu(page, `${title} renamed`)
+          await menuEntry(page, 'Rename').click()
+          await modal.getByRole('textbox', { name: 'Chat name' }).fill(title)
+          await modal.getByRole('button', { name: 'Save', exact: true }).click()
+          await expect(sidebar(page).getByRole('link', { name: title, exact: true })).toBeVisible()
+        })
+    )
+  )
   await check('deleting the open chat returns to where its mode lives', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.removable.id}`))
@@ -1434,22 +1480,25 @@ async function sidebarChecks() {
       await expect(page).toHaveURL(orgUrl('/settings/general'))
     })
   })
-  await check('sign out ends the session', async () => {
-    await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(orgUrl('/home'))
-      await accountChip(page).click()
-      await dialog(page, 'Account menu')
-        .getByRole('button', { name: 'Sign out', exact: true })
-        .click()
-      await expect(page).toHaveURL(
-        (address) => address.pathname === '/login' || address.pathname === '/',
-        { timeout: 30_000 }
-      )
-    })
-    await sql`insert into session (id, token, user_id, active_organization_id, expires_at, created_at, updated_at)
+  await check('sign out ends the session', () =>
+    withRestore(
+      () => sql`insert into session (id, token, user_id, active_organization_id, expires_at, created_at, updated_at)
       values (${`org-redesign-session-row-${CONNECTED.key}`}, ${CONNECTED.sessionToken}, ${CONNECTED.userId}, ${ORGANIZATION_ID}, now() + interval '1 day', now(), now())
-      on conflict (id) do nothing`
-  })
+      on conflict (id) do nothing`,
+      () =>
+        withSession(CONNECTED, async ({ page }) => {
+          await page.goto(orgUrl('/home'))
+          await accountChip(page).click()
+          await dialog(page, 'Account menu')
+            .getByRole('button', { name: 'Sign out', exact: true })
+            .click()
+          await expect(page).toHaveURL(
+            (address) => address.pathname === '/login' || address.pathname === '/',
+            { timeout: 30_000 }
+          )
+        })
+    )
+  )
   await check(
     'Help menu: Documentation, Join Slack, and a support request posted with its fields',
     async () => {
@@ -1877,14 +1926,20 @@ async function homeChecks() {
   })
   await check('Unread chats need attention and open under Search', async () => {
     const { id, title } = MEMBER_CHATS.unread
-    await withSession(MEMBER, async ({ page }) => {
-      await sql`update copilot_chats set last_seen_at = null where id = ${id}`
-      await page.goto(orgUrl('/home'))
-      const row = homeRegion(page, 'Needs your attention').getByRole('link', { name: title })
-      await expect(row).toHaveAttribute('href', `${root}/search/chat/${id}`)
-      await row.click()
-      await expect(page).toHaveURL((address) => address.pathname === `${root}/search/chat/${id}`)
-    })
+    await withRestore(
+      () => sql`update copilot_chats set last_seen_at = null where id = ${id}`,
+      () =>
+        withSession(MEMBER, async ({ page }) => {
+          await sql`update copilot_chats set last_seen_at = null where id = ${id}`
+          await page.goto(orgUrl('/home'))
+          const row = homeRegion(page, 'Needs your attention').getByRole('link', { name: title })
+          await expect(row).toHaveAttribute('href', `${root}/search/chat/${id}`)
+          await row.click()
+          await expect(page).toHaveURL(
+            (address) => address.pathname === `${root}/search/chat/${id}`
+          )
+        })
+    )
   })
   await check('Get started keeps its steps, with Integrations for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
@@ -3070,6 +3125,8 @@ async function linksChecks() {
   const rowFor = (page: Page, name: string) =>
     page.getByRole('row').filter({ has: page.getByText(name, { exact: true }) })
   const search = (page: Page) => page.getByRole('searchbox', { name: 'Search links' })
+  const removeLink = (name: string) =>
+    sql`delete from sim_link where organization_id = ${ORGANIZATION_ID} and name = ${name}`
 
   section('3 Links')
   await check('header, Chrome install, columns, and the list copes with 183 links', async () => {
@@ -3158,7 +3215,10 @@ async function linksChecks() {
         names = [...names, ...body.links.map((link: { name: string }) => link.name)]
         cursor = body.nextCursor ?? undefined
       } while (cursor)
-      assert.equal(names.length, LINK_COUNT - 1, 'Everything but another person’s unlisted link')
+      const [{ count }] = await sql`select count(*)::int as count from sim_link
+        where organization_id = ${ORGANIZATION_ID} and name <> ${NAMED_LINKS.unlisted.name}`
+      assert.equal(names.length, count, 'Everything but another person’s unlisted link')
+      assert(count >= LINK_COUNT - 1, 'The fixture lost links')
       assert(!names.includes(NAMED_LINKS.unlisted.name))
     })
     await withSession(ADMIN, async ({ page }) => {
@@ -3247,79 +3307,86 @@ async function linksChecks() {
       ).toHaveText(['Open', 'Copy link'])
     })
   })
-  await check(
-    'canEdit without canManage: edits save while Access stays disabled, with why',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        await page.goto(`${linksUrl}?search=${NAMED_LINKS.handbook.name}`)
-        await rowFor(page, NAMED_LINKS.handbook.name).click({ button: 'right' })
-        await menuEntry(page, 'Edit').click()
-        const modal = dialog(page, `Edit ${NAMED_LINKS.handbook.name}`)
-        await expect(
-          modal.getByText('Only the creator or an organization admin can change access.')
-        ).toBeVisible()
-        await expect(
-          modal.getByRole('checkbox', { name: 'Hide from the Links page' })
-        ).toBeDisabled()
-        await expect(
-          modal.getByRole('checkbox', { name: 'Only the creator and admins can edit' })
-        ).toBeDisabled()
-        await modal.getByRole('textbox', { name: 'Description' }).fill('The company handbook')
-        await modal.getByRole('button', { name: 'Save', exact: true }).click()
-        await expect(modal).toHaveCount(0)
-        await expect(rowFor(page, NAMED_LINKS.handbook.name)).toContainText('The company handbook')
-      })
-    }
+  await check('canEdit without canManage: edits save while Access stays disabled, with why', () =>
+    withRestore(
+      () =>
+        sql`update sim_link set description = ${NAMED_LINKS.handbook.description} where organization_id = ${ORGANIZATION_ID} and name = ${NAMED_LINKS.handbook.name}`,
+      () =>
+        withSession(MEMBER, async ({ page }) => {
+          await page.goto(`${linksUrl}?search=${NAMED_LINKS.handbook.name}`)
+          await rowFor(page, NAMED_LINKS.handbook.name).click({ button: 'right' })
+          await menuEntry(page, 'Edit').click()
+          const modal = dialog(page, `Edit ${NAMED_LINKS.handbook.name}`)
+          await expect(
+            modal.getByText('Only the creator or an organization admin can change access.')
+          ).toBeVisible()
+          await expect(
+            modal.getByRole('checkbox', { name: 'Hide from the Links page' })
+          ).toBeDisabled()
+          await expect(
+            modal.getByRole('checkbox', { name: 'Only the creator and admins can edit' })
+          ).toBeDisabled()
+          await modal.getByRole('textbox', { name: 'Description' }).fill('The company handbook')
+          await modal.getByRole('button', { name: 'Save', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+          await expect(rowFor(page, NAMED_LINKS.handbook.name)).toContainText(
+            'The company handbook'
+          )
+        })
+    )
   )
   await check(
     'create: field order, normalized name, variable destination, conflict on Name',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        await page.goto(linksUrl)
-        await page.getByRole('button', { name: 'New link', exact: true }).first().click()
-        await expect(page).toHaveURL((address) => address.searchParams.has('create'))
-        const modal = dialog(page, 'New link')
-        const fields = await modal
-          .getByRole('textbox')
-          .evaluateAll((nodes) =>
-            nodes.map(
-              (node) =>
-                node.getAttribute('aria-label') ??
-                node.closest('label')?.textContent ??
-                (node as HTMLInputElement).labels?.[0]?.textContent ??
-                ''
-            )
-          )
-        assert(fields[0]?.startsWith('Destination URL'), `Fields ${fields}`)
-        assert(fields[1]?.startsWith('Name'), `Fields ${fields}`)
-        assert(fields[2]?.startsWith('Description'), `Fields ${fields}`)
-        await expect(modal.getByRole('textbox', { name: 'Default destination' })).toHaveCount(0)
-        await modal
-          .getByRole('textbox', { name: 'Destination URL' })
-          .fill('https://parts.example.com/{*}')
-        await expect(modal.getByRole('textbox', { name: 'Default destination' })).toBeVisible()
-        await expect(modal.getByText(/Opens when no value fills/)).toBeVisible()
-        await modal
-          .getByRole('textbox', { name: 'Default destination' })
-          .fill('https://parts.example.com')
-        await modal.getByRole('textbox', { name: 'Name' }).fill('Hand Book')
-        await expect(modal.getByRole('textbox', { name: 'Name' })).not.toHaveValue('Hand Book')
-        await modal.getByRole('textbox', { name: 'Name' }).fill(NAMED_LINKS.handbook.name)
-        await modal.getByRole('button', { name: 'Create', exact: true }).click()
-        await expect(modal.getByText(/already exists/)).toBeVisible()
-        await modal.getByRole('textbox', { name: 'Name' }).fill('parts-lookup')
-        await expect(
-          modal.getByRole('checkbox', { name: 'Hide from the Links page' })
-        ).toBeEnabled()
-        await modal.getByRole('button', { name: 'Create', exact: true }).click()
-        await expect(modal).toHaveCount(0)
-        await expect(page).toHaveURL((address) => !address.searchParams.has('create'))
-        await search(page).fill('parts-lookup')
-        await expect(rowFor(page, 'parts-lookup')).toBeVisible()
-        const opened = await page.request.get(url('/sim/parts-lookup/123'), { maxRedirects: 0 })
-        assert.equal(opened.headers().location, 'https://parts.example.com/123')
-      })
-    },
+    () =>
+      withRestore(
+        () => removeLink('parts-lookup'),
+        () =>
+          withSession(MEMBER, async ({ page }) => {
+            await page.goto(linksUrl)
+            await page.getByRole('button', { name: 'New link', exact: true }).first().click()
+            await expect(page).toHaveURL((address) => address.searchParams.has('create'))
+            const modal = dialog(page, 'New link')
+            const fields = await modal
+              .getByRole('textbox')
+              .evaluateAll((nodes) =>
+                nodes.map(
+                  (node) =>
+                    node.getAttribute('aria-label') ??
+                    node.closest('label')?.textContent ??
+                    (node as HTMLInputElement).labels?.[0]?.textContent ??
+                    ''
+                )
+              )
+            assert(fields[0]?.startsWith('Destination URL'), `Fields ${fields}`)
+            assert(fields[1]?.startsWith('Name'), `Fields ${fields}`)
+            assert(fields[2]?.startsWith('Description'), `Fields ${fields}`)
+            await expect(modal.getByRole('textbox', { name: 'Default destination' })).toHaveCount(0)
+            await modal
+              .getByRole('textbox', { name: 'Destination URL' })
+              .fill('https://parts.example.com/{*}')
+            await expect(modal.getByRole('textbox', { name: 'Default destination' })).toBeVisible()
+            await expect(modal.getByText(/Opens when no value fills/)).toBeVisible()
+            await modal
+              .getByRole('textbox', { name: 'Default destination' })
+              .fill('https://parts.example.com')
+            await modal.getByRole('textbox', { name: 'Name' }).fill('Hand Book')
+            await expect(modal.getByRole('textbox', { name: 'Name' })).not.toHaveValue('Hand Book')
+            await modal.getByRole('textbox', { name: 'Name' }).fill(NAMED_LINKS.handbook.name)
+            await modal.getByRole('button', { name: 'Create', exact: true }).click()
+            await expect(modal.getByText(/already exists/)).toBeVisible()
+            await modal.getByRole('textbox', { name: 'Name' }).fill('parts-lookup')
+            await expect(
+              modal.getByRole('checkbox', { name: 'Hide from the Links page' })
+            ).toBeEnabled()
+            await modal.getByRole('button', { name: 'Create', exact: true }).click()
+            await expect(modal).toHaveCount(0)
+            await expect(page).toHaveURL((address) => !address.searchParams.has('create'))
+            await search(page).fill('parts-lookup')
+            await expect(rowFor(page, 'parts-lookup')).toBeVisible()
+            const opened = await page.request.get(url('/sim/parts-lookup/123'), { maxRedirects: 0 })
+            assert.equal(opened.headers().location, 'https://parts.example.com/123')
+          })
+      ),
     { allow: [/409 POST .*\/sim-links/] }
   )
   await check('?create= prefills the name, and an unknown sim/ link offers it', async () => {
@@ -3334,58 +3401,64 @@ async function linksChecks() {
       await expect(page.locator(`a[href*="links?create=brand-new"]`).first()).toBeVisible()
     })
   })
-  await check(
-    'a validation problem shows on its field, and the modal holds while saving',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        await page.goto(`${linksUrl}?create=held-link`)
-        const modal = dialog(page, 'New link')
-        await modal.getByRole('button', { name: 'Create', exact: true }).click()
-        await expect(modal.getByRole('textbox', { name: 'Destination URL' })).toHaveAttribute(
-          'aria-invalid',
-          'true'
-        )
-        await modal
-          .getByRole('textbox', { name: 'Destination URL' })
-          .fill('https://held.example.com')
-        const release = createDeferred<void>()
-        await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links`, async (route) => {
-          await release.promise
-          await route.continue()
+  await check('a validation problem shows on its field, and the modal holds while saving', () =>
+    withRestore(
+      () => removeLink('held-link'),
+      () =>
+        withSession(MEMBER, async ({ page }) => {
+          await page.goto(`${linksUrl}?create=held-link`)
+          const modal = dialog(page, 'New link')
+          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await expect(modal.getByRole('textbox', { name: 'Destination URL' })).toHaveAttribute(
+            'aria-invalid',
+            'true'
+          )
+          await modal
+            .getByRole('textbox', { name: 'Destination URL' })
+            .fill('https://held.example.com')
+          const release = createDeferred<void>()
+          await page.route(`**/api/organizations/${ORGANIZATION_ID}/sim-links`, async (route) => {
+            await release.promise
+            await route.continue()
+          })
+          await modal.getByRole('button', { name: 'Create', exact: true }).click()
+          await page.keyboard.press('Escape')
+          await sleep(300)
+          await expect(modal).toBeVisible()
+          release.resolve()
+          await expect(modal).toHaveCount(0)
         })
-        await modal.getByRole('button', { name: 'Create', exact: true }).click()
-        await page.keyboard.press('Escape')
-        await sleep(300)
-        await expect(modal).toBeVisible()
-        release.resolve()
-        await expect(modal).toHaveCount(0)
-      })
-    }
+    )
   )
-  await check(
-    'the creator manages Access; delete warns everyone and stops the link working',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        await page.goto(`${linksUrl}?search=${NAMED_LINKS.mostUsed.name}`)
-        await rowFor(page, NAMED_LINKS.mostUsed.name).click({ button: 'right' })
-        await menuEntry(page, 'Edit').click()
-        const editor = dialog(page, `Edit ${NAMED_LINKS.mostUsed.name}`)
-        await expect(
-          editor.getByRole('checkbox', { name: 'Hide from the Links page' })
-        ).toBeEnabled()
-        await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
-        await page.goto(`${linksUrl}?search=parts-lookup`)
-        await rowFor(page, 'parts-lookup').click({ button: 'right' })
-        await menuEntry(page, 'Delete').click()
-        const modal = dialog(page, 'Delete link')
-        await expect(
-          modal.getByText('parts-lookup will stop working for everyone in your organization.')
-        ).toBeVisible()
-        await modal.getByRole('button', { name: 'Delete', exact: true }).click()
-        await expect(modal).toHaveCount(0)
-        await expect(rowFor(page, 'parts-lookup')).toHaveCount(0)
-      })
-    }
+  await check('the creator manages Access; delete warns everyone and stops the link working', () =>
+    withRestore(
+      () => removeLink('removable-link'),
+      () =>
+        withSession(MEMBER, async ({ page }) => {
+          await sql`insert into sim_link (id, organization_id, name, normalized_name, url, created_by, created_at, updated_at)
+          values ('org-redesign-link-removable', ${ORGANIZATION_ID}, 'removable-link', 'removablelink', 'https://removable.example.com', ${MEMBER.userId}, now(), now())`
+          await page.goto(`${linksUrl}?search=${NAMED_LINKS.mostUsed.name}`)
+          await rowFor(page, NAMED_LINKS.mostUsed.name).click({ button: 'right' })
+          await menuEntry(page, 'Edit').click()
+          const editor = dialog(page, `Edit ${NAMED_LINKS.mostUsed.name}`)
+          await expect(
+            editor.getByRole('checkbox', { name: 'Hide from the Links page' })
+          ).toBeEnabled()
+          await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+          await page.goto(`${linksUrl}?search=removable-link`)
+          await rowFor(page, 'removable-link').click({ button: 'right' })
+          await menuEntry(page, 'Delete').click()
+          const modal = dialog(page, 'Delete link')
+          await expect(
+            modal.getByText('removable-link will stop working for everyone in your organization.')
+          ).toBeVisible()
+          await modal.getByRole('button', { name: 'Delete', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+          await expect(rowFor(page, 'removable-link')).toHaveCount(0)
+          const opened = await page.request.get(url('/sim/removable-link'), { maxRedirects: 0 })
+          assert.notEqual(opened.headers().location, 'https://removable.example.com')
+        })
+    )
   )
   await check(
     'loading, failure with Retry, and the empty state',
@@ -3774,44 +3847,54 @@ async function settingsChecks() {
     },
     { allow: [/500 POST .*sso\/register/] }
   )
-  await check('Members: a role change writes, and writes back', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/members'))
-      const role = page.getByRole('combobox', { name: 'Role for Mia Member', exact: true })
-      const set = async (name: string) => {
-        const write = page.waitForResponse(
-          (response) =>
-            /\/api\/organizations\/[^/]+\/members\/[^/]+$/.test(pathOf(response.url())) &&
-            response.request().method() !== 'GET'
-        )
-        await role.click()
-        await page.getByRole('option', { name, exact: true }).click()
-        assert.ok((await write).ok(), `Setting ${name} failed`)
-        await expect(role).toContainText(name)
-      }
-      await set('Admin')
-      await set('Member')
-    })
-  })
-  await check('Permission groups: editing the name saves, and saves back', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
-      const name = page.getByRole('textbox', { name: 'Name', exact: true })
-      await expect(name).toBeVisible()
-      const original = await name.inputValue()
-      const save = page.getByRole('button', { name: 'Save', exact: true })
-      for (const value of [`${original} edited`, original]) {
-        await name.fill(value)
-        const write = page.waitForResponse(
-          (response) =>
-            /permission-groups\/[^/]+$/.test(pathOf(response.url())) &&
-            response.request().method() !== 'GET'
-        )
-        await save.click()
-        assert.ok((await write).ok(), 'The group did not save')
-      }
-    })
-  })
+  await check('Members: a role change writes, and writes back', () =>
+    withRestore(
+      () =>
+        sql`update member set role = ${MEMBER.role} where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl('/settings/members'))
+          const role = page.getByRole('combobox', { name: 'Role for Mia Member', exact: true })
+          const set = async (name: string) => {
+            const write = page.waitForResponse(
+              (response) =>
+                /\/api\/organizations\/[^/]+\/members\/[^/]+$/.test(pathOf(response.url())) &&
+                response.request().method() !== 'GET'
+            )
+            await role.click()
+            await page.getByRole('option', { name, exact: true }).click()
+            assert.ok((await write).ok(), `Setting ${name} failed`)
+            await expect(role).toContainText(name)
+          }
+          await set('Admin')
+          await set('Member')
+        })
+    )
+  )
+  await check('Permission groups: editing the name saves, and saves back', () =>
+    withRestore(
+      () =>
+        sql`update permission_group set name = 'Standard Access' where id = ${STANDARD_GROUP_ID}`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+          const name = page.getByRole('textbox', { name: 'Name', exact: true })
+          await expect(name).toBeVisible()
+          const original = await name.inputValue()
+          const save = page.getByRole('button', { name: 'Save', exact: true })
+          for (const value of [`${original} edited`, original]) {
+            await name.fill(value)
+            const write = page.waitForResponse(
+              (response) =>
+                /permission-groups\/[^/]+$/.test(pathOf(response.url())) &&
+                response.request().method() !== 'GET'
+            )
+            await save.click()
+            assert.ok((await write).ok(), 'The group did not save')
+          }
+        })
+    )
+  )
   await check(
     'Data drains: Create posts the drain',
     async () => {
@@ -3841,28 +3924,35 @@ async function settingsChecks() {
     { allow: [/500 POST .*data-drains/] }
   )
   await check('Data retention: a policy edit saves, and saves back', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/data-retention'))
-      await page
-        .getByRole('button', { name: /Organization/ })
-        .first()
-        .click()
-      const picker = page.getByRole('combobox', { name: 'Log retention' })
-      const original = (await picker.textContent())?.trim() ?? ''
-      for (const name of ['5 years', original]) {
-        await picker.click()
-        await page.getByRole('option', { name, exact: true }).click()
-        const write = page.waitForResponse(
-          (response) =>
-            pathOf(response.url()).endsWith('/data-retention') &&
-            response.request().method() !== 'GET'
-        )
-        const save = page.getByRole('button', { name: 'Save', exact: true })
-        await save.click()
-        assert.ok((await write).ok(), 'The policy did not save')
-        await expect(save).toBeDisabled()
-      }
-    })
+    const [before] =
+      await sql`select data_retention_settings from organization where id = ${ORGANIZATION_ID}`
+    await withRestore(
+      () =>
+        sql`update organization set data_retention_settings = ${before.data_retention_settings === null ? null : sql.json(before.data_retention_settings)} where id = ${ORGANIZATION_ID}`,
+      () =>
+        withSession(ADMIN, async ({ page }) => {
+          await page.goto(orgUrl('/settings/data-retention'))
+          await page
+            .getByRole('button', { name: /Organization/ })
+            .first()
+            .click()
+          const picker = page.getByRole('combobox', { name: 'Log retention' })
+          const original = (await picker.textContent())?.trim() ?? ''
+          for (const name of ['5 years', original]) {
+            await picker.click()
+            await page.getByRole('option', { name, exact: true }).click()
+            const write = page.waitForResponse(
+              (response) =>
+                pathOf(response.url()).endsWith('/data-retention') &&
+                response.request().method() !== 'GET'
+            )
+            const save = page.getByRole('button', { name: 'Save', exact: true })
+            await save.click()
+            assert.ok((await write).ok(), 'The policy did not save')
+            await expect(save).toBeDisabled()
+          }
+        })
+    )
   })
   await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
     await withSession(ADMIN, async ({ page }) => {
