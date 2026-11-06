@@ -598,13 +598,13 @@ export async function settingsChecks() {
           page.getByText(/Enter a valid issuer URL|Issuer URL must/).first()
         ).toBeVisible()
         assert.equal(bodies.length, 0, 'An invalid form reached the server')
-        await page.getByRole('combobox', { name: 'Provider ID' }).click()
+        const providerId = page.getByRole('combobox', { name: 'Provider ID', exact: true })
+        await providerId.click()
         await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
         await page.keyboard.press('Escape')
-        await expect(
-          page.getByRole('combobox', { name: 'Provider ID' }),
-          'Closing the popup cleared the typed provider ID'
-        ).toContainText('e2e-oidc')
+        await expect(providerId, 'Closing the popup cleared the typed provider ID').toContainText(
+          'e2e-oidc'
+        )
         await issuer.fill('https://idp.org-redesign.test')
         await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('org-redesign.test')
         await page.getByRole('textbox', { name: 'Client ID', exact: true }).fill('e2e-client')
