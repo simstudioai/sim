@@ -18,6 +18,7 @@ export const liveSearchProviderSchema = z.enum([
   'gitlab',
   'linear',
   'lucid',
+  'hex',
   'hubspot',
   'fireflies',
   'granola',

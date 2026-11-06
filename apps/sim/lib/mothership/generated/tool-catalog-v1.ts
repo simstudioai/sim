@@ -6111,6 +6111,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
                 'gitlab',
                 'linear',
                 'lucid',
+                'hex',
                 'hubspot',
                 'fireflies',
                 'granola',
