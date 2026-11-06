@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -14,6 +13,7 @@ import {
   Disclosure,
   FailureNotice,
   Icon,
+  LoadingRows,
   SearchField,
   Select,
   StatusTag,
@@ -176,7 +176,7 @@ export function PermissionGrid({
     )
     .sort((a, b) => a.label.localeCompare(b.label))
   const targetFor = (id: string) => ({ kind, id }) as AccessRequestTarget
-  if (loading) return <LoadingState label='Loading…' />
+  if (loading) return <LoadingRows label='Loading…' />
   if (!items.length) return <Muted>{emptyLabel}</Muted>
   return (
     <>

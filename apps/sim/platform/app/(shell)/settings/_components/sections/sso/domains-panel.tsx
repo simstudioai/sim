@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -16,6 +15,7 @@ import {
   ConfirmDialog,
   CopyField,
   FailureNotice,
+  LoadingRows,
   StatusTag,
   TextField,
 } from '@/platform/design-system/components'
@@ -159,7 +159,7 @@ export function DomainsPanel({
         </form>
         {isLoading ? (
           <FieldStack>
-            <LoadingState label='Loading domains…' />
+            <LoadingRows label='Loading domains…' />
           </FieldStack>
         ) : data === undefined && isError ? (
           <FieldStack>

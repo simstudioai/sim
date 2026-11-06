@@ -9,8 +9,6 @@ import { ActionMenu } from '@/platform/design-system/components/menu/action-menu
 import { SearchField } from '@/platform/design-system/components/search-field/search-field'
 import { openChromeStore } from '@/platform/lib/data/links'
 
-const SKELETON_ROWS = 6
-
 interface LinksFrameProps {
   search?: string
   onSearch?: (value: string) => void
@@ -59,15 +57,5 @@ export function LinksFrame({
       </div>
       {children}
     </main>
-  )
-}
-
-export function LinkRowsSkeleton() {
-  return (
-    <div role='status' aria-label='Loading links' className={styles.skeleton}>
-      {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-        <span key={index} className={styles.skeletonRow} />
-      ))}
-    </div>
   )
 }

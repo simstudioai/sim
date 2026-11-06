@@ -22,13 +22,13 @@ import styles from '@/platform/app/(shell)/integrations/_components/secrets-edit
 import {
   DetailHeader,
   DraftConflictNotice,
-  LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import {
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SaveActions,
   SearchField,
 } from '@/platform/design-system/components'
@@ -88,7 +88,7 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
             onRetry={() => void secrets.refetch()}
           />
         ) : (
-          <LoadingState label='Loading secrets…' />
+          <LoadingRows label='Loading secrets…' />
         )}
       </SectionStack>
     )

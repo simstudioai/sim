@@ -11,6 +11,7 @@ import {
   FailureNotice,
   Icon,
   InlineNotice,
+  LoadingRows,
   Pagination,
   SearchField,
   StatusTag,
@@ -47,9 +48,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
         <InlineNotice message='Your organization has paused new requests. Your request history is still available.' />
       )}
       {mine.searching || mine.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading…
-        </p>
+        <LoadingRows label='Loading access requests' />
       ) : mine.error ? (
         <FailureNotice
           title='Unable to load access requests'

@@ -8,8 +8,8 @@ import type {
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { FailureNotice } from '@/platform/design-system/components'
 import { Button } from '@/platform/design-system/components/button/button'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
@@ -64,11 +64,11 @@ function AccountNotices({ accounts, onReconnect, onRetry }: AccountNoticesProps)
       )
     if (account.problem === 'unavailable')
       return (
-        <InlineNotice
+        <FailureNotice
           key={account.id}
           intent='warning'
           message={`${account.label} could not be reached.`}
-          action={<RetryButton onRetry={onRetry} />}
+          onRetry={onRetry}
         />
       )
     if (account.problem === 'not_offered')
@@ -160,10 +160,11 @@ export function ConnectedWidget<T>({
         />
       )}
       {state.status === 'error' && (
-        <InlineNotice
+        <FailureNotice
           intent='warning'
           message={`Your ${noun} could not load.`}
-          action={<RetryButton retrying={state.retrying} onRetry={actions.retry} />}
+          retrying={state.retrying}
+          onRetry={actions.retry}
         />
       )}
       {state.status === 'ready' && (

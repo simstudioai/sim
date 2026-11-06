@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   DraftConflictNotice,
   FieldStack,
-  LoadingState,
   Muted,
   SectionSkeleton,
   SectionStack,
@@ -19,6 +18,7 @@ import {
   CopyField,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SaveActions,
   TextField,
 } from '@/platform/design-system/components'
@@ -195,7 +195,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
     <SettingsSection title='Outbound IP addresses'>
       <FieldStack>
         {isPending ? (
-          <LoadingState label='Loading network settings…' />
+          <LoadingRows label='Loading network settings…' />
         ) : error || !data || data.mode === 'unavailable' ? (
           <FailureNotice
             message={getErrorMessage(error, 'Could not load network settings')}

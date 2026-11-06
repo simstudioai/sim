@@ -1,18 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import {
   Button,
   Checkbox,
-  FailureNotice,
+  EmptyState,
+  errorMessageOr,
   Modal,
+  QueryBoundary,
   SearchField,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -34,13 +34,7 @@ export function AddMembersModal({
   onAdd,
   isAdding,
 }: AddMembersModalProps) {
-  const {
-    data: roster,
-    isPending,
-    error,
-    isFetching,
-    refetch,
-  } = useOrganizationRoster(organizationId)
+  const { data: roster, error, isFetching, refetch } = useOrganizationRoster(organizationId)
   const scrollRef = useScrollEdges<HTMLDivElement>()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
@@ -90,45 +84,46 @@ export function AddMembersModal({
       confirmDisabled={selected.size === 0}
       onConfirm={() => onAdd([...selected])}
     >
-      {isPending ? (
-        <LoadingState label='Loading members…' />
-      ) : roster === undefined ? (
-        <FailureNotice
-          message={getErrorMessage(error, 'Failed to load members')}
-          retrying={isFetching}
-          onRetry={() => void refetch()}
-        />
-      ) : available.length === 0 ? (
-        <Muted>All organization members are already in this group.</Muted>
-      ) : (
-        <>
-          <SearchField
-            label='Search members'
-            placeholder='Search members…'
-            onValueChange={setSearch}
-          />
-          <ActionRow>
-            <Button size='compact' onClick={toggleAll}>
-              {allFilteredSelected ? 'Deselect all' : 'Select all'}
-            </Button>
-          </ActionRow>
-          {filtered.length === 0 ? (
-            <Muted>{`No members found matching "${search}"`}</Muted>
-          ) : (
-            <div ref={scrollRef} className={styles.memberPicker}>
-              {filtered.map((member) => (
-                <Checkbox
-                  key={member.userId}
-                  label={member.name || 'Unknown'}
-                  description={member.email}
-                  checked={selected.has(member.userId)}
-                  onCheckedChange={() => toggle(member.userId)}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+      <QueryBoundary
+        query={{ data: roster, error, isFetching, refetch }}
+        failure={errorMessageOr('Failed to load members')}
+        loadingLabel='Loading members…'
+        empty={() =>
+          available.length === 0 && (
+            <EmptyState title='All organization members are already in this group.' />
+          )
+        }
+      >
+        {() => (
+          <>
+            <SearchField
+              label='Search members'
+              placeholder='Search members…'
+              onValueChange={setSearch}
+            />
+            <ActionRow>
+              <Button size='compact' onClick={toggleAll}>
+                {allFilteredSelected ? 'Deselect all' : 'Select all'}
+              </Button>
+            </ActionRow>
+            {filtered.length === 0 ? (
+              <Muted>{`No members found matching "${search}"`}</Muted>
+            ) : (
+              <div ref={scrollRef} className={styles.memberPicker}>
+                {filtered.map((member) => (
+                  <Checkbox
+                    key={member.userId}
+                    label={member.name || 'Unknown'}
+                    description={member.email}
+                    checked={selected.has(member.userId)}
+                    onCheckedChange={() => toggle(member.userId)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </QueryBoundary>
     </Modal>
   )
 }

@@ -1,9 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -15,7 +13,8 @@ import {
   ActivityRow,
   Button,
   EmptyState,
-  FailureNotice,
+  errorMessageOr,
+  QueryBoundary,
   SearchField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -99,33 +98,30 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
         </Button>
       </SectionToolbar>
       <SettingsSection title='Data drains'>
-        {error ? (
-          <FailureNotice
-            message={getErrorMessage(error, "Couldn't load data drains")}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
-          />
-        ) : isPending ? (
-          <LoadingState label='Loading data drains…' />
-        ) : drains && drains.length > 0 ? (
-          filtered.length > 0 ? (
-            <ResourceList>
-              {filtered.map((drain) => (
-                <ActivityRow
-                  key={drain.id}
-                  title={drain.name}
-                  detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatTimestamp(new Date(drain.lastRunAt).getTime())}` : 'Never run'}`}
-                  metadata={drain.enabled ? undefined : 'Disabled'}
-                  onOpen={() => void setSelectedId(drain.id)}
-                />
-              ))}
-            </ResourceList>
-          ) : (
-            <EmptyState title={`No drains found matching "${search}"`} />
-          )
-        ) : (
-          <EmptyState title='No data drains yet' />
-        )}
+        <QueryBoundary
+          query={{ data: drains, error, isFetching, refetch }}
+          failure={errorMessageOr("Couldn't load data drains")}
+          loadingLabel='Loading data drains…'
+          empty={(all) => all.length === 0 && <EmptyState title='No data drains yet' />}
+        >
+          {() =>
+            filtered.length > 0 ? (
+              <ResourceList>
+                {filtered.map((drain) => (
+                  <ActivityRow
+                    key={drain.id}
+                    title={drain.name}
+                    detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatTimestamp(new Date(drain.lastRunAt).getTime())}` : 'Never run'}`}
+                    metadata={drain.enabled ? undefined : 'Disabled'}
+                    onOpen={() => void setSelectedId(drain.id)}
+                  />
+                ))}
+              </ResourceList>
+            ) : (
+              <EmptyState title={`No drains found matching "${search}"`} />
+            )
+          }
+        </QueryBoundary>
       </SettingsSection>
     </SectionStack>
   )

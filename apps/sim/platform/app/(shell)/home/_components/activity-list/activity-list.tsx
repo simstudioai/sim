@@ -5,14 +5,13 @@ import type {
   EmailItem,
   HomeListState,
 } from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { FailureNotice } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {
@@ -60,19 +59,20 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
     <HomeSection title='Needs your attention'>
       {state.status === 'loading' && <WidgetSkeleton label='Loading what needs your attention' />}
       {state.status === 'error' && (
-        <InlineNotice
+        <FailureNotice
           intent='warning'
           message='This could not load.'
-          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+          retrying={state.retrying}
+          onRetry={onRetry}
         />
       )}
       {state.status === 'ready' && (
         <>
           {state.partial && (
-            <InlineNotice
+            <FailureNotice
               intent='warning'
               message='Some items could not load.'
-              action={<RetryButton onRetry={onRetry} />}
+              onRetry={onRetry}
             />
           )}
           {state.items.length > 0 ? (

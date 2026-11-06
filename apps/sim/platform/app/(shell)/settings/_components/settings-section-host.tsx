@@ -7,9 +7,9 @@ import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-hos
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import type { PlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
-import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
+import { LoadingRows } from '@/platform/design-system/components'
 
 /** A tab with its own guide, in the section's one Docs position. */
 const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, string>>>> = {
@@ -19,7 +19,7 @@ const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, 
   },
 }
 
-const loading = () => <LoadingState label='Loading settings' />
+const loading = () => <LoadingRows label='Loading settings' />
 
 /** One chunk per section, so opening Settings loads only the section on screen. */
 const PLATFORM_SECTIONS: Record<PlatformSettingsSection, ComponentType<SettingsSectionProps>> = {

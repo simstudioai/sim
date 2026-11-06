@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -21,6 +20,7 @@ import {
 import { ProjectIssueRestrictions } from '@/platform/app/(shell)/settings/_components/sections/access-control/project-issue-restrictions'
 import {
   FailureNotice,
+  LoadingRows,
   SearchableSelect,
   SearchField,
   Select,
@@ -163,7 +163,7 @@ function ProvidersTab({
       />
     )
   }
-  if (providers.pending) return <LoadingState label='Loading providers' />
+  if (providers.pending) return <LoadingRows label='Loading providers' />
   const filtered = model.providerIds
     .filter((id) => !query || id.toLowerCase().includes(query))
     .filter((id) => matchesStatusFilter(status, controls.getState({ kind: 'provider', id })))

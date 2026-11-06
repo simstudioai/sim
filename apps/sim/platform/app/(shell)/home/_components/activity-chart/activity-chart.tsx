@@ -7,15 +7,14 @@ import {
   type ActivityWindowDays,
   type HomeActivityState,
 } from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { TrendPlot } from '@/platform/design-system/catalog/plots'
+import { FailureNotice } from '@/platform/design-system/components'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
 import { formatCalendarDate } from '@/platform/lib/time'
 
 interface HomeActivityChartProps {
@@ -129,10 +128,11 @@ export function HomeActivityChart({
       </header>
       {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} />}
       {state.status === 'error' && (
-        <InlineNotice
+        <FailureNotice
           intent='warning'
           message='This chart could not load.'
-          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+          retrying={state.retrying}
+          onRetry={onRetry}
         />
       )}
       {ready && <ActivitySeries key={range} title={title} points={points} />}

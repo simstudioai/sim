@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -21,6 +20,7 @@ import {
   ConfirmDialog,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
@@ -67,7 +67,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   const openDomains = () => void setParams({ tab: 'domains' })
 
   if (billingEnabled && billing.isLoading) {
-    return <LoadingState label='Loading sign-in settings…' />
+    return <LoadingRows label='Loading sign-in settings…' />
   }
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
@@ -129,7 +129,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
       <div hidden={tab !== 'sign-in'}>
         <SectionStack>
           {providers.isLoading ? (
-            <LoadingState label='Loading identity providers…' />
+            <LoadingRows label='Loading identity providers…' />
           ) : providers.data === undefined && providers.error ? (
             <FailureNotice
               message={getErrorMessage(providers.error, 'Failed to load Single Sign-On settings')}

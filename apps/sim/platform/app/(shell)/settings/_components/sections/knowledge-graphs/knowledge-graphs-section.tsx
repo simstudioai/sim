@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  LoadingState,
   Muted,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -11,6 +10,7 @@ import {
   Button,
   FailureNotice,
   Icon,
+  LoadingRows,
   Modal,
   StatusTag,
   TextField,
@@ -52,7 +52,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             onRetry={graphs.retry}
           />
         ) : graphs.status === 'pending' ? (
-          <LoadingState label='Loading knowledge graphs' rows={2} />
+          <LoadingRows label='Loading knowledge graphs' rows={2} />
         ) : (
           graphs.graphs.map((graph) => (
             <SettingsRow

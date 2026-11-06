@@ -4,7 +4,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import {
   ActionRow,
-  LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -15,6 +14,7 @@ import {
   Button,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SegmentedControl,
 } from '@/platform/design-system/components'
 import {
@@ -50,7 +50,7 @@ export default function ConnectedAccountsSection({ organization }: SettingsSecti
         }}
       />
     )
-  if (!accounts.data) return <LoadingState label='Loading credential groups…' />
+  if (!accounts.data) return <LoadingRows label='Loading credential groups…' />
   if (!accounts.data.canManage)
     return <EmptyState title='An organization admin manages credential groups.' />
   const group = accounts.data.credentialGroup

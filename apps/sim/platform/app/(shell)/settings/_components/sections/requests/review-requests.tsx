@@ -8,6 +8,7 @@ import {
   Button,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   Pagination,
   SearchField,
   Select,
@@ -51,9 +52,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}
       />
       {settings.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading request settings…
-        </p>
+        <LoadingRows label='Loading request settings…' rows={1} />
       ) : settings.error ? (
         <FailureNotice
           title='Unable to load request settings'
@@ -99,9 +98,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         </span>
       </div>
       {list.searching || list.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading requests…
-        </p>
+        <LoadingRows label='Loading requests…' />
       ) : list.error ? (
         <FailureNotice
           title='Unable to load requests'

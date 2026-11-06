@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -17,9 +16,11 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   Modal,
   MultiSelect,
+  QueryBoundary,
   SearchField,
   TextField,
 } from '@/platform/design-system/components'
@@ -151,14 +152,15 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     ? permissionGroups.find((group) => group.id === params.groupId)
     : undefined
 
-  if (groups.isPending) return <LoadingState label='Loading permission groups…' />
-  if (groups.error && groups.data === undefined) {
+  if (groups.data === undefined) {
     return (
-      <FailureNotice
-        message={getErrorMessage(groups.error, 'Failed to load permission groups')}
-        retrying={groups.isFetching}
-        onRetry={() => void groups.refetch()}
-      />
+      <QueryBoundary
+        query={groups}
+        failure={errorMessageOr('Failed to load permission groups')}
+        loadingLabel='Loading permission groups…'
+      >
+        {() => null}
+      </QueryBoundary>
     )
   }
 

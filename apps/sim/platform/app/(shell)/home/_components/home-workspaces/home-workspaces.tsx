@@ -8,11 +8,11 @@ import type {
   HomeListState,
   HomeWorkspaceItem,
 } from '@/platform/app/(shell)/home/_components/model'
-import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
+import { FailureNotice } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Chip } from '@/platform/design-system/components/button/button'
-import { InlineNotice, Spinner } from '@/platform/design-system/components/status/status'
+import { Spinner } from '@/platform/design-system/components/status/status'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 /** The sidebar's own page size, so "See more" advances the same way in both places. */
@@ -47,19 +47,20 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
         />
       )}
       {state.status === 'error' && (
-        <InlineNotice
+        <FailureNotice
           intent='warning'
           message='Workspaces could not load.'
-          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+          retrying={state.retrying}
+          onRetry={onRetry}
         />
       )}
       {state.status === 'ready' && (
         <>
           {state.partial && (
-            <InlineNotice
+            <FailureNotice
               intent='warning'
               message='What these workspaces are doing could not load.'
-              action={<RetryButton onRetry={onRetry} />}
+              onRetry={onRetry}
             />
           )}
           <div className={styles.viewport}>

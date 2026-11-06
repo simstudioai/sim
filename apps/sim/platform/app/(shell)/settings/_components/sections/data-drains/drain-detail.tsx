@@ -6,15 +6,15 @@ import { toError } from '@sim/utils/errors'
 import {
   DetailHeader,
   FieldStack,
-  LoadingState,
-  Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
   Button,
   ConfirmDialog,
-  FailureNotice,
+  EmptyState,
+  errorMessageOr,
   PropertyList,
+  QueryBoundary,
   StatusTag,
   Switch,
 } from '@/platform/design-system/components'
@@ -220,25 +220,14 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             Run now
           </Button>
         </SettingsRow>
-        {runsLoading ? (
-          <FieldStack>
-            <LoadingState label='Loading runs…' />
-          </FieldStack>
-        ) : runs.data === undefined ? (
-          <FieldStack>
-            <FailureNotice
-              message={toError(runs.error).message}
-              retrying={runs.isFetching}
-              onRetry={() => void runs.refetch()}
-            />
-          </FieldStack>
-        ) : runs.data.length > 0 ? (
-          runs.data.map((run) => <RunRow key={run.id} run={run} />)
-        ) : (
-          <FieldStack>
-            <Muted>No runs yet</Muted>
-          </FieldStack>
-        )}
+        <QueryBoundary
+          query={{ ...runs, data: runsLoading ? undefined : runs.data }}
+          failure={errorMessageOr('Could not load runs')}
+          loadingLabel='Loading runs…'
+          empty={(data) => data.length === 0 && <EmptyState title='No runs yet' />}
+        >
+          {(data) => data.map((run) => <RunRow key={run.id} run={run} />)}
+        </QueryBoundary>
       </SettingsSection>
       <SettingsSection title='Manage drain'>
         <SettingsRow label='Delete drain'>

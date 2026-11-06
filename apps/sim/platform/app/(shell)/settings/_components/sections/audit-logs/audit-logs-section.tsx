@@ -4,7 +4,6 @@ import { useId, useState } from 'react'
 import { toast } from '@sim/emcn'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   Preformatted,
   RowStack,
@@ -18,6 +17,7 @@ import {
   Disclosure,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   MultiSelect,
   PropertyList,
   SearchField,
@@ -280,7 +280,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             />
           </>
         ) : feed.isLoading ? (
-          <LoadingState label='Loading audit logs…' />
+          <LoadingRows label='Loading audit logs…' />
         ) : scope.isUnavailable ? (
           <FailureNotice
             message="Couldn't check that workspace."

@@ -7,7 +7,6 @@ import { useQueryState, useQueryStates } from 'nuqs'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   DetailHeader,
-  LoadingState,
   Muted,
   ResourceList,
   SectionStack,
@@ -20,6 +19,7 @@ import {
   ConfirmDialog,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
@@ -156,7 +156,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
     return (
       <SectionStack>
         {header()}
-        <LoadingState label='Loading integration' />
+        <LoadingRows label='Loading integration' />
       </SectionStack>
     )
 
@@ -264,7 +264,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
               onRetry={() => void sources.refetch()}
             />
           ) : sources.isPending ? (
-            <LoadingState label='Loading connections' />
+            <LoadingRows label='Loading connections' />
           ) : (
             <>
               <ResourceList>

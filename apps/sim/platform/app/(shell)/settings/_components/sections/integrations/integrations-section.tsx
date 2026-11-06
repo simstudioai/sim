@@ -9,7 +9,6 @@ import { useQueryState } from 'nuqs'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -32,6 +31,7 @@ import {
   ConfirmDialog,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SearchField,
 } from '@/platform/design-system/components'
 import {
@@ -181,7 +181,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             }}
           />
         ) : !policies.data || !secrets.data ? (
-          <LoadingState label='Loading sources' />
+          <LoadingRows label='Loading sources' />
         ) : added.length === 0 && !secretSource && !search && !assistantVisible ? (
           <EmptyState title='No sources yet. Add a source to get started.' />
         ) : (

@@ -6,7 +6,6 @@ import { toError } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import {
   DraftConflictNotice,
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -14,7 +13,13 @@ import {
 import { useServerDraft } from '@/platform/app/(shell)/settings/_components/section-parts/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail'
-import { ActivityRow, Button, EmptyState, FailureNotice } from '@/platform/design-system/components'
+import {
+  ActivityRow,
+  Button,
+  EmptyState,
+  FailureNotice,
+  LoadingRows,
+} from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   buildRetentionUpdate,
@@ -291,8 +296,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
   const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
   const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
 
-  if (isLoading || workspacesQuery.isPending)
-    return <LoadingState label='Loading data retention…' />
+  if (isLoading || workspacesQuery.isPending) return <LoadingRows label='Loading data retention…' />
   if (!data) {
     return (
       <FailureNotice

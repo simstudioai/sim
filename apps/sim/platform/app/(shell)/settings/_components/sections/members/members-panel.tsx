@@ -21,6 +21,7 @@ import {
   Button,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SearchField,
   Tooltip,
 } from '@/platform/design-system/components'
@@ -118,9 +119,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
 
       {roster.status === 'pending' ? (
         <SettingsSection title='Members'>
-          <p className={styles.status} role='status' data-type='T060'>
-            Loading members…
-          </p>
+          <LoadingRows label='Loading members…' />
         </SettingsSection>
       ) : !visible ? (
         <FailureNotice
@@ -136,9 +135,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           {(!searching || visible.members.length + visible.invitations.length > 0) && (
             <SettingsSection title={`Members ${visible.total}`}>
               {visible.members.length + visible.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members yet
-                </p>
+                <EmptyState title='No members yet' />
               )}
               {visible.members.map((row) => (
                 <MemberRow
@@ -163,9 +160,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
           {visible.workspaces.map((workspace) => (
             <SettingsSection key={workspace.id} title={`${workspace.name} ${workspace.total}`}>
               {workspace.members.length + workspace.invitations.length === 0 && (
-                <p className={styles.status} data-type='T060'>
-                  No members in this workspace
-                </p>
+                <EmptyState title='No members in this workspace' />
               )}
               {workspace.members.map((row) => (
                 <WorkspaceMemberRow

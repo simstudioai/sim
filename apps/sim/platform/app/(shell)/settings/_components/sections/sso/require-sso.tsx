@@ -5,10 +5,14 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   FieldStack,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { ConfirmDialog, FailureNotice, SegmentedControl } from '@/platform/design-system/components'
+import {
+  ConfirmDialog,
+  FailureNotice,
+  LoadingRows,
+  SegmentedControl,
+} from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   describeSsoPolicy,
@@ -67,7 +71,7 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
             onRetry={() => void refetch()}
           />
         ) : (
-          <LoadingState label='Loading sign-in requirement…' />
+          <LoadingRows label='Loading sign-in requirement…' />
         )}
       </FieldStack>
       <ConfirmDialog

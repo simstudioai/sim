@@ -9,7 +9,6 @@ import {
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import {
-  Button,
   EmptyState,
   FailureNotice,
   FieldFrame,

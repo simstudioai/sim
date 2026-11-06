@@ -10,7 +10,6 @@ import {
   ActionRow,
   DetailHeader,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -24,6 +23,7 @@ import {
   EmptyState,
   FailureNotice,
   InlineNotice,
+  LoadingRows,
   SaveActions,
 } from '@/platform/design-system/components'
 import {
@@ -104,7 +104,7 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
     detail.data.id !== connectorId ||
     detail.data.knowledgeBaseId !== knowledgeBaseId
   )
-    return shell('Connection', <LoadingState label='Loading connection' />)
+    return shell('Connection', <LoadingRows label='Loading connection' />)
   if (
     detail.data.accessMode === 'members' &&
     !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)

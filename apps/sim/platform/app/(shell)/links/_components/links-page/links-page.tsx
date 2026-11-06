@@ -5,10 +5,7 @@ import { Favicon } from '@/components/favicon'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkOrigin } from '@/lib/sim-links/validation'
 import { LinkEditor } from '@/platform/app/(shell)/links/_components/links-page/link-editor'
-import {
-  LinkRowsSkeleton,
-  LinksFrame,
-} from '@/platform/app/(shell)/links/_components/links-page/links-frame'
+import { LinksFrame } from '@/platform/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/app/(shell)/links/_components/links-page/links-page.module.css'
 import { Avatar } from '@/platform/design-system/components/avatar/avatar'
 import { Button } from '@/platform/design-system/components/button/button'
@@ -23,9 +20,12 @@ import { ActionMenu, ContextActionMenu } from '@/platform/design-system/componen
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/lib/time'
+
+const LINK_SKELETON_ROWS = 6
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
@@ -248,7 +248,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       {links.status === 'error' ? (
         <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
       ) : links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0) ? (
-        <LinkRowsSkeleton />
+        <LoadingRows label='Loading links' rows={LINK_SKELETON_ROWS} />
       ) : links.rows.length === 0 ? (
         links.term ? (
           <EmptyState

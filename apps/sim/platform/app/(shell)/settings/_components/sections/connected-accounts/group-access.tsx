@@ -5,7 +5,6 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
-  LoadingState,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -13,8 +12,10 @@ import { WorkspaceGrantModal } from '@/platform/app/(shell)/settings/_components
 import {
   Button,
   EmptyState,
-  FailureNotice,
+  errorMessageOr,
   InlineNotice,
+  LoadingRows,
+  QueryBoundary,
   SearchField,
 } from '@/platform/design-system/components'
 import {
@@ -49,32 +50,33 @@ export function GroupAccess({ organizationId }: GroupAccessProps) {
   const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
   return (
     <SectionStack>
-      {access.error ? (
-        <FailureNotice
-          message={getErrorMessage(access.error, 'Could not load workspace access')}
-          retrying={access.isFetching}
-          onRetry={() => void access.refetch()}
-        />
-      ) : !access.data ? (
-        <SettingsSection title='Workspaces'>
-          <LoadingState label='Loading workspace access…' />
-        </SettingsSection>
-      ) : (
-        <WorkspaceAccessList
-          key={organizationId}
-          organizationId={organizationId}
-          access={access.data}
-          search={
-            <SearchField
-              label='Search workspaces'
-              placeholder='Search workspaces…'
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-            />
-          }
-          searchTerm={searchTerm}
-        />
-      )}
+      <QueryBoundary
+        query={access}
+        failure={errorMessageOr('Could not load workspace access')}
+        loadingLabel='Loading workspace access…'
+        loading={
+          <SettingsSection title='Workspaces'>
+            <LoadingRows label='Loading workspace access…' />
+          </SettingsSection>
+        }
+      >
+        {(data) => (
+          <WorkspaceAccessList
+            key={organizationId}
+            organizationId={organizationId}
+            access={data}
+            search={
+              <SearchField
+                label='Search workspaces'
+                placeholder='Search workspaces…'
+                value={searchTerm}
+                onValueChange={setSearchTerm}
+              />
+            }
+            searchTerm={searchTerm}
+          />
+        )}
+      </QueryBoundary>
     </SectionStack>
   )
 }

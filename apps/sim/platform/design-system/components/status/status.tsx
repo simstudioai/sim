@@ -61,7 +61,8 @@ interface FailureNoticeProps {
   title?: string
   retrying?: boolean
   onRetry?: () => void
-  retryLabel?: string
+  /** `warning` for a read that partly answered, so what is on screen is still worth reading. */
+  intent?: Extract<StatusIntent, 'danger' | 'warning'>
 }
 
 /** A read that failed, with its way back. It stays distinct from an empty list or an absent setting. */
@@ -70,17 +71,17 @@ export function FailureNotice({
   title,
   retrying,
   onRetry,
-  retryLabel = 'Retry',
+  intent = 'danger',
 }: FailureNoticeProps) {
   return (
     <InlineNotice
-      intent='danger'
+      intent={intent}
       title={title}
       message={message}
       action={
         onRetry && (
           <Button variant='quiet' size='compact' disabled={retrying} onClick={onRetry}>
-            {retrying ? 'Retrying…' : retryLabel}
+            {retrying ? 'Retrying…' : 'Retry'}
           </Button>
         )
       }

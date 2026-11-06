@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import {
   Button,
   DataTable,
   EmptyState,
   FailureNotice,
+  LoadingRows,
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
@@ -111,7 +111,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         </span>
       </div>
       {directory.loading ? (
-        <PeopleStatus>Loading people…</PeopleStatus>
+        <LoadingRows label='Loading people…' />
       ) : directory.error ? (
         <FailureNotice
           title='Could not load people'

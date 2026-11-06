@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -15,6 +14,7 @@ import {
   ConfirmDialog,
   FailureNotice,
   InlineNotice,
+  LoadingRows,
   SearchableSelect,
   Select,
 } from '@/platform/design-system/components'
@@ -179,7 +179,7 @@ export function GroupMappings({
   }
   const automaticMatchRemains = automaticMatchWouldRemain(pendingRemove, autoMapByName, names)
 
-  if (isLoading) return <LoadingState label='Loading groups…' />
+  if (isLoading) return <LoadingRows label='Loading groups…' />
   if (groups === undefined && isError) {
     return (
       <FailureNotice
@@ -190,7 +190,7 @@ export function GroupMappings({
     )
   }
   if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
-    return <LoadingState label='Loading groups…' />
+    return <LoadingRows label='Loading groups…' />
   }
   /**
    * Mappings stay manageable when a target list is missing. Permission groups refuse outright where

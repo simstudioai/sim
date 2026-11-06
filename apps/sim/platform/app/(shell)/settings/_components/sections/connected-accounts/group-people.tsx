@@ -5,7 +5,6 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import {
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -18,8 +17,10 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
+  errorMessageOr,
   FailureNotice,
   InlineNotice,
+  QueryBoundary,
   SearchField,
   StatusTag,
 } from '@/platform/design-system/components'
@@ -103,54 +104,62 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
       </SectionToolbar>
       {error && !revoking && <InlineNotice intent='danger' message={error.message} />}
       <SettingsSection title='People'>
-        {people.isPending ? (
-          <LoadingState label='Loading people…' />
-        ) : listFailed ? (
-          <FailureNotice
-            message={getErrorMessage(people.error, 'Could not load people')}
-            retrying={people.isFetching}
-            onRetry={() => void people.refetch()}
-          />
-        ) : enrollments.length === 0 ? (
-          <EmptyState title={search ? 'No people match your search' : 'No people invited yet'} />
-        ) : (
-          enrollments.map((person) => (
-            <SettingsRow
-              key={person.id}
-              label={person.email}
-              description={<PersonConnections person={person} />}
-              leading={<Avatar name={person.email} />}
-            >
-              <ActionMenu
-                label={`${person.email} actions`}
-                icon='I108'
-                actions={[
-                  {
-                    id: 'resend',
-                    label: 'Resend',
-                    disabled: pending || person.status === 'revoked',
-                    onSelect: () =>
-                      resend.mutate(
-                        { organizationId, enrollmentId: person.id },
-                        { onSuccess: () => toast.success('Invitation sent') }
-                      ),
-                  },
-                  {
-                    id: 'revoke',
-                    label: 'Revoke',
-                    destructive: true,
-                    separatorBefore: true,
-                    disabled: pending || person.status === 'revoked',
-                    onSelect: () => {
-                      revoke.reset()
-                      setRevoking({ id: person.id, email: person.email })
-                    },
-                  },
-                ]}
+        <QueryBoundary
+          query={{
+            data: listFailed ? undefined : people.data,
+            error: people.error,
+            isFetching: people.isFetching,
+            refetch: people.refetch,
+          }}
+          failure={errorMessageOr('Could not load people')}
+          loadingLabel='Loading people…'
+          empty={() =>
+            enrollments.length === 0 && (
+              <EmptyState
+                title={search ? 'No people match your search' : 'No people invited yet'}
               />
-            </SettingsRow>
-          ))
-        )}
+            )
+          }
+        >
+          {() =>
+            enrollments.map((person) => (
+              <SettingsRow
+                key={person.id}
+                label={person.email}
+                description={<PersonConnections person={person} />}
+                leading={<Avatar name={person.email} />}
+              >
+                <ActionMenu
+                  label={`${person.email} actions`}
+                  icon='I108'
+                  actions={[
+                    {
+                      id: 'resend',
+                      label: 'Resend',
+                      disabled: pending || person.status === 'revoked',
+                      onSelect: () =>
+                        resend.mutate(
+                          { organizationId, enrollmentId: person.id },
+                          { onSuccess: () => toast.success('Invitation sent') }
+                        ),
+                    },
+                    {
+                      id: 'revoke',
+                      label: 'Revoke',
+                      destructive: true,
+                      separatorBefore: true,
+                      disabled: pending || person.status === 'revoked',
+                      onSelect: () => {
+                        revoke.reset()
+                        setRevoking({ id: person.id, email: person.email })
+                      },
+                    },
+                  ]}
+                />
+              </SettingsRow>
+            ))
+          }
+        </QueryBoundary>
         {people.hasNextPage && !people.isFetchNextPageError && !listFailed && (
           <SettingsRow label='More people'>
             <Button

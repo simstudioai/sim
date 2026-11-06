@@ -8,7 +8,6 @@ import {
 import { ChartCanvas } from '@/platform/app/(shell)/people/_components/org-chart/chart-canvas'
 import { ChartEmptyState } from '@/platform/app/(shell)/people/_components/org-chart/chart-empty-state'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import {
   Avatar,
@@ -16,6 +15,7 @@ import {
   FailureNotice,
   Icon,
   IconButton,
+  LoadingRows,
   SearchableSelect,
   SearchCombobox,
 } from '@/platform/design-system/components'
@@ -308,7 +308,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
           )}
         </div>
       ) : (
-        <PeopleStatus>Loading org chart…</PeopleStatus>
+        <LoadingRows label='Loading org chart…' />
       )}
     </section>
   )

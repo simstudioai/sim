@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -19,6 +18,7 @@ import {
   FailureNotice,
   Icon,
   InlineNotice,
+  LoadingRows,
   StatusTag,
 } from '@/platform/design-system/components'
 import {
@@ -82,7 +82,7 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
             onRetry={() => void installations.refetch()}
           />
         ) : !installations.data ? (
-          <LoadingState label='Loading Slack connection' rows={1} />
+          <LoadingRows label='Loading Slack connection' rows={1} />
         ) : installations.data.installations.length === 0 ? (
           <SettingsRow
             label='Slack'

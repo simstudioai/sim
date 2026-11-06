@@ -3,10 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  FieldStack,
-  LoadingState,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { AddMembersModal } from '@/platform/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
   ActionMenu,
@@ -14,6 +11,7 @@ import {
   Button,
   ConfirmDialog,
   FailureNotice,
+  LoadingRows,
   MultiSelect,
   Switch,
   TextField,
@@ -69,7 +67,7 @@ function GroupMembers({ group, organizationId }: GroupMembersProps) {
         </Button>
       </SettingsRow>
       {members.isPending ? (
-        <LoadingState label='Loading members…' />
+        <LoadingRows label='Loading members…' />
       ) : members.data === undefined ? (
         <FailureNotice
           message={getErrorMessage(members.error, 'Failed to load members')}
