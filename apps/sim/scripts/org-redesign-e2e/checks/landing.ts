@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import {
   ADMIN,
   ADMIN_CHATS,
@@ -151,8 +152,17 @@ export async function landingChecks() {
   )
   await check('a non-member sees the denial and a way to their workspaces', async () => {
     await onHome(OUTSIDER, async ({ page }) => {
-      await expect(page.getByRole('heading', { name: 'Organization access denied' })).toBeVisible()
+      const heading = page.getByRole('heading', { name: 'Organization access denied' })
+      await expect(heading).toBeVisible()
       await expect(page.getByRole('link', { name: 'View your workspaces' })).toBeVisible()
+      // The other route states center in the page; this one sat at the top.
+      const box = await heading.boundingBox()
+      const viewport = page.viewportSize()
+      assert.ok(box && viewport, 'Nothing to measure')
+      assert.ok(
+        box.y > viewport.height / 4,
+        `The denial sits at ${Math.round(box.y)}px of a ${viewport.height}px page`
+      )
     })
   })
   await check(
