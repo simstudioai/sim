@@ -38,11 +38,8 @@ import {
 } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
-import {
-  formatFileSize,
-  getMimeTypeFromExtension,
-  isArchiveFileName,
-} from '@/lib/uploads/utils/file'
+import { getMimeTypeFromExtension, isArchiveFileName } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import {
   fileBrowserTypeLabel,
   isFileBrowserSize,
