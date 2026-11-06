@@ -26,6 +26,7 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform-route-guard'
+import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -143,6 +144,7 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
+          <OrganizationToastSink />
           {platformOrgUi && (
             <Suspense fallback={null}>
               <PlatformRouteGuard organizationId={organizationId} />

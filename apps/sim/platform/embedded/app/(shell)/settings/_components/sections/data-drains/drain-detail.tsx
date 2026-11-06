@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import type { DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'
@@ -34,6 +33,7 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { formatTimestamp } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 const RECENT_RUN_LIMIT = 10
 

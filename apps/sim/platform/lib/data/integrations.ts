@@ -30,8 +30,8 @@ import {
 } from '@/platform/lib/data/integrations-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/lib/data/toast'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
+import { toast } from '@/platform/shared/toast'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 

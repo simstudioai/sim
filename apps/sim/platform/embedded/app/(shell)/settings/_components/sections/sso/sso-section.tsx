@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { canMakeProviderPrimary, nextSignInProvider } from '@/ee/sso/lib/provider-form'
@@ -30,6 +29,7 @@ import { ProviderForm } from '@/platform/embedded/app/(shell)/settings/_componen
 import { RequireSso } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/require-sso'
 import { ScimPanel } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/scim-panel'
 import { useSsoSettingsParams } from '@/platform/embedded/lib/data/sso/params'
+import { toast } from '@/platform/shared/toast'
 
 export default function SsoSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id

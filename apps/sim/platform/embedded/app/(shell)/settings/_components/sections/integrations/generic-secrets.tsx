@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -27,6 +26,7 @@ import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 export const GENERIC_SECRETS_SOURCE_TYPE = 'generic-secrets'
 export const GENERIC_SECRETS_NAME = 'Generic Secrets'

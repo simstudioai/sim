@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import {
@@ -27,6 +26,7 @@ import {
   useProvisioningConnection,
 } from '@/platform/embedded/lib/data/people'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

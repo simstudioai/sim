@@ -1,12 +1,12 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import {
   useCreateWorkspace,
   useToggleWorkspacePin,
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
+import { toast } from '@/platform/shared/toast'
 
 export const workspaceHref = (workspaceId: string) => `${WORKSPACES_PATH}/${workspaceId}`
 

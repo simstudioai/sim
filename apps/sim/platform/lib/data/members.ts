@@ -36,9 +36,9 @@ import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
-import { toast } from '@/platform/lib/data/toast'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 export type SettingsRoster = OrganizationRoster
 

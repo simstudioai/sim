@@ -255,7 +255,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Unverified | No live check yet. `lib/data/settings-guard`, the same hook as legacy |
 | Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
 | Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
-| Error and success toasts | `@sim/emcn` `toast` | Unverified | No live check yet. Foundation: `lib/data/toast.ts`, `useToastNotices` |
+| Error and success toasts | `@sim/emcn` `toast` | Unverified | No live check yet. Foundation: `shared/toast.ts`, `useToastNotices` |
 | Collapse toggle | `organization-sidebar.tsx` | Done | "Mod+B collapses the sidebar" |
 | Collapse persisted, no flash | `stores/sidebar/store.ts` | Done | "Mod+B collapses the sidebar" |
 | Collapsed icon rail with flyouts | `organization-sidebar.tsx` | Hidden | Product decision: the Platform collapses to its opener control, with no rail |

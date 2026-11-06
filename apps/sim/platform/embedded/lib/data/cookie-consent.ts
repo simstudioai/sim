@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { useConsentManager } from '@c15t/nextjs/headless'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
 import { ConsentStoreProvider } from '@/lib/consent/store-provider'
+import { toast } from '@/platform/shared/toast'
 
 export const CookieConsentProvider = ConsentStoreProvider
 

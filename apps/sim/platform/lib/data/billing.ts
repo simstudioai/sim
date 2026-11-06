@@ -38,9 +38,9 @@ import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { toast } from '@/platform/lib/data/toast'
 import { queryView } from '@/platform/shared/query-view'
 import { formatCalendarDate, formatInstantDate } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformBilling')
 

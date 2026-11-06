@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import { type CADENCE_TYPES, DESTINATION_TYPES, type SOURCE_TYPES } from '@/lib/data-drains/types'
@@ -31,6 +30,7 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
 const DEFAULT_CADENCE = 'daily' satisfies (typeof CADENCE_TYPES)[number]

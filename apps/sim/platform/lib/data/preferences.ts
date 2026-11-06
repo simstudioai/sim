@@ -16,8 +16,8 @@ import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/gen
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
-import { toast } from '@/platform/lib/data/toast'
 import { queryView } from '@/platform/shared/query-view'
+import { toast } from '@/platform/shared/toast'
 
 function usePlatformSettings() {
   return useGeneralSettings({ persistTheme: !useFixtureSettings() })

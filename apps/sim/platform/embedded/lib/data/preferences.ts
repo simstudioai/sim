@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import {
@@ -17,6 +16,7 @@ import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/gen
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { queryView } from '@/platform/shared/query-view'
+import { toast } from '@/platform/shared/toast'
 
 const usePlatformSettings = useGeneralSettings
 const useWritePlatformSetting = useUpdateGeneralSetting

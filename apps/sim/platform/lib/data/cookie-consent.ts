@@ -5,7 +5,7 @@ import { useConsentManager } from '@c15t/nextjs/headless'
 import { getErrorMessage } from '@sim/utils/errors'
 import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
 import { ConsentStoreProvider } from '@/lib/consent/store-provider'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 export const CookieConsentProvider = ConsentStoreProvider
 

@@ -37,7 +37,7 @@ import type {
 } from '@/platform/app/(shell)/_components/search/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 const NO_FILTERS: WorkspaceSearchFilters = {}
 /** A tab without a retrieval address runs nothing: an empty query never enables the read. */

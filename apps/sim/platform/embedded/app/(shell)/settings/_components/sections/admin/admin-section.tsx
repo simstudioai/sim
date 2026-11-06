@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ADMIN_PAGE_SIZE,
@@ -35,6 +34,7 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { AddUserModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/admin/add-user-modal'
+import { toast } from '@/platform/shared/toast'
 
 const USER_COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },

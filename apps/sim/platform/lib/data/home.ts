@@ -56,7 +56,6 @@ import {
   type PlatformOrganization,
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/lib/data/toast'
 import type {
   HomeAccountView,
   HomeActivityState,
@@ -69,6 +68,7 @@ import type {
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { MINUTE_MS } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90

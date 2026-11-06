@@ -51,7 +51,7 @@ import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useStartSearch } from '@/platform/lib/data/search'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,

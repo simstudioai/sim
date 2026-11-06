@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
@@ -76,6 +75,7 @@ import type {
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { currentMinute, MINUTE_MS } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,

@@ -1,12 +1,12 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import {
   useCreateMemorySpace,
   useMemorySpaces,
   useSelectMemorySpace,
 } from '@/hooks/queries/memory-spaces'
 import { queryView } from '@/platform/shared/query-view'
+import { toast } from '@/platform/shared/toast'
 
 /** The create contract's own bound, so a long name is refused here before it is sent. */
 const MEMORY_SPACE_NAME_MAX_LENGTH = 100

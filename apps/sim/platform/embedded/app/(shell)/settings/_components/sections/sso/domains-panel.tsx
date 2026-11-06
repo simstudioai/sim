@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import {
@@ -31,6 +30,7 @@ import {
   FieldStack,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
+import { toast } from '@/platform/shared/toast'
 
 interface DomainRowProps {
   organizationId: string

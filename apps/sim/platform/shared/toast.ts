@@ -1,9 +1,13 @@
-/** The parts of the legacy toast that query hooks use when a background mutation reports back. */
+/** The legacy toast's options; each toaster honours what it can draw. */
 interface ToastOptions {
   description?: string
   /** A stable id: raising it again replaces this notice instead of stacking another. */
   noticeId?: string
   action?: { label: string; onClick: () => void }
+  onDismiss?: () => void
+  onUserDismiss?: () => void
+  duration?: number
+  persistAcrossRoutes?: boolean
 }
 
 interface ToastInput extends ToastOptions {
@@ -27,8 +31,8 @@ function withVariant(variant: NonNullable<ToastInput['variant']>) {
 }
 
 /**
- * The same call shape as the legacy `toast`, delivered to the Platform's notification tray once the
- * shell connects it. A call with no shell mounted has nowhere to appear and is dropped.
+ * The same call shape as the legacy `toast`, delivered to whichever toaster the surface connects: the
+ * zone's notification tray or `/o`'s host toaster. A call with nothing connected is dropped.
  */
 export const toast = Object.assign((input: ToastInput) => deliver(input), {
   success: withVariant('success'),

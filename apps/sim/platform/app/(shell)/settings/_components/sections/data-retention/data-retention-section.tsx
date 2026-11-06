@@ -37,7 +37,7 @@ import {
   withoutOverride,
 } from '@/platform/lib/data/data-retention'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []

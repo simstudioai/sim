@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   PermissionGroup,
@@ -31,6 +30,7 @@ import {
 } from '@/platform/embedded/lib/data/access-control'
 import { plural } from '@/platform/shared/plural'
 import { formatTimestamp } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 interface GroupMembersProps {
   group: PermissionGroup

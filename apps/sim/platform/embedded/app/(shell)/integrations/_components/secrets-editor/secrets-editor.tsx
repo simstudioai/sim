@@ -1,7 +1,6 @@
 'use client'
 
 import { type ClipboardEvent, type ReactNode, useMemo, useState } from 'react'
-import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
@@ -48,6 +47,7 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { useGenericSecrets } from '@/platform/embedded/lib/data/generic-secrets'
+import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000

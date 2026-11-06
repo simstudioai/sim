@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
@@ -47,6 +46,7 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail'
+import { toast } from '@/platform/shared/toast'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []

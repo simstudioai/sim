@@ -15,7 +15,7 @@ import {
   useOrganizationSsoPolicy,
   useUpdateOrganizationSsoPolicy,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 /**
  * Whether members must sign in through the organization's identity provider. Read when a session is

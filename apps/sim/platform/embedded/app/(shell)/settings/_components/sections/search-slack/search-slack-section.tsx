@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
 import { slackSetupResultParam } from '@/app/o/[organizationId]/settings/components/search-params'
 import {
@@ -30,6 +29,7 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
+import { toast } from '@/platform/shared/toast'
 
 interface WizardState {
   mode?: 'custom' | 'shared'

@@ -25,8 +25,8 @@ import {
   usePeopleViewer,
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
-import { toast } from '@/platform/lib/data/toast'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

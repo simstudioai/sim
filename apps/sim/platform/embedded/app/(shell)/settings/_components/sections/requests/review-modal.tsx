@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import {
   Button,
   Disclosure,
@@ -15,6 +14,7 @@ import {
 import { RequestText } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-text'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { useRequestReview } from '@/platform/embedded/lib/data/requests'
+import { toast } from '@/platform/shared/toast'
 
 interface ReviewModalProps {
   organizationId: string

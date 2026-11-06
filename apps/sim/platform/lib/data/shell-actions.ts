@@ -24,8 +24,8 @@ import type { ShellHelp, ShellOrganizationActions } from '@/platform/app/(shell)
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
 import type { ShellDestination } from '@/platform/shared/shell'
+import { toast } from '@/platform/shared/toast'
 
 function useOrganizationActions(organization: PlatformOrganization): ShellOrganizationActions {
   const router = useRouter()

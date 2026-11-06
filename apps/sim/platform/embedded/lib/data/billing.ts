@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -41,6 +40,7 @@ import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { reportFailure } from '@/platform/embedded/lib/notices'
 import { queryView } from '@/platform/shared/query-view'
 import { formatInstantDate } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformBilling')
 

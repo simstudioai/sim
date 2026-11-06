@@ -14,7 +14,7 @@ import {
 import { useAccountEmail, useResetPasswordAction } from '@/platform/lib/data/account'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 interface AccountSettingsRowsProps {
   organization: PlatformOrganization

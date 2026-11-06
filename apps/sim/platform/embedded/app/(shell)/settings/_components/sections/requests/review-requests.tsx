@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import {
   Button,
@@ -26,6 +25,7 @@ import {
   useRequestsUrl,
   useReviewList,
 } from '@/platform/embedded/lib/data/requests'
+import { toast } from '@/platform/shared/toast'
 
 interface ReviewRequestsProps {
   organizationId: string

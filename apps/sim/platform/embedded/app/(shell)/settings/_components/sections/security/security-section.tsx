@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import {
@@ -37,6 +36,7 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 

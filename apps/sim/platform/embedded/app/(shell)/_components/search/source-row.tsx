@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, type ReactNode, useState } from 'react'
-import { toast } from '@sim/emcn'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
@@ -22,6 +21,7 @@ import { useClipboard } from '@/platform/design-system/components/feedback/use-c
 import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
+import { toast } from '@/platform/shared/toast'
 
 /**
  * The Sim link entry of a source's menu: copies the link that already opens this address, or offers

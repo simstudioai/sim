@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
 import {
@@ -49,6 +48,7 @@ import { GroupMappings } from '@/platform/embedded/app/(shell)/settings/_compone
 import { useSettingsNavigationBlocked } from '@/platform/embedded/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
 import { formatRelativeTime } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'

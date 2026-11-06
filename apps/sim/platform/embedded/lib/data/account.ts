@@ -1,6 +1,5 @@
 'use client'
 
-import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -30,6 +29,7 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
 import { formatInstantDate } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('PlatformAccount')

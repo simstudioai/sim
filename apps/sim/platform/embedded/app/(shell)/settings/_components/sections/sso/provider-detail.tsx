@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { ssoFormFromProvider, ssoProviderCallbackUrl } from '@/ee/sso/lib/provider-form'
 import { Button, CopyField, PropertyList } from '@/platform/design-system/components'
@@ -16,6 +15,7 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { ProviderForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/provider-form'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
+import { toast } from '@/platform/shared/toast'
 
 interface ProviderDetailProps {
   organizationId: string

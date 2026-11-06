@@ -16,8 +16,8 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { toast } from '@/platform/lib/data/toast'
 import { queryView } from '@/platform/shared/query-view'
+import { toast } from '@/platform/shared/toast'
 
 const TEXT_FIELDS = [
   'brandName',
