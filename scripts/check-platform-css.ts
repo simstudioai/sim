@@ -1,9 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Proves the embedded design system cannot change a legacy page.
+ * Proves the design system, which `app/o` loads for every organization, stays inside what it styles.
+ * It restyles `/o` itself, which is the point; nothing here protects that page's legacy chrome except
+ * the `[data-platform-ui]` scope. It cannot reach a page outside `/o`, or that scope's outside on one.
  *
- * Next keeps route CSS loaded after client navigation, so one global rule from a flagged page keeps
- * applying on every legacy page the viewer opens afterwards. Three rules hold that line:
+ * Next keeps route CSS loaded after client navigation, so one global rule from an organization page
+ * keeps applying on every other page the viewer opens afterwards. Three rules hold that line:
  *
  * - `entry-escape`: `platform/design-system/styles/embedded.css`, compiled through the app's real
  *   PostCSS config, may only contain selectors under `[data-platform-ui]` and `@font-face` faces

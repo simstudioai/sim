@@ -4,6 +4,7 @@ paths:
   - "apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**"
   - "apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
   - "apps/sim/app/o/*/**"
+  - "apps/sim/app/o/*/settings/**"
 ---
 
 # Organization Views

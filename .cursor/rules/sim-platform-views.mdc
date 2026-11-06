@@ -1,6 +1,6 @@
 ---
 description: "One pattern per job across the organization views (Settings, People, Integrations, Links, Home)"
-globs: ["apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**","apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**","apps/sim/app/o/*/**"]
+globs: ["apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**","apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**","apps/sim/app/o/*/**","apps/sim/app/o/*/settings/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-platform-views.md by `bun run skills:sync`. Edit the source, not this file. -->
