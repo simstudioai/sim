@@ -457,24 +457,22 @@ async function generateWithFalAI(
     throw new Error('Fal.ai queue response missing request_id')
   }
 
-  const statusUrl = falQueueUrl(
-    getStringProperty(createData, 'status_url') ||
-      buildFalAIQueueUrl(endpoint, falRequestId, 'status')
-  )
-  const responseUrl = falQueueUrl(
-    getStringProperty(createData, 'response_url') ||
-      buildFalAIQueueUrl(endpoint, falRequestId, 'response')
-  )
-
-  const cancelUrl = falQueueUrl(
-    getStringProperty(createData, 'cancel_url') ||
-      `${buildFalAIQueueUrl(endpoint, falRequestId, 'response')}/cancel`
-  )
+  /** Built from the endpoint, never a provider URL, so a rejected one can still be cancelled. */
+  const cancelUrl = `${buildFalAIQueueUrl(endpoint, falRequestId, 'response')}/cancel`
 
   logger.info('Fal.ai image request created', { requestId, falRequestId })
 
   let reachedTerminalStatus = false
   try {
+    const statusUrl = falQueueUrl(
+      getStringProperty(createData, 'status_url') ||
+        buildFalAIQueueUrl(endpoint, falRequestId, 'status')
+    )
+    const responseUrl = falQueueUrl(
+      getStringProperty(createData, 'response_url') ||
+        buildFalAIQueueUrl(endpoint, falRequestId, 'response')
+    )
+
     const statusValidation = await validateUrlWithDNS(statusUrl, 'statusUrl', 'contentFetch')
     if (!statusValidation.isValid) {
       throw new Error(statusValidation.error)

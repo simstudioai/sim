@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { tasks } from '@trigger.dev/sdk'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
-import { type BillingEntity, recordUsage, stableEventKey } from '@/lib/billing/core/usage-log'
+import {
+  type BillingAttributionSnapshot,
+  refreshAttributionPeriod,
+} from '@/lib/billing/core/attribution'
+import { recordUsage, stableEventKey } from '@/lib/billing/core/usage-log'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
@@ -34,12 +37,10 @@ export interface FalAICostSettlementPayload {
   markupMultiplier: number
   ledger: {
     source: FalAISettlementSource
-    userId: string
-    workspaceId: string | null
     workflowId?: string
     executionId?: string
-    billingEntity: BillingEntity
-    billingPeriod: { start: string; end: string }
+    /** The run's payer as admitted; its period is refreshed when settlement outlives it. */
+    billingAttribution: BillingAttributionSnapshot
   }
 }
 
@@ -85,15 +86,9 @@ export async function scheduleFalAICostSettlement(
     markupMultiplier: params.markupMultiplier,
     ledger: {
       source: params.source,
-      userId: billingAttribution.actorUserId,
-      workspaceId: billingAttribution.workspaceId,
       workflowId: params.workflowId,
       executionId: params.executionId,
-      billingEntity: { ...billingAttribution.billingEntity },
-      billingPeriod: {
-        start: billingAttribution.billingPeriod.start,
-        end: billingAttribution.billingPeriod.end,
-      },
+      billingAttribution,
     },
   }
 
@@ -116,6 +111,8 @@ export async function scheduleFalAICostSettlement(
  * Bills the difference between fal's exact charge for a request and the estimate billed at
  * completion. The ledger row's event key is the request, so a retried settlement never bills
  * twice. An estimate above the exact charge is left as billed: the ledger records charges only.
+ * A settlement that outlives the run's billing period bills the payer's current period, since
+ * the ended one may already be closed and invoiced.
  */
 export async function settleFalAICost(
   payload: FalAICostSettlementPayload
@@ -139,15 +136,19 @@ export async function settleFalAICost(
   }
   if (shortfallDollars === 0) return 'exact'
 
+  const attribution =
+    Date.parse(ledger.billingAttribution.billingPeriod.end) <= Date.now()
+      ? await refreshAttributionPeriod(ledger.billingAttribution)
+      : ledger.billingAttribution
   await recordUsage({
-    userId: ledger.userId,
-    workspaceId: ledger.workspaceId ?? undefined,
+    userId: attribution.actorUserId,
+    workspaceId: attribution.workspaceId ?? undefined,
     workflowId: ledger.workflowId,
     executionId: ledger.executionId,
-    billingEntity: ledger.billingEntity,
+    billingEntity: { ...attribution.billingEntity },
     billingPeriod: {
-      start: new Date(ledger.billingPeriod.start),
-      end: new Date(ledger.billingPeriod.end),
+      start: new Date(attribution.billingPeriod.start),
+      end: new Date(attribution.billingPeriod.end),
     },
     entries: [
       {

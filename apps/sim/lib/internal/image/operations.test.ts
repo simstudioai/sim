@@ -130,7 +130,7 @@ describe('image operations', () => {
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
-  it('rejects foreign fal queue hosts before sending credentials', async () => {
+  it('rejects foreign fal queue hosts before sending credentials and cancels on the fal queue', async () => {
     mocks.fetch.mockResolvedValueOnce(
       Response.json({
         request_id: 'foreign-job',
@@ -147,6 +147,10 @@ describe('image operations', () => {
     expect(response.status).toBe(500)
     expect(await response.json()).toMatchObject({ error: 'Invalid Fal.ai queue URL' })
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(mocks.fetch).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^https:\/\/queue\.fal\.run\/.+\/requests\/foreign-job\/cancel$/),
+      expect.objectContaining({ method: 'PUT' })
+    )
   })
 
   it('retrieves nested fal jobs from the documented application request path', async () => {

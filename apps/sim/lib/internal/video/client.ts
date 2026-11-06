@@ -393,19 +393,18 @@ async function generateWithFalAI(
 
   const app = endpoint.split('/', 2).join('/')
   const requestUrl = `https://queue.fal.run/${app}/requests/${encodeURIComponent(requestIdFal)}`
-  const statusUrl = falQueueUrl(
-    getStringProperty(createData, 'status_url') || `${requestUrl}/status`
-  )
-  const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
-
-  const cancelUrl = falQueueUrl(
-    getStringProperty(createData, 'cancel_url') || `${requestUrl}/cancel`
-  )
+  /** Built from the endpoint, never a provider URL, so a rejected one can still be cancelled. */
+  const cancelUrl = `${requestUrl}/cancel`
 
   logger.info(`Fal.ai request created: ${requestIdFal}`, { requestId })
 
   let reachedTerminalStatus = false
   try {
+    const statusUrl = falQueueUrl(
+      getStringProperty(createData, 'status_url') || `${requestUrl}/status`
+    )
+    const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
+
     const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
     let attempts = 0
 

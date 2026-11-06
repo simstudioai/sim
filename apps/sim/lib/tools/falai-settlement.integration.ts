@@ -29,7 +29,11 @@ async function createUser(): Promise<string> {
   return id
 }
 
-function payloadFor(userId: string, billedProviderCostDollars: number): FalAICostSettlementPayload {
+function payloadFor(
+  userId: string,
+  billedProviderCostDollars: number,
+  billingPeriod = { start: '2026-11-01T00:00:00.000Z', end: '2026-12-01T00:00:00.000Z' }
+): FalAICostSettlementPayload {
   return {
     envVarName: HOSTED_KEY_ENV_VAR,
     endpointId: 'bytedance/seedance-2.5/text-to-video',
@@ -38,10 +42,15 @@ function payloadFor(userId: string, billedProviderCostDollars: number): FalAICos
     markupMultiplier: 1.5,
     ledger: {
       source: 'workflow',
-      userId,
-      workspaceId: null,
-      billingEntity: { type: 'user', id: userId },
-      billingPeriod: { start: '2026-11-01T00:00:00.000Z', end: '2026-12-01T00:00:00.000Z' },
+      billingAttribution: {
+        actorUserId: userId,
+        workspaceId: null,
+        organizationId: null,
+        billedAccountUserId: userId,
+        billingEntity: { type: 'user', id: userId },
+        billingPeriod,
+        payerSubscription: null,
+      },
     },
   }
 }
@@ -70,7 +79,12 @@ function stubFalBillingEvents(charge: { requestId: string; costDollars: number }
 
 async function settlementRows(userId: string) {
   return db
-    .select({ cost: usageLog.cost, description: usageLog.description, source: usageLog.source })
+    .select({
+      cost: usageLog.cost,
+      description: usageLog.description,
+      source: usageLog.source,
+      billingPeriodEnd: usageLog.billingPeriodEnd,
+    })
     .from(usageLog)
     .where(eq(usageLog.userId, userId))
 }
@@ -107,6 +121,19 @@ describe('settleFalAICost', () => {
       source: 'workflow',
       description: 'fal exact cost settlement: bytedance/seedance-2.5/text-to-video',
     })
+  })
+
+  it('bills a settlement that outlives its billing period to the payer current period', async () => {
+    const userId = await createUser()
+    const endedPeriod = { start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' }
+    const payload = payloadFor(userId, 6.49, endedPeriod)
+    stubFalBillingEvents({ requestId: payload.requestId, costDollars: 15 })
+
+    expect(await settleFalAICost(payload)).toBe('charged')
+
+    const rows = await settlementRows(userId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].billingPeriodEnd?.getTime()).toBeGreaterThan(Date.now())
   })
 
   it('bills nothing while fal has not recorded the charge', async () => {
