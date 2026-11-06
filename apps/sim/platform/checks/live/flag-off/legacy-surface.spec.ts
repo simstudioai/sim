@@ -34,9 +34,24 @@ test('a client navigation stays on the main app too', async ({ page }) => {
 
 test('/org is absent', async ({ page }) => {
   await signInAsAdmin(page, `/o/${organizationId()}/home`)
-  for (const path of ['/org', '/org/home', '/org/settings/members']) {
+  for (const path of ['/org/home', '/org/settings/members']) {
     const response = await page.goto(path)
     expect(response?.status(), path).toBe(404)
     await expect(page.getByRole('button', { name: 'Organization menu' })).toHaveCount(0)
   }
+})
+
+test('the bare /org has nothing to show either, and with a zone it leads back', async ({
+  page,
+}) => {
+  await signInAsAdmin(page, `/o/${organizationId()}/home`)
+  const response = await page.goto('/org')
+  // Only the job that built the zone sets this. With no zone the main app answers for itself.
+  if (!process.env.SIM_PLATFORM_ORIGIN) {
+    expect(response?.status()).toBe(404)
+    return
+  }
+  expect(response?.status()).toBe(200)
+  await expect(page).toHaveURL(new RegExp(`/o/${organizationId()}(?:/|\\?|$)`))
+  await expectMainAppSurface(page)
 })
