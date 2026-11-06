@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FixtureChat } from '@/platform/app/(shell)/_components/chat/conversation/fixture-chat'
 import { ChatPanels } from '@/platform/app/(shell)/_components/chat/panel/chat-panels'
 import { readScenario } from '@/platform/design-system/navigation'
 import { loadConversationData, loadPanelData, loadShellData } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+
+export const metadata: Metadata = { title: 'Chat' }
 
 export default async function Page({ searchParams, params }: PageProps<'/chat/[[...id]]'>) {
   const [query, { id }] = await Promise.all([searchParams, params])
