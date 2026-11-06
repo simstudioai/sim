@@ -117,6 +117,7 @@ import {
   isDeliveredAsTurn,
   MAX_OUTGOING_DELIVERY_ATTEMPTS,
   nextOutgoingStep,
+  nextOutgoingWake,
   notSteered,
   type OutgoingMessage,
   optimisticUserMessageFor,
@@ -4380,6 +4381,7 @@ export function useChat(
         updateOutgoing(message.id, {
           status: 'applied',
           streamId,
+          notBefore: undefined,
           ...(outcome.textOffset !== undefined ? { textOffset: outcome.textOffset } : {}),
         })
         return
@@ -4544,7 +4546,7 @@ export function useChat(
         if (result === false) {
           /* Nothing went out (the chat refused it before sending); it stays, shown
              as not delivered. */
-          updateOutgoing(message.id, { status: 'failed' })
+          updateOutgoing(message.id, { status: 'failed', notBefore: undefined })
           return
         }
         if (typeof result !== 'object') {
@@ -4571,6 +4573,7 @@ export function useChat(
             streamId: undefined,
             unconfirmed: false,
             reads: 0,
+            notBefore: undefined,
           },
           ...current.filter((candidate) => candidate.id !== message.id),
         ])
@@ -4580,7 +4583,7 @@ export function useChat(
              a message it never applies backs off and ends in "not delivered". */
           const attempts = message.attempts + 1
           if (attempts >= MAX_OUTGOING_DELIVERY_ATTEMPTS) {
-            updateOutgoing(message.id, { status: 'failed', attempts })
+            updateOutgoing(message.id, { status: 'failed', attempts, notBefore: undefined })
             return
           }
           updateOutgoing(message.id, { attempts })
@@ -4645,9 +4648,11 @@ export function useChat(
       return delivery.pass
     }
     delivery.pass = (async () => {
+      let passBegan = Date.now()
       try {
         do {
           delivery.again = false
+          passBegan = Date.now()
           /* Checked synchronously so a plain send goes out in the same tick as
              `sendMessage`, before any await. */
           if (hasSteeringToSettle()) await settleOutgoing()
@@ -4660,10 +4665,9 @@ export function useChat(
       }
       if (outgoingRetryTimerRef.current) clearTimeout(outgoingRetryTimerRef.current)
       outgoingRetryTimerRef.current = null
-      const next = Math.min(
-        ...outgoingRef.current
-          .filter((message) => message.chatKey === chatKeyRef.current)
-          .map((message) => message.notBefore ?? Number.POSITIVE_INFINITY)
+      const next = nextOutgoingWake(
+        outgoingRef.current.filter((message) => message.chatKey === chatKeyRef.current),
+        passBegan
       )
       if (surfaceMountedRef.current && Number.isFinite(next)) {
         outgoingRetryTimerRef.current = setTimeout(
