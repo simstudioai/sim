@@ -141,7 +141,7 @@ async function walkPeopleRoutes() {
               ]) {
                 const response = await session.page.goto(orgUrl(`/${path}`))
                 assert((response?.status() ?? 500) < 400, `${path} ${response?.status()}`)
-                await session.settle()
+                await session.contentReady()
                 await expect(
                   session.page.getByRole('button', { name: 'Org chart' }),
                   `${path} rendered no People page`

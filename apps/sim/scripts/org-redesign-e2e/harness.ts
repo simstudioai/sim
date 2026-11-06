@@ -107,6 +107,8 @@ export const routes: {
   finalPath: string
   screenshot: string | null
   platformSurfaces: number
+  /** From the document's load to no read or skeleton left, or null if it never got there. */
+  contentReadyMs: number | null
 }[] = []
 export const firstPaints: FirstPaint[] = []
 const unexpected: Problem[] = []
@@ -131,6 +133,11 @@ const ENVIRONMENT_CONSOLE_NOISE = [
   /^The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy\./,
   /^Access to fetch at 'https:\/\/sim-sim\.inth\.app\/init' from origin /,
 ]
+/** How long a route may keep showing a first read before the walk fails it as stuck. */
+const CONTENT_DEADLINE_MS = 20_000
+/** The gap between the two looks that must agree: the next read starts after a chunk or a mount. */
+const CONTENT_RECHECK_MS = 300
+const LOADING_STATUS = /^(Loading|Checking|Searching|Updating)\b/
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\/|\/api\/auth\/socket-token/
 
 const browser: Browser = await chromium.launch()
@@ -141,6 +148,24 @@ interface CheckScope {
   sessions: Set<Session>
 }
 const checkScope = new AsyncLocalStorage<CheckScope>()
+
+/**
+ * The loading states on screen, named. Runs in the page. Skeletons announce themselves as a
+ * `role=status` saying what they load or an `aria-busy` region, which is also what a screen reader
+ * gets, so no check depends on a skeleton's class.
+ */
+function loadingStatesOnScreen(pattern: string) {
+  const loading = new RegExp(pattern)
+  const named = (element: Element) =>
+    element.getAttribute('aria-label') || element.textContent?.trim() || element.tagName
+  const busy = Array.from(document.querySelectorAll('[aria-busy="true"]'))
+  const statuses = Array.from(document.querySelectorAll('[role="status"]')).filter((element) =>
+    loading.test(named(element))
+  )
+  return [...new Set([...busy, ...statuses])]
+    .filter((element) => element.checkVisibility({ visibilityProperty: true }))
+    .map(named)
+}
 
 function reportCounts() {
   const counts = { passed: 0, failed: 0, skipped: 0 }
@@ -318,10 +343,37 @@ class Session {
       if (this.inflight.size === 0 && Date.now() - this.lastActivity > 400) return
       await sleep(100)
     }
-    const out = [...this.inflight].map((request) => `${request.method()} ${request.url()}`)
     throw new Error(
-      `The page did not go quiet in ${maxMs}ms. Still out: ${out.join(', ') || 'none'}`
+      `The page did not go quiet in ${maxMs}ms. Still out: ${this.readsOut() || 'none'}`
     )
+  }
+
+  /**
+   * Quiet, and past every first read: a quiet network alone passes before a lazy section has loaded
+   * enough to send its read, with its skeleton on screen. A state a check holds on purpose is that
+   * check's to assert; this is for a page about to be read as finished. Returns how long it took.
+   */
+  async contentReady(maxMs = CONTENT_DEADLINE_MS) {
+    const started = Date.now()
+    const loading = () => this.page.evaluate(loadingStatesOnScreen, LOADING_STATUS.source)
+    let showing: string[] = []
+    while (Date.now() - started < maxMs) {
+      await this.settle(maxMs - (Date.now() - started)).catch(() => {})
+      showing = await loading()
+      if (showing.length === 0) {
+        await sleep(CONTENT_RECHECK_MS)
+        showing = await loading()
+        if (showing.length === 0 && this.inflight.size === 0) return Date.now() - started
+      }
+      await sleep(100)
+    }
+    throw new Error(
+      `Still loading after ${maxMs}ms: ${showing.join(', ') || 'no skeleton'}. Reads still out: ${this.readsOut() || 'none'}`
+    )
+  }
+
+  private readsOut() {
+    return [...this.inflight].map((request) => `${request.method()} ${request.url()}`).join(', ')
   }
 }
 

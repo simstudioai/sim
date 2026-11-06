@@ -110,9 +110,10 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         if (persona === CONNECTED) await stubConnectedHome(page)
         for (const route of routesFor(persona)) {
           const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
-          await session
-            .settle()
-            .catch((error) => failures.push(`${route.name}: ${getErrorMessage(error)}`))
+          const contentReadyMs = await session.contentReady().catch((error) => {
+            failures.push(`${route.name}: ${getErrorMessage(error)}`)
+            return null
+          })
           if (route.name === 'home')
             await composer(page)
               .waitFor({ timeout: 20_000 })
@@ -149,6 +150,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             finalPath: pathOf(page.url()),
             screenshot,
             platformSurfaces: facts.surfaces,
+            contentReadyMs,
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)
