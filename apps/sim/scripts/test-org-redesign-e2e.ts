@@ -147,6 +147,8 @@ let allowedFailures: RegExp[] = []
 const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
 /** A Suspense boundary the server gave up on, which is only fine when it was a redirect or not-found. */
 const STREAMED_FAILURE = /Minified React error #419/
+/** The browser's own line for a failed load, which the response and requestfailed listeners judge. */
+const BROWSER_LOAD_FAILURE = /^Failed to load resource/
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\//
 
 const browser: Browser = await chromium.launch()
@@ -240,7 +242,7 @@ class Session {
       if (message.type() !== 'error') return
       const text = message.text()
       if (
-        /content security policy|hydrat|minified react error/i.test(text) &&
+        !BROWSER_LOAD_FAILURE.test(text) &&
         !HANDLED_RUNTIME.test(text) &&
         !STREAMED_FAILURE.test(text)
       )
@@ -335,7 +337,9 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
   await context.exposeBinding(
     'reportStreamedFailure',
     (_source, address: string, message: string, digests: string[]) => {
-      if (!digests.some((digest) => HANDLED_RUNTIME.test(digest)))
+      const allHandled =
+        digests.length > 0 && digests.every((digest) => HANDLED_RUNTIME.test(digest))
+      if (!allHandled)
         recordProblem('runtime', address, `${message} digests: ${digests.join(', ')}`)
     }
   )
