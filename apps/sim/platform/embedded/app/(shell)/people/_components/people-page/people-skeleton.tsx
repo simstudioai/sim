@@ -1,10 +1,13 @@
 import { LoadingRows } from '@/platform/design-system/components'
 import { PeopleFrame } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-frame'
+import styles from '@/platform/embedded/app/(shell)/people/_components/people-page/people-page.module.css'
 
 export function PeopleSkeleton() {
   return (
     <PeopleFrame>
-      <LoadingRows label='Loading people…' />
+      <div className={styles.loading}>
+        <LoadingRows label='Loading people…' />
+      </div>
     </PeopleFrame>
   )
 }

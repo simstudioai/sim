@@ -7,12 +7,14 @@ interface HomeSectionProps {
   title: string
   icon?: IconName
   actions?: ReactNode
+  /** Lets the section grow past the widget cap, when its own control or notices set the height. */
+  uncapped?: boolean
   children: ReactNode
 }
 
-export function HomeSection({ title, icon, actions, children }: HomeSectionProps) {
+export function HomeSection({ title, icon, actions, uncapped, children }: HomeSectionProps) {
   return (
-    <section aria-label={title} className={styles.section}>
+    <section aria-label={title} className={styles.section} data-uncapped={uncapped || undefined}>
       <header className={styles.heading}>
         <h2 data-type='T042'>
           {icon && <Icon name={icon} />}

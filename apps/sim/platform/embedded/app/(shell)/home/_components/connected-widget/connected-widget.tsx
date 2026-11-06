@@ -116,6 +116,7 @@ export function ConnectedWidget<T>({
     <HomeSection
       title={title}
       icon={icon}
+      uncapped={state.status === 'ready' && state.accounts.some((account) => account.problem)}
       actions={<ActionMenu label={`${title} options`} icon='I108' align='end' actions={menu} />}
     >
       {state.status === 'loading' && <WidgetSkeleton label={`Loading your ${noun}`} />}

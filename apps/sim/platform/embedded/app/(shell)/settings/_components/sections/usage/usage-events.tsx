@@ -8,7 +8,7 @@ import { useUsageEvents, useUsageView } from '@/platform/embedded/lib/data/usage
 const COLUMNS = [
   { key: 'when', label: 'When', kind: 'text' },
   { key: 'label', label: 'Event', kind: 'text' },
-  { key: 'description', label: 'Description', kind: 'text' },
+  { key: 'description', label: 'Description', kind: 'text', showFrom: 'compact' },
   { key: 'credits', label: 'Credits', kind: 'text' },
 ] as const
 
@@ -44,6 +44,14 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
                 label: event.label,
                 description: event.description,
                 credits: event.credits,
+              },
+              cells: {
+                label: (
+                  <span className={styles.eventCell}>
+                    {event.label}
+                    <span className={styles.eventDescription}>{event.description}</span>
+                  </span>
+                ),
               },
             }))}
           />

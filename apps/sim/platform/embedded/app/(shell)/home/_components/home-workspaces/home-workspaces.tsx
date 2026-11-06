@@ -36,7 +36,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
   if (state.status === 'ready' && state.items.length === 0) return null
   const hasMore = count > visibleCount
   return (
-    <HomeSection title='Workspaces'>
+    <HomeSection title='Workspaces' uncapped>
       {state.status === 'loading' && (
         <WidgetSkeleton
           label='Loading workspaces'

@@ -161,3 +161,19 @@
   max-inline-size: var(--spacing-192);
   padding: var(--spacing-8) var(--spacing-12);
 }
+.eventCell {
+  display: grid;
+  gap: var(--spacing-2);
+  min-inline-size: 0;
+}
+/* Where the table hides Description, it joins the event's cell. */
+.eventDescription {
+  display: none;
+  overflow-wrap: anywhere;
+  color: var(--ui-secondary);
+}
+@container (width < 30rem) {
+  .eventDescription {
+    display: block;
+  }
+}
