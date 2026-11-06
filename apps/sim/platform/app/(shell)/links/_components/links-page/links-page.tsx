@@ -261,11 +261,6 @@ export function LinksPage({ organizationId }: LinksPageProps) {
             graphic={<Icon name='I041' />}
             title='No links yet'
             description='Create short links like handbook for the pages your team opens most.'
-            action={
-              <Button variant='primary' onClick={links.startCreate}>
-                New link
-              </Button>
-            }
           />
         )
       ) : (

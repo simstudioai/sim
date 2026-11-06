@@ -107,10 +107,16 @@ interface OrgChartProps {
   firstUse: boolean
   onConnect: (source: SyncSource) => void
   onImport: () => void
-  onSync?: () => void
+  canSync?: boolean
 }
 
-export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync }: OrgChartProps) {
+export function OrgChart({
+  organizationId,
+  firstUse,
+  onConnect,
+  onImport,
+  canSync,
+}: OrgChartProps) {
   const { organizationName, canProvision } = usePeopleViewer()
   const chart = useOrgChart(organizationId)
   const { branch, focus, page, size, compact, setView, profileQuery } = chart
@@ -247,7 +253,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
             onFocus={focusPerson}
             onBrowseDirectory={browseDirectory}
             currentPersonRef={setCurrentPerson}
-            onSync={onSync}
+            canSync={canSync}
           />
         </div>
       ) : branch ? (
