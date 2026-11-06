@@ -1,0 +1,176 @@
+{
+  "platform/embedded/app/(shell)/_components/conversation/conversation.module.css": {
+    "css-owner": 1,
+    "unknown-token": 1
+  },
+  "platform/embedded/app/(shell)/_components/conversation/dialogs.tsx": {
+    "consumer-style": 2,
+    "style-api": 1
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-composer.module.css": {
+    "css-owner": 15,
+    "unknown-token": 10
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-composer.tsx": {
+    "consumer-style": 2,
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-conversation.tsx": {
+    "consumer-style": 2,
+    "prop-spread": 4
+  },
+  "platform/embedded/app/(shell)/_components/conversation/search-input-bar.tsx": {
+    "consumer-style": 2
+  },
+  "platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": {
+    "consumer-style": 4
+  },
+  "platform/embedded/app/(shell)/_components/provider-mark/provider-mark.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/_components/route-status/route-status.module.css": {
+    "raw-geometry": 1
+  },
+  "platform/embedded/app/(shell)/_components/search/search.module.css": {
+    "focus-style": 1,
+    "raw-geometry": 2
+  },
+  "platform/embedded/app/(shell)/_components/search/source-row.tsx": {
+    "consumer-style": 3,
+    "style-api": 1
+  },
+  "platform/embedded/app/(shell)/_components/sidebar/rail-flyout.tsx": {
+    "primitive-owner": 1,
+    "private-recipe": 1,
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/_components/sidebar/sidebar.module.css": {
+    "raw-color": 1,
+    "raw-geometry": 5
+  },
+  "platform/embedded/app/(shell)/_components/site-mark/site-mark.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart.module.css": {
+    "css-owner": 1,
+    "unknown-token": 4
+  },
+  "platform/embedded/app/(shell)/home/_components/activity-list/activity-list.module.css": {
+    "css-owner": 1
+  },
+  "platform/embedded/app/(shell)/home/_components/activity-list/activity-list.tsx": {
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.module.css": {
+    "css-owner": 11,
+    "focus-style": 2,
+    "unknown-token": 11,
+    "variant-selector": 3
+  },
+  "platform/embedded/app/(shell)/home/_components/calendar/calendar-day.tsx": {
+    "consumer-style": 4
+  },
+  "platform/embedded/app/(shell)/home/_components/connected-widget/connected-widget.module.css": {
+    "raw-geometry": 2
+  },
+  "platform/embedded/app/(shell)/home/_components/home-conversation/home-conversation.tsx": {
+    "private-composition": 1,
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton.tsx": {
+    "private-recipe": 1
+  },
+  "platform/embedded/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css": {
+    "raw-geometry": 1
+  },
+  "platform/embedded/app/(shell)/integrations/_components/integration-mark/integration-mark.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-route.tsx": {
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/integrations/_components/slack-search-actions/slack-search-actions.tsx": {
+    "private-recipe": 1
+  },
+  "platform/embedded/app/(shell)/people/_components/directory-sync/directory-sync.module.css": {
+    "raw-geometry": 1
+  },
+  "platform/embedded/app/(shell)/people/_components/directory/directory.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/people/_components/org-chart/chart-canvas.tsx": {
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/people/_components/org-chart/org-chart.module.css": {
+    "focus-style": 1
+  },
+  "platform/embedded/app/(shell)/search/_components/search-surface/search-surface.module.css": {
+    "css-owner": 2,
+    "unknown-token": 2
+  },
+  "platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": {
+    "private-composition": 1,
+    "private-recipe": 1,
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/access-control/group-catalog-tabs.tsx": {
+    "prop-spread": 3
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-access.tsx": {
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-providers.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/add-source-modal.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css": {
+    "css-owner": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.tsx": {
+    "private-recipe": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-config-fields.tsx": {
+    "private-recipe": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-settings-fields.tsx": {
+    "prop-spread": 3
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/integrations-section.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/source-detail.tsx": {
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host.tsx": {
+    "private-composition": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup.tsx": {
+    "prop-spread": 4
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": {
+    "prop-spread": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/usage/usage-credits.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/usage/usage-heatmap.tsx": {
+    "consumer-style": 4
+  }
+}

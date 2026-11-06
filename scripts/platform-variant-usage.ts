@@ -18,19 +18,27 @@ export function productUsage(app: string, program: ts.Program): Usage {
   const seen = new WeakMap<ts.Node, Set<string>>()
   const preview = path.join(app, 'platform/preview/')
   const system = path.join(app, 'platform/design-system/')
-  const appDir = path.join(app, 'platform/app')
-  const workbench = path.join(appDir, 'workbench/')
+  const zoneRoutes = path.join(app, 'platform/app')
+  const workbench = path.join(zoneRoutes, 'workbench/')
+  /** `platform/embedded` has no pages; these routes mount its views. */
+  const organizationRoutes = path.join(app, 'app/o')
   function declaration(node: ts.Node) {
     let symbol = checker.getSymbolAtLocation(node)
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
     return symbol?.valueDeclaration
   }
-  /** The component behind `dynamic(() => import('x').then((module) => module.Name))`. */
+  /** The component behind `dynamic(() => import('x'))` or `dynamic(() => import('x').then((module) => module.Name))`. */
   function dynamicComponent(init: ts.Expression): Component | undefined {
     if (!ts.isCallExpression(init) || init.expression.getText() !== 'dynamic') return
     const load = init.arguments[0]
     if (!load || !ts.isArrowFunction(load) || !ts.isCallExpression(load.body)) return
     const then = load.body
+    if (then.expression.kind === ts.SyntaxKind.ImportKeyword && then.arguments[0]) {
+      const sourceFile = checker
+        .getSymbolAtLocation(then.arguments[0])
+        ?.declarations?.find(ts.isSourceFile)
+      return sourceFile && entry(sourceFile)
+    }
     if (!ts.isPropertyAccessExpression(then.expression) || then.expression.name.text !== 'then')
       return
     const imported = then.expression.expression
@@ -49,6 +57,29 @@ export function productUsage(app: string, program: ts.Program): Usage {
     const name = pick.body.name.text
     const member = checker.getExportsOfModule(target).find((item) => item.getName() === name)
     return component(member?.declarations?.[0])
+  }
+  /** Each component a `const Section = TABLE[key]` may render, for a table of `dynamic()` loaders. */
+  function dynamicRegistry(decl: ts.Node | undefined): Component[] {
+    if (
+      !decl ||
+      !ts.isVariableDeclaration(decl) ||
+      !decl.initializer ||
+      !ts.isElementAccessExpression(decl.initializer)
+    )
+      return []
+    const table = declaration(decl.initializer.expression)
+    if (
+      !table ||
+      !ts.isVariableDeclaration(table) ||
+      !table.initializer ||
+      !ts.isObjectLiteralExpression(table.initializer)
+    )
+      return []
+    return table.initializer.properties.flatMap((member) => {
+      if (!ts.isPropertyAssignment(member)) return []
+      const loaded = dynamicComponent(member.initializer)
+      return loaded ? [loaded] : []
+    })
   }
   /** React Flow renders these itself, so no JSX in this app names them. */
   function flowNodeComponents(node: ts.JsxOpeningLikeElement): Component[] {
@@ -267,7 +298,10 @@ export function productUsage(app: string, program: ts.Program): Usage {
         for (const flowNode of flowNodeComponents(node)) walkComponent(flowNode, {})
         const decl = declaration(node.tagName)
         const owner = decl && component(decl)
-        if (!owner) for (const module of lazyEntries(decl)) walkEntry(module.fileName)
+        if (!owner) {
+          for (const module of lazyEntries(decl)) walkEntry(module.fileName)
+          for (const loaded of dynamicRegistry(decl)) walkComponent(loaded, {})
+        }
         if (decl && owner) {
           const attrs: Props = {}
           for (const item of node.attributes.properties) {
@@ -337,12 +371,13 @@ export function productUsage(app: string, program: ts.Program): Usage {
   }
   const segments = new Set<string>()
   for (const file of program.getRootFileNames()) {
+    const routes = [zoneRoutes, organizationRoutes].find((root) => file.startsWith(root + path.sep))
     if (
+      !routes ||
       path.basename(file) !== 'page.tsx' ||
-      !file.startsWith(appDir + path.sep) ||
       file.startsWith(workbench) ||
       path
-        .relative(appDir, file)
+        .relative(routes, file)
         .split(path.sep)
         .some((segment) => segment.startsWith('_'))
     )
@@ -353,8 +388,8 @@ export function productUsage(app: string, program: ts.Program): Usage {
       for (const boundary of ['layout', 'template', 'error', 'loading', 'not-found']) {
         walkEntry(path.join(dir, `${boundary}.tsx`))
       }
-      if (dir === appDir) {
-        walkEntry(path.join(appDir, 'global-error.tsx'))
+      if (dir === routes) {
+        walkEntry(path.join(routes, 'global-error.tsx'))
         break
       }
     }

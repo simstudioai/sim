@@ -38,7 +38,13 @@
  *    would inherit that surface's components and hooks. Fix by moving the shared part under `lib/`
  *    or `hooks/`.
  *
- * Rules 1 to 3 have no allowlist. Rules 4 to 6 predate their enforcement, so their existing edges
+ * 7. The Platform zone and the organization views are two apps sharing `platform/design-system`. Nothing
+ *    under `apps/sim/platform` outside `embedded` imports `@/platform/embedded`, and `embedded` imports
+ *    nothing under `@/platform` but itself and the design system, tests included: the views are built on
+ *    the host app, so an edge from the zone would pull the host into a separate build, and an edge
+ *    the other way would make the zone part of what every organization ships.
+ *
+ * Rules 1 to 3 and 7 have no allowlist. Rules 4 to 6 predate their enforcement, so their existing edges
  * are counted per file in `scripts/check-monorepo-boundaries.baseline.json`, one section per rule. A
  * file above its count fails, and so does one below it until the baseline is rewritten, so the
  * baseline only shrinks. Regenerate after removing edges with `--update`, which refuses to raise a
@@ -57,6 +63,7 @@ const SIM_DIR = path.join(ROOT, 'apps/sim')
 const PLATFORM_DIR = path.join(SIM_DIR, 'platform')
 const PLATFORM_LIB_DIR = path.join(PLATFORM_DIR, 'embedded/lib')
 const PLATFORM_VIEWS_DIR = path.join(SIM_DIR, 'platform/embedded/app')
+const EMBEDDED_DIR = path.join(PLATFORM_DIR, 'embedded')
 const EE_DATA_HOOK = /^@\/ee\/(?:.+\/)?hooks(?:\/|$)/
 const SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
 
@@ -117,6 +124,23 @@ function viewSeamViolation(specifier: string, bindings: readonly string[] | 'all
     return `view reads a data hook around platform/lib/data: ${specifier}`
   }
   return null
+}
+
+/** Why a file under `apps/sim/platform` may not take this edge across the zone/embedded line. */
+function zoneEmbeddedViolation(file: string, specifier: string): string | null {
+  if (!file.startsWith(`${EMBEDDED_DIR}${path.sep}`)) {
+    return matchesModule(specifier, '@/platform/embedded')
+      ? `the Platform zone imports the organization views: ${specifier}`
+      : null
+  }
+  if (
+    !specifier.startsWith('@/platform/') ||
+    matchesModule(specifier, '@/platform/embedded') ||
+    matchesModule(specifier, '@/platform/design-system')
+  ) {
+    return null
+  }
+  return `the organization views import the Platform zone: ${specifier}`
 }
 
 /**
@@ -239,13 +263,17 @@ async function walk(dir: string, results: string[] = []): Promise<string[]> {
   return results
 }
 
-/** Every file under `dir` but tests; a directory that does not exist has none. */
-async function sourceFiles(dir: string): Promise<string[]> {
-  const files = await walk(dir).catch((error: NodeJS.ErrnoException) => {
+/** Every file under `dir`; a directory that does not exist has none. */
+async function allFiles(dir: string): Promise<string[]> {
+  return walk(dir).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return []
     throw error
   })
-  return files.filter((file) => !TEST_FILE.test(file))
+}
+
+/** Every file under `dir` but tests. */
+async function sourceFiles(dir: string): Promise<string[]> {
+  return (await allFiles(dir)).filter((file) => !TEST_FILE.test(file))
 }
 
 const SEAM_RATCHETS = ['viewDataHooks', 'platformToRoutes', 'platformLibToWorkspace'] as const
@@ -376,6 +404,14 @@ async function main() {
           ? `platform/embedded/lib imports the workspace surface: ${specifier}`
           : null
       }))
+    )
+  }
+
+  for (const file of await allFiles(PLATFORM_DIR)) {
+    offenders.push(
+      ...(await scanImports(file, ({ module }) =>
+        zoneEmbeddedViolation(file, aliasedSpecifier(file, module.text))
+      ))
     )
   }
 

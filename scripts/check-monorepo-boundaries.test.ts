@@ -223,6 +223,44 @@ describe('package boundary command', () => {
       })
     })
 
+    it.each([
+      [
+        'apps/sim/platform/app/page.tsx',
+        "import { Row } from '@/platform/embedded/app/(shell)/row'",
+      ],
+      ['apps/sim/platform/app/page.tsx', "import type { Row } from '../embedded/app/(shell)/row'"],
+      ['apps/sim/platform/lib/data/home.ts', "import '@/platform/embedded/lib/data/home'"],
+      ['apps/sim/platform/checks/home.test.ts', "import '@/platform/embedded/lib/data/home'"],
+      ['apps/sim/platform/design-system/row.tsx', "import('@/platform/embedded/lib/time')"],
+      [LIB_FILE, "import { home } from '@/platform/lib/data/home'"],
+      [VIEW_FILE, "import type { Home } from '@/platform/app/(shell)/home/model'"],
+      [VIEW_FILE, "import '../../../../lib/data/home'"],
+    ])('keeps the zone and the organization views apart: %s, %s', (file, source) => {
+      withFixture((fixture, audit) => {
+        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
+        writeFileSync(path.join(fixture, file), `${source}\n`)
+        const result = audit()
+        expect(result.status, result.stderr).toBe(1)
+        expect(result.stderr).toContain(`${file}:1`)
+        expect(audit('--update', '--init').status).toBe(0)
+        expect(audit().status).toBe(1)
+      })
+    })
+
+    it.each([
+      [VIEW_FILE, "import { Button } from '@/platform/design-system/components/button'"],
+      [LIB_FILE, "import { time } from '@/platform/embedded/lib/time'"],
+      ['apps/sim/platform/app/page.tsx', "import '@/platform/design-system/components/button'"],
+      ['apps/sim/platform/app/page.tsx', "import '@/platform/lib/data/home'"],
+    ])('allows what the zone and the views each own: %s, %s', (file, source) => {
+      withFixture((fixture, audit) => {
+        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
+        writeFileSync(path.join(fixture, file), `${source}\n`)
+        const result = audit()
+        expect(result.status, result.stderr).toBe(0)
+      })
+    })
+
     it('keeps platform/embedded/lib from importing the workspace surface, even for a type', () => {
       withFixture((fixture, audit) => {
         const cases = [
