@@ -124,6 +124,8 @@ export async function sidebarChecks() {
         )
         await page.reload()
         await expect(rail).toHaveAttribute('data-collapsed', 'true')
+        // The server renders the attribute, so only this says the shortcut is listening.
+        await expect(composer(page)).toBeFocused()
         await page.locator('body').click({ position: { x: 700, y: 20 } })
         await page.keyboard.press('Control+b')
         await expect(rail).not.toHaveAttribute('data-collapsed', 'true')

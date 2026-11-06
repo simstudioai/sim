@@ -337,8 +337,11 @@ export async function settingsChecks() {
         await page.goto(orgUrl('/settings/members'))
         const rail = sidebar(page)
         const field = rail.getByRole('searchbox', { name: 'Search settings' })
-        await page.keyboard.press('/')
-        await expect(field).toBeFocused()
+        // Answered from hydration on, which the server-rendered field does not wait for.
+        await expect(async () => {
+          await page.keyboard.press('/')
+          await expect(field).toBeFocused({ timeout: 1_000 })
+        }).toPass({ timeout: 20_000 })
         await field.fill('password')
         await rail.getByRole('link', { name: 'Reset password', exact: true }).click()
         await expect(page).toHaveURL(orgUrl('/settings/general'))
