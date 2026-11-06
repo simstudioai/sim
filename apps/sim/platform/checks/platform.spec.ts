@@ -488,7 +488,10 @@ test('every registered master resolves through its production workbench URL', as
           theme: theme === 'L' ? 'light' : 'dark',
           state: 'full',
         })
-        const response = await request.get(`${enabled}?${query}`)
+        const response = await request.get(`${enabled}?${query}`, {
+          // The shared dev server can recycle its worker during the catalog sweep.
+          maxRetries: process.env.PLATFORM_E2E_ORIGIN ? 2 : 0,
+        })
         try {
           expect(response.status(), key).toBe(200)
           const page = load(await response.text())
