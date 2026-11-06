@@ -126,10 +126,16 @@ export function optimisticUserMessageFor(id: string, payload: SendPayload): Chat
 
 /**
  * Whether a message can be steered: steering carries its files and mentions like a
- * turn, but needs text, so a message of files alone goes out as a turn.
+ * turn, but needs text, so a message of files alone goes out as a turn. It has no
+ * search scope, so a message asking for one (a Summarize of found documents) goes
+ * out as a turn too, rather than running without it.
  */
-function canSteer(payload: SendPayload): boolean {
-  return payload.content.trim().length > 0 && payload.content.length <= MAX_STEERING_CONTENT_LENGTH
+export function canSteer(payload: SendPayload): boolean {
+  return (
+    !payload.assistantSearch &&
+    payload.content.trim().length > 0 &&
+    payload.content.length <= MAX_STEERING_CONTENT_LENGTH
+  )
 }
 
 /** The journal entry an outgoing message is restored from; a steer in flight restores as sent. */

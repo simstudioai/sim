@@ -110,6 +110,7 @@ import {
   afterDispositionRead,
   afterRetry,
   afterUnsentAttempt,
+  canSteer,
   deliveryOf,
   fromJournaled,
   hasOutgoingFollowUp,
@@ -4587,6 +4588,11 @@ export function useChat(
             return
           }
           updateOutgoing(message.id, { attempts })
+          if (!canSteer(message.payload)) {
+            updateOutgoing(message.id, { notBefore: Date.now() + outgoingRetryDelay(attempts) })
+            deliverOutgoingRef.current()
+            return
+          }
           void steerOutgoing({ ...message, attempts }, result.streamId).then(() => {
             const current = outgoingRef.current.find((candidate) => candidate.id === message.id)
             if (current?.status === 'pending') {

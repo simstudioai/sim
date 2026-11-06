@@ -4415,6 +4415,75 @@ describe('useChat remount send recovery', () => {
       }
     }, 30_000)
 
+    const SUMMARY_SCOPE = { startDate: '2026-11-01T00:00:00.000Z' }
+
+    it('holds a message with a search scope for its own turn, keeping the scope', async () => {
+      const { view, turn } = await startTurn()
+      await act(async () => {
+        await view.getResult().sendMessage('Summarize this', undefined, undefined, {
+          assistantSearch: SUMMARY_SCOPE,
+        })
+        await settle()
+      })
+
+      expect(state.steerBodies).toHaveLength(0)
+      expect(view.getResult().messages.at(-1)).toMatchObject({
+        content: 'Summarize this',
+        delivery: 'waiting',
+      })
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.steerBodies).toHaveLength(0)
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Summarize this',
+        assistantSearch: SUMMARY_SCOPE,
+      })
+    })
+
+    /** A turn this surface did not know of refuses the send; steering it would drop the scope. */
+    it('never steers a message with a search scope into a turn that refused its send', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+        let busy = true
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return busy
+              ? Response.json(
+                  { error: 'A response is already in progress.', activeStreamId: 'other-tab-run' },
+                  { status: 409 }
+                )
+              : emptySseResponse()
+          }
+          return fetchStub(input, init)
+        })
+        state.steerDispositions = ['queued', 'queued']
+        const view = renderUseChatInChat(chatId, history)
+        await act(async () => {
+          void view.getResult().sendMessage('Summarize this', undefined, undefined, {
+            assistantSearch: SUMMARY_SCOPE,
+          })
+          await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(state.postBodies).toHaveLength(1)
+        expect(state.steerBodies).toHaveLength(0)
+
+        busy = false
+        await act(async () => vi.advanceTimersByTimeAsync(3_000))
+
+        expect(state.steerBodies).toHaveLength(0)
+        expect(state.postBodies.length).toBeGreaterThan(1)
+        expect(state.postBodies.at(-1)).toMatchObject({
+          message: 'Summarize this',
+          assistantSearch: SUMMARY_SCOPE,
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     /** It waits for its marker in the saved transcript, which no timer brings any sooner. */
     it('stops waking for a message read as applied after an earlier read held it', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })

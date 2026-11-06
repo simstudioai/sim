@@ -263,6 +263,15 @@ describe('transitions', () => {
     expect(notBefore).toBeGreaterThan(NOW)
   })
 
+  it('never steers a message with a search scope, and shows it waits for its own turn', () => {
+    const scoped = entry('a', {
+      payload: { content: 'Summarize', assistantSearch: { startDate: '2026-11-01T00:00:00.000Z' } },
+    })
+    expect(nextOutgoingStep([scoped], view({ liveStreamId: 'turn' })).kind).toBe('idle')
+    expect(deliveryOf(scoped, true)).toBe('waiting')
+    expect(nextOutgoingStep([scoped], view())).toMatchObject({ kind: 'send', message: scoped })
+  })
+
   it('clears the retry delay on every move to not delivered or applied', () => {
     const delayed = { notBefore: NOW - 1 }
     const context = { streamId: 'turn', turnErrored: false, now: NOW }
