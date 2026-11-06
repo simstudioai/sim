@@ -25,7 +25,7 @@ export interface SkillsMenuHandle {
   close: () => void
   /** Moves the active highlight by `delta` rows (wrapping). */
   moveActive: (delta: number) => void
-  /** Selects the active row. Returns true when the key is spent: a skill selected, or more coming. */
+  /** Selects the active row. Returns true when a skill was selected. */
   selectActive: () => boolean
 }
 
@@ -96,8 +96,6 @@ export const SkillsMenuDropdown = React.memo(
     filteredItemsRef.current = filteredItems
     const activeIndexRef = useRef(activeIndex)
     activeIndexRef.current = activeIndex
-    const isLoadingRef = useRef(isLoading)
-    isLoadingRef.current = isLoading
 
     const doOpen = useCallback((anchor?: { left: number; top: number }) => {
       if (anchor) setAnchorPos(anchor)
@@ -139,8 +137,7 @@ export const SkillsMenuDropdown = React.memo(
         },
         selectActive: () => {
           const items = filteredItemsRef.current
-          // Swallows the key while loading, or Enter would send the unresolved `/name` as text.
-          if (items.length === 0) return isLoadingRef.current
+          if (items.length === 0) return false
           const target = items[activeIndexRef.current] ?? items[0]
           if (!target) return false
           handleSelectRef.current(target)

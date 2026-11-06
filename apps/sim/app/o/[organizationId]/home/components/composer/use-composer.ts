@@ -46,7 +46,7 @@ export interface ConversationComposerProps {
 }
 
 interface UseComposerOptions extends ConversationComposerProps {
-  /** The full page waits for complete lists before it sends a `/name`; the panel keeps its own timing. */
+  /** The full page loads lists on intent and holds a `/name` until they land; the panel loads them on open and never holds. */
   waitsForFullLists: boolean
   /** Attachments the view shows itself, which count as something to send. */
   hasAdditionalAttachments?: boolean
@@ -108,7 +108,8 @@ export function useComposer({
   /** The text the viewer was told would go out unchipped if they sent it again. */
   const [declinedWaitText, setDeclinedWaitText] = useState<string | null>(null)
   if (declinedWaitText !== null && value !== declinedWaitText) setDeclinedWaitText(null)
-  const skillsWanted = resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
+  const skillsWanted =
+    !waitsForFullLists || resourceIntent || heldSend !== null || SLASH_TOKEN.test(value)
   const skillQueries = useQueries({
     queries: workspaces.map((workspace) => ({
       ...getSkillsQueryOptions(workspace.id),
@@ -128,7 +129,7 @@ export function useComposer({
   const editor = usePromptEditor({
     workspaceId: '',
     availableSkills: skills,
-    skillsLoading: skillsWanted && skillListsPending,
+    skillsLoading: waitsForFullLists && skillsWanted && skillListsPending,
     waitsForFullResources: waitsForLists,
     resourceIntent,
     onResourceIntent: () => setResourceIntent(true),
