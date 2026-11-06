@@ -314,35 +314,42 @@ export const HiggsfieldBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => ({
-        ...params,
-        batchSize: parseOptionalNumberInput(params.batchSize, 'Number of Images', {
-          integer: true,
-        }),
-        characterStrength: parseOptionalNumberInput(
-          params.characterStrength,
-          'Character Strength',
-          {
-            min: 0,
-            max: 1,
-          }
-        ),
-        styleStrength: parseOptionalNumberInput(params.styleStrength, 'Style Strength', {
-          min: 0,
-          max: 1,
-        }),
-        seed: parseOptionalNumberInput(params.seed, 'Seed', {
-          integer: true,
-          min: 1,
-          max: 1000000,
-        }),
-        expiresAfter: parseOptionalNumberInput(params.expiresAfter, 'Keep Data For', {
-          integer: true,
-          min: 3600,
-        }),
-        page: parseOptionalNumberInput(params.page, 'Page', { integer: true, min: 1 }),
-        pageSize: parseOptionalNumberInput(params.pageSize, 'Page Size', { integer: true, min: 1 }),
-      }),
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
+        const isSoul = operation === SOUL
+        const isGenerate = GENERATE_OPERATIONS.includes(operation)
+        const isList = operation === 'higgsfield_list_characters'
+        return {
+          ...params,
+          batchSize: isSoul
+            ? parseOptionalNumberInput(params.batchSize, 'Number of Images', { integer: true })
+            : undefined,
+          characterStrength: isSoul
+            ? parseOptionalNumberInput(params.characterStrength, 'Character Strength', {
+                min: 0,
+                max: 1,
+              })
+            : undefined,
+          styleStrength: isSoul
+            ? parseOptionalNumberInput(params.styleStrength, 'Style Strength', { min: 0, max: 1 })
+            : undefined,
+          seed: isSoul
+            ? parseOptionalNumberInput(params.seed, 'Seed', { integer: true, min: 1, max: 1000000 })
+            : undefined,
+          expiresAfter: isGenerate
+            ? parseOptionalNumberInput(params.expiresAfter, 'Keep Data For', {
+                integer: true,
+                min: 3600,
+              })
+            : undefined,
+          page: isList
+            ? parseOptionalNumberInput(params.page, 'Page', { integer: true, min: 1 })
+            : undefined,
+          pageSize: isList
+            ? parseOptionalNumberInput(params.pageSize, 'Page Size', { integer: true, min: 1 })
+            : undefined,
+        }
+      },
     },
   },
   inputs: {
