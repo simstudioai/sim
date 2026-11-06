@@ -972,7 +972,17 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     })
     return {
       query: input.query,
-      results: ranked.slice(0, input.topK).map(({ result }) => result),
+      results: ranked.slice(0, input.topK).map(({ result, queries: matched }) => {
+        const queryIndexes = [
+          ...new Set(
+            matched.flatMap((index) => {
+              const queryIndex = searched[index]?.status.queryIndex
+              return queryIndex === undefined ? [] : [queryIndex]
+            })
+          ),
+        ].sort((a, b) => a - b)
+        return queryIndexes.length ? { ...result, queryIndexes } : result
+      }),
       retrieval: {
         status: retrievalStatus,
         timedOutLegs: [],
