@@ -710,6 +710,7 @@ export const FlowBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
+        generationType: 'json-value',
         prompt:
           'Generate valid JSON for Flow value: Field value as JSON, matching the data model: string, number, boolean, array, object, or null. Use only supplied category IDs and field keys. Return ONLY one raw JSON value, without markdown fences or prose.',
         placeholder: 'Describe the value to generate',
