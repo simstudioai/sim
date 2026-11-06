@@ -123,6 +123,14 @@ const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
 const STREAMED_FAILURE = /Minified React error #419/
 /** The browser's own line for a failed load, which the response and requestfailed listeners judge. */
 const BROWSER_LOAD_FAILURE = /^Failed to load resource/
+/**
+ * What this environment says that production would not: the suite runs over plain HTTP, where the
+ * browser ignores COOP, and the Inth analytics host refuses CI's origin, which production's allows.
+ */
+const ENVIRONMENT_CONSOLE_NOISE = [
+  /^The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy\./,
+  /^Access to fetch at 'https:\/\/sim-sim\.inth\.app\/init' from origin /,
+]
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\/|\/api\/auth\/socket-token/
 
 const browser: Browser = await chromium.launch()
@@ -223,6 +231,7 @@ class Session {
       const text = message.text()
       if (
         !BROWSER_LOAD_FAILURE.test(text) &&
+        !ENVIRONMENT_CONSOLE_NOISE.some((noise) => noise.test(text)) &&
         !HANDLED_RUNTIME.test(text) &&
         !STREAMED_FAILURE.test(text)
       )
