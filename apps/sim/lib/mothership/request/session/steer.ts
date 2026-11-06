@@ -155,7 +155,9 @@ async function failureCode(response: Response): Promise<string | undefined> {
  * contract), which can only be answered by re-sending the message.
  */
 type SteeringDispositionRead =
-  | { status: 'queued' | 'not_applied' | 'unknown' }
+  | { status: 'queued' }
+  | { status: 'not_applied' }
+  | { status: 'unknown' }
   | { status: 'applied'; eventSeq?: number; textOffset?: number }
   | { status: 'unsupported' }
 
@@ -197,7 +199,7 @@ export async function requestSteeringDisposition(params: {
       return { status: 'unsupported' }
     }
     const { steeringId: _, ...disposition } = parsed.data
-    return disposition
+    return disposition.status === 'applied' ? disposition : { status: disposition.status }
   }
   if (code === 'steering_target_missing') return { status: 'not_applied' }
   if ((response.status === 404 || response.status === 405) && !code) {
