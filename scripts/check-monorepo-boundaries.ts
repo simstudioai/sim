@@ -24,10 +24,12 @@
  *    `@/platform/app`, not even for a type: views depend on the data layer, and a data file that
  *    reached back into a view could not be read or tested without it. Fix by moving what both
  *    need under `platform/lib`.
- * 4. Views (`apps/sim/platform/app`) take data through `platform/lib/data`, so a read gets one
- *    adaptation and one place to fix it: no runtime edge to `@/hooks/queries` or `@/ee`. Fix with
- *    a data file that adapts the read. A file that only re-exports it satisfies this rule on paper
- *    and fixes nothing, so do not add one.
+ * 4. Views (`apps/sim/platform/app`) read data through `platform/lib/data`, so a read gets one
+ *    adaptation and one place to fix it: no runtime edge to a data hook, in `@/hooks/queries` or
+ *    a `hooks` folder under `@/ee`. Domain primitives elsewhere in `@/ee` (`lib`, constants,
+ *    labels) are not data, and views import them directly. Fix with a data file that adapts the
+ *    read. A file that only re-exports a hook satisfies this rule on paper and fixes nothing, so
+ *    do not add one.
  *
  * Rules 1 to 3 have no allowlist. Rule 4 predates this check, so its existing edges are counted per
  * file in `scripts/check-monorepo-boundaries.baseline.json`. A file above its count fails, and so
@@ -47,6 +49,7 @@ const PACKAGES_DIR = path.join(ROOT, 'packages')
 const SIM_DIR = path.join(ROOT, 'apps/sim')
 const PLATFORM_LIB_DIR = path.join(SIM_DIR, 'platform/lib')
 const PLATFORM_VIEWS_DIR = path.join(SIM_DIR, 'platform/app')
+const EE_DATA_HOOK = /^@\/ee\/(?:.+\/)?hooks(?:\/|$)/
 const VIEW_SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
 
 const TEST_FILE = /\.(test|spec|integration)\.tsx?$/
@@ -102,8 +105,8 @@ function applicationViolation(
 /** Why a view may not take this import edge, or `null` when it may. */
 function viewSeamViolation(specifier: string, bindings: readonly string[] | 'all'): string | null {
   if (bindings !== 'all' && bindings.length === 0) return null
-  if (matchesModule(specifier, '@/hooks/queries') || matchesModule(specifier, '@/ee')) {
-    return `view imports data around platform/lib/data: ${specifier}`
+  if (matchesModule(specifier, '@/hooks/queries') || EE_DATA_HOOK.test(specifier)) {
+    return `view reads a data hook around platform/lib/data: ${specifier}`
   }
   return null
 }

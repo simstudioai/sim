@@ -182,12 +182,18 @@ describe('package boundary command', () => {
         const cases = [
           ["import { useWidgets } from '@/hooks/queries/widgets'", false],
           ["import { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
-          ["export { WIDGET_LABELS } from '@/ee/widgets/labels'", false],
+          ["export { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
+          ["import { useDeep } from '@/ee/widgets/parts/hooks/deep'", false],
+          ["import { useFlat } from '@/ee/hooks'", false],
           ["const widgets = import('@/hooks/queries/widgets')", false],
           ["import { useWidgets } from '../../../../hooks/queries/widgets'", false],
           ["import type { Widget } from '@/hooks/queries/widgets'", true],
           ["import { useWidgets } from '@/platform/lib/data/widgets'", true],
           ["import { useDebounce } from '@/hooks/use-debounce'", true],
+          ["import { WIDGET_LABELS } from '@/ee/widgets/labels'", true],
+          ["import { widgetSummary } from '@/ee/widgets/lib/summary'", true],
+          ["import { WIDGET_LIMIT } from '@/ee/widgets/constants'", true],
+          ["import { hooksDoc } from '@/ee/hooks-docs/lib'", true],
         ] as const
         for (const [source, allowed] of cases) {
           writeFileSync(path.join(fixture, VIEW_FILE), `${source}\n`)
@@ -210,7 +216,10 @@ describe('package boundary command', () => {
         expect(JSON.parse(readFileSync(baselinePath, 'utf8'))).toEqual({ [VIEW_FILE]: 2 })
         expect(audit().status).toBe(0)
 
-        writeFileSync(path.join(fixture, VIEW_FILE), `${two}import { useCogs } from '@/ee/cogs'\n`)
+        writeFileSync(
+          path.join(fixture, VIEW_FILE),
+          `${two}import { useCogs } from '@/ee/cogs/hooks/cogs'\n`
+        )
         expect(audit().status).toBe(1)
         expect(audit('--update').status).toBe(1)
         expect(JSON.parse(readFileSync(baselinePath, 'utf8'))).toEqual({ [VIEW_FILE]: 2 })
