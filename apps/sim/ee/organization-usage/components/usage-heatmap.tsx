@@ -5,6 +5,7 @@ import { cn, scrollFadeAttributes, scrollFadeXClass, Tooltip, useScrollEdges } f
 import type { OrganizationUsageCalendar } from '@/lib/api/contracts/organization-usage'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
 import { USAGE_PALETTE_CLASS } from '@/ee/organization-usage/constants'
+import { usageHeatLevel } from '@/ee/organization-usage/format'
 
 const LEVEL_CLASSES = [
   'bg-[var(--surface-active)]',
@@ -100,9 +101,7 @@ export function UsageHeatmap({ days }: UsageHeatmapProps) {
             >
               {days.map((day, index) => {
                 const position = index + offset
-                const level = day.hasCost
-                  ? Math.max(1, Math.min(4, Math.ceil(Math.sqrt(day.credits / peak) * 4)))
-                  : 0
+                const level = usageHeatLevel(day.credits, peak, day.hasCost)
                 const label = formatDayUsage(day)
                 return (
                   <Tooltip.Root key={day.date}>

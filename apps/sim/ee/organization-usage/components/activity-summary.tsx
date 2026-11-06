@@ -18,6 +18,7 @@ import {
   USAGE_OTHER_COLOR,
   USAGE_PALETTE_CLASS,
 } from '@/ee/organization-usage/constants'
+import { formatFailureRate } from '@/ee/organization-usage/format'
 import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
@@ -50,15 +51,6 @@ interface ActivitySummaryProps {
   loading?: boolean
   error?: boolean
   onRetry?: () => void
-}
-
-export function formatFailureRate(rate: number | null): string {
-  return rate === null
-    ? '—'
-    : new Intl.NumberFormat(undefined, {
-        style: 'percent',
-        maximumFractionDigits: 1,
-      }).format(rate)
 }
 
 export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySummaryProps) {
