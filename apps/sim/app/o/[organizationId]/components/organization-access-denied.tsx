@@ -10,7 +10,7 @@ export function OrganizationAccessDenied() {
   return (
     <main
       className={cn(
-        'desktop-title-bar-page flex min-h-dvh bg-[var(--bg)]',
+        'desktop-title-bar-page flex h-dvh bg-[var(--bg)]',
         hostBridge.tokens,
         hostBridge.canvas
       )}

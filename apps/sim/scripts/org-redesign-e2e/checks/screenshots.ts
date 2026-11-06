@@ -151,6 +151,27 @@ export async function stateScreenshots() {
                   )
                 const open = viewport === PHONE ? (shot.openOnPhone ?? shot.open) : shot.open
                 await open?.(session.page)
+                // A heading too narrow for its word breaks mid-word, the failure a role check misses.
+                const broken = await session.page.getByRole('columnheader').evaluateAll((cells) =>
+                  cells.flatMap((cell) => {
+                    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
+                    const words: string[] = []
+                    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                      const text = node.textContent ?? ''
+                      for (const match of text.matchAll(/\S+/g)) {
+                        const range = document.createRange()
+                        range.setStart(node, match.index ?? 0)
+                        range.setEnd(node, (match.index ?? 0) + match[0].length)
+                        const lines = new Set(
+                          [...range.getClientRects()].map((rect) => Math.round(rect.top))
+                        )
+                        if (lines.size > 1) words.push(match[0])
+                      }
+                    }
+                    return words
+                  })
+                )
+                assert.deepEqual(broken, [], `${shot.name}: column headings break mid-word`)
                 await sleep(200)
                 await session.page.screenshot({
                   path: resolve(artifactDirectory, `state__${shot.name}__${viewport.name}.png`),
