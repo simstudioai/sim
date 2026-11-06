@@ -130,7 +130,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--design-spacing-132) var(--design-spacing-12) var(--design-spacing-32);
+  padding: var(--design-spacing-132) var(--design-spacing-16) var(--design-spacing-32);
 }
 .landing > [data-platform-ui] {
   max-inline-size: 100%;
