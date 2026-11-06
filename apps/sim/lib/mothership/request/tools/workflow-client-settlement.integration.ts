@@ -530,6 +530,44 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'completed', claimedBy: null })
   })
 
+  it('answers a paused call still running when the person submitted before Chat read the pause', async () => {
+    const { toolCallId, executionId } = await claimedAndPausedUnreported('human')
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+    // The resume took the pause point and the resumed run is going.
+    const [pausedRow] = await db
+      .select({ id: pausedExecutions.id, pausePoints: pausedExecutions.pausePoints })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+    await db
+      .update(pausedExecutions)
+      .set({
+        pausePoints: {
+          [APPROVAL_CONTEXT_ID]: {
+            ...(pausedRow.pausePoints as Record<string, Record<string, unknown>>)[
+              APPROVAL_CONTEXT_ID
+            ],
+            resumeStatus: 'resuming',
+          },
+        },
+      })
+      .where(eq(pausedExecutions.id, pausedRow.id))
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'running' })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId,
+      workflowId,
+      timeoutMs: WAIT_MS,
+    })
+
+    expect(completion).toMatchObject({
+      status: 'background',
+      data: { status: 'running', workflowId, executionId },
+    })
+  })
+
   it("never hands a call the link to another call's paused run", async () => {
     const other = await claimedAndPausedUnreported('human')
     const { toolCallId } = await claimed()
