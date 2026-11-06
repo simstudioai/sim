@@ -1018,11 +1018,11 @@ async function sidebarChecks() {
         const chip = orgChip(page)
         const card = orgCard(page)
         async function startRename() {
-          if (!(await card.isVisible())) await chip.click()
           await card.getByRole('button', { name: 'Rename organization' }).click()
           return card.getByRole('textbox', { name: 'Organization name' })
         }
         const renamed = `${ORGANIZATION_NAME} Group`
+        await chip.click()
         const field = await startRename()
         await field.fill('Discarded name')
         await field.press('Escape')
@@ -1033,6 +1033,7 @@ async function sidebarChecks() {
         await expect(chip).toContainText(renamed)
         await page.reload()
         await expect(chip).toContainText(renamed)
+        await chip.click()
         const restore = await startRename()
         await restore.fill(ORGANIZATION_NAME)
         await restore.press('Enter')
@@ -2692,9 +2693,6 @@ async function searchChecks() {
         const clear = page.getByRole('button', { name: 'Clear history', exact: true })
         await expect(clear).toBeVisible()
         await clear.click()
-        const confirm = page.getByRole('dialog')
-        if (await confirm.isVisible().catch(() => false))
-          await confirm.getByRole('button', { name: /Clear/ }).click()
         await expect(page.getByRole('region', { name: 'Recent activity' })).toHaveCount(0)
       })
     },
@@ -3700,8 +3698,6 @@ async function settingsChecks() {
           await route.fulfill({ status: 500, json: { error: 'Stubbed: no identity provider' } })
         })
         await page.goto(orgUrl('/settings/sso'))
-        const add = page.getByRole('button', { name: 'Add identity provider' })
-        if (await add.isVisible()) await add.click()
         const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
         await issuer.fill('not a url')
         await page.getByRole('button', { name: 'Save', exact: true }).click()
@@ -3864,8 +3860,6 @@ async function settingsChecks() {
   await check('Single sign-on: the client secret keeps its autofill guards', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(orgUrl('/settings/sso'))
-      const add = page.getByRole('button', { name: 'Add identity provider' })
-      if (await add.isVisible()) await add.click()
       const decoy = page.locator('input[name="fakepasswordremembered"]')
       await expect(decoy).toHaveJSProperty('hidden', false)
       const secret = page.getByRole('textbox', { name: 'Client secret' })
