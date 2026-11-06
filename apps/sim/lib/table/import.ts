@@ -388,9 +388,11 @@ export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
+  // A leading zero before another digit marks a code (ZIP, phone, SKU), not a
+  // quantity: storing it as a number would drop the zero for good.
   const allNumber = nonEmpty.every((v) => {
-    const n = Number(v)
-    return !Number.isNaN(n) && String(v).trim() !== ''
+    const s = String(v).trim()
+    return s !== '' && !Number.isNaN(Number(s)) && !/^[+-]?0\d/.test(s)
   })
   if (allNumber) return 'number'
 
