@@ -16,15 +16,29 @@ vi.mock('next/navigation', () => nextNavigationMock)
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import { listOrganizationAccountPeopleContract } from '@/lib/api/contracts/organization-accounts'
+import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { useOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'
+import {
+  useRemovePersonalSearchCredential,
+  useSavePersonalSearchCredential,
+} from '@/hooks/queries/personal-search-integrations'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
-describe('organization people search pagination', () => {
+describe('organization accounts', () => {
   let root: Root
   let container: HTMLDivElement
   let client: QueryClient
   let result: ReturnType<typeof useOrganizationAccountPeople>
+  let removal: ReturnType<typeof useRemovePersonalSearchCredential>
+  let save: ReturnType<typeof useSavePersonalSearchCredential>
+
+  function CredentialMutationProbe() {
+    removal = useRemovePersonalSearchCredential()
+    save = useSavePersonalSearchCredential()
+    return null
+  }
 
   function Probe({
     search,
@@ -129,6 +143,51 @@ describe('organization people search pagination', () => {
     expect(result.hasNextPage).toBe(false)
     expect(result.data?.pages).toHaveLength(1)
   })
+
+  it.each(['remove', 'reconnect'] as const)(
+    'clears cached Search content after %s while preserving another organization’s results',
+    async (action) => {
+      const search = knowledgeKeys.search(
+        resourceScopeKey({ kind: 'organization', organizationId: 'org-1' }),
+        'private content'
+      )
+      const otherSearch = knowledgeKeys.search(
+        resourceScopeKey({ kind: 'organization', organizationId: 'org-2' }),
+        'private content'
+      )
+      const document = knowledgeKeys.document('knowledge-1', 'document-1')
+      client.setQueryData(search, [{ content: 'previous credential content' }])
+      client.setQueryData(otherSearch, [{ content: 'other organization content' }])
+      client.setQueryData(document, { content: 'previous credential document' })
+      mockRequestJson.mockResolvedValueOnce(
+        action === 'remove' ? { success: true } : { credentialId: 'credential-1' }
+      )
+
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <CredentialMutationProbe />
+          </QueryClientProvider>
+        )
+      )
+      await act(async () => {
+        const body = { organizationId: 'org-1', credentialId: 'credential-1' }
+        if (action === 'remove') await removal.mutateAsync(body)
+        else
+          await save.mutateAsync({
+            ...body,
+            providerId: 'flow-service-account',
+            apiToken: 'rotated-token',
+            domain: 'https://api.flowengineering.com',
+            providerWorkspaceId: 'workspace-1',
+          })
+      })
+
+      expect(client.getQueryData(search)).toBeUndefined()
+      expect(client.getQueryData(document)).toBeUndefined()
+      expect(client.getQueryData(otherSearch)).toEqual([{ content: 'other organization content' }])
+    }
+  )
 
   it.each([400, 401, 403, 404, 409, 422])(
     'does not retry a non-retryable %s response',

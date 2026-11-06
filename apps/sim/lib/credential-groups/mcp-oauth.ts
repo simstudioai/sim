@@ -1,10 +1,27 @@
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { db } from '@sim/db'
+import { credential } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { CredentialGroupMcpOAuthContext } from '@/lib/credential-groups/enrollments'
+import { managedMcpAccountIdentityCall } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  type ManagedMcpAccountIdentity,
+  readManagedMcpAccountIdentity,
+} from '@/lib/credential-groups/mcp-account-identity'
 import { createCredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
-import { encryptManagedMcpTokens, persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
+import {
+  encryptManagedMcpTokens,
+  loadScopedManagedMcpRuntimeCredential,
+  persistManagedMcpCredential,
+  recordManagedMcpAccountIdentity,
+} from '@/lib/credentials/managed-mcp'
+import { createManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
 import {
   assertSafeOauthServerUrl,
   getOrCreateOauthRow,
@@ -17,10 +34,16 @@ import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
 import { mcpService } from '@/lib/mcp/service'
 import { toManagedMcpToolSnapshots } from '@/lib/mcp/tool-snapshot'
 
+const logger = createLogger('CredentialGroupMcpOAuth')
+
 export async function startCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
   invitationToken: string,
-  completion: { completionId?: string; returnTo?: 'integrations' } = {}
+  completion: {
+    completionId?: string
+    returnTo?: 'integrations'
+    connectionIntent?: CredentialGroupConnectionIntent
+  } = {}
 ): Promise<string> {
   assertSafeOauthServerUrl(context.server.url)
   return withMcpOauthRefreshLock(context.server.id, async () => {
@@ -64,12 +87,67 @@ export async function startCredentialGroupMcpOAuth(
   })
 }
 
+/**
+ * Identifies this person's connections made before accounts were identified, through their stored
+ * tokens, so adding another account does not first require reconnecting them. A connection whose
+ * tokens no longer work stays unidentified, and the add is then refused with a reconnect prompt.
+ */
+export async function identifyStoredManagedMcpConnections({
+  organizationId,
+  workspaceId,
+  enrollmentId,
+  server,
+}: {
+  organizationId?: string
+  workspaceId?: string
+  enrollmentId: string
+  server: { id: string; connectorId: string }
+}) {
+  const identityCall = managedMcpAccountIdentityCall(server.connectorId)
+  if (!identityCall) return
+  const scope = resourceScopeFromOwner({ organizationId, workspaceId })
+  const unidentified = await db
+    .select({ id: credential.id })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.type, 'managed_mcp'),
+        eq(credential.credentialGroupEnrollmentId, enrollmentId),
+        eq(credential.mcpServerId, server.id),
+        isNull(credential.providerSubjectId),
+        isNull(credential.revokedAt)
+      )
+    )
+  for (const { id } of unidentified) {
+    try {
+      const runtime = await loadScopedManagedMcpRuntimeCredential(id, scope)
+      const identity = readManagedMcpAccountIdentity(
+        server.connectorId,
+        await mcpService.executeManagedMcpTool({
+          connectionId: id,
+          serverId: server.id,
+          scope,
+          toolCall: identityCall,
+          loadAuthProvider: () => createManagedMcpAuthProvider(runtime),
+        })
+      )
+      if (identity) await recordManagedMcpAccountIdentity(id, identity)
+    } catch (error) {
+      logger.warn('Could not identify a stored managed MCP connection', {
+        connectorId: server.connectorId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+}
+
 export async function completeCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
   codeVerifier: string,
   authorizationCode: string,
   invitationToken: string,
-  expectedConfigurationFingerprint?: string
+  expectedConfigurationFingerprint?: string,
+  connectionIntent?: CredentialGroupConnectionIntent
 ) {
   assertSafeOauthServerUrl(context.server.url)
   const clientRow = await getOrCreateOauthRow({
@@ -107,6 +185,33 @@ export async function completeCredentialGroupMcpOAuth(
     undefined,
     { requireComplete: true }
   )
+  const identityCall = managedMcpAccountIdentityCall(context.server.connectorId)
+  let identity: ManagedMcpAccountIdentity | null = null
+  if (identityCall && tools.some((tool) => tool.name === identityCall.name)) {
+    try {
+      identity = readManagedMcpAccountIdentity(
+        context.server.connectorId,
+        await mcpService.callManagedMcpToolWithGrant(
+          context.server.id,
+          resourceScopeFromOwner(context),
+          provider,
+          identityCall
+        )
+      )
+    } catch (error) {
+      logger.warn('Could not identify the connected managed MCP account', {
+        connectorId: context.server.connectorId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+  if (identity && connectionIntent?.kind === 'create')
+    await identifyStoredManagedMcpConnections({
+      organizationId: context.organizationId,
+      workspaceId: context.workspaceId,
+      enrollmentId: context.enrollmentId,
+      server: context.server,
+    })
   const completion = await persistManagedMcpCredential({
     invitationTokenHash: sha256Hex(invitationToken),
     oauthConfigVersion: context.server.oauthConfigVersion,
@@ -120,6 +225,8 @@ export async function completeCredentialGroupMcpOAuth(
     mcpServerName: context.server.name,
     tokens: grantedTokens,
     tools: toManagedMcpToolSnapshots(tools),
+    identity,
+    connectionIntent,
   })
   return { ...completion, mcpServerId: context.server.id }
 }

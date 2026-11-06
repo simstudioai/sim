@@ -9,6 +9,13 @@ describe('settingsRoute', () => {
     expect(settingsRoute('/o/org-1/search?q=x')).toBe('/o/org-1/settings/general')
   })
 
+  it.each(['/org', '/org/search?q=x', '/org/settings/usage'])(
+    'stays in the organization from its Platform page %s',
+    (lastRoute) => {
+      expect(settingsRoute(lastRoute)).toBe('/org/settings/general')
+    }
+  )
+
   it('keeps the desktop settings of the workspace the user was last in', () => {
     expect(settingsRoute('/workspace/ws-1/home')).toBe('/workspace/ws-1/settings/desktop')
   })
@@ -18,6 +25,7 @@ describe('settingsRoute', () => {
     ['the app entry', '/home'],
     ['no saved route', undefined],
     ['a route that only starts like an organization', '/oauth/o/org-1'],
+    ['a route that only starts like the Platform', '/organizations/x'],
     ['an unsafe route', '//evil.example/o/org-1'],
   ])('resolves settings through the web app from %s', (_label, lastRoute) => {
     expect(settingsRoute(lastRoute)).toBe('/workspace?redirect=settings')

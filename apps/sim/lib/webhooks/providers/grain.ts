@@ -77,8 +77,8 @@ async function createGrainV2Hooks(params: {
       if (!response.ok || responseBody.error || responseBody.errors) {
         const message = grainErrorMessage(responseBody)
         logger.error(
-          `[${requestId}] Failed to create Grain v2 hook (${hookType}) for webhook ${webhookId}. Status: ${response.status}`,
-          { message, response: responseBody }
+          `Failed to create Grain v2 hook (${hookType}) for webhook ${webhookId}. Status: ${response.status}`,
+          { requestId, message, response: responseBody }
         )
         throw new Error(grainUserFacingError(response.status, message))
       }
@@ -138,10 +138,7 @@ async function createLegacyV1Subscription(params: {
   const { apiKey, triggerId, viewId, notificationUrl, requestId, webhookId } = params
 
   if (!viewId) {
-    logger.warn(`[${requestId}] Missing viewId for Grain webhook creation.`, {
-      webhookId,
-      triggerId,
-    })
+    logger.warn('Missing viewId for Grain webhook creation.', { requestId, webhookId, triggerId })
     throw new WebhookDeploymentConfigurationError(
       'Grain view ID is required. Please provide the Grain view ID from GET /_/public-api/views in the trigger configuration.'
     )
@@ -172,13 +169,14 @@ async function createLegacyV1Subscription(params: {
   const eventTypes = eventTypeMap[triggerId ?? ''] ?? []
 
   if (!triggerId || (!(triggerId in actionMap) && triggerId !== 'grain_webhook')) {
-    logger.warn(
-      `[${requestId}] Unknown triggerId for Grain: ${triggerId}, defaulting to all actions`,
-      { webhookId }
-    )
+    logger.warn(`Unknown triggerId for Grain: ${triggerId}, defaulting to all actions`, {
+      requestId,
+      webhookId,
+    })
   }
 
-  logger.info(`[${requestId}] Creating legacy Grain v1 webhook`, {
+  logger.info('Creating legacy Grain v1 webhook', {
+    requestId,
     triggerId,
     viewId,
     actions,
@@ -209,24 +207,25 @@ async function createLegacyV1Subscription(params: {
   if (!grainResponse.ok || responseBody.error || responseBody.errors) {
     const message = grainErrorMessage(responseBody)
     logger.error(
-      `[${requestId}] Failed to create webhook in Grain for webhook ${webhookId}. Status: ${grainResponse.status}`,
-      { message, response: responseBody }
+      `Failed to create webhook in Grain for webhook ${webhookId}. Status: ${grainResponse.status}`,
+      { requestId, message, response: responseBody }
     )
     throw new Error(grainUserFacingError(grainResponse.status, message))
   }
 
   const grainWebhookId = responseBody.id as string | undefined
   if (!grainWebhookId) {
-    logger.error(
-      `[${requestId}] Grain webhook creation response missing id for webhook ${webhookId}.`,
-      { response: responseBody }
-    )
+    logger.error(`Grain webhook creation response missing id for webhook ${webhookId}.`, {
+      requestId,
+      response: responseBody,
+    })
     throw new Error(
       'Grain webhook created but no webhook ID was returned in the response. Cannot track subscription.'
     )
   }
 
-  logger.info(`[${requestId}] Successfully created webhook in Grain for webhook ${webhookId}.`, {
+  logger.info(`Successfully created webhook in Grain for webhook ${webhookId}.`, {
+    requestId,
     grainWebhookId,
     eventTypes,
   })
@@ -256,9 +255,9 @@ export const grainHandler: WebhookProviderHandler = {
     const obj = body as Record<string, unknown> | null
     const isVerificationRequest = !obj || Object.keys(obj).length === 0 || !obj.type
     if (isVerificationRequest) {
-      logger.info(
-        `[${requestId}] Grain reachability test detected - returning 200 for webhook verification`
-      )
+      logger.info('Grain reachability test detected - returning 200 for webhook verification', {
+        requestId,
+      })
       return NextResponse.json({
         status: 'ok',
         message: 'Webhook endpoint verified',
@@ -301,7 +300,8 @@ export const grainHandler: WebhookProviderHandler = {
       const triggerId = providerConfig.triggerId as string | undefined
 
       if (!apiKey) {
-        logger.warn(`[${requestId}] Missing apiKey for Grain webhook creation.`, {
+        logger.warn('Missing apiKey for Grain webhook creation.', {
+          requestId,
           webhookId: webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -315,7 +315,8 @@ export const grainHandler: WebhookProviderHandler = {
         GRAIN_V2_TRIGGER_TO_HOOK_TYPES[triggerId as keyof typeof GRAIN_V2_TRIGGER_TO_HOOK_TYPES]
       if (v2HookTypes) {
         const hookTypes = [...v2HookTypes]
-        logger.info(`[${requestId}] Creating Grain v2 hooks`, {
+        logger.info('Creating Grain v2 hooks', {
+          requestId,
           triggerId,
           hookTypes,
           webhookId: webhook.id,
@@ -330,8 +331,8 @@ export const grainHandler: WebhookProviderHandler = {
         })
 
         logger.info(
-          `[${requestId}] Successfully created ${externalIds.length} Grain hook(s) for webhook ${webhook.id}.`,
-          { externalIds, hookTypes }
+          `Successfully created ${externalIds.length} Grain hook(s) for webhook ${webhook.id}.`,
+          { requestId, externalIds, hookTypes }
         )
 
         return {
@@ -355,13 +356,11 @@ export const grainHandler: WebhookProviderHandler = {
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Grain webhook creation for webhook ${webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Grain webhook creation for webhook ${webhook.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -383,16 +382,17 @@ export const grainHandler: WebhookProviderHandler = {
       )
 
       if (!apiKey) {
-        logger.warn(
-          `[${requestId}] Missing apiKey for Grain webhook deletion ${webhook.id}, skipping cleanup`
-        )
+        logger.warn(`Missing apiKey for Grain webhook deletion ${webhook.id}, skipping cleanup`, {
+          requestId,
+        })
         if (ctx.strict) throw new Error('Missing Grain apiKey for webhook deletion')
         return
       }
 
       if (externalIds.length === 0) {
         logger.warn(
-          `[${requestId}] Missing externalId for Grain webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing externalId for Grain webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Missing Grain externalId for webhook deletion')
         return
@@ -406,9 +406,10 @@ export const grainHandler: WebhookProviderHandler = {
           } else {
             await deleteLegacyV1Hook({ apiKey, hookId: externalId, requestId })
           }
-          logger.info(`[${requestId}] Successfully deleted Grain webhook ${externalId}`)
+          logger.info(`Successfully deleted Grain webhook ${externalId}`, { requestId })
         } catch (error) {
-          logger.warn(`[${requestId}] Failed to delete Grain webhook ${externalId} (non-fatal)`, {
+          logger.warn(`Failed to delete Grain webhook ${externalId} (non-fatal)`, {
+            requestId,
             error,
           })
           failures.push(externalId)
@@ -419,7 +420,7 @@ export const grainHandler: WebhookProviderHandler = {
         throw new Error(`Failed to delete ${failures.length} Grain webhook(s)`)
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Grain webhook (non-fatal)`, error)
+      logger.warn('Error deleting Grain webhook (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

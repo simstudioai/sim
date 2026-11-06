@@ -1,7 +1,3 @@
-export {
-  type WorkspaceRoleSource,
-  workspaceRoleLockReason,
-} from '@/lib/workspaces/permissions/role-lock'
 export { AddPeopleModal, type AddPeopleTarget } from './add-people-modal'
 export {
   MEMBER_ROLE_OPTIONS,

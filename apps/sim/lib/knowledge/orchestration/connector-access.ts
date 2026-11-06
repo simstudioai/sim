@@ -280,7 +280,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         )
         .returning()
       if (!updated) return fail('Connector changed; retry the request', 'conflict')
-      logger.info(`[${requestId}] Re-enabled member sync on connector ${connectorId}`)
+      logger.info(`Re-enabled member sync on connector ${connectorId}`, { requestId })
       const connector = withoutSecret(updated)
       if (updated.status !== 'paused') {
         await dispatchMemberSyncBestEffort(connectorId, params, requestId, now)
@@ -382,9 +382,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         })
         const updated = await releaseSwitchLease(connectorId, switchId, previousStatus)
         if (!updated) throw new SwitchLeaseLostError()
-        logger.info(`[${requestId}] Switched connector ${connectorId} to members mode`, {
-          rewritten,
-        })
+        logger.info(`Switched connector ${connectorId} to members mode`, { requestId, rewritten })
         const connector = withoutSecret(updated)
         if (previousStatus !== 'paused') {
           await dispatchMemberSyncBestEffort(connectorId, params, requestId, flippedAt)
@@ -418,7 +416,8 @@ export async function performUpdateKnowledgeConnectorAccess(
                 params.userId
               )
           ).catch((undoError) => {
-            logger.error(`[${requestId}] Failed to undo the grant of an abandoned switch`, {
+            logger.error('Failed to undo the grant of an abandoned switch', {
+              requestId,
               connectorId,
               error: getErrorMessage(undoError),
             })
@@ -500,7 +499,8 @@ export async function performUpdateKnowledgeConnectorAccess(
         },
         params.userId
       ).catch((error) => {
-        logger.error(`[${requestId}] Failed to revoke the grant after leaving members mode`, {
+        logger.error('Failed to revoke the grant after leaving members mode', {
+          requestId,
           connectorId,
           error: getErrorMessage(error),
         })
@@ -510,7 +510,8 @@ export async function performUpdateKnowledgeConnectorAccess(
       accessRewritePending: !rewritten,
     })
     if (!updated) throw new SwitchLeaseLostError()
-    logger.info(`[${requestId}] Switched connector ${connectorId} to ${target.accessMode} mode`, {
+    logger.info(`Switched connector ${connectorId} to ${target.accessMode} mode`, {
+      requestId,
       rewritten,
     })
     const connector = withoutSecret(updated)
@@ -525,7 +526,8 @@ export async function performUpdateKnowledgeConnectorAccess(
       return fail('Connector changed during the switch; retry the request', 'conflict')
     }
     await releaseSwitchLease(connectorId, switchId, previousStatus).catch((releaseError) => {
-      logger.error(`[${requestId}] Failed to release the access switch lease`, {
+      logger.error('Failed to release the access switch lease', {
+        requestId,
         connectorId,
         error: releaseError,
       })
@@ -554,10 +556,11 @@ async function dispatchMemberSyncBestEffort(
       requireRunnable: true,
     })
     if (!dispatch.queued) {
-      logger.warn(`[${requestId}] Member sync after the switch was not queued: ${dispatch.reason}`)
+      logger.warn(`Member sync after the switch was not queued: ${dispatch.reason}`, { requestId })
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to dispatch the member sync after the switch`, {
+    logger.error('Failed to dispatch the member sync after the switch', {
+      requestId,
       connectorId,
       error,
     })
@@ -579,12 +582,9 @@ async function dispatchContentSyncBestEffort(
       requireRunnable: true,
     })
     if (!dispatch.queued) {
-      logger.warn(`[${requestId}] Sync after the switch was not queued: ${dispatch.reason}`)
+      logger.warn(`Sync after the switch was not queued: ${dispatch.reason}`, { requestId })
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to dispatch the sync after the switch`, {
-      connectorId,
-      error,
-    })
+    logger.error('Failed to dispatch the sync after the switch', { requestId, connectorId, error })
   }
 }

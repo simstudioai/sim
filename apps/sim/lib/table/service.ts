@@ -726,7 +726,7 @@ export async function createTable(
     })
   }
 
-  logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
+  logger.info(`Created table ${tableId} in workspace ${data.workspaceId}`, { requestId })
 
   // Live tables list: tell everyone viewing this workspace's tables to refetch.
   await notifyWorkspaceTablesChanged(data.workspaceId)
@@ -842,7 +842,8 @@ export async function addTableColumnsWithTx(
     )
 
   logger.info(
-    `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
+    `Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`,
+    { requestId }
   )
 
   return {
@@ -921,7 +922,7 @@ export async function renameTable(
 
     const { workspaceId } = result[0]
 
-    logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+    logger.info(`Renamed table ${tableId} to "${newName}"`, { requestId })
 
     // Live tables list: a rename changes the list result, so everyone viewing refetches.
     if (workspaceId && !options?.skipNotify) await notifyWorkspaceTablesChanged(workspaceId)
@@ -958,7 +959,7 @@ export async function updateTableDescription(
     throw new OrchestrationError('not_found', `Table ${tableId} not found`)
   }
 
-  logger.info(`[${requestId}] Updated description for table ${tableId}`)
+  logger.info(`Updated description for table ${tableId}`, { requestId })
   await notifyWorkspaceTablesChanged(workspaceId)
   return result[0]
 }
@@ -1020,7 +1021,7 @@ export async function moveTableToFolder(
 
   const { name } = result[0]
 
-  logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+  logger.info(`Moved table ${tableId} to folder ${folderId ?? 'root'}`, { requestId })
   // Live tables list: a move changes each table's folder placement in the list result.
   if (options?.notify ?? true) await notifyWorkspaceTablesChanged(workspaceId)
 
@@ -1056,10 +1057,10 @@ export async function updateTableLocks(
   })
 
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
-    logger.warn(`[${requestId}] Failed to emit lock-change event for table ${tableId}`, { error })
+    logger.warn(`Failed to emit lock-change event for table ${tableId}`, { requestId, error })
   })
 
-  logger.info(`[${requestId}] Updated locks for table ${tableId}`)
+  logger.info(`Updated locks for table ${tableId}`, { requestId })
   return { table: updated, previousLocks }
 }
 
@@ -1194,7 +1195,7 @@ export async function deleteTable(
     }
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
-  logger.info(`[${requestId}] Archived table ${tableId}`)
+  logger.info(`Archived table ${tableId}`, { requestId })
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
   // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
   // so we don't spam one relay call per archived table.
@@ -1302,7 +1303,7 @@ export async function restoreTable(
     }
   }
 
-  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
+  logger.info(`Restored table ${tableId} as "${attemptedRestoreName}"`, { requestId })
 
   // Live tables list: a restore re-adds the table to the active list. Skipped under a folder cascade —
   // restoreFolder fires one folder-level notify for the whole subtree (see deleteTable).

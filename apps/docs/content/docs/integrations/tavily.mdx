@@ -73,6 +73,8 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 
 Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -97,6 +99,8 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 |   ↳ `url` | string | The URL that failed extraction |
 |   ↳ `error` | string | Error message describing why extraction failed |
 | `response_time` | number | Time taken for the extraction request in seconds |
+
+</ReferenceDetails>
 
 ### Tavily Crawl
 
@@ -142,6 +146,8 @@ Systematically crawl and extract content from websites using Tavily's crawl API.
 
 Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -167,5 +173,7 @@ Discover and visualize website structure using Tavily's map API. Maps out all ac
 |   ↳ `url` | string | Discovered URL |
 | `response_time` | number | Time taken for the map request in seconds |
 | `request_id` | string | Unique identifier for support reference |
+
+</ReferenceDetails>
 
 

@@ -82,7 +82,7 @@ export const linearHandler: WebhookProviderHandler = {
       const parsed = JSON.parse(rawBody) as Record<string, unknown>
       const ts = parsed.webhookTimestamp
       if (typeof ts !== 'number' || !Number.isFinite(ts)) {
-        logger.warn(`[${requestId}] Linear webhookTimestamp missing or invalid`)
+        logger.warn('Linear webhookTimestamp missing or invalid', { requestId })
         return new NextResponse('Unauthorized - Invalid webhook timestamp', {
           status: 401,
         })
@@ -90,17 +90,17 @@ export const linearHandler: WebhookProviderHandler = {
 
       if (Math.abs(Date.now() - ts) > LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS) {
         logger.warn(
-          `[${requestId}] Linear webhookTimestamp outside allowed skew (${LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS}ms)`
+          `Linear webhookTimestamp outside allowed skew (${LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS}ms)`,
+          { requestId }
         )
         return new NextResponse('Unauthorized - Webhook timestamp skew too large', {
           status: 401,
         })
       }
     } catch (error) {
-      logger.warn(
-        `[${requestId}] Linear webhook body parse failed after signature verification`,
-        error
-      )
+      logger.warn('Linear webhook body parse failed after signature verification', error, {
+        requestId,
+      })
       return new NextResponse('Unauthorized - Invalid webhook body', { status: 401 })
     }
 
@@ -145,7 +145,8 @@ export const linearHandler: WebhookProviderHandler = {
       const type = typeof obj.type === 'string' ? obj.type : undefined
       if (!isLinearEventMatch(triggerId, type || '', action)) {
         logger.debug(
-          `[${requestId}] Linear event mismatch for trigger ${triggerId}. Type: ${type}, Action: ${action}. Skipping.`
+          `Linear event mismatch for trigger ${triggerId}. Type: ${type}, Action: ${action}. Skipping.`,
+          { requestId }
         )
         return false
       }
@@ -183,7 +184,9 @@ export const linearHandler: WebhookProviderHandler = {
 
     const apiKey = config.apiKey as string | undefined
     if (!apiKey) {
-      logger.warn(`[${ctx.requestId}] Missing API key for Linear webhook ${ctx.webhook.id}`)
+      logger.warn(`Missing API key for Linear webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       throw new WebhookDeploymentConfigurationError(
         'Linear API key is required. Please provide a valid API key in the trigger configuration.'
       )
@@ -192,7 +195,7 @@ export const linearHandler: WebhookProviderHandler = {
     const { LINEAR_RESOURCE_TYPE_MAP } = await import('@/triggers/linear/utils')
     const resourceTypes = LINEAR_RESOURCE_TYPE_MAP[triggerId]
     if (!resourceTypes) {
-      logger.warn(`[${ctx.requestId}] Unknown Linear trigger ID: ${triggerId}`)
+      logger.warn(`Unknown Linear trigger ID: ${triggerId}`, { requestId: ctx.requestId })
       throw new Error(`Unknown Linear trigger type: ${triggerId}`)
     }
 
@@ -242,7 +245,8 @@ export const linearHandler: WebhookProviderHandler = {
 
       if (!result?.success) {
         const errors = data?.errors?.map((e: { message: string }) => e.message).join(', ')
-        logger.error(`[${ctx.requestId}] Failed to create Linear webhook`, {
+        logger.error('Failed to create Linear webhook', {
+          requestId: ctx.requestId,
           errors,
           webhookId: ctx.webhook.id,
         })
@@ -256,9 +260,9 @@ export const linearHandler: WebhookProviderHandler = {
         )
       }
 
-      logger.info(
-        `[${ctx.requestId}] Created Linear webhook ${externalId} for webhook ${ctx.webhook.id}`
-      )
+      logger.info(`Created Linear webhook ${externalId} for webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
 
       return {
         providerConfigUpdates: {
@@ -270,7 +274,8 @@ export const linearHandler: WebhookProviderHandler = {
       if (error instanceof Error && error.message !== 'fetch failed') {
         throw error
       }
-      logger.error(`[${ctx.requestId}] Error creating Linear webhook`, {
+      logger.error('Error creating Linear webhook', {
+        requestId: ctx.requestId,
         error: toError(error).message,
       })
       throw new Error('Failed to create Linear webhook. Please verify your API key and try again.')
@@ -309,7 +314,8 @@ export const linearHandler: WebhookProviderHandler = {
 
       if (!response.ok) {
         logger.warn(
-          `[${ctx.requestId}] Linear API returned HTTP ${response.status} during webhook deletion for ${externalId}`
+          `Linear API returned HTTP ${response.status} during webhook deletion for ${externalId}`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error(`Linear webhook deletion failed: ${response.status}`)
         return
@@ -317,25 +323,26 @@ export const linearHandler: WebhookProviderHandler = {
 
       const data = await response.json()
       if (data?.data?.webhookDelete?.success) {
-        logger.info(
-          `[${ctx.requestId}] Deleted Linear webhook ${externalId} for webhook ${ctx.webhook.id}`
-        )
+        logger.info(`Deleted Linear webhook ${externalId} for webhook ${ctx.webhook.id}`, {
+          requestId: ctx.requestId,
+        })
       } else {
         const errorMessages = getGraphQLErrorMessages(data)
         if (errorMessages.some(isAlreadyAbsentWebhookMessage)) {
-          logger.info(
-            `[${ctx.requestId}] Linear webhook ${externalId} was already absent during deletion`
-          )
+          logger.info(`Linear webhook ${externalId} was already absent during deletion`, {
+            requestId: ctx.requestId,
+          })
           return
         }
 
-        logger.warn(
-          `[${ctx.requestId}] Linear webhook deletion returned unsuccessful for ${externalId}`
-        )
+        logger.warn(`Linear webhook deletion returned unsuccessful for ${externalId}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) throw new Error('Linear webhook deletion returned unsuccessful')
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Linear webhook ${externalId} (non-fatal)`, {
+      logger.warn(`Error deleting Linear webhook ${externalId} (non-fatal)`, {
+        requestId: ctx.requestId,
         error: toError(error).message,
       })
       if (ctx.strict) throw error

@@ -294,7 +294,7 @@ export async function executeWorkflow(
       attachExecutionResult(error, executionResult)
     }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
-    logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
+    logger.error('Workflow execution failed', errorDiagnostic, { requestId })
 
     captureServerEvent(
       actorUserId,

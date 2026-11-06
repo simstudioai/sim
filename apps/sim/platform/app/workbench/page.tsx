@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { loadPreviewData } from '@/platform/fixtures'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { Workbench } from '@/platform/preview/workbench'
 
 export const metadata: Metadata = {
@@ -12,6 +14,7 @@ interface WorkbenchPageProps {
 }
 
 export default async function Page({ searchParams }: WorkbenchPageProps) {
+  if (resolvePlatformMode() === 'live') notFound()
   const query = await searchParams
   const theme = query.theme === 'dark' ? 'dark' : 'light'
   const scenario = query.state === 'empty' || query.state === 'stress' ? query.state : 'full'

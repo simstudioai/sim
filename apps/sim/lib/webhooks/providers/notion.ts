@@ -58,7 +58,7 @@ export const notionHandler: WebhookProviderHandler = {
     const verificationToken = obj?.verification_token
 
     if (typeof verificationToken === 'string' && verificationToken.length > 0) {
-      logger.info(`[${requestId}] Notion verification request detected - returning 200`)
+      logger.info('Notion verification request detected - returning 200', { requestId })
       return NextResponse.json({
         status: 'ok',
         message: 'Webhook endpoint verified',
@@ -121,8 +121,9 @@ export const notionHandler: WebhookProviderHandler = {
       if (!isNotionPayloadMatch(triggerId, obj)) {
         const eventType = obj.type as string | undefined
         logger.debug(
-          `[${requestId}] Notion event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
+          `Notion event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,

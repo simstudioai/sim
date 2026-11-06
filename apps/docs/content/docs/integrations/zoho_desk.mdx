@@ -1799,6 +1799,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, contact, agent, task, or article changes).
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1820,4 +1822,6 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `orgId` | string | Zoho Desk organization ID |
 | `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
+
+</ReferenceDetails>
 

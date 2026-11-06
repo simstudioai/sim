@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Webflow](https://webflow.com/) in Sim to create, retrieve, list, update, and delete CMS collection items. Webflow event triggers can start workflows when collection items change or forms are submitted. See [Site Tokens](/integrations/webflow-service-account) for token setup.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [Site tokens](/integrations/webflow-service-account).
 
@@ -41,6 +42,8 @@ Create, get, list, update, or delete items in Webflow CMS collections. Manage yo
 
 List items from a Webflow CMS collection
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -69,9 +72,13 @@ List items from a Webflow CMS collection
 |   ↳ `limit` | number | Maximum items per page |
 |   ↳ `total` | number | Total number of matching items |
 
+</ReferenceDetails>
+
 ### Webflow Get Item
 
 Get a single item from a Webflow CMS collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +95,13 @@ Get a single item from a Webflow CMS collection
 | `item` | json | The retrieved item object |
 | `metadata` | json | Metadata about the retrieved item |
 
+</ReferenceDetails>
+
 ### Webflow Create Item
 
 Create a new item in a Webflow CMS collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +118,13 @@ Create a new item in a Webflow CMS collection
 | `item` | json | The created item object |
 | `metadata` | json | Metadata about the created item |
 
+</ReferenceDetails>
+
 ### Webflow Update Item
 
 Update an existing item in a Webflow CMS collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +142,13 @@ Update an existing item in a Webflow CMS collection
 | `item` | json | The updated item object |
 | `metadata` | json | Metadata about the updated item |
 
+</ReferenceDetails>
+
 ### Webflow Delete Item
 
 Delete an item from a Webflow CMS collection
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,6 +165,8 @@ Delete an item from a Webflow CMS collection
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Metadata about the deletion |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -155,6 +176,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### Collection Item Changed
 
 Trigger workflow when an item is updated in a Webflow CMS collection (requires Webflow credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -180,12 +203,13 @@ Trigger workflow when an item is updated in a Webflow CMS collection (requires W
 |   ↳ `isDraft` | boolean | Whether the item is a draft |
 |   ↳ `fieldData` | object | The updated field data of the item |
 
-
----
+</ReferenceDetails>
 
 ### Collection Item Created
 
 Trigger workflow when a new item is created in a Webflow CMS collection (requires Webflow credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -211,12 +235,13 @@ Trigger workflow when a new item is created in a Webflow CMS collection (require
 |   ↳ `isDraft` | boolean | Whether the item is a draft |
 |   ↳ `fieldData` | object | The field data of the item |
 
-
----
+</ReferenceDetails>
 
 ### Collection Item Deleted
 
 Trigger workflow when an item is deleted from a Webflow CMS collection (requires Webflow credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -236,12 +261,13 @@ Trigger workflow when an item is deleted from a Webflow CMS collection (requires
 |   ↳ `id` | string | The ID of the deleted item |
 |   ↳ `deletedOn` | string | Timestamp when the item was deleted |
 
-
----
+</ReferenceDetails>
 
 ### Form Submission
 
 Trigger workflow when a form is submitted on a Webflow site (requires Webflow credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -266,4 +292,6 @@ Trigger workflow when a form is submitted on a Webflow site (requires Webflow cr
 |   ↳ `fieldType` | string | Type of input \(e.g., FormTextInput, FormEmail\) |
 |   ↳ `fieldElementId` | string | Unique identifier for the form element \(UUID\) |
 | `formElementId` | string | The form element ID |
+
+</ReferenceDetails>
 

@@ -45,12 +45,12 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
       const tempId = generateTempId(variables)
       const optimisticItem = createOptimisticItem(variables, tempId)
       applyOptimisticUpdate(tempId, optimisticItem)
-      logger.info(`[${name}] Added optimistic entry: ${tempId}`)
+      logger.info(`Added optimistic entry: ${tempId}`, { mutation: name })
       return { tempId, previousState }
     },
 
     onSuccess: (data: TData, variables: TVariables, context: OptimisticMutationContext<TItem>) => {
-      logger.info(`[${name}] Success, replacing temp entry ${context.tempId}`)
+      logger.info(`Success, replacing temp entry ${context.tempId}`, { mutation: name })
       replaceOptimisticEntry(context.tempId, data)
       onSuccessExtra?.(data, variables)
     },
@@ -60,10 +60,10 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
       _variables: TVariables,
       context: OptimisticMutationContext<TItem> | undefined
     ) => {
-      logger.error(`[${name}] Failed:`, error)
+      logger.error('Failed:', error, { mutation: name })
       if (context?.previousState) {
         rollback(context.previousState, _variables)
-        logger.info(`[${name}] Rolled back to previous state`)
+        logger.info('Rolled back to previous state', { mutation: name })
       }
     },
 

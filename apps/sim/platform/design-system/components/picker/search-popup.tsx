@@ -10,12 +10,19 @@ import type { LoadMoreState } from '@/platform/design-system/components/scroll-a
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { MenuSearchField } from '@/platform/design-system/components/search-field/menu-search-field'
 
-export type PickerOption = string | { value: string; label: string }
+export type PickerOption =
+  | string
+  | { value: string; label: string; leading?: ReactNode; disabled?: boolean }
 
 /** Hand searching to the caller: `options` becomes the current server result, unfiltered. */
 export interface PickerServerSearch extends LoadMoreState {
   query: string
-  onQueryChange: (query: string) => void
+  /** `reason` tells an edit from the picker restoring its text as it opens or closes. */
+  onQueryChange: (query: string, details: { reason: string }) => void
+  /** Replaces "No matches", for a list that may hold more than it has loaded. */
+  emptyMessage?: string
+  /** Beneath the list: a way to reach what paging has not, or a note that the list is partial. */
+  footer?: ReactNode
 }
 
 export const optionKeys = {
@@ -66,7 +73,7 @@ export function SearchPopup({
             }
           />
           <Combobox.Empty className={picker.empty} data-type='T060'>
-            {search?.loading || search?.error ? null : 'No matches'}
+            {search?.loading || search?.error ? null : (search?.emptyMessage ?? 'No matches')}
           </Combobox.Empty>
           <Combobox.List ref={scrollRef} aria-label={label} className={popup.list}>
             <Combobox.Collection>
@@ -74,9 +81,11 @@ export function SearchPopup({
                 <Combobox.Item
                   key={optionKeys.getValue(option)}
                   value={optionKeys.getValue(option)}
+                  disabled={typeof option !== 'string' && option.disabled}
                   className={popup.item}
                   data-type='T060'
                 >
+                  {typeof option !== 'string' && option.leading}
                   <span className={popup.label}>{optionKeys.getLabel(option)}</span>
                   <Combobox.ItemIndicator className={popup.indicator}>
                     <Icon name='I072' />
@@ -85,6 +94,7 @@ export function SearchPopup({
               )}
             </Combobox.Collection>
             {search && <LoadMoreFooter state={search} />}
+            {search?.footer}
           </Combobox.List>
           {children}
         </Combobox.Popup>

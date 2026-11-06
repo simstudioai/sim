@@ -16,7 +16,7 @@ import {
 export type { IsModelUsable, ModelGateConfig }
 
 /** The model facts as the provider registry states them. */
-export const REGISTRY_MODEL_FACTS: ModelFacts = {
+const REGISTRY_MODEL_FACTS: ModelFacts = {
   findProvider: (model) => findProviderFromModel(model),
   isKnown: (model) => isKnownModelId(model),
   isCustom: (model) => isCustomModelId(model),

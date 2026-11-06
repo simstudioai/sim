@@ -1266,6 +1266,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a case status changes
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1294,12 +1296,13 @@ Trigger workflow when a case status changes
 | `newStatus` | string | New case status |
 | `payload` | json | Full webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Salesforce Opportunity Stage Changed
 
 Trigger workflow when an opportunity stage changes
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1329,13 +1332,14 @@ Trigger workflow when an opportunity stage changes
 | `newStage` | string | New stage name |
 | `payload` | json | Full webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Salesforce Record Created
 
 Trigger workflow when a Salesforce record is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1362,13 +1366,14 @@ Trigger workflow when a Salesforce record is created
 | `changedFields` | json | Fields that were changed \(for update events\) |
 | `payload` | json | Full webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Salesforce Record Deleted
 
 Trigger workflow when a Salesforce record is deleted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1395,13 +1400,14 @@ Trigger workflow when a Salesforce record is deleted
 | `changedFields` | json | Fields that were changed \(for update events\) |
 | `payload` | json | Full webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Salesforce Record Updated
 
 Trigger workflow when a Salesforce record is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1428,12 +1434,13 @@ Trigger workflow when a Salesforce record is updated
 | `changedFields` | json | Fields that were changed \(for update events\) |
 | `payload` | json | Full webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### Salesforce Webhook (All Events)
 
 Trigger workflow on any Salesforce webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1453,4 +1460,6 @@ Trigger workflow on any Salesforce webhook event
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
 | `record` | json | Full record data |
 | `payload` | json | Full webhook payload |
+
+</ReferenceDetails>
 

@@ -532,7 +532,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Credential Groups',
+    label: 'Credential groups',
     icon: GridOffset,
     unified: {
       id: 'connected-accounts',
@@ -759,7 +759,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
     unified: {
       id: 'whitelabeling',
-      description: 'Customize your workspace branding and appearance.',
+      description:
+        'Customize branding across your organization’s workspaces. Clear a field to restore its default.',
       group: 'organization',
       order: 6,
       requiresHosted: true,
@@ -949,7 +950,7 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   if (id === 'connected-accounts') {
     return {
       id,
-      label: 'Credential Groups',
+      label: 'Credential groups',
       description: 'Manage integrations and workspace access for workflows and Chat.',
       icon: GridOffset,
       group,

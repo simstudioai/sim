@@ -7,7 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withTransactionRetry } from '@/lib/db/transaction'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
@@ -17,11 +16,10 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('FolderReorderAPI')
 
 export const PUT = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
   const session = await getSession()
 
   if (!session?.user?.id) {
-    logger.warn(`[${requestId}] Unauthorized folder reorder attempt`)
+    logger.warn('Unauthorized folder reorder attempt')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -32,9 +30,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-      )
+      logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
       return NextResponse.json({ error: 'Write access required' }, { status: 403 })
     }
 
@@ -171,7 +167,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
         }
 
         logger.info(
-          `[${requestId}] Reordered ${validUpdates.length} ${resourceType} folders in workspace ${workspaceId}`
+          `Reordered ${validUpdates.length} ${resourceType} folders in workspace ${workspaceId}`
         )
 
         return NextResponse.json({ success: true, updated: validUpdates.length })
@@ -194,7 +190,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    logger.error(`[${requestId}] Error reordering folders`, error)
+    logger.error('Error reordering folders', error)
     return NextResponse.json({ error: 'Failed to reorder folders' }, { status: 500 })
   }
 })

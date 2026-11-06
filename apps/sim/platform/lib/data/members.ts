@@ -44,8 +44,8 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
-import { formatInstantDate } from '@/platform/lib/time'
+import { plural } from '@/platform/shared/plural'
+import { formatInstantDate } from '@/platform/shared/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']
@@ -484,25 +484,16 @@ export function useOwnershipTransfer() {
     },
     openBillingPortal: () => {
       setPortalError(null)
-      const portalWindow = window.open('', '_blank')
-      portal.mutate(
+      portal.open(
         {
           context: 'organization',
           organizationId,
           returnUrl: `${organization.legacyOrigin}${APP_ENTRY_PATH}`,
         },
-        {
-          onSuccess: (data) => {
-            if (portalWindow) portalWindow.location.href = data.url
-            else window.location.href = data.url
-          },
-          onError: (error) => {
-            portalWindow?.close()
-            setPortalError(
-              getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
-            )
-          },
-        }
+        (error) =>
+          setPortalError(
+            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
+          )
       )
     },
   }

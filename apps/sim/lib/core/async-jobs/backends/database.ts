@@ -340,10 +340,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       }
       return run().catch((err) => {
         if (controller.signal.aborted) return
-        logger.error(`[${type}] Inline run failed`, {
-          cancelKey,
-          error: toError(err).message,
-        })
+        logger.error('Inline run failed', { jobType: type, cancelKey, error: toError(err).message })
       })
     })
     try {
@@ -628,11 +625,11 @@ export class DatabaseJobQueue implements JobQueueBackend {
       } catch (err) {
         if (abortController.signal.aborted) return
         const message = toError(err).message
-        logger.error(`[${type}] Inline job ${jobId} failed`, { error: message })
+        logger.error(`Inline job ${jobId} failed`, { jobType: type, error: message })
         try {
           await this.markJobFailed(jobId, message)
         } catch (markErr) {
-          logger.error(`[${type}] Failed to mark job ${jobId} as failed`, { markErr })
+          logger.error(`Failed to mark job ${jobId} as failed`, { jobType: type, markErr })
         }
       } finally {
         if (inlineAbortControllers.get(jobId) === abortController) {

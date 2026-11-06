@@ -114,7 +114,8 @@ export async function executeTextractParse(
           }
         : undefined
 
-    parseLogger.info(`[${requestId}] Textract parse request`, {
+    parseLogger.info('Textract parse request', {
+      requestId,
       processingMode,
       hasFile: Boolean(input.file),
       hasS3Uri: Boolean(input.s3Uri),
@@ -134,10 +135,7 @@ export async function executeTextractParse(
       }
 
       const { bucket, key } = parseS3Uri(input.s3Uri)
-      parseLogger.info(`[${requestId}] Starting async Textract job`, {
-        s3Bucket: bucket,
-        s3Key: key,
-      })
+      parseLogger.info('Starting async Textract job', { requestId, s3Bucket: bucket, s3Key: key })
       const client = createTextractClient(input)
       try {
         const { JobId: jobId } = useAnalyzeDocument
@@ -156,7 +154,7 @@ export async function executeTextractParse(
               { abortSignal: signal }
             )
         if (!jobId) throw new Error('Failed to start Textract job: No JobId returned')
-        parseLogger.info(`[${requestId}] Async job started`, { jobId })
+        parseLogger.info('Async job started', { requestId, jobId })
 
         const result = await pollTextractJob<TextractDocumentResult>(
           requestId,
@@ -179,7 +177,8 @@ export async function executeTextractParse(
           signal
         )
 
-        parseLogger.info(`[${requestId}] Textract async parse successful`, {
+        parseLogger.info('Textract async parse successful', {
+          requestId,
           pageCount: result.DocumentMetadata?.Pages ?? 0,
           blockCount: result.Blocks?.length ?? 0,
         })
@@ -228,7 +227,8 @@ export async function executeTextractParse(
         throw mapTextractSdkError(error, resolved.document.isPdf)
       }
 
-      parseLogger.info(`[${requestId}] Textract parse successful`, {
+      parseLogger.info('Textract parse successful', {
+        requestId,
         pageCount: result.DocumentMetadata?.Pages ?? 0,
         blockCount: result.Blocks?.length ?? 0,
       })
@@ -259,7 +259,8 @@ export async function executeTextractAnalyzeExpense(
     if (provenanceError) return provenanceError
     const processingMode = input.processingMode || 'sync'
 
-    expenseLogger.info(`[${requestId}] Textract analyze-expense request`, {
+    expenseLogger.info('Textract analyze-expense request', {
+      requestId,
       processingMode,
       hasFile: Boolean(input.file),
       hasS3Uri: Boolean(input.s3Uri),
@@ -277,7 +278,8 @@ export async function executeTextractAnalyzeExpense(
         )
       }
       const { bucket, key } = parseS3Uri(input.s3Uri)
-      expenseLogger.info(`[${requestId}] Starting async Textract expense analysis job`, {
+      expenseLogger.info('Starting async Textract expense analysis job', {
+        requestId,
         s3Bucket: bucket,
         s3Key: key,
       })
@@ -292,7 +294,7 @@ export async function executeTextractAnalyzeExpense(
         if (!jobId) {
           throw new Error('Failed to start Textract expense analysis job: No JobId returned')
         }
-        expenseLogger.info(`[${requestId}] Async expense analysis job started`, { jobId })
+        expenseLogger.info('Async expense analysis job started', { requestId, jobId })
 
         const result = await pollTextractJob<TextractExpenseResult>(
           requestId,
@@ -347,7 +349,8 @@ export async function executeTextractAnalyzeExpense(
         throw mapTextractSdkError(error, resolved.document.isPdf)
       }
 
-      expenseLogger.info(`[${requestId}] Textract analyze-expense successful`, {
+      expenseLogger.info('Textract analyze-expense successful', {
+        requestId,
         pageCount: result.DocumentMetadata?.Pages ?? 0,
         expenseDocumentCount: result.ExpenseDocuments?.length ?? 0,
       })
@@ -376,7 +379,8 @@ export async function executeTextractAnalyzeId(
     const provenanceError = validateModelInputProvenance(input, headers)
     if (provenanceError) return provenanceError
 
-    identityLogger.info(`[${requestId}] Textract analyze-id request`, {
+    identityLogger.info('Textract analyze-id request', {
+      requestId,
       hasFile: Boolean(input.file),
       hasBackFile: Boolean(input.fileBack || input.filePathBack),
       userId,
@@ -422,7 +426,8 @@ export async function executeTextractAnalyzeId(
         throw mapTextractSdkError(error, isPdf, { hasAsyncMode: false })
       }
 
-      identityLogger.info(`[${requestId}] Textract analyze-id successful`, {
+      identityLogger.info('Textract analyze-id successful', {
+        requestId,
         pageCount: result.DocumentMetadata?.Pages ?? 0,
         documentCount: result.IdentityDocuments?.length ?? 0,
       })

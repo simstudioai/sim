@@ -95,8 +95,10 @@ import {
 } from '@/blocks/blocks/fireflies'
 import { FivetranBlock, FivetranBlockMeta } from '@/blocks/blocks/fivetran'
 import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
+import { FlowBlock, FlowBlockMeta } from '@/blocks/blocks/flow'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
+import { GaugeBlock, GaugeBlockMeta } from '@/blocks/blocks/gauge'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import {
   GitHubBlock,
@@ -176,6 +178,7 @@ import {
   IntercomV2BlockMeta,
 } from '@/blocks/blocks/intercom'
 import { IntuneBlock, IntuneBlockMeta } from '@/blocks/blocks/intune'
+import { JamaBlock, JamaBlockMeta } from '@/blocks/blocks/jama'
 import { JinaBlock, JinaBlockMeta } from '@/blocks/blocks/jina'
 import { JiraBlock, JiraBlockMeta } from '@/blocks/blocks/jira'
 import {
@@ -506,8 +509,10 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   fireflies_v2: FirefliesV2Block,
   fivetran: FivetranBlock,
   flint: FlintBlock,
+  flow: FlowBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
+  gauge: GaugeBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   github_v2: GitHubV2Block,
@@ -567,6 +572,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
   intune: IntuneBlock,
+  jama: JamaBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
@@ -868,7 +874,9 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   fireflies_v2: FirefliesV2BlockMeta,
   fivetran: FivetranBlockMeta,
   flint: FlintBlockMeta,
+  flow: FlowBlockMeta,
   gamma: GammaBlockMeta,
+  gauge: GaugeBlockMeta,
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,
   gitlab: GitLabBlockMeta,
@@ -921,6 +929,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   intercom: IntercomBlockMeta,
   intercom_v2: IntercomV2BlockMeta,
   intune: IntuneBlockMeta,
+  jama: JamaBlockMeta,
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,

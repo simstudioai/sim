@@ -1,4 +1,3 @@
-import type { PermissionGroupEditorCatalog } from '@/lib/api/contracts/permission-groups'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import {
   getCustomBlockRowsForOrg,
@@ -6,6 +5,7 @@ import {
 } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
+import type { PermissionGroupEditorCatalog } from '@/ee/access-control/lib/editor-catalog-model'
 import { projectPermissionGroupCatalog } from '@/ee/access-control/lib/editor-catalog-projection'
 import { getAccessControlBlockUniverse } from '@/ee/access-control/lib/editor-registry'
 /**

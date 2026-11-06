@@ -18,7 +18,8 @@ import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
 } from '@/lib/uploads/client/admission'
-import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file'
+import { validateKnowledgeBaseFile } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 

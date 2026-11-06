@@ -239,7 +239,7 @@ export async function addTableColumn(
           )
         )
 
-      logger.info(`[${requestId}] Added column "${column.name}" to table ${tableId}`)
+      logger.info(`Added column "${column.name}" to table ${tableId}`, { requestId })
 
       return {
         ...table,
@@ -324,7 +324,8 @@ export async function renameColumn(
         )
 
       logger.info(
-        `[${requestId}] Renamed column "${actualOldName}" to "${data.newName}" in table ${data.tableId}`
+        `Renamed column "${actualOldName}" to "${data.newName}" in table ${data.tableId}`,
+        { requestId }
       )
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
@@ -389,12 +390,14 @@ function stripColumnDataInBackground(
         })
       })
       logger.info(
-        `[${requestId}] Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`
+        `Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`,
+        { requestId }
       )
     } catch (err) {
       logger.error(
-        `[${requestId}] Background column-data strip failed for table ${tableId} [${columnIds.join(', ')}]:`,
-        err
+        `Background column-data strip failed for table ${tableId} [${columnIds.join(', ')}]:`,
+        err,
+        { requestId }
       )
     }
   })()
@@ -485,7 +488,7 @@ export async function deleteColumn(
         })
       }
 
-      logger.info(`[${requestId}] Deleted column "${actualName}" from table ${data.tableId}`)
+      logger.info(`Deleted column "${actualName}" from table ${data.tableId}`, { requestId })
 
       return {
         def: { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now },
@@ -982,7 +985,8 @@ export async function updateColumnType(
         )
 
       logger.info(
-        `[${requestId}] Changed column "${column.name}" type from "${column.type}" to "${data.newType}" in table ${data.tableId}`
+        `Changed column "${column.name}" type from "${column.type}" to "${data.newType}" in table ${data.tableId}`,
+        { requestId }
       )
 
       return { ...table, schema: updatedSchema, updatedAt: now }
@@ -1052,9 +1056,9 @@ export async function updateColumnConstraints(
           )
         )
 
-      logger.info(
-        `[${requestId}] Updated constraints for column "${column.name}" in table ${data.tableId}`
-      )
+      logger.info(`Updated constraints for column "${column.name}" in table ${data.tableId}`, {
+        requestId,
+      })
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
@@ -1245,9 +1249,9 @@ export async function updateColumnOptions(
 
       const updated = await persistColumns(trx, table, updatedColumns)
 
-      logger.info(
-        `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
-      )
+      logger.info(`Updated options for column "${column.name}" in table ${data.tableId}`, {
+        requestId,
+      })
 
       return updated
     },
@@ -1341,7 +1345,8 @@ export async function updateColumnCurrency(
         )
 
       logger.info(
-        `[${requestId}] Set currency for column "${column.name}" to "${updatedColumn.currencyCode}" in table ${data.tableId}`
+        `Set currency for column "${column.name}" to "${updatedColumn.currencyCode}" in table ${data.tableId}`,
+        { requestId }
       )
 
       return { ...table, schema: updatedSchema, updatedAt: now }

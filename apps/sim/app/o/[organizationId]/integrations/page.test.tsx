@@ -3,7 +3,7 @@ import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/ne
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ context: vi.fn() }))
-vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
+vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceGate: mocks.context }))
 vi.mock('@/app/o/[organizationId]/integrations/hydrated-integrations', () => ({
   HydratedIntegrations: () => null,
 }))

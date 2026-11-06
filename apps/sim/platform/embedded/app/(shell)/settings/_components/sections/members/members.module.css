@@ -1,0 +1,63 @@
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-24);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: var(--spacing-96) auto;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+/* A fixed role column, so the menu holds one x down the list whatever the role's width. */
+.role {
+  display: flex;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+
+.roleTooltip {
+  inline-size: 100%;
+}
+
+@container settings-rows (max-width: 30rem) {
+  .contact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .contact > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .separator {
+    display: none;
+  }
+}
+
+.status {
+  color: var(--ui-secondary);
+  padding-block: var(--spacing-12);
+}
+
+.meter {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--spacing-6);
+  margin-block-end: var(--spacing-12);
+  border-radius: var(--radius-full);
+}
+
+.meterTrack {
+  fill: var(--ui-hover);
+}
+
+.meterFill {
+  fill: var(--ui-secondary);
+}
+
+.meterFill[data-over] {
+  fill: var(--status-warning);
+}

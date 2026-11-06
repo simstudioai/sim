@@ -9,9 +9,11 @@ interface StatusTagProps {
   intent?: StatusIntent
   /** Announce changes to this tag, for a status that updates while it is on screen. */
   live?: boolean
+  /** A mark before the label, such as the provider this tag names. */
+  leading?: ReactNode
 }
 
-export function StatusTag({ label, intent = 'neutral', live }: StatusTagProps) {
+export function StatusTag({ label, intent = 'neutral', live, leading }: StatusTagProps) {
   return (
     <span
       className={styles.tag}
@@ -19,9 +21,15 @@ export function StatusTag({ label, intent = 'neutral', live }: StatusTagProps) {
       data-type='T052'
       role={live ? 'status' : undefined}
     >
+      {leading}
       {label}
     </span>
   )
+}
+
+/** Work in progress beside its own label, so the motion needs no announcement of its own. */
+export function Spinner() {
+  return <span className={styles.spinner} aria-hidden='true' />
 }
 
 interface InlineNoticeProps {
@@ -53,13 +61,21 @@ interface FailureNoticeProps {
   title?: string
   retrying?: boolean
   onRetry?: () => void
+  /** `warning` for a read that partly answered, so what is on screen is still worth reading. */
+  intent?: Extract<StatusIntent, 'danger' | 'warning'>
 }
 
 /** A read that failed, with its way back. It stays distinct from an empty list or an absent setting. */
-export function FailureNotice({ message, title, retrying, onRetry }: FailureNoticeProps) {
+export function FailureNotice({
+  message,
+  title,
+  retrying,
+  onRetry,
+  intent = 'danger',
+}: FailureNoticeProps) {
   return (
     <InlineNotice
-      intent='danger'
+      intent={intent}
       title={title}
       message={message}
       action={

@@ -153,7 +153,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         () => false,
         (error: unknown) => {
           if (error instanceof StreamControllerSupersededError) return true
-          logger.warn(`[${requestId}] Chat stream lease is unreadable`, {
+          logger.warn('Chat stream lease is unreadable', {
+            requestId,
             streamId,
             error: getErrorMessage(error),
           })
@@ -210,7 +211,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 })()
       // Contract violation: add the new reason to AbortReason /
       // isExplicitStopReason or extend the classifier.
-      logger.error(`[${requestId}] Stream cancelled with unknown abort reason`, {
+      logger.error('Stream cancelled with unknown abort reason', {
+        requestId,
         streamId,
         chatId,
         reason: serializedReason,
@@ -259,7 +261,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     failure: StreamTurnFailure,
     result?: OrchestratorResult
   ) => {
-    logger.warn(`[${requestId}] ${failure.message}; ending the turn`, {
+    logger.warn(`${failure.message}; ending the turn`, {
+      requestId,
       streamId,
       code: failure.code,
       ...(failure instanceof StreamReplayBudgetExhaustedError
@@ -294,7 +297,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       )
       await requestExplicitStreamAbort({ streamId, userId, chatId })
     } catch (error) {
-      logger.warn(`[${requestId}] Worker stop after a turn failure was not delivered`, {
+      logger.warn('Worker stop after a turn failure was not delivered', {
+        requestId,
         streamId,
         error: getErrorMessage(error),
       })
@@ -512,7 +516,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               cancelReason = recordCancelled(getErrorMessage(error))
             }
             if (publisher.clientDisconnected) {
-              logger.info(`[${requestId}] Stream errored after client disconnect`, {
+              logger.info('Stream errored after client disconnect', {
+                requestId,
                 error: getErrorMessage(error, 'Stream error'),
               })
             }
@@ -520,7 +525,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             // cancel — it isn't an "unexpected" failure then, and the
             // error-level log pollutes alerting on normal Stop presses.
             const logFn = outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
-            logFn.call(logger, `[${requestId}] Orchestration ended with ${outcome}:`, error)
+            logFn.call(logger, `Orchestration ended with ${outcome}:`, error, { requestId })
 
             const syntheticResult = {
               success: false as const,
@@ -544,7 +549,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             try {
               await publisher.close()
             } catch (error) {
-              logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
+              logger.warn('Failed to flush stream persistence during close', {
+                requestId,
                 error: getErrorMessage(error),
               })
             }
@@ -622,7 +628,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           try {
             activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
           } catch (finishError) {
-            logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
+            logger.error('activeOtelRoot.finish threw; force-ending root span', {
+              requestId,
               error: getErrorMessage(finishError),
             })
             try {
@@ -718,7 +725,7 @@ function fireTitleGeneration(params: {
       publishChatStatusChanged({ workspaceId, organizationId, userId }, { chatId, type: 'renamed' })
     })
     .catch((error) => {
-      logger.error(`[${requestId}] Title generation failed:`, error)
+      logger.error('Title generation failed:', error, { requestId })
     })
 }
 

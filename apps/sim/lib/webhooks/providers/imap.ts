@@ -51,16 +51,16 @@ export const imapHandler: WebhookProviderHandler = {
     deploymentVersionId,
     persistProviderConfig,
   }: PollingConfigContext) {
-    logger.info(`[${requestId}] Setting up IMAP polling for webhook ${webhookData.id}`)
+    logger.info(`Setting up IMAP polling for webhook ${webhookData.id}`, { requestId })
 
     try {
       const providerConfig = toRecord(webhookData.providerConfig)
       const now = new Date()
 
       if (!providerConfig.host || !providerConfig.username || !providerConfig.password) {
-        logger.error(
-          `[${requestId}] Missing required IMAP connection settings for webhook ${webhookData.id}`
-        )
+        logger.error(`Missing required IMAP connection settings for webhook ${webhookData.id}`, {
+          requestId,
+        })
         return false
       }
 
@@ -127,14 +127,12 @@ export const imapHandler: WebhookProviderHandler = {
           .where(eq(webhook.id, webhookData.id as string))
       }
 
-      logger.info(
-        `[${requestId}] Successfully configured IMAP polling for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully configured IMAP polling for webhook ${webhookData.id}`, {
+        requestId,
+      })
       return true
     } catch {
-      logger.error(`[${requestId}] Failed to configure IMAP polling`, {
-        webhookId: webhookData.id,
-      })
+      logger.error('Failed to configure IMAP polling', { requestId, webhookId: webhookData.id })
       return false
     }
   },

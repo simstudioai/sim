@@ -45,27 +45,31 @@ export function useClearSearchHistory(organizationId: string, userId: string) {
   })
 }
 
-/** Takes the source off the list at once and restores it if the server refuses. */
+/** Takes the sources off the list at once and restores them if the server refuses. */
 export function useRemoveSearchHistorySource(organizationId: string, userId: string | undefined) {
   const queryClient = useQueryClient()
   const queryKey = searchHistoryKeys.list(organizationId, userId)
   return useMutation({
-    mutationFn: (url: string) =>
-      requestJson(removeSearchHistorySourceContract, {
-        params: { id: organizationId },
-        body: { url },
-      }),
-    onMutate: async (url) => {
+    mutationFn: async (urls: readonly string[]) => {
+      // One at a time: the route has no bulk form, and a collapsed chip is a handful of sources.
+      for (const url of urls) {
+        await requestJson(removeSearchHistorySourceContract, {
+          params: { id: organizationId },
+          body: { url },
+        })
+      }
+    },
+    onMutate: async (urls) => {
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<SearchHistoryResponse>(queryKey)
       if (previous)
         queryClient.setQueryData<SearchHistoryResponse>(queryKey, {
           ...previous,
-          sources: previous.sources.filter((source) => source.url !== url),
+          sources: previous.sources.filter((source) => !urls.includes(source.url)),
         })
       return { previous }
     },
-    onError: (_error, _url, context) => {
+    onError: (_error, _urls, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),

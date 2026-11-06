@@ -155,10 +155,16 @@ function requestedScopes(id: LiveSearchProviderId | 'salesforce') {
   return [...new Set(scopes)].map((scope) => describeScope(scope, oauthId))
 }
 
+/** Providers whose catalog entry carries a longer name than their Search id. */
+const CATALOG_SLUGS: Partial<Record<LiveSearchProviderId | 'salesforce', string>> = {
+  flow: 'flow-engineering',
+  jama: 'jama-connect',
+}
+
 const ids: (LiveSearchProviderId | 'salesforce')[] = [...LIVE_SEARCH_PROVIDER_IDS, 'salesforce']
 const providers = ids.sort().map((id) => {
   const slug = id.replaceAll('_', '-')
-  const block = catalog.integrations.find((entry) => entry.slug === slug)
+  const block = catalog.integrations.find((entry) => entry.slug === (CATALOG_SLUGS[id] ?? slug))
   const source = block ?? (id === 'lucid' ? getManagedMcpConnector('lucid') : undefined)
   if (!source) throw new Error(`No canonical integration description for ${id}`)
   return {

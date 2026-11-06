@@ -76,9 +76,9 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
 
   async function handleSave() {
     if (updatePolicy.isPending) return
-    const parsed = parseSessionPolicyHours(maxSessionHours, idleTimeoutHours)
-    if (!parsed.ok) {
-      toast.error(parsed.error)
+    const hours = parseSessionPolicyHours(maxSessionHours, idleTimeoutHours)
+    if (!hours.ok) {
+      toast.error(hours.error)
       return
     }
 
@@ -86,8 +86,8 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
       const result = await updatePolicy.mutateAsync({
         orgId: organizationId,
         settings: {
-          maxSessionHours: parsed.maxSessionHours,
-          idleTimeoutHours: parsed.idleTimeoutHours,
+          maxSessionHours: hours.maxSessionHours,
+          idleTimeoutHours: hours.idleTimeoutHours,
         },
       })
       const savedMax = result.data.configured.maxSessionHours?.toString() ?? ''

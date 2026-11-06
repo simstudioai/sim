@@ -22,7 +22,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  useChatChrome,
+  useChatSurface,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { isAnswerSegmentId } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
@@ -31,6 +34,24 @@ import { useFolderStore } from '@/stores/folders/store'
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
   'flex size-[26px] items-center pointer-coarse:size-[44px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
+
+/** Everything a reply's action row shows and does, whichever design language draws it. */
+export interface MessageActionsModel {
+  canCopy: boolean
+  copied: boolean
+  onCopy: () => void
+  canRate: boolean
+  /** The rating whose feedback form is open. */
+  rating: 'up' | 'down' | null
+  onRate: (rating: 'up' | 'down') => void
+  onDismissRating: () => void
+  /** Sends the open rating with these details. Empty details send nothing. */
+  onSubmitRating: (details: string) => void
+  requestId?: string
+  canFork: boolean
+  forking: boolean
+  onFork: () => void
+}
 
 interface MessageActionsProps {
   content: string
@@ -60,6 +81,7 @@ export const MessageActions = memo(function MessageActions({
     ? { organizationId: params.organizationId }
     : params.workspaceId
   const { chatId, onNavigateToChat } = useChatSurface()
+  const { ResponseActionsComponent: ResponseActions } = useChatChrome()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -106,9 +128,9 @@ export const MessageActions = memo(function MessageActions({
     }
   }
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = (details = feedbackText) => {
     if (!pendingFeedback || !chatId || !userQuery) return
-    const text = feedbackText.trim()
+    const text = details.trim()
     if (!text) {
       setPendingFeedback(null)
       setFeedbackText('')
@@ -172,6 +194,25 @@ export const MessageActions = memo(function MessageActions({
       !isAnswerSegmentId(messageId)
   )
   if (!canCopyContent && !canSubmitFeedback && !canFork) return null
+
+  if (ResponseActions) {
+    return (
+      <ResponseActions
+        canCopy={canCopyContent}
+        copied={copied}
+        onCopy={copyToClipboard}
+        canRate={canSubmitFeedback}
+        rating={pendingFeedback}
+        onRate={handleFeedbackClick}
+        onDismissRating={() => handleModalClose(false)}
+        onSubmitRating={handleSubmitFeedback}
+        requestId={requestId}
+        canFork={canFork}
+        forking={forkChat.isPending}
+        onFork={handleFork}
+      />
+    )
+  }
 
   return (
     <>
@@ -272,7 +313,7 @@ export const MessageActions = memo(function MessageActions({
           }
           primaryAction={{
             label: 'Submit',
-            onClick: handleSubmitFeedback,
+            onClick: () => handleSubmitFeedback(),
           }}
         />
       </ChipModal>

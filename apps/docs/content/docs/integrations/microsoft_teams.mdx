@@ -577,6 +577,8 @@ Trigger workflows when the outgoing webhook is @mentioned in a Microsoft Teams c
 
 Trigger workflows from Microsoft Teams chat message notifications via Microsoft Graph subscriptions. Notifications share a seven-day deduplication window keyed by subscription and message ID, so later edits may not start a separate run.
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -595,4 +597,6 @@ Trigger workflows from Microsoft Teams chat message notifications via Microsoft 
 | `text` | string | Message body \(HTML or text\) |
 | `created_at` | string | Message timestamp |
 | `attachments` | file[] | Uploaded attachments as files |
+
+</ReferenceDetails>
 

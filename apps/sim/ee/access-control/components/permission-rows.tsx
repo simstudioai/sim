@@ -26,10 +26,7 @@ import {
   AccessStateSelect,
   BulkAccessSelect,
 } from '@/ee/access-control/components/access-state-select'
-import {
-  inheritedPermissionResolvers,
-  type PermissionResolvers,
-} from '@/ee/access-control/lib/editor'
+import { inheritedPermissionResolvers } from '@/ee/access-control/lib/editor'
 import type {
   AccessRequestTarget,
   PermissionGroupAccessState,
@@ -45,7 +42,11 @@ import type { ProviderName } from '@/stores/providers'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Resolves draft policy and inheritance, checks request support, and stages edits without saving. */
-interface PermissionEditorControls extends PermissionResolvers {
+interface PermissionEditorControls {
+  getState: (target: AccessRequestTarget) => PermissionGroupAccessState
+  isInherited: (target: AccessRequestTarget) => boolean
+  getInheritedFrom: (target: AccessRequestTarget) => string | null
+  canRequest: (target: AccessRequestTarget) => boolean
   onSet: (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => void
 }
 

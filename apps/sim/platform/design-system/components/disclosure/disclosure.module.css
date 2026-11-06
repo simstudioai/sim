@@ -40,6 +40,9 @@
 .summary:not(:hover) svg {
   visibility: hidden;
 }
+.disclosure[data-chevron] > .summary svg {
+  visibility: visible;
+}
 
 .collection {
   position: relative;

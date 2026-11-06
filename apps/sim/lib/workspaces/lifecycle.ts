@@ -101,7 +101,7 @@ export async function archiveWorkspace(
   })
   if (!outcome) return { archived: false }
 
-  logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  logger.info(`Archived workspace ${workspaceId}`, { requestId: options.requestId })
   options.deliverStops?.(outcome.effects.stoppedRuns)
 
   await finishEnvironmentArchive(outcome.effects, options.requestId)
@@ -172,9 +172,7 @@ export async function finishEnvironmentArchive(
           cleanupErrors.push(error)
           return
         }
-        logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-          error,
-        })
+        logger.warn(`Post-archive notification failed for workflow ${row.id}`, { requestId, error })
       })
     )
     if (cleanupErrors.length > 0) throw cleanupErrors[0]
@@ -185,7 +183,8 @@ export async function finishEnvironmentArchive(
         try {
           mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
         } catch (error) {
-          logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
+          logger.warn(`MCP tools-changed publish failed for server ${serverId}`, {
+            requestId,
             error,
           })
         }

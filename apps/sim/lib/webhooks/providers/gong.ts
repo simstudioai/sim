@@ -66,7 +66,7 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
 
   const pem = normalizeGongPublicKeyPem(rawKey)
   if (!pem) {
-    logger.warn(`[${requestId}] Gong JWT public key configured but could not be normalized`)
+    logger.warn('Gong JWT public key configured but could not be normalized', { requestId })
     return new NextResponse('Unauthorized - Invalid Gong JWT public key configuration', {
       status: 401,
     })
@@ -74,7 +74,7 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
 
   const token = parseAuthorizationJwt(request.headers.get('authorization'))
   if (!token) {
-    logger.warn(`[${requestId}] Gong JWT verification enabled but Authorization header missing`)
+    logger.warn('Gong JWT verification enabled but Authorization header missing', { requestId })
     return new NextResponse('Unauthorized - Missing Gong JWT', { status: 401 })
   }
 
@@ -84,37 +84,32 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
     const verified = await jose.jwtVerify(token, key, { algorithms: ['RS256'] })
     payload = verified.payload
   } catch (error) {
-    logger.warn(`[${requestId}] Gong JWT verification failed`, {
-      message: toError(error).message,
-    })
+    logger.warn('Gong JWT verification failed', { requestId, message: toError(error).message })
     return new NextResponse('Unauthorized - Invalid Gong JWT', { status: 401 })
   }
 
   const claimUrl = payload.webhook_url
   if (typeof claimUrl !== 'string' || !claimUrl) {
-    logger.warn(`[${requestId}] Gong JWT missing webhook_url claim`)
+    logger.warn('Gong JWT missing webhook_url claim', { requestId })
     return new NextResponse('Unauthorized - Invalid Gong JWT claims', { status: 401 })
   }
 
   const claimDigest = payload.body_sha256
   if (typeof claimDigest !== 'string' || !claimDigest) {
-    logger.warn(`[${requestId}] Gong JWT missing body_sha256 claim`)
+    logger.warn('Gong JWT missing body_sha256 claim', { requestId })
     return new NextResponse('Unauthorized - Invalid Gong JWT claims', { status: 401 })
   }
 
   const expectedDigest = sha256Hex(rawBody)
   if (claimDigest !== expectedDigest) {
-    logger.warn(`[${requestId}] Gong JWT body_sha256 mismatch`)
+    logger.warn('Gong JWT body_sha256 mismatch', { requestId })
     return new NextResponse('Unauthorized - Gong JWT body mismatch', { status: 401 })
   }
 
   const receivedNorm = normalizeUrlForGongJwtClaim(request.url)
   const claimNorm = normalizeUrlForGongJwtClaim(claimUrl)
   if (receivedNorm !== claimNorm) {
-    logger.warn(`[${requestId}] Gong JWT webhook_url mismatch`, {
-      receivedNorm,
-      claimNorm,
-    })
+    logger.warn('Gong JWT webhook_url mismatch', { requestId, receivedNorm, claimNorm })
     return new NextResponse('Unauthorized - Gong JWT URL mismatch', { status: 401 })
   }
 

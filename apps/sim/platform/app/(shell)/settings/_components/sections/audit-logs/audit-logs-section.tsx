@@ -41,7 +41,7 @@ import {
   useAuditLogFeed,
 } from '@/platform/lib/data/audit-logs'
 import { toast } from '@/platform/lib/data/toast'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 

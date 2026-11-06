@@ -25,6 +25,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { moreUsableAccount } from '@/lib/credential-groups/account-rules'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
@@ -804,7 +805,7 @@ export async function listCredentialGroupEnrollments(
   if (connectionRows.length > connectionSummaryLimit) {
     throw new Error('Managed credential connection summaries exceed the supported provider states')
   }
-  const mcpConnectionSummaryLimit = enrollmentIds.length * activeMcpServers.length
+  const mcpConnectionSummaryLimit = enrollmentIds.length * activeMcpServers.length * 3
   const mcpConnectionRows =
     enrollmentIds.length === 0 || activeMcpServers.length === 0
       ? []
@@ -813,6 +814,7 @@ export async function listCredentialGroupEnrollments(
             enrollmentId: credential.credentialGroupEnrollmentId,
             mcpServerId: credential.mcpServerId,
             status: credential.managedOauthStatus,
+            count: count(credential.id),
           })
           .from(credential)
           .where(
@@ -824,6 +826,11 @@ export async function listCredentialGroupEnrollments(
                 activeMcpServers.map((server) => server.id)
               )
             )
+          )
+          .groupBy(
+            credential.credentialGroupEnrollmentId,
+            credential.mcpServerId,
+            credential.managedOauthStatus
           )
           .limit(mcpConnectionSummaryLimit + 1)
   if (mcpConnectionRows.length > mcpConnectionSummaryLimit) {
@@ -854,6 +861,7 @@ export async function listCredentialGroupEnrollments(
       mcpServerId: server.id,
       name: server.name,
       status: toCredentialGroupConnectionStatus(connection.status),
+      count: connection.count,
     }
     const current = mcpConnectionsByEnrollment.get(connection.enrollmentId)
     if (current) current.push(summary)
@@ -1175,12 +1183,18 @@ async function buildPublicCredentialGroupEnrollment(
         )
       ),
   ])
-  const mcpConnectionByServerId = new Map(
-    mcpConnectionRows.map((connection) => {
-      if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
-      return [connection.mcpServerId, connection] as const
-    })
-  )
+  const mcpConnectionByServerId = new Map<string, (typeof mcpConnectionRows)[number]>()
+  for (const connection of mcpConnectionRows) {
+    if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
+    mcpConnectionByServerId.set(
+      connection.mcpServerId,
+      moreUsableAccount(
+        mcpConnectionByServerId.get(connection.mcpServerId),
+        connection,
+        (account) => account.status
+      )
+    )
+  }
   const options = projection
     ? row.options.filter(
         (option) => option.id === projection.optionId && option.status === 'active'

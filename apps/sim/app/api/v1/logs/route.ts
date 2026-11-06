@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
@@ -30,8 +29,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   try {
     const rateLimit = await checkRateLimit(request, 'logs')
     if (!rateLimit.allowed) {
@@ -91,7 +88,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return capabilityRefusalResponse(error.capability)
     }
 
-    logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
+    logger.info(`Fetching logs for workspace ${params.workspaceId}`, {
       userId,
       filters: {
         workflowIds: params.workflowIds,
@@ -209,7 +206,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(response.body, { headers: response.headers })
   } catch (error: any) {
-    logger.error(`[${requestId}] Logs fetch error`, { error: error.message })
+    logger.error('Logs fetch error', { error: error.message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

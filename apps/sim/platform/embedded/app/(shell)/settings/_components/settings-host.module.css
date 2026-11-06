@@ -1,0 +1,7 @@
+.host {
+  display: grid;
+  block-size: 100%;
+  min-block-size: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}

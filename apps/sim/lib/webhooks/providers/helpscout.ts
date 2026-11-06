@@ -147,7 +147,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
     })
     if (!response.ok) {
       const detail = await readHelpScoutErrorDetail(response)
-      logger.warn(`[${requestId}] Help Scout webhook creation failed`, { status: response.status })
+      logger.warn('Help Scout webhook creation failed', { requestId, status: response.status })
       const message = `Help Scout webhook creation failed (HTTP ${response.status})${detail ? `: ${detail}` : ''}`
       if (response.status === 429 || response.status >= 500) throw new Error(message)
       throw new WebhookDeploymentConfigurationError(
@@ -162,7 +162,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
         'Help Scout created the webhook but returned no webhook ID'
       )
     }
-    logger.info(`[${requestId}] Created Help Scout webhook`, { externalId, events: events.length })
+    logger.info('Created Help Scout webhook', { requestId, externalId, events: events.length })
     return { providerConfigUpdates: { externalId, webhookSecret } }
   },
 
@@ -176,7 +176,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
     // Creation always stores the ID, so a trigger without one (set up manually before Sim managed
     // Help Scout webhooks) has no subscription for Sim to delete.
     if (!externalId) {
-      logger.info(`[${requestId}] No managed Help Scout webhook to delete`)
+      logger.info('No managed Help Scout webhook to delete', { requestId })
       return
     }
     if (parseIdText(externalId) === null) {
@@ -199,7 +199,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
     })
     await response.body?.cancel().catch(() => {})
     if (!response.ok && response.status !== 404) {
-      logger.warn(`[${requestId}] Help Scout webhook deletion failed`, { status: response.status })
+      logger.warn('Help Scout webhook deletion failed', { requestId, status: response.status })
       if (strict) throw new Error(`Help Scout webhook deletion failed: ${response.status}`)
     }
   },
@@ -232,7 +232,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
     const eventType = request.headers.get(EVENT_HEADER)?.trim() ?? ''
     if (isHelpScoutEventMatch(triggerId, eventType)) return true
 
-    logger.debug(`[${requestId}] Help Scout event ${eventType} does not match ${triggerId}`)
+    logger.debug(`Help Scout event ${eventType} does not match ${triggerId}`, { requestId })
     return false
   },
 

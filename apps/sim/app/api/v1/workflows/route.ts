@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListWorkflowsContract } from '@/lib/api/contracts/v1/workflows'
@@ -40,8 +39,6 @@ function decodeCursor(cursor: string): CursorData | null {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   try {
     const rateLimit = await checkRateLimit(request, 'workflows')
     if (!rateLimit.allowed) {
@@ -61,7 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    logger.info(`[${requestId}] Fetching workflows for workspace ${params.workspaceId}`, {
+    logger.info(`Fetching workflows for workspace ${params.workspaceId}`, {
       userId,
       filters: {
         folderId: params.folderId,
@@ -166,7 +163,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response.body, { headers: response.headers })
   } catch (error: unknown) {
     const message = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Workflows fetch error`, { error: message })
+    logger.error('Workflows fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

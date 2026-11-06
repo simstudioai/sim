@@ -1,0 +1,7 @@
+.connect {
+  display: grid;
+  min-block-size: 11rem;
+}
+.connect[data-widget="Calendar"] {
+  min-block-size: 9.75rem;
+}

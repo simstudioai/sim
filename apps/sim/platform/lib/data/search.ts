@@ -9,11 +9,11 @@ import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
-import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
-} from '@/app/o/[organizationId]/search/search-params'
+} from '@/lib/organizations/search-params'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   groupResultsByDocument,
   toSource,

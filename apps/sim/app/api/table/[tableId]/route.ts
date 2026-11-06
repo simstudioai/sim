@@ -96,7 +96,7 @@ export const PATCH = withRouteHandler(
     try {
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!authResult.success || !authResult.userId) {
-        logger.warn(`[${requestId}] Unauthorized table rename attempt`)
+        logger.warn('Unauthorized table rename attempt')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
@@ -214,7 +214,7 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 409 })
       }
 
-      logger.error(`[${requestId}] Error updating table:`, error)
+      logger.error('Error updating table:', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to update table') },
         { status: 500 }
@@ -232,7 +232,7 @@ export const DELETE = withRouteHandler(
     try {
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!authResult.success || !authResult.userId) {
-        logger.warn(`[${requestId}] Unauthorized table delete attempt`)
+        logger.warn('Unauthorized table delete attempt')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
@@ -277,7 +277,7 @@ export const DELETE = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      logger.error(`[${requestId}] Error deleting table:`, error)
+      logger.error('Error deleting table:', error)
       return NextResponse.json({ error: 'Failed to delete table' }, { status: 500 })
     }
   }

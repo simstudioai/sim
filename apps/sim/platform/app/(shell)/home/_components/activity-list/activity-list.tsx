@@ -17,7 +17,7 @@ import {
   ScrollArea,
 } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 interface EmailListProps {
   items: readonly EmailItem[]

@@ -113,7 +113,14 @@
   --ui-table-wide: 6.5rem;
   --ui-table-compact: var(--spacing-80);
   --ui-table-head: var(--spacing-app-control-md);
-  --ui-table-viewport-offset: 12rem;
+  /* A page's title and options rows, its gaps, and its insets: all that sits around its table. */
+  --ui-table-viewport-offset: calc(
+    var(--shell-home-row-start) +
+    2 *
+    var(--spacing-app-control-md) +
+    3 *
+    var(--ui-product-section-gap)
+  );
 }
 
 @media (pointer: coarse) {

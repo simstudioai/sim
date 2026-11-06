@@ -128,7 +128,7 @@ export const checkrHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
     const apiKey = typeof providerConfig.apiKey === 'string' ? providerConfig.apiKey.trim() : ''
     if (!apiKey) {
-      logger.warn(`[${requestId}] Checkr webhook has no API key configured — rejecting request`)
+      logger.warn('Checkr webhook has no API key configured — rejecting request', { requestId })
       return new NextResponse(
         'Unauthorized - Checkr API key is not configured. Add it to the trigger and redeploy.',
         { status: 401 }
@@ -137,12 +137,12 @@ export const checkrHandler: WebhookProviderHandler = {
 
     const signature = request.headers.get('x-checkr-signature')
     if (!signature) {
-      logger.warn(`[${requestId}] Checkr webhook missing X-Checkr-Signature header`)
+      logger.warn('Checkr webhook missing X-Checkr-Signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Checkr signature', { status: 401 })
     }
 
     if (!isValidCheckrSignature(apiKey, signature, rawBody)) {
-      logger.warn(`[${requestId}] Checkr signature verification failed`)
+      logger.warn('Checkr signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Checkr signature', { status: 401 })
     }
 
@@ -162,8 +162,8 @@ export const checkrHandler: WebhookProviderHandler = {
     const { isCheckrEventMatch } = await import('@/triggers/checkr/utils')
     if (!isCheckrEventMatch(triggerId, eventType)) {
       logger.debug(
-        `[${requestId}] Checkr event ${eventType || '(missing)'} does not match trigger ${triggerId}. Skipping execution.`,
-        { webhookId: webhook.id, triggerId }
+        `Checkr event ${eventType || '(missing)'} does not match trigger ${triggerId}. Skipping execution.`,
+        { requestId, webhookId: webhook.id, triggerId }
       )
       return false
     }
@@ -207,11 +207,14 @@ export const checkrHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
     const existingId = await findCheckrWebhookForUrl(apiKey, notificationUrl)
     if (existingId) {
-      logger.info(`[${ctx.requestId}] Reusing Checkr webhook ${existingId} for this callback URL`)
+      logger.info(`Reusing Checkr webhook ${existingId} for this callback URL`, {
+        requestId: ctx.requestId,
+      })
       return { providerConfigUpdates: { externalId: existingId } }
     }
 
-    logger.info(`[${ctx.requestId}] Creating Checkr webhook`, {
+    logger.info('Creating Checkr webhook', {
+      requestId: ctx.requestId,
       webhookId: ctx.webhook.id,
       triggerId: providerConfig.triggerId,
     })
@@ -249,7 +252,7 @@ export const checkrHandler: WebhookProviderHandler = {
       throw new Error('Checkr created the webhook but did not return its ID.')
     }
 
-    logger.info(`[${ctx.requestId}] Created Checkr webhook ${externalId}`)
+    logger.info(`Created Checkr webhook ${externalId}`, { requestId: ctx.requestId })
     return { providerConfigUpdates: { externalId } }
   },
 
@@ -261,7 +264,8 @@ export const checkrHandler: WebhookProviderHandler = {
 
       if (!apiKey || !externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing ${apiKey ? 'externalId' : 'apiKey'} for Checkr webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing ${apiKey ? 'externalId' : 'apiKey'} for Checkr webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Checkr API key or webhook ID for deletion')
         return
@@ -269,7 +273,8 @@ export const checkrHandler: WebhookProviderHandler = {
 
       if (await activeDeploymentUsesCheckrWebhook(ctx.webhook, externalId)) {
         logger.info(
-          `[${ctx.requestId}] Keeping Checkr webhook ${externalId} because an active deployment still uses it`
+          `Keeping Checkr webhook ${externalId} because an active deployment still uses it`,
+          { requestId: ctx.requestId }
         )
         return
       }
@@ -280,24 +285,27 @@ export const checkrHandler: WebhookProviderHandler = {
       })
 
       if (response.ok) {
-        logger.info(`[${ctx.requestId}] Deleted Checkr webhook ${externalId}`)
+        logger.info(`Deleted Checkr webhook ${externalId}`, { requestId: ctx.requestId })
         return
       }
       if (response.status === 404) {
-        logger.info(`[${ctx.requestId}] Checkr webhook ${externalId} was already removed`)
+        logger.info(`Checkr webhook ${externalId} was already removed`, {
+          requestId: ctx.requestId,
+        })
         return
       }
 
       const responseBody = await readCheckrResponse(response, 'Checkr webhook deletion response')
       const message = checkrErrorMessage(responseBody) ?? `HTTP ${response.status}`
-      logger.warn(`[${ctx.requestId}] Failed to delete Checkr webhook (non-fatal): ${message}`, {
+      logger.warn(`Failed to delete Checkr webhook (non-fatal): ${message}`, {
+        requestId: ctx.requestId,
         status: response.status,
       })
       if (ctx.strict) throw new Error(`Failed to delete Checkr webhook: ${message}`)
     } catch (error) {
-      logger.warn(
-        `[${ctx.requestId}] Error deleting Checkr webhook (non-fatal): ${getErrorMessage(error)}`
-      )
+      logger.warn(`Error deleting Checkr webhook (non-fatal): ${getErrorMessage(error)}`, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

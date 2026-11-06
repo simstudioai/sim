@@ -16,11 +16,14 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   ],
 }))
 vi.mock(
-  '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail',
-  () => ({ OrganizationProviderDetail: () => null })
+  '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/provider-detail',
+  () => ({ ProviderDetail: () => null })
 )
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
-  SettingsEmptyState: () => null,
+vi.mock('@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host', () => ({
+  SettingsSubpageHost: () => null,
+}))
+vi.mock('@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts', () => ({
+  LoadingState: () => null,
 }))
 
 import OrganizationProviderPage from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/page'

@@ -9,6 +9,7 @@ export const MAX_CUSTOM_PII_PATTERNS = 20
  * removed rather than kept.
  */
 export function customPatternError(regex: string): string | undefined {
-  const validation = regex.length > 0 ? validateRegexPattern(regex) : null
-  return validation && !validation.valid ? validation.error : undefined
+  if (regex.length === 0) return 'Enter a regular expression, or remove this pattern'
+  const validation = validateRegexPattern(regex)
+  return validation.valid ? undefined : validation.error
 }

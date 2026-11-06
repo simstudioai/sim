@@ -9,6 +9,7 @@ import type {
   ForkSyncBlocker,
   PromoteCopyResources,
 } from '@/lib/api/contracts/workspace-fork'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { isFolderPathEffectivelyLocked } from '@/lib/folders/paths'
@@ -510,7 +511,7 @@ function groupDependentOverrides(
  */
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
-  const requestId = params.requestId ?? 'unknown'
+  const requestId = params.requestId ?? generateRequestId()
   const admission = params.admission
   const revisionScope = { sourceWorkspaceId, targetWorkspaceId, edge }
   if (admission) {
@@ -701,8 +702,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
       if (plan.excludedTargets.length > 0) {
         logger.info(
-          `[${requestId}] Promote leaving ${plan.excludedTargets.length} sync-excluded target workflow(s) untouched`,
+          `Promote leaving ${plan.excludedTargets.length} sync-excluded target workflow(s) untouched`,
           {
+            requestId,
             sourceWorkspaceId,
             targetWorkspaceId,
             excludedTargets: plan.excludedTargets.map((target) => target.name),
@@ -1235,8 +1237,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         .map((item) => ({ id: item.sourceWorkflowId, name: item.sourceMeta.name }))
       if (skippedItems.length > 0) {
         logger.warn(
-          `[${requestId}] Promote skipped ${skippedItems.length} source workflow(s) whose deployment disappeared between plan and apply`,
-          { sourceWorkspaceId, targetWorkspaceId, skipped: skippedItems.length }
+          `Promote skipped ${skippedItems.length} source workflow(s) whose deployment disappeared between plan and apply`,
+          { requestId, sourceWorkspaceId, targetWorkspaceId, skipped: skippedItems.length }
         )
       }
 
@@ -1368,7 +1370,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     try {
       await processWorkflowDeploymentOutboxEvent(eventId)
     } catch (error) {
-      logger.warn(`[${requestId}] Deferred archive undeploy side-effect failed (will retry)`, {
+      logger.warn('Deferred archive undeploy side-effect failed (will retry)', {
+        requestId,
         eventId,
         error: getErrorMessage(error),
       })
@@ -1415,14 +1418,16 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         }
       } else {
         deployFailures.push(targetWorkflowId)
-        logger.warn(`[${requestId}] Deploy after promote failed`, {
+        logger.warn('Deploy after promote failed', {
+          requestId,
           workflowId: targetWorkflowId,
           error: result.error,
         })
       }
     } catch (error) {
       deployFailures.push(targetWorkflowId)
-      logger.error(`[${requestId}] Deploy after promote threw`, {
+      logger.error('Deploy after promote threw', {
+        requestId,
         workflowId: targetWorkflowId,
         error: getErrorMessage(error),
       })
@@ -1506,7 +1511,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       })
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to record sync activity`, {
+    logger.error('Failed to record sync activity', {
+      requestId,
       targetWorkspaceId,
       error: getErrorMessage(error),
     })
@@ -1528,7 +1534,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   }
 
   if (deployFailures.length > 0) {
-    logger.warn(`[${requestId}] Promote wrote state but some targets failed to deploy`, {
+    logger.warn('Promote wrote state but some targets failed to deploy', {
+      requestId,
       sourceWorkspaceId,
       targetWorkspaceId,
       deployFailed: deployFailures.length,
@@ -1537,21 +1544,24 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   }
 
   if (deployWarnings.length > 0) {
-    logger.warn(`[${requestId}] Promote deploys emitted warnings`, { deployWarnings })
+    logger.warn('Promote deploys emitted warnings', { requestId, deployWarnings })
   }
   if (txResult.skippedItems.length > 0) {
-    logger.warn(`[${requestId}] Promote skipped undeployed source workflows`, {
+    logger.warn('Promote skipped undeployed source workflows', {
+      requestId,
       skipped: txResult.skippedItems.map((item) => item.name),
     })
   }
   if (txResult.needsConfiguration.length > 0) {
-    logger.warn(`[${requestId}] Promote left required dependent fields needing configuration`, {
+    logger.warn('Promote left required dependent fields needing configuration', {
+      requestId,
       sourceWorkspaceId,
       targetWorkspaceId,
       needsConfiguration: txResult.needsConfiguration.map((n) => n.workflowName),
     })
   }
-  logger.info(`[${requestId}] Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
+  logger.info(`Promoted ${sourceWorkspaceId} -> ${targetWorkspaceId}`, {
+    requestId,
     updated: txResult.updated,
     created: txResult.created,
     archived: txResult.archived,

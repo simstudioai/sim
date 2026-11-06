@@ -51,8 +51,6 @@ export const LogFilterParamsSchema = z.object({
 
 export type LogFilterParams = z.infer<typeof LogFilterParamsSchema>
 
-export { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
-
 type ComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!='
 
 function buildWorkflowIdsCondition(workflowIds: string): SQL | undefined {

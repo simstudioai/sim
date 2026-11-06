@@ -33,7 +33,7 @@ export function verifyQuickBooksSignature(
 }
 
 function unauthorized(requestId: string, reason: string): NextResponse {
-  logger.warn(`[${requestId}] ${reason}`)
+  logger.warn(reason, { requestId })
   return new NextResponse('Unauthorized', { status: 401 })
 }
 

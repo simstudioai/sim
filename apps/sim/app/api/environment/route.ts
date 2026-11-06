@@ -10,7 +10,6 @@ import { savePersonalEnvironmentContract } from '@/lib/api/contracts/environment
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { lockPersonalEnvMap } from '@/lib/credentials/env-locks'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
@@ -20,12 +19,10 @@ import { captureServerEvent } from '@/lib/posthog/server'
 const logger = createLogger('EnvironmentAPI')
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized environment variables update attempt`)
+      logger.warn('Unauthorized environment variables update attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -35,7 +32,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid environment variables data`, { errors: error.issues })
+          logger.warn('Invalid environment variables data', { errors: error.issues })
           return NextResponse.json(
             { error: 'Invalid request data', details: error.issues },
             { status: 400 }
@@ -110,18 +107,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error(`[${requestId}] Error updating environment variables`, error)
+    logger.error('Error updating environment variables', error)
     return NextResponse.json({ error: 'Failed to update environment variables' }, { status: 500 })
   }
 })
 
 export const GET = withRouteHandler(async () => {
-  const requestId = generateRequestId()
-
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized environment variables access attempt`)
+      logger.warn('Unauthorized environment variables access attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -145,7 +140,7 @@ export const GET = withRouteHandler(async () => {
           const { decrypted } = await decryptSecret(encryptedValue)
           return [key, { key, value: decrypted }] as const
         } catch (error) {
-          logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
+          logger.error(`Error decrypting variable ${key}`, error)
           return [key, { key, value: '' }] as const
         }
       })
@@ -157,7 +152,7 @@ export const GET = withRouteHandler(async () => {
 
     return NextResponse.json({ data: decryptedVariables }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Environment fetch error`, error)
+    logger.error('Environment fetch error', error)
     return NextResponse.json({ error: toError(error).message }, { status: 500 })
   }
 })

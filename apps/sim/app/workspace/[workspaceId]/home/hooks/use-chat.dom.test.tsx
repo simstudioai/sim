@@ -23,6 +23,7 @@ import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
@@ -51,9 +52,7 @@ const {
     >(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags-context', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-required', () => ({
   useChatPlanRequired: mockChatPlanRequired,
 }))

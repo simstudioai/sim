@@ -19,11 +19,8 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { mergeWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import {
-  formatFileSize,
-  MAX_RENDERED_DOCUMENT_BYTES,
-  needsRenderedArtifact,
-} from '@/lib/uploads/utils/file'
+import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import {
   admitContributors,
   admitWorkspaceFiles,

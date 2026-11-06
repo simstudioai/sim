@@ -6,9 +6,18 @@
  */
 import { act, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  chatResourcePanelMock,
+  mothershipChatMock,
+  mothershipChatsQueriesMock,
+  organizationConversationMockFns,
+  useChatMock,
+  useResourcePanelMock,
+} from '@sim/testing/mocks/organization-conversation.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -24,65 +33,46 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  chat: vi.fn(),
   composer: vi.fn(),
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/providers/feature-flags-provider',
+  () => featureFlagsProviderMock
+)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
-  useResourcePanelController: () => ({
-    onResourceEvent: undefined,
-    activeResourceState: [null, vi.fn()],
-    activeResourceParam: null,
-  }),
-  useChatResourcePanel: () => ({
-    isResourceCollapsed: true,
-    addResourceFromUser: vi.fn(),
-    prepareResourceViewForAgentTurn: vi.fn(),
-  }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
-  ChatResourcePanel: ({ children }: { children: ReactNode }) => children,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
+  () => chatResourcePanelMock
+)
 vi.mock('@/lib/auth/client', () => authClientMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
-  getMothershipUseChatOptions: (options: object) => options,
-  useChat: mocks.chat,
-}))
-vi.mock('@/hooks/queries/mothership-chats', () => ({
-  useMarkMothershipChatRead: () => ({ mutate: vi.fn() }),
-}))
-vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/app/o/[organizationId]/home/components/get-started', () => ({
-  GetStarted: () => <div>Legacy get started</div>,
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
+vi.mock('@/platform/embedded/app/(shell)/_components/conversation/page-composer', () => ({
+  PageComposer: mocks.composer,
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
   SuggestedActions: () => <div>Suggested actions</div>,
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
-  MothershipChat: () => <div>Conversation view</div>,
-}))
+vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
 
 import {
-  OrganizationConversation,
-  type OrganizationLandingSlot,
-} from '@/app/o/[organizationId]/components/organization-conversation'
+  type ConversationLandingSlot,
+  PageConversation,
+} from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
 
-const landing = {
-  fallback: <div>Dashboard skeleton</div>,
-  render: ({ requestMode, composer }: OrganizationLandingSlot) => (
-    <div>
-      <div>Dashboard for {requestMode}</div>
-      {composer}
-    </div>
-  ),
-}
+const { mockMothershipChat, mockUseChat } = organizationConversationMockFns
+
+const landing = ({ requestMode, composer }: ConversationLandingSlot) => (
+  <div>
+    <div>Dashboard for {requestMode}</div>
+    {composer}
+  </div>
+)
 
 let root: Root
 let container: HTMLDivElement
@@ -99,15 +89,16 @@ beforeEach(() => {
   reactQueryMockFns.mockUseMutation.mockReturnValue(createMutationResultMock())
   nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/home')
   authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'reader' } } })
-  organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organizationProviderMockFns.mockUseOrganization.mockReturnValue({
     organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
     canBuild: false,
-    viewer: { isAdmin: false, canUseSearchMcp: true },
+    viewer: { userId: 'reader', isAdmin: false, canUseSearchMcp: true },
   })
-  mocks.chat.mockReturnValue({ messages: [], resources: [], sendMessage: vi.fn() })
+  mockUseChat.mockReturnValue({ messages: [], resources: [], sendMessage: vi.fn() })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
+  mockMothershipChat.mockReturnValue(<div>Conversation view</div>)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -119,15 +110,27 @@ afterEach(async () => {
 })
 
 describe('an Assistant conversation on a surface with its own landing', () => {
-  it('holds the surface’s fallback until the session arrives', async () => {
-    authClientMockFns.mockUseSession.mockReturnValue({ data: null })
-    await render(<OrganizationConversation requestMode='assistant' landing={landing} />)
-    expect(container.textContent).toBe('Dashboard skeleton')
+  it('mounts on the viewer the layout authorized, without a round trip for the client session', async () => {
+    authClientMockFns.mockUseSession.mockReturnValue({ data: null, isPending: true })
+    await render(
+      <PageConversation
+        requestMode='assistant'
+        fallback={<div>Dashboard skeleton</div>}
+        landing={landing}
+      />
+    )
+    expect(container.textContent).not.toContain('Dashboard skeleton')
   })
 
   it('shows no dashboard while a restored chat entry hands itself back to the router', async () => {
     nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/search/chat/chat-1')
-    await render(<OrganizationConversation requestMode='assistant' landing={landing} />)
+    await render(
+      <PageConversation
+        requestMode='assistant'
+        fallback={<div>Dashboard skeleton</div>}
+        landing={landing}
+      />
+    )
     expect(container.textContent).toBe('')
   })
 })

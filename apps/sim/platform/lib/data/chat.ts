@@ -31,7 +31,7 @@ import { toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
 /** A running `wait` counts down, and nothing else re-renders during the pause. */

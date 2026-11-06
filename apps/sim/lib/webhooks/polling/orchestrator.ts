@@ -47,13 +47,12 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
         return 'skipped'
       }
 
-      const requestId = generateShortId()
       return withResourceOutboundScope({ workspaceId: entry.workflow.workspaceId }, () =>
         handler.pollWebhook({
           webhookData: entry.webhook,
           workflowData: entry.workflow,
-          requestId,
-          logger,
+          requestId: generateShortId(),
+          logger: logger.withMetadata({ webhookId: entry.webhook.id }),
         })
       )
     },

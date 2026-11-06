@@ -188,6 +188,7 @@ describe('organization workspace sharing administration', () => {
       status: 'needs_reauth',
     }
     queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.credential, [])
     queueTableRows(schemaMock.credential, [account])
     const result = await getOrganizationAccountsSettings.execute({
       principal,

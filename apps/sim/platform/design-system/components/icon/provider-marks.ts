@@ -3,6 +3,8 @@ import { publicAssetPath } from '@/platform/design-system/navigation'
 
 const SHARED_MARKS = new Map<string, IconName>([
   ['gmail', 'I005'],
+  ['google-email', 'I005'],
+  ['google-calendar', 'I088'],
   ['linear', 'I007'],
   ['notion', 'I022'],
   ['github', 'I045'],
@@ -25,9 +27,12 @@ const ASSET_MARKS = new Set([
   'zoom',
 ])
 
+/** What a provider without its own mark gets. */
+export const FALLBACK_PROVIDER_MARK: IconName = 'I070'
+
 export function providerMark(providerId: string): IconName | { href: string } {
   const shared = SHARED_MARKS.get(providerId)
   if (shared) return shared
-  if (!ASSET_MARKS.has(providerId)) return 'I070'
+  if (!ASSET_MARKS.has(providerId.replaceAll('-', '_'))) return FALLBACK_PROVIDER_MARK
   return { href: publicAssetPath(`/provider-marks/${providerId.replaceAll('_', '-')}.svg#mark`) }
 }

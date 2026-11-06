@@ -146,17 +146,17 @@ async function updateUserStatsForWand(
 
     await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
   } catch (error) {
-    logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
+    logger.error('Failed to update user stats for wand usage', error, { requestId })
   }
 }
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
-  logger.info(`[${requestId}] Received wand generation request`)
+  logger.info('Received wand generation request')
 
   const session = await getSession()
   if (!session?.user?.id) {
-    logger.warn(`[${requestId}] Unauthorized wand generation attempt`)
+    logger.warn('Unauthorized wand generation attempt')
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -177,7 +177,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     } = body
 
     if (!prompt) {
-      logger.warn(`[${requestId}] Invalid request: Missing prompt.`)
+      logger.warn('Invalid request: Missing prompt.')
       return NextResponse.json(
         { success: false, error: 'Missing required field: prompt.' },
         { status: 400 }
@@ -193,7 +193,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         .limit(1)
 
       if (!workflowRecord) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        logger.warn(`Workflow not found: ${workflowId}`)
         return NextResponse.json({ success: false, error: 'Workflow not found' }, { status: 404 })
       }
 
@@ -206,14 +206,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
         if (!permission || (permission !== 'admin' && permission !== 'write')) {
           logger.warn(
-            `[${requestId}] User ${session.user.id} does not have write access to workspace for workflow ${workflowId}`
+            `User ${session.user.id} does not have write access to workspace for workflow ${workflowId}`
           )
           return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
         }
       } else {
-        logger.warn(
-          `[${requestId}] Workflow ${workflowId} has no workspaceId; wand request blocked`
-        )
+        logger.warn(`Workflow ${workflowId} has no workspaceId; wand request blocked`)
         return NextResponse.json(
           {
             success: false,
@@ -258,12 +256,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       if (byokResult) {
         isBYOK = true
         activeOpenAIKey = byokResult.apiKey
-        logger.info(`[${requestId}] Using BYOK OpenAI key for wand generation`)
+        logger.info('Using BYOK OpenAI key for wand generation')
       }
     }
 
     if (!useWandAzure && !activeOpenAIKey) {
-      logger.error(`[${requestId}] AI client not initialized. Missing API key.`)
+      logger.error('AI client not initialized. Missing API key.')
       return NextResponse.json(
         { success: false, error: 'Wand generation service is not configured.' },
         { status: 503 }
@@ -346,9 +344,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (stream) {
       try {
-        logger.info(
-          `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
-        )
+        logger.info(`About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`)
 
         const apiUrl = useWandAzure
           ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
@@ -379,7 +375,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
         if (!response.ok) {
           const errorText = await response.text()
-          logger.error(`[${requestId}] API request failed`, {
+          logger.error('API request failed', {
             status: response.status,
             statusText: response.statusText,
             error: errorText,
@@ -387,7 +383,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           throw new Error(`API request failed: ${response.status} ${response.statusText}`)
         }
 
-        logger.info(`[${requestId}] Stream response received, starting processing`)
+        logger.info('Stream response received, starting processing')
 
         const encoder = new TextEncoder()
         const decoder = new TextDecoder()
@@ -421,7 +417,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 const { done, value } = await reader.read()
 
                 if (done) {
-                  logger.info(`[${requestId}] Stream completed. Total chunks: ${chunkCount}`)
+                  logger.info(`Stream completed. Total chunks: ${chunkCount}`)
                   await flushUsage()
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                   controller.close()
@@ -450,7 +446,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
                   const data = trimmed.slice(5).trim()
                   if (data === '[DONE]') {
-                    logger.info(`[${requestId}] Received [DONE] signal`)
+                    logger.info('Received [DONE] signal')
 
                     await flushUsage()
 
@@ -498,7 +494,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     if (content) {
                       chunkCount++
                       if (chunkCount === 1) {
-                        logger.info(`[${requestId}] Received first content chunk`)
+                        logger.info('Received first content chunk')
                       }
 
                       controller.enqueue(
@@ -515,15 +511,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                         completion_tokens: usage.completionTokens,
                         total_tokens: usage.totalTokens,
                       }
-                      logger.info(
-                        `[${requestId}] Received usage data: ${JSON.stringify(finalUsage)}`
-                      )
+                      logger.info(`Received usage data: ${JSON.stringify(finalUsage)}`)
                     }
                   }
                 }
               }
             } catch (streamError: any) {
-              logger.error(`[${requestId}] Streaming error`, {
+              logger.error('Streaming error', {
                 name: streamError?.name,
                 message: streamError?.message || 'Unknown error',
                 stack: streamError?.stack,
@@ -532,7 +526,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               try {
                 await flushUsage()
               } catch (usageError) {
-                logger.warn(`[${requestId}] Failed to record usage after stream error`, usageError)
+                logger.warn('Failed to record usage after stream error', usageError)
               }
 
               const errorData = `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
@@ -554,7 +548,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           },
         })
       } catch (error: any) {
-        logger.error(`[${requestId}] Failed to create stream`, {
+        logger.error('Failed to create stream', {
           name: error?.name,
           message: error?.message || 'Unknown error',
           code: error?.code,
@@ -612,16 +606,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const generatedContent = extractResponseText(completion.output)?.trim()
 
     if (!generatedContent) {
-      logger.error(
-        `[${requestId}] ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} response was empty or invalid.`
-      )
+      logger.error(`${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} response was empty or invalid.`)
       return NextResponse.json(
         { success: false, error: 'Failed to generate content. AI response was empty.' },
         { status: 500 }
       )
     }
 
-    logger.info(`[${requestId}] Wand generation successful`)
+    logger.info('Wand generation successful')
 
     const usage = parseResponsesUsage(completion.usage)
     if (usage) {
@@ -639,7 +631,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, content: generatedContent })
   } catch (error: any) {
-    logger.error(`[${requestId}] Wand generation failed`, {
+    logger.error('Wand generation failed', {
       name: error?.name,
       message: error?.message || 'Unknown error',
       code: error?.code,

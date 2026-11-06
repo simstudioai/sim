@@ -1,0 +1,8 @@
+.note {
+  padding-block: var(--spacing-12);
+  color: var(--ui-secondary);
+}
+.note a {
+  color: var(--ui-strong);
+  text-decoration: underline;
+}

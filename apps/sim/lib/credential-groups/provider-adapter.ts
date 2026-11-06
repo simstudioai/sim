@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { CredentialGroupOptionConfig, ManagedOAuthProviderMetadata } from '@sim/db/schema'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import type { DbOrTx } from '@/lib/db/types'
@@ -85,7 +86,8 @@ export class CredentialGroupOAuthError extends Error {
   constructor(
     message: string,
     readonly statusCode: 400 | 401 | 403 | 404 | 409 | 502 | 503,
-    readonly identityFailure?: OAuthIdentityVerificationError
+    readonly identityFailure?: OAuthIdentityVerificationError,
+    readonly failure?: CredentialGroupOAuthFailure
   ) {
     super(message)
     this.name = 'CredentialGroupOAuthError'

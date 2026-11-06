@@ -101,11 +101,11 @@ export async function authenticateSlackCustomBotRequest({
 }: SlackCustomBotRequestOptions): Promise<NextResponse | { credentialVersion: string }> {
   const botCredential = await getSlackBotCredential(credentialId)
   if (!botCredential) {
-    logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
+    logger.warn(`Unknown Slack bot credential ${credentialId}`, { requestId })
     return new NextResponse(null, { status: 404 })
   }
   if (!botCredential.signingSecret) {
-    logger.warn(`[${requestId}] Slack bot credential ${credentialId} has no signing secret`)
+    logger.warn(`Slack bot credential ${credentialId} has no signing secret`, { requestId })
     return new NextResponse(null, { status: 404 })
   }
 
@@ -128,9 +128,9 @@ export async function dispatchSlackCustomBotCredential({
 }: DispatchSlackCustomBotOptions): Promise<WebhookDispatchResult[]> {
   const webhooks = await findWebhooksByRoutingKey(credentialId, requestId, 'slack')
   if (webhooks.length === 0) {
-    logger.info(
-      `[${requestId}] No active trigger for bot credential ${credentialId}; nothing to run`
-    )
+    logger.info(`No active trigger for bot credential ${credentialId}; nothing to run`, {
+      requestId,
+    })
     return []
   }
 

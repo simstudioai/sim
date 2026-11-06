@@ -1,0 +1,12 @@
+.tags {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tags > * {
+  flex-shrink: 0;
+}

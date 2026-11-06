@@ -1,16 +1,30 @@
 #!/usr/bin/env bun
 /**
- * Enforces the design ownership boundary for the standalone Platform project.
- * A gallery is documentation: only a real Platform screen, or a Base used by one,
- * can establish a variant. Native layout and interactive behavior are checked in the browser.
+ * Enforces the design ownership boundary for the standalone Platform project and the organization
+ * views in `platform/embedded`, which share its design system and ship to every organization.
+ * A gallery is documentation: only a real screen, or a Base used by one, can establish a variant.
+ * Native layout and interactive behavior are checked in the browser.
+ *
+ * `embedded` holds to the same rules with named exceptions: it imports the host app (`legacy-import`
+ * and the seam closure do not apply to it), it may name the host tokens in {@link HOST_TOKENS}, and
+ * `app/o` is the page its `_components` belong to. What it broke before this check walked it is
+ * counted per file and rule in `scripts/check-platform-design.baseline.json`. Only an embedded file
+ * may appear there. A count that rises fails, and so does one that falls until the baseline is
+ * rewritten, so it only shrinks. Regenerate after removing findings with `--update`, which refuses
+ * to raise a count; `--update --init` only creates a missing baseline.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
 import { productUsage } from './platform-variant-usage'
 
-const app = path.resolve(process.argv[2] ?? path.resolve(import.meta.dir, '..'), 'apps/sim')
+const repository = path.resolve(
+  process.argv.slice(2).find((argument) => !argument.startsWith('--')) ??
+    path.resolve(import.meta.dir, '..')
+)
+const app = path.join(repository, 'apps/sim')
+const baselinePath = path.join(repository, 'scripts/check-platform-design.baseline.json')
 const platform = 'platform/'
 const system = 'platform/design-system/'
 const foundation = `${system}styles/`
@@ -40,9 +54,13 @@ interface Evidence {
 }
 type Variants = Record<string, Record<string, Record<string, string[]>>>
 const read = (file: string) => readFileSync(path.join(app, file), 'utf8')
-const errors = new Set<string>()
-function report(rule: string, file: string, message: string) {
-  errors.add(`${file} [${rule}] ${message}`)
+/** Each distinct finding, rendered; `location` may carry a `:line` suffix. */
+const findings = new Map<string, { rule: string; file: string }>()
+function report(rule: string, location: string, message: string) {
+  findings.set(`${location} [${rule}] ${message}`, {
+    rule,
+    file: location.replace(/:\d+$/, ''),
+  })
 }
 
 function* files(dir = ''): Generator<string> {
@@ -125,10 +143,32 @@ for (const [owner, props] of Object.entries(variants)) {
 const dataSeam = 'platform/lib/data/'
 /** Everything under these may cross into the data seam; each wraps a contract or its hook. */
 /**
- * The organization surface mounts Platform views directly (`_redesign/`, its pages). It is the one
- * legacy route allowed across: `check:platform-css` holds every other entry out of `platform/`.
+ * The organization surface mounts its views directly (its pages). It is the one legacy route allowed
+ * across, and only into what it ships: `check:platform-css` holds every other entry out of
+ * `platform/`.
  */
 const embeddedHost = 'app/o/[organizationId]/'
+/** The organization views, which ship to every organization from `app/o`. */
+const embedded = 'platform/embedded/'
+/** Route trees whose `_components` are private and whose files are product compositions. */
+const routeTrees = /^platform\/(?:embedded\/)?app\//
+const inRouteTree = (file: string) => routeTrees.test(file)
+const legacyTest = (file: string) =>
+  !file.startsWith(platform) && /\.(?:test|spec)\.[jt]sx?$/.test(file)
+/**
+ * Custom properties the host's global stylesheet defines, which the embedded rail and chat frame
+ * sit against: the desktop title bar, the content pane's inset beside it, the layers stacked
+ * against the legacy page, and the peek card's rounding.
+ */
+const HOST_TOKENS: ReadonlySet<string> = new Set([
+  '--desktop-title-bar-height',
+  '--radius',
+  '--workspace-content-title-bar-inset',
+  '--z-popover',
+  '--z-tooltip',
+])
+/** The one table cell whose width is a caller's value, carried to its CSS as a custom property. */
+const COLUMN_WIDTH_OWNER = 'platform/design-system/components/data-display/data-display'
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
@@ -138,9 +178,14 @@ const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
   'platform/app/(shell)/_components/links-page/links-page.module.css',
   'platform/app/(shell)/people/_components/directory/directory.module.css',
   'platform/app/(shell)/people/_components/org-chart/org-chart.module.css',
+  'platform/embedded/app/(shell)/people/_components/directory/directory.module.css',
+  'platform/embedded/app/(shell)/people/_components/org-chart/org-chart.module.css',
 ])
-/** The org chart's canvas, whose nodes and edges are styled through React Flow's own props. */
-const FLOW_CANVAS = 'platform/app/(shell)/people/_components/org-chart/chart-canvas.tsx'
+/** The org chart's canvases, whose nodes and edges are styled through React Flow's own props. */
+const FLOW_CANVASES: ReadonlySet<string> = new Set([
+  'platform/app/(shell)/people/_components/org-chart/chart-canvas.tsx',
+  'platform/embedded/app/(shell)/people/_components/org-chart/chart-canvas.tsx',
+])
 const seamRoots = ['hooks/queries', 'lib/api']
 /**
  * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
@@ -149,7 +194,8 @@ const seamRoots = ['hooks/queries', 'lib/api']
 const seamHelpers = new Set([
   'lib/slack-search/manifest',
   'lib/integrations/slack-manifest',
-  'app/o/[organizationId]/search/search-params',
+  'lib/organizations/search-params',
+  'lib/organizations/integrations-search-params',
   'app/workspace/[workspaceId]/home/components/knowledge-search-results/utils',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity',
@@ -301,7 +347,6 @@ const seamHelpers = new Set([
   'lib/sim-search/live/provider-catalog',
   'lib/core/config/deployment-shape',
   'app/workspace/[workspaceId]/home/components/message-content/components/source-link',
-  'app/o/[organizationId]/integrations/search-params',
   'lib/sim-search/live/policy-schema',
   'lib/organization-secrets/validation',
   'lib/integrations/credential-display',
@@ -343,19 +388,20 @@ function resolveImport(file: string, specifier: string) {
   return null
 }
 function privateRouteOwner(file: string) {
-  return /^(platform\/app\/(?:.*\/)?)_components(?:\/|$)/.exec(file)?.[1]
+  return /^(platform\/(?:embedded\/)?app\/(?:.*\/)?)_components(?:\/|$)/.exec(file)?.[1]
 }
 const privateRoute = (file: string) => Boolean(privateRouteOwner(file))
 
 function checkImport(file: string, specifier: string, dynamic = false, typesOnly = false) {
   const target = resolveImport(file, specifier)
   const inPlatform = file.startsWith(platform)
+  const inEmbedded = file.startsWith(embedded)
   const primitive = file.startsWith(`${system}components/`)
   if (inPlatform && /^@base-ui\/react(?:\/|$)/.test(specifier) && !primitive)
     report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
   if (
     !typesOnly &&
-    (primitive || file.startsWith('platform/app/')) &&
+    (primitive || inRouteTree(file)) &&
     target?.replace(/\.tsx?$/, '') === `${system}catalog/component-recipe`
   )
     report(
@@ -364,9 +410,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Render an EMCN component; static Paper specimens belong in the workbench'
     )
   const targetOwner = target && privateRouteOwner(target)
-  const embedded = file.startsWith(embeddedHost)
   if (
-    !embedded &&
     target?.endsWith('.module.css') &&
     (targetOwner || target.startsWith(`${system}components/`))
   ) {
@@ -382,25 +426,49 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     const gallery = file.startsWith('platform/preview/')
     const dataContract =
       typesOnly && (file.startsWith('platform/fixtures/') || file.startsWith(dataSeam))
-    if (!file.startsWith(targetOwner) && !gallery && !dataContract && !embedded)
+    // `embedded` has no pages of its own: an `app/o` route is the page its `_components` belong to.
+    const mountedByItsPage = file.startsWith(embeddedHost) && target?.startsWith(embedded)
+    if (
+      !file.startsWith(targetOwner) &&
+      !gallery &&
+      !dataContract &&
+      !mountedByItsPage &&
+      !(legacyTest(file) && target?.startsWith(embedded))
+    )
       report('private-composition', file, `Promote ${specifier} before using it outside its route`)
   }
   const workbenchDependency = target && /^platform\/(preview|app\/workbench)(?:\/|$)/.test(target)
   const workbenchConsumer = /^(?:platform\/preview|platform\/app\/workbench)\//.test(file)
   if (inPlatform && workbenchDependency && !workbenchConsumer)
     report('workbench-dependency', file, 'Only the workbench may import its tooling')
-  const inSeam = file.startsWith(dataSeam)
+  const inSeam = file.startsWith(dataSeam) || file.startsWith('platform/shared/')
   const seamTarget =
     inSeam &&
     target !== null &&
     (seamHelpers.has(target) ||
       seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
+  // The zone and the organization views share only the design system and `platform/shared`: the zone
+  // is a separate app, and what the views import from the host would ride into it.
+  if (inPlatform && !inEmbedded && target?.startsWith(embedded))
+    report('zone-embedded', file, `The zone may not import the organization views: ${specifier}`)
+  if (file.startsWith('platform/shared/') && target && /^platform\/(?!shared\/)/.test(target))
+    report('zone-embedded', file, `platform/shared may only import itself: ${specifier}`)
+  if (inEmbedded && target && /^platform\/(?!embedded\/|design-system\/|shared\/)/.test(target))
+    report('zone-embedded', file, `The organization views may not import the zone: ${specifier}`)
+  const hostMountsWhatItShips =
+    file.startsWith(embeddedHost) &&
+    Boolean(target?.startsWith(embedded) || target?.startsWith(system))
+  // `embedded` is the one tree in `platform/` built on the host app: its views and data import the
+  // host's hooks, stores and packages on purpose, as `check:boundaries` governs.
   if (
     (target &&
       (target === 'platform' || target.startsWith(platform)) !== inPlatform &&
       !seamTarget &&
-      !embedded) ||
+      !hostMountsWhatItShips &&
+      !inEmbedded &&
+      !(legacyTest(file) && target?.startsWith(embedded))) ||
     (inPlatform &&
+      !inEmbedded &&
       /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
       !(inSeam && seamPackages.test(specifier)) &&
       !(
@@ -597,7 +665,10 @@ function checkCss(file: string, sheet: postcss.Root) {
     for (const [, token] of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
       const positioned =
         file.startsWith(`${system}components/`) && positionerMeasurements.has(token)
-      if (!tokens.has(token) && !positioned) report('unknown-token', location, token)
+      const columnWidth = token === '--column-width' && file.startsWith(COLUMN_WIDTH_OWNER)
+      const hostToken = file.startsWith(embedded) && HOST_TOKENS.has(token)
+      if (!tokens.has(token) && !positioned && !columnWidth && !hostToken)
+        report('unknown-token', location, token)
     }
     if (base) return
     if (
@@ -640,7 +711,10 @@ const sourceFiles = [...files()]
 const program = ts.createProgram(
   sourceFiles
     .filter(
-      (file) => file.startsWith(platform) && /\.tsx?$/.test(file) && !file.includes('/checks/')
+      (file) =>
+        (file.startsWith(platform) || file.startsWith(embeddedHost)) &&
+        /\.tsx?$/.test(file) &&
+        !file.includes('/checks/')
     )
     .map((file) => path.join(app, file)),
   {
@@ -742,7 +816,7 @@ function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   for (const shape of type.isUnion() ? type.types : [type]) {
     for (const member of shape.getProperties()) {
       const prop = member.getName()
-      if (['style', 'className', 'css', 'sx'].includes(prop) && file !== FLOW_CANVAS)
+      if (['style', 'className', 'css', 'sx'].includes(prop) && !FLOW_CANVASES.has(file))
         report('style-api', file, prop)
       if (
         !variants[name]?.[prop] &&
@@ -759,7 +833,7 @@ function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
     }
   }
   for (const [prop, values] of choices) {
-    declarations.add(`${name}.${prop}`)
+    if (!file.startsWith(embedded)) declarations.add(`${name}.${prop}`)
     const expected = Object.keys(variants[name]?.[prop] ?? {})
     if (
       !expected.length ||
@@ -876,7 +950,8 @@ function checkJs(file: string, content: string) {
   const owner = file.startsWith(system) || privateRoute(file)
   const preview = file.startsWith('platform/preview/')
   const ownsTimeLabels =
-    file === 'platform/lib/time.ts' ||
+    file === 'platform/shared/time.ts' ||
+    file === `${embedded}lib/time.ts` ||
     file.startsWith('platform/checks/') ||
     /\.test\.[jt]sx?$/.test(file)
   const modules = new Map<string, string>()
@@ -912,7 +987,7 @@ function checkJs(file: string, content: string) {
     }
     if (
       inPlatform &&
-      (owner || file.startsWith('platform/app/')) &&
+      (owner || inRouteTree(file)) &&
       ts.isCallExpression(node) &&
       /^(?:(?:globalThis|window)\.)?setTimeout$/.test(node.expression.getText()) &&
       node.arguments[1] &&
@@ -981,7 +1056,7 @@ function checkJs(file: string, content: string) {
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
-      if (programSource && file.startsWith('platform/app/')) checkDialog(node, location)
+      if (programSource && inRouteTree(file)) checkDialog(node, location)
       if (
         tag === 'svg' &&
         file !== `${system}components/icon/icon.tsx` &&
@@ -1061,7 +1136,8 @@ function checkJs(file: string, content: string) {
             )
           if (
             !calendarPlacement &&
-            !(file === FLOW_CANVAS && attr === 'className' && localClass) &&
+            !(FLOW_CANVASES.has(file) && attr === 'className' && localClass) &&
+            !(file.startsWith(COLUMN_WIDTH_OWNER) && attr === 'style') &&
             !(native && attr === 'className' && (owner || preview) && localClass)
           ) {
             report('consumer-style', location(prop), `${tag}.${attr}: pass a named variant`)
@@ -1077,7 +1153,7 @@ function checkJs(file: string, content: string) {
         }
       }
     }
-    if (programSource) {
+    if (programSource && inPlatform) {
       if (
         (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) &&
         node.name.text.endsWith('Props')
@@ -1092,7 +1168,11 @@ function checkJs(file: string, content: string) {
             : undefined
         if (fn && node.name && ts.isIdentifier(node.name)) {
           const name = node.name.text
-          if (owner && ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export)
+          if (
+            owner &&
+            !file.startsWith(embedded) &&
+            ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export
+          )
             exportedOwners.add(name)
           if (/^[A-Z]/.test(name) && fn.parameters[0])
             checkProps(name, fn.parameters[0], file, owner)
@@ -1162,11 +1242,73 @@ for (const [name, props] of Object.entries(variants)) {
   }
 }
 checkSeamClosure()
-if (errors.size) {
-  process.stderr.write(`${[...errors].sort().join('\n')}\n`)
+
+/** Findings per embedded file, per rule. */
+type EmbeddedCounts = Record<string, Record<string, number>>
+const readBaseline = (): EmbeddedCounts =>
+  existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : {}
+function compareRendered(a: string, b: string) {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+const baseline = readBaseline()
+const counts: EmbeddedCounts = {}
+for (const { rule, file } of findings.values()) {
+  if (!file.startsWith(embedded)) continue
+  counts[file] = { ...counts[file], [rule]: (counts[file]?.[rule] ?? 0) + 1 }
+}
+const initializing =
+  process.argv.includes('--update') && process.argv.includes('--init') && !existsSync(baselinePath)
+const withinBaseline = (file: string, rule: string) =>
+  file.startsWith(embedded) &&
+  (initializing || (counts[file]?.[rule] ?? 0) <= (baseline[file]?.[rule] ?? 0))
+const failing = [...findings].filter(([, { rule, file }]) => !withinBaseline(file, rule))
+const fell = Object.entries(baseline).flatMap(([file, rules]) =>
+  Object.entries(rules).flatMap(([rule, count]) =>
+    (counts[file]?.[rule] ?? 0) < count
+      ? [`${file} [${rule}]: ${counts[file]?.[rule] ?? 0} (baseline ${count})`]
+      : []
+  )
+)
+const baselined = Object.values(counts)
+  .flatMap((rules) => Object.values(rules))
+  .reduce((sum, count) => sum + count, 0)
+
+if (process.argv.includes('--update')) {
+  if (failing.length) {
+    process.stderr.write(
+      `Refused to rewrite the baseline over ${failing.length} finding(s) it may not hold; fix them:\n${failing
+        .map(([rendered]) => rendered)
+        .sort(compareRendered)
+        .join('\n')}\n`
+    )
+    process.exitCode = 1
+  } else {
+    const sorted = Object.fromEntries(
+      Object.entries(counts)
+        .sort(([a], [b]) => compareRendered(a, b))
+        .map(([file, rules]) => [
+          file,
+          Object.fromEntries(Object.entries(rules).sort(([a], [b]) => compareRendered(a, b))),
+        ])
+    )
+    writeFileSync(baselinePath, `${JSON.stringify(sorted, null, 2)}\n`)
+    process.stdout.write(`Wrote the Platform design baseline: ${baselined} embedded findings.\n`)
+  }
+} else if (failing.length || fell.length) {
+  if (failing.length)
+    process.stderr.write(
+      `${failing
+        .map(([rendered]) => rendered)
+        .sort(compareRendered)
+        .join('\n')}\n`
+    )
+  if (fell.length)
+    process.stderr.write(
+      `Embedded findings fell below the baseline; shrink it with --update:\n${fell.join('\n')}\n`
+    )
   process.exitCode = 1
 } else {
   process.stdout.write(
-    `Platform design passed (${keys.size} reachable Paper keys, ${tokens.size} foundation tokens).\n`
+    `Platform design passed (${keys.size} reachable Paper keys, ${tokens.size} foundation tokens, ${baselined} embedded findings baselined).\n`
   )
 }

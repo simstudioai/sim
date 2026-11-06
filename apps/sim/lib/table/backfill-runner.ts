@@ -7,6 +7,7 @@ import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
 import {
   type FunctionalExecutionDataSource,
   getFunctionalBlockOutput,
@@ -280,7 +281,7 @@ async function processBackfillPage(opts: {
 export async function runTableBackfill(payload: TableBackfillPayload): Promise<void> {
   const { jobId, tableId, groupId, outputs, overwrite, actorUserId, capabilityGovernedUserId } =
     payload
-  const requestId = generateId().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const table = await getTableById(tableId, { includeArchived: true })
@@ -321,16 +322,16 @@ export async function runTableBackfill(payload: TableBackfillPayload): Promise<v
         status: 'ready',
         progress: updated,
       })
-      logger.info(`[${requestId}] Backfill complete`, { tableId, groupId, processed, updated })
+      logger.info('Backfill complete', { requestId, tableId, groupId, processed, updated })
     } else {
-      logger.info(`[${requestId}] Backfill finished but no longer owns the run`, { tableId, jobId })
+      logger.info('Backfill finished but no longer owns the run', { requestId, tableId, jobId })
     }
   } catch (err) {
     if (err instanceof JobSupersededError) {
-      logger.info(`[${requestId}] Backfill superseded/canceled; stopping`, { tableId, jobId })
+      logger.info('Backfill superseded/canceled; stopping', { requestId, tableId, jobId })
     } else {
       const message = getErrorMessage(err, 'Backfill failed')
-      logger.error(`[${requestId}] Backfill failed for table ${tableId}:`, err)
+      logger.error(`Backfill failed for table ${tableId}:`, err, { requestId })
       await markJobFailed(tableId, jobId, message).catch(() => {})
       void appendTableEvent({
         kind: 'job',
@@ -406,7 +407,8 @@ export async function maybeBackfillGroupOutputs(opts: {
   const claimed = await markTableJobRunning(table.id, jobId, 'backfill', jobPayload)
   if (!claimed) {
     logger.warn(
-      `[${requestId}] Skipping backfill for table ${table.id} group ${groupId}: another job is running`
+      `Skipping backfill for table ${table.id} group ${groupId}: another job is running`,
+      { requestId }
     )
     return
   }
@@ -432,9 +434,9 @@ export async function maybeBackfillGroupOutputs(opts: {
     // the data stays backfillable.
     const { releaseJobClaim } = await import('@/lib/table/jobs/service')
     await releaseJobClaim(table.id, jobId).catch(() => {})
-    logger.warn(
-      `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,
-      { error: getErrorMessage(error) }
-    )
+    logger.warn(`Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`, {
+      requestId,
+      error: getErrorMessage(error),
+    })
   }
 }

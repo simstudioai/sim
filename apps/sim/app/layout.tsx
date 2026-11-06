@@ -112,8 +112,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                 // The organization surface (/o/...) shares the workspace chrome and
                 // needs the same variables set before first paint.
+                var isOrganizationSurface = false;
                 try {
                   var path = window.location.pathname;
+                  isOrganizationSurface = path.indexOf('/o/') === 0;
                   if (path.indexOf('/workspace/') === -1 && path.indexOf('/o/') !== 0 && path.indexOf('/account/settings') !== 0 && path.indexOf('/selfhost/settings') !== 0) {
                     return;
                   }
@@ -124,8 +126,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // Sidebar width. Mirror getMaxSidebarWidth() in stores/sidebar/store.ts:
                 // 30% of the viewport capped at 400px, and never below the 224px
                 // minimum, so a narrow window yields a width >= MIN instead of a
-                // sub-minimum sliver.
-                var defaultSidebarWidth = 224;
+                // sub-minimum sliver. The organization rail opens at its own default.
+                var defaultSidebarWidth = isOrganizationSurface ? 280 : 224;
                 try {
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the
@@ -151,6 +153,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   // collapsed, because the desktop hover-peek renders the sidebar at
                   // its restore width while --sidebar-width still reads collapsed.
                   var width = state && state.sidebarWidth;
+                  // Mirror resolveExpandedWidth() in stores/sidebar/store.ts: the organization
+                  // rail's own saved width, else a width dragged above the minimum elsewhere.
+                  if (isOrganizationSurface) {
+                    var organizationWidth = state && state.organizationSidebarWidth;
+                    width =
+                      typeof organizationWidth === 'number' && isFinite(organizationWidth)
+                        ? organizationWidth
+                        : width > 224
+                          ? width
+                          : null;
+                  }
                   var maxSidebarWidth = Math.max(224, Math.min(400, window.innerWidth * 0.3));
                   var expandedWidth =
                     typeof width === 'number' && isFinite(width)

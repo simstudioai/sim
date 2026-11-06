@@ -3,7 +3,7 @@ import type {
   AssistantToolPermissionsResponse,
   UpdateAssistantToolPermissionsBody,
 } from '@/lib/api/contracts/assistant-actions'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import type { MemberIntegration } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 
@@ -34,7 +34,7 @@ export interface OrganizationIntegration {
   availability: 'ready' | 'managed' | 'blocked'
   status: string
   /** The free connection slot, absent when every slot holds an account. */
-  connectionTarget?: { optionId: string } | { mcpServerId: string }
+  connectionTarget?: MemberIntegration['connectionTarget']
   accounts: readonly IntegrationAccount[]
 }
 
@@ -78,10 +78,6 @@ export function integrationSegment(inventoryId: string): string {
   if (kind === 'app' && provider)
     return LIVE_SEARCH_SEGMENTS.has(provider) ? `${provider}-app` : provider
   return inventoryId
-}
-
-export function integrationPath(organizationId: string, segment: string) {
-  return `${organizationRoutes(organizationId).integrations}/${encodeURIComponent(segment)}`
 }
 
 export function isConnectable(integration: OrganizationIntegration) {

@@ -1,3 +1,5 @@
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { sleep } from '@sim/utils/helpers'
@@ -22,7 +24,10 @@ vi.mock('@/lib/terminal/transport', () => ({
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   fetchMothershipChatHistory,
+  mothershipChatKeys,
   useDeleteMothershipChats,
+  useMarkMothershipChatRead,
+  useMarkMothershipChatUnread,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
@@ -91,6 +96,61 @@ describe('tasks query boundary parsing', () => {
     expect(queryClient.removeQueries).not.toHaveBeenCalledWith({
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
+  })
+
+  it.each([
+    ['read', useMarkMothershipChatRead],
+    ['unread', useMarkMothershipChatUnread],
+  ] as const)(
+    'marking a chat %s still removes a row an invalidated list read would drop',
+    async (_name, useMark) => {
+      const tanstack =
+        await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+      const client = new tanstack.QueryClient()
+      const owner = { organizationId: 'org-1' }
+      const queryKey = mothershipChatKeys.ownerList(owner)
+      const rows = [{ id: 'chat-gone', name: 'Deleted', isUnread: false }]
+      const staleRead = createDeferred<typeof rows>()
+      const queryFn = vi
+        .fn<() => Promise<typeof rows>>()
+        .mockReturnValueOnce(staleRead.promise)
+        .mockResolvedValue([])
+      client.setQueryData(queryKey, rows)
+      const list = new tanstack.QueryObserver(client, { queryKey, queryFn, staleTime: 60_000 })
+      const stop = list.subscribe(() => {})
+      reactQueryMockFns.mockUseQueryClient.mockReturnValueOnce(
+        client as unknown as typeof queryClient
+      )
+      const mutation = useMark(owner) as unknown as {
+        onMutate: (chatId: string) => Promise<unknown>
+        onSettled: (data: undefined, error: null, chatId: string, context: unknown) => void
+      }
+
+      void client.invalidateQueries({ queryKey })
+      const context = await mutation.onMutate('chat-gone')
+      mutation.onSettled(undefined, null, 'chat-gone', context)
+      await flushMicrotasks(10)
+
+      expect(queryFn).toHaveBeenCalledTimes(2)
+      expect(list.getCurrentResult().data).toEqual([])
+      stop()
+      client.clear()
+    }
+  )
+
+  it('leaves the list alone when marking a chat with no invalidated read to redo', async () => {
+    const owner = { organizationId: 'org-1' }
+    queryClient.getQueryData.mockReturnValueOnce([])
+    queryClient.getQueryState.mockReturnValueOnce({ isInvalidated: false })
+    const mutation = useMarkMothershipChatRead(owner) as unknown as {
+      onMutate: (chatId: string) => Promise<unknown>
+      onSettled: (data: undefined, error: null, chatId: string, context: unknown) => void
+    }
+
+    const context = await mutation.onMutate('chat-1')
+    mutation.onSettled(undefined, null, 'chat-1', context)
+
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
   })
 
   it('loads a chat from a server that predates the effort field', async () => {

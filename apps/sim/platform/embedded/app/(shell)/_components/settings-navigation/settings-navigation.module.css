@@ -1,0 +1,42 @@
+.navigation {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--spacing-8);
+  block-size: 100%;
+  padding-block-start: var(--spacing-8);
+}
+.top {
+  display: grid;
+  padding-inline: var(--ui-row-inset);
+}
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+  padding: var(--spacing-8) var(--ui-row-inset) var(--ui-product-section-gap);
+}
+.navigation[data-collapsed] .groups {
+  gap: var(--spacing-8);
+}
+.group {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+.count {
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+.hint {
+  margin-block-start: calc(-1 * var(--spacing-16));
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}

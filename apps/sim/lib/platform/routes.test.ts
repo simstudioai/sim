@@ -22,4 +22,25 @@ describe('Platform zone mount', () => {
   it('hands legacy organization routes to the mount', () => {
     expect(mapLegacyOrganizationUrl('/o/org-1/home', 'org-1')).toBe('/org/home')
   })
+
+  it.each([
+    'slack=token',
+    'integration=gmail',
+    'connectorType=gmail',
+    'connectorId=c',
+    'credentialId=c',
+    'connectionMode=member',
+    'optionId=o',
+    'savedProviderId=jama-service-account',
+    'provider=google',
+  ])('keeps the integrations page legacy for a link carrying %s', (query) => {
+    expect(mapLegacyOrganizationUrl(`/o/org-1/integrations?${query}`, 'org-1')).toBeNull()
+  })
+
+  it('still hands a plain or searched integrations page to the mount', () => {
+    expect(mapLegacyOrganizationUrl('/o/org-1/integrations', 'org-1')).toBe('/org/integrations')
+    expect(mapLegacyOrganizationUrl('/o/org-1/integrations?q=mail', 'org-1')).toBe(
+      '/org/integrations?q=mail'
+    )
+  })
 })

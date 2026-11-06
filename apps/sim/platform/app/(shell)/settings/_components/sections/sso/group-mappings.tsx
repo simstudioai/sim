@@ -35,7 +35,7 @@ import {
 } from '@/platform/lib/data/scim'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
 type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>

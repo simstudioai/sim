@@ -1,3 +1,5 @@
+import { saveFile } from '@/lib/core/utils/save-file'
+
 /** The header a CSV export route sets when it stopped at its row cap. */
 const TRUNCATED_HEADER = 'X-Export-Truncated'
 
@@ -16,15 +18,6 @@ export async function downloadCsvExport(url: string, filename: string): Promise<
   const response = await fetch(url)
   if (!response.ok) return { ok: false, truncated: false }
   const truncated = response.headers.get(TRUNCATED_HEADER) === '1'
-  const blob = await response.blob()
-  const objectUrl = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = objectUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  // Deferred: revoking synchronously after click() can race the download starting.
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+  saveFile(await response.blob(), filename)
   return { ok: true, truncated }
 }

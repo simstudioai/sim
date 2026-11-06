@@ -1,11 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
-import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { getOrganizationHomeRedirect } from '@/lib/organizations/home-redirect'
+import { getOrganizationSurfaceGate } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 
 export default async function OrganizationPage({
   params,
@@ -18,7 +18,7 @@ export default async function OrganizationPage({
   if (!session?.user?.id) {
     redirect(buildAuthCrossLink('/login', { callbackUrl: routes.root, isInviteFlow: false }))
   }
-  const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
+  const context = await getOrganizationSurfaceGate(organizationId, session.user.id)
   if (!context) notFound()
   if (!getOrganizationHomeRedirect(context, organizationId)) redirect(routes.home)
   if (context.searchAccess.memberScoped) redirect(routes.search)

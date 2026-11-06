@@ -165,6 +165,23 @@ function classifyFiles(files: string[]): Plan {
   git(repo, 'commit', '--quiet', '-m', 'change')
   return classify(repo, base)
 }
+/** The app build's real Turbo task hash, the key Docker and CI restore `.next` by. */
+function buildHash(repo: string) {
+  const result = spawnSync('turbo', ['run', 'build', '--filter=@sim/app', '--dry=json'], {
+    cwd: repo,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${resolve(root, 'node_modules/.bin')}:${process.env.PATH}`,
+      TURBO_TELEMETRY_DISABLED: '1',
+    },
+  })
+  expect(result.status, result.stderr).toBe(0)
+  const { tasks }: { tasks: { taskId: string; hash: string }[] } = JSON.parse(result.stdout)
+  const hash = tasks.find((task) => task.taskId === '@sim/app#build')?.hash
+  if (!hash) throw new Error('turbo planned no @sim/app#build task')
+  return hash
+}
 function groups(plan: Plan) {
   return [...new Set([...plan.http, ...plan.production].map((suite) => suite.group))].sort()
 }
@@ -385,6 +402,66 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.flags).toMatchObject({ docs: true, docs_site: false, docs_platform: true })
     expect(plan.docsGroups).toEqual(['platform'])
   })
+  it.each([
+    'apps/sim/platform/embedded/app/(shell)/home/home-view.tsx',
+    'apps/sim/platform/embedded/lib/data/home-model.ts',
+    'apps/sim/platform/design-system/components/button/button.tsx',
+    'apps/sim/platform/design-system/components/button/button.module.css',
+    'apps/sim/platform/design-system/styles/tokens.css',
+    'apps/sim/app/o/[organizationId]/page.tsx',
+  ])('changes the build hash and selects every boundary for code app/o ships: %s', (file) => {
+    const { repo } = fixture()
+    write(repo, file, 'base\n')
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '--quiet', '-m', 'seed')
+    const base = git(repo, 'rev-parse', 'HEAD')
+    const before = buildHash(repo)
+    write(repo, file, 'changed\n')
+    git(repo, 'commit', '--quiet', '-am', 'edit')
+    expect(buildHash(repo)).not.toBe(before)
+    const plan = classify(repo, base)
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toContain('org-redesign')
+    expect(plan.flags).toMatchObject({ build: true, e2e_build: true, integration: true })
+  })
+  it.each([
+    'apps/sim/platform/app/(shell)/home/page.tsx',
+    'apps/sim/platform/lib/data/home.ts',
+    'apps/sim/platform/fixtures/index.ts',
+    'apps/sim/platform/checks/live/home.spec.ts',
+    'apps/sim/platform/docs/parity-ledger.md',
+    'apps/sim/platform/preview/gallery.tsx',
+    'apps/sim/platform/public/tooltips/one.svg',
+    'apps/sim/platform/next.config.ts',
+    'apps/sim/scripts/platform-live-seed.ts',
+  ])('keeps a zone-only edit out of the main app build and its jobs: %s', (file) => {
+    const { repo } = fixture()
+    write(repo, file, 'base\n')
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '--quiet', '-m', 'seed')
+    const base = git(repo, 'rev-parse', 'HEAD')
+    const before = buildHash(repo)
+    write(repo, file, 'changed\n')
+    git(repo, 'commit', '--quiet', '-am', 'edit')
+    expect(buildHash(repo)).toBe(before)
+    const plan = classify(repo, base)
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual([])
+    expect(plan.flags).toMatchObject({
+      build: false,
+      e2e_build: false,
+      integration: false,
+      desktop_live: false,
+    })
+  })
+  it('keeps a new platform folder an input until it is declared zone-only', () => {
+    const { repo } = fixture()
+    const before = buildHash(repo)
+    write(repo, 'apps/sim/platform/new-shared/thing.ts', 'export const thing = 1\n')
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '--quiet', '-m', 'new folder')
+    expect(buildHash(repo)).not.toBe(before)
+  })
   it('keeps desktop smoke weights out of live runtime attribution', () => {
     const plan = classifyFiles(['apps/desktop/e2e-durations.json'])
     expect(plan.fallback).toBeUndefined()
@@ -422,6 +499,10 @@ describe('CI task attribution through real Turborepo', () => {
     ['test-assistant-actions-e2e.ts', 'assistant-actions'],
     ['test-organization-search-e2e.ts', 'organization-search'],
     ['test-org-redesign-e2e.ts', 'org-redesign'],
+    ['org-redesign-e2e/harness.ts', 'org-redesign'],
+    ['org-redesign-e2e/locators.ts', 'org-redesign'],
+    ['org-redesign-e2e/stubs.ts', 'org-redesign'],
+    ['org-redesign-e2e/checks/home.ts', 'org-redesign'],
   ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()

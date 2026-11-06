@@ -6,7 +6,7 @@ import type { SettingsNavGroup } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { Chip, SearchField } from '@/platform/design-system/components'
 import { platformHref } from '@/platform/design-system/navigation'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 interface SettingsNavigationProps {
   section?: string

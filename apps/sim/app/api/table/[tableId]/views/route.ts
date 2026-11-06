@@ -45,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     return NextResponse.json({ success: true, data: { views } })
   } catch (error) {
-    logger.error(`[${requestId}] Error listing table views:`, error)
+    logger.error('Error listing table views:', error)
     return NextResponse.json({ error: 'Failed to list views' }, { status: 500 })
   }
 })
@@ -90,7 +90,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Table
     if (error instanceof TableViewValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
-    logger.error(`[${requestId}] Error creating table view:`, error)
+    logger.error('Error creating table view:', error)
     return NextResponse.json({ error: 'Failed to create view' }, { status: 500 })
   }
 })

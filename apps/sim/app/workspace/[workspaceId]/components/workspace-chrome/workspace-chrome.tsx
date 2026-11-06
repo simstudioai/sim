@@ -14,6 +14,7 @@ import { Chip, cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, PanelLeft, X } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
+import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { ChatPlanModal } from '@/app/workspace/[workspaceId]/home/components/chat-plan-modal'
@@ -24,6 +25,7 @@ import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import type { SidebarSurface } from '@/stores/sidebar/types'
 
 const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 
@@ -72,6 +74,8 @@ interface WorkspaceChromeProps {
    * surface passes the design-system `Sidebar`.
    */
   sidebar: ReactNode
+  /** Which rail's saved width and default this chrome sizes itself from. */
+  sidebarSurface?: SidebarSurface
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
   initialSidebarCollapsed?: boolean
 }
@@ -167,6 +171,7 @@ function isFullscreenPath(pathname: string | null): boolean {
 export function WorkspaceChrome({
   children,
   sidebar,
+  sidebarSurface = 'workspace',
   initialSidebarCollapsed = false,
 }: WorkspaceChromeProps) {
   const pathname = usePathname()
@@ -200,6 +205,7 @@ export function WorkspaceChrome({
    * only host where the hover-peek applies. `null` is the web app (icon rail).
    */
   const [titleBarMode, setTitleBarMode] = useState<DesktopTitleBarMode>(null)
+  const [mobileTitleSlot, setMobileTitleSlot] = useState<HTMLElement | null>(null)
 
   /**
    * The search palette is the one overlay reachable from the peeked card that renders
@@ -244,7 +250,7 @@ export function WorkspaceChrome({
     isSearchModalOpen
   )
 
-  useSidebarWidth()
+  useSidebarWidth(sidebarSurface)
 
   // Remember the last non-fullscreen page so a fullscreen route's Back control
   // can return there, deterministically and for any trigger.
@@ -315,139 +321,142 @@ export function WorkspaceChrome({
   }, [])
 
   return (
-    <div
-      className='desktop-workspace-window-frame relative flex min-h-0 flex-1 flex-col md:flex-row'
-      data-sidebar-collapsed={isCollapsed || undefined}
-    >
-      {!isFullscreen && (
-        <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 md:hidden'>
-          <Chip
-            ref={navigationToggleRef}
-            mobileIconOnly
-            leftIcon={mobileNavigationOpen ? X : PanelLeft}
-            aria-label={mobileNavigationOpen ? 'Close navigation' : 'Open navigation'}
-            aria-expanded={mobileNavigationOpen}
-            aria-controls={navigationId}
-            onClick={handleSidebarToggle}
-          >
-            {mobileNavigationOpen ? 'Close navigation' : 'Navigation'}
-          </Chip>
-        </div>
-      )}
+    <MobileTitleSlot.Provider value={mobileTitleSlot}>
       <div
-        aria-hidden
-        className={cn(
-          'desktop-window-drag-region desktop-workspace-window-drag-region',
-          isCollapsed ? 'h-[var(--desktop-title-bar-height)]' : 'h-2'
-        )}
-      />
-      <div
-        id={navigationId}
-        ref={cardRef}
-        className={cn(
-          'sidebar-shell-outer shrink-0 overflow-hidden',
-          SIDEBAR_NO_MOTION_CLASS,
-          mobileNavigationOpen ? 'max-md:min-h-0 max-md:w-full max-md:flex-1' : 'max-md:hidden',
-          isPeekActive ? PEEK_CARD_CHROME : isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
-        )}
-        data-collapsed={(!isMobile && isCollapsed) || undefined}
-        data-peek={isPeekActive || undefined}
-        aria-hidden={isFullscreen || (isMobile && !mobileNavigationOpen) || undefined}
-        inert={isFullscreen || (isMobile && !mobileNavigationOpen)}
-        onClick={(event) => {
-          if (
-            !mobileNavigationOpen ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          ) {
-            return
-          }
-          const link =
-            event.target instanceof Element
-              ? event.target.closest<HTMLAnchorElement>('a[href]')
-              : null
-          if (link?.origin === window.location.origin && link.pathname === pathname) {
-            setMobileNavigationPath(null)
-          }
-        }}
-        suppressHydrationWarning
-      >
-        <div
-          className={cn(
-            'sidebar-shell-inner h-full shrink-0 [&_.sidebar-container]:w-full!',
-            isPeekActive ? 'w-[var(--sidebar-width)]' : 'w-full'
-          )}
-        >
-          <SidebarChromeProvider
-            isCollapsed={!isMobile && isCollapsed}
-            isPeeking={isPeekActive}
-            onToggle={handleSidebarToggle}
-          >
-            {sidebar}
-          </SidebarChromeProvider>
-        </div>
-      </div>
-      <div
-        className={cn(
-          'workspace-content-shell flex min-h-0 min-w-0 flex-1 flex-col',
-          mobileNavigationOpen && 'max-md:hidden'
-        )}
-        inert={mobileNavigationOpen}
+        className='desktop-workspace-window-frame relative flex min-h-0 flex-1 flex-col md:flex-row'
         data-sidebar-collapsed={isCollapsed || undefined}
-        /* A fullscreen route slides the sidebar away without collapsing it, so the pane
-           inherits the traffic-light lane the same way a collapsed sidebar does. */
-        data-content-fullscreen={isFullscreen || undefined}
       >
+        {!isFullscreen && (
+          <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 md:hidden'>
+            <Chip
+              ref={navigationToggleRef}
+              mobileIconOnly
+              leftIcon={mobileNavigationOpen ? X : PanelLeft}
+              aria-label={mobileNavigationOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={mobileNavigationOpen}
+              aria-controls={navigationId}
+              onClick={handleSidebarToggle}
+            >
+              {mobileNavigationOpen ? 'Close navigation' : 'Navigation'}
+            </Chip>
+            <div ref={setMobileTitleSlot} className='min-w-0 flex-1 px-2' />
+          </div>
+        )}
+        <div
+          aria-hidden
+          className={cn(
+            'desktop-window-drag-region desktop-workspace-window-drag-region',
+            isCollapsed ? 'h-[var(--desktop-title-bar-height)]' : 'h-2'
+          )}
+        />
+        <div
+          id={navigationId}
+          ref={cardRef}
+          className={cn(
+            'sidebar-shell-outer shrink-0 overflow-hidden',
+            SIDEBAR_NO_MOTION_CLASS,
+            mobileNavigationOpen ? 'max-md:min-h-0 max-md:w-full max-md:flex-1' : 'max-md:hidden',
+            isPeekActive ? PEEK_CARD_CHROME : isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
+          )}
+          data-collapsed={(!isMobile && isCollapsed) || undefined}
+          data-peek={isPeekActive || undefined}
+          aria-hidden={isFullscreen || (isMobile && !mobileNavigationOpen) || undefined}
+          inert={isFullscreen || (isMobile && !mobileNavigationOpen)}
+          onClick={(event) => {
+            if (
+              !mobileNavigationOpen ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return
+            }
+            const link =
+              event.target instanceof Element
+                ? event.target.closest<HTMLAnchorElement>('a[href]')
+                : null
+            if (link?.origin === window.location.origin && link.pathname === pathname) {
+              setMobileNavigationPath(null)
+            }
+          }}
+          suppressHydrationWarning
+        >
+          <div
+            className={cn(
+              'sidebar-shell-inner h-full shrink-0 [&_.sidebar-container]:w-full!',
+              isPeekActive ? 'w-[var(--sidebar-width)]' : 'w-full'
+            )}
+          >
+            <SidebarChromeProvider
+              isCollapsed={!isMobile && isCollapsed}
+              isPeeking={isPeekActive}
+              onToggle={handleSidebarToggle}
+            >
+              {sidebar}
+            </SidebarChromeProvider>
+          </div>
+        </div>
         <div
           className={cn(
-            'min-h-0 flex-1 overflow-hidden bg-[var(--bg)] max-md:border-l-0',
-            CONTENT_PANE_DIVIDER,
-            isFullscreen && 'border-l-0'
+            'workspace-content-shell flex min-h-0 min-w-0 flex-1 flex-col',
+            mobileNavigationOpen && 'max-md:hidden'
           )}
+          inert={mobileNavigationOpen}
+          data-sidebar-collapsed={isCollapsed || undefined}
+          /* A fullscreen route slides the sidebar away without collapsing it, so the pane
+           inherits the traffic-light lane the same way a collapsed sidebar does. */
+          data-content-fullscreen={isFullscreen || undefined}
         >
-          {children}
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-hidden bg-[var(--bg)] max-md:border-l-0',
+              CONTENT_PANE_DIVIDER,
+              isFullscreen && 'border-l-0'
+            )}
+          >
+            {children}
+          </div>
         </div>
-      </div>
-      {!isFullscreen && (
-        /**
-         * The hover region lives on this wrapper, not the button: `SidebarTooltip`
-         * returns bare `children` when disabled, so suppressing the tooltip while
-         * peeking swaps the element tree and remounts the button. A ref on the
-         * button would go null mid-hover and retract the card; the wrapper never
-         * unmounts, so it stays a stable anchor for the pointer hit-test.
-         */
-        <div
-          ref={triggerRef}
-          onMouseEnter={onTriggerEnter}
-          onMouseLeave={onTriggerLeave}
-          className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] [-webkit-app-region:no-drag] [[data-sim-desktop-title-bar=inset]_&]:block'
-        >
-          <SidebarTooltip
-            label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            /* Gated on `peekEnabled`, not on the card being open: hovering always
+        {!isFullscreen && (
+          /**
+           * The hover region lives on this wrapper, not the button: `SidebarTooltip`
+           * returns bare `children` when disabled, so suppressing the tooltip while
+           * peeking swaps the element tree and remounts the button. A ref on the
+           * button would go null mid-hover and retract the card; the wrapper never
+           * unmounts, so it stays a stable anchor for the pointer hit-test.
+           */
+          <div
+            ref={triggerRef}
+            onMouseEnter={onTriggerEnter}
+            onMouseLeave={onTriggerLeave}
+            className='absolute top-[var(--desktop-title-bar-control-offset)] left-[var(--desktop-title-bar-inset-x)] z-30 hidden size-[var(--desktop-title-bar-control-size)] [-webkit-app-region:no-drag] [[data-sim-desktop-title-bar=inset]_&]:block'
+          >
+            <SidebarTooltip
+              label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              /* Gated on `peekEnabled`, not on the card being open: hovering always
                opens the card, so a tooltip tied to visibility would flash for the
                dwell and then vanish under it. When peek is armed the card IS the
                affordance; when it isn't (expanded, or web), the tooltip behaves
                exactly as before. Stable across a hover, so no remount mid-gesture. */
-            enabled={!peekEnabled}
-            side='bottom'
-            shortcut='⌘B'
-          >
-            <button
-              type='button'
-              onClick={toggleSidebar}
-              className='flex size-full items-center justify-center rounded-lg transition-colors hover-hover:bg-[var(--surface-active)]'
-              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              enabled={!peekEnabled}
+              side='bottom'
+              shortcut='⌘B'
             >
-              <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
-            </button>
-          </SidebarTooltip>
-        </div>
-      )}
-      {!isFullscreen && <TitleBarHistoryNav />}
-      <ChatPlanModal />
-    </div>
+              <button
+                type='button'
+                onClick={toggleSidebar}
+                className='flex size-full items-center justify-center rounded-lg transition-colors hover-hover:bg-[var(--surface-active)]'
+                aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                <PanelLeft className='size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]' />
+              </button>
+            </SidebarTooltip>
+          </div>
+        )}
+        {!isFullscreen && <TitleBarHistoryNav />}
+        <ChatPlanModal />
+      </div>
+    </MobileTitleSlot.Provider>
   )
 }

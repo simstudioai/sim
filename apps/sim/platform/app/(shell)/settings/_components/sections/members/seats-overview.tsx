@@ -8,7 +8,7 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { useMembers } from '@/platform/lib/data/members'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 interface SeatsOverviewProps {
   seats: ReturnType<typeof useMembers>['seats']

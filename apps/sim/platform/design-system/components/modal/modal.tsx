@@ -19,6 +19,8 @@ interface ModalStep {
  * A synchronous confirm closes the dialog in the same update. A returned promise holds it open as
  * pending, closes it on success, and on rejection keeps the draft and shows the error's message.
  * Returning or resolving `false` keeps it open: the confirm reached the dialog's next stage, not its end.
+ * A confirm that starts work returns that work's promise, even when it resolves `false`: the promise
+ * is the only signal that holds the dialog from the input that started the work.
  */
 type ConfirmHandler<Args extends unknown[]> = (...args: Args) => unknown
 
@@ -27,6 +29,19 @@ interface ModalActions {
   confirmLabel: string
   confirmDisabled?: boolean
   onConfirm?: ConfirmHandler<[values: FormData]>
+  /** Names the dialog more specifically than its visible title. */
+  accessibleName?: string
+  /**
+   * Work the caller is tracking. Nothing dismisses, confirms or steps back until it ends. This flag
+   * arrives after the input that started the work (a mutation's `isPending` comes on a timer, and
+   * the browser runs the next key press first), so it never covers the start: see `ConfirmHandler`.
+   */
+  pending?: boolean
+  /**
+   * Whether Enter in a text field confirms. Off unless set for a destructive, confirming or
+   * multi-step dialog. A search field or picker never confirms on Enter.
+   */
+  submitOnEnter?: boolean
 }
 type ModalTrigger =
   | { triggerLabel: string; triggerIcon?: IconName; open?: never; onOpenChange?: never }
@@ -67,12 +82,16 @@ function ModalSurface({
   cancelLabel,
   onBack,
   onConfirm,
+  accessibleName,
+  pending: trackedPending,
+  submitOnEnter,
   open: controlled,
   onOpenChange,
 }: ModalSurfaceProps) {
   const [internal, setInternal] = useState(false)
   const [index, setIndex] = useState(0)
-  const [pending, setPending] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const pending = confirming || Boolean(trackedPending)
   const [error, setError] = useState<string | null>(null)
   /** A step back within one step still moves focus, so a repeated Enter cannot reach Cancel. */
   const [backs, setBacks] = useState(0)
@@ -94,14 +113,14 @@ function ModalSurface({
     try {
       const result = onConfirm?.(values)
       if (result instanceof Promise) {
-        setPending(true)
+        setConfirming(true)
         if ((await result) === false) return
       } else if (result === false) return
       close()
     } catch (failure) {
       setError(getErrorMessage(failure, 'Something went wrong. Please try again.'))
     } finally {
-      setPending(false)
+      setConfirming(false)
     }
   }
 
@@ -119,10 +138,14 @@ function ModalSurface({
       <OverlayDialog
         open={open}
         title={step.title ?? title}
+        accessibleName={accessibleName}
         description={step.description}
         step={index + backs}
         presentation={presentation}
         busy={pending}
+        submitOnEnter={
+          submitOnEnter ?? (presentation === 'form' && !destructive && steps.length === 1)
+        }
         onClose={dismiss}
         onSubmit={(event) => {
           event.preventDefault()
@@ -138,6 +161,7 @@ function ModalSurface({
           <ModalBody
             key={i}
             inactive={i !== index}
+            onInput={() => setError(null)}
             label={entry.description || entry.title || title}
           >
             {entry.content}
@@ -196,6 +220,9 @@ export function Modal({
   destructive,
   cancelLabel,
   onBack,
+  accessibleName,
+  pending,
+  submitOnEnter,
 }: ModalProps) {
   return (
     <ModalSurface
@@ -212,6 +239,9 @@ export function Modal({
       presentation={variant}
       cancelLabel={cancelLabel}
       onBack={onBack}
+      accessibleName={accessibleName}
+      pending={pending}
+      submitOnEnter={submitOnEnter}
     />
   )
 }

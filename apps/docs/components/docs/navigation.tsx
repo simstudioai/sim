@@ -17,7 +17,7 @@ interface NavigationItemProps extends Omit<SidebarNavigationProps, 'nodes'> {
 }
 
 const rowClass =
-  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-docs-nav text-[var(--docs-text)] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-left text-docs-nav text-[var(--docs-text)] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
 
 function containsPath(node: NavNode, pathname: string): boolean {
   return (

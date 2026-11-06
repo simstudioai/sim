@@ -1,0 +1,826 @@
+---
+title: Gauge
+description: Track AI visibility and manage Gauge prompts
+integration:
+  type: "gauge"
+  color: "#E8FF3F"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gauge](https://withgauge.com) measures how brands appear in AI answers and which sources those answers cite.
+
+With the Gauge block, you can:
+
+- **Manage tracked questions**: Create topics, import prompts with a dry-run preview, update tracking types, and organize prompts with tags.
+- **Investigate AI answers**: Read collected answers, brand mentions, citations, and search queries.
+- **Report on visibility**: Discover available metrics and run reports across answers, citations, search queries, and AI traffic.
+
+Create an organization API key in Gauge under **Settings → Integrations → API Keys**, then connect it as a saved Gauge account in Sim. **Read only** supports reads and report queries; **Read & write** also manages topics, prompts, and tags. Reconnect with a replacement key after rotation, expiry, or revocation. Temporary CLI login tokens are not supported.
+
+Select an organization with Gauge Chat enabled and its category. Resource pickers also have a manual ID option in advanced mode. Answer pickers show the API's default recent window; use an answer ID directly for older answers. Follow `nextCursor` to retrieve additional result pages. Answer and citation filters default to the last seven days.
+
+This integration covers all 27 Gauge Chat API operations. Gauge Agents uses a separate API and is outside this block's scope. See the [Gauge Chat API reference](https://docs.withgauge.com/chat/api-reference/overview) for the current limits and query catalog.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Manage organizations, categories, topics, tracked prompts, and tags; inspect brands, AI answers, citations, and search queries; and run visibility, share-of-voice, and AI-traffic reports with the Gauge Chat API.
+
+## Actions
+
+### Gauge Get Current Credential
+
+Read the identity, permissions, and expiry of the connected Gauge API key.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | User |
+|   ↳ `id` | string | Id |
+|   ↳ `email` | string | Email |
+|   ↳ `name` | string | Name |
+| `apiKey` | json | Api key |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `prefix` | string | Prefix |
+|   ↳ `organization` | json | Organization |
+|     ↳ `id` | string | Id |
+|     ↳ `slug` | string | Slug |
+|     ↳ `name` | string | Name |
+| `token` | json | Token |
+|   ↳ `kind` | string | Kind |
+|   ↳ `scopes` | array | Scopes |
+|   ↳ `expiresAt` | string | Expires at |
+
+</ReferenceDetails>
+
+### Gauge List Organizations
+
+List organizations and agency clients accessible to the connected API key.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | array | Organizations |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `name` | string | Name |
+|   ↳ `products` | json | Products |
+|     ↳ `chat` | boolean | Chat |
+|     ↳ `agents` | boolean | Agents |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Get Organization
+
+Read an organization and its enabled Gauge products.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organization` | json | Organization |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `name` | string | Name |
+|   ↳ `products` | json | Products |
+|     ↳ `chat` | boolean | Chat |
+|     ↳ `agents` | boolean | Agents |
+
+</ReferenceDetails>
+
+### Gauge List Categories
+
+List the AI-search categories configured for an organization.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | array | Categories |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `name` | string | Name |
+|   ↳ `description` | string | Description |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Get Category
+
+Read the details of an AI-search category.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `category` | json | Category |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `name` | string | Name |
+|   ↳ `description` | string | Description |
+
+</ReferenceDetails>
+
+### Gauge List Topics
+
+List one page of tracked-prompt topics in a category.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `cursor` | string | No | Opaque nextCursor from the previous page |
+| `limit` | number | No | Maximum results to return \(1–200; defaults to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topics` | array | Topics |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `title` | string | Title |
+|   ↳ `promptCount` | number | Prompt count |
+|   ↳ `createdAt` | string | Created at |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Create Topic
+
+Create a topic to organize tracked prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `title` | string | Yes | Topic title \(1–200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | json | Topic |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `title` | string | Title |
+|   ↳ `promptCount` | number | Prompt count |
+|   ↳ `createdAt` | string | Created at |
+
+</ReferenceDetails>
+
+### Gauge Get Topic
+
+Read a topic and its tracked-prompt count.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `topicId` | string | Yes | Topic ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | json | Topic |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `title` | string | Title |
+|   ↳ `promptCount` | number | Prompt count |
+|   ↳ `createdAt` | string | Created at |
+
+</ReferenceDetails>
+
+### Gauge Rename Topic
+
+Change the title of an existing topic.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `topicId` | string | Yes | Topic ID |
+| `title` | string | Yes | Topic title \(1–200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | json | Topic |
+|   ↳ `id` | string | Id |
+|   ↳ `slug` | string | Slug |
+|   ↳ `title` | string | Title |
+|   ↳ `promptCount` | number | Prompt count |
+|   ↳ `createdAt` | string | Created at |
+
+</ReferenceDetails>
+
+### Gauge List Prompts
+
+List one page of tracked prompts with optional topic, tag, and tracking-type filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `topic` | string | No | Filter by a single topic ID |
+| `tag` | json | No | JSON array of tag IDs |
+| `trackingType` | string | No | Prompt tracking type: visibility or branded_own or all |
+| `cursor` | string | No | Opaque nextCursor from the previous page |
+| `limit` | number | No | Maximum results to return \(1–200; defaults to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prompts` | array | Prompts |
+|   ↳ `id` | string | Id |
+|   ↳ `text` | string | Text |
+|   ↳ `topicId` | string | Topic id |
+|   ↳ `trackingType` | string | Tracking type |
+|   ↳ `tagIds` | array | Tag ids |
+|   ↳ `createdAt` | string | Created at |
+|   ↳ `firstAnswerDay` | string | First answer day |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Create Prompts
+
+Add a batch of tracked questions or preview the import without creating prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `dryRun` | boolean | No | Validate the batch and report what would be created without saving prompts |
+| `prompts` | json | Yes | JSON array of 1–500 prompts: \[\{"text":"Which tools work best?","topicId":"top_example","trackingType":"visibility","tagIds":\[\]\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Results |
+|   ↳ `index` | number | Index |
+|   ↳ `status` | string | Status |
+|   ↳ `prompt` | json | Prompt |
+|     ↳ `id` | string | Id |
+|     ↳ `text` | string | Text |
+|     ↳ `topicId` | string | Topic id |
+|     ↳ `trackingType` | string | Tracking type |
+|     ↳ `tagIds` | array | Tag ids |
+|     ↳ `createdAt` | string | Created at |
+|     ↳ `firstAnswerDay` | string | First answer day |
+| `dryRun` | boolean | Dry run |
+| `remaining` | number | Remaining |
+
+</ReferenceDetails>
+
+### Gauge Bulk Update Prompts
+
+Change the topic or tracking type of up to 500 tracked prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `topicId` | string | No | New topic ID; omitted values leave the topic unchanged |
+| `trackingType` | string | No | Prompt tracking type: visibility or branded_own |
+| `ids` | json | Yes | JSON array of 1–500 prompt IDs to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | array | Updated |
+| `notFound` | array | Not found |
+
+</ReferenceDetails>
+
+### Gauge Add Tags To Prompts
+
+Apply a set of tags to the selected tracked prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `promptIds` | json | Yes | JSON array of 1–500 prompt IDs |
+| `tagIds` | json | Yes | JSON array of 1–50 tag IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `promptIds` | array | Prompt ids |
+
+</ReferenceDetails>
+
+### Gauge Remove Tags From Prompts
+
+Remove a set of tags from the selected tracked prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `promptIds` | json | Yes | JSON array of 1–500 prompt IDs |
+| `tagIds` | json | Yes | JSON array of 1–50 tag IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `promptIds` | array | Prompt ids |
+
+</ReferenceDetails>
+
+### Gauge Get Prompt
+
+Read a tracked question and its topic, tags, and sampling information.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `promptId` | string | Yes | Prompt ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prompt` | json | Prompt |
+|   ↳ `id` | string | Id |
+|   ↳ `text` | string | Text |
+|   ↳ `topicId` | string | Topic id |
+|   ↳ `trackingType` | string | Tracking type |
+|   ↳ `tagIds` | array | Tag ids |
+|   ↳ `createdAt` | string | Created at |
+|   ↳ `firstAnswerDay` | string | First answer day |
+
+</ReferenceDetails>
+
+### Gauge Update Prompt
+
+Move a prompt to another topic or change its tracking type. Prompt text is immutable: create a new prompt instead.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `promptId` | string | Yes | Prompt ID |
+| `topicId` | string | No | New topic ID; omitted values leave the topic unchanged |
+| `trackingType` | string | No | Prompt tracking type: visibility or branded_own |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prompt` | json | Prompt |
+|   ↳ `id` | string | Id |
+|   ↳ `text` | string | Text |
+|   ↳ `topicId` | string | Topic id |
+|   ↳ `trackingType` | string | Tracking type |
+|   ↳ `tagIds` | array | Tag ids |
+|   ↳ `createdAt` | string | Created at |
+|   ↳ `firstAnswerDay` | string | First answer day |
+
+</ReferenceDetails>
+
+### Gauge List Tags
+
+List the tags available to organize prompts in an organization.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tags |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `color` | string | Color |
+|   ↳ `promptCount` | number | Prompt count |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Create Tag
+
+Create an organization-wide prompt tag.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `name` | string | Yes | Tag name \(1–120 characters\) |
+| `color` | string | No | Tag color string \(up to 20 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | json | Tag |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `color` | string | Color |
+|   ↳ `promptCount` | number | Prompt count |
+
+</ReferenceDetails>
+
+### Gauge Get Tag
+
+Read a prompt tag and its usage count.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `tagId` | string | Yes | Tag ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | json | Tag |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `color` | string | Color |
+|   ↳ `promptCount` | number | Prompt count |
+
+</ReferenceDetails>
+
+### Gauge Update Tag
+
+Change the name or color of a prompt tag.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `tagId` | string | Yes | Tag ID |
+| `name` | string | No | Tag name \(1–120 characters\) |
+| `color` | string | No | Tag color string \(up to 20 characters\); omit to keep unchanged or use "" to clear |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | json | Tag |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `color` | string | Color |
+|   ↳ `promptCount` | number | Prompt count |
+
+</ReferenceDetails>
+
+### Gauge Delete Tag
+
+Delete a prompt tag and remove its associations with prompts.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `tagId` | string | Yes | Tag ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tagId` | string | ID of the deleted tag |
+| `deleted` | boolean | Whether the tag was deleted |
+
+</ReferenceDetails>
+
+### Gauge List Brands
+
+Your owned brands and the category's tracked competitors. Together these are the share-of-voice denominator.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `brands` | array | Brands |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `slug` | string | Slug |
+|   ↳ `website` | string | Website |
+|   ↳ `role` | string | Role |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Get Query Metadata
+
+Discover available report datasets, metrics, dimensions, filters, and values.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `dataset` | string | No | Report dataset: answers, citations, searchQueries, or aiTraffic |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `catalog` | json | Dynamic dataset, metric, dimension, and filter catalog returned by Gauge |
+
+</ReferenceDetails>
+
+### Gauge Run Report Query
+
+Run a report on AI answers, citations, search queries, or AI bot traffic using metrics from the query catalog.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `dataset` | string | Yes | Report dataset: answers, citations, searchQueries, or aiTraffic |
+| `dimensions` | json | No | JSON array of up to 3 dimension keys from Get Query Metadata |
+| `metrics` | json | Yes | JSON array of 1–4 metric keys from Get Query Metadata |
+| `filters` | json | No | JSON object of category, brand, model, topic, tag, tagMode, prompt, trackingType, domain, and page filters |
+| `where` | json | No | JSON array of up to 10 predicates: \{"dimension":"domain","op":"contains","value":"example.com"\} |
+| `dateRange` | json | No | JSON object with since \(YYYY-MM-DD or 30d\), until \(YYYY-MM-DD\), or lastDays \(1–400\) |
+| `granularity` | string | No | Report time bucket: hour, day, week, or month \(defaults to day\) |
+| `orderBy` | json | No | JSON array of up to 4 sort rules: \{"key":"metric_name","dir":"desc"\} |
+| `limit` | number | No | Maximum report rows \(1–1000; defaults to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Columns |
+|   ↳ `key` | string | Key |
+|   ↳ `kind` | string | Kind |
+|   ↳ `type` | string | Type |
+|   ↳ `unit` | string | Unit |
+| `rows` | array | Rows |
+| `labels` | json | Labels |
+| `dateRange` | json | Date range |
+|   ↳ `since` | string | Since |
+|   ↳ `until` | string | Until |
+| `truncated` | boolean | Truncated |
+| `cached` | boolean | Cached |
+| `freshness` | json | Freshness |
+|   ↳ `watermark` | string | Watermark |
+|   ↳ `pending` | number | Pending |
+|   ↳ `available` | boolean | Available |
+
+</ReferenceDetails>
+
+### Gauge List Answers
+
+List one page of collected AI answers using date, model, prompt, and brand filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `since` | string | No | Start date in YYYY-MM-DD format; defaults to 7 days ago |
+| `until` | string | No | End date in YYYY-MM-DD format; defaults to today |
+| `model` | json | No | JSON array of model IDs |
+| `prompt` | json | No | JSON array of prompt IDs |
+| `topic` | json | No | JSON array of topic IDs |
+| `tag` | json | No | JSON array of tag IDs |
+| `trackingType` | string | No | Prompt tracking type: visibility or branded_own or all |
+| `cursor` | string | No | Opaque nextCursor from the previous page |
+| `limit` | number | No | Maximum results to return \(1–100; defaults to 50\) |
+| `brand` | json | No | JSON array of brand IDs that an answer must mention |
+| `brandAbsent` | json | No | JSON array of brand IDs that an answer must not mention |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answers` | array | Answers |
+|   ↳ `id` | string | Id |
+|   ↳ `promptId` | string | Prompt id |
+|   ↳ `topicId` | string | Topic id |
+|   ↳ `model` | string | Model |
+|   ↳ `day` | string | Day |
+|   ↳ `createdAt` | string | Created at |
+|   ↳ `text` | string | Text |
+|   ↳ `brandIds` | array | Brand ids |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+### Gauge Get Answer
+
+Read an AI answer with its prompt, brand mentions, source citations, and searches.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `answerId` | string | Yes | Answer ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | json | Answer |
+|   ↳ `id` | string | Id |
+|   ↳ `promptId` | string | Prompt id |
+|   ↳ `promptText` | string | Prompt text |
+|   ↳ `topicId` | string | Topic id |
+|   ↳ `model` | string | Model |
+|   ↳ `day` | string | Day |
+|   ↳ `createdAt` | string | Created at |
+|   ↳ `text` | string | Text |
+|   ↳ `mentions` | array | Mentions |
+|     ↳ `brandId` | string | Brand id |
+|     ↳ `name` | string | Name |
+|     ↳ `mentionTypes` | array | Mention types |
+|     ↳ `count` | number | Count |
+|   ↳ `citations` | array | Citations |
+|     ↳ `pageId` | string | Page id |
+|     ↳ `url` | string | Url |
+|     ↳ `title` | string | Title |
+|     ↳ `domain` | string | Domain |
+|   ↳ `searchQueries` | array | Search queries |
+
+</ReferenceDetails>
+
+### Gauge List Citations
+
+List one page of sources cited by AI answers in a category.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `org` | string | Yes | Organization slug or UUID |
+| `category` | string | Yes | Category slug or cat_ ID |
+| `since` | string | No | Start date in YYYY-MM-DD format; defaults to 7 days ago |
+| `until` | string | No | End date in YYYY-MM-DD format; defaults to today |
+| `model` | json | No | JSON array of model IDs |
+| `prompt` | json | No | JSON array of prompt IDs |
+| `topic` | json | No | JSON array of topic IDs |
+| `tag` | json | No | JSON array of tag IDs |
+| `trackingType` | string | No | Prompt tracking type: visibility or branded_own or all |
+| `cursor` | string | No | Opaque nextCursor from the previous page |
+| `limit` | number | No | Maximum results to return \(1–200; defaults to 50\) |
+| `domain` | json | No | JSON array of cited domains |
+| `page` | json | No | JSON array of cited page IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `citations` | array | Citations |
+|   ↳ `answerId` | string | Answer id |
+|   ↳ `pageId` | string | Page id |
+|   ↳ `promptId` | string | Prompt id |
+|   ↳ `model` | string | Model |
+|   ↳ `day` | string | Day |
+|   ↳ `domain` | string | Domain |
+|   ↳ `url` | string | Url |
+| `nextCursor` | string | Opaque cursor for the next page; null when complete |
+
+</ReferenceDetails>
+
+{/* MANUAL-CONTENT-START:notes */}
+## Report requirements
+
+Answer lists support up to 100 results per page; other paginated lists support up to 200.
+
+Read the query catalog before building reports. Visibility and share-of-voice metrics require a brand filter or brand grouping. Dataset filters and supported time granularities vary.
+{/* MANUAL-CONTENT-END */}

@@ -447,10 +447,10 @@ try {
       assert.equal(body.query, 'Launch notes')
       // The seeded member has connected no account, so nothing was searched.
       await expect(
-        page.getByText('No connected apps are available for this search.', { exact: true })
+        page.getByText('No connected integrations are available for this search.', { exact: true })
       ).toBeVisible()
       await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+      await expect(page.getByRole('link', { name: 'Connect integrations' })).toHaveAttribute(
         'href',
         `${root}/integrations`
       )
@@ -947,7 +947,7 @@ try {
         partial = true
         await page.goto(`${baseUrl.origin}${root}/search?q=Partial%20coverage`)
         await expect(
-          page.getByText('Some apps couldn’t be searched. Showing available results.')
+          page.getByText('Some integrations couldn’t be searched. Showing available results.')
         ).toBeVisible()
         await capture('search-partial-coverage')
         unavailable = true
@@ -956,7 +956,7 @@ try {
         await capture('search-error-retry')
         unavailable = false
         partial = false
-        await page.getByRole('button', { name: 'Try again', exact: true }).click()
+        await page.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
         await expect(page.getByText('Search couldn’t run.', { exact: true })).toHaveCount(0)
 
@@ -1060,6 +1060,9 @@ try {
             'Assistant history rejects a chat from another organization',
             'A streamed denied chat remains navigable after hydration',
           ].includes(event.stage)) ||
+          // React reports the recovery once hydration settles, which can be after Return home.
+          (event.url === `${baseUrl.origin}${root}/home` &&
+            event.stage === 'A streamed denied chat remains navigable after hydration') ||
           (event.url === `${baseUrl.origin}${root}/chat/${agentId}` &&
             event.stage ===
               'Search-only members have Home with the Assistant and their history, but no agent chat'))

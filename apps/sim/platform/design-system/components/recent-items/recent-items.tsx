@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { IconButton } from '@/platform/design-system/components/button/button'
@@ -9,6 +10,8 @@ export interface RecentItem {
   id: string
   label: string
   icon?: IconName
+  /** A mark the caller draws, for one no icon name can express. */
+  leading?: ReactNode
   /** An external link opens independently of the current workspace. */
   href?: string
 }
@@ -34,7 +37,8 @@ export function RecentItems({ label, title = label, items, onSelect, onRemove }:
               <ControlRow
                 label={item.label}
                 icon={item.icon}
-                actionSide={item.icon ? 'start' : 'end'}
+                leading={item.leading}
+                actionSide={item.icon || item.leading ? 'start' : 'end'}
                 render={
                   item.href ? (
                     <Link href={item.href} target='_blank' rel='noopener noreferrer' />

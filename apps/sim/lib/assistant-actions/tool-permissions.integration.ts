@@ -28,7 +28,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimOrganizationAssistantAction,
@@ -1096,13 +1096,13 @@ describe('Managed account identity across Assistant approvals', () => {
       accepted: false,
     },
     {
-      name: 'create refuses another subject in a disconnected account slot',
+      name: 'create adds another subject separately, leaving the approval on the disconnected account',
       provider: 'jira',
       mode: 'restore',
       changedSubject: true,
       storedTenant: null,
       returnedTenant: null,
-      accepted: false,
+      accepted: true,
     },
     {
       name: 'create restores the same disconnected account',
@@ -1174,6 +1174,8 @@ describe('Managed account identity across Assistant approvals', () => {
     if (!originalCredential || !originalEnrollment || !group || !configuredOption)
       throw new Error('Managed account fixture is incomplete')
 
+    const addsSeparateAccount =
+      scenario.mode === 'new' || (scenario.mode === 'restore' && scenario.changedSubject)
     const option =
       scenario.mode === 'new'
         ? { ...configuredOption, id: generateId(), label: 'Second Jira account' }
@@ -1327,10 +1329,10 @@ describe('Managed account identity across Assistant approvals', () => {
       if (scenario.accepted) {
         const result = await completion
         expect(result).toMatchObject({
-          created: scenario.mode === 'new',
+          created: addsSeparateAccount,
           displayName: chosenEmail,
         })
-        if (scenario.mode === 'new') expect(result.credentialId).not.toBe(selectedCredentialId)
+        if (addsSeparateAccount) expect(result.credentialId).not.toBe(selectedCredentialId)
         else expect(result.credentialId).toBe(selectedCredentialId)
         const [connected] = await db
           .select()
@@ -1354,7 +1356,7 @@ describe('Managed account identity across Assistant approvals', () => {
         await expect(completion).rejects.toMatchObject({ statusCode: 409 })
       }
 
-      if (!scenario.accepted || scenario.mode === 'new') {
+      if (!scenario.accepted || addsSeparateAccount) {
         const [unchanged] = await db
           .select()
           .from(credential)
@@ -1363,7 +1365,7 @@ describe('Managed account identity across Assistant approvals', () => {
       }
 
       if (pending) {
-        if (scenario.mode === 'restore' && !scenario.accepted) {
+        if (scenario.mode === 'restore' && (!scenario.accepted || addsSeparateAccount)) {
           await expect(claim(pending.call)).rejects.toThrow()
           expect(requests).toEqual([])
         } else {
@@ -1398,13 +1400,22 @@ describe('Managed account identity across Assistant approvals', () => {
         expect(receipts.receipts[0]?.account).toMatchObject({
           credentialId: selectedCredentialId,
           displayName:
-            scenario.accepted && scenario.mode !== 'new' ? chosenEmail : beforeOAuth.displayName,
+            scenario.accepted && !addsSeparateAccount ? chosenEmail : beforeOAuth.displayName,
         })
       }
     } finally {
       provider.mockRestore()
+      if (addsSeparateAccount) {
+        await db
+          .delete(credential)
+          .where(
+            and(
+              eq(credential.credentialGroupOptionId, option.id),
+              ne(credential.id, selectedCredentialId)
+            )
+          )
+      }
       if (scenario.mode === 'new') {
-        await db.delete(credential).where(eq(credential.credentialGroupOptionId, option.id))
         await db
           .update(credentialGroup)
           .set({ options: group.options })

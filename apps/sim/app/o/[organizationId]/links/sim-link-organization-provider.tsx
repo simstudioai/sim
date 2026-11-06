@@ -20,10 +20,23 @@ const SimLinkScopeContext = createContext<SimLinkScope>({
   openForm: () => {},
 })
 
+interface SimLinkFormProps {
+  organizationId: string
+  initialUrl: string
+  initialName: string
+  onClose: () => void
+}
+
 interface SimLinkOrganizationProviderProps {
   /** Where `sim/<name>` resolves for this session, or null when it resolves nowhere. */
   organizationId: string | null
+  /** The new-link form, for a surface with its own. This module stays free of the design system. */
+  renderForm?: (form: SimLinkFormProps) => ReactNode
   children: ReactNode
+}
+
+function renderLegacyForm(form: SimLinkFormProps) {
+  return <SimLinkModal {...form} />
 }
 
 /**
@@ -34,6 +47,7 @@ interface SimLinkOrganizationProviderProps {
  */
 export function SimLinkOrganizationProvider({
   organizationId,
+  renderForm = renderLegacyForm,
   children,
 }: SimLinkOrganizationProviderProps) {
   const [draft, setDraft] = useState<SimLinkDraft | null>(null)
@@ -42,14 +56,14 @@ export function SimLinkOrganizationProvider({
       value={{ organizationId, openForm: (url, title) => setDraft({ url, title }) }}
     >
       {children}
-      {draft && organizationId && (
-        <SimLinkModal
-          organizationId={organizationId}
-          initialUrl={draft.url}
-          initialName={suggestSimLinkName(draft.title)}
-          onClose={() => setDraft(null)}
-        />
-      )}
+      {draft &&
+        organizationId &&
+        renderForm({
+          organizationId,
+          initialUrl: draft.url,
+          initialName: suggestSimLinkName(draft.title),
+          onClose: () => setDraft(null),
+        })}
     </SimLinkScopeContext.Provider>
   )
 }

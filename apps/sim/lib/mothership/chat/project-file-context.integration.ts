@@ -694,7 +694,7 @@ describe('open tabs that no longer resolve', () => {
         })
         expect(contexts[1]?.content).toContain(browserTab.url)
         expect(logs.calls('info', 'Skipped resource attachment that no longer exists')).toEqual([
-          { resourceType: 'file' },
+          { requestId: expect.any(String), resourceType: 'file' },
         ])
         expect(logs.calls('error', 'Failed to resolve resource attachment')).toHaveLength(1)
         expect(
@@ -737,7 +737,7 @@ describe('open tabs that no longer resolve', () => {
         expect(contexts[0]?.content).toContain(browserTab.url)
         expect(
           logs.calls('warn', 'Skipped resource attachment the user can no longer access')
-        ).toEqual([{ resourceType: 'file' }])
+        ).toEqual([{ requestId: expect.any(String), resourceType: 'file' }])
         expect(logs.calls('info', 'Skipped resource attachment that no longer exists')).toEqual([])
         expect(logs.calls('error', 'Failed to resolve resource attachment')).toEqual([])
       } finally {

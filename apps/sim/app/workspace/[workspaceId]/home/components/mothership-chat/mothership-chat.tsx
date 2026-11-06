@@ -30,11 +30,13 @@ import {
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
-import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  ChatSurfaceProvider,
+  useChatChrome,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
   assistantMessageHasRenderableContent,
@@ -127,6 +129,10 @@ interface MothershipChatProps {
   animateInput?: boolean
   onInputAnimationEnd?: () => void
   className?: string
+  /** Replaces the transcript's skeleton while its history loads. */
+  loadingTranscript?: ReactNode
+  /** Holds the composer's place while the history loads. */
+  loadingComposer?: ReactNode
 }
 
 /**
@@ -453,6 +459,7 @@ export function MothershipChat({
   onInputAnimationEnd,
   className,
 }: MothershipChatProps) {
+  const { fontClassName, userBubbleClassName, loadingTranscript, loadingComposer } = useChatChrome()
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
@@ -931,7 +938,7 @@ export function MothershipChat({
           layout === 'mothership-view' &&
             reserveResourceHeader &&
             'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
-          inter.className,
+          fontClassName,
           className
         )}
       >
@@ -958,7 +965,7 @@ export function MothershipChat({
           onCopy={handleCopy}
         >
           {isLoading && !hasMessages ? (
-            <MothershipChatSkeleton layout={layout} />
+            (loadingTranscript ?? <MothershipChatSkeleton layout={layout} />)
           ) : (
             <div
               ref={sizerRef}
@@ -1011,7 +1018,7 @@ export function MothershipChat({
                             contexts={msg.contexts}
                             attachments={msg.attachments}
                             rowClassName={cn(styles.userRow, styles.rowGap)}
-                            bubbleClassName={styles.userBubble}
+                            bubbleClassName={cn(styles.userBubble, userBubbleClassName)}
                             attachmentWidthClassName={styles.attachmentWidth}
                           />
                         )
@@ -1051,24 +1058,25 @@ export function MothershipChat({
         >
           <div className={styles.footerInner}>
             <ComputerUseActivity />
-            {!isLoading &&
-              (composer ?? (
-                <UserInput
-                  key={composerKey ?? draftScopeKey}
-                  ref={userInputRef}
-                  fileDropTarget={fileDropTarget}
-                  onSubmit={onComposerSubmit ?? onSubmit}
-                  attachments={composerAttachments}
-                  resourceActions={composerResourceActions}
-                  toolbarActions={composerToolbarActions}
-                  modelSelectorOptions={composerModelSelectorOptions}
-                  isSending={isStreamActive}
-                  onStopGeneration={onStopGeneration}
-                  isInitialView={false}
-                  draftScopeKey={draftScopeKey}
-                  getMessages={getHistoryMessages}
-                />
-              ))}
+            {isLoading
+              ? loadingComposer
+              : (composer ?? (
+                  <UserInput
+                    key={composerKey ?? draftScopeKey}
+                    ref={userInputRef}
+                    fileDropTarget={fileDropTarget}
+                    onSubmit={onComposerSubmit ?? onSubmit}
+                    attachments={composerAttachments}
+                    resourceActions={composerResourceActions}
+                    toolbarActions={composerToolbarActions}
+                    modelSelectorOptions={composerModelSelectorOptions}
+                    isSending={isStreamActive}
+                    onStopGeneration={onStopGeneration}
+                    isInitialView={false}
+                    draftScopeKey={draftScopeKey}
+                    getMessages={getHistoryMessages}
+                  />
+                ))}
           </div>
         </ComposerScrollArea>
       </div>

@@ -296,33 +296,24 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       })
       return
     }
-    const portalWindow = window.open('', '_blank')
     const context = subscription.isOrgScoped ? 'organization' : 'user'
     if (context === 'organization' && !billingOrganizationId) {
-      portalWindow?.close()
       toast.error('Billing unavailable', {
         description: 'Organization billing context is unavailable. Please refresh and try again.',
       })
       return
     }
-    openBillingPortal.mutate(
+    openBillingPortal.open(
       {
         context,
         organizationId: billingOrganizationId ?? undefined,
         returnUrl: window.location.href,
       },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          toast.error("Couldn't open billing portal", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        toast.error("Couldn't open billing portal", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     )
   }

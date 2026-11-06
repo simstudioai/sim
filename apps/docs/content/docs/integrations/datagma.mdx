@@ -25,6 +25,8 @@ Integrate Datagma to find verified work emails from a name and company, enrich p
 
 Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -46,6 +48,8 @@ Find a verified work email from a person's full name and company. Uses 1 credit 
 | `mxfound` | boolean | Whether MX records were found |
 | `smtpCheck` | boolean | Whether SMTP validation succeeded |
 | `catchAll` | boolean | Whether the domain is catch-all |
+
+</ReferenceDetails>
 
 ### Datagma Enrich Person
 
@@ -92,6 +96,8 @@ Enrich a person's profile using their email, LinkedIn URL, or full name and comp
 
 Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -115,9 +121,13 @@ Enrich a company profile using a domain, company name, or SIREN number (France).
 | `revenueRange` | string | Estimated annual revenue range |
 | `headquarters` | string | Headquarters location |
 
+</ReferenceDetails>
+
 ### Datagma Find Phone
 
 Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +146,13 @@ Find a mobile phone number from a person's LinkedIn URL. Optionally supply an em
 | `countryCode` | string | Country code prefix \(e.g., +1\) |
 | `isWhatsapp` | boolean | Whether the number is linked to WhatsApp |
 
+</ReferenceDetails>
+
 ### Datagma Get Credits
 
 Check remaining credit balance on a Datagma account. Free — no credits consumed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -151,5 +165,7 @@ Check remaining credit balance on a Datagma account. Free — no credits consume
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `credits` | number | Remaining Datagma credits |
+
+</ReferenceDetails>
 
 

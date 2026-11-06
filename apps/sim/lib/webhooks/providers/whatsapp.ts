@@ -173,10 +173,10 @@ async function handleWhatsAppVerification(
   challenge: string | null
 ): Promise<NextResponse | null> {
   if (mode && token && challenge) {
-    logger.info(`[${requestId}] WhatsApp verification request received for path: ${path}`)
+    logger.info(`WhatsApp verification request received for path: ${path}`, { requestId })
 
     if (mode !== 'subscribe') {
-      logger.warn(`[${requestId}] Invalid WhatsApp verification mode: ${mode}`)
+      logger.warn(`Invalid WhatsApp verification mode: ${mode}`, { requestId })
       return new NextResponse('Invalid mode', { status: 400 })
     }
 
@@ -216,7 +216,7 @@ async function handleWhatsAppVerification(
       candidates++
 
       if (safeCompare(token, verificationToken as string)) {
-        logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
+        logger.info(`WhatsApp verification successful for webhook ${wh.id}`, { requestId })
         return new NextResponse(challenge, {
           status: 200,
           headers: {
@@ -235,7 +235,7 @@ async function handleWhatsAppVerification(
       return null
     }
 
-    logger.warn(`[${requestId}] No matching WhatsApp verification token found`)
+    logger.warn('No matching WhatsApp verification token found', { requestId })
     return new NextResponse('Verification failed', { status: 403 })
   }
 
@@ -252,20 +252,20 @@ export const whatsappHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }) {
     const appSecret = providerConfig.appSecret as string | undefined
     if (!appSecret) {
-      logger.warn(
-        `[${requestId}] WhatsApp webhook missing appSecret in providerConfig — rejecting request`
-      )
+      logger.warn('WhatsApp webhook missing appSecret in providerConfig — rejecting request', {
+        requestId,
+      })
       return new NextResponse('Unauthorized - WhatsApp app secret not configured', { status: 401 })
     }
 
     const signature = request.headers.get('x-hub-signature-256')
     if (!signature) {
-      logger.warn(`[${requestId}] WhatsApp webhook missing signature header`)
+      logger.warn('WhatsApp webhook missing signature header', { requestId })
       return new NextResponse('Unauthorized - Missing WhatsApp signature', { status: 401 })
     }
 
     if (!validateWhatsAppSignature(appSecret, signature, rawBody)) {
-      logger.warn(`[${requestId}] WhatsApp signature verification failed`)
+      logger.warn('WhatsApp signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid WhatsApp signature', { status: 401 })
     }
 
@@ -427,9 +427,9 @@ export const whatsappHandler: WebhookProviderHandler = {
   },
 
   handleEmptyInput(requestId: string) {
-    logger.info(
-      `[${requestId}] No messages or status updates in WhatsApp payload, skipping execution`
-    )
+    logger.info('No messages or status updates in WhatsApp payload, skipping execution', {
+      requestId,
+    })
     return { message: 'No messages or status updates in WhatsApp payload' }
   },
 }

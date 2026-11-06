@@ -1,4 +1,10 @@
 {
+  "ActivityRow": {
+    "density": {
+      "comfortable": [],
+      "regular": []
+    }
+  },
   "Avatar": {
     "size": {
       "card": [],
@@ -109,9 +115,15 @@
       "touch": ["C1288"]
     }
   },
+  "MultiSelect": {
+    "variant": {
+      "quiet": []
+    }
+  },
   "SearchableSelect": {
     "variant": {
       "field": [],
+      "quiet": [],
       "text": []
     }
   },

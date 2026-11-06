@@ -132,7 +132,8 @@ export async function resolveExecutorCredentialToken(
     if (result.code === OAUTH_CREDENTIAL_REVOKED) {
       throw new CredentialRevokedError(message)
     }
-    logger.error(`[${requestId}] Credential token resolution failed`, {
+    logger.error('Credential token resolution failed', {
+      requestId,
       status: result.status,
       credentialId,
       code: result.code,

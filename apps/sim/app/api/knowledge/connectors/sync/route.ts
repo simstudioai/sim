@@ -160,7 +160,7 @@ function reclaimPayload(message: string) {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  logger.info(`[${requestId}] Connector sync scheduler triggered`)
+  logger.info('Connector sync scheduler triggered')
 
   const authError = verifyCronAuth(request, 'Connector sync scheduler')
   if (authError) {
@@ -283,21 +283,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     ])
 
     if (recoveredConnectors.length > 0) {
-      logger.warn(
-        `[${requestId}] Recovered ${recoveredConnectors.length} stale syncing connectors`,
-        { ids: recoveredConnectors.map((c) => c.id) }
-      )
+      logger.warn(`Recovered ${recoveredConnectors.length} stale syncing connectors`, {
+        ids: recoveredConnectors.map((c) => c.id),
+      })
     }
 
     if (recoveredPendingConnectors.length > 0) {
       logger.warn(
-        `[${requestId}] Recovered ${recoveredPendingConnectors.length} connectors whose queued sync was never started`,
+        `Recovered ${recoveredPendingConnectors.length} connectors whose queued sync was never started`,
         { ids: recoveredPendingConnectors.map((c) => c.id) }
       )
     }
 
     if (closedSyncLogs.length > 0) {
-      logger.warn(`[${requestId}] Closed ${closedSyncLogs.length} orphaned connector sync log(s)`)
+      logger.warn(`Closed ${closedSyncLogs.length} orphaned connector sync log(s)`)
     }
 
     const dueConnectors = await db
@@ -323,7 +322,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .orderBy(asc(knowledgeConnector.nextSyncAt))
       .limit(MAX_DISPATCHES_PER_TICK)
 
-    logger.info(`[${requestId}] Found ${dueConnectors.length} connectors due for sync`)
+    logger.info(`Found ${dueConnectors.length} connectors due for sync`)
 
     if (dueConnectors.length === 0) {
       return NextResponse.json({
@@ -347,7 +346,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           requireRunnable: true,
         })
       } catch (error) {
-        logger.error(`[${requestId}] Failed to dispatch sync for connector ${connector.id}`, error)
+        logger.error(`Failed to dispatch sync for connector ${connector.id}`, error)
       }
     })
 
@@ -357,7 +356,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       count: dueConnectors.length,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Connector sync scheduler error`, error)
+    logger.error('Connector sync scheduler error', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

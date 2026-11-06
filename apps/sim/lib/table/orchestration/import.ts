@@ -81,7 +81,7 @@ function classifyImportFailure(error: unknown, requestId: string, tableId: strin
     return { ...fail(error.message, 'locked'), lock: error.lock }
   }
   if (error instanceof OrchestrationError) return fail(error.message, error.code)
-  logger.error(`[${requestId}] CSV import failed for table ${tableId}`, { error })
+  logger.error(`CSV import failed for table ${tableId}`, { requestId, error })
   return fail(toError(error).message, 'internal')
 }
 
@@ -381,7 +381,8 @@ export async function performTableCsvImport(
   )
   const rejected = rejectionFields(rejections, cellsRejected)
   if (rejected.rejections) {
-    logger.warn(`[${requestId}] CSV import lost source data`, {
+    logger.warn('CSV import lost source data', {
+      requestId,
       tableId: table.id,
       fileName,
       ...rejected.rejections,
@@ -415,7 +416,8 @@ export async function performTableCsvImport(
       // global db connection and would otherwise see no rows.
       dispatchAfterBatchInsert(finalTable, inserted, requestId, userId, capabilityGovernedUserId)
 
-      logger.info(`[${requestId}] Append CSV imported`, {
+      logger.info('Append CSV imported', {
+        requestId,
         tableId: table.id,
         fileName,
         inserted: inserted.length,
@@ -433,7 +435,8 @@ export async function performTableCsvImport(
       requestId
     )
 
-    logger.info(`[${requestId}] Replace CSV imported`, {
+    logger.info('Replace CSV imported', {
+      requestId,
       tableId: table.id,
       fileName,
       deleted: result.deletedCount,
@@ -645,7 +648,8 @@ export async function performCreateTableFromCsv(
     return classifyImportFailure(error, requestId, state?.table.id ?? 'unknown')
   }
 
-  logger.info(`[${requestId}] CSV imported`, {
+  logger.info('CSV imported', {
+    requestId,
     tableId: state.table.id,
     fileName,
     columns: state.schema.columns.length,
@@ -654,7 +658,8 @@ export async function performCreateTableFromCsv(
 
   const rejected = rejectionFields(rejections.summary, cellsRejected)
   if (rejected.rejections) {
-    logger.warn(`[${requestId}] CSV import lost source data`, {
+    logger.warn('CSV import lost source data', {
+      requestId,
       tableId: state.table.id,
       fileName,
       ...rejected.rejections,

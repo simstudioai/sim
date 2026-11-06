@@ -101,9 +101,7 @@ async function queryKnowledgeBase(
     }
   } catch (error) {
     const message = getErrorMessage(error, 'Unknown Knowledge query error')
-    logger.error(`[${requestId}] Error querying knowledge base`, {
-      error: message,
-    })
+    logger.error('Error querying knowledge base', { requestId, error: message })
     throw new Error(`Failed to query knowledge base: ${message}`, { cause: error })
   }
 }
@@ -153,7 +151,8 @@ ${userInput}
 
 Evaluate the consistency and provide your score and reasoning in JSON format.`
 
-    logger.info(`[${requestId}] Calling LLM for hallucination scoring`, {
+    logger.info('Calling LLM for hallucination scoring', {
+      requestId,
       model,
       contextChunks: ragContext.length,
     })
@@ -228,9 +227,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       throw new Error('Invalid score format from LLM')
     }
 
-    logger.info(`[${requestId}] Confidence score: ${result.score}/10`, {
-      reasoning: result.reasoning,
-    })
+    logger.info(`Confidence score: ${result.score}/10`, { requestId, reasoning: result.reasoning })
 
     return {
       score: result.score,
@@ -243,9 +240,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
      * `AbortError` name the outer handler classifies on, so it propagates as-is.
      */
     if (isAbortError(error)) throw error
-    logger.error(`[${requestId}] Error scoring with LLM`, {
-      error: getErrorMessage(error),
-    })
+    logger.error('Error scoring with LLM', { requestId, error: getErrorMessage(error) })
     throw new Error(`Failed to score confidence: ${getErrorMessage(error)}`)
   }
 }
@@ -351,10 +346,7 @@ export async function validateHallucination(
       abortSignal
     )
 
-    logger.info(`[${requestId}] Confidence score: ${score}`, {
-      reasoning,
-      threshold,
-    })
+    logger.info(`Confidence score: ${score}`, { requestId, reasoning, threshold })
 
     // Step 3: Check against threshold. Lower scores = less confidence = fail validation
     const passed = score >= threshold
@@ -375,9 +367,7 @@ export async function validateHallucination(
      * indistinguishable to a consumer from the model actually hallucinating.
      */
     if (isAbortError(error)) throw error
-    logger.error(`[${requestId}] Hallucination validation error`, {
-      error: getErrorMessage(error),
-    })
+    logger.error('Hallucination validation error', { requestId, error: getErrorMessage(error) })
     return {
       passed: false,
       error: `Validation error: ${getErrorMessage(error)}`,

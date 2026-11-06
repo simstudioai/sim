@@ -181,6 +181,7 @@ export function PromptEditor({
       ref={scrollerRef}
       className={cn(SCROLLER_CLASSES, 'cursor-text', className)}
       onClick={handleSurfaceClick}
+      onPointerDown={editor.onResourceIntent}
     >
       {/* Sizer for textarea + overlay: the textarea grows to full content
           height and the overlay fills it via `inset-0`, so both are flow
@@ -227,7 +228,8 @@ export function PromptEditor({
             actions={resourceActions}
             workspaceId={editor.workspaceId}
             organizationId={editor.organizationId}
-            warm={hasFocused}
+            warm={editor.resourceIntent ?? hasFocused}
+            selectWaitsForFullResults={editor.waitsForFullResources}
             onResourceSelect={editor.insertResource}
             onWorkspaceSelect={editor.insertWorkspace}
             onClose={editor.handlePlusMenuClose}
@@ -245,6 +247,7 @@ export function PromptEditor({
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}
             slashQuery={editor.slashQuery ?? undefined}
+            isLoading={editor.skillsLoading}
           />
         </>
       )}

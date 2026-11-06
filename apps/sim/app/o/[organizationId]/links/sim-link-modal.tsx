@@ -12,9 +12,9 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
-import { SIM_LINKS_DOCS_URL } from '@/lib/sim-links/urls'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
@@ -25,6 +25,8 @@ import {
 import { useCreateSimLink, useUpdateSimLink } from '@/hooks/queries/sim-links'
 
 type Field = 'name' | 'url' | 'defaultUrl' | 'description'
+
+const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 
 function openDocs() {
   window.open(SIM_LINKS_DOCS_URL, '_blank', 'noopener,noreferrer')

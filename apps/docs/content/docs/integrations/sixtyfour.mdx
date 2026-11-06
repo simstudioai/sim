@@ -23,6 +23,8 @@ Find emails, phone numbers, and enrich lead or company data with contact informa
 
 Find phone numbers for a lead using Sixtyfour AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -42,6 +44,8 @@ Find phone numbers for a lead using Sixtyfour AI.
 | `company` | string | Company name |
 | `phone` | string | Phone number\(s\) found |
 | `linkedinUrl` | string | LinkedIn profile URL |
+
+</ReferenceDetails>
 
 ### Sixtyfour Find Email
 
@@ -86,6 +90,8 @@ Find email addresses for a lead using Sixtyfour AI.
 
 Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -104,9 +110,13 @@ Enrich lead information with contact details, social profiles, and company data 
 | `references` | json | Source URLs and descriptions used for enrichment |
 | `confidenceScore` | number | Quality score for the returned data \(0-10\) |
 
+</ReferenceDetails>
+
 ### Sixtyfour Enrich Company
 
 Enrich company data with additional information and find associated people using Sixtyfour AI.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,5 +140,7 @@ Enrich company data with additional information and find associated people using
 | `references` | json | Source URLs and descriptions used for enrichment |
 | `confidenceScore` | number | Quality score for the returned data \(0-10\) |
 | `orgChart` | json | Org chart returned when fullOrgChart is enabled |
+
+</ReferenceDetails>
 
 

@@ -13,16 +13,13 @@ import {
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
-import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
+import { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
-import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 
 export interface ConnectorAccessSelection {
   accessMode: ConnectorAccessMode
@@ -101,57 +98,30 @@ export function ConnectorAccessField({
   slackSetupOnly = false,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
-  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
-  /**
-   * Member access needs a supported sign-in provider. Source permissions may
-   * also be available for providers authenticated with an API key.
-   */
-  const provider = connectorMemberProvider(connectorConfig)
-  const membersSupported = provider !== null
-  const accountsQuery = useSourceAccounts(
-    canAdmin && provider && value.accessMode === 'members' ? scope : undefined
-  )
-  const accounts = accountsQuery.data?.credentialGroup
-  const showSlackSetup =
-    canAdmin && value.accessMode === 'members' && connectorConfig.id === 'slack'
-  const configured =
-    accounts?.status === 'active' &&
-    accounts.options.some(
-      (option) =>
-        option.provider === provider &&
-        option.status === 'active' &&
-        option.configurationStatus === 'ready'
-    )
-  const adminSupported = Boolean(connectorConfig.mirrorsSourceAcls)
-  if (!membersSupported && !adminSupported && value.accessMode === 'workspace') return null
-
-  const modes: { mode: ConnectorAccessMode; label: string; allowed: boolean }[] = [
-    { mode: 'workspace', label: 'Workspace', allowed: allowWorkspace },
-    { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
-    {
-      mode: 'admin',
-      label:
-        !lockAccessMode && isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
-          ? 'Admin or service account'
-          : 'Service account',
-      allowed: adminSupported && allowAdmin,
-    },
-  ]
-  for (const entry of modes)
-    entry.allowed &&= supportsConnectorAccessMode(connectorConfig, entry.mode)
-  if (
-    connectorConfig.supportedAccessModes?.filter((mode) => allowWorkspace || mode !== 'workspace')
-      .length === 1 &&
-    modes.some((entry) => entry.mode === value.accessMode && entry.allowed)
-  )
-    return canAdmin && footer ? <div className='px-2'>{footer}</div> : null
-  /** Keep a retired current method visible so an admin can select an available replacement. */
-  const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
-  const currentMode = modes.find((entry) => entry.mode === value.accessMode)
-  const showModeSelector =
-    canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
-
-  if (!canAdmin && value.accessMode === 'workspace') return null
+  const {
+    accountsQuery,
+    configured,
+    currentMode,
+    hidden,
+    modes,
+    scope,
+    showModeSelector,
+    showSlackSetup,
+    singleMode,
+    visibleModes,
+  } = useConnectorAccessField({
+    workspaceId,
+    scope: explicitScope,
+    connectorConfig,
+    value,
+    canAdmin,
+    lockAccessMode,
+    allowMembers,
+    allowAdmin,
+    allowWorkspace,
+  })
+  if (hidden) return null
+  if (singleMode) return canAdmin && footer ? <div className='px-2'>{footer}</div> : null
 
   return (
     <ChipModalField

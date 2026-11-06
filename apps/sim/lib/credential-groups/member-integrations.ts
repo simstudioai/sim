@@ -2,6 +2,8 @@ import type { ComponentType } from 'react'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
+import { managedMcpAccountLimit } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -13,6 +15,7 @@ import {
   LIVE_SEARCH_SOURCE_TYPES,
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
+  liveSearchSavedMemberProvider,
 } from '@/lib/sim-search/live/source-catalog'
 
 const SEARCH_ACCOUNT_PROVIDERS = new Set([
@@ -67,7 +70,10 @@ export interface MemberIntegration {
   accounts: MemberIntegrationAccount[]
   permissionAccountIds: string[]
   reconnectAccountIds: string[]
-  connectionTarget?: { optionId: string } | { mcpServerId: string }
+  connectionTarget?:
+    | { optionId: string }
+    | { mcpServerId: string }
+    | { savedProviderId: 'jama-service-account' | 'flow-service-account' }
   ready: boolean
   managed?: boolean
   description?: string
@@ -76,6 +82,7 @@ export interface MemberIntegration {
 type MemberIntegrationAccount =
   | NonNullable<OrganizationAccountsSettings['viewerAccounts']>[number]
   | NonNullable<OrganizationAccountsSettings['viewerMcpAccounts']>[number]
+  | NonNullable<OrganizationAccountsSettings['viewerSavedAccounts']>[number]
 
 /** One member inventory, preserving native grant and managed MCP server identities. */
 export function memberIntegrationEntries(
@@ -97,6 +104,37 @@ export function memberIntegrationEntries(
   )
   const entries: MemberIntegration[] = []
   for (const [provider, meta] of LIVE_SEARCH_SOURCE_TYPES) {
+    const savedProviderId = liveSearchSavedMemberProvider(provider)
+    if (savedProviderId === 'jama-service-account' || savedProviderId === 'flow-service-account') {
+      const savedAccounts = (data.viewerSavedAccounts ?? []).filter(
+        (account) => account.providerId === savedProviderId
+      )
+      const approval = approvals.get(provider)
+      if (!savedAccounts.length && !approval?.approved) continue
+      const ready = approval?.approved === true && approval.available !== false
+      entries.push({
+        id: `source:${provider}`,
+        provider,
+        name: meta.name,
+        icon: meta.icon,
+        accounts: savedAccounts,
+        ready,
+        permissionAccountIds: [],
+        reconnectAccountIds: ready ? savedAccounts.map((account) => account.credentialId) : [],
+        connectionTarget:
+          ready && savedAccounts.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
+            ? { savedProviderId }
+            : undefined,
+        description: !policies
+          ? undefined
+          : approval?.available === false
+            ? 'Currently unavailable'
+            : ready
+              ? 'Search with your own account'
+              : 'Disabled by your organization',
+      })
+      continue
+    }
     const memberProvider =
       provider === 'slack' ? 'slack' : liveSearchMemberAccountProvider(provider)
     const mcp = liveSearchMcpConnector(provider)
@@ -138,13 +176,14 @@ export function memberIntegrationEntries(
       : []
     const option = options.find(
       (candidate) =>
-        !accounts.some((account) => 'optionId' in account && account.optionId === candidate.id)
+        accounts.filter((account) => 'optionId' in account && account.optionId === candidate.id)
+          .length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
     )
     const server = servers.find(
       (candidate) =>
-        !accounts.some(
+        accounts.filter(
           (account) => 'mcpServerId' in account && account.mcpServerId === candidate.id
-        )
+        ).length < managedMcpAccountLimit(candidate.managedConnectorId)
     )
     const ready =
       (mcp
@@ -188,7 +227,8 @@ export function memberIntegrationEntries(
             .filter((account) =>
               'optionId' in account
                 ? options.some((candidate) => candidate.id === account.optionId)
-                : servers.some((candidate) => candidate.id === account.mcpServerId)
+                : 'mcpServerId' in account &&
+                  servers.some((candidate) => candidate.id === account.mcpServerId)
             )
             .map((account) => account.credentialId)
         : [],
@@ -217,7 +257,9 @@ export function memberIntegrationEntries(
         (!source || (policy?.approved === true && policy.available !== false))
     )
     const target = readyOptions.find(
-      (option) => !accounts.some((account) => account.optionId === option.id)
+      (option) =>
+        accounts.filter((account) => account.optionId === option.id).length <
+        CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
     )
     const service = getCredentialGroupProviderService(provider)
     entries.push({

@@ -56,7 +56,6 @@ import {
   overrideDraft,
   overridePolicySummary,
   overrideWorkspaceIds,
-  type PiiOverride,
   type PolicyDraft,
   pruneEntitiesForLanguage,
   type RetentionSnapshot,
@@ -80,9 +79,14 @@ interface RetentionSelectProps {
 }
 
 function RetentionSelect({ value, onChange, allowInherit = false }: RetentionSelectProps) {
-  const options = retentionSelectOptions(value, allowInherit)
-
-  return <ChipSelect value={value} onChange={onChange} options={options} align='start' />
+  return (
+    <ChipSelect
+      value={value}
+      onChange={onChange}
+      options={retentionSelectOptions(value, allowInherit)}
+      align='start'
+    />
+  )
 }
 
 interface EntityCheckboxGridProps {
@@ -502,13 +506,13 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const [taskCleanupDays, setTaskCleanupDays] = useState(() =>
     hoursToDisplayDays(data.effective.taskCleanupHours)
   )
-  const [defaultPii, setDefaultPii] = useState<Omit<PiiOverride, 'workspaceId'> | null>(() => {
+  const [defaultPii, setDefaultPii] = useState<RetentionSnapshot['defaultPii']>(() => {
     const defaultRule = data.configured.piiRedaction?.rules?.find(
       (rule) => rule.workspaceId === null
     )
     return defaultRule ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) } : null
   })
-  const [piiOverrides, setPiiOverrides] = useState<PiiOverride[]>(() =>
+  const [piiOverrides, setPiiOverrides] = useState<RetentionSnapshot['piiOverrides']>(() =>
     (data.configured.piiRedaction?.rules ?? [])
       .filter((rule) => rule.workspaceId !== null)
       .map((rule) => ({
@@ -531,19 +535,23 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     onDiscard: handleDiscard,
   })
 
-  function snapshot(): RetentionSnapshot {
-    return { logDays, softDeleteDays, taskCleanupDays, defaultPii, piiOverrides, overrides }
+  const current: RetentionSnapshot = {
+    logDays,
+    softDeleteDays,
+    taskCleanupDays,
+    defaultPii,
+    piiOverrides,
+    overrides,
   }
-
-  const workspacesWithOverrides = overrideWorkspaceIds(snapshot()).sort((a, b) =>
+  const overriddenWorkspaceIds = overrideWorkspaceIds(current).sort((a, b) =>
     workspaceName(a).localeCompare(workspaceName(b))
   )
-  const takenWorkspaceIds = new Set(workspacesWithOverrides)
+  const takenWorkspaceIds = new Set(overriddenWorkspaceIds)
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
 
   /** Options for the detail workspace picker — excludes workspaces taken by OTHER overrides. */
   function workspacePickerOptions(draft: PolicyDraft): { value: string; label: string }[] {
-    const others = new Set(workspacesWithOverrides.filter((id) => !draft.workspaceIds.includes(id)))
+    const others = new Set(overriddenWorkspaceIds.filter((id) => !draft.workspaceIds.includes(id)))
     return workspaceOptions.filter((w) => !others.has(w.value))
   }
 
@@ -565,7 +573,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   }
 
   function openEditOrg() {
-    const draft = orgPolicyDraft(snapshot())
+    const draft = orgPolicyDraft(current)
     setEditing({ draft, original: draft, isNew: false })
   }
 
@@ -576,7 +584,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   }
 
   function openEditOverride(workspaceId: string) {
-    const draft = overrideDraft(snapshot(), workspaceId)
+    const draft = overrideDraft(current, workspaceId)
     setEditing({ draft, original: draft, isNew: false })
   }
 
@@ -593,14 +601,14 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
     const draft = editing.draft
     try {
       if (draft.isOrgDefault) {
-        await persistSnapshot(withOrgPolicy(snapshot(), draft))
+        await persistSnapshot(withOrgPolicy(current, draft))
         closeEditing()
         toast.success('Organization defaults saved.')
         return
       }
 
       if (draft.workspaceIds.length === 0) return
-      await persistSnapshot(withOverridePolicy(snapshot(), editing))
+      await persistSnapshot(withOverridePolicy(current, editing))
       closeEditing()
       toast.success('Workspace override saved.')
     } catch (error) {
@@ -613,7 +621,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   async function removeCurrentOverride() {
     if (!editing || editing.draft.isOrgDefault) return
     try {
-      await persistSnapshot(withoutOverride(snapshot(), editing.original.workspaceIds))
+      await persistSnapshot(withoutOverride(current, editing.original.workspaceIds))
       closeEditing()
       toast.success('Workspace override removed.')
     } catch (error) {
@@ -658,17 +666,17 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
             <div className={RESOURCE_LIST_STACK}>
               <SettingsResourceRow
                 title='Organization'
-                description={orgPolicySummary(snapshot())}
+                description={orgPolicySummary(current)}
                 badge={<ChipTag variant='gray'>Default</ChipTag>}
                 onClick={openEditOrg}
                 clickLabel='Open organization retention policy'
                 navigable
               />
-              {workspacesWithOverrides.map((workspaceId) => (
+              {overriddenWorkspaceIds.map((workspaceId) => (
                 <SettingsResourceRow
                   key={workspaceId}
                   title={workspaceName(workspaceId)}
-                  description={overridePolicySummary(snapshot(), workspaceId)}
+                  description={overridePolicySummary(current, workspaceId)}
                   onClick={() => openEditOverride(workspaceId)}
                   clickLabel={`Open ${workspaceName(workspaceId)} retention override`}
                   navigable

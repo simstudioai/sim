@@ -18,6 +18,8 @@ interface ChatPanelLayoutProps {
   collapsed: boolean
   label: string
   activityCount?: number
+  /** Removes the collapse control, for a host whose panel has nothing to open yet. */
+  toggleHidden?: boolean
   onToggle: () => void
   onResize: PointerEventHandler<HTMLDivElement>
   onResizeKeyDown: KeyboardEventHandler<HTMLDivElement>
@@ -33,6 +35,7 @@ export function ChatPanelLayout({
   collapsed,
   label,
   activityCount = 0,
+  toggleHidden = false,
   onToggle,
   onResize,
   onResizeKeyDown,
@@ -74,41 +77,43 @@ export function ChatPanelLayout({
         </div>
       )}
       {panel}
-      <div
-        className={cn(
-          'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
-          RESOURCE_HEADER_CLASSES.overlay,
-          RESOURCE_HEADER_CLASSES.endPosition
-        )}
-      >
-        <Button
-          variant='ghost'
-          size={null}
-          type='button'
-          onClick={onToggle}
-          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+      {!toggleHidden && (
+        <div
+          className={cn(
+            'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
+            RESOURCE_HEADER_CLASSES.overlay,
+            RESOURCE_HEADER_CLASSES.endPosition
+          )}
         >
-          <span className={cn('sr-only', !collapsed && 'max-md:hidden')}>{toggleLabel}</span>
-          {!collapsed && <span className='sr-only hidden max-md:block'>Back to chat</span>}
-          <span className='relative'>
-            {!collapsed && (
-              <ArrowLeft className='hidden size-[16px] text-[var(--text-icon)] max-md:block' />
-            )}
-            <PanelLeft
-              className={cn(
-                '-scale-x-100 size-[16px] text-[var(--text-icon)]',
-                !collapsed && 'max-md:hidden'
+          <Button
+            variant='ghost'
+            size={null}
+            type='button'
+            onClick={onToggle}
+            className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+          >
+            <span className={cn('sr-only', !collapsed && 'max-md:hidden')}>{toggleLabel}</span>
+            {!collapsed && <span className='sr-only hidden max-md:block'>Back to chat</span>}
+            <span className='relative'>
+              {!collapsed && (
+                <ArrowLeft className='hidden size-[16px] text-[var(--text-icon)] max-md:block' />
               )}
-            />
-            {collapsed && activityCount > 0 && (
-              <span
-                aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
+              <PanelLeft
+                className={cn(
+                  '-scale-x-100 size-[16px] text-[var(--text-icon)]',
+                  !collapsed && 'max-md:hidden'
+                )}
               />
-            )}
-          </span>
-        </Button>
-      </div>
+              {collapsed && activityCount > 0 && (
+                <span
+                  aria-hidden='true'
+                  className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
+                />
+              )}
+            </span>
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

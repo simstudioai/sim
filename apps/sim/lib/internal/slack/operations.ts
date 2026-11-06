@@ -320,7 +320,8 @@ async function uploadSlackFiles(
       const uploadUrl = slackString(data, 'upload_url')
       const fileId = slackString(data, 'file_id')
       if (!slackOk(data) || !uploadUrl || !fileId) {
-        logger.error(`[${context.requestId}] Failed to get Slack upload URL`, {
+        logger.error('Failed to get Slack upload URL', {
+          requestId: context.requestId,
           error: slackString(data, 'error'),
         })
         return
@@ -338,7 +339,8 @@ async function uploadSlackFiles(
       )
       context.signal?.throwIfAborted()
       if (!uploaded.ok) {
-        logger.error(`[${context.requestId}] Failed to upload Slack file data`, {
+        logger.error('Failed to upload Slack file data', {
+          requestId: context.requestId,
           status: uploaded.status,
         })
         return

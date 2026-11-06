@@ -24,6 +24,8 @@ export interface LiveAccount {
 export type NativeAccessReference = Pick<NativeDocument, 'id' | 'container' | 'kind'>
 
 export interface NativeReadOptions {
+  /** Trusted provider destination resolved from the saved connection. */
+  origin?: string
   policy: LiveSearchPolicy
   filters?: WorkspaceSearchFilters
   signal: AbortSignal
@@ -33,6 +35,8 @@ export interface NativeReadOptions {
 }
 
 export interface NativeDocument {
+  /** Binds self-hosted document IDs to the credential's current provider tenant and identity. */
+  connectionBinding?: string
   /** Server-only references whose content must pass a fresh check before projection. */
   accessDependencies?: readonly NativeAccessReference[]
   /**

@@ -28,7 +28,7 @@ import {
 import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { formatCalendarDate, formatTimestamp } from '@/platform/lib/time'
+import { formatCalendarDate, formatTimestamp } from '@/platform/shared/time'
 
 const COLUMNS = [
   { key: 'name', label: 'Enterprise', kind: 'text' },

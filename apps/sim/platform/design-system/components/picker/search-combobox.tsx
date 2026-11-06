@@ -60,12 +60,12 @@ export function SearchCombobox({
       filter={null}
       inputValue={search.query}
       onInputValueChange={(query, details) => {
-        if (details.reason !== 'item-press') search.onQueryChange(query)
+        if (details.reason !== 'item-press') search.onQueryChange(query, details)
       }}
       onOpenChange={onOpenChange}
       onValueChange={(next) => {
         if (!next) return
-        search.onQueryChange('')
+        search.onQueryChange('', { reason: 'item-press' })
         onSelect(next)
       }}
       autoHighlight

@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [arXiv](https://arxiv.org/) hosts research papers. Search by keyword, author, title, or category, retrieve a paper’s metadata, or list papers by an author. This integration does not require an API key or OAuth connection.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Search arXiv papers, retrieve paper metadata, or list an author’s papers. No A
 ### ArXiv Search
 
 Search for academic papers on ArXiv by keywords, authors, titles, or other fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -39,9 +42,13 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 | `papers` | json | Array of papers matching the search query |
 | `totalResults` | number | Total number of results found for the search query |
 
+</ReferenceDetails>
+
 ### ArXiv Get Paper
 
 Get detailed information about a specific ArXiv paper by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,9 +62,13 @@ Get detailed information about a specific ArXiv paper by its ID.
 | --------- | ---- | ----------- |
 | `paper` | json | Detailed information about the requested ArXiv paper |
 
+</ReferenceDetails>
+
 ### ArXiv Get Author Papers
 
 Search for papers by a specific author on ArXiv.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,5 +83,7 @@ Search for papers by a specific author on ArXiv.
 | --------- | ---- | ----------- |
 | `authorPapers` | json | Array of papers authored by the specified author |
 | `totalResults` | number | Total number of papers found for the author |
+
+</ReferenceDetails>
 
 

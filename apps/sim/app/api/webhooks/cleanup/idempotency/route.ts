@@ -13,7 +13,7 @@ export const maxDuration = 300 // Allow up to 5 minutes for cleanup
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  logger.info(`Idempotency cleanup triggered (${requestId})`)
+  logger.info('Idempotency cleanup triggered')
 
   try {
     const authError = verifyCronAuth(request, 'Idempotency key cleanup')
@@ -45,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    logger.error(`Error during idempotency cleanup (${requestId}):`, error)
+    logger.error('Error during idempotency cleanup:', error)
     return NextResponse.json(
       {
         success: false,

@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Contacts](https://contacts.google.com/) stores contact records for a Google account. Search or list contacts to obtain their resource names, then use those names to read, update, or delete records. Create contacts with the name, email, phone, and other fields needed by your workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -37,6 +38,8 @@ Create, read, update, delete, list, and search contacts.
 
 Create a new contact in Google Contacts
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -58,9 +61,13 @@ Create a new contact in Google Contacts
 | `content` | string | Contact creation confirmation message |
 | `metadata` | json | Created contact metadata including resource name and details |
 
+</ReferenceDetails>
+
 ### Google Contacts Get
 
 Get a specific contact from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +82,13 @@ Get a specific contact from Google Contacts
 | `content` | string | Contact retrieval confirmation message |
 | `metadata` | json | Contact details including name, email, phone, and organization |
 
+</ReferenceDetails>
+
 ### Google Contacts List
 
 List contacts from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -94,9 +105,13 @@ List contacts from Google Contacts
 | `content` | string | Summary of found contacts count |
 | `metadata` | json | List of contacts with pagination tokens |
 
+</ReferenceDetails>
+
 ### Google Contacts Search
 
 Search contacts in Google Contacts by name, email, phone, or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -112,9 +127,13 @@ Search contacts in Google Contacts by name, email, phone, or organization
 | `content` | string | Summary of search results count |
 | `metadata` | json | Search results with matching contacts |
 
+</ReferenceDetails>
+
 ### Google Contacts Update
 
 Update an existing contact in Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +158,13 @@ Update an existing contact in Google Contacts
 | `content` | string | Contact update confirmation message |
 | `metadata` | json | Updated contact metadata |
 
+</ReferenceDetails>
+
 ### Google Contacts Delete
 
 Delete a contact from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,5 +178,7 @@ Delete a contact from Google Contacts
 | --------- | ---- | ----------- |
 | `content` | string | Contact deletion confirmation message |
 | `metadata` | json | Deletion details including resource name |
+
+</ReferenceDetails>
 
 

@@ -33,7 +33,7 @@ const logger = createLogger('OAuthTokenAPI')
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
-  logger.info(`[${requestId}] OAuth token API POST request received`)
+  logger.info('OAuth token API POST request received')
 
   try {
     const parsed = await parseRequest(
@@ -42,7 +42,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid token request`, { errors: error.issues })
+          logger.warn('Invalid token request', { errors: error.issues })
           return NextResponse.json(
             { error: getValidationErrorMessage(error, 'Validation failed') },
             { status: 400 }
@@ -64,14 +64,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const callerUserId = parsed.data.query.userId
 
     if (credentialAccountUserId && providerId) {
-      logger.info(`[${requestId}] Fetching token by credentialAccountUserId + providerId`, {
+      logger.info('Fetching token by credentialAccountUserId + providerId', {
         credentialAccountUserId,
         providerId,
       })
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || auth.authType !== AuthType.SESSION || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized request for credentialAccountUserId path`, {
+        logger.warn('Unauthorized request for credentialAccountUserId path', {
           success: auth.success,
           authType: auth.authType,
         })
@@ -80,7 +80,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       if (auth.userId !== credentialAccountUserId) {
         logger.warn(
-          `[${requestId}] User ${auth.userId} attempted to access credentials for ${credentialAccountUserId}`
+          `User ${auth.userId} attempted to access credentials for ${credentialAccountUserId}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
       }
@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ accessToken }, { status: 200 })
       } catch (error) {
         const message = getErrorMessage(error, 'Failed to get OAuth token')
-        logger.warn(`[${requestId}] OAuth token error: ${message}`)
+        logger.warn(`OAuth token error: ${message}`)
         return NextResponse.json({ error: message }, { status: 403 })
       }
     }
@@ -148,7 +148,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error getting access token`, error)
+    logger.error('Error getting access token', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
@@ -166,7 +166,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid query parameters`, { errors: error.issues })
+          logger.warn('Invalid query parameters', { errors: error.issues })
           return NextResponse.json(
             { error: getValidationErrorMessage(error, 'Validation failed') },
             { status: 400 }
@@ -203,7 +203,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (!credential.accessToken) {
-      logger.warn(`[${requestId}] No access token available for credential`)
+      logger.warn('No access token available for credential')
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
@@ -225,7 +225,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching access token`, error)
+    logger.error('Error fetching access token', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

@@ -1,0 +1,79 @@
+.directory {
+  /* Everything above and below the table's own scroller, so the page itself stays still. */
+  --ui-table-viewport-offset: calc(
+    var(--shell-home-row-start) +
+    2 *
+    var(--spacing-app-control-md) +
+    2 *
+    var(--spacing-48) +
+    var(--spacing-48)
+  );
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  padding-inline: var(--ui-page-inline-gutter);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.search {
+  flex: 0 1 var(--spacing-320);
+  min-inline-size: var(--spacing-192);
+}
+
+.department {
+  flex: 0 1 var(--spacing-192);
+  min-inline-size: var(--spacing-128);
+}
+
+.scope {
+  flex: 1;
+  color: var(--ui-secondary);
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (width < 48rem) {
+  .scope {
+    display: none;
+  }
+}
+
+.blank {
+  color: var(--ui-muted);
+}
+
+.personCell {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.summary,
+.summaryDepartment {
+  display: none;
+}
+
+.summary {
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-4);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The breakpoints where the table hides its columns: what leaves the row joins the person's cell. */
+@container (width < 48rem) {
+  .summary {
+    display: grid;
+  }
+}
+
+@container (width < 30rem) {
+  .summaryDepartment {
+    display: inline;
+  }
+}

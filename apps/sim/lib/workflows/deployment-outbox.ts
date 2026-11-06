@@ -871,7 +871,8 @@ const syncActiveSideEffects = async (rawPayload: unknown): Promise<void> => {
     .limit(1)
 
   if (!workflowRecord) {
-    logger.warn(`[${requestId}] Workflow missing during deployment side-effect sync`, {
+    logger.warn('Workflow missing during deployment side-effect sync', {
+      requestId,
       workflowId: payload.workflowId,
     })
     return
@@ -893,7 +894,8 @@ const syncActiveSideEffects = async (rawPayload: unknown): Promise<void> => {
     .limit(1)
 
   if (!versionRow?.isActive) {
-    logger.info(`[${requestId}] Skipping stale deployment side-effect sync`, {
+    logger.info('Skipping stale deployment side-effect sync', {
+      requestId,
       workflowId: payload.workflowId,
       deploymentVersionId: payload.deploymentVersionId,
     })
@@ -1073,13 +1075,14 @@ async function syncInactiveDeploymentCleanup(params: {
       requestId: params.requestId,
     })
     if (complete) return
-    logger.info(
-      `[${params.requestId}] Inline inactive-deployment cleanup has more rows; continuing through the outbox`
-    )
+    logger.info('Inline inactive-deployment cleanup has more rows; continuing through the outbox', {
+      requestId: params.requestId,
+    })
   } catch (cleanupError) {
     logger.warn(
-      `[${params.requestId}] Inline inactive-deployment cleanup failed; deferring to outbox retry`,
-      cleanupError
+      'Inline inactive-deployment cleanup failed; deferring to outbox retry',
+      cleanupError,
+      { requestId: params.requestId }
     )
   }
   await enqueueWorkflowInactiveDeploymentCleanup(db, {
@@ -1235,7 +1238,8 @@ async function cleanupStaleDeploymentIfNeeded(params: {
     return true
   }
 
-  logger.info(`[${params.requestId}] Cleaning up stale deployment side effects`, {
+  logger.info('Cleaning up stale deployment side effects', {
+    requestId: params.requestId,
     workflowId: params.payload.workflowId,
     deploymentVersionId: params.payload.deploymentVersionId,
   })

@@ -69,6 +69,7 @@ export async function resolveSelectorCredentialBundle(input: {
   input.protectedValues.add(bundle.accessToken)
   input.protectedValues.add(bundle.cloudId, 'reference')
   input.protectedValues.add(bundle.domain, 'reference')
+  input.protectedValues.add(bundle.providerWorkspaceId, 'reference')
   input.protectedValues.add(bundle.instanceUrl, 'reference')
   input.protectedValues.add(bundle.apiDomain, 'reference')
   if (input.providerId) input.recordCredentialUse?.(credential.providerId ?? input.providerId)

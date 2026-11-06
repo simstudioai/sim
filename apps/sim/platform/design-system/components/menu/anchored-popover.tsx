@@ -10,6 +10,8 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 
 type AnchoredPopoverProps = {
   label: string
+  /** The trigger's name, where it differs from the popover it opens. */
+  triggerLabel?: string
   presentation: 'menu' | 'panel'
   anchor: RefObject<HTMLElement | null>
   children: ReactNode
@@ -22,6 +24,7 @@ type AnchoredPopoverProps = {
 
 export function AnchoredPopover({
   label,
+  triggerLabel = label,
   presentation,
   trigger,
   icon,
@@ -43,7 +46,7 @@ export function AnchoredPopover({
           size='row'
         />
       ) : (
-        trigger(<Popover.Trigger ref={portal.trigger} aria-label={label} />)
+        trigger(<Popover.Trigger ref={portal.trigger} aria-label={triggerLabel} />)
       )}
       {portal.container && (
         <Popover.Portal container={portal.container}>

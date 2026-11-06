@@ -8,7 +8,7 @@ interface SettingsSectionProps {
 
 export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
-    <section className={styles.section} aria-label={title}>
+    <section className={styles.section} aria-label={title} data-setting-label={title}>
       <h2 data-type='T093'>{title}</h2>
       <SettingsSurface>{children}</SettingsSurface>
     </section>
@@ -29,7 +29,7 @@ export function SettingsSurface({ children }: SettingsSurfaceProps) {
 
 interface SettingsRowProps {
   label: string
-  description?: string
+  description?: ReactNode
   /** An avatar or glyph aligned with the first line of the label. */
   leading?: ReactNode
   children?: ReactNode
@@ -48,7 +48,7 @@ export function SettingsRow({ label, description, leading, children, field }: Se
     </div>
   )
   return (
-    <div className={styles.row} data-field={field || undefined}>
+    <div className={styles.row} data-field={field || undefined} data-setting-label={label}>
       {leading ? (
         <div className={styles.identity}>
           <span className={styles.leading}>{leading}</span>

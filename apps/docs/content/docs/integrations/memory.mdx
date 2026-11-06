@@ -6,11 +6,12 @@ integration:
   color: "#F64F9E"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the Memory block to store and retrieve messages across workflow runs. Add messages with the same conversation identifier to append to an existing conversation, retrieve one conversation or all memories, and delete memories that are no longer needed.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Add, get a memory, get all memories, and delete memories.
 ### Add Memory
 
 Add a new memory to the database or append to existing memory with the same ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -39,9 +42,13 @@ Add a new memory to the database or append to existing memory with the same ID.
 | `memories` | array | Array of memory objects including the new or updated memory |
 | `error` | string | Error message if operation failed |
 
+</ReferenceDetails>
+
 ### Get Memory
 
 Retrieve memory by conversationId. Returns matching memories.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +66,13 @@ Retrieve memory by conversationId. Returns matching memories.
 | `message` | string | Success or error message |
 | `error` | string | Error message if operation failed |
 
+</ReferenceDetails>
+
 ### Get All Memories
 
 Retrieve all memories from the database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -77,9 +88,13 @@ Retrieve all memories from the database
 | `message` | string | Success or error message |
 | `error` | string | Error message if operation failed |
 
+</ReferenceDetails>
+
 ### Delete Memory
 
 Delete memories by conversationId.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,5 +110,7 @@ Delete memories by conversationId.
 | `success` | boolean | Whether the memory was deleted successfully |
 | `message` | string | Success or error message |
 | `error` | string | Error message if operation failed |
+
+</ReferenceDetails>
 
 

@@ -15,7 +15,7 @@ export async function resolveVertexAccessToken(
   requestId: string,
   credentialId: string
 ): Promise<string> {
-  logger.info(`[${requestId}] Resolving Vertex AI credential`, { credentialId })
+  logger.info('Resolving Vertex AI credential', { requestId, credentialId })
 
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) throw new Error(`Vertex AI credential not found: ${credentialId}`)
@@ -24,7 +24,7 @@ export async function resolveVertexAccessToken(
     const accessToken = await getServiceAccountToken(resolved.credentialId, [
       'https://www.googleapis.com/auth/cloud-platform',
     ])
-    logger.info(`[${requestId}] Resolved Vertex AI service account credential`)
+    logger.info('Resolved Vertex AI service account credential', { requestId })
     return accessToken
   }
 
@@ -36,6 +36,6 @@ export async function resolveVertexAccessToken(
   const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
   if (!accessToken) throw new Error('Failed to get Vertex AI access token')
 
-  logger.info(`[${requestId}] Resolved Vertex AI credential`)
+  logger.info('Resolved Vertex AI credential', { requestId })
   return accessToken
 }
