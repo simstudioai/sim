@@ -68,6 +68,7 @@ describe('rebaseAfterSecretsSave', () => {
     const current = { ...submitted, rows: [row('r', '', ''), EMPTY] }
     const next = rebaseAfterSecretsSave(submitted, current, saved)
     expect(Object.hasOwn(next.variables, 'NEW')).toBe(false)
+    expect(Object.keys(next.variables)).toEqual(['A'])
   })
 
   it('restores the prior value when a row that overwrote a variable was cleared', () => {
