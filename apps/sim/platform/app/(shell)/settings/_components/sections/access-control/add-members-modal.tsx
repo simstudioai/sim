@@ -103,6 +103,7 @@ export function AddMembersModal({
               </Button>
             </ActionRow>
             {filtered.length === 0 ? (
+              // A picker's no-match line stays quiet: a block would take over the dialog.
               <Muted>{`No members found matching "${search}"`}</Muted>
             ) : (
               <div ref={scrollRef} className={styles.memberPicker}>

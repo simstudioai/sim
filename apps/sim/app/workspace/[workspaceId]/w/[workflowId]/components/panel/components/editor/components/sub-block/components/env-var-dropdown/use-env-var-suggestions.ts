@@ -34,7 +34,6 @@ export function useEnvVarSuggestions({
 }: EnvVarSuggestionsOptions) {
   const { navigateToSettings } = useSettingsNavigation()
 
-  // React Query hooks for environment variables
   const { data: personalEnv = {} } = usePersonalEnvironment()
   const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
     select: useCallback(
@@ -49,6 +48,11 @@ export function useEnvVarSuggestions({
 
   const userEnvVars = Object.keys(personalEnv)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [indexedSearchTerm, setIndexedSearchTerm] = useState(searchTerm)
+  if (searchTerm !== indexedSearchTerm) {
+    setIndexedSearchTerm(searchTerm)
+    setSelectedIndex(0)
+  }
 
   const envVarGroups: EnvVarGroup[] = []
 
@@ -78,10 +82,6 @@ export function useEnvVarSuggestions({
       ),
     }))
     .filter((group) => group.variables.length > 0)
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [searchTerm])
 
   const openEnvironmentSettings = () => {
     if (workspaceId) {

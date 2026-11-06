@@ -34,6 +34,7 @@ import {
   ActionMenu,
   Button,
   ConfirmDialog,
+  EmptyState,
   FailureNotice,
   InlineNotice,
   LoadingRows,
@@ -220,7 +221,10 @@ export function GroupMappings({
     return (
       <>
         {targetsNotice}
-        <Muted>No groups yet. Push a group from your identity provider and it appears here.</Muted>
+        <EmptyState
+          title='No groups yet.'
+          description='Push a group from your identity provider and it appears here.'
+        />
       </>
     )
   }

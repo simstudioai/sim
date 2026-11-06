@@ -193,7 +193,7 @@ function useHomeCalendar(
   const date = selectedDay ?? clock.today
   const settledDate = useDebounce(date, CALENDAR_DAY_SETTLE_MS)
   // Keyed by the shown day throughout: the header moves at once, a day already read shows at once,
-  // and any other reads as loading until it settles, exactly as an unread day always has.
+  // and any other reads as loading until it settles.
   const read = useOrganizationHomeCalendar(organizationId, date, timeZone, {
     enabled: connection.status === 'connected' && !hidden && settledDate === date,
   })

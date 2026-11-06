@@ -100,7 +100,7 @@ const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 const MENU_ITEM_SELECTOR = '[role="menuitem"], [role="menuitemcheckbox"]'
 /**
- * Workspaces an organization chat reads at once. Each is about a dozen requests, so an organization's
+ * Workspaces an organization chat reads at once. Each is several requests, so an organization's
  * whole list arriving together would be hundreds at the app server. Rows fill in as each one lands.
  */
 const ORGANIZATION_INVENTORY_CONCURRENCY = 8
@@ -118,7 +118,7 @@ interface PlusMenuDropdownProps {
    * message with the mention unresolved. Focus is the earliest reliable signal
    * that a mention may be coming, and still keeps these lists off page load.
    * An organization chat passes the viewer's explicit intent instead, because
-   * its field takes focus on load and its lists cost a dozen reads per workspace.
+   * its field takes focus on load and its lists cost several reads per workspace.
    */
   warm?: boolean
   /** While the lists load, Enter waits instead of picking the best of what has arrived so far. */

@@ -37,7 +37,6 @@
 [data-platform-ui] {
   color-scheme: light;
   color: var(--ui-ink);
-  background: var(--ui-canvas);
   font-family: var(--font-sans);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -46,6 +45,10 @@
   text-rendering: auto;
   font-feature-settings: normal;
   font-variation-settings: normal;
+}
+
+[data-platform-ui][data-canvas] {
+  background: var(--ui-canvas);
 }
 
 [data-platform-ui][data-theme="dark"] {

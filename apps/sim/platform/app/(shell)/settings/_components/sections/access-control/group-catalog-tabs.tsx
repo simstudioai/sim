@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   FieldStack,
-  Muted,
   SectionStack,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -19,6 +18,7 @@ import {
 } from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows'
 import { ProjectIssueRestrictions } from '@/platform/app/(shell)/settings/_components/sections/access-control/project-issue-restrictions'
 import {
+  EmptyState,
   FailureNotice,
   LoadingRows,
   SearchableSelect,
@@ -196,7 +196,7 @@ function ProvidersTab({
         />
       </SectionToolbar>
       {filtered.length === 0 ? (
-        <Muted>No providers match your filters.</Muted>
+        <EmptyState title='No providers match your filters.' />
       ) : (
         <SettingsSection title='Providers'>
           {filtered.map((providerId) => (
@@ -240,7 +240,9 @@ function BlocksTab({ params, query, model, controls }: CatalogTabProps) {
       >
         <StatusFilterSelect value={status} onChange={params.setStatus} />
       </SectionToolbar>
-      {core.length === 0 && tools.length === 0 && <Muted>No blocks match your filters.</Muted>}
+      {core.length === 0 && tools.length === 0 && (
+        <EmptyState title='No blocks match your filters.' />
+      )}
       {core.length > 0 && (
         <SettingsSection title='Core Blocks'>
           <SettingsRow label='All core blocks'>
@@ -340,7 +342,7 @@ function PlatformTab({
           controls={controls}
         />
       </SectionToolbar>
-      {sections.length === 0 && <Muted>No features match your filters.</Muted>}
+      {sections.length === 0 && <EmptyState title='No features match your filters.' />}
       {sections.map(({ category, features: rows }) => (
         <SettingsSection key={category} title={category}>
           {rows.map((feature) => (

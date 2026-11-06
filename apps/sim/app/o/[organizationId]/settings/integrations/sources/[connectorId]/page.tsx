@@ -7,6 +7,7 @@ import { authorizeOrganizationSettingsSection } from '@/lib/settings/application
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { SourceDetail } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-detail'
 import { SettingsSubpageHost } from '@/platform/app/(shell)/settings/_components/settings-subpage-host'
+import { LoadingRows } from '@/platform/design-system/components'
 
 export const metadata: Metadata = { title: 'Search source' }
 
@@ -36,7 +37,7 @@ export default async function OrganizationSourcePage({ params }: OrganizationSou
 
   return (
     <SettingsSubpageHost section='integrations'>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingRows label='Loading integration' />}>
         <SourceDetail connectorId={connectorId} />
       </Suspense>
     </SettingsSubpageHost>

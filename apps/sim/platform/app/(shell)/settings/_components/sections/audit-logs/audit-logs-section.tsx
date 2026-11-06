@@ -274,7 +274,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
               }}
             />
           </>
-        ) : feed.isLoading ? (
+        ) : /* The feed has scope states and paging one query's boundary cannot express. */ feed.isLoading ? (
           <LoadingRows label='Loading audit logs…' />
         ) : scope.isUnavailable ? (
           <FailureNotice

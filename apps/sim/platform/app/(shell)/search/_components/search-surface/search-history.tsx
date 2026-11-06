@@ -6,7 +6,7 @@ import { CompactSourceRow } from '@/platform/app/(shell)/_components/search/sour
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
 import { Button, Chip } from '@/platform/design-system/components/button/button'
 import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
+import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { useSearchLandingHistory } from '@/platform/lib/data/search-history'
 
 interface HistoryPaneProps {
@@ -91,13 +91,10 @@ export function SearchHistory({ userId, onSearch, children }: SearchHistoryProps
         )}
         {failed && (
           <div className={styles.historyError}>
-            <InlineNotice
+            <FailureNotice
               message='Recent activity couldn’t load.'
-              action={
-                <Button variant='quiet' size='compact' disabled={retrying} onClick={retry}>
-                  Try again
-                </Button>
-              }
+              retrying={retrying}
+              onRetry={retry}
             />
           </div>
         )}

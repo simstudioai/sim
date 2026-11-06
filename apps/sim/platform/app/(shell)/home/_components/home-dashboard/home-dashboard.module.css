@@ -17,10 +17,6 @@
   margin-inline: auto;
   padding-block: var(--design-spacing-64) var(--design-spacing-24);
 }
-/* The host page's canvas shows through, so the composer's row does not read as a band. */
-.dashboard > [data-platform-ui] {
-  background: transparent;
-}
 /* Customize Home's menu opens over the composer, whose own stacking stays within its row. */
 .dashboard > :first-child {
   position: relative;

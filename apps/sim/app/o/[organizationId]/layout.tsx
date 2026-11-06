@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
@@ -135,7 +136,7 @@ export default async function OrganizationLayout({
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
               <WorkspaceViewport
-                className={`workspace-root ${hostBridge.tokens} ${hostBridge.canvas}`}
+                className={cn('workspace-root', hostBridge.tokens, hostBridge.canvas)}
               >
                 <ImpersonationBanner />
                 <SessionExpired />

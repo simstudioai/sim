@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -46,7 +45,7 @@ const USER_COLUMNS = [
 
 export default function AdminSection() {
   useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section: 'admin' }, 'admin')
-  const admin = useAdminConsole()
+  const admin = useAdminConsole({ onActionError: (message) => toast.error(message) })
   const { settings, importWorkflow, usersData, searchQuery, pendingUserIds } = admin
   const superUser = settings?.superUserModeEnabled ?? false
 
@@ -102,7 +101,11 @@ export default function AdminSection() {
                     id: 'unban',
                     label: 'Unban',
                     disabled: pendingUserIds.has(user.id),
-                    onSelect: () => admin.unbanUser.mutate({ userId: user.id }),
+                    onSelect: () =>
+                      admin.unbanUser.mutate(
+                        { userId: user.id },
+                        { onError: (error) => toast.error(error.message) }
+                      ),
                   }
                 : {
                     id: 'ban',
@@ -117,21 +120,7 @@ export default function AdminSection() {
         ),
     }))
 
-  const actionError =
-    admin.impersonationGuardError ??
-    (admin.unbanUser.error || admin.impersonateUser.error
-      ? ((admin.unbanUser.error ?? admin.impersonateUser.error)?.message ??
-        'Action failed. Try again.')
-      : null)
   const pendingEmail = admin.pendingUser?.email ?? 'this user'
-  const importError = importWorkflow.error?.message
-  // These mutations live in the shared admin console, so failure is reported from where it surfaces.
-  useEffect(() => {
-    if (actionError) toast.error(actionError)
-  }, [actionError])
-  useEffect(() => {
-    if (importError) toast.error(importError)
-  }, [importError])
 
   return (
     <SectionStack>

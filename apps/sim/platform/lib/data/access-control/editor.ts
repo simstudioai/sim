@@ -19,7 +19,10 @@ import {
   groupTabUrlKeys,
 } from '@/ee/access-control/search-params'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
-import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
+import {
+  PERMISSION_EDITOR_CATALOG_STALE_TIME,
+  permissionGroupKeys,
+} from '@/hooks/queries/utils/permission-group-keys'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   findProviderForModel,
@@ -121,7 +124,7 @@ export function usePermissionEditorCatalog(organizationId: string) {
   return useQuery<PermissionGroupEditorCatalog>({
     queryKey: permissionGroupKeys.editorCatalog(organizationId),
     queryFn: skipToken,
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: PERMISSION_EDITOR_CATALOG_STALE_TIME,
   })
 }
 

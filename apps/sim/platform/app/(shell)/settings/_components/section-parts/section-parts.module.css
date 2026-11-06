@@ -39,7 +39,7 @@
   gap: var(--spacing-8);
 }
 
-.detailTitleRow {
+.headingRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

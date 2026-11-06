@@ -14,8 +14,9 @@ import {
   EmptyState,
   FailureNotice,
   InlineNotice,
+  LoadingRows,
   Modal,
-  SearchField,
+  SectionSearch,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 
@@ -86,11 +87,13 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
             onRetry={() => void setup.refetchIntegrationAvailability()}
           />
         ) : setup.isIntegrationAvailabilityLoading ? (
-          <Muted>Loading sources</Muted>
+          <LoadingRows label='Loading sources' />
         ) : setup.managedSource ? (
-          <Muted>
-            {setup.index.isPending ? 'Loading source' : 'This source is no longer available.'}
-          </Muted>
+          setup.index.isPending ? (
+            <LoadingRows label='Loading source' />
+          ) : (
+            <Muted>This source is no longer available.</Muted>
+          )
         ) : selectedType ? (
           !setup.selectedAvailable ? (
             <Muted>{`Not available in this ${scope.kind}`}</Muted>
@@ -101,16 +104,11 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
               onRetry={setup.retryPrepare}
             />
           ) : (
-            <Muted>Loading source setup</Muted>
+            <LoadingRows label='Loading source setup' />
           )
         ) : (
           <>
-            <SearchField
-              label='Find a source'
-              placeholder='Find a source…'
-              value={setup.search}
-              onValueChange={setup.setSearch}
-            />
+            <SectionSearch subject='sources' value={setup.search} onValueChange={setup.setSearch} />
             {setup.visibleTypes.map(([type, meta]) => {
               const { admin: central, members } = setup.availabilityOf(meta)
               const available = setup.initialMode(type) === 'members' ? members : central

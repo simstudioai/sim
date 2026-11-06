@@ -12,11 +12,11 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/app/(shell)/_components/search/source-row'
-import { Button, Chip } from '@/platform/design-system/components/button/button'
+import { Chip } from '@/platform/design-system/components/button/button'
 import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { DateRangePicker } from '@/platform/design-system/components/picker/date-picker'
 import { Select } from '@/platform/design-system/components/picker/select'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
+import { FailureNotice, InlineNotice } from '@/platform/design-system/components/status/status'
 
 function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] }) {
   const { source, updated, range } = useSearchFilterControls(sourceTypes)
@@ -76,14 +76,10 @@ function LiveResults({ scope, query, onSummarize }: LiveResultsProps) {
       )}
       {awaitingRange && <p data-type='T060'>Choose the days to search.</p>}
       {isError && (
-        <InlineNotice
-          intent='danger'
+        <FailureNotice
           message='Search couldn’t run.'
-          action={
-            <Button variant='quiet' size='compact' onClick={() => void results.refetch()}>
-              Try again
-            </Button>
-          }
+          retrying={isFetching}
+          onRetry={() => void results.refetch()}
         />
       )}
       {results.showFilterControls && <SearchFilterControls sourceTypes={results.sourceTypes} />}

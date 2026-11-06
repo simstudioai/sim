@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast, writeTextToClipboard } from '@sim/emcn'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 
 function absoluteHref(href: string): string {
@@ -7,7 +7,7 @@ function absoluteHref(href: string): string {
 
 async function copyLink(href: string) {
   try {
-    await navigator.clipboard.writeText(absoluteHref(href))
+    await writeTextToClipboard(absoluteHref(href))
   } catch {
     toast.error('Failed to copy link')
   }

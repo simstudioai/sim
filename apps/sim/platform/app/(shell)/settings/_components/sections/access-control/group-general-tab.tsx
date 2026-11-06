@@ -10,9 +10,9 @@ import {
   Avatar,
   Button,
   ConfirmDialog,
-  FailureNotice,
-  LoadingRows,
+  errorMessageOr,
   MultiSelect,
+  QueryBoundary,
   Switch,
   TextField,
 } from '@/platform/design-system/components'
@@ -66,40 +66,38 @@ function GroupMembers({ group, organizationId }: GroupMembersProps) {
           Add
         </Button>
       </SettingsRow>
-      {members.isPending ? (
-        <LoadingRows label='Loading members…' />
-      ) : members.data === undefined ? (
-        <FailureNotice
-          message={getErrorMessage(members.error, 'Failed to load members')}
-          retrying={members.isFetching}
-          onRetry={() => void members.refetch()}
-        />
-      ) : (
-        memberList.map((member) => {
-          const name = member.userName || member.userEmail || 'Unknown'
-          return (
-            <SettingsRow
-              key={member.id}
-              label={name}
-              description={`${member.userEmail || name} · Added ${formatTimestamp(new Date(member.assignedAt).getTime())}`}
-              leading={<Avatar name={name} src={member.userImage ?? undefined} />}
-            >
-              <ActionMenu
-                label={`${name} actions`}
-                icon='I108'
-                actions={[
-                  {
-                    id: 'remove',
-                    label: 'Remove',
-                    destructive: true,
-                    onSelect: () => setRemoving({ id: member.id, name }),
-                  },
-                ]}
-              />
-            </SettingsRow>
-          )
-        })
-      )}
+      <QueryBoundary
+        query={members}
+        failure={errorMessageOr('Failed to load members')}
+        loadingLabel='Loading members…'
+      >
+        {(loaded) =>
+          loaded.map((member) => {
+            const name = member.userName || member.userEmail || 'Unknown'
+            return (
+              <SettingsRow
+                key={member.id}
+                label={name}
+                description={`${member.userEmail || name} · Added ${formatTimestamp(new Date(member.assignedAt).getTime())}`}
+                leading={<Avatar name={name} src={member.userImage ?? undefined} />}
+              >
+                <ActionMenu
+                  label={`${name} actions`}
+                  icon='I108'
+                  actions={[
+                    {
+                      id: 'remove',
+                      label: 'Remove',
+                      destructive: true,
+                      onSelect: () => setRemoving({ id: member.id, name }),
+                    },
+                  ]}
+                />
+              </SettingsRow>
+            )
+          })
+        }
+      </QueryBoundary>
       {adding && (
         <AddMembersModal
           organizationId={organizationId}

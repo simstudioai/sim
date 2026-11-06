@@ -89,6 +89,25 @@ export function useRequestsUrl(canReview: boolean) {
 }
 
 /** My requests, the catalog behind Browse access, and whether the catalog tab has anything. */
+interface RowsRead {
+  searching?: boolean
+  loading: boolean
+  error: Error | null
+  fetching: boolean
+  retry: () => void
+}
+
+/** A read for `QueryBoundary` that holds its content back while a search is catching up or failing. */
+function gatedRead<T>(content: T, { searching, loading, error, fetching, retry }: RowsRead) {
+  const waiting = searching || loading
+  return {
+    data: waiting || error ? undefined : content,
+    error: waiting ? undefined : error,
+    isFetching: fetching,
+    refetch: retry,
+  }
+}
+
 export function useMyRequests(scope: RequestScope, view: 'requests' | 'catalog' | 'review') {
   const [params, setParams] = useQueryStates(REQUESTS_PARAMS, accessRequestUrlOptions)
   const { search, page } = params
@@ -106,35 +125,42 @@ export function useMyRequests(scope: RequestScope, view: 'requests' | 'catalog' 
     offset: view === 'catalog' ? offset : 0,
   })
   const current = view === 'requests' ? requests : catalog
+  const searching = view === 'catalog' && search.trim() !== debounced
+  const rows = (requests.data?.requests ?? []).map((request) => ({
+    id: request.id,
+    title: request.targetLabel,
+    date: requestDate(request),
+    status: statusTag(request.status),
+  }))
+  const entries = (catalog.data?.entries ?? []).map((entry) => ({
+    key: `${entry.target.kind}/${getAccessRequestTargetKey(entry.target)}`,
+    label: entry.label,
+    target: entry.target,
+    state: entry.state,
+    pendingRequestId: entry.pendingRequestId,
+  }))
+  const read = {
+    searching,
+    loading: current.isPending,
+    error: current.isError ? current.error : null,
+    fetching: current.isFetching,
+    retry: () => void current.refetch(),
+  }
   return {
     search,
     query: debounced,
     setSearch,
     page,
     setPage: (next: number) => void setParams({ page: next }),
-    searching: view === 'catalog' && search.trim() !== debounced,
-    loading: current.isPending,
-    error: current.isError ? current.error : null,
+    searching,
     fetching: current.isFetching,
-    retry: () => void current.refetch(),
+    rowsRead: gatedRead(rows, read),
+    entriesRead: gatedRead(entries, read),
     hasMore: Boolean(current.data?.hasMore),
     showCatalog: catalog.isSuccess && catalog.data.entries.length > 0,
     paused: catalog.isSuccess && !catalog.data.enabled && Boolean(catalog.data.organizationId),
     catalogEnabled: Boolean(catalog.data?.enabled),
     hasOrganization: Boolean(catalog.data?.organizationId),
-    rows: (requests.data?.requests ?? []).map((request) => ({
-      id: request.id,
-      title: request.targetLabel,
-      date: requestDate(request),
-      status: statusTag(request.status),
-    })),
-    entries: (catalog.data?.entries ?? []).map((entry) => ({
-      key: `${entry.target.kind}/${getAccessRequestTargetKey(entry.target)}`,
-      label: entry.label,
-      target: entry.target,
-      state: entry.state,
-      pendingRequestId: entry.pendingRequestId,
-    })),
   }
 }
 
@@ -223,6 +249,12 @@ export function useReviewList(organizationId: string) {
   const settings = useAccessRequestSettings(organizationId)
   const updateSettings = useUpdateAccessRequestSettings(organizationId)
   const statusLabel = status === 'all' ? null : ACCESS_REQUEST_STATUS_LABELS[status]
+  const rows = (requests.data?.requests ?? []).map((request) => ({
+    id: request.id,
+    title: request.targetLabel,
+    detail: `${requesterName(request)} · ${requestDate(request)}`,
+    status: statusTag(request.status),
+  }))
   return {
     search,
     query: debounced,
@@ -234,23 +266,23 @@ export function useReviewList(organizationId: string) {
       void setParams({ 'request-status': next, 'request-page': 0 }),
     statusLabel,
     searching,
-    loading: requests.isPending,
-    error: requests.isError ? requests.error : null,
     fetching: requests.isFetching,
-    retry: () => void requests.refetch(),
+    rowsRead: gatedRead(rows, {
+      searching,
+      loading: requests.isPending,
+      error: requests.isError ? requests.error : null,
+      fetching: requests.isFetching,
+      retry: () => void requests.refetch(),
+    }),
     hasMore: Boolean(requests.data?.hasMore),
     count: !searching && !requests.isError ? requests.data?.total : undefined,
-    rows: (requests.data?.requests ?? []).map((request) => ({
-      id: request.id,
-      title: request.targetLabel,
-      detail: `${requesterName(request)} · ${requestDate(request)}`,
-      status: statusTag(request.status),
-    })),
     settings: {
-      loading: settings.isPending,
-      error: settings.isError ? settings.error : null,
-      fetching: settings.isFetching,
-      retry: () => void settings.refetch(),
+      read: gatedRead(settings.data, {
+        loading: settings.isPending,
+        error: settings.isError ? settings.error : null,
+        fetching: settings.isFetching,
+        retry: () => void settings.refetch(),
+      }),
       allowed: settings.data?.allowRequests ?? false,
       updating: updateSettings.isPending,
       update: updateSettings.mutateAsync,

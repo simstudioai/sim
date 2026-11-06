@@ -337,12 +337,12 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
   const fileDrop = useFileDrop({ processFiles, target: props.fileDropTarget, disabled })
 
-  /**
-   * Clears all attached files and cleanup preview URLs
-   */
   /** The latest list, fresher than `attachedFiles` between an edit and its render. */
   const getAttachedFiles = useCallback(() => attachedFilesRef.current, [])
 
+  /**
+   * Clears all attached files and cleanup preview URLs
+   */
   const clearAttachedFiles = useCallback(() => {
     for (const controller of uploadControllers.values()) controller.abort()
     uploadControllers.clear()

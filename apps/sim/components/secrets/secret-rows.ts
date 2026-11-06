@@ -1,5 +1,12 @@
+import { toast } from '@sim/emcn'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { isValidEnvVarName } from '@/executor/constants'
+
+/** Copies a secret's name and confirms with a toast. */
+export function copySecretName(key: string) {
+  void navigator.clipboard.writeText(key)
+  toast.success('Copied name to clipboard')
+}
 
 export const generateRowId = (() => {
   let counter = 0

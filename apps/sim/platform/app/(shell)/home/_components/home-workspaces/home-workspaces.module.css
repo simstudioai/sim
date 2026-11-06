@@ -1,17 +1,10 @@
-.entries {
-  --ui-row-block: var(--spacing-8);
-  display: grid;
-  min-inline-size: 0;
-}
 .viewport {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ui-list-gap);
   justify-items: start;
-  margin-inline: calc(-1 * var(--ui-row-inset));
 }
-.viewport > .entries {
-  inline-size: 100%;
-}
-.entries > * + * {
-  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+/* Stays on the rows' outer edge, where the list's inset puts them. */
+.viewport > :not(ul) {
+  margin-inline-start: calc(-1 * var(--ui-row-inset));
 }

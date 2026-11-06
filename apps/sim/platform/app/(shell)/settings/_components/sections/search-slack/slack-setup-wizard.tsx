@@ -17,6 +17,7 @@ import {
   StatusTag,
   TextField,
 } from '@/platform/design-system/components'
+import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 
 interface SlackSetupWizardProps {
   organizationId: string
@@ -228,6 +229,7 @@ interface SlackManifestProps {
 
 /** Opens new app creation or provides the manifest for updating an existing app. */
 function SlackManifest({ manifest, createAppUrl, disabled }: SlackManifestProps) {
+  const { copy } = useClipboard()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   if (createAppUrl)
     return (
@@ -252,12 +254,7 @@ function SlackManifest({ manifest, createAppUrl, disabled }: SlackManifestProps)
       </div>
     )
   async function copyManifest() {
-    try {
-      await navigator.clipboard.writeText(manifest)
-      setCopyState('copied')
-    } catch {
-      setCopyState('failed')
-    }
+    setCopyState((await copy(manifest)) ? 'copied' : 'failed')
   }
   return (
     <>

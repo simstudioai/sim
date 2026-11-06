@@ -8,6 +8,7 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
 import type { PlatformSettingsSection } from '@/platform/app/(shell)/settings/_components/platform-sections'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
+import hostStyles from '@/platform/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { LoadingRows } from '@/platform/design-system/components'
 import { useSettingRowReveal } from '@/platform/lib/data/settings-search'
@@ -163,11 +164,8 @@ export function PlatformSettingsSectionHost({
   }
   const Section = PLATFORM_SECTIONS[section]
   return (
-    <div
-      ref={revealRoot}
-      className='grid h-full min-h-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]'
-    >
-      <RedesignSurface>
+    <div ref={revealRoot} className={hostStyles.host}>
+      <RedesignSurface canvas>
         <SettingsScreen
           title={meta?.title ?? 'Settings'}
           description={meta?.description}

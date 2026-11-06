@@ -9,6 +9,7 @@ import { countPasteRows } from '@sim/utils/paste'
 import { useRouter } from 'next/navigation'
 import {
   applyVariableEdits,
+  copySecretName,
   createEmptyEnvVar,
   generateRowId,
   parseEnvVarLine,
@@ -39,12 +40,6 @@ const logger = createLogger('SecretsManager')
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const COL_SPAN_ALL = 'col-span-4'
 const MAX_ENV_PASTE_ROWS = 10_000
-
-/** Copies a secret's name and confirms with a toast. */
-function copyName(key: string) {
-  void navigator.clipboard.writeText(key)
-  toast.success('Copied name to clipboard')
-}
 
 interface SecretRowMenuProps {
   /** Copies the secret's name. */
@@ -144,7 +139,7 @@ function WorkspaceVariableRow({
         name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
       <SecretRowMenu
-        onCopyName={() => copyName(envKey)}
+        onCopyName={() => copySecretName(envKey)}
         onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
       />
@@ -205,7 +200,7 @@ function NewWorkspaceVariableRow({
       />
       {hasContent ? (
         <SecretRowMenu
-          onCopyName={() => copyName(envVar.key)}
+          onCopyName={() => copySecretName(envVar.key)}
           onDelete={() => {
             onUpdate(index, 'key', '')
             onUpdate(index, 'value', '')
@@ -808,7 +803,7 @@ export function SecretsEditor({
         />
         {hasContent ? (
           <SecretRowMenu
-            onCopyName={() => copyName(envVar.key)}
+            onCopyName={() => copySecretName(envVar.key)}
             onDelete={() => removeEnvVar(originalIndex)}
           />
         ) : (

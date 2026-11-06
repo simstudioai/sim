@@ -1,5 +1,6 @@
 'use client'
 
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -12,7 +13,10 @@ import PreferencesSection from '@/platform/app/(shell)/settings/_components/sect
 import PrivacySection from '@/platform/app/(shell)/settings/_components/sections/privacy/privacy-section'
 import { useAnonymousViewer } from '@/platform/lib/data/organization'
 
-type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
+const GENERAL_VIEWS = ['privacy', 'authorized-apps', 'organization-accounts'] as const
+type GeneralView = (typeof GENERAL_VIEWS)[number]
+/** Nullable: no `view` is the section's own page, and an unknown one falls back to it. */
+const generalViewParser = parseAsStringLiteral(GENERAL_VIEWS)
 
 function generalHref(base: string, query: SettingsSectionProps['query'], view?: GeneralView) {
   const params = new URLSearchParams()
@@ -29,7 +33,7 @@ export default function GeneralSection(props: SettingsSectionProps) {
   const anonymous = useAnonymousViewer()
   useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section: 'general' }, 'general')
   const base = organizationRoutes(organization.organization.id).settingsSection('general')
-  const view = Array.isArray(query.view) ? query.view[0] : query.view
+  const [view] = useQueryState('view', generalViewParser)
   if (view === 'privacy') {
     return (
       <>

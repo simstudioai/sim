@@ -13,7 +13,6 @@ import {
 import {
   ActionRow,
   FieldStack,
-  Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -21,6 +20,7 @@ import {
   Button,
   ConfirmDialog,
   CopyField,
+  EmptyState,
   FailureNotice,
   LoadingRows,
   StatusTag,
@@ -157,6 +157,7 @@ export function DomainsPanel({
             </ActionRow>
           </FieldStack>
         </form>
+        {/* Every state but the rows sits in a padded stack, which a boundary around all of them cannot do. */}
         {isLoading ? (
           <FieldStack>
             <LoadingRows label='Loading domains…' />
@@ -171,7 +172,7 @@ export function DomainsPanel({
           </FieldStack>
         ) : domains.length === 0 ? (
           <FieldStack>
-            <Muted>No domains yet.</Muted>
+            <EmptyState title='No domains yet.' />
           </FieldStack>
         ) : (
           domains.map((domain) => (

@@ -8,6 +8,7 @@ import type {
   SyntheticEvent,
   UIEventHandler,
 } from 'react'
+import { useCallback } from 'react'
 import styles from '@/platform/design-system/components/field/field.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
@@ -96,14 +97,23 @@ export function Input({
   inputRef,
 }: InputProps) {
   const scrollRef = useScrollEdges<HTMLInputElement>('horizontal')
+  const elementRef = useCallback(
+    (element: HTMLInputElement | null) => {
+      const stopMeasuring = scrollRef(element)
+      if (typeof inputRef === 'function') inputRef(element)
+      else if (inputRef) inputRef.current = element
+      return () => {
+        stopMeasuring?.()
+        if (typeof inputRef === 'function') inputRef(null)
+        else if (inputRef) inputRef.current = null
+      }
+    },
+    [scrollRef, inputRef]
+  )
   return (
     <span className={styles.inputFrame} data-trailing={trailing ? true : undefined}>
       <input
-        ref={(element) => {
-          scrollRef(element)
-          if (typeof inputRef === 'function') inputRef(element)
-          else if (inputRef) inputRef.current = element
-        }}
+        ref={elementRef}
         id={id}
         type={type}
         inputMode={inputMode}

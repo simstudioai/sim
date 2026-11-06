@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { SessionPrincipal } from '@sim/auth/principal'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { Hydrated } from '@/app/o/[organizationId]/_redesign/hydrated'
-import { IntegrationsHost } from '@/app/o/[organizationId]/integrations/integrations-host'
+import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import {
   IntegrationsRoute,
   IntegrationsRouteFallback,
@@ -17,12 +17,12 @@ interface HydratedIntegrationsProps extends Omit<IntegrationsRouteProps, 'organi
 
 export function HydratedIntegrations({ surface, principal, ...route }: HydratedIntegrationsProps) {
   return (
-    <IntegrationsHost>
+    <RedesignPageSurface>
       <Suspense fallback={<IntegrationsRouteFallback detail={Boolean(route.section)} />}>
         <Hydrated state={prefetchIntegrations(surface, principal)}>
           <IntegrationsRoute organizationId={surface.organization.id} {...route} />
         </Hydrated>
       </Suspense>
-    </IntegrationsHost>
+    </RedesignPageSurface>
   )
 }

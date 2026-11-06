@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import {
@@ -59,7 +59,7 @@ export default function MothershipSection() {
     mothershipParsers,
     mothershipUrlKeys
   )
-  const defaults = useMemo(() => defaultTimeRange(), [])
+  const defaults = defaultTimeRange()
   const [start, setStart] = useState(defaults.start)
   const [end, setEnd] = useState(defaults.end)
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)

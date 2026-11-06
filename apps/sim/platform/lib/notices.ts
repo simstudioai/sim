@@ -1,4 +1,5 @@
 import { toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 
 interface Notice {
   id: string
@@ -37,4 +38,9 @@ const NOTICES = { notify, dismiss }
 /** Delivers design-system notices through the app's existing toast stack. */
 export function usePlatformNotices() {
   return NOTICES
+}
+
+/** An action that failed: what could not happen, and the server's reason when it gave one. */
+export function reportFailure(title: string, error: unknown) {
+  toast.error(title, { description: getErrorMessage(error, 'Please try again in a moment.') })
 }

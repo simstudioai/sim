@@ -11,7 +11,7 @@ interface MyRequestModalProps {
   onClose: () => void
 }
 
-/** A saved link to a request the viewer can no longer see opens nothing, as on the legacy surface. */
+/** A saved link to a request the viewer can no longer see opens nothing. */
 export function MyRequestModal({ scope, requestId, onClose }: MyRequestModalProps) {
   const details = useRequestDetails(scope, requestId)
   if (details.missing) return null

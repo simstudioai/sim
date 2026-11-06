@@ -5,12 +5,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
-  Muted,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import {
   Disclosure,
+  EmptyState,
   FailureNotice,
   Icon,
   LoadingRows,
@@ -177,7 +177,7 @@ export function PermissionGrid({
     .sort((a, b) => a.label.localeCompare(b.label))
   const targetFor = (id: string) => ({ kind, id }) as AccessRequestTarget
   if (loading) return <LoadingRows label='Loading…' />
-  if (!items.length) return <Muted>{emptyLabel}</Muted>
+  if (!items.length) return <EmptyState title={emptyLabel} />
   return (
     <>
       <SectionToolbar
@@ -190,7 +190,7 @@ export function PermissionGrid({
           controls={controls}
         />
       </SectionToolbar>
-      {!filtered.length && <Muted>No items match your search.</Muted>}
+      {!filtered.length && <EmptyState title='No items match your search.' />}
       <div ref={scrollRef} className={styles.grid}>
         {filtered.map((item) => (
           <PermissionRow

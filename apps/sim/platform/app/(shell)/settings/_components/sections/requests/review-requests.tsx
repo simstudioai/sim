@@ -2,6 +2,7 @@
 
 import { toast } from '@sim/emcn'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
+import { HeadingRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewModal } from '@/platform/app/(shell)/settings/_components/sections/requests/review-modal'
 import {
@@ -51,12 +52,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         maxLength={ACCESS_REQUEST_MAX_SEARCH_LENGTH}
       />
       <QueryBoundary
-        query={{
-          data: settings.loading || settings.error ? undefined : true,
-          error: settings.loading ? undefined : settings.error,
-          isFetching: settings.fetching,
-          refetch: settings.retry,
-        }}
+        query={settings.read}
         failure={errorMessageOr('The settings are unavailable.')}
         failureTitle='Unable to load request settings'
         loadingLabel='Loading request settings…'
@@ -84,7 +80,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
           </SettingsSurface>
         )}
       </QueryBoundary>
-      <div className={styles.listHeading}>
+      <HeadingRow>
         <h2 data-type='T042'>{list.count === undefined ? 'Requests' : `Requests ${list.count}`}</h2>
         <span className={styles.filter}>
           <Select
@@ -99,40 +95,36 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
             }
           />
         </span>
-      </div>
+      </HeadingRow>
       <QueryBoundary
-        query={{
-          data: list.searching || list.loading || list.error ? undefined : list.rows,
-          error: list.searching || list.loading ? undefined : list.error,
-          isFetching: list.fetching,
-          refetch: list.retry,
-        }}
+        query={list.rowsRead}
         failure={errorMessageOr('The requests are unavailable.')}
         failureTitle='Unable to load requests'
         loadingLabel='Loading requests…'
-      >
-        {() =>
-          list.rows.length === 0 ? (
+        empty={(rows) =>
+          rows.length === 0 && (
             <EmptyState title={emptyTitle(list.query, list.status, list.statusLabel)} />
-          ) : (
-            <SettingsSurface>
-              {list.rows.map((row) => (
-                <SettingsRow key={row.id} label={row.title} description={row.detail}>
-                  <span className={styles.controls}>
-                    <StatusTag label={row.status.label} intent={row.status.intent} />
-                    <Button
-                      size='compact'
-                      variant='quiet'
-                      onClick={() => void setParams({ 'request-id': row.id }, { history: 'push' })}
-                    >
-                      Review
-                    </Button>
-                  </span>
-                </SettingsRow>
-              ))}
-            </SettingsSurface>
           )
         }
+      >
+        {(rows) => (
+          <SettingsSurface>
+            {rows.map((row) => (
+              <SettingsRow key={row.id} label={row.title} description={row.detail}>
+                <span className={styles.controls}>
+                  <StatusTag label={row.status.label} intent={row.status.intent} />
+                  <Button
+                    size='compact'
+                    variant='quiet'
+                    onClick={() => void setParams({ 'request-id': row.id }, { history: 'push' })}
+                  >
+                    Review
+                  </Button>
+                </span>
+              </SettingsRow>
+            ))}
+          </SettingsSurface>
+        )}
       </QueryBoundary>
       {!list.searching && (list.page > 0 || list.hasMore) && (
         <Pagination

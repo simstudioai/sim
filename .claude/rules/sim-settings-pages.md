@@ -18,7 +18,7 @@ reason written where it differs; "it was already like that" is not one.
 | Loading | `LoadingRows` by default. A placeholder shaped like its content (`WidgetSkeleton`, usage charts) only where rows would misrepresent it | A second generic skeleton |
 | Failed read | `FailureNotice`, labelled Retry. `intent='warning'` where the read partly answered | A hand-built retry button or `InlineNotice` + `Button` |
 | Failed background refresh | `FailureNotice` outside the boundary, over the content it keeps | Replacing content already on screen |
-| Empty | `EmptyState`, with no create button when the page already has one | `Muted` or a raw `<p>` |
+| Empty | `EmptyState`, with no create button when the page already has one. A picker's no-match line inside a dialog stays `Muted`, since a block would take over the dialog | `Muted` or a raw `<p>` anywhere else |
 | Confirm | `ConfirmDialog` (`target`, `title`, `confirmLabel`, `pendingLabel`, `onConfirm`, `safe` when nothing is lost). Removing a person, revoking an invite and any destructive row action always ask first | `Modal variant='confirm'`, `window.confirm`, an unconfirmed destructive action |
 | Save | `SaveActions`, end-aligned in the page flow under the fields it commits: Discard while dirty, then Save. Save is visible and disabled while clean | Save in a header, Save before Discard, a Cancel beside Discard |
 | Editing a server value | `useServerDraft`. Adopts a newer value while clean; while dirty it keeps the edits and sets `conflict`. Show `DraftConflictNotice`, and block Save until the viewer chooses | Seeding `useState` from a query once |
@@ -56,7 +56,7 @@ user activation is spent, `cancel` cannot be prevented, so `OverlayDialog` reope
   and `group-catalog-tabs.tsx` its bodies, `use-group-draft.ts` its write.
 - Merge logic worth a test is a pure module next to the view, such as `secrets-draft.ts`.
 - `section-parts/` holds what only settings needs: `SectionStack`, `FieldStack`, `SectionToolbar`,
-  `DetailHeader`, `Muted`, `SectionSkeleton`, `DraftConflictNotice`, `useServerDraft`.
+  `DetailHeader`, `HeadingRow`, `Muted`, `SectionSkeleton`, `DraftConflictNotice`. `useServerDraft` is in `_components/`, since Integrations uses it too.
 
 ## Legacy workspace settings
 

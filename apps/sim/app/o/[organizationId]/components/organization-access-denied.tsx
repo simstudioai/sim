@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import Link from 'next/link'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
@@ -8,7 +9,11 @@ import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 export function OrganizationAccessDenied() {
   return (
     <main
-      className={`desktop-title-bar-page flex bg-[var(--bg)] ${hostBridge.tokens} ${hostBridge.canvas}`}
+      className={cn(
+        'desktop-title-bar-page flex bg-[var(--bg)]',
+        hostBridge.tokens,
+        hostBridge.canvas
+      )}
     >
       <DesktopTitleBarLane />
       <RouteStatus
