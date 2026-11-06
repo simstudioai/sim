@@ -346,10 +346,65 @@ describe('a journal restored past the age limit', () => {
       NOW
     ).status
 
-  it('shows a message on its way as not delivered', () => {
+  it('shows a message that never reached a turn as not delivered', () => {
     expect(restore('pending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
-    expect(restore('steered', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
     expect(restore('sending', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('failed')
+  })
+
+  it('keeps one steered as steered, since its turn may have applied it', () => {
+    expect(restore('steered', ORPHAN_AUTO_SEND_MAX_AGE_MS)).toBe('steered')
+    const aged = fromJournaled(
+      'chat',
+      toJournaled(
+        entry('a', {
+          status: 'steered',
+          streamId: 'turn',
+          writtenAt: NOW - ORPHAN_AUTO_SEND_MAX_AGE_MS,
+        })
+      ),
+      NOW
+    )
+    const context = { streamId: 'turn', turnErrored: false, now: NOW }
+    expect(afterDispositionRead(aged, { status: 'applied', textOffset: 3 }, context).status).toBe(
+      'applied'
+    )
+    expect(afterDispositionRead(aged, { status: 'not_applied' }, context).status).toBe('failed')
+  })
+
+  it('lets the user send it once they ask, after no turn took it', () => {
+    const aged = fromJournaled(
+      'chat',
+      toJournaled(
+        entry('a', {
+          status: 'steered',
+          streamId: 'turn',
+          writtenAt: NOW - ORPHAN_AUTO_SEND_MAX_AGE_MS,
+        })
+      ),
+      NOW
+    )
+    const retried = { ...aged, ...afterRetry(aged) }
+    const read = afterDispositionRead(
+      retried,
+      { status: 'not_applied' },
+      { streamId: 'turn', turnErrored: false, now: NOW }
+    )
+    expect(read.status).toBe('pending')
+  })
+
+  it('sends a recent steered message no turn took on its own', () => {
+    const recent = fromJournaled(
+      'chat',
+      toJournaled(entry('a', { status: 'steered', streamId: 'turn', writtenAt: NOW - 1 })),
+      NOW
+    )
+    expect(
+      afterDispositionRead(
+        recent,
+        { status: 'not_applied' },
+        { streamId: 'turn', turnErrored: false, now: NOW }
+      ).status
+    ).toBe('pending')
   })
 
   it('resumes a recent one where it stood, and leaves one already applied alone', () => {

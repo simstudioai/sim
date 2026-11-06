@@ -78,6 +78,8 @@ export interface OutgoingMessage {
   writtenAt: number
   /** Epoch ms before which it is not tried again. */
   notBefore?: number
+  /** Restored past the age limit: if no turn took it, it waits for the user rather than going out. */
+  noAutoSend?: boolean
 }
 
 /** What became of a steer, as the client reads it; `unknown`: no answer, so it may be held. */
@@ -152,21 +154,21 @@ export function toJournaled(message: OutgoingMessage): JournaledOutgoing {
 }
 
 /**
- * The entry a journal restores. One on its way that has sat past the age limit (a
- * browser session restored days later) shows as not delivered, with no network call
- * and nothing going out until the user asks.
+ * The entry a journal restores. Past the age limit (a browser session restored days
+ * later) nothing goes out until the user asks: one that never reached a turn shows as
+ * not delivered, with no network call. One steered stays steered, because its turn may
+ * well have applied it, and only a read saying no turn took it shows it as not delivered.
  */
 export function fromJournaled(
   chatKey: string,
   entry: JournaledOutgoing,
   now: number
 ): OutgoingMessage {
-  const stillOnItsWay = entry.status === 'pending' || entry.status === 'steered'
+  const pastAgeLimit = now - entry.writtenAt >= ORPHAN_AUTO_SEND_MAX_AGE_MS
   return {
     ...entry,
-    ...(stillOnItsWay && now - entry.writtenAt >= ORPHAN_AUTO_SEND_MAX_AGE_MS
-      ? { status: 'failed' as const }
-      : {}),
+    ...(pastAgeLimit && entry.status === 'pending' ? { status: 'failed' as const } : {}),
+    ...(pastAgeLimit && entry.status === 'steered' ? { noAutoSend: true } : {}),
     chatKey,
     display: optimisticUserMessageFor(entry.id, entry.payload),
     attempts: 0,
@@ -307,7 +309,7 @@ export function afterDispositionRead(
   }
   if (outcome.status === 'not_applied') {
     return {
-      ...notSteered(context.streamId, context.turnErrored),
+      ...notSteered(context.streamId, context.turnErrored || message.noAutoSend === true),
       ...(message.attempts > 0
         ? { notBefore: context.now + outgoingRetryDelay(message.attempts) }
         : {}),
@@ -336,6 +338,7 @@ export function afterRetry(message: OutgoingMessage): Partial<OutgoingMessage> {
     attempts: 0,
     reads: 0,
     notBefore: undefined,
+    noAutoSend: undefined,
   }
 }
 

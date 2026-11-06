@@ -3556,28 +3556,44 @@ describe('useChat remount send recovery', () => {
       }
     )
 
-    it.each([
-      ['steered', { status: 'steered', streamId: 'earlier-turn' }],
-      ['pending', { status: 'pending' }],
-    ] as const)(
-      'shows a %s entry a session restore brought back days later as not delivered',
-      async (_name, standing) => {
-        const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7'
-        state.steerDispositions = ['not_applied']
-        const view = await restoredChat([
-          {
-            id,
-            payload: { content: 'from days ago' },
-            writtenAt: Date.now() - 3 * 24 * 60 * 60_000,
-            ...standing,
-          },
-        ])
+    const restoredDaysLater = (standing: { status: 'steered' | 'pending'; streamId?: string }) =>
+      restoredChat([
+        {
+          id: '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7',
+          payload: { content: 'from days ago' },
+          writtenAt: Date.now() - 3 * 24 * 60 * 60_000,
+          ...standing,
+        },
+      ])
 
-        expect(deliveryOf(view, id)).toBe('failed')
-        expect(state.steerBodies).toEqual([])
-        expect(state.postBodies).toEqual([])
-      }
-    )
+    it('shows a pending entry a session restore brought back days later as not delivered, with no call', async () => {
+      const view = await restoredDaysLater({ status: 'pending' })
+
+      expect(deliveryOf(view, '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7')).toBe('failed')
+      expect(state.steerBodies).toEqual([])
+      expect(state.postBodies).toEqual([])
+    })
+
+    it('never sends a steered entry a session restore brought back days later when no turn took it', async () => {
+      state.steerDispositions = ['not_applied']
+      const view = await restoredDaysLater({ status: 'steered', streamId: 'earlier-turn' })
+
+      await vi.waitFor(() =>
+        expect(deliveryOf(view, '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7')).toBe('failed')
+      )
+      expect(state.postBodies).toEqual([])
+    })
+
+    it('does not call a steered entry restored days later undelivered when its turn applied it', async () => {
+      state.steerDispositions = ['applied']
+      const view = await restoredDaysLater({ status: 'steered', streamId: 'earlier-turn' })
+
+      await vi.waitFor(() => expect(state.steerBodies.length).toBeGreaterThan(0))
+      await vi.waitFor(() =>
+        expect(deliveryOf(view, '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7')).toBeUndefined()
+      )
+      expect(state.postBodies).toEqual([])
+    })
 
     it('does not let a message not delivered hold back a later plain send', async () => {
       const id = '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9'
