@@ -3706,6 +3706,13 @@ describe('useChat remount send recovery', () => {
       })
       await waitFor(() => state.steerBodies.length === 1)
 
+      /* The saved chat has not answered yet: the view alone must settle the refusal. */
+      mockRequestJson.mockImplementation(
+        (_contract: unknown, input: { signal?: AbortSignal }) =>
+          new Promise((_, reject) => {
+            input.signal?.addEventListener('abort', () => reject(input.signal?.reason))
+          })
+      )
       await turn.end()
       await waitFor(() => state.postBodies.length === 2)
       await waitFor(() => !view.getResult().isSending)
@@ -3717,6 +3724,9 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies).toHaveLength(2)
       const liveAnswer = getLiveAssistantMessageId(state.steerBodies[0].steeringId)
       expect(view.getResult().messages.some((message) => message.id === liveAnswer)).toBe(false)
+      expect(
+        userMessages(view.getResult()).filter((text) => text === 'Then summarize')
+      ).toHaveLength(1)
     })
 
     it('keeps a message that could not go out, shown as not delivered', async () => {

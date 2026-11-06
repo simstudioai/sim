@@ -4044,9 +4044,24 @@ export function useChat(
         }
 
         /* The message was already applied as steering in an earlier run of this chat,
-           so the conversation has it: drop this turn's pair and show the chat as saved. */
+           so the conversation has it: no answer is coming, and the message shows as the
+           steering record it is until the saved chat places it in that run. */
         const settleAppliedInput = () => {
-          rollbackOptimisticSend()
+          appliedSteeringIdsSeen.add(userMessageId)
+          if (requestChatId) {
+            upsertChatHistory(requestChatId, (current) => ({
+              ...current,
+              messages: current.messages.flatMap((persisted) =>
+                persisted.id === assistantId
+                  ? []
+                  : persisted.id === userMessageId
+                    ? [{ ...persisted, steering: { streamId: userMessageId } }]
+                    : [persisted]
+              ),
+              activeStreamId:
+                current.activeStreamId === userMessageId ? null : current.activeStreamId,
+            }))
+          }
           if (streamGenRef.current === gen) {
             streamGenRef.current++
             abortControllerRef.current = null
@@ -4321,6 +4336,7 @@ export function useChat(
       adoptResolvedChatId,
       setTransportIdle,
       setTransportStreaming,
+      appliedSteeringIdsSeen,
     ]
   )
   /**
