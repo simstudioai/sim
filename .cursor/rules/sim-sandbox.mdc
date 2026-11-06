@@ -1,6 +1,6 @@
 ---
 description: "Isolated-vm sandbox worker security policy. Hard rules for anything that lives in the worker child process that runs user code."
-globs: ["apps/sim/lib/execution/isolated-vm-worker.cjs","apps/sim/lib/execution/isolated-vm.ts","apps/sim/lib/execution/sandbox/**","apps/sim/sandbox-tasks/**"]
+globs: ["apps/sim/lib/execution/isolated-vm-worker.cjs","apps/sim/lib/execution/isolated-vm-host.cjs","apps/sim/lib/execution/isolated-vm-remote.ts","apps/sim/lib/execution/isolated-vm.ts","apps/sim/lib/execution/sandbox/**","apps/sim/sandboxes/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-sandbox.md by `bun run skills:sync`. Edit the source, not this file. -->
@@ -38,7 +38,7 @@ about what must **never** live in that process.
    validation.
 
 4. **Nothing that runs in the isolate is trusted, even if we wrote it**. The
-   task `bootstrap` and `finalize` strings in `apps/sim/sandbox-tasks/` execute
+   task `bootstrap` and `finalize` strings in `apps/sim/sandboxes/` execute
    inside the isolate. They must treat `globalThis` as adversarial — no pulling
    values from it that might have been mutated by user code. The hardening
    script in `executeTask` undefines dangerous globals before user code runs.
@@ -73,7 +73,31 @@ payload or `ivm.Reference` wrapper in the worker:
 - [ ] Does the worker read a new env var? Add it to the `buildWorkerEnv()`
       allowlist in `isolated-vm.ts` **and** to the allowlist regression test in
       `isolated-vm.test.ts` — the worker does not inherit the app environment,
-      so an un-allowlisted var is simply absent in the child.
+      so an un-allowlisted var is simply absent in the child. If the app owns
+      its value, put it in `appWorkerEnv()` and add it with its accepted shape
+      to `CLIENT_WORKER_ENV` in `isolated-vm-host.cjs`, so a remote worker
+      gets the same value.
+- [ ] Does the host send the worker a new message type? Add it to
+      `ALLOWED_INBOUND_TYPES` in `isolated-vm-host.cjs`, or remote workers
+      never receive it.
+
+## Where the worker runs
+
+The pool in `isolated-vm.ts` opens each worker either as a local child process
+or, when `IVM_REMOTE_WORKER_URL` is set (with `IVM_REMOTE_WORKER_TOKEN`; a URL
+without a valid token fails executions rather than falling back) and the
+`isolated-vm-local-workers` kill switch is off, as a WebSocket connection to
+`isolated-vm-host.cjs`, which runs the
+same worker in a dedicated service that holds no platform credentials. Every
+rule in this file applies in both modes.
+
+- `fetch()` and brokers always run in the app. The host only relays the
+  worker's messages, so it needs no network access of its own and never gets
+  a broker implementation.
+- A remote target never falls back to a local child process. An unreachable
+  host fails executions with a system error; keep it that way.
+- Changes to the worker message protocol must stay compatible with the
+  previous release: the host and its clients roll out independently.
 
 ## What the worker *may* hold
 

@@ -33,4 +33,29 @@ describe('JSON parser complexity limits', () => {
       code: 'invalid_format',
     })
   })
+
+  /**
+   * Text extraction errors reach Chat as the read's error, and egress redaction recognizes only
+   * whole secrets, so a message quoting a clipped excerpt of the file could carry part of one.
+   */
+  it.each([
+    [
+      'JSON',
+      parseJSONBuffer,
+      `{"config": {"key": sk_live_FIXTURE_0123456789abcdefghij${'x'.repeat(200)}}}`,
+    ],
+    [
+      'JSONL',
+      parseJSONLBuffer,
+      `{"ok": true}\n{"key": "${'x'.repeat(80)}sk_live_FIXTURE_0123456789abcdefghij`,
+    ],
+  ] as const)(
+    'names where invalid %s fails without quoting the file',
+    async (_kind, parse, text) => {
+      const error = await parse(Buffer.from(text)).catch((caught: unknown) => caught)
+      expect(error).toMatchObject({ code: 'invalid_format' })
+      expect(String((error as Error).message)).not.toContain('sk_l')
+      expect(String((error as Error).message)).not.toContain('xxxx')
+    }
+  )
 })

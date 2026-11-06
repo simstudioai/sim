@@ -13,17 +13,22 @@ import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/me
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Keep answers and interactions in the transcript, outside collapsible tool history. */
-function isStandaloneItem(item: AgentGroupItem): boolean {
+function isStandaloneItem(item: AgentGroupItem, standaloneToolIds?: ReadonlySet<string>): boolean {
   return (
     item.type !== 'tool' ||
+    standaloneToolIds?.has(item.data.id) ||
     needsToolInput(item.data) ||
     item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
   )
 }
 
 /** Interactions render as their own cards, so they never hold a lane's live indicator. */
-function canHoldIndicator(tool: ToolCallData): boolean {
-  return !needsToolInput(tool) && tool.toolName !== RETIRED_BROWSER_REQUEST_TAKEOVER_ID
+function canHoldIndicator(tool: ToolCallData, standaloneToolIds?: ReadonlySet<string>): boolean {
+  return (
+    !standaloneToolIds?.has(tool.id) &&
+    !needsToolInput(tool) &&
+    tool.toolName !== RETIRED_BROWSER_REQUEST_TAKEOVER_ID
+  )
 }
 
 /** A run of consecutive calls the main lane renders together, as one activity group. */
@@ -40,11 +45,14 @@ export type MainLaneEntry =
  * including search and document reads, and an interaction stands
  * on its own and closes the run before it.
  */
-export function splitMainLane(items: AgentGroupItem[]): MainLaneEntry[] {
+export function splitMainLane(
+  items: AgentGroupItem[],
+  standaloneToolIds?: ReadonlySet<string>
+): MainLaneEntry[] {
   const entries: MainLaneEntry[] = []
   let run: ActivityRun | undefined
   for (const [index, item] of items.entries()) {
-    if (item.type === 'tool' && !isStandaloneItem(item)) {
+    if (item.type === 'tool' && !isStandaloneItem(item, standaloneToolIds)) {
       if (!run) {
         run = { tools: [] }
         entries.push({ type: 'run', run })
@@ -91,22 +99,26 @@ export function getActiveBrowserTakeover(items: AgentGroupItem[]): ActiveBrowser
  */
 export function hasPendingInteraction(
   items: AgentGroupItem[],
-  includeBrowserTakeover = false
+  includeBrowserTakeover = false,
+  reviewedToolIds?: ReadonlySet<string>
 ): boolean {
   return (
     (includeBrowserTakeover && getActiveBrowserTakeover(items) !== null) ||
     items.some((item) =>
       item.type === 'tool'
-        ? needsToolInput(item.data)
+        ? needsToolInput(item.data) && !reviewedToolIds?.has(item.data.id)
         : item.type === 'agent_group' &&
-          hasPendingInteraction(item.group.items, includeBrowserTakeover)
+          hasPendingInteraction(item.group.items, includeBrowserTakeover, reviewedToolIds)
     )
   )
 }
 
 /** The lane, or a lane nested in it, is waiting on the user rather than on work. */
-function isLaneAwaitingUser(items: AgentGroupItem[]): boolean {
-  return hasPendingInteraction(items, true)
+function isLaneAwaitingUser(
+  items: AgentGroupItem[],
+  reviewedToolIds?: ReadonlySet<string>
+): boolean {
+  return hasPendingInteraction(items, true, reviewedToolIds)
 }
 
 /**
@@ -130,6 +142,8 @@ export function isLaneWorking(
 export type LaneLiveIndicator = { type: 'call'; tool: ToolCallData } | { type: 'narration' }
 
 export interface LaneActivityInput {
+  standaloneToolIds?: ReadonlySet<string>
+  reviewedToolIds?: ReadonlySet<string>
   kind: 'main' | 'subagent'
   /** The lane's items; the main lane passes one part per transcript segment, in order. */
   parts: AgentGroupItem[][]
@@ -140,9 +154,24 @@ export interface LaneActivityInput {
 }
 
 /** The latest call of the main lane's last run, which owns the trailing gap. */
-function getMainTrailingCall(items: AgentGroupItem[]): ToolCallData | undefined {
-  const last = splitMainLane(items).at(-1)
+function getMainTrailingCall(
+  items: AgentGroupItem[],
+  standaloneToolIds?: ReadonlySet<string>
+): ToolCallData | undefined {
+  const last = splitMainLane(items, standaloneToolIds).at(-1)
   return last?.type === 'run' ? last.run.tools.at(-1) : undefined
+}
+
+function hasVisibleLaneContent(
+  items: AgentGroupItem[],
+  standaloneToolIds?: ReadonlySet<string>
+): boolean {
+  return items.some((item) => {
+    if (item.type === 'tool') return !standaloneToolIds?.has(item.data.id)
+    if (item.type === 'agent_group')
+      return Boolean(item.group.error) || hasVisibleLaneContent(item.group.items, standaloneToolIds)
+    return hasAgentGroupItemContent(item)
+  })
 }
 
 /**
@@ -154,18 +183,24 @@ export function getLaneLiveIndicator({
   parts,
   isActive,
   isOpen,
+  standaloneToolIds,
+  reviewedToolIds,
 }: LaneActivityInput): LaneLiveIndicator | undefined {
-  if (!isActive || parts.some(isLaneAwaitingUser)) return undefined
-  const calls = parts.flatMap(collectGroupTools).filter(canHoldIndicator)
+  if (!isActive || parts.some((items) => isLaneAwaitingUser(items, reviewedToolIds)))
+    return undefined
+  const calls = parts
+    .flatMap(collectGroupTools)
+    .filter((tool) => canHoldIndicator(tool, standaloneToolIds))
   const running = getNewestRunningTool(calls)
   if (running) return { type: 'call', tool: running }
   if (!isOpen) return undefined
   if (kind === 'subagent' && calls.length === 0) {
-    return parts.some((items) => items.some(hasAgentGroupItemContent))
+    return parts.some((items) => hasVisibleLaneContent(items, standaloneToolIds))
       ? { type: 'narration' }
       : undefined
   }
-  const latest = kind === 'main' ? getMainTrailingCall(parts.at(-1) ?? []) : calls.at(-1)
+  const latest =
+    kind === 'main' ? getMainTrailingCall(parts.at(-1) ?? [], standaloneToolIds) : calls.at(-1)
   return latest?.status === ToolCallStatus.success ? { type: 'call', tool: latest } : undefined
 }
 
@@ -217,12 +252,17 @@ export interface TurnLiveIndicators {
  * activity changes split it into segments, but it is one lane with one
  * indicator.
  */
-export function getTurnLiveIndicators(lanes: TurnLane[], isStreaming: boolean): TurnLiveIndicators {
+export function getTurnLiveIndicators(
+  lanes: TurnLane[],
+  isStreaming: boolean,
+  layout: Pick<LaneActivityInput, 'standaloneToolIds' | 'reviewedToolIds'> = {}
+): TurnLiveIndicators {
   const byLane = new Map<string, LaneLiveIndicator>()
-  const isAwaiting = lanes.some((lane) => isLaneAwaitingUser(lane.items))
+  const isAwaiting = lanes.some((lane) => isLaneAwaitingUser(lane.items, layout.reviewedToolIds))
   if (!isStreaming) return { isAwaitingUser: isAwaiting, byLane }
   const mainParts = lanes.filter((lane) => lane.agentName === 'mothership')
   const mainIndicator = getLaneLiveIndicator({
+    ...layout,
     kind: 'main',
     parts: mainParts.map((lane) => lane.items),
     isActive: true,
@@ -234,6 +274,7 @@ export function getTurnLiveIndicators(lanes: TurnLane[], isStreaming: boolean): 
       lane.agentName === 'mothership'
         ? mainIndicator
         : getLaneLiveIndicator({
+            ...layout,
             kind: 'subagent',
             parts: [lane.items],
             isActive: working,

@@ -1,0 +1,14 @@
+@import "../../sim/app/_styles/globals.css";
+
+@source ".";
+
+@font-face {
+  font-family: "Season Sans";
+  src: url("./SeasonSansUprightsVF.woff2") format("woff2");
+  font-weight: 300 800;
+  font-display: block;
+}
+
+:root {
+  --font-season: "Season Sans", ui-sans-serif, system-ui, sans-serif;
+}

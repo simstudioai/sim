@@ -3,6 +3,10 @@ import {
   account,
   auditLog,
   member,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthTokenFamily,
   organization,
   session,
   ssoProvider,
@@ -307,6 +311,84 @@ describe('authentication audit history in PostgreSQL', () => {
     expect(
       (await history()).filter((entry) => entry.action === 'password.reset_requested')
     ).toHaveLength(0)
+  })
+
+  it('ends every pre-reset session and OAuth token when a password reset completes', async () => {
+    await login()
+    const [current] = await db
+      .select({ id: session.id })
+      .from(session)
+      .where(eq(session.userId, userId))
+    const clientId = generateId()
+    const familyId = generateId()
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + 86_400_000)
+    await db.insert(oauthClient).values({
+      id: clientId,
+      clientId,
+      name: 'Password reset OAuth fixture',
+      public: true,
+      tokenEndpointAuthMethod: 'none',
+      grantTypes: ['authorization_code', 'refresh_token'],
+      redirectUris: ['http://127.0.0.1/callback'],
+    })
+    try {
+      await db.insert(oauthConsent).values({
+        id: generateId(),
+        clientId,
+        userId,
+        scopes: ['api:read'],
+        createdAt: now,
+        updatedAt: now,
+      })
+      await db.insert(oauthTokenFamily).values({
+        id: familyId,
+        clientId,
+        userId,
+        sessionId: current.id,
+        createdAt: now,
+        expiresAt,
+      })
+      await db.insert(oauthAccessToken).values({
+        id: generateId(),
+        token: generateId(),
+        clientId,
+        userId,
+        scopes: ['api:read'],
+        createdAt: now,
+        expiresAt,
+      })
+
+      const requested = await auth.handler(
+        request('/request-password-reset', {
+          email,
+          redirectTo: 'http://localhost:3000/reset-password',
+        })
+      )
+      expect(requested.status).toBe(200)
+      const [resetToken] = await db
+        .select({ identifier: verification.identifier })
+        .from(verification)
+        .where(eq(verification.value, userId))
+      const completed = await auth.handler(
+        request('/reset-password', {
+          token: resetToken.identifier.replace('reset-password:', ''),
+          newPassword: 'Audit-fixture-new-password-37!',
+        })
+      )
+      expect(completed.status).toBe(200)
+
+      expect(await sessionCount()).toBe(0)
+      expect(
+        await db.select().from(oauthTokenFamily).where(eq(oauthTokenFamily.clientId, clientId))
+      ).toHaveLength(0)
+      expect(
+        await db.select().from(oauthAccessToken).where(eq(oauthAccessToken.clientId, clientId))
+      ).toHaveLength(0)
+      await expectEvent('password.reset', userId)
+    } finally {
+      await db.delete(oauthClient).where(eq(oauthClient.clientId, clientId))
+    }
   })
 
   it('scopes an SSO admission refusal to the configured provider organization when the account belongs elsewhere', async () => {

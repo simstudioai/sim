@@ -9,6 +9,7 @@ import {
   type ChatResourceChange,
   changeStoredChatResources,
 } from '@/lib/mothership/resources/store'
+import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 
 interface ChangeChatResourcesInput {
   chatId: string
@@ -43,6 +44,13 @@ export const changeChatResources = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {},
   async execute({ context, input }) {
+    /** A new Project tab waits for the rollout; removing or reordering stored tabs stays possible. */
+    if (
+      input.change.kind === 'upsert' &&
+      input.change.resources.some((resource) => resource.owner?.entityType === 'project')
+    ) {
+      await requireProjectApiEnabled()
+    }
     if (input.change.kind === 'upsert' || input.change.kind === 'reorder') {
       for (const resource of input.change.resources) {
         if (

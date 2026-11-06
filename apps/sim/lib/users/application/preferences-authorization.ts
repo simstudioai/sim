@@ -4,7 +4,7 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { UserAccountOperation } from '@/lib/users/application/operations'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** Authorizes the account subject and rechecks the conversation's current membership grant. */
 export async function authorizeAccountPreferences(

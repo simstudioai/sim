@@ -10,7 +10,7 @@ import {
   defineAuthorizedCredentialUseCase,
   requireManageableCredentialType,
 } from '@/lib/credentials/application/authorized-credential-use-case'
-import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
+import { resolveCredentialApplicationContext } from '@/lib/credentials/application/context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   listCredentialProviderCatalog,
@@ -25,7 +25,7 @@ import type { CredentialRow } from '@/lib/credentials/queries'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 type InlineServiceAccountInput = Omit<CreateServiceAccountCredentialParams, 'userId' | 'request'>
 

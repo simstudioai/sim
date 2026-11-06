@@ -4,7 +4,7 @@ import { apiKeyOperations } from '@/lib/api-key/application/operations'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface CreateCopilotWorkspaceApiKeyInput {
   workspaceId: string

@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
-import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
+import {
+  DISPOSABLE_EMAIL_ERROR_CODE,
+  DISPOSABLE_EMAIL_MESSAGE,
+  SSO_REQUIRED_ERROR_CODE,
+  SSO_REQUIRED_MESSAGE,
+} from '@/lib/auth/constants'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {
@@ -46,6 +51,12 @@ const FRIENDLY: Record<string, string> = {
    * refused. Retrying the same provider can never succeed — name the way in.
    */
   [SSO_REQUIRED_ERROR_CODE]: SSO_REQUIRED_MESSAGE,
+  /**
+   * Account creation refused for a disposable email domain. Better Auth 1.7 redirects with the
+   * error's code; 1.6 redirects with its message, spaces joined by underscores.
+   */
+  [DISPOSABLE_EMAIL_ERROR_CODE]: DISPOSABLE_EMAIL_MESSAGE,
+  [DISPOSABLE_EMAIL_MESSAGE.split(' ').join('_')]: DISPOSABLE_EMAIL_MESSAGE,
   /** The provider returned no email claim, so there is nothing to sign in as. */
   email_not_found:
     'Your identity provider didn’t share an email address with us, so we couldn’t complete sign-in. Please contact your administrator.',

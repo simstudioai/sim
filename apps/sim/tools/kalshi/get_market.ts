@@ -124,8 +124,7 @@ export interface KalshiGetMarketV2Response {
 export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetMarketV2Response> = {
   id: 'kalshi_get_market_v2',
   name: 'Get Market from Kalshi V2',
-  description:
-    'Retrieve details of a specific prediction market by ticker (V2 - full API response)',
+  description: 'Retrieve details of a specific prediction market by ticker',
   version: '2.0.0',
 
   params: {

@@ -80,6 +80,6 @@ export interface SearchResultsProps {
   scope: ResourceScope
   query: string
   /** Binds the Assistant turn to the selected canonical document. */
-  onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
+  onSummarize?: (prompt: string, filters: WorkspaceSearchFilters) => void
   onSearchChange?: (search: SearchResource) => void
 }

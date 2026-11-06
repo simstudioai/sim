@@ -106,11 +106,11 @@ const ATTACHMENT_FIELD = ['attachmentFile', 'fileReference'] as const
 export const ClickUpBlock: BlockConfig = {
   type: 'clickup',
   name: 'ClickUp',
-  description: 'Interact with ClickUp',
+  description: 'Manage ClickUp tasks, comments, hierarchy, and time entries',
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
-    'Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.',
+    'Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Trigger workflows on ClickUp events like task, list, folder, space, and goal changes.',
   docsLink: 'https://docs.sim.ai/integrations/clickup',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

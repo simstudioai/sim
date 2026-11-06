@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { signOut } from '@/lib/auth/auth-client'
+import { signOut } from '@/lib/auth/client'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('SignOut')

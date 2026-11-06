@@ -2,7 +2,6 @@ import { document, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/sc
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  deleteAllTagDefinitions,
   deleteTagDefinition,
   KnowledgeTagProvenanceConflictError,
 } from '@/lib/knowledge/tags/service'
@@ -35,20 +34,5 @@ describe('knowledge tag deletion provenance', () => {
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('clears every bounded tag slot through the same guarded mutation path', async () => {
-    queueTableRows(knowledgeBase, [{ id: KNOWLEDGE_BASE_ID }])
-    queueTableRows(knowledgeBaseTagDefinitions, [
-      { id: 'tag-definition-1', tagSlot: 'tag1' },
-      { id: 'tag-definition-2', tagSlot: 'number1' },
-    ])
-    queueTableRows(document, [])
-
-    await expect(deleteAllTagDefinitions(KNOWLEDGE_BASE_ID, 'request-1')).resolves.toBe(2)
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ tag1: null, number1: null })
   })
 })

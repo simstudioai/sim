@@ -8,7 +8,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
   createFileErrorResponse,

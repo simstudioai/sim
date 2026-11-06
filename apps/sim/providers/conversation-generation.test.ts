@@ -1,3 +1,8 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import {
   providersConversationHistoryMock,
   providersConversationHistoryMockFns,
@@ -29,6 +34,7 @@ const state = vi.hoisted(() => ({ enabled: true, historyTokens: 0 }))
 vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 
 providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(100)
 Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
@@ -609,5 +615,55 @@ describe('provider generation context boundary', () => {
       payload
     )
     expect(payload.messages).toHaveLength(1)
+  })
+})
+
+describe('usage limit across compaction', () => {
+  it('stops the generation when its compaction spends the run past the usage limit', async () => {
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 3, limit: 5 },
+    })
+    const unrecordedModelCost = { total: 1 }
+    providersConversationHistoryMockFns.mockGetConversationRequestContext.mockReturnValueOnce({
+      agentConversation: {},
+      agentMemoryContext: { historyTokens: 200 },
+      executionContext: {
+        metadata: {
+          duration: 0,
+          billingAttribution: {
+            actorUserId: 'actor',
+            workspaceId: 'workspace',
+            organizationId: null,
+            billedAccountUserId: 'actor',
+            billingEntity: { type: 'user', id: 'actor' },
+            billingPeriod: { start: '2026-10-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
+            payerSubscription: null,
+          },
+        },
+        unrecordedModelCost,
+      },
+    })
+    const fixture = fixtures[0]
+    const input = request()
+    bindConversationGenerationCompactor(input, async () => {
+      unrecordedModelCost.total += 1.5
+      return { role: 'user' as const, content: 'Derived prior context' }
+    })
+    const messages = [
+      fixture.prompt,
+      ...fixture.batch,
+      nativeText(fixture, 'old'.repeat(250)),
+      nativeText(fixture, 'latest receipt'),
+    ]
+
+    try {
+      await expect(
+        prepareConversationGeneration(input, fixture.protocol, { [fixture.key]: messages })
+      ).rejects.toThrow('usage limit')
+    } finally {
+      resetEnvFlagsMock()
+    }
   })
 })

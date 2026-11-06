@@ -1,9 +1,9 @@
 'use client'
 
 import { memo, useContext } from 'react'
-import { cn } from '@sim/emcn'
 import { type SubflowNodeData, SubflowNodeView } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
+import { cn } from '@/components/docs/classnames'
 import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 import { DIMMED_PREVIEW_CLASS } from '@/components/workflow-preview/workflow-data'
 
@@ -48,7 +48,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
         isFocused={false}
         nestingLevel={0}
         canEditWorkflow={false}
-        onSelect={() => selectBlock?.(id)}
+        onSelect={selectBlock ? () => selectBlock(id) : undefined}
       />
     </div>
   )

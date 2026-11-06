@@ -7,7 +7,7 @@ export const JinaBlock: BlockConfig = {
   description: 'Search the web or extract content from URLs',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.',
+    'Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.',
   docsLink: 'https://docs.sim.ai/integrations/jina',
   category: 'tools',
   integrationType: IntegrationType.Search,

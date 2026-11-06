@@ -1,49 +1,31 @@
 ---
 title: Devin
 description: Autonomous AI software engineer
+integration:
+  type: "devin"
+  color: "#12141A"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="devin"
-  color="#12141A"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Devin](https://devin.ai/) is an autonomous AI software engineer by Cognition that can independently write, run, debug, and deploy code.
+Use [Devin](https://devin.ai/) to assign coding tasks and manage their sessions from a workflow. **Create Session** accepts a prompt, optional playbook, ACU (Autonomous Compute Unit) limit, and tags.
 
-With Devin, you can:
-
-- **Automate coding tasks**: Assign software engineering tasks and let Devin autonomously write, test, and iterate on code
-- **Manage sessions**: Create, monitor, and interact with Devin sessions to track progress on assigned tasks
-- **Guide active work**: Send messages to running sessions to provide additional context, redirect efforts, or answer questions
-- **Retrieve structured output**: Poll completed sessions for pull requests, structured results, and detailed status
-- **Control costs**: Set ACU (Autonomous Compute Unit) limits to cap spending on long-running tasks
-- **Standardize workflows**: Use playbook IDs to apply repeatable task patterns across sessions
-
-In Sim, the Devin integration enables your agents to programmatically manage Devin sessions as part of their workflows:
-
-- **Create sessions**: Kick off new Devin sessions with a prompt describing the task, optional playbook, ACU limits, and tags
-- **Get session details**: Retrieve the full state of a session including status, pull requests, structured output, and resource consumption
-- **List sessions**: Query all sessions in your organization with optional pagination
-- **Send messages**: Communicate with active or suspended sessions to provide guidance, and automatically resume suspended sessions
-
-This allows for powerful automation scenarios such as triggering code generation from upstream events, polling for completion before consuming results, orchestrating multi-step development pipelines, and integrating Devin's output into broader agent workflows.
+Use **Get Session** to poll status before consuming pull requests or structured output; session details also report resource use. **List Sessions** supports pagination. **Send Message** supplies context or redirects an active session and resumes suspended sessions automatically. Set an ACU limit when you need a spending boundary.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.
-
-
+Create coding sessions, list or inspect their status and results, and send messages to guide active or suspended work. Use playbooks and ACU limits for repeatable tasks and spending control.
 
 ## Actions
 
 ### Devin Create Session
 
 Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +56,13 @@ Create a new Devin session with a prompt. Devin will autonomously work on the ta
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
+</ReferenceDetails>
+
 ### Devin Get Session
 
 Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +90,13 @@ Retrieve details of an existing Devin session including status, tags, pull reque
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
+</ReferenceDetails>
+
 ### Devin List Sessions
 
 List Devin sessions in the organization. Returns up to 100 sessions by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +128,13 @@ List Devin sessions in the organization. Returns up to 100 sessions by default.
 | `hasNextPage` | boolean | Whether more sessions are available |
 | `total` | number | Total number of sessions, if provided |
 
+</ReferenceDetails>
+
 ### Devin Send Message
 
 Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +163,13 @@ Send a message to a Devin session. If the session is suspended, it will be autom
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
+</ReferenceDetails>
+
 ### Devin List Session Messages
 
 List the messages exchanged in a Devin session, including messages from both the user and Devin.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +194,13 @@ List the messages exchanged in a Devin session, including messages from both the
 | `hasNextPage` | boolean | Whether more messages are available |
 | `total` | number | Total number of messages, if provided |
 
+</ReferenceDetails>
+
 ### Devin List Session Attachments
 
 List the files uploaded to or produced by a Devin session.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +221,13 @@ List the files uploaded to or produced by a Devin session.
 |   ↳ `source` | string | Origin of the attachment \(devin or user\) |
 |   ↳ `contentType` | string | MIME type of the attachment |
 
+</ReferenceDetails>
+
 ### Devin Get Session Tags
 
 Retrieve the tags currently applied to a Devin session.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -237,9 +243,13 @@ Retrieve the tags currently applied to a Devin session.
 | --------- | ---- | ----------- |
 | `tags` | json | Tags applied to the session \(array of strings\) |
 
+</ReferenceDetails>
+
 ### Devin Append Session Tags
 
 Add tags to a Devin session without removing existing tags (max 50 tags total).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +266,13 @@ Add tags to a Devin session without removing existing tags (max 50 tags total).
 | --------- | ---- | ----------- |
 | `tags` | json | Updated list of tags on the session \(array of strings\) |
 
+</ReferenceDetails>
+
 ### Devin Replace Session Tags
 
 Replace all tags on a Devin session with a new set of tags (max 50 tags).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -275,9 +289,13 @@ Replace all tags on a Devin session with a new set of tags (max 50 tags).
 | --------- | ---- | ----------- |
 | `tags` | json | Updated list of tags on the session \(array of strings\) |
 
+</ReferenceDetails>
+
 ### Devin Archive Session
 
 Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +323,13 @@ Archive a Devin session. Archived sessions can still be viewed but cannot be mod
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
+</ReferenceDetails>
+
 ### Devin Terminate Session
 
 Terminate a Devin session. Optionally archive the session instead of permanently terminating it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,5 +357,7 @@ Terminate a Devin session. Optionally archive the session instead of permanently
 | `structuredOutput` | json | Structured output from the session |
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
+
+</ReferenceDetails>
 
 

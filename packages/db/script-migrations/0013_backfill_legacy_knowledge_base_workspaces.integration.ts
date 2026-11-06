@@ -46,6 +46,7 @@ describe('legacy KB workspace backfill in PostgreSQL', () => {
       connection: { search_path: schemaName },
       onnotice: () => undefined,
     })
+    await sql`ALTER TABLE workspace ALTER COLUMN project_id DROP NOT NULL`
     /** Reproduce the pre-0014 schema so this historical backfill can seed unscoped rows. */
     await sql`ALTER TABLE knowledge_base DROP CONSTRAINT kb_owner_check`
     await sql`ALTER TABLE knowledge_base ADD CONSTRAINT kb_owner_check

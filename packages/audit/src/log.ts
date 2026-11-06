@@ -67,13 +67,13 @@ export function recordAuditBatch(entries: AuditLogParams[]): void {
  * are taken as-is — lazy actor resolution is layered on top by
  * {@link recordAudit} only.
  *
- * The surface comes from the ambient request context, which the route wrapper
- * resolves once per request, so every entry recorded while serving a request
- * is attributed without each caller passing it. It is absent outside a request.
+ * The surface is passed explicitly: immediate writes take it from
+ * {@link ambientSurface}, deferred writes from when the entry was recorded.
  */
 function buildAuditRow(
   params: AuditLogParams,
   actor: { actorId: string | null; actorName?: string | null; actorEmail?: string | null },
+  surface: string | undefined,
   id = generateShortId()
 ) {
   return {
@@ -90,8 +90,30 @@ function buildAuditRow(
     metadata: params.metadata ?? {},
     ipAddress: params.request ? clientIpResolver.resolve(params.request.headers) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
-    surface: getRequestContext()?.client?.surface,
+    surface,
   }
+}
+
+/**
+ * The surface of the request being served, which the route wrapper resolves
+ * once per request, so every entry recorded while serving it is attributed
+ * without each caller passing it. It is absent outside a request.
+ */
+export function ambientSurface(): string | undefined {
+  return getRequestContext()?.client?.surface
+}
+
+/**
+ * Writes an entry recorded earlier, outside the request that produced it, with
+ * the surface captured when it was recorded. Throws on failure so the caller
+ * logs what it lost.
+ */
+export async function insertDeferredAuditEntry(
+  params: AuditLogParams,
+  surface: string | undefined
+): Promise<void> {
+  const actor = await resolveAuditActor(params)
+  await db.insert(auditLog).values(buildAuditRow(params, actor, surface))
 }
 
 /**
@@ -108,19 +130,24 @@ export async function recordAuditOnce(id: string, params: AuditLogParams): Promi
   const actor = await resolveAuditActor(params)
   await db
     .insert(auditLog)
-    .values(buildAuditRow(params, actor, id))
+    .values(buildAuditRow(params, actor, ambientSurface(), id))
     .onConflictDoNothing({ target: auditLog.id })
 }
 
 async function insertAuditLogBatch(entries: AuditLogParams[]): Promise<void> {
   if (entries.length === 0) return
 
+  const surface = ambientSurface()
   const rows = entries.map((params) =>
-    buildAuditRow(params, {
-      actorId: params.actorId,
-      actorName: params.actorName,
-      actorEmail: params.actorEmail,
-    })
+    buildAuditRow(
+      params,
+      {
+        actorId: params.actorId,
+        actorName: params.actorName,
+        actorEmail: params.actorEmail,
+      },
+      surface
+    )
   )
 
   for (let index = 0; index < rows.length; index += AUDIT_BATCH_CHUNK_SIZE) {
@@ -130,7 +157,7 @@ async function insertAuditLogBatch(entries: AuditLogParams[]): Promise<void> {
 
 async function insertAuditLog(params: AuditLogParams): Promise<void> {
   const actor = await resolveAuditActor(params)
-  await db.insert(auditLog).values(buildAuditRow(params, actor))
+  await db.insert(auditLog).values(buildAuditRow(params, actor, ambientSurface()))
 }
 
 async function resolveAuditActor(params: AuditLogParams): Promise<{

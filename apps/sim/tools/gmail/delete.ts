@@ -83,7 +83,7 @@ interface GmailModifyV2Response {
 export const gmailDeleteV2Tool: InternalToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
   id: 'gmail_delete_v2',
   name: 'Gmail Delete',
-  description: 'Delete a Gmail message (move to trash). Returns API-aligned fields only.',
+  description: 'Delete a Gmail message (move to trash).',
   version: '2.0.0',
   oauth: gmailDeleteTool.oauth,
   params: gmailDeleteTool.params,

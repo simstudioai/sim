@@ -23,7 +23,7 @@ import {
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationResult } from '@/lib/internal/tool-operations/types'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 
 const uploadLogger = createLogger('JupyterUploadAPI')
 

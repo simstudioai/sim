@@ -19,7 +19,7 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   readExecutionMetaState: mockReadExecutionMetaState,
 }))
 
-vi.mock('@/lib/execution/execution-signal', () => ({
+vi.mock('@/lib/execution/signal', () => ({
   getExecutionSignalHub: () => ({ subscribe: mockSubscribe }),
 }))
 

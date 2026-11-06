@@ -8,7 +8,7 @@ import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
 import {
   generateWorkspaceFileKey,
   trackChatUpload,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 

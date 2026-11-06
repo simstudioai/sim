@@ -30,7 +30,7 @@ export const TikTokBlock: BlockConfig = {
   description: 'Access TikTok profiles and videos, and upload inbox drafts',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.',
+    'Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Send uploaded videos to the TikTok inbox as drafts for human review and publishing, then track post status.',
   docsLink: 'https://docs.sim.ai/integrations/tiktok',
   category: 'tools',
   integrationType: IntegrationType.Communication,

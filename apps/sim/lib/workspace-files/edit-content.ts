@@ -5,7 +5,6 @@ export type EditContentFailure =
   | { reason: 'not_found' }
   | { reason: 'ambiguous'; lineNumbers: number[] }
   | { reason: 'invalid_occurrence' }
-  | { reason: 'invalid_anchor_order' }
   | { reason: 'output_too_large'; maxBytes: number }
 
 export interface EditContentOptions {
@@ -186,23 +185,31 @@ function validateOccurrence(occurrence: number | undefined): number {
   return value
 }
 
-function anchorLineIndex(lines: string[], anchor: string, occurrence: number): number {
+/** Index of the `occurrence`th line at or after `fromIndex` whose trimmed text equals the anchor. */
+function anchorLineIndex(
+  lines: string[],
+  anchor: string,
+  occurrence: number,
+  fromIndex = 0
+): number {
   const normalizedAnchor = anchor.trim()
   if (!normalizedAnchor) {
     throw new EditContentError('Anchor cannot be empty', { reason: 'not_found' })
   }
 
   let matches = 0
-  for (let index = 0; index < lines.length; index++) {
+  for (let index = fromIndex; index < lines.length; index++) {
     if (lines[index].trim() !== normalizedAnchor) continue
     matches++
     if (matches === occurrence) return index
   }
 
   if (matches === 0) {
-    throw new EditContentError(`Anchor line not found: ${JSON.stringify(anchor.slice(0, 100))}`, {
-      reason: 'not_found',
-    })
+    const where = fromIndex > 0 ? ' after the start anchor' : ''
+    throw new EditContentError(
+      `Anchor line not found${where}: ${JSON.stringify(anchor.slice(0, 100))}`,
+      { reason: 'not_found' }
+    )
   }
   throw new EditContentError(
     `Anchor occurrence ${occurrence} not found; only ${matches} matching line${matches === 1 ? '' : 's'} exist`,
@@ -217,14 +224,41 @@ function contentLines(content: string): string[] {
 }
 
 /**
+ * Lines plus the separator that follows each one, so an edit rewrites only
+ * the lines it touches. `separators[i]` joins `lines[i]` to `lines[i + 1]`.
+ */
+interface SeparatedLines {
+  lines: string[]
+  separators: string[]
+}
+
+function splitSeparatedLines(text: string): SeparatedLines {
+  const parts = text.split(/(\r\n|\n)/)
+  return {
+    lines: parts.filter((_, index) => index % 2 === 0),
+    separators: parts.filter((_, index) => index % 2 === 1),
+  }
+}
+
+function joinSeparatedLines({ lines, separators }: SeparatedLines): string {
+  let text = lines[0]
+  for (let index = 1; index < lines.length; index++) {
+    text += separators[index - 1] + lines[index]
+  }
+  return text
+}
+
+/**
  * Applies one deterministic in-place edit to text.
  *
  * Exact replacement operates on byte-equivalent strings and refuses ambiguity
  * unless `replaceAll` is explicit. Anchored edits match complete trimmed lines,
- * which makes them stable when surrounding line numbers move. Boundary anchors
- * remain in place for replacement and insertion. Deletion matches the
- * `apply_file_edit` protocol: it removes the start anchor and everything before
- * the end anchor, while preserving the end anchor.
+ * which makes them stable when surrounding line numbers move. `occurrence`
+ * selects the start anchor (or the `insert_after` anchor); the end anchor is
+ * the first match after it. Boundary anchors remain in place for replacement
+ * and insertion. Deletion removes the start anchor and everything before the
+ * end anchor, while preserving the end anchor. Untouched lines keep their own
+ * line endings; inserted lines take the ending that follows the anchor line.
  */
 export function applyWorkspaceFileContentEdit(
   text: string,
@@ -235,40 +269,51 @@ export function applyWorkspaceFileContentEdit(
     return applyStringReplacement(text, edit.search, edit.content, edit.replaceAll, options)
   }
 
-  const lines = splitLines(text)
+  const { lines, separators } = splitSeparatedLines(text)
   const occurrence = validateOccurrence(edit.occurrence)
-  const eol = detectLineEnding(text)
 
   if (edit.mode === 'insert_after') {
     const anchorIndex = anchorLineIndex(lines, edit.anchor, occurrence)
-    return [
-      ...lines.slice(0, anchorIndex + 1),
-      ...contentLines(edit.content),
-      ...lines.slice(anchorIndex + 1),
-    ].join(eol)
+    const inserted = contentLines(edit.content)
+    const separator = separators[anchorIndex] ?? detectLineEnding(text)
+    return joinSeparatedLines({
+      lines: [...lines.slice(0, anchorIndex + 1), ...inserted, ...lines.slice(anchorIndex + 1)],
+      separators: [
+        ...separators.slice(0, anchorIndex),
+        ...inserted.map(() => separator),
+        ...separators.slice(anchorIndex),
+      ],
+    })
   }
 
   const startAnchor = edit.mode === 'replace_between' ? edit.beforeAnchor : edit.startAnchor
   const endAnchor = edit.mode === 'replace_between' ? edit.afterAnchor : edit.endAnchor
   const startIndex = anchorLineIndex(lines, startAnchor, occurrence)
-  const endIndex = anchorLineIndex(lines, endAnchor, occurrence)
-
-  if (endIndex <= startIndex) {
-    throw new EditContentError(
-      `Anchor occurrence ${occurrence} is not ordered: the end anchor must follow the start anchor`,
-      { reason: 'invalid_anchor_order' }
-    )
-  }
+  const endIndex = anchorLineIndex(lines, endAnchor, 1, startIndex + 1)
 
   if (edit.mode === 'replace_between') {
-    return [
-      ...lines.slice(0, startIndex + 1),
-      ...contentLines(edit.content),
-      ...lines.slice(endIndex),
-    ].join(eol)
+    const inserted = contentLines(edit.content)
+    const separator = separators[startIndex]
+    // The last inserted line keeps the ending of the last replaced line; with nothing inserted,
+    // the start anchor keeps its own.
+    const keptSeparators =
+      inserted.length === 0
+        ? [...separators.slice(0, startIndex + 1), ...separators.slice(endIndex)]
+        : [
+            ...separators.slice(0, startIndex),
+            ...inserted.map(() => separator),
+            ...separators.slice(endIndex - 1),
+          ]
+    return joinSeparatedLines({
+      lines: [...lines.slice(0, startIndex + 1), ...inserted, ...lines.slice(endIndex)],
+      separators: keptSeparators,
+    })
   }
 
-  return [...lines.slice(0, startIndex), ...lines.slice(endIndex)].join(eol)
+  return joinSeparatedLines({
+    lines: [...lines.slice(0, startIndex), ...lines.slice(endIndex)],
+    separators: [...separators.slice(0, startIndex), ...separators.slice(endIndex)],
+  })
 }
 
 /**

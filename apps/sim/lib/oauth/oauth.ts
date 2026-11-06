@@ -20,6 +20,7 @@ import {
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
+  FivetranIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -36,7 +37,9 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   GoogleVaultIcon,
+  GreenhouseIcon,
   HarmonicIcon,
+  HelpScoutIcon,
   HubspotIcon,
   InstagramIcon,
   IntuneIcon,
@@ -91,6 +94,11 @@ import {
   GITHUB_TOKEN_URL,
   parseGitHubRepositoriesTokenResponse,
 } from '@/lib/oauth/github-repositories'
+import {
+  GREENHOUSE_TOKEN_URL,
+  getGreenhouseRefreshErrorCode,
+  parseGreenhouseTokens,
+} from '@/lib/oauth/greenhouse'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
@@ -118,7 +126,118 @@ export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[]
 
 const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)
 
+const JIRA_DEFAULT_TOOL_SCOPES = [
+  'read:jira-user',
+  'read:jira-work',
+  'write:jira-work',
+  'read:me',
+  'offline_access',
+  'read:issue.vote:jira',
+  'read:user:jira',
+  'delete:issue:jira',
+  'delete:comment:jira',
+  'delete:attachment:jira',
+  'delete:issue-worklog:jira',
+  'delete:issue-link:jira',
+  // Jira Service Management scopes. The classic scopes are required: Atlassian
+  // enforces an endpoint's granular scope set as all-of, and several JSM request
+  // endpoints include scopes outside this list in their granular sets.
+  'read:servicedesk-request',
+  'write:servicedesk-request',
+  'manage:servicedesk-customer',
+  'read:servicedesk:jira-service-management',
+  'read:requesttype:jira-service-management',
+  'read:request:jira-service-management',
+  'write:request:jira-service-management',
+  'read:request.comment:jira-service-management',
+  'write:request.comment:jira-service-management',
+  'read:servicedesk.customer:jira-service-management',
+  'write:servicedesk.customer:jira-service-management',
+  'read:organization:jira-service-management',
+  'write:organization:jira-service-management',
+  'read:servicedesk.organization:jira-service-management',
+  'write:servicedesk.organization:jira-service-management',
+  'read:queue:jira-service-management',
+  'read:request.sla:jira-service-management',
+  'read:request.status:jira-service-management',
+  'write:request.status:jira-service-management',
+  'read:request.participant:jira-service-management',
+  'write:request.participant:jira-service-management',
+  'read:request.approval:jira-service-management',
+  'write:request.approval:jira-service-management',
+  'read:cmdb-object:jira',
+  'write:cmdb-object:jira',
+  'delete:cmdb-object:jira',
+  'read:cmdb-schema:jira',
+  'read:cmdb-type:jira',
+  'read:cmdb-attribute:jira',
+]
+
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  greenhouse: {
+    name: 'Greenhouse',
+    icon: GreenhouseIcon,
+    services: {
+      greenhouse: {
+        name: 'Greenhouse',
+        description: 'Manage recruiting candidates, applications, jobs, and hiring activity.',
+        providerId: 'greenhouse',
+        serviceAccountProviderId: 'greenhouse-service-account',
+        icon: GreenhouseIcon,
+        baseProviderIcon: GreenhouseIcon,
+        scopes: [
+          'harvest:application_stages:list',
+          'harvest:applications:convert_to_candidate',
+          'harvest:applications:create',
+          'harvest:applications:destroy',
+          'harvest:applications:hire',
+          'harvest:applications:list',
+          'harvest:applications:move',
+          'harvest:applications:reject',
+          'harvest:applications:unreject',
+          'harvest:applications:update',
+          'harvest:applied_candidate_tags:create',
+          'harvest:applied_candidate_tags:destroy',
+          'harvest:applied_candidate_tags:list',
+          'harvest:attachments:create',
+          'harvest:attachments:destroy',
+          'harvest:attachments:list',
+          'harvest:candidate_educations:list',
+          'harvest:candidate_employments:list',
+          'harvest:candidate_tags:create',
+          'harvest:candidate_tags:list',
+          'harvest:candidates:create',
+          'harvest:candidates:destroy',
+          'harvest:candidates:list',
+          'harvest:candidates:update',
+          'harvest:close_reasons:list',
+          'harvest:custom_field_options:list',
+          'harvest:custom_fields:list',
+          'harvest:departments:list',
+          'harvest:email_templates:list',
+          'harvest:interviews:list',
+          'harvest:job_hiring_managers:list',
+          'harvest:job_interview_stages:list',
+          'harvest:job_owners:list',
+          'harvest:jobs:list',
+          'harvest:notes:create',
+          'harvest:notes:list',
+          'harvest:offers:list',
+          'harvest:offices:list',
+          'harvest:openings:list',
+          'harvest:prospect_pool_stages:list',
+          'harvest:prospect_pools:list',
+          'harvest:referrers:list',
+          'harvest:rejection_reasons:list',
+          'harvest:scorecards:list',
+          'harvest:sources:list',
+          'harvest:users:list',
+        ],
+      },
+    },
+    defaultService: 'greenhouse',
+  },
+
   'github-repositories': {
     name: 'GitHub',
     icon: GithubIcon,
@@ -433,7 +552,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-excel',
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Sites.Read.All',
+          'offline_access',
+        ],
       },
       'microsoft-intune': {
         name: 'Microsoft Intune',
@@ -742,52 +869,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: JiraIcon,
         baseProviderIcon: JiraIcon,
         serviceAccountProviderId: 'atlassian-service-account',
-        scopes: [
-          'read:jira-user',
-          'read:jira-work',
-          'write:jira-work',
-          'read:me',
-          'offline_access',
-          'read:issue.vote:jira',
-          'read:user:jira',
-          'delete:issue:jira',
-          'delete:comment:jira',
-          'delete:attachment:jira',
-          'delete:issue-worklog:jira',
-          'delete:issue-link:jira',
-          // Jira Service Management scopes. The classic scopes are required: Atlassian
-          // enforces an endpoint's granular scope set as all-of, and several JSM request
-          // endpoints include scopes outside this list in their granular sets.
-          'read:servicedesk-request',
-          'write:servicedesk-request',
-          'manage:servicedesk-customer',
-          'read:servicedesk:jira-service-management',
-          'read:requesttype:jira-service-management',
-          'read:request:jira-service-management',
-          'write:request:jira-service-management',
-          'read:request.comment:jira-service-management',
-          'write:request.comment:jira-service-management',
-          'read:servicedesk.customer:jira-service-management',
-          'write:servicedesk.customer:jira-service-management',
-          'read:organization:jira-service-management',
-          'write:organization:jira-service-management',
-          'read:servicedesk.organization:jira-service-management',
-          'write:servicedesk.organization:jira-service-management',
-          'read:queue:jira-service-management',
-          'read:request.sla:jira-service-management',
-          'read:request.status:jira-service-management',
-          'write:request.status:jira-service-management',
-          'read:request.participant:jira-service-management',
-          'write:request.participant:jira-service-management',
-          'read:request.approval:jira-service-management',
-          'write:request.approval:jira-service-management',
-          'read:cmdb-object:jira',
-          'write:cmdb-object:jira',
-          'delete:cmdb-object:jira',
-          'read:cmdb-schema:jira',
-          'read:cmdb-type:jira',
-          'read:cmdb-attribute:jira',
-        ],
+        scopes: [...JIRA_DEFAULT_TOOL_SCOPES, 'write:sprint:jira-software'],
+        defaultToolScopes: JIRA_DEFAULT_TOOL_SCOPES,
       },
     },
     defaultService: 'jira',
@@ -1417,6 +1500,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'ramp',
   },
+  fivetran: {
+    name: 'Fivetran',
+    icon: FivetranIcon,
+    services: {
+      fivetran: {
+        name: 'Fivetran',
+        description: 'Manage Fivetran connections, syncs, and transformations.',
+        providerId: 'fivetran',
+        serviceAccountProviderId: 'fivetran-service-account',
+        authType: 'service_account',
+        icon: FivetranIcon,
+        baseProviderIcon: FivetranIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'fivetran',
+  },
   vanta: {
     name: 'Vanta',
     icon: VantaIcon,
@@ -1433,6 +1533,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'vanta',
+  },
+  helpscout: {
+    name: 'Help Scout',
+    icon: HelpScoutIcon,
+    services: {
+      helpscout: {
+        name: 'Help Scout',
+        description: 'Manage Help Scout conversations, replies, notes, and customers.',
+        providerId: 'helpscout',
+        serviceAccountProviderId: 'helpscout-service-account',
+        authType: 'oauth',
+        icon: HelpScoutIcon,
+        baseProviderIcon: HelpScoutIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'helpscout',
   },
   hubspot: {
     name: 'HubSpot',
@@ -1572,38 +1689,20 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
-        // Kept to what the tools and the webhook trigger exercise. NOTE: Zoho
-        // lists `Desk.organization.READ , Desk.basic.READ` for GET /organizations
-        // and `Desk.departments.READ , Desk.basic.READ` for GET /departments, and
-        // does not document whether that comma means AND or OR. Both bootstrap
-        // endpoints are assumed covered by Desk.basic.READ alone - verify against
-        // a live Desk org and widen here if either returns SCOPE_MISMATCH.
-        // tickets (incl. threads/comments), contacts (get_contact), basic
-        // (list_organizations), agents (the `assigneeId` picker lists agents),
-        // webhook create/delete (the trigger provisions and tears down its own
-        // subscription), and profile (OAuth getUserInfo).
-        // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
-        // requested but unused - no tool searches, and the provider never lists
-        // or edits a subscription.
         scopes: [
-          // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
-          // ticket, and ALL additionally grants ticket DELETE. Threads, comments
-          // and attachments live under the tickets module and are covered by
-          // these two. NOTE: Zoho publishes no scope line for the attachment
-          // content sub-path - verify attachment download against a live account
-          // before merge and widen here if it returns SCOPE_MISMATCH.
           'Desk.tickets.READ',
+          'Desk.tickets.CREATE',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
-          // READ only: the knowledge base connector syncs Help Center articles
-          // via GET /articles and GET /articles/{id}; nothing authors one.
+          'Desk.contacts.CREATE',
+          'Desk.contacts.UPDATE',
+          'Desk.accounts.READ',
+          'Desk.accounts.CREATE',
+          'Desk.accounts.UPDATE',
+          'Desk.search.READ',
+          'Desk.departments.READ',
           'Desk.articles.READ',
-          // GET /organizations documents `Desk.organization.READ , Desk.basic.READ`.
-          // Sibling endpoints spell the same construction "requires X and Y"
-          // (dependencyMappings, roles), so the comma is AND, not OR.
           'Desk.organization.READ',
-          // READ only: the agent picker for `assigneeId` lists agents, and no
-          // tool creates, edits or deletes one.
           'Desk.agents.READ',
           'Desk.basic.READ',
           'Desk.webhooks.CREATE',
@@ -1720,6 +1819,8 @@ interface ProviderAuthConfig {
    * TikTok requires `client_key` instead.
    */
   clientIdParamName?: string
+  /** Greenhouse requires grant parameters in the query string, with credentials in Basic auth. */
+  refreshParamsInQuery?: boolean
 }
 
 function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientCapabilityId>(
@@ -1745,6 +1846,21 @@ function getProviderAuthConfig(
     throw new Error(`OAuth client override is not supported for provider ${provider}`)
   }
   switch (provider) {
+    case 'greenhouse': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'greenhouse',
+        'GREENHOUSE_CLIENT_ID',
+        'GREENHOUSE_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: GREENHOUSE_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+        refreshParamsInQuery: true,
+      }
+    }
     case 'google': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'google',
@@ -2038,6 +2154,20 @@ function getProviderAuthConfig(
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'helpscout': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'helpscout',
+        'HELPSCOUT_CLIENT_ID',
+        'HELPSCOUT_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.helpscout.net/v2/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'wealthbox': {
@@ -2509,10 +2639,18 @@ export async function refreshOAuthToken(
       bodyParams.scope = OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes.join(' ')
     }
 
-    const response = await fetch(config.tokenEndpoint, {
+    const tokenUrl = new URL(config.tokenEndpoint)
+    if (config.refreshParamsInQuery) {
+      tokenUrl.search = new URLSearchParams(bodyParams).toString()
+    }
+    const response = await fetch(tokenUrl.toString(), {
       method: 'POST',
       headers,
-      body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      body: config.refreshParamsInQuery
+        ? undefined
+        : useJsonBody
+          ? JSON.stringify(bodyParams)
+          : new URLSearchParams(bodyParams).toString(),
       redirect: 'error',
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
@@ -2524,7 +2662,9 @@ export async function refreshOAuthToken(
     const responseData = parseOAuthResponse(responseText)
 
     if (!response.ok) {
-      const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
+      const errorCode =
+        (provider === 'greenhouse' ? getGreenhouseRefreshErrorCode(responseData) : undefined) ??
+        safeOAuthErrorCode(responseData, exactSecrets)
 
       logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
@@ -2568,6 +2708,23 @@ export async function refreshOAuthToken(
         ok: false,
         errorCode,
         message: `Failed to refresh token: ${OAUTH_RESPONSE_OMITTED}`,
+      }
+    }
+
+    if (provider === 'greenhouse') {
+      const tokens = parseGreenhouseTokens(data)
+      return {
+        ok: true,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: Math.max(
+          1,
+          Math.ceil((tokens.accessTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
+        refreshTokenExpiresIn: Math.max(
+          1,
+          Math.ceil((tokens.refreshTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
       }
     }
 

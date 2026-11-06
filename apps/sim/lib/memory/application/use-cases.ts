@@ -7,9 +7,9 @@ import { db } from '@sim/db'
 import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, like } from 'drizzle-orm'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { and, eq, isNull, like, type SQL } from 'drizzle-orm'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -21,10 +21,12 @@ import { memoryOperations } from '@/lib/memory/application/operations'
 import { appendMemoryMessages, readPlainMemoryTail } from '@/lib/memory/conversation-store'
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
-import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import {
+  MEMORY_SECRET_PROVENANCE_COLUMNS,
+  readBoundMemorySecretProvenance,
+} from '@/lib/memory/secret-provenance'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
-const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 1_000
 const MAX_MEMORY_LIST_LIMIT = 1_000
 const MEMORY_READ_COLUMNS = {
   id: memory.id,
@@ -37,6 +39,18 @@ const MEMORY_READ_COLUMNS = {
   updatedAt: memory.updatedAt,
   deletedAt: memory.deletedAt,
 }
+
+function selectMemoryRows(where: SQL | undefined, limit: number) {
+  return db
+    .select({ ...MEMORY_READ_COLUMNS, ...MEMORY_SECRET_PROVENANCE_COLUMNS })
+    .from(memory)
+    .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
+    .where(where)
+    .orderBy(memory.createdAt)
+    .limit(limit)
+}
+
+type MemoryReadRow = Awaited<ReturnType<typeof selectMemoryRows>>[number]
 
 export interface MemoryRecord {
   id: string
@@ -103,112 +117,47 @@ function memoryMessageError(data: unknown): string | null {
   return null
 }
 
-async function loadReadProvenance(
-  records: MemoryRecord[],
-  signal?: AbortSignal
-): Promise<MemoryReadProvenance[]> {
-  if (records.length === 0) return []
-
-  const recordsById = new Map<string, MemoryRecord[]>()
-  for (const record of records) {
-    const matching = recordsById.get(record.id) ?? []
-    matching.push(record)
-    recordsById.set(record.id, matching)
-  }
-
-  const result: MemoryReadProvenance[] = []
-  const ids = [...recordsById.keys()]
-
-  for (let index = 0; index < ids.length; index += PRIVATE_MEMORY_QUERY_CHUNK_SIZE) {
-    signal?.throwIfAborted()
-    const pageIds = ids.slice(index, index + PRIVATE_MEMORY_QUERY_CHUNK_SIZE)
-    const sidecars = await db
-      .select()
-      .from(memorySecretProvenance)
-      .where(inArray(memorySecretProvenance.memoryId, pageIds))
-    const sidecarById = new Map(sidecars.map((sidecar) => [sidecar.memoryId, sidecar]))
-
-    for (const memoryId of pageIds) {
-      for (const record of recordsById.get(memoryId) ?? []) {
-        const sidecar = sidecarById.get(memoryId)
-        const provenance = readBoundMemorySecretProvenance({
-          secretProvenanceVersion: record.secretProvenanceVersion,
-          data: record.data,
-          provenanceContentHash: sidecar?.contentHash ?? null,
-          status: sidecar?.status ?? null,
-          entries: sidecar?.entries,
-        })
-        result.push({ data: record.data, provenance })
-      }
-    }
-  }
-
-  return result
-}
-
-async function readResultProvenance(
-  records: MemoryRecord[],
+/** Keeps the legacy public projection separate from private Agent exchanges and checkpoints. */
+async function readMemoryResults(
+  rows: MemoryReadRow[],
   principal: Principal,
   workspaceId: string,
   input: ReadProvenanceInput,
   existingScope?: MemoryLegacyProvenanceScope
 ): Promise<{
+  records: MemoryRecord[]
   readProvenance?: MemoryReadProvenance[]
   provenanceScope?: MemoryLegacyProvenanceScope
 }> {
-  if (!input.includePersistedSecretProvenance) return {}
-  const provenanceScope =
-    existingScope ??
-    (await resolveMemoryLegacyProvenanceScope(
-      principal,
-      workspaceId,
-      input.resolveBillingAttribution
-    ))
-  return {
-    readProvenance: await loadReadProvenance(records, input.signal),
-    provenanceScope,
-  }
-}
-
-/** Keeps the legacy public projection separate from private Agent exchanges and checkpoints. */
-async function readMemoryResults(
-  records: MemoryRecord[],
-  principal: Principal,
-  workspaceId: string,
-  input: ReadProvenanceInput,
-  existingScope?: MemoryLegacyProvenanceScope
-) {
-  const projected: MemoryRecord[] = []
+  const provenanceScope = input.includePersistedSecretProvenance
+    ? (existingScope ??
+      (await resolveMemoryLegacyProvenanceScope(
+        principal,
+        workspaceId,
+        input.resolveBillingAttribution
+      )))
+    : undefined
+  input.signal?.throwIfAborted()
+  const records: MemoryRecord[] = []
+  const readProvenance: MemoryReadProvenance[] = []
   const tailBudget = new PlainMemoryReadBudget()
-  const tailProvenance: Array<DurableSecretProvenance | undefined> = []
-  for (const record of records) {
-    if (record.storageVersion !== 2) {
-      projected.push(record)
-      tailProvenance.push(undefined)
-      continue
+  for (const { provenanceContentHash, status, entries, ...record } of rows) {
+    let provenance = provenanceScope
+      ? readBoundMemorySecretProvenance({ ...record, provenanceContentHash, status, entries })
+      : undefined
+    if (record.storageVersion === 2) {
+      input.signal?.throwIfAborted()
+      const tail = await readPlainMemoryTail(record.id, workspaceId, tailBudget)
+      record.data = [
+        ...(Array.isArray(record.data) ? record.data : [record.data]),
+        ...tail.messages,
+      ]
+      if (provenance) provenance = mergeDurableSecretProvenance(provenance, tail.provenance)
     }
-    const tail = await readPlainMemoryTail(record.id, workspaceId, tailBudget)
-    projected.push({
-      ...record,
-      data: [...(Array.isArray(record.data) ? record.data : [record.data]), ...tail.messages],
-    })
-    tailProvenance.push(tail.provenance)
+    records.push(record)
+    if (provenance) readProvenance.push({ data: record.data, provenance })
   }
-  const result = await readResultProvenance(records, principal, workspaceId, input, existingScope)
-  return {
-    records: projected,
-    ...result,
-    ...(result.readProvenance
-      ? {
-          readProvenance: result.readProvenance.map((entry, index) => ({
-            data: projected[index].data,
-            provenance: tailProvenance[index]
-              ? mergeDurableSecretProvenance(entry.provenance, tailProvenance[index])
-              : entry.provenance,
-          })),
-        }
-      : {}),
-  }
+  return provenanceScope ? { records, readProvenance, provenanceScope } : { records }
 }
 
 export interface ListMemoriesInput extends WorkspaceInput, ReadProvenanceInput {
@@ -228,14 +177,9 @@ export const listMemoriesUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     const conditions = [isNull(memory.deletedAt), eq(memory.workspaceId, context.workspaceId)]
     if (input.query) conditions.push(like(memory.key, `%${input.query}%`))
-    const records = await db
-      .select(MEMORY_READ_COLUMNS)
-      .from(memory)
-      .where(and(...conditions))
-      .orderBy(memory.createdAt)
-      .limit(input.limit)
+    const rows = await selectMemoryRows(and(...conditions), input.limit)
     input.signal?.throwIfAborted()
-    return readMemoryResults(records, principal, context.workspaceId, input)
+    return readMemoryResults(rows, principal, context.workspaceId, input)
   },
 })
 
@@ -250,21 +194,17 @@ export const readMemoryUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: memoryDelegationPolicy },
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
-    const records = await db
-      .select(MEMORY_READ_COLUMNS)
-      .from(memory)
-      .where(
-        and(
-          eq(memory.key, input.key),
-          eq(memory.workspaceId, context.workspaceId),
-          isNull(memory.deletedAt)
-        )
-      )
-      .orderBy(memory.createdAt)
-      .limit(1)
+    const rows = await selectMemoryRows(
+      and(
+        eq(memory.key, input.key),
+        eq(memory.workspaceId, context.workspaceId),
+        isNull(memory.deletedAt)
+      ),
+      1
+    )
     input.signal?.throwIfAborted()
     const { records: projected, ...provenance } = await readMemoryResults(
-      records,
+      rows,
       principal,
       context.workspaceId,
       input
@@ -323,23 +263,18 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     input.signal?.throwIfAborted()
-    const records = await db
-      .select(MEMORY_READ_COLUMNS)
-      .from(memory)
-      .where(
-        and(
-          eq(memory.key, input.key),
-          eq(memory.workspaceId, context.workspaceId),
-          isNull(memory.deletedAt)
-        )
-      )
-      .orderBy(memory.createdAt)
-      .limit(1)
-    const record = records[0]
-    if (!record) throw new Error('Failed to retrieve memory after creation/update')
+    const rows = await selectMemoryRows(
+      and(
+        eq(memory.key, input.key),
+        eq(memory.workspaceId, context.workspaceId),
+        isNull(memory.deletedAt)
+      ),
+      1
+    )
+    if (!rows[0]) throw new Error('Failed to retrieve memory after creation/update')
     input.signal?.throwIfAborted()
     const { records: projected, ...provenance } = await readMemoryResults(
-      records,
+      rows,
       principal,
       context.workspaceId,
       input,

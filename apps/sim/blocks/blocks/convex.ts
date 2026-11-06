@@ -13,7 +13,7 @@ export const ConvexBlock: BlockConfig = {
   description: 'Use Convex database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.',
+    'Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.',
   docsLink: 'https://docs.sim.ai/integrations/convex',
   category: 'tools',
   integrationType: IntegrationType.Databases,

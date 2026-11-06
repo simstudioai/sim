@@ -7,7 +7,7 @@ export const AgentMailBlock: BlockConfig = {
   name: 'AgentMail',
   description: 'Manage email inboxes, threads, and messages with AgentMail',
   longDescription:
-    'Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.',
+    'Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires an API key.',
   docsLink: 'https://docs.sim.ai/integrations/agentmail',
   category: 'tools',
   integrationType: IntegrationType.Email,

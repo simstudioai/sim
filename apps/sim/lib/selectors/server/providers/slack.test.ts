@@ -10,7 +10,7 @@ const { mockFetchProviderJson } = vi.hoisted(() => ({
   mockFetchProviderJson: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
+vi.mock('@/lib/selectors/server/providers/http', () => ({
   fetchProviderJson: mockFetchProviderJson,
 }))
 

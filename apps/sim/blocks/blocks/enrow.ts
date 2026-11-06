@@ -4,10 +4,10 @@ import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/b
 export const EnrowBlock: BlockConfig = {
   type: 'enrow',
   name: 'Enrow',
-  description: 'Find and verify B2B emails with triple-verified accuracy',
+  description: 'Find and verify B2B email addresses',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.',
+    'Find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Inspect the returned qualification before using an email address.',
   docsLink: 'https://docs.sim.ai/integrations/enrow',
   category: 'tools',
   integrationType: IntegrationType.Sales,

@@ -1,11 +1,11 @@
 import { GitLabIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildGitLabExtraFields,
   buildGitLabPipelineOutputs,
   gitlabSetupInstructions,
   gitlabTriggerOptions,
 } from '@/triggers/gitlab/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const gitlabPipelineTrigger: TriggerConfig = {

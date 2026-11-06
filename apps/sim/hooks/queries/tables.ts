@@ -120,6 +120,7 @@ import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -1848,6 +1849,7 @@ export function useRestoreTable() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
       ])
     },

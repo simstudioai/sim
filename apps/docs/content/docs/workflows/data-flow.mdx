@@ -1,22 +1,19 @@
 ---
 title: How blocks pass data
-description: What a block's output is, how blocks reference earlier outputs, and the data types you'll work with.
+description: Read earlier block outputs by name and choose the values a workflow returns.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { WorkflowPreview, OutputBundle, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
 
-Most blocks need a value that an earlier block produced. A block gets it by referencing that block's output by name.
+Blocks read earlier results through references. A connection determines when a block runs; a reference determines which value it reads.
 
 <WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} />
 
-In this workflow, Classify reads the message from Start, and Reply reads the classification from Classify.
+Classify reads `<start.input>`. Reply reads `<classify.content>` after Classify finishes.
 
 ## What an output is
 
-When a block runs, Sim keeps its result under the block's name for the rest of the run. That stored result is the block's **output**, and any later block can read it.
-
-An output is usually a set of named values, not a single thing. You read one by its key: `<classify.content>` is the `content` value of the block named `classify`.
+Sim stores each block's result for the run. An output usually contains several named values; `<classify.content>` reads the `content` field from the block named Classify.
 
 <OutputBundle
   blockName="classify"
@@ -25,7 +22,7 @@ An output is usually a set of named values, not a single thing. You read one by 
   duration="2.1s"
   values={[
     { key: 'content', type: 'string', value: '"Billing · high urgency"', highlight: true },
-    { key: 'model', type: 'string', value: '"claude-sonnet-4-6"', expanded: false },
+    { key: 'model', type: 'string', value: '"claude-sonnet-5-5"', expanded: false },
     {
       key: 'tokens', type: 'object',
       children: [
@@ -37,33 +34,45 @@ An output is usually a set of named values, not a single thing. You read one by 
   ]}
 />
 
-Different blocks produce different values. An [Agent](/workflows/blocks/agent) keeps its `content`; an [API](/workflows/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.
-
-<Callout type="info">
-A block's output is not the same as the **workflow's** output. Every block has its own, kept under its own name. By default, the workflow returns its last block's output. A [Response block](/workflows/blocks/response) or a deployment's selected outputs can shape what the caller receives.
-</Callout>
+Different blocks produce different fields. An [API](/workflows/blocks/api) returns its successful response body under `data`; a [Function](/workflows/blocks/function) returns its value under `result`; a Table query returns rows and `rowCount`.
 
 ## How a block references an output
 
-A block's inputs are its **parameters**: the fields you fill in, like an Agent's model and prompt. In any parameter you can insert a **connection tag** to pull in an earlier output instead of typing a fixed value. The `<start.input>` in Classify's prompt means "use whatever Start received here."
+Insert a **connection tag** into a supported input field, such as an Agent message or API request body. Type `<` to browse available references, or drag an output into the field.
 
-<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} highlightBlock="reply" />
+A referenced output must exist when the receiving block runs. A connection from the source ensures that dependency; when several sources feed one block, it waits for their active paths. A block on an unselected branch produces no output.
 
-A block can reference any output that already exists by the time it runs, meaning any block before it on its path (see [how workflows run](/workflows/how-it-runs)). You rarely type a tag by hand: wherever a parameter accepts one, the builder lists the available outputs and you pick the value you want.
+For a known block that did not run, references resolve empty: usually an empty string, or `null` in Function code. An unknown name can remain unsubstituted, while an invalid field can fail resolution. Inspect the source output rather than assuming every reference failure has the same result.
+
+See [connection syntax](/workflows/connections) for name normalization, nested fields, and arrays.
 
 ## Data types
 
-Each value inside an output has a type, shown next to it in the output panel. The type tells you what you can do with the value: index into an array, read a field from an object, compare a number.
+The output panel shows each value's type:
 
-| Type | What it is | Example |
+| Type | Example | How to use it |
 | --- | --- | --- |
-| `string` | Text | `"Billing issue"` |
-| `number` | A numeric value | `248` |
-| `boolean` | `true` or `false` | `true` |
-| `object` | A set of named fields | `{ category: "billing", urgency: "high" }` |
-| `array` | An ordered list of values | `["billing", "urgent"]` |
-| `null` | No value | `null` |
+| `string` | `"Billing issue"` | Include text in a prompt or message |
+| `number` | `248` | Calculate or compare |
+| `boolean` | `true` | Check a condition |
+| `object` | `{ "category": "billing" }` | Read named fields |
+| `array` | `["billing", "urgent"]` | Index or iterate |
+| `null` | `null` | Handle an absent value |
 
-A file shows up as an `object` carrying the file's details, like its name and URL. When a value isn't the type the next step needs, reshape it in a [Function](/workflows/blocks/function) block, which runs a short snippet of code and stores the result as its own output.
+Files appear as metadata objects, including their name and URL. Table row cells are nested under each row's `data`. Check the actual output before choosing a path.
 
-See [connection tags](/workflows/connections) for reference syntax, and [Logs](/logs-debugging) to inspect the values a block received.
+Use a Function block to reshape or convert a value, then reference its `result` downstream. Text fields stringify objects; Function code can use the referenced value as its original type.
+
+## Choose the workflow result
+
+Block output and workflow output are different. A simple chain returns its last block's output. With several terminal branches, the last terminal block to finish supplies the default result, so its identity can vary between runs.
+
+Join branches into one final block or add a [Response block](/workflows/blocks/response) when a caller needs a deliberate result. Chat deployments and table workflow columns select the fields they consume. API `selectedOutputs` projects block values separately from the default result; synchronous v2 calls expose that projection in `data.blockOutputs`.
+
+The v2 API returns the workflow result in `data.output`. A Response block does not replace that API's HTTP status, headers, or envelope.
+
+## Related docs
+
+- [How workflows run](/workflows/how-it-runs)
+- [Connection syntax](/workflows/connections)
+- [Logs](/logs-debugging)

@@ -1,3 +1,6 @@
+import type { FolderPathIndex } from '@/lib/folders/paths'
+import type { FolderPathFilter } from '@/lib/folders/queries'
+
 /** Minimal shape needed to walk a folder hierarchy — any row with an id and a parent. */
 export interface FolderNode {
   id: string
@@ -116,4 +119,20 @@ export function collectFolderDepths(
   }
 
   return depths
+}
+
+/** Converts a resolved path filter into the SQL folder IDs for a shallow or recursive page. */
+export function resolveFolderScope(
+  folderIndex: FolderPathIndex,
+  folderFilter: FolderPathFilter,
+  recursive: boolean | undefined
+): string | null | string[] | undefined {
+  if (folderFilter.kind !== 'folder') return undefined
+  if (!recursive) return folderFilter.folderId
+  if (folderFilter.folderId === null) return undefined
+  const childrenByParent = indexFolderChildren(folderIndex.rowById.values())
+  return [
+    folderFilter.folderId,
+    ...collectDescendantFolderIdsFrom(childrenByParent, folderFilter.folderId),
+  ]
 }

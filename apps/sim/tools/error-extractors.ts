@@ -48,9 +48,15 @@ interface ErrorExtractorConfig {
    * leaves the original reachable at `output.data`.
    */
   redactData?: (errorInfo?: ErrorInfo) => unknown
+  /**
+   * Run only when a tool selects this extractor by ID. Use for provider-specific
+   * messages that would mislabel other services' errors in the fallback chain.
+   */
+  explicitOnly?: boolean
 }
 
 const CODA_MAX_VALIDATION_MESSAGES = 5
+const HELPSCOUT_MAX_FIELD_ERRORS = 5
 
 /**
  * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
@@ -255,6 +261,35 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       const firstError = errorInfo.data.errors[0]
       if (typeof firstError === 'string') return firstError
       return firstError?.message
+    },
+  },
+  {
+    id: 'helpscout-errors',
+    description:
+      'Help Scout vnd.error responses: the top-level message plus each embedded field error as `path: message`, without the rejected value. Help Scout answers a missing resource with an empty 404 body.',
+    examples: ['Help Scout'],
+    explicitOnly: true,
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return errorInfo?.status === 404
+          ? 'Not found: the Help Scout resource does not exist or the connected user cannot access it'
+          : undefined
+      }
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const embedded = data._embedded
+      const errors: unknown[] =
+        embedded && typeof embedded === 'object' && Array.isArray(embedded.errors)
+          ? embedded.errors
+          : []
+      const details = errors.slice(0, HELPSCOUT_MAX_FIELD_ERRORS).flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return []
+        const { path, message: detail } = entry as Record<string, unknown>
+        if (typeof detail !== 'string' || !detail.trim()) return []
+        return [typeof path === 'string' && path ? `${path}: ${detail.trim()}` : detail.trim()]
+      })
+      if (details.length === 0) return message || undefined
+      return `${message || 'Request failed'}: ${details.join('; ')}`
     },
   },
   {
@@ -658,6 +693,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
+    if (extractor.explicitOnly) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {
@@ -685,6 +721,7 @@ export const ErrorExtractorId = {
   STANDARD_MESSAGE: 'standard-message',
   HARMONIC_ERRORS: 'harmonic-errors',
   CODA_ERRORS: 'coda-errors',
+  HELPSCOUT_ERRORS: 'helpscout-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',

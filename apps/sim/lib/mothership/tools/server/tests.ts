@@ -46,9 +46,12 @@ function failures(report: TestReport | null) {
     })
 }
 
+const TEST_READ_ACTIONS = new Set(['list', 'get'])
+
 export const testsServerTool: BaseServerTool = {
   name: 'tests',
   inputSchema: mothershipTestsInputSchema,
+  writes: (args) => !TEST_READ_ACTIONS.has(mothershipTestsInputSchema.parse(args).action),
   async execute(raw, context) {
     const input = mothershipTestsInputSchema.parse(raw)
     const workspaceId = workspaceFor(input, context)

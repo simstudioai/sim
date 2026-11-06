@@ -12,7 +12,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -25,6 +24,7 @@ import {
   useSchemaGeneration,
   validateCustomToolSchema,
 } from '@/app/workspace/[workspaceId]/components/custom-tool-editor'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   useCreateCustomTool,
   useCustomTools,
@@ -74,8 +74,7 @@ export function CustomToolModal({
   blockId,
   initialValues,
 }: CustomToolModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const [activeSection, setActiveSection] = useState<ToolSection>('schema')
   const [jsonSchema, setJsonSchema] = useState('')
   const [functionCode, setFunctionCode] = useState('')
@@ -91,6 +90,7 @@ export function CustomToolModal({
   const schemaParameters = useMemo(() => extractSchemaParameters(jsonSchema), [jsonSchema])
 
   const schemaGeneration = useSchemaGeneration({
+    workspaceId,
     jsonSchema,
     setJsonSchema: (updater) => {
       setJsonSchema(updater)
@@ -103,6 +103,7 @@ export function CustomToolModal({
   })
 
   const codeGeneration = useCodeGeneration({
+    workspaceId,
     functionCode,
     schemaParameters,
     setFunctionCode: (updater) => {

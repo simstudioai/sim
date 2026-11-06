@@ -181,7 +181,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_settlements_v2',
   name: 'Get Settlements from Kalshi V2',
-  description: 'Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)',
+  description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '2.0.0',
 
   params: {

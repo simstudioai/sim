@@ -18,6 +18,8 @@ export const slackSearchInstallationSchema = z.object({
 })
 export const listSlackSearchResponseSchema = z.object({
   sharedAppAvailable: z.boolean(),
+  /** The app the organization's Slack member sign-in uses, when configured. */
+  memberAppKind: z.enum(['custom', 'shared']).nullable(),
   installations: z.array(slackSearchInstallationSchema).max(100),
   bots: z
     .array(z.object({ id: z.string().min(1).max(200), displayName: z.string().max(500) }))

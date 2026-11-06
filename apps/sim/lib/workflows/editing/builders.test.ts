@@ -16,8 +16,11 @@ import {
   resolveBlockRetryUpdate,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { TailscaleBlock } from '@/blocks/blocks/tailscale'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+import { tailscaleAuthorizeDeviceTool, tailscaleCreateAuthKeyTool } from '@/tools/tailscale'
 
 const mockIsIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
@@ -137,6 +140,7 @@ const gatedOperationBlockConfig = {
 }
 
 const blocksByType: Record<string, unknown> = {
+  tailscale: TailscaleBlock,
   api: apiBlockConfig,
   agent: agentBlockConfig,
   mothership: { ...agentBlockConfig, type: 'mothership' },
@@ -148,6 +152,82 @@ const blocksByType: Record<string, unknown> = {
 }
 
 describe('createBlockFromParams', () => {
+  it.each([
+    [{}, true],
+    [{ authorized: false }, false],
+  ] as const)(
+    'preserves authorization intent from API block creation through the provider request for %j',
+    (provided, expected) => {
+      const block: BlockState = createBlockFromParams('device-authorization', {
+        type: 'tailscale',
+        name: 'Device authorization',
+        inputs: {
+          operation: 'authorize_device',
+          apiKey: 'test-token',
+          deviceId: 'device',
+          ...provided,
+        },
+      })
+      const values = Object.fromEntries(
+        Object.entries(block.subBlocks).map(([id, field]) => [id, field.value])
+      )
+      const resolved = TailscaleBlock.tools?.config?.params?.(values)
+      if (!resolved || typeof resolved.authorized !== 'boolean') {
+        throw new Error('Authorization did not resolve to a boolean')
+      }
+      const body = tailscaleAuthorizeDeviceTool.request.body?.({
+        apiKey: 'test-token',
+        deviceId: 'device',
+        authorized: resolved.authorized,
+      })
+      expect(body).toEqual({ authorized: expected })
+    }
+  )
+
+  it('treats a null runtime switch as unset while preserving explicit false', () => {
+    const transform = TailscaleBlock.tools?.config?.params
+    if (!transform) throw new Error('Tailscale has no parameter transform')
+    expect(transform({ operation: 'authorize_device', authorized: null })).toMatchObject({
+      authorized: true,
+    })
+    expect(transform({ operation: 'authorize_device', authorized: 'false' })).toMatchObject({
+      authorized: false,
+    })
+  })
+
+  it('rejects an invalid authorization value before a provider request can change access', () => {
+    const transform = TailscaleBlock.tools?.config?.params
+    if (!transform) throw new Error('Tailscale has no parameter transform')
+    expect(() => transform({ operation: 'authorize_device', authorized: 'invalid' })).toThrow()
+  })
+
+  it('keeps dormant values from blocking the selected operation', () => {
+    const transform = TailscaleBlock.tools?.config?.params
+    if (!transform) throw new Error('Tailscale has no parameter transform')
+    expect(
+      transform({
+        operation: 'authorize_device',
+        authorized: false,
+        reusable: 'inactive value',
+        expirySeconds: 'inactive value',
+      })
+    ).toMatchObject({ authorized: false })
+  })
+
+  it.each(['', '   ', null, undefined])(
+    'omits cleared auth-key expiry %j so the provider default applies',
+    (expirySeconds) => {
+      const transform = TailscaleBlock.tools?.config?.params
+      if (!transform) throw new Error('Tailscale has no parameter transform')
+      const body = tailscaleCreateAuthKeyTool.request.body?.({
+        apiKey: 'test-token',
+        tailnet: '-',
+        ...transform({ operation: 'create_auth_key', expirySeconds }),
+      })
+      expect(JSON.stringify(body)).not.toContain('"expirySeconds"')
+    }
+  )
+
   it('exposes the output ports of the seeded Agent default', () => {
     const block = createBlockFromParams(
       'agent-research-default',

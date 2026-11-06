@@ -12,7 +12,6 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import {
   authorizeWorkspaceOperation,
   PrincipalKindAuthorizationError,
-  requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -21,6 +20,7 @@ import {
   type AccessRequestOperation,
   type AccessRequestPrincipal,
 } from '@/ee/access-requests/lib/application/operations'
+import { requireAccessRequestPrincipal } from '@/ee/access-requests/lib/application/principal'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 export interface AccessRequestContext {
@@ -94,7 +94,7 @@ export async function authorizeAccessRequestScope(
   forUpdate = false,
   expected?: Pick<AccessRequestContext, 'organizationId' | 'membershipId'>
 ): Promise<AccessRequestContext> {
-  requireAllowedWorkspacePrincipal(principal, operation)
+  requireAccessRequestPrincipal(principal, operation)
   if (operation.admin && scope.kind !== 'organization') {
     throw new OrchestrationError('forbidden', 'Organization administrator access is required')
   }

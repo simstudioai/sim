@@ -7,7 +7,7 @@ export const SESBlock: BlockConfig = {
   name: 'AWS SES',
   description: 'Send emails and manage templates with AWS Simple Email Service',
   longDescription:
-    'Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.',
+    'Send simple, templated, and bulk emails. Manage email templates, identities, configuration sets, and the account suppression list, and retrieve account sending quota and verified identity information.',
   docsLink: 'https://docs.sim.ai/integrations/ses',
   category: 'tools',
   integrationType: IntegrationType.Email,

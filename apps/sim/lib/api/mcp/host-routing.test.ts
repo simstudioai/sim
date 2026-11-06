@@ -35,6 +35,7 @@ describe('Sim MCP host routing', () => {
         '/.well-known/oauth-protected-resource/mcp',
         '/.well-known/oauth-protected-resource/api/mcp',
       ],
+      ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/api/mcp'],
       ['/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server'],
     ])('maps %s to %s', (pathname, target) => {
       expect(resolveSimMcpHostPath('mcp.sim.ai', pathname)).toBe(target)

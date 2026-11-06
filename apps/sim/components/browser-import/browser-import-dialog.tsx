@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type {
   BrowserChromeImportResult,
   BrowserImportError,
@@ -9,8 +9,9 @@ import type {
 import { toast } from '@sim/emcn'
 import { ImportModal } from '@/components/browser-import/import-modal'
 import { getDesktopBridge } from '@/lib/desktop'
+import { useBrowserImportProfiles } from '@/hooks/queries/browser-import'
 
-const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
+export const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
   'unsupported-platform': 'Importing from another browser is only supported on macOS.',
   'chrome-not-found': 'Could not find that browser profile.',
   'keychain-unavailable':
@@ -43,38 +44,15 @@ interface BrowserImportDialogProps {
 
 /** Shares the same user-initiated import flow between Settings and the browser panel. */
 export function BrowserImportDialog({ open, onOpenChange, onImported }: BrowserImportDialogProps) {
-  const [profiles, setProfiles] = useState<BrowserImportProfile[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>()
+  const available = Boolean(getDesktopBridge()?.browserImport?.listChromeProfiles)
+  const profilesQuery = useBrowserImportProfiles(open && available)
   const [pending, setPending] = useState(false)
   const importInFlight = useRef(false)
-
-  useEffect(() => {
-    if (!open) return
-    let active = true
-    setLoading(true)
-    setError(undefined)
-    setProfiles([])
-    const listProfiles = getDesktopBridge()?.browserImport?.listChromeProfiles
-    if (!listProfiles) {
-      setError('Browser import is not available on this device.')
-      setLoading(false)
-      return
-    }
-    void listProfiles()
-      .then((next) => {
-        if (active) setProfiles(next)
-      })
-      .catch(() => {
-        if (active) setError('Could not load browser profiles. Close this dialog and try again.')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [open])
+  const error = !available
+    ? 'Browser import is not available on this device.'
+    : profilesQuery.isError
+      ? 'Could not load browser profiles. Close this dialog and try again.'
+      : undefined
 
   async function importFromBrowser(profile: BrowserImportProfile) {
     const runImport = getDesktopBridge()?.browserImport?.importFromChrome
@@ -118,8 +96,8 @@ export function BrowserImportDialog({ open, onOpenChange, onImported }: BrowserI
     <ImportModal
       open={open}
       onOpenChange={onOpenChange}
-      profiles={profiles}
-      loading={loading}
+      profiles={profilesQuery.data ?? []}
+      loading={available && profilesQuery.isPending}
       error={error}
       pending={pending}
       onImport={(profile) => void importFromBrowser(profile)}

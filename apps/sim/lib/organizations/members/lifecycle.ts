@@ -1,10 +1,13 @@
-import { member, user } from '@sim/db/schema'
+import { member, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
+import { stopRunsWithoutWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 
 const logger = createLogger('OrganizationMemberLifecycle')
 
@@ -23,6 +26,8 @@ export type SuspensionSource = 'scim'
 export interface SuspendMemberResult {
   suspended: boolean
   sessionsRevoked: number
+  /** Deliver these durable Stops only after the suspension commits. */
+  stoppedRuns: StoppedRun[]
 }
 
 /**
@@ -34,8 +39,8 @@ export interface SuspendMemberResult {
  * is no server-side path to undo it. A directory deactivation is routine and
  * reversible — someone on leave, or moved between teams — so it must not destroy
  * the work they own. That includes their API keys: the key rows stay, and the
- * authentication paths refuse them while `suspendedAt` is set, so reactivation
- * restores every automation exactly as it was.
+ * authentication paths refuse them while `suspendedAt` is set. Reactivation
+ * permits new runs; already admitted Chat runs are durably stopped.
  */
 export async function suspendMemberTx(
   tx: DbTransaction,
@@ -70,7 +75,8 @@ export async function suspendMemberTx(
     organizationId: params.organizationId,
   })
 
-  return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked }
+  const stoppedRuns = await stopLiveRunsTx(tx, { userId: params.userId })
+  return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked, stoppedRuns }
 }
 
 /** Lifts a suspension, but only one raised by the same source. */
@@ -89,7 +95,13 @@ export async function unsuspendMemberTx(
 export type OrganizationMemberRole = 'admin' | 'member'
 
 export type ChangeMemberRoleResult =
-  | { changed: true; from: string; to: OrganizationMemberRole }
+  | {
+      changed: true
+      from: string
+      to: OrganizationMemberRole
+      /** Runs a demotion stopped where it ended the member's derived workspace access. */
+      stoppedRuns: StoppedRun[]
+    }
   | { changed: false; role: string }
 
 /**
@@ -101,7 +113,16 @@ export type ChangeMemberRoleResult =
  */
 export async function changeMemberRoleTx(
   tx: DbTransaction,
-  params: { organizationId: string; userId: string; role: OrganizationMemberRole }
+  params: {
+    organizationId: string
+    userId: string
+    role: OrganizationMemberRole
+    /**
+     * Leaves the member's runs to a caller that changes more access in this transaction and
+     * stops runs once that access is final; `stoppedRuns` is then empty.
+     */
+    deferRunStops?: boolean
+  }
 ): Promise<ChangeMemberRoleResult> {
   await acquireOrganizationUserMutationLocks(tx, {
     userId: params.userId,
@@ -121,11 +142,25 @@ export async function changeMemberRoleTx(
   if (current.role === params.role) return { changed: false, role: current.role }
 
   await tx.update(member).set({ role: params.role }).where(eq(member.id, current.id))
+  /** An organization admin holds derived access to every organization workspace; a demotion ends it. */
+  const stoppedRuns =
+    !params.deferRunStops && isOrgAdminRole(current.role) && !isOrgAdminRole(params.role)
+      ? await stopRunsWithoutWorkspaceAccessTx(
+          tx,
+          params.userId,
+          (
+            await tx
+              .select({ id: workspace.id })
+              .from(workspace)
+              .where(eq(workspace.organizationId, params.organizationId))
+          ).map(({ id }) => id)
+        )
+      : []
   logger.info('Changed organization member role', {
     organizationId: params.organizationId,
     userId: params.userId,
     from: current.role,
     to: params.role,
   })
-  return { changed: true, from: current.role, to: params.role }
+  return { changed: true, from: current.role, to: params.role, stoppedRuns }
 }

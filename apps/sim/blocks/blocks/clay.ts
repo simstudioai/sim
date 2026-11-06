@@ -6,7 +6,7 @@ export const ClayBlock: BlockConfig = {
   name: 'Clay',
   description: 'Populate Clay workbook',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Clay into the workflow. Can populate a table with data.',
+  longDescription: 'Send structured records to a Clay table through its webhook URL.',
   docsLink: 'https://docs.sim.ai/integrations/clay',
   category: 'tools',
   integrationType: IntegrationType.Sales,

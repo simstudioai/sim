@@ -97,13 +97,11 @@ export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
 
 /**
  * The Insights chart palette, declared on each chart's root so a layer, its legend
- * dot, and its tooltip swatch resolve to one color. Each hue is its source's color
- * elsewhere in the app — Sim green for Chat, the Enrichment block's purple, the
- * Knowledge block's teal, the agent violet — stepped to the lightness a filled mark
- * needs in each mode; badge text tokens are too pale in dark mode to fill a bar.
+ * dot, and its tooltip swatch resolve to one color. Muted hues in light mode and
+ * soft pastels in dark mode keep dense daily series legible.
  */
 export const USAGE_PALETTE_CLASS =
-  '[--usage-chat:#1f9d63] [--usage-enrichment:#c026d3] [--usage-knowledge:#0e9f9f] [--usage-agent:#6f3dfa] [--usage-other:var(--text-secondary)] dark:[--usage-chat:#2dac72] dark:[--usage-enrichment:#d946ef] dark:[--usage-agent:#8b5cf6] dark:[--usage-other:#8a8a8a]'
+  '[--usage-workflow:#6476c7] [--usage-chat:#268967] [--usage-enrichment:#b66d99] [--usage-knowledge:#268f97] [--usage-agent:#8d68c9] [--usage-other:#77848f] [--usage-failed:#c46b6b] dark:[--usage-workflow:#a3adf7] dark:[--usage-chat:#7bdcb5] dark:[--usage-enrichment:#e9a0cc] dark:[--usage-knowledge:#6bcbd0] dark:[--usage-agent:#bd9aee] dark:[--usage-other:#8c9ba9] dark:[--usage-failed:#e69494]'
 
 /** Sim Chat's color, shared by its credit layer and the chat-runs chart. */
 export const USAGE_CHAT_COLOR = 'var(--usage-chat)'
@@ -116,13 +114,11 @@ export const USAGE_OTHER_COLOR = 'var(--usage-other)'
  * its color when a quieter period drops its neighbours — color follows the source,
  * never its rank.
  *
- * Five hues plus a neutral `Other`: the palette is validated for adjacent-pair
- * separation (including color-vision deficiency) in both modes in exactly this order,
- * so reorder or extend it only by re-running that validation. A sixth distinct source
- * belongs in `Other`, not in a generated hue.
+ * Five hues plus a neutral remainder. Legend labels and hover isolation identify
+ * each source without relying on color alone.
  */
 export const USAGE_SOURCE_CATEGORIES = [
-  { id: 'workflow', label: 'Workflows', color: 'var(--brand-blue)' },
+  { id: 'workflow', label: 'Workflows', color: 'var(--usage-workflow)' },
   { id: 'chat', label: 'Sim Chat', color: USAGE_CHAT_COLOR },
   { id: 'enrichment', label: 'Enrichment', color: 'var(--usage-enrichment)' },
   { id: 'knowledge', label: 'Knowledge Base', color: 'var(--usage-knowledge)' },

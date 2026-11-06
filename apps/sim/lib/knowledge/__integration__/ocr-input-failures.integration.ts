@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -27,7 +28,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import * as egress from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityScope } from '@/lib/internal/mistral/capacity'
@@ -83,7 +84,7 @@ describe('OCR input failures stop without partial indexing or futile retries', (
       await db.delete(rateLimitBucket).where(inArray(rateLimitBucket.key, capacityKeys))
     for (const ids of seeded) {
       await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
@@ -95,7 +96,10 @@ describe('OCR input failures stop without partial indexing or futile retries', (
     async (kind) => {
       const ids = createKnowledgeAclFixtureIds()
       seeded.push(ids)
-      await seedKnowledgeAclFixture(ids)
+      const image = !kind.endsWith('PDF')
+      /** Confluence reads images with the vision model; Google Drive still sends them to OCR. */
+      const connectorType = image ? 'google_drive' : 'confluence'
+      await seedKnowledgeAclFixture(ids, { connectorType })
       const bytes =
         kind === 'encrypted PDF'
           ? await encryptedPdf()
@@ -104,12 +108,12 @@ describe('OCR input failures stop without partial indexing or futile retries', (
             : kind === 'animated GIF'
               ? Buffer.concat([GIF.subarray(0, -1), GIF.subarray(19, -1), Buffer.from([0x3b])])
               : GIF
-      const mimeType = kind.endsWith('PDF') ? 'application/pdf' : 'image/gif'
+      const mimeType = image ? 'image/gif' : 'application/pdf'
       const filename = mimeType === 'application/pdf' ? 'fixture.pdf' : 'fixture.gif'
       const file = await addDocument(
         ids.knowledgeBaseId,
         ids.connectorId,
-        'confluence',
+        connectorType,
         {
           externalId: 'synthetic-input',
           title: filename,

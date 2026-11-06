@@ -55,7 +55,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   id: 'parallel_deep_research',
   name: 'Parallel AI Deep Research',
   description:
-    'Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete.',
+    'Research the web with Parallel AI and synthesize findings from multiple sources with citations. Can take up to 45 minutes to complete.',
   version: '1.0.0',
 
   hosting: {

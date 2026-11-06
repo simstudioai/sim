@@ -4,13 +4,21 @@ import {
   getOrganizationSeatAnalytics,
   getOrganizationSeatInfo,
 } from '@/lib/billing/validation/seat-management'
-import { defineAuthorizedOrganizationUseCase } from '@/lib/core/application/authorized-organization-use-case'
+import {
+  defineAuthorizedOrganizationUseCase,
+  type OrganizationUseCaseContext,
+} from '@/lib/core/application/authorized-organization-use-case'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { organizationOperations } from '@/lib/organizations/application/operations'
+import {
+  type OrganizationChatAccess,
+  projectOrganizationChatAccess,
+} from '@/lib/organizations/chat-access'
 import {
   type OrganizationMemberPageInput,
   readOrganizationMemberPage,
@@ -30,6 +38,7 @@ import {
 } from '@/lib/organizations/queries'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 
 export interface OrganizationInput {
   organizationId: string
@@ -89,23 +98,31 @@ export const getOrganization = defineAuthorizedOrganizationUseCase({
   async execute({
     input,
     context,
-  }: {
-    input: OrganizationInput & { includeSeats?: boolean }
-    context: { role: string }
-  }) {
-    const organization = await requireOrganizationRecord(input.organizationId)
+  }: OrganizationUseCaseContext<
+    OrganizationInput & { includeSeats?: boolean; includeChatAccess?: boolean }
+  >) {
+    const organization = await requireOrganizationRecord(context.organizationId)
     const hasAdminAccess = isOrgAdminRole(context.role)
-    const seats = input.includeSeats ? await getOrganizationSeatInfo(input.organizationId) : null
+    const seats = input.includeSeats ? await getOrganizationSeatInfo(context.organizationId) : null
     const seatAnalytics =
       input.includeSeats && hasAdminAccess
-        ? await getOrganizationSeatAnalytics(input.organizationId)
+        ? await getOrganizationSeatAnalytics(context.organizationId)
         : null
+    let chatAccess: OrganizationChatAccess | undefined
+    if (input.includeChatAccess) {
+      const [config, searchAccess] = await Promise.all([
+        getUserPermissionConfigForOrganization(context.organizationId),
+        resolveKnowledgeAccessAvailability({ organizationId: context.organizationId }),
+      ])
+      chatAccess = projectOrganizationChatAccess({ role: context.role, config, searchAccess })
+    }
     return {
       ...organization,
       role: context.role,
       hasAdminAccess,
       ...(seats ? { seats } : {}),
       ...(seatAnalytics ? { seatAnalytics } : {}),
+      ...(chatAccess ? { chatAccess } : {}),
     }
   },
 })

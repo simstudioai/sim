@@ -122,7 +122,7 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
           (globalThis as Bridge).simDesktop.browserAgent.executeTool(callId, tool, args, scope),
         { callId, tool, args, scope: SCOPE }
       )
-      expect(result.ok).toBe(true)
+      expect(result.ok, result.error).toBe(true)
       return result.ok ? result.result : undefined
     }
     const panelAction = (action: Record<string, unknown>) =>

@@ -14,7 +14,7 @@ export const workspacePermissionOpenApiRoutes = [
     {
       applicationOperation: permissionGroupWorkspaceOperations.readUserConfig,
       operationId: 'getWorkspacePermissionConfig',
-      summary: 'Get Workspace Permission Config',
+      summary: 'Get workspace permission config',
       description: `Get the acting user's governing permission group and configuration for a workspace they can access. This describes permission-group restrictions, not the user's workspace role. Group and config are null when no group governs the caller; entitled indicates whether organization permission governance is active. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workspaces'],
       errors: RESOURCE_ERRORS,
@@ -27,14 +27,14 @@ export const workspacePermissionOpenApiRoutes = [
       params: documentedSchema(
         v2GetWorkspacePermissionConfigContract.params,
         'GetWorkspacePermissionConfigParams',
-        'Get Workspace Permission Config parameters',
+        'Get workspace permission config parameters',
         'Target workspace.'
       ),
       query: v2GetWorkspacePermissionConfigContract.query,
       response: documentedSchema(
         v2GetWorkspacePermissionConfigContract.response.schema,
         'GetWorkspacePermissionConfigResponse',
-        'Get Workspace Permission Config response',
+        'Get workspace permission config response',
         'Configuration for the acting caller only.',
         [
           {

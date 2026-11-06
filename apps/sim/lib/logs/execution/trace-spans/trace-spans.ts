@@ -1,6 +1,6 @@
 import { isUserFile } from '@/lib/core/utils/user-file'
+import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/factory'
 import { groupIterationBlocks } from '@/lib/logs/execution/trace-spans/iteration-grouping'
-import { createSpanFromLog } from '@/lib/logs/execution/trace-spans/span-factory'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 

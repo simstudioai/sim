@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   record: vi.fn(),
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workspaces/visits', () => ({ recordWorkspaceVisitRecord: mocks.record }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'

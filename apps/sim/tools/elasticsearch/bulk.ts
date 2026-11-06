@@ -64,7 +64,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: {"index":{"_index":"products","_id":"1"}}\\n{"name":"Widget"}\\n',
+        'Bulk operations as NDJSON string. Index, create, and update use an action line followed by a document/update line; delete uses only an action line. Example: {"index":{"_index":"products","_id":"1"}}\\n{"name":"Widget"}\\n',
     },
     refresh: {
       type: 'string',

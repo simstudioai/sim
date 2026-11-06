@@ -16,11 +16,12 @@ import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
+import { ChatPlanModal } from '@/app/workspace/[workspaceId]/home/components/chat-plan-modal'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
-import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
+import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -446,6 +447,7 @@ export function WorkspaceChrome({
         </div>
       )}
       {!isFullscreen && <TitleBarHistoryNav />}
+      <ChatPlanModal />
     </div>
   )
 }

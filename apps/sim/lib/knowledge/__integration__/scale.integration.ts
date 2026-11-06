@@ -1,13 +1,14 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeConnector, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecord } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -259,7 +260,7 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
     try {
       await snapshot('final')
       if (!keepDatabase) {
-        await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+        await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
         await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
       }
     } finally {

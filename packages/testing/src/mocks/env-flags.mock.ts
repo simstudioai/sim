@@ -15,6 +15,7 @@ interface EnvFlagsMockState {
   isChatEnabled: boolean
   isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
+  isMothershipBenchmarkEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
@@ -27,7 +28,6 @@ interface EnvFlagsMockState {
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
   isTriggerDevEnabled: boolean
-  isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
@@ -68,6 +68,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isChatEnabled: true,
   isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,
+  isMothershipBenchmarkEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,
@@ -80,7 +81,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
-  isEnterpriseEnabled: false,
   isSsoEnabled: false,
   /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,

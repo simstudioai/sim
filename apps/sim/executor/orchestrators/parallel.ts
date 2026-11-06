@@ -8,6 +8,8 @@ import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow.server'
 import {
   buildBranchNodeId,
   buildLoopSentinelEndId,
@@ -18,8 +20,6 @@ import {
   extractBranchIndex,
 } from '@/executor/utils/subflow-node-id-codec'
 import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
-import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
-import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
 

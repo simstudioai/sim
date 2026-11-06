@@ -2,8 +2,8 @@ import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { UptimeRobotOperationError } from '@/lib/internal/uptimerobot/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export async function appendUptimeRobotPspImage(args: {

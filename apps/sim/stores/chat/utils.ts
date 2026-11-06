@@ -1,4 +1,4 @@
-import { getTerminalHeight } from '@/lib/workflows/layout'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import type { ChatPosition } from '@/stores/chat/types'
 
 /**
@@ -30,9 +30,7 @@ const calculateDefaultPosition = (width: number): ChatPosition => {
     return { x: 100, y: 100 }
   }
 
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
 
   const x = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - 32 - width
   const y = CONTENT_WINDOW_GAP + 32
@@ -55,9 +53,7 @@ export const constrainChatPosition = (
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const terminalHeight = getTerminalHeight()
 
   const minX = sidebarWidth

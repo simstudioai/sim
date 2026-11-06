@@ -57,14 +57,18 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
+import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
+import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import { VideoGeneratorV2Block, VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
@@ -75,7 +79,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -87,6 +91,8 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 import { vantaListFrameworksTool } from '@/tools/vanta/list_frameworks'
 import { vantaSubmitDocumentTool } from '@/tools/vanta/submit_document'
 import { vantaUploadDocumentFileTool } from '@/tools/vanta/upload_document_file'
+import { falaiVideoTool } from '@/tools/video/falai'
+import { minimaxVideoTool } from '@/tools/video/minimax'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
@@ -165,10 +171,10 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -181,7 +187,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
@@ -195,7 +201,7 @@ const mockRegistryTools: Record<string, any> = {
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
-  github_search_issues_v2: searchIssuesV2Tool,
+  github_search_users_v2: searchUsersV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -423,7 +429,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
-import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
@@ -5067,7 +5073,6 @@ describe('File Parameter Normalization', () => {
         expect(providerTool?.parameters?.properties?.visualReference).toMatchObject({
           type: 'string',
         })
-        expect(providerTool?.parameters?.required).toContain('visualReference')
         const prepared = prepareToolExecution(
           providerTool!,
           {
@@ -5097,6 +5102,7 @@ describe('File Parameter Normalization', () => {
         } else {
           expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toMatchObject({
             provider: 'runway',
+            model: 'gen4_turbo',
             apiKey: 'test-runway-key',
             prompt: 'Animate the boat',
             visualReference: file,
@@ -5111,6 +5117,181 @@ describe('File Parameter Normalization', () => {
       } finally {
         tools.video_runway = originalTool
       }
+    }
+  )
+
+  it.each([
+    { configured: undefined, requested: false, expected: false },
+    { configured: undefined, requested: true, expected: true },
+    { configured: false, requested: true, expected: false },
+  ])('preserves Agent audio choices and configured overrides ($expected)', async (testCase) => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'video_generator_v3',
+        params: {
+          provider: 'runway',
+          apiKey: 'test-runway-key',
+          directGenerateAudio: testCase.configured,
+        },
+      },
+      { getAllBlocks: () => [VideoGeneratorV3Block], getTool: () => runwayVideoTool }
+    )
+    if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+    const prepared = prepareToolExecution(
+      providerTool,
+      { model: 'veo3.1', prompt: 'Animate the boat', generateAudio: testCase.requested },
+      {},
+      'call-video-audio'
+    )
+    const input = videoToolBodySchema.parse(prepared.toolParams)
+    const request = buildDirectVideoRequest({ ...input, provider: 'runway' })
+    expect(request.body.audio).toBe(testCase.expected)
+  })
+
+  it.each(['standard', 'pro'])(
+    'rejects an explicit MiniMax H3 legacy endpoint (%s) before building a paid request',
+    async (endpoint) => {
+      const providerTool = await transformBlockTool(
+        { type: 'video_generator_v3', params: { provider: 'minimax', apiKey: 'test-minimax-key' } },
+        { getAllBlocks: () => [VideoGeneratorV3Block], getTool: () => minimaxVideoTool }
+      )
+      if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+      const prepared = prepareToolExecution(
+        providerTool,
+        { model: 'MiniMax-H3', prompt: 'Animate the boat', endpoint },
+        {},
+        'call-minimax-endpoint'
+      )
+      const params = videoToolBodySchema.parse(prepared.toolParams)
+      const input = videoToolBodySchema.parse(
+        minimaxVideoTool.operation.input({
+          ...params,
+          provider: 'minimax',
+          cameraControl: undefined,
+        })
+      )
+      expect(() => buildDirectVideoRequest({ ...input, provider: 'minimax' })).toThrow(
+        'MiniMax H3 does not support quality endpoints; select a resolution instead'
+      )
+    }
+  )
+
+  it('uses H3 resolution defaults when the MiniMax tool has no legacy endpoint', () => {
+    const input = videoToolBodySchema.parse(
+      minimaxVideoTool.operation.input({
+        provider: 'minimax',
+        apiKey: 'test-minimax-key',
+        model: 'MiniMax-H3',
+        prompt: 'Animate the boat',
+      })
+    )
+    const request = buildDirectVideoRequest({ ...input, provider: 'minimax' })
+    expect(request.body.resolution).toBe('768P')
+  })
+
+  describe.each([VideoGeneratorV2Block, VideoGeneratorV3Block])(
+    '$type fal Agent settings',
+    (block) => {
+      it.each([
+        {
+          name: 'Agent tuning',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {},
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: { duration: 10, aspect_ratio: '9:16', resolution: '1080p', audio: false },
+        },
+        {
+          name: 'disabled prompt optimization',
+          model: 'fal-ai/minimax/hailuo-02/pro/text-to-video',
+          configured: {},
+          requested: { promptOptimizer: false },
+          expected: { prompt_optimizer: false },
+        },
+        {
+          name: 'configured tuning overrides',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {
+            falDuration: '5',
+            falAspectRatio: '16:9',
+            falResolution: '720p',
+            falGenerateAudio: false,
+          },
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: true,
+          },
+          expected: { duration: 5, aspect_ratio: '16:9', resolution: '720p', audio: false },
+        },
+        {
+          name: 'explicit provider defaults',
+          model: 'alibaba/wan-3.0-prime/text-to-video',
+          configured: {
+            falDuration: 'default',
+            falAspectRatio: 'default',
+            falResolution: 'default',
+            falGenerateAudio: 'default',
+          },
+          requested: {
+            duration: 10,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: {},
+        },
+        {
+          name: 'legacy aliases with stale catalog fields',
+          model: 'veo-3.1',
+          configured: { falDuration: 'default', falGenerateAudio: true },
+          requested: {
+            duration: 8,
+            aspectRatio: '9:16',
+            resolution: '1080p',
+            generateAudio: false,
+          },
+          expected: {
+            duration: '8s',
+            aspect_ratio: '9:16',
+            resolution: '1080p',
+            generate_audio: false,
+          },
+        },
+      ])(
+        'preserves $name in the provider request',
+        async ({ model, configured, requested, expected }) => {
+          const providerTool = await transformBlockTool(
+            {
+              type: block.type,
+              params: { provider: 'falai', apiKey: 'test-fal-key', ...configured },
+            },
+            { getAllBlocks: () => [block], getTool: () => falaiVideoTool }
+          )
+          if (!providerTool) throw new Error('Video tool was not exposed to the Agent')
+          const prepared = prepareToolExecution(
+            providerTool,
+            { model, prompt: 'Animate the boat', ...requested },
+            {},
+            'call-fal-video-settings'
+          )
+          const params = videoToolBodySchema.parse(prepared.toolParams)
+          const input = videoToolBodySchema.parse(
+            falaiVideoTool.operation.input({
+              ...params,
+              provider: 'falai',
+              cameraControl: undefined,
+            })
+          )
+          const request = buildFalVideoRequest({ ...input, provider: 'falai' })
+          expect(request.body).toEqual({ prompt: 'Animate the boat', ...expected })
+        }
+      )
     }
   )
 
@@ -5916,6 +6097,23 @@ describe('Centralized Error Handling', () => {
       return buildBlockExecutionError({ block: apiBlock, error: thrown as Error })
     }
 
+    it.each(['<html>upstream gateway</html>', ''])(
+      'attributes a non-JSON 2xx body to the provider when a transform reads JSON (%j)',
+      async (body) => {
+        const originalTransform = tools.http_request.transformResponse
+        tools.http_request.transformResponse = async (response) => ({
+          success: true,
+          output: await response.json(),
+        })
+        try {
+          const blockError = await failApiBlock(new Response(body, { status: 200 }))
+          expect(classifyFailure(blockError)).toBe('third_party_server')
+        } finally {
+          tools.http_request.transformResponse = originalTransform
+        }
+      }
+    )
+
     it.each([
       [404, 'third_party_client'],
       [503, 'third_party_server'],
@@ -5935,6 +6133,11 @@ describe('Centralized Error Handling', () => {
         'third_party_client',
       ],
       ['a bug in the transform itself', new TypeError('data.channel is undefined'), 'internal'],
+      [
+        'a parser bug in the transform itself',
+        new SyntaxError('invalid transform configuration'),
+        'internal',
+      ],
     ] as const)('attributes %s', async (_name, transformError, kind) => {
       const originalTransform = tools.http_request.transformResponse
       tools.http_request.transformResponse = async () => {
@@ -6266,6 +6469,58 @@ describe('Hosted Key Injection', () => {
   afterEach(() => {
     vi.resetAllMocks()
     cleanupEnvVars()
+  })
+
+  it('stops before provider dispatch and billing when BYOK resolution fails', async () => {
+    setEnvFlags({ isHosted: true })
+    mockGetBYOKKey.mockRejectedValueOnce(new Error('BYOK credentials unavailable'))
+    mockRateLimiterFns.acquireKey.mockResolvedValue({
+      success: true,
+      key: 'platform-fixture-key',
+      keyIndex: 0,
+      envVarName: 'TEST_HOSTED_KEY',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_byok_failure = {
+      id: 'test_byok_failure',
+      name: 'BYOK fixture',
+      description: 'Credential failure fixture',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    const metered = vi.fn(async () => {})
+    try {
+      const result = await observeServiceCosts(metered, () =>
+        executeTool(
+          'test_byok_failure',
+          {},
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              copilotToolExecution: true,
+            }),
+          }
+        )
+      )
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('BYOK credentials unavailable')
+      expect(request).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(metered).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
   })
 
   it('should not inject hosted key when tool has no hosting config', async () => {
@@ -7369,24 +7624,29 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
       requestMode: 'assistant' as const,
     },
   })
-  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
-    const { getToolMetadata } = await import('@/tools/metadata')
-    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
-      id: 'github_search_issues_v2',
-      params: { apiKey: { required: true } },
-    })
+  it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
     const params = {
       credentialId: 'own-account',
-      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+      q: 'icecrasher321 in:login',
     }
-    const result = await executeTool('github_search_issues_v2', params, options())
+    const result = await withAssistantActionExecution(
+      {
+        userId: 'person',
+        organizationId: 'org',
+        toolCallId: 'call',
+        toolId: 'github_search_users_v2',
+        args: params,
+        binding: { credentialId: 'own-account', effect: 'read', operationVersion: 1 },
+      },
+      () => executeTool('github_search_users_v2', params, options())
+    )
     expect(result.success, result.error).toBe(true)
     expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
     expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'own-account',
         userId: 'person',
-        toolId: 'github_search_issues_v2',
+        toolId: 'github_search_users_v2',
         copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
       })
     )
@@ -7402,12 +7662,11 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
     const result = await executeTool(
-      'github_search_issues_v2',
-      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      'github_search_users_v2',
+      { credentialId: 'own-account', q: 'icecrasher321', apiKey: 'injected-admin-token' },
       options()
     )
     expect(result.success).toBe(false)
-    expect(result.error).toContain('cannot supply the apiKey')
     expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })

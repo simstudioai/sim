@@ -7,7 +7,7 @@ import {
   ROOT_FOLDER_PATH,
 } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import {
@@ -299,7 +299,7 @@ export const FileBlock: BlockConfig = {
   type: 'file',
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
-  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
+  longDescription: `Upload a file manually or insert a file url.`,
   bestPractices: `
   - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
   `,
@@ -1636,7 +1636,8 @@ export const FileV5Block: BlockConfig = {
       type: 'short-input' as SubBlockType,
       mode: 'advanced',
       placeholder: '1',
-      description: 'Which matching anchor occurrence to use, starting at 1.',
+      description:
+        'Which start or insert anchor match to use, starting at 1. The end anchor is the first match after it.',
       condition: {
         field: 'operation',
         value: 'file_edit',
@@ -2245,7 +2246,11 @@ export const FileV5Block: BlockConfig = {
     anchor: { type: 'string', description: 'Line after which content is inserted' },
     startAnchor: { type: 'string', description: 'First line deleted by an anchored deletion' },
     endAnchor: { type: 'string', description: 'Ending line preserved by an anchored deletion' },
-    editOccurrence: { type: 'number', description: 'Matching anchor occurrence, starting at 1' },
+    editOccurrence: {
+      type: 'number',
+      description:
+        'Start or insert anchor match to use, starting at 1; the end anchor is the first match after it',
+    },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
     decompressInput: {
       type: 'json',

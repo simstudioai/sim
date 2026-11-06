@@ -1,5 +1,5 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import type { MetadataRoute } from 'next'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { getBrandConfig } from '@/ee/whitelabeling'
 

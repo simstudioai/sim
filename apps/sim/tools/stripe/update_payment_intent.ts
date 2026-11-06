@@ -41,7 +41,7 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated amount in cents',
+      description: 'Updated amount in the currency’s smallest unit',
     },
     currency: {
       type: 'string',

@@ -260,6 +260,7 @@ describe('Slack Search Settings delegation', () => {
   it('projects bounded metadata without provider outcomes or credential payloads', () => {
     const result = projectSlackSearchSettingsForTool({
       sharedAppAvailable: true,
+      memberAppKind: null,
       bots: [{ id: 'cred1', displayName: 'Bot' }],
       installations: [
         {

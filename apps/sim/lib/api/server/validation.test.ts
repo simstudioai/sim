@@ -75,6 +75,17 @@ describe('parseJsonBody default size boundary', () => {
     })
   })
 
+  it('keeps an over-ceiling override only for a route the proxy never buffers', async () => {
+    const body = JSON.stringify({ update: 'a'.repeat(12 * 1024 * 1024) })
+    const result = await parseJsonBody(
+      requestDeclaring(Buffer.byteLength(body), body),
+      'response',
+      17 * 1024 * 1024,
+      true
+    )
+    expect(result.success).toBe(true)
+  })
+
   it('leaves an override below the ceiling exactly as declared', async () => {
     const atLimit = await parseJsonBody(
       requestDeclaring(BELOW_CEILING_BODY_BYTES, JSON.stringify({ value: 'ok' })),

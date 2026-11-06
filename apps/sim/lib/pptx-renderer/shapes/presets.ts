@@ -12,7 +12,7 @@ const logger = createLogger('PptxShapePresets')
  * (so 50000 = 50%).
  */
 
-import { shapeArc } from './shape-arc'
+import { shapeArc } from './arc'
 
 type PresetShapeGenerator = (w: number, h: number, adjustments?: Map<string, number>) => string
 

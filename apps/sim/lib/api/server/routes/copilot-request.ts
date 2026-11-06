@@ -1,4 +1,5 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import { noteContentDeliveryOperation } from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
@@ -6,14 +7,36 @@ import {
   createCopilotChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 
+/**
+ * Mints the resource grant one admitted request carries for an operation the route runs under
+ * the given audience, or none when that operation is outside the grant. Owned by the domain
+ * adapter that bound the request, so this route layer stays free of domain policy.
+ */
+type CopilotResourceRequestGrant = (
+  operation: ApplicationOperation,
+  audience: string
+) => ResourceDelegatedPrincipal | undefined
+
+type CopilotRequestInvocation =
+  | { kind: 'resource'; grant: CopilotResourceRequestGrant }
+  | { kind: 'workspace'; context: Readonly<CopilotChatDelegationContext> }
+
 /** A private in-process invocation, installed only after current chat/target authorization. Never a wire header. */
-const INVOCATIONS = new WeakMap<Request, Readonly<CopilotChatDelegationContext>>()
+const INVOCATIONS = new WeakMap<Request, CopilotRequestInvocation>()
 
 export function markCopilotRequest(
   request: Request,
   invocation: CopilotChatDelegationContext
 ): void {
-  INVOCATIONS.set(request, Object.freeze({ ...invocation }))
+  INVOCATIONS.set(request, { kind: 'workspace', context: Object.freeze({ ...invocation }) })
+}
+
+/** Binds one request to a domain adapter's resource grant; the use case still reauthorizes current access. */
+export function markCopilotResourceRequest(
+  request: Request,
+  grant: CopilotResourceRequestGrant
+): void {
+  INVOCATIONS.set(request, { kind: 'resource', grant })
 }
 
 export function isCopilotRequest(request: Request): boolean {
@@ -34,19 +57,32 @@ export function copilotRouteAudience(
   operation: ApplicationOperation,
   useCase?: CopilotRouteUseCase
 ): string | undefined {
-  return useCase?.operation === operation ? useCase.delegationAudience || undefined : undefined
+  if (useCase?.operation !== operation) return undefined
+  // An operation that names its delegated services without `copilot` is refused before minting.
+  const services: readonly string[] | undefined =
+    'delegatedServices' in operation
+      ? (operation.delegatedServices as readonly string[])
+      : undefined
+  if (services && !services.includes('copilot')) return undefined
+  return useCase.delegationAudience || undefined
 }
 
 export function copilotRequestPrincipal(
   request: Request,
   operation: ApplicationOperation,
   useCase?: CopilotRouteUseCase
-): DelegatedPrincipal | undefined {
+): DelegatedPrincipal | ResourceDelegatedPrincipal | undefined {
   const invocation = INVOCATIONS.get(request)
   if (!invocation) return undefined
   const audience = copilotRouteAudience(operation, useCase)
   if (!audience) return undefined
-  const principal = createCopilotChatPrincipal(invocation, audience)
+  if (invocation.kind === 'resource') {
+    const principal = invocation.grant(operation, audience)
+    if (principal) noteContentDeliveryOperation(operation, principal)
+    return principal
+  }
+  const principal = createCopilotChatPrincipal(invocation.context, audience)
   markCopilotWorkspaceInvocation(principal)
+  noteContentDeliveryOperation(operation, principal)
   return principal
 }

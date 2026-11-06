@@ -36,6 +36,7 @@ const policy = {
 
 const operation = defineWorkspaceOperation({
   id: 'widgets.read',
+  contentDelivery: 'none',
   capability: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',

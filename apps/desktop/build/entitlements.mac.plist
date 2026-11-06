@@ -14,10 +14,5 @@
          Hardened Runtime denies the camera no matter what the user allowed. -->
     <key>com.apple.security.device.camera</key>
     <true/>
-    <!-- WebAuthn hybrid transport (passkey on the user's phone via QR) rides
-         Bluetooth proximity; without this the QR option silently never
-         completes in signed builds. -->
-    <key>com.apple.security.device.bluetooth</key>
-    <true/>
   </dict>
 </plist>

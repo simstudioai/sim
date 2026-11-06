@@ -47,7 +47,7 @@ const hoisted = vi.hoisted(() => ({
   renew: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
@@ -131,6 +131,11 @@ import {
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
+  routeWindowTallies,
+  windowTallies,
+  windowTally,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
+import {
   MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -185,6 +190,8 @@ function arrange(
     existingDocument?: boolean
     openMemberFeed?: boolean
     contentFresh?: boolean
+    /** A content pass that finished before this run, past the content interval. */
+    finishedPass?: { lastSyncAt: Date; lastSyncDocCount: number }
     forceContentRefresh?: boolean
     noDueMembers?: boolean
     syncIntervalMinutes?: number
@@ -211,7 +218,8 @@ function arrange(
     memberSyncStatus: 'idle',
     memberSyncConsecutiveFailures: 0,
     syncIntervalMinutes: options.syncIntervalMinutes ?? 1440,
-    lastSyncAt: options.contentFresh ? new Date() : null,
+    lastSyncAt: options.finishedPass?.lastSyncAt ?? (options.contentFresh ? new Date() : null),
+    lastSyncDocCount: options.finishedPass?.lastSyncDocCount ?? null,
     directoryCheckpoint: options.directoryCheckpoint ?? null,
     sourceConfig: { folderId: 'shared-folder', adminEmail: 'admin@example.com' },
     accessRewritePending: false,
@@ -270,17 +278,10 @@ function arrange(
         : []
     )
     if (!options.contentIncomplete) {
-      queueTableRows(schemaMock.document, [
-        {
-          ownedCount: options.existingDocument ? 2 : 1,
-          listedCount: 1,
-          aclCount: 0,
-          softCount: 0,
-          hardCount: 0,
-        },
-      ])
+      windowTallies.push(windowTally({ owned: options.existingDocument ? 2 : 1, listed: 1 }))
     }
-    queueTableRows(schemaMock.document, [{ count: 1 }])
+    if (!options.finishedPass || !options.contentIncomplete)
+      queueTableRows(schemaMock.document, [{ count: 1 }])
   }
   if (options.members && !options.noDueMembers)
     queueTableRows(schemaMock.document, [
@@ -364,7 +365,7 @@ describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     resetEnvFlagsMock()
     resetDbChainMock()
-    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    routeWindowTallies()
   })
 
   it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
@@ -551,6 +552,43 @@ describe('member engine with a dedicated content credential', () => {
           order > opened && order < inserted && JSON.stringify(call).includes('lock_timeout')
       )
     expect(bounded).toEqual([])
+  })
+
+  /**
+   * A finished pass recorded the count, and an unfinished slice of the next pass keeps it rather
+   * than scanning the whole connector again; the count is replaced when that pass finishes.
+   */
+  it('keeps the recorded document count on an unfinished slice once a pass has finished', async () => {
+    const run = arrange({
+      contentIncomplete: true,
+      finishedPass: { lastSyncAt: new Date(Date.now() - 2 * 86_400_000), lastSyncDocCount: 7 },
+    })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    mocks.list.mockResolvedValue({
+      documents: Array.from({ length: 26 }, (_, i) => ({
+        ...serviceDocument,
+        externalId: `content-${i}`,
+      })),
+      hasMore: false,
+    })
+    mocks.get.mockImplementation(async (_token, _config, externalId: string) => {
+      clock.mockReturnValue(now + 35 * 60_000)
+      return { ...serviceDocument, externalId, content: 'Service content', contentDeferred: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.docsAdded).toBeGreaterThan(0)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'partial', listedCount: null })
+      )
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value && 'lastSyncDocCount' in value)
+      ).toBe(false)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('reserves time for member permissions when a slow dedicated content page has more batches', async () => {
@@ -815,7 +853,7 @@ describe('member engine with a dedicated content credential', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    routeWindowTallies()
     const retry = arrange({
       members: true,
       memberContent: true,

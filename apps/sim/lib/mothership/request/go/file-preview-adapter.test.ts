@@ -12,7 +12,7 @@ const { peekFileIntentMock, executeCopilotFileUseCaseMock } = vi.hoisted(() => (
   executeCopilotFileUseCaseMock: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/file-intent-store', () => ({
+vi.mock('@/lib/mothership/tools/server/files/intent-store', () => ({
   peekFileIntent: peekFileIntentMock,
 }))
 
@@ -307,7 +307,7 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
 
   beforeEach(() => {
     executeCopilotFileUseCaseMock.mockResolvedValue({
-      files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
+      files: new Map([['files/notes.md', { id: 'file-9', name: 'notes.md', folderPath: null }]]),
     })
   })
 

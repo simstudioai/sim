@@ -15,7 +15,7 @@ import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/log
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export interface ReadLogDetailInput {
   workspaceId: string

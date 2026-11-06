@@ -1,6 +1,7 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
 import {
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
@@ -44,6 +45,7 @@ export function defineOrganizationOperation<const O extends OrganizationOperatio
   }
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
   assertOperationOAuthPolicy(operation)
+  assertContentDeliveryDeclaration(operation, operation.delegatedServices ?? [])
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)
 }

@@ -43,6 +43,9 @@ export async function notifyScheduleAutoDisabled(params: {
         workflowName: workflow.name,
         workflowUserId: workflow.userId,
         workflowWorkspaceId: workflow.workspaceId,
+        jobTitle: workflowSchedule.jobTitle,
+        jobUserId: workflowSchedule.sourceUserId,
+        jobWorkspaceId: workflowSchedule.sourceWorkspaceId,
       })
       .from(workflowSchedule)
       .leftJoin(workflow, eq(workflow.id, workflowSchedule.workflowId))
@@ -55,9 +58,10 @@ export async function notifyScheduleAutoDisabled(params: {
       return
     }
 
-    const ownerUserId = row.workflowUserId
-    const workspaceId = row.workflowWorkspaceId
-    const resourceName = row.workflowName ?? undefined
+    /** A scheduled job has no workflow; its owner, workspace and title live on the schedule. */
+    const ownerUserId = row.workflowUserId ?? row.jobUserId
+    const workspaceId = row.workflowWorkspaceId ?? row.jobWorkspaceId
+    const resourceName = row.workflowName ?? row.jobTitle ?? undefined
 
     const recipients = await resolveRecipients(ownerUserId, workspaceId)
     if (recipients.length === 0) {

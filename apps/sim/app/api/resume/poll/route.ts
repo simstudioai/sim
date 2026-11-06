@@ -8,6 +8,7 @@ import { and, asc, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -518,10 +519,13 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
           workflowId: row.workflowId,
           parentExecutionId: row.executionId,
         }).catch((error) => {
-          logger.error('Background time-pause resume failed', {
+          logFailureOnce(logger, 'Background time-pause resume failed', error, {
             executionId: row.executionId,
-            contextId: point.contextId,
-            error: toError(error).message,
+            metadata: {
+              resumeExecutionId: enqueueResult.resumeExecutionId,
+              contextId: point.contextId,
+              error: toError(error).message,
+            },
           })
         })
       }

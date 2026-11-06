@@ -3,6 +3,7 @@ import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES,
@@ -34,7 +35,7 @@ import {
   pruneOverridesToSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 const logger = createLogger('WorkflowMcpOrchestration')
 
@@ -62,7 +63,16 @@ interface ActorMetadata {
   publishEffects?: boolean
 }
 
-export interface PerformCreateWorkflowMcpServerParams extends ActorMetadata {
+interface VisibilityAuthority {
+  /**
+   * Whether the caller may set `isPublic`. A public server answers
+   * `/api/mcp/serve/{serverId}` with no Sim credential, so this is reserved for
+   * workspace admins.
+   */
+  allowVisibilityChange: boolean
+}
+
+export interface PerformCreateWorkflowMcpServerParams extends ActorMetadata, VisibilityAuthority {
   workspaceId: string
   userId: string
   name: string
@@ -79,7 +89,7 @@ export interface PerformCreateWorkflowMcpServerResult {
   addedTools?: Array<{ workflowId: string; toolName: string }>
 }
 
-export interface PerformUpdateWorkflowMcpServerParams extends ActorMetadata {
+export interface PerformUpdateWorkflowMcpServerParams extends ActorMetadata, VisibilityAuthority {
   serverId: string
   workspaceId: string
   userId: string
@@ -220,6 +230,16 @@ function validateServerToolMetadataBudgetForUpdate(
   return null
 }
 
+/** A workflow's tool input schema, with an input the schema cannot publish answered as a validation failure. */
+async function generateWorkflowMcpBaseSchema(workflowId: string): Promise<Record<string, unknown>> {
+  return generateParameterSchemaForWorkflow(workflowId).catch((error: unknown) => {
+    if (error instanceof OrchestrationError && error.code === 'validation') {
+      throw new WorkflowMcpExpectedError(error.message, 'validation')
+    }
+    throw error
+  })
+}
+
 async function prepareWorkflowMcpTool(params: {
   workflowRecord: WorkflowMcpToolWorkflowRecord
   toolName?: string
@@ -232,7 +252,7 @@ async function prepareWorkflowMcpTool(params: {
   const toolDescription =
     params.toolDescription !== undefined ? params.toolDescription?.trim() || null : null
 
-  const baseSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
+  const baseSchema = await generateWorkflowMcpBaseSchema(workflowRecord.id)
   const requestedOverrides =
     params.parameterDescriptionOverrides ??
     (params.legacyParameterSchema
@@ -328,6 +348,14 @@ async function validateWorkflowMcpServerMembershipBudget(
 export async function performCreateWorkflowMcpServer(
   params: PerformCreateWorkflowMcpServerParams
 ): Promise<PerformCreateWorkflowMcpServerResult> {
+  if (params.isPublic && !params.allowVisibilityChange) {
+    return {
+      success: false,
+      error: 'Only workspace admins can create a public workflow MCP server',
+      errorCode: 'forbidden',
+    }
+  }
+
   try {
     const name = params.name.trim()
     const workflowIds = params.workflowIds || []
@@ -547,9 +575,17 @@ export async function performUpdateWorkflowMcpServer(
 
   if (params.name !== undefined) updateData.name = params.name.trim()
   if (params.description !== undefined) updateData.description = params.description?.trim() || null
-  if (params.isPublic !== undefined) updateData.isPublic = params.isPublic
+  const lockedVisibility = params.allowVisibilityChange ? undefined : params.isPublic
+  if (params.allowVisibilityChange && params.isPublic !== undefined) {
+    updateData.isPublic = params.isPublic
+  }
 
   const updatedFields = auditUpdatedFields(updateData)
+  const serverInWorkspace = and(
+    eq(workflowMcpServer.id, params.serverId),
+    eq(workflowMcpServer.workspaceId, params.workspaceId),
+    isNull(workflowMcpServer.deletedAt)
+  )
 
   try {
     const [server] = await db
@@ -557,14 +593,29 @@ export async function performUpdateWorkflowMcpServer(
       .set(updateData)
       .where(
         and(
-          eq(workflowMcpServer.id, params.serverId),
-          eq(workflowMcpServer.workspaceId, params.workspaceId),
-          isNull(workflowMcpServer.deletedAt)
+          serverInWorkspace,
+          lockedVisibility !== undefined
+            ? eq(workflowMcpServer.isPublic, lockedVisibility)
+            : undefined
         )
       )
       .returning()
 
     if (!server) {
+      if (lockedVisibility !== undefined) {
+        const [existing] = await db
+          .select({ id: workflowMcpServer.id })
+          .from(workflowMcpServer)
+          .where(serverInWorkspace)
+          .limit(1)
+        if (existing) {
+          return {
+            success: false,
+            error: 'Only workspace admins can change whether a workflow MCP server is public',
+            errorCode: 'forbidden',
+          }
+        }
+      }
       return { success: false, error: 'Server not found', errorCode: 'not_found' }
     }
 
@@ -924,7 +975,7 @@ export async function performUpdateWorkflowMcpTool(
         .limit(1)
       if (!toolRow) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
-      const baseSchema = await generateParameterSchemaForWorkflow(toolRow.workflowId)
+      const baseSchema = await generateWorkflowMcpBaseSchema(toolRow.workflowId)
       const overrides = pruneOverridesToSchema(
         params.parameterDescriptionOverrides ??
           (params.parameterSchema

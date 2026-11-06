@@ -10,8 +10,7 @@ export const similarwebWebsiteOverviewTool: ToolConfig<
 > = {
   id: 'similarweb_website_overview',
   name: 'SimilarWeb Website Overview',
-  description:
-    'Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources',
+  description: 'Get website traffic, rankings, engagement, and traffic sources.',
   version: '1.0.0',
 
   params: {

@@ -1,4 +1,4 @@
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import {
   PlatformHeroVisual,
   SolutionsPage,

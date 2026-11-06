@@ -1,34 +1,31 @@
 ---
 title: Fathom
 description: Access meeting recordings, transcripts, and summaries
+integration:
+  type: "fathom"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="fathom"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Fathom](https://fathom.video/) to retrieve meeting summaries and transcripts and inspect team information.
+Use [Fathom](https://fathom.video/) to retrieve meeting summaries and transcripts and inspect teams and team members. Provide a Fathom API key and the selected operation's required fields, such as a recording ID. Triggers can start a workflow when new meeting content is ready.
 
-**How it works in Sim:**
-Add a Fathom block to your workflow and select an operation. Provide your Fathom API key and any required parameters (such as a recording ID for summaries and transcripts). The block calls the Fathom API and returns structured data you can pass to downstream blocks — for example, sending a summary to Slack or extracting action items with an AI agent.
+Pass returned meeting data to later steps, such as sending a summary to Slack or extracting action items.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.
-
-
+List meetings, get transcripts and summaries, and list teams and team members. Trigger workflows when new meeting content is ready.
 
 ## Actions
 
 ### Fathom List Meetings
 
 List recent meetings recorded by the user or shared to their team.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,6 +116,8 @@ List recent meetings recorded by the user or shared to their team.
 |       ↳ `record_url` | string | CRM record URL |
 |     ↳ `error` | string | CRM match error, if any |
 | `next_cursor` | string | Pagination cursor for next page |
+
+</ReferenceDetails>
 
 ### Fathom List Meeting Types
 
@@ -227,12 +226,14 @@ List teams in your Fathom organization.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Fathom New Meeting Content
 
 Trigger workflow when new meeting content is ready in Fathom
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -271,13 +272,14 @@ Trigger workflow when new meeting content is ready in Fathom
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
 
-
----
+</ReferenceDetails>
 
 ### Fathom Webhook
 
 Generic webhook trigger for all Fathom events
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -315,4 +317,6 @@ Generic webhook trigger for all Fathom events
 | `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
 | `action_items` | array | Array of action items extracted from the meeting |
 | `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
+
+</ReferenceDetails>
 

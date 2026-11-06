@@ -306,6 +306,131 @@ describe('Copilot workflow run application commands', () => {
     expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
   })
 
+  describe('a refused run-from-block start tells the agent what to do next', () => {
+    const blocks = {
+      'start-1': { id: 'start-1', name: 'Start', enabled: true },
+      'fetch-1': { id: 'fetch-1', name: 'Fetch', enabled: true },
+      'loop-1': { id: 'loop-1', name: 'Each row', enabled: true },
+      'agent-1': { id: 'agent-1', name: 'Summarize', enabled: true },
+      'note-1': { id: 'note-1', name: 'Notes', enabled: false },
+    }
+
+    async function refuse(
+      blockId: string,
+      error: RunFromBlockValidationError,
+      workflowBlocks: Record<string, unknown> = blocks
+    ) {
+      mockLoadDraft.mockResolvedValue({ blocks: workflowBlocks, edges: [] })
+      mocks.sourceState.mockResolvedValueOnce({
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      })
+      mockExecuteWorkflow.mockRejectedValueOnce(error)
+      const thrown = await runFromBlockFromCopilot
+        .execute({
+          principal,
+          input: {
+            workflowId: 'workflow-1',
+            useDraftState: true,
+            lifecycle,
+            blockId,
+            sourceExecutionId: 'source-execution-1',
+          },
+        })
+        .catch((caught) => caught)
+      expect(thrown).toBeInstanceOf(OrchestrationError)
+      expect(thrown.code).toBe('validation')
+      return thrown.message as string
+    }
+
+    it('names the upstream block that never ran and the calls that get past it', async () => {
+      const message = await refuse(
+        'agent-1',
+        new RunFromBlockValidationError('Upstream dependency not executed: Fetch', {
+          kind: 'upstream_not_executed',
+          blockId: 'agent-1',
+          upstreamBlockId: 'fetch-1',
+        })
+      )
+
+      expect(message).toContain('"Summarize" (agent-1)')
+      expect(message).toContain('"Fetch" (fetch-1)')
+      expect(message).toContain('execution source-execution-1')
+      expect(message).toContain('run_workflow_until_block')
+      expect(message).toContain('stopAfterBlockId "agent-1"')
+      expect(message).toContain('or pass the executionId of a run that executed "Fetch" (fetch-1)')
+    })
+
+    it('names the container a nested block sits in and points at it', async () => {
+      const message = await refuse(
+        'agent-1',
+        new RunFromBlockValidationError('Cannot run from block inside loop: Each row', {
+          kind: 'inside_subflow',
+          blockId: 'agent-1',
+          subflowId: 'loop-1',
+          subflowType: 'loop',
+        })
+      )
+
+      expect(message).toContain('inside loop "Each row" (loop-1)')
+      expect(message).toContain('block id "loop-1"')
+      expect(message).toContain('or run the whole workflow with run_workflow.')
+    })
+
+    it('lists the blocks the workflow does have when the id is unknown', async () => {
+      const message = await refuse(
+        'agent-x',
+        new RunFromBlockValidationError('Block not found in workflow: agent-x', {
+          kind: 'block_not_found',
+          blockId: 'agent-x',
+        })
+      )
+
+      expect(message).toContain('"agent-x" is not in the draft workflow')
+      expect(message).toContain('"Fetch" (fetch-1)')
+      expect(message).toContain('"Each row" (loop-1)')
+    })
+
+    it('bounds the block list on a large workflow', async () => {
+      const many = Object.fromEntries(
+        Array.from({ length: 25 }, (_, index) => [
+          `b-${index}`,
+          { id: `b-${index}`, name: `Block ${index}`, enabled: true },
+        ])
+      )
+      const message = await refuse(
+        'missing',
+        new RunFromBlockValidationError('Block not found in workflow: missing', {
+          kind: 'block_not_found',
+          blockId: 'missing',
+        }),
+        many
+      )
+
+      expect(message).toContain('(b-19)')
+      expect(message).not.toContain('(b-20)')
+      expect(message).toContain('and 5 more')
+    })
+
+    it('says a known but unrunnable block is disabled instead of missing', async () => {
+      const message = await refuse(
+        'note-1',
+        new RunFromBlockValidationError('Block not found in workflow: note-1', {
+          kind: 'block_not_found',
+          blockId: 'note-1',
+        })
+      )
+
+      expect(message).toContain('"Notes" (note-1)')
+      expect(message).toContain('disabled')
+      expect(message).not.toContain('is not in the')
+    })
+  })
+
   /**
    * A caller whose result was withheld decides about retry from one fact: whether a run
    * exists. This layer owns that answer, because it is the last place that can distinguish

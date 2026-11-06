@@ -13,7 +13,12 @@ import {
 } from '@/lib/billing/enterprise-owner-claim-events'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import type { LazyOutboxHandlerGroup } from '@/lib/core/outbox/service'
+import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-search/turn-event'
 import {
@@ -23,6 +28,7 @@ import {
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+  VISION_CHECKPOINT_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/checkpoint-events'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
 import {
@@ -32,11 +38,21 @@ import {
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
+import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
+import {
+  PROJECT_FILE_DOCUMENT_RETIRE_EVENT,
+  PROJECT_FILE_PREFIX_CLEANUP_EVENT,
+  PROJECT_STORAGE_RECONCILE_EVENT,
+} from '@/lib/projects/files/outbox-events'
 import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/uploads/contexts/workspace/file-outbox-events'
+import {
+  ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT,
+  ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
+} from '@/lib/users/storage-sweep-events'
 import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import {
@@ -62,6 +78,15 @@ import { FORK_CONTENT_COPY_EVENT } from '@/ee/workspace-forking/application/cont
  * export of the module as used.
  */
 export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
+  {
+    events: [MEMORY_CLEANUP_EVENT],
+    load: async () => {
+      const { memoryCleanupOutboxHandlers } = await import(
+        '@/lib/mothership/memories/cleanup-outbox'
+      )
+      return memoryCleanupOutboxHandlers
+    },
+  },
   {
     events: [SLACK_SEARCH_TURN_EVENT],
     load: async () => {
@@ -149,6 +174,7 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
       OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
       KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
       EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+      VISION_CHECKPOINT_CLEANUP_EVENT,
       KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
       KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
       KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
@@ -167,6 +193,22 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/organizations/resource-cleanup'
       )
       return organizationResourceCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [CHAT_BACKEND_CLEANUP_EVENT, CHAT_INLINE_IMAGE_CLEANUP_EVENT],
+    load: async () => {
+      const { chatBackendCleanupOutboxHandlers } = await import(
+        '@/lib/cleanup/chat-backend-cleanup-outbox'
+      )
+      return chatBackendCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [EXECUTION_REMOVAL_STOP_EVENT],
+    load: async () => {
+      const { executionRemovalStopOutboxHandlers } = await import('@/lib/execution/removal-stops')
+      return executionRemovalStopOutboxHandlers
     },
   },
   {
@@ -192,19 +234,42 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
   {
     events: [WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT],
     load: async () => {
-      const { workspaceFileLiveDocOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
-      )
-      return workspaceFileLiveDocOutboxHandlers
+      const { fileLiveDocOutboxHandlers } = await import('@/lib/uploads/server/live-doc-outbox')
+      return fileLiveDocOutboxHandlers
     },
   },
   {
     events: [WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT],
     load: async () => {
       const { workspaceFileStorageCleanupOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+        '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
       )
       return workspaceFileStorageCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [PROJECT_FILE_PREFIX_CLEANUP_EVENT, PROJECT_STORAGE_RECONCILE_EVENT],
+    load: async () => {
+      const { projectFilePrefixCleanupOutboxHandlers } = await import(
+        '@/lib/projects/files/prefix-cleanup'
+      )
+      return projectFilePrefixCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT, ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT],
+    load: async () => {
+      const { accountStorageSweepOutboxHandlers } = await import('@/lib/users/storage-sweep')
+      return accountStorageSweepOutboxHandlers
+    },
+  },
+  {
+    events: [PROJECT_FILE_DOCUMENT_RETIRE_EVENT],
+    load: async () => {
+      const { projectFileDocumentOutboxHandlers } = await import(
+        '@/lib/projects/files/application/document-lifecycle'
+      )
+      return projectFileDocumentOutboxHandlers
     },
   },
   {

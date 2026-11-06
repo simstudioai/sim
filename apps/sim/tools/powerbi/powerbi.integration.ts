@@ -18,6 +18,7 @@ import {
   workflowExecutionSnapshots,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createBlock } from '@sim/testing/factories/block.factory'
 import {
   createDelegatedPrincipal,
@@ -229,9 +230,12 @@ beforeAll(async () => {
     }))
   )
   await db.insert(userStats).values({ id: generateId(), userId: ownerId })
-  await db
-    .insert(workspace)
-    .values({ id: workspaceId, name: 'Power BI', ownerId, billedAccountUserId: ownerId })
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Power BI',
+    ownerId,
+    billedAccountUserId: ownerId,
+  })
   await db.insert(permissions).values({
     id: generateId(),
     userId: ownerId,
@@ -310,7 +314,7 @@ afterAll(async () => {
         )
       )
     }
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(inArray(user.id, [ownerId, outsiderId]))
     await rm(path.join(UPLOAD_DIR_SERVER, 'execution', workspaceId), {
       recursive: true,

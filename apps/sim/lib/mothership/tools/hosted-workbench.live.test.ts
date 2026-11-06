@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { e2bProvider, stopE2BSessionProcess } from '@/lib/execution/remote-sandbox/e2b'
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { ensureSessionSandbox } from '@/lib/execution/remote-sandbox/session'
 import {
   readSessionSandboxFile,

@@ -13,7 +13,7 @@ import { v2ApiKeyAuth, v2OrchestrationErrorPolicy, v2RateLimits } from '@/lib/ap
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
 
-const operation = { id: 'widgets.download' } as const
+const operation = { id: 'widgets.download', capability: 'none' } as const
 const principal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
   userId: 'user-1',
@@ -24,6 +24,7 @@ const auth = {
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
+  keyExpiresAt: null,
 } satisfies V2ApiKeyAuthContext
 const resetAt = new Date('2026-08-08T20:00:00.000Z')
 const allowedRate = { allowed: true, remaining: 99, resetAt }
@@ -82,6 +83,35 @@ describe('defineV2BinaryRoute', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('honors an explicit binary request limit and keeps the v2 rejection envelope', async () => {
+    const handler = defineV2BinaryRoute({
+      contract: defineRouteContract({
+        method: 'POST',
+        path: '/api/v2/snapshot',
+        query: z.object({}),
+        body: z.object({ content: z.string() }),
+        response: { mode: 'binary' },
+      }),
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      parseOptions: { maxBodyBytes: 64 },
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input.content },
+      present: (body) => ({ body, contentType: 'text/plain' }),
+    })
+    const response = await handler(
+      new NextRequest('http://localhost/api/v2/snapshot', {
+        method: 'POST',
+        body: JSON.stringify({ content: 'x'.repeat(65) }),
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    expect(response.status).toBe(413)
+    expect(await response.json()).toMatchObject({ error: { code: 'PAYLOAD_TOO_LARGE' } })
   })
 
   it('runs the use case for a HEAD when the route is head-safe', async () => {

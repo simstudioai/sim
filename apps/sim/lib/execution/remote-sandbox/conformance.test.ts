@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { envMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
-import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/paths'
 
 const {
   mockResolveSandbox,
@@ -1259,6 +1259,18 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       total: expect.any(Number),
       raw: expect.any(Number),
     })
+  })
+
+  it("leads a failed command's error with its exit code and the signal it stands for", async () => {
+    const warning = 'Warning: You are sending unauthenticated requests to the HF Hub.'
+    stubShellCommand(provider, provider === 'daytona' ? warning : '', warning, 137)
+
+    const res = await executeShellInSandbox({ code: 'python train.py', envs: {}, timeoutMs: 1000 })
+
+    expect(res.error).toBe(
+      `Process exited with code 137 (the exit code of SIGKILL, usually out of memory): ${warning}`
+    )
+    expect(res.stdout).toContain(warning)
   })
 
   it('terminates shell execution when streamed process output exceeds the byte budget', async () => {

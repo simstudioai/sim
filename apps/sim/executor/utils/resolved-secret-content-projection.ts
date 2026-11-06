@@ -93,6 +93,8 @@ interface ProjectionState {
 }
 
 export interface ResolvedSecretContentProjectionOptions {
+  /** Keeps original logical lines when masking complete text before a file line window. */
+  preserveLineBreaks?: boolean
   /** Values already materialized and verified by a boundary-specific projector. */
   isOpaqueSafeObject?: (value: object) => boolean
   /** Whether string-shaped secret literals should also match typed number/boolean/null values. */
@@ -304,13 +306,13 @@ function sanitizeProjectedString(
       ? sanitizeCollisionProneInternalDiagnosticIdentifiers(value, matcher)
       : value
   sanitized = matcher
-    ? sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
+    ? sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch, options)
     : sanitized
   if (options.sanitizeInternalIdentifiers) {
     sanitized = sanitizeInternalDiagnosticIdentifiers(sanitized)
   }
   if (matcher && containsResolvedSecret(sanitized, matcher)) {
-    sanitized = sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch)
+    sanitized = sanitizeResolvedSecretString(sanitized, matcher, maxBytes, options.onMatch, options)
     if (containsResolvedSecret(sanitized, matcher)) {
       throw new ResolvedSecretContentProjectionError(
         'Secret replacement could not produce safe model content'

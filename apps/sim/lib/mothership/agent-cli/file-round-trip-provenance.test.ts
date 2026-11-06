@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
+import type { StoredWorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { copilotChats, workspace, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
@@ -12,6 +13,7 @@ import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/bi
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import {
@@ -27,7 +29,8 @@ import {
   workspaceFileFoldersMock,
   workspaceFileFoldersMockFns,
 } from '@sim/testing/mocks/workspace-file-folders.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toArray, toRecord } from '@sim/utils/object'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   find: vi.fn(),
@@ -46,17 +49,15 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: vi.fn(),
   processWorkspaceFileStorageCleanupNow: vi.fn(),
 }))
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 vi.mock('@/lib/folders/locks', () => ({ acquireFolderMutationLock: vi.fn() }))
 vi.mock('@/lib/users/queries', () => usersQueriesMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
@@ -75,8 +76,8 @@ import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = {
@@ -137,6 +138,9 @@ const SOURCE = {
   key: `workspace/${WORKSPACE}/123-abc-source.txt`,
   userId: 'reader',
   workspaceId: WORKSPACE,
+  entityType: 'workspace',
+  entityId: WORKSPACE,
+  organizationId: null,
   folderId: null,
   context: 'workspace',
   chatId: null,
@@ -179,21 +183,36 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
     {
       workspaceId: WORKSPACE,
       fileId: file.id,
+      ownership: file,
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'owner',
     },
   ])
   queueTableRows(workspaceFiles, [file])
+  const sidecar = {
+    id: file.id,
+    key: file.key,
+    context: file.context,
+    fileContentUpdatedAt: REVISION,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: REVISION,
+    ...provenance,
+    entries: provenance.status === 'exact' ? provenance.entries : [],
+  }
+  queueTableRows(workspaceFiles, [sidecar])
   queueTableRows(workspaceFiles, [
     {
-      fileContentUpdatedAt: REVISION,
-      secretProvenanceVersion: 1,
-      provenanceContentUpdatedAt: REVISION,
-      ...provenance,
-      entries: provenance.status === 'exact' ? provenance.entries : [],
+      workspaceId: WORKSPACE,
+      fileId: file.id,
+      ownership: file,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner',
     },
   ])
+  queueTableRows(workspaceFiles, [file])
+  queueTableRows(workspaceFiles, [sidecar])
 }
 
 function execute(argv: string[], trace: ResolvedSecretTraceRegistry, sink?: string) {
@@ -304,12 +323,16 @@ beforeEach(async () => {
     })
     expect(result.created).toBe(true)
     const sidecar = dbChainMockFns.values.mock.calls
-      .map(([value]) => value)
+      .map(([value]) => toRecord(value))
       .find((value) => value.fileId === PUBLISHED.id && 'entries' in value)
     expect(sidecar).toMatchObject({ contentUpdatedAt: REVISION })
+    assert.isDefined(sidecar)
     storedProvenance =
       sidecar.status === 'exact'
-        ? { status: 'exact', entries: sidecar.entries }
+        ? {
+            status: 'exact',
+            entries: toArray<StoredWorkspaceFileSecretProvenanceEntry>(sidecar.entries),
+          }
         : { status: 'unknown' }
     registered = true
     queueTableRows(workspaceFiles, [PUBLISHED])

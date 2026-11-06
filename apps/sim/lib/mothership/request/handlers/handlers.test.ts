@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
@@ -7,7 +9,7 @@ import {
   mothershipClientToolWaiterMockFns,
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { sleep } from '@sim/utils/helpers'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
 import { TraceCollector } from '@/lib/mothership/request/trace'
@@ -60,11 +62,13 @@ import {
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
   MothershipStreamV1TextChannel,
+  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { TOOL_DEADLINE_SETTLE_MARGIN_MS } from '@/lib/mothership/generated/protocol'
 import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   applyStreamEvent,
@@ -74,6 +78,10 @@ import {
 } from '@/lib/mothership/request/handlers'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { shouldSkipToolCallEvent } from '@/lib/mothership/request/sse-utils'
+import {
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  TOOL_DEADLINE_EXCEEDED_MESSAGE,
+} from '@/lib/mothership/request/tools/deadline'
 import type {
   ExecutionContext,
   StreamEvent,
@@ -326,44 +334,66 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
-  it('pre-persists browser tools as pending for the desktop authorization claim', async () => {
-    isSimExecuted.mockReturnValue(false)
-    context.runId = 'run-1'
+  describe.each(['browser_list_tabs', 'terminal', 'import_local_files', 'computer'])(
+    'native %s pre-persistence',
+    (toolName) => {
+      it.each([false, true])(
+        'keeps the call pending for the desktop claim when approval gating is %s',
+        async (gated) => {
+          isSimExecuted.mockReturnValue(false)
+          toolRequiresApproval.mockReturnValue(gated)
+          context.runId = 'run-1'
+          context.toolPermissions.enabled = gated
+          const args =
+            toolName === 'computer'
+              ? { action: 'status' }
+              : toolName === 'terminal'
+                ? { operation: 'run', command: 'pwd' }
+                : {}
+          const event = {
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId: 'native-tool-1',
+              toolName,
+              arguments: args,
+              executor: MothershipStreamV1ToolExecutor.client,
+              mode: MothershipStreamV1ToolMode.async,
+              phase: MothershipStreamV1ToolPhase.call,
+            },
+          } satisfies StreamEvent
 
-    await prePersistClientExecutableToolCall(
-      {
-        type: MothershipStreamV1EventType.tool,
-        payload: {
-          toolCallId: 'browser-tool-1',
-          toolName: 'browser_list_tabs',
-          arguments: {},
-          executor: MothershipStreamV1ToolExecutor.client,
-          mode: MothershipStreamV1ToolMode.async,
-          phase: MothershipStreamV1ToolPhase.call,
-        },
-      } satisfies StreamEvent,
-      context,
-      {},
-      execContext
-    )
+          await prePersistClientExecutableToolCall(event, context, {}, execContext)
 
-    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
-      runId: 'run-1',
-      toolCallId: 'browser-tool-1',
-      toolName: 'browser_list_tabs',
-      args: {},
-      sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
-      status: MothershipStreamV1AsyncToolRecordStatus.pending,
-      permissionRequested: false,
-    })
-    expect(sealClientToolContext).toHaveBeenCalledWith({
-      toolCallId: 'browser-tool-1',
-      runId: 'run-1',
-      userId: 'user-1',
-      registry: execContext.resolvedSecretTraceRegistry,
-      toolInput: {},
-    })
-  })
+          expect(upsertAsyncToolCall).toHaveBeenCalledExactlyOnceWith({
+            runId: 'run-1',
+            toolCallId: 'native-tool-1',
+            toolName,
+            executableName: toolName,
+            args,
+            sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
+            status: MothershipStreamV1AsyncToolRecordStatus.pending,
+            permissionRequested: gated,
+          })
+          expect(sealClientToolContext).toHaveBeenCalledWith({
+            toolCallId: 'native-tool-1',
+            runId: 'run-1',
+            userId: 'user-1',
+            registry: execContext.resolvedSecretTraceRegistry,
+            toolInput: args,
+          })
+          expect(event.payload).toEqual({
+            toolCallId: 'native-tool-1',
+            toolName,
+            arguments: args,
+            executor: MothershipStreamV1ToolExecutor.client,
+            mode: MothershipStreamV1ToolMode.async,
+            phase: MothershipStreamV1ToolPhase.call,
+            ...(gated ? { status: 'awaiting_approval' } : {}),
+          })
+        }
+      )
+    }
+  )
 
   it('persists a gated sim tool and stamps the frame so a reload can still answer it', async () => {
     toolRequiresApproval.mockReturnValue(true)
@@ -394,11 +424,89 @@ describe('sse-handlers tool lifecycle', () => {
       runId: 'run-1',
       toolCallId: 'deploy-1',
       toolName: 'deploy_as_api',
+      executableName: 'deploy_as_api',
       args: { versionName: 'v2' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
       permissionRequested: true,
     })
     expect(event.payload.status).toBe('awaiting_approval')
+  })
+
+  describe('sim_cli approval', () => {
+    const activate = ['workflows', 'activate', 'create', 'wf-1', '1', '--yes']
+
+    function cliFrame(
+      toolCallId: string,
+      toolName: string,
+      argv: string[]
+    ): StreamEvent & { payload: MothershipStreamV1ToolCallDescriptor } {
+      return {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId,
+          toolName,
+          execName: 'sim_cli',
+          arguments: { args: argv, request: { invocation: { kind: 'cli', argv } } },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      }
+    }
+
+    beforeEach(async () => {
+      const router = await vi.importActual<typeof import('@/lib/mothership/tool-executor/router')>(
+        '@/lib/mothership/tool-executor/router'
+      )
+      toolRequiresApproval.mockImplementation(router.toolRequiresApproval)
+      context.runId = 'run-1'
+      context.toolPermissions = {
+        enabled: true,
+        autoAllowed: new Set(),
+        autoAllowPermitted: true,
+      }
+    })
+
+    afterEach(() => {
+      toolRequiresApproval.mockReset()
+      toolRequiresApproval.mockReturnValue(false)
+    })
+
+    it('holds a command that performs a gated capability, though its argv says --yes', async () => {
+      const event = cliFrame('cli-activate', 'cli_workflows_activate_create', activate)
+
+      await prePersistClientExecutableToolCall(event, context, {})
+
+      expect(event.payload.status).toBe('awaiting_approval')
+      expect(upsertAsyncToolCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'cli_workflows_activate_create',
+          executableName: 'sim_cli',
+          permissionRequested: true,
+        })
+      )
+    })
+
+    it('lets always-allow cover only the command it was granted for', async () => {
+      context.toolPermissions.autoAllowed.add('cli_workflows_list')
+      context.toolPermissions.autoAllowed.add('sim_cli')
+      const held = cliFrame('cli-held', 'cli_workflows_activate_create', activate)
+      await prePersistClientExecutableToolCall(held, context, {})
+      expect(held.payload.status).toBe('awaiting_approval')
+
+      // A row named for an allowed command, or for none, does not carry its consent
+      // to the command the CLI would actually run.
+      for (const name of ['cli_workflows_list', 'sim_cli']) {
+        const mislabeled = cliFrame(`cli-${name}`, name, activate)
+        await prePersistClientExecutableToolCall(mislabeled, context, {})
+        expect(mislabeled.payload.status).toBe('awaiting_approval')
+      }
+
+      context.toolPermissions.autoAllowed.add('cli_workflows_activate_create')
+      const allowed = cliFrame('cli-allowed', 'cli_workflows_activate_create', activate)
+      await prePersistClientExecutableToolCall(allowed, context, {})
+      expect(allowed.payload.status).toBeUndefined()
+    })
   })
 
   it('clears a Go-stamped approval frame when the gate is off', async () => {
@@ -585,6 +693,7 @@ describe('sse-handlers tool lifecycle', () => {
       runId: 'run-1',
       toolCallId: 'client-tool-1',
       toolName: 'run_workflow',
+      executableName: 'run_workflow',
       args: { workflowId: 'workflow-1' },
       status: MothershipStreamV1AsyncToolRecordStatus.running,
       permissionRequested: false,
@@ -637,6 +746,232 @@ describe('sse-handlers tool lifecycle', () => {
 
     expect(context.accumulatedContent).toBe('I will check that.Final answer only.')
     expect(context.finalAssistantContent).toBe('Final answer only.')
+  })
+
+  describe('the deadline a frame names', () => {
+    /** A call frame naming `deadlineMs`; `client` makes it one a browser or desktop runs. */
+    const deadlineFrame = (
+      deadlineMs: number,
+      call: { toolCallId?: string; toolName?: string; arguments?: Record<string, unknown> } = {},
+      client = false
+    ): StreamEvent => ({
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: call.toolCallId ?? 'audio-1',
+        toolName: call.toolName ?? 'generate_audio',
+        arguments: call.arguments ?? { prompt: 'p' },
+        executor: client
+          ? MothershipStreamV1ToolExecutor.client
+          : MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        ...(client ? {} : { ui: { simExecutable: true } }),
+        deadlineMs,
+      },
+    })
+
+    it('bounds the call from its receipt, less the settle margin', async () => {
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      const before = Date.now()
+      await sseHandlers.tool(deadlineFrame(900_000), context, execContext, { interactive: false })
+      const after = Date.now()
+      const deadlineAt = context.toolCalls.get('audio-1')?.deadlineAt ?? 0
+      expect(deadlineAt).toBeGreaterThanOrEqual(before + 900_000 - TOOL_DEADLINE_SETTLE_MARGIN_MS)
+      expect(deadlineAt).toBeLessThanOrEqual(after + 900_000 - TOOL_DEADLINE_SETTLE_MARGIN_MS)
+    })
+
+    it('gives a client call only what remains of the deadline recorded at first hand-off', async () => {
+      const recorded = new Date(Date.now() + 60_000)
+      mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+        executionDeadlineAt: recorded,
+      })
+      await sseHandlers.tool(
+        deadlineFrame(900_000, { toolName: 'browser_click', arguments: {} }, true),
+        context,
+        execContext,
+        { interactive: true }
+      )
+      expect(context.toolCalls.get('audio-1')?.deadlineAt).toBe(recorded.getTime())
+    })
+
+    it('counts the deadline as spent when the recorded one cannot be read', async () => {
+      mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
+      const before = Date.now()
+      await sseHandlers.tool(
+        deadlineFrame(
+          900_000,
+          { toolCallId: 'takeover-1', toolName: 'browser_click', arguments: {} },
+          true
+        ),
+        context,
+        execContext,
+        { interactive: true }
+      )
+      expect(context.toolCalls.get('takeover-1')?.deadlineAt).toBeLessThan(before + 60_000)
+    })
+
+    it('hands a workflow tool the wait its frame names, and no other tool', async () => {
+      executeTool.mockResolvedValue({ success: true, output: {} })
+      const frame = (toolCallId: string, toolName: string, waitTimeoutMs: unknown) => {
+        const event = deadlineFrame(900_000, {
+          toolCallId,
+          toolName,
+          arguments: { workflowId: 'workflow-1' },
+        })
+        return { ...event, payload: { ...event.payload, waitTimeoutMs } } as StreamEvent
+      }
+      await sseHandlers.tool(frame('run-1', 'run_workflow', 240_000), context, execContext, {
+        interactive: false,
+      })
+      await sseHandlers.tool(frame('audio-2', 'generate_audio', 240_000), context, execContext, {
+        interactive: false,
+      })
+      await sseHandlers.tool(frame('run-2', 'run_workflow', -5), context, execContext, {
+        interactive: false,
+      })
+      await Promise.all(context.pendingToolPromises.values())
+      const handed = (toolCallId: string) =>
+        executeTool.mock.calls.find(
+          ([, , toolContext]) => toolContext?.toolCallId === toolCallId
+        )?.[2]
+      expect(handed('run-1')?.workflowRunWaitMs).toBe(240_000)
+      expect(handed('audio-2')).not.toHaveProperty('workflowRunWaitMs')
+      expect(handed('run-2')).not.toHaveProperty('workflowRunWaitMs')
+    })
+
+    /** Runs a desktop-local read whose frame names `deadlineMs`, recording the emitted events. */
+    async function runLocalRead(deadlineMs: number) {
+      const onEvent = vi.fn()
+      await sseHandlers.tool(
+        deadlineFrame(
+          deadlineMs,
+          {
+            toolCallId: 'local-read-1',
+            toolName: 'read',
+            arguments: { path: 'user-local/Project--mount/README.md' },
+          },
+          true
+        ),
+        context,
+        execContext,
+        { onEvent, interactive: true }
+      )
+      return onEvent
+    }
+
+    /** The call ended with `message`, and the client was sent a result naming it. */
+    function expectFailedWith(onEvent: ReturnType<typeof vi.fn>, message: string) {
+      expect(context.toolCalls.get('local-read-1')).toMatchObject({
+        status: MothershipStreamV1ToolOutcome.error,
+        error: message,
+      })
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            phase: MothershipStreamV1ToolPhase.result,
+            error: message,
+          }),
+        })
+      )
+    }
+
+    it('never offers an unclaimed client call whose deadline already passed', async () => {
+      mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+        async (input) => ({ ...input })
+      )
+      const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS)
+      await Promise.allSettled(context.pendingToolPromises.values())
+
+      expect(waitForClientToolCompletion).not.toHaveBeenCalled()
+      expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+    })
+
+    it('does not offer an unclaimed client call with less than a minute of its deadline left', async () => {
+      mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+        async (input) => ({ ...input })
+      )
+      const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 30_000)
+      await Promise.allSettled(context.pendingToolPromises.values())
+
+      expect(waitForClientToolCompletion).not.toHaveBeenCalled()
+      expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+    })
+
+    it('settles a client call nothing claimed by its deadline as not run', async () => {
+      vi.useFakeTimers()
+      try {
+        waitForClientToolCompletion.mockImplementationOnce(
+          () => new Promise((resolve) => setTimeout(() => resolve(null), 65_000))
+        )
+        mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+          async (input) => ({ ...input })
+        )
+        const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 65_000)
+        await vi.advanceTimersByTimeAsync(65_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+
+        expect(waitForClientToolCompletion).toHaveBeenCalledOnce()
+        expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('reads a claimed call past its deadline and reports its outcome as unknown', async () => {
+      const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS)
+      await Promise.allSettled(context.pendingToolPromises.values())
+
+      expect(waitForClientToolCompletion).toHaveBeenCalledOnce()
+      expectFailedWith(onEvent, TOOL_DEADLINE_EXCEEDED_MESSAGE)
+    })
+
+    it('counts the deadline as spent when its lookup outlasts it', async () => {
+      vi.useFakeTimers()
+      try {
+        mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockImplementationOnce(
+          () => new Promise(() => {})
+        )
+        const handled = sseHandlers.tool(
+          deadlineFrame(
+            TOOL_DEADLINE_SETTLE_MARGIN_MS + 2_000,
+            { toolCallId: 'stalled-1', toolName: 'browser_click', arguments: {} },
+            true
+          ),
+          context,
+          execContext,
+          { interactive: true }
+        )
+        await vi.advanceTimersByTimeAsync(2_000)
+        await handled
+
+        expect(context.toolCalls.get('stalled-1')?.deadlineAt).toBeLessThanOrEqual(Date.now())
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('fails a client call still unfinished at its deadline', async () => {
+      vi.useFakeTimers()
+      try {
+        // The waiter gives up when its (deadline-capped) timeout ends, five seconds in.
+        waitForClientToolCompletion.mockImplementationOnce(
+          () => new Promise((resolve) => setTimeout(() => resolve(null), 5_000))
+        )
+        const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 5_000)
+        await vi.advanceTimersByTimeAsync(5_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+
+        expectFailedWith(onEvent, TOOL_DEADLINE_EXCEEDED_MESSAGE)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('leaves a call without one on Sim\u2019s own bounds', async () => {
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      await sseHandlers.tool(deadlineFrame(-1), context, execContext, { interactive: false })
+      expect(context.toolCalls.get('audio-1')?.deadlineAt).toBeUndefined()
+    })
   })
 
   it('executes a display-named frame by its execName (the worker CLI class)', async () => {
@@ -1508,13 +1843,12 @@ describe('sse-handlers tool lifecycle', () => {
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
     const abortController = new AbortController()
     execContext.abortSignal = abortController.signal
-
-    executeTool.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve({ success: true, output: { ok: true } }), 0)
-        })
-    )
+    const started = createDeferred<void>()
+    const result = createDeferred<{ success: boolean; output: { ok: boolean } }>()
+    executeTool.mockImplementationOnce(() => {
+      started.resolve()
+      return result.promise
+    })
 
     await sseHandlers.tool(
       {
@@ -1537,8 +1871,12 @@ describe('sse-handlers tool lifecycle', () => {
       }
     )
 
+    await started.promise
+    const pending = context.pendingToolPromises.get('tool-cancel')
+    expect(pending).toBeDefined()
     abortController.abort()
-    await sleep(10)
+    result.resolve({ success: true, output: { ok: true } })
+    await pending
 
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
@@ -2025,6 +2363,124 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it("executes a resolved MCP operation with its own arguments under the gateway's grouping", async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+    const grouping = { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' }
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'mcp-server-get_overview',
+            description: 'Pulling the overview',
+            activity: grouping,
+            arguments: { category_id: null },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'mcp-server-get_overview',
+          arguments: { category_id: null },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await flushMacrotask()
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'mcp-server-get_overview',
+      { category_id: null },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('gateway-mcp')?.activity).toEqual(grouping)
+  })
+
+  it.each([
+    ['a value', 'Development'],
+    ["shaped like the gateway's grouping", { id: 'filing' }],
+    ['shaped like a grouping of its own', { id: 'case-42', completedTitle: 'Closed the case' }],
+  ])(
+    "keeps an integration operation's own activity argument as %s under the gateway's grouping",
+    async (_case, ownActivity) => {
+      isSimExecuted.mockReturnValue(false)
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      const grouping = { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' }
+
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: 'gateway-work-item',
+            toolName: 'call_integration_tool',
+            arguments: {
+              toolId: 'azure_devops_create_work_item',
+              description: 'Filing the task',
+              activity: grouping,
+              arguments: { title: 'Ship it', activity: ownActivity },
+            },
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.call,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+
+      // A repeated frame for the rebound operation still carries the operation's own arguments.
+      for (let frame = 0; frame < 2; frame++) {
+        await sseHandlers.tool(
+          {
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId: 'gateway-work-item',
+              toolName: 'azure_devops_create_work_item',
+              arguments: { title: 'Ship it', activity: ownActivity },
+              executor: MothershipStreamV1ToolExecutor.sim,
+              mode: MothershipStreamV1ToolMode.async,
+              phase: MothershipStreamV1ToolPhase.call,
+            },
+          } satisfies StreamEvent,
+          context,
+          execContext,
+          { interactive: false, timeout: 1000 }
+        )
+      }
+
+      await flushMacrotask()
+
+      expect(executeTool).toHaveBeenCalledWith(
+        'azure_devops_create_work_item',
+        { title: 'Ship it', activity: ownActivity },
+        expect.any(Object)
+      )
+      expect(context.toolCalls.get('gateway-work-item')?.activity).toEqual(grouping)
+    }
+  )
+
   it('clears pending continuation state when a run resumes', async () => {
     context.awaitingAsyncContinuation = {
       checkpointId: 'cp-1',
@@ -2066,5 +2522,24 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.completionStatus).toBe(MothershipStreamV1CompletionStatus.complete)
     expect(context.streamComplete).toBe(true)
     expect(context.errors).toEqual(['subagent build failed'])
+  })
+
+  it('records the worker error copy the live view showed, not its diagnostic message', async () => {
+    await sseHandlers.error(
+      {
+        type: MothershipStreamV1EventType.error,
+        payload: {
+          code: 'incomplete_generation',
+          message: 'provider finish reason: content-filter',
+          displayMessage: 'Rephrase your last message or start a new chat.',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.errors).toEqual(['Rephrase your last message or start a new chat.'])
+    expect(context.streamComplete).toBe(true)
   })
 })

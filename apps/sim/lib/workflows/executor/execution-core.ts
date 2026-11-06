@@ -3,6 +3,7 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { withAuditRollupScope } from '@sim/audit'
 import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
@@ -14,6 +15,8 @@ import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import { runWorkflowOutsideContentDelivery } from '@/lib/core/application/content-delivery'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { UserFailure } from '@/lib/core/errors/user-failure'
 import {
@@ -29,10 +32,10 @@ import {
   getExecutionEnvironment,
 } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
-import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { getStoredFileReferenceScope, processInputFileFields } from '@/lib/execution/files'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
+import { connectExecutionSignalHub } from '@/lib/execution/signal'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
@@ -311,9 +314,15 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
  * Counts a settled run — completed, failed, or cancelled alike — on the
  * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
  * when they finish. Awaited from the finalization path rather than fired and
- * forgotten, so a process reload after the log write cannot drop it.
+ * forgotten, so a process reload after the log write cannot drop it. A run
+ * whose workspace or workflow was deleted has no row left to count on.
  */
-async function recordSettledRun(workflowId: string, requestId: string): Promise<void> {
+async function recordSettledRun(
+  workflowId: string,
+  requestId: string,
+  loggingSession: LoggingSession
+): Promise<void> {
+  if (loggingSession.getDeletedScope()) return
   try {
     await updateWorkflowRunCounts(workflowId)
   } catch (error) {
@@ -418,7 +427,7 @@ async function finalizeExecutionOutcome(params: {
   }
 
   // Every non-paused outcome above is a settled run; the paused branch returned.
-  await recordSettledRun(workflowId, requestId)
+  await recordSettledRun(workflowId, requestId, loggingSession)
 }
 
 async function finalizeExecutionError(params: {
@@ -459,7 +468,7 @@ async function finalizeExecutionError(params: {
   }
 
   // A run that threw after starting is a failed run, and failed runs count.
-  await recordSettledRun(workflowId, requestId)
+  await recordSettledRun(workflowId, requestId, loggingSession)
   return finalized
 }
 
@@ -597,8 +606,20 @@ function prefetchExecutionReads(options: ExecuteWorkflowCoreOptions): ExecutionR
  * paid inside its readiness budget. Connecting on intent rather than at worker
  * start keeps the tasks that never execute a workflow, most of the fleet by
  * volume, from opening a connection they would never use.
+ *
+ * Runs under `runWorkflowOutsideContentDelivery`, so a run Chat started reads what any run reads.
+ *
+ * Owns the audit rollups the run and its inline child runs record, and writes
+ * them before returning, since a background run's process may be frozen or
+ * ended once it does.
  */
-export async function executeWorkflowCore(
+export function executeWorkflowCore(options: ExecuteWorkflowCoreOptions): Promise<ExecutionResult> {
+  return withAuditRollupScope(() =>
+    runWorkflowOutsideContentDelivery(() => executeWorkflowCoreInRun(options))
+  )
+}
+
+async function executeWorkflowCoreInRun(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   connectExecutionSignalHub()
@@ -842,6 +863,12 @@ async function executeWorkflowCoreImpl(
       deploymentVersionId,
       workflowState: { blocks, edges, loops, parallels },
     })
+    /**
+     * A start that failed because the run's workspace or workflow is gone ends the run here,
+     * before any block spends on providers: nothing could ever record it or stop it.
+     */
+    const deletedScope = loggingSession.getDeletedScope()
+    if (deletedScope) throw new ExecutionScopeDeletedError(executionId, deletedScope)
 
     // Use edges directly - trigger-to-trigger edges are prevented at creation time
     const filteredEdges = edges

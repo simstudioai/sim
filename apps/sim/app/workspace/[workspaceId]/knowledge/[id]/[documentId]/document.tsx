@@ -77,6 +77,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -402,6 +403,9 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
+  /** A completed image with no chunks held nothing searchable, such as a logo or an icon. */
+  const isImageWithNothingToIndex =
+    isCompleted && documentData.mimeType.startsWith('image/') && documentData.chunkCount === 0
 
   /**
    * Kept separate from `documentError`: without the document there is no page to draw,
@@ -496,14 +500,7 @@ export function Document({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isInEditorView])
 
-  useEffect(() => {
-    if (!isDirty) return
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [isDirty])
+  useBeforeUnloadWhile(isDirty)
 
   const navigateToChunk = useCallback(
     async (direction: 'prev' | 'next') => {
@@ -1284,6 +1281,12 @@ export function Document({
           emptyState={
             chunkError ? (
               <ChunkLoadError message={chunkError} kind={initialError ? 'load' : 'search'} />
+            ) : isImageWithNothingToIndex ? (
+              <EmptyState
+                graphic={<FileX className='size-[24px] text-[var(--text-icon)]' />}
+                title='Nothing to index'
+                description='This image holds no searchable information, such as a logo or an icon.'
+              />
             ) : undefined
           }
           selectable={chunkError ? undefined : selectableConfig}

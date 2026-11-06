@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
-import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { toV2FileVersions } from '@/app/api/v2/files/utils'
+import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/file-version-store'
+import { toV2FileVersion } from '@/app/api/v2/files/utils'
 
 const { mockFindUserEmailsByIds } = usersQueriesMockFns
 
@@ -23,11 +23,11 @@ const version: WorkspaceFileVersionRecord = {
   supersededAt: null,
 }
 
-describe('toV2FileVersions', () => {
+describe('toV2FileVersion', () => {
   it('keeps authors whose accounts no longer exist, with a null email', async () => {
     mockFindUserEmailsByIds.mockResolvedValueOnce(new Map([['user-1', 'ada@example.com']]))
 
-    const [serialized] = await toV2FileVersions([version])
+    const serialized = await toV2FileVersion(version)
 
     expect(serialized.authors).toEqual([
       { id: 'user-1', email: 'ada@example.com' },

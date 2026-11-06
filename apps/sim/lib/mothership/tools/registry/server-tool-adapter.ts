@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { managementToolContracts } from '@/lib/api/contracts/mothership-management-tools'
 import { openResourceOutputSchema } from '@/lib/api/contracts/mothership-resource-tools'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { searchResourceFromToolResult } from '@/lib/mothership/resources/search-tool-result'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/mothership/tool-executor/types'
@@ -29,6 +29,10 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         executionId: context.executionId,
         toolCallId: context.toolCallId,
         copilotToolExecution: context.copilotToolExecution,
+        copilotResourceAdmission: context.copilotResourceAdmission,
+        mcpBlockId: context.mcpBlockId,
+        executorDelegationOrigin: context.executorDelegationOrigin,
+        boundWorkflowExecutionId: context.boundWorkflowExecutionId,
         requestMode: context.requestMode,
         searchSurface: context.searchSurface,
         assistantSearch: context.assistantSearch,

@@ -36,12 +36,12 @@ import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
-import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
   type ActiveKnowledgeBaseReference,
   toActiveKnowledgeBaseReference,
-} from '@/lib/knowledge/knowledge-base-reference'
+} from '@/lib/knowledge/active-base-reference'
+import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import type {
@@ -430,16 +430,17 @@ export async function createKnowledgeBase(
 }
 
 /**
- * Persists a knowledge base for an already-authorized application use case.
- * Callers outside the application layer must use {@link createKnowledgeBase}.
+ * Persists a knowledge base for an already-authorized application use case, or
+ * for the background runner one dispatches. Other callers must use
+ * {@link createKnowledgeBase}. `id` is for a caller that minted the id earlier.
  */
 export async function createAuthorizedKnowledgeBase(
-  data: Omit<CreateKnowledgeBaseData, 'workspaceId'> & ResourceOwner,
+  data: Omit<CreateKnowledgeBaseData, 'workspaceId'> & ResourceOwner & { id?: string },
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
   const scope = resourceScopeFromOwner(data)
   const owner = resourceScopeColumns(scope)
-  const kbId = generateId()
+  const kbId = data.id ?? generateId()
   const now = new Date()
 
   await assertKnowledgeBaseFolder(data.folderId, owner.workspaceId)

@@ -6,7 +6,7 @@ vi.mock('@/lib/mothership/chat/application/workspace-target', () => ({
   WORKSPACE_TARGET_AUDIENCE: 'sim:workspaces',
   authorizeChatWorkspaceTarget: { execute: mocks.target },
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/core/application', async (original) => ({
   ...(await original<typeof import('@/lib/core/application')>()),
   authorizeWorkspaceOperation: mocks.authorize,

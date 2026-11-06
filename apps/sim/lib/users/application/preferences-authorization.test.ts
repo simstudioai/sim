@@ -20,7 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { userAccountOperations } from '@/lib/users/application/operations'
 import { authorizeAccountPreferences } from '@/lib/users/application/preferences-authorization'

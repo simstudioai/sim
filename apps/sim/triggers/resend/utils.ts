@@ -74,7 +74,7 @@ export function resendSetupInstructions(eventType: string): string {
 /**
  * Helper to build Resend-specific extra fields.
  * Includes API key (required).
- * Use with the generic buildTriggerSubBlocks from @/triggers.
+ * Use with the generic buildTriggerSubBlocks from @/triggers/subblocks.
  */
 export function buildResendExtraFields(triggerId: string) {
   return [

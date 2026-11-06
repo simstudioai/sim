@@ -1,0 +1,172 @@
+import {
+  knowledgeBase,
+  member,
+  permissionGroup,
+  simLink,
+  ssoProvider,
+  user,
+  workspaceFiles,
+} from '@sim/db/schema'
+import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
+
+/** Organization references survive even when their creator no longer has a membership row. */
+export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx, userId: string) {
+  const rows = await executor.execute<{ organizationId: string }>(sql`
+    SELECT DISTINCT "organizationId" FROM (
+      SELECT ${knowledgeBase.organizationId} AS "organizationId" FROM ${knowledgeBase}
+        WHERE ${knowledgeBase.userId} = ${userId} AND ${knowledgeBase.workspaceId} IS NULL
+      UNION ALL SELECT ${workspaceFiles.organizationId} FROM ${workspaceFiles}
+        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.workspaceId} IS NULL
+      UNION ALL SELECT ${permissionGroup.organizationId} FROM ${permissionGroup} WHERE ${permissionGroup.createdBy} = ${userId}
+      UNION ALL SELECT ${ssoProvider.organizationId} FROM ${ssoProvider} WHERE ${ssoProvider.userId} = ${userId}
+    ) owned WHERE "organizationId" IS NOT NULL ORDER BY "organizationId"
+  `)
+  return rows.map((row) => row.organizationId)
+}
+
+/** Uses the same eligible owner in read-only previews and locked handoffs. */
+export async function findOrganizationSharedResourceSuccessor(
+  tx: DbOrTx,
+  organizationId: string,
+  departingUserId: string,
+  hold = false
+): Promise<string | null> {
+  const successorQuery = tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(
+      and(
+        eq(member.organizationId, organizationId),
+        eq(member.role, 'owner'),
+        ne(member.userId, departingUserId)
+      )
+    )
+    .orderBy(asc(member.userId))
+    .limit(1)
+  const [successor] = await (hold ? successorQuery.for('share') : successorQuery)
+  if (!successor) return null
+  const accountQuery = tx.select({ id: user.id }).from(user).where(eq(user.id, successor.userId))
+  const [account] = await (hold ? accountQuery.for('key share') : accountQuery)
+  return account ? successor.userId : null
+}
+
+/** Retains organization-owned configuration without rewriting ACLs, credentials, or historical actors. */
+export async function reassignOrganizationSharedResourcesTx(
+  tx: DbTransaction,
+  organizationId: string,
+  departingUserId: string
+): Promise<string | null> {
+  const userId = await findOrganizationSharedResourceSuccessor(
+    tx,
+    organizationId,
+    departingUserId,
+    true
+  )
+  if (!userId) {
+    const owned = await listSharedResourceOrganizationIdsForUser(tx, departingUserId)
+    if (owned.includes(organizationId)) {
+      throw new OrchestrationError(
+        'conflict',
+        'Shared organization resources need an active organization owner before this account can leave or be deleted.'
+      )
+    }
+    return null
+  }
+  const updatedAt = new Date()
+  await tx
+    .update(knowledgeBase)
+    .set({ userId, updatedAt })
+    .where(
+      and(
+        eq(knowledgeBase.organizationId, organizationId),
+        isNull(knowledgeBase.workspaceId),
+        eq(knowledgeBase.userId, departingUserId)
+      )
+    )
+  await handoffFileCreatorsInTx(
+    tx,
+    and(
+      eq(workspaceFiles.organizationId, organizationId),
+      isNull(workspaceFiles.workspaceId),
+      eq(workspaceFiles.userId, departingUserId)
+    ),
+    userId
+  )
+  await tx
+    .update(permissionGroup)
+    .set({ createdBy: userId, updatedAt })
+    .where(
+      and(
+        eq(permissionGroup.organizationId, organizationId),
+        eq(permissionGroup.createdBy, departingUserId)
+      )
+    )
+  await reassignSimLinksTx(tx, organizationId, departingUserId, userId)
+  await tx
+    .update(ssoProvider)
+    .set({ userId })
+    .where(
+      and(eq(ssoProvider.organizationId, organizationId), eq(ssoProvider.userId, departingUserId))
+    )
+  return userId
+}
+
+async function reassignSimLinksTx(
+  tx: DbTransaction,
+  organizationId: string,
+  fromUserId: string,
+  toUserId: string
+) {
+  await tx
+    .update(simLink)
+    .set({ createdBy: toUserId, updatedAt: new Date() })
+    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.createdBy, fromUserId)))
+}
+
+/**
+ * Organizations where a former member still created Sim links outside `excludedOrganizationIds`.
+ * Account deletion locks these with the shared organizations, but they never block erasure.
+ */
+export async function listLeftoverSimLinkOrganizationIdsForUser(
+  executor: DbOrTx,
+  userId: string,
+  excludedOrganizationIds: string[]
+) {
+  const rows = await executor
+    .selectDistinct({ organizationId: simLink.organizationId })
+    .from(simLink)
+    .where(
+      and(
+        eq(simLink.createdBy, userId),
+        excludedOrganizationIds.length > 0
+          ? notInArray(simLink.organizationId, excludedOrganizationIds)
+          : undefined
+      )
+    )
+    .orderBy(asc(simLink.organizationId))
+  return rows.map((row) => row.organizationId)
+}
+
+/**
+ * Repairs Sim links a former member kept after leaving before departures handed them off. The
+ * caller holds each organization's mutation lock. Never blocks erasure: an organization without
+ * an owner successor keeps the FK's `SET NULL`.
+ */
+export async function handoffLeftoverSimLinksTx(
+  tx: DbTransaction,
+  departingUserId: string,
+  organizationIds: string[]
+) {
+  for (const organizationId of organizationIds) {
+    const successorId = await findOrganizationSharedResourceSuccessor(
+      tx,
+      organizationId,
+      departingUserId,
+      true
+    )
+    if (successorId) await reassignSimLinksTx(tx, organizationId, departingUserId, successorId)
+  }
+}

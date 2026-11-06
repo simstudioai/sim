@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import type { Author, ContentMeta } from '@/lib/content/schema'
 import type { ContentSection } from '@/lib/content/seo'
 import {
@@ -8,7 +9,7 @@ import {
   buildFaqJsonLd,
   buildIndexMetadata as buildIndexMetadataGeneric,
   buildPostGraphJsonLd as buildPostGraphJsonLdGeneric,
-  buildPostMetadata,
+  buildPostMetadata as buildPostMetadataGeneric,
   buildTagsBreadcrumbJsonLd as buildTagsBreadcrumbJsonLdGeneric,
   buildTagsMetadata as buildTagsMetadataGeneric,
 } from '@/lib/content/seo'
@@ -16,11 +17,25 @@ import {
 export const LIBRARY_SECTION: ContentSection = {
   name: 'Library',
   basePath: '/library',
+  feedPath: '/library/rss.xml',
+  hasAuthorPages: true,
   description:
     'Comparisons, how-tos, and roundups for teams evaluating and building AI agents with Sim.',
 }
 
-export { buildArticleJsonLd, buildFaqJsonLd, buildPostMetadata }
+export { buildArticleJsonLd, buildFaqJsonLd }
+
+/** Post metadata plus the `text/markdown` alternate that `app/library.md/[slug]` serves. */
+export function buildPostMetadata(post: ContentMeta): Metadata {
+  const metadata = buildPostMetadataGeneric(post, LIBRARY_SECTION)
+  return {
+    ...metadata,
+    alternates: {
+      ...metadata.alternates,
+      types: { ...metadata.alternates?.types, 'text/markdown': `${post.canonical}.md` },
+    },
+  }
+}
 
 export function buildPostGraphJsonLd(post: ContentMeta) {
   return buildPostGraphJsonLdGeneric(post, LIBRARY_SECTION)

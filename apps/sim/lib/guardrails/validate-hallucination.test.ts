@@ -2,7 +2,7 @@ import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption
 import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
 import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
 const { mockSearchKnowledgeAsExecutor } = vi.hoisted(() => ({
   mockSearchKnowledgeAsExecutor: vi.fn(),

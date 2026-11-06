@@ -8,8 +8,8 @@ import { tableDelegationPolicy } from '@/lib/table/application/authorization'
 import { listTableFoldersUseCase } from '@/lib/table/application/folders'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
-import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
-import { resolveWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { listWorkflowFolders } from '@/lib/workflows/application/folders'
+import { resolveWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/folders'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('ChatFolderContext')

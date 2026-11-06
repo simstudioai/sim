@@ -1,11 +1,12 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 /**
  * Home-page JSON-LD - the entities specific to `/`: the `WebPage`, its
- * `BreadcrumbList`, the product `WebApplication` (`#software`, with offers /
- * featureList), and the `SoftwareSourceCode`.
+ * `BreadcrumbList`, the product `WebApplication` (`#software`, with its
+ * featureList), and the `SoftwareSourceCode`. Plan offers live on `/pricing`, which
+ * declares the same `#software` node, because this page shows no prices.
  *
  * Rendered only by the landing root (`landing.tsx`), server-side before visible
  * content. The site-wide `Organization` / `WebSite` entities live in
@@ -13,7 +14,6 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * nodes here reference them by `@id` (`${SITE_URL}#website` / `#organization`).
  *
  * Maintenance:
- * - Offer prices must match the Pricing component exactly.
  * - All claims must also appear as visible text on the page.
  * - Do not add `review` or `aggregateRating` without real, rated, verifiable
  *   review data; curated testimonials do not qualify for review snippets.
@@ -32,6 +32,42 @@ export const HOME_PAGE_DESCRIPTION = `Sim is the open-source AI workspace where 
  */
 export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Distribute & Govern AI Agents | Sim'
 
+/** The hero's `<h1>`, one entry per rendered line. */
+export const HOME_HERO_HEADING = ['Build and govern', 'every AI agent in one place'] as const
+
+/**
+ * The hero's summary paragraph, shared with the homepage's Markdown representation (`/index.md`).
+ */
+export const HOME_HERO_SUMMARY = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents for their organization. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM, then govern access, spend, data, and deployment from one place. Build visually, conversationally, or with code, and run Sim in your own cloud.`
+
+/**
+ * The product's feature claims, shared by the JSON-LD `featureList` below and the homepage's
+ * Markdown representation (`/index.md`).
+ */
+export const HOME_FEATURES = [
+  'AI workspace for teams',
+  'Chat: build and manage agents in natural language',
+  'Visual workflow builder',
+  'CLI access for coding agents and terminal workflows',
+  `${INTEGRATION_COUNT_LABEL} integrations`,
+  'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
+  'Knowledge base creation',
+  'Table creation',
+  'Document creation',
+  'API access',
+  'Custom functions',
+  'Scheduled workflows',
+  'Event triggers',
+  'Permission groups for model, integration, and tool access',
+  'Organization and per-member spend limits',
+  'Usage analytics by workspace and member',
+  'Agent deployment as chat, API, or MCP with SSO, email, or password access',
+  'Single sign-on with domain verification',
+  'Audit records and run tracing',
+  'Configurable data retention',
+  'Self-hosting with Docker or Kubernetes',
+] as const
+
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -42,7 +78,6 @@ const HOME_JSON_LD = {
       name: HOME_PAGE_TITLE,
       isPartOf: { '@id': `${SITE_URL}#website` },
       about: { '@id': `${SITE_URL}#software` },
-      datePublished: '2024-01-01T00:00:00+00:00',
       description: HOME_PAGE_DESCRIPTION,
       breadcrumb: { '@id': `${SITE_URL}#breadcrumb` },
       inLanguage: 'en-US',
@@ -68,66 +103,8 @@ const HOME_JSON_LD = {
       operatingSystem: 'Web',
       browserRequirements: 'Requires a modern browser with JavaScript enabled',
       installUrl: `${SITE_URL}/signup`,
-      offers: [
-        {
-          '@type': 'Offer',
-          name: 'Community Plan: 1,000 credits included',
-          price: '0',
-          priceCurrency: 'USD',
-          availability: 'https://schema.org/InStock',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Pro Plan: 6,000 credits/month',
-          price: '25',
-          priceCurrency: 'USD',
-          priceSpecification: {
-            '@type': 'UnitPriceSpecification',
-            price: '25',
-            priceCurrency: 'USD',
-            unitText: 'MONTH',
-            billingIncrement: 1,
-          },
-          availability: 'https://schema.org/InStock',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Max Plan: 25,000 credits/month',
-          price: '100',
-          priceCurrency: 'USD',
-          priceSpecification: {
-            '@type': 'UnitPriceSpecification',
-            price: '100',
-            priceCurrency: 'USD',
-            unitText: 'MONTH',
-            billingIncrement: 1,
-          },
-          availability: 'https://schema.org/InStock',
-        },
-      ],
-      featureList: [
-        'AI workspace for teams',
-        'Chat: build and manage agents in natural language',
-        'Visual workflow builder',
-        'CLI access for coding agents and terminal workflows',
-        `${INTEGRATION_COUNT_LABEL} integrations`,
-        'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
-        'Knowledge base creation',
-        'Table creation',
-        'Document creation',
-        'API access',
-        'Custom functions',
-        'Scheduled workflows',
-        'Event triggers',
-        'Permission groups for model, integration, and tool access',
-        'Organization and per-member spend limits',
-        'Usage analytics by workspace and member',
-        'Agent deployment as chat, API, or MCP with SSO, email, or password access',
-        'Single sign-on with domain verification',
-        'Audit records and run tracing',
-        'Configurable data retention',
-        'Self-hosting with Docker or Kubernetes',
-      ],
+      publisher: { '@id': `${SITE_URL}#organization` },
+      featureList: HOME_FEATURES,
     },
     {
       '@type': 'SoftwareSourceCode',

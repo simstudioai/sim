@@ -5,17 +5,17 @@ import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   type ActiveWorkspaceFileContext,
   deleteWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  resolveActiveWorkspaceFileContext,
+  type WorkspaceFileTargetInput,
+} from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('DeleteWorkspaceFile')
 
-export interface DeleteWorkspaceFileInput {
-  fileId: string
-  assertedWorkspaceId?: string
-}
+export type DeleteWorkspaceFileInput = WorkspaceFileTargetInput
 
 export interface DeleteWorkspaceFileResult {
   id: string

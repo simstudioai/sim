@@ -1,6 +1,8 @@
 import { recordWorkspaceVisitContract } from '@/lib/api/contracts/workspaces'
 import {
   defineInternalJsonRoute,
+  extendInternalErrorPolicy,
+  internalErrorResponse,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -9,6 +11,7 @@ import {
   recordWorkspaceVisit,
   workspaceVisitOperations,
 } from '@/lib/workspaces/application/record-workspace-visit'
+import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 
 export const POST = defineInternalJsonRoute({
   contract: recordWorkspaceVisitContract,
@@ -17,7 +20,14 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'One idempotent upsert per workspace page load, replacing the settings write it made.',
   }),
-  errorPolicy: internalWorkspaceErrorPolicies.concealWorkspaceAuthorization,
+  errorPolicy: extendInternalErrorPolicy(
+    internalWorkspaceErrorPolicies.concealWorkspaceAuthorization,
+    // A session that outlived its deleted account answers as signed out.
+    (error) =>
+      error instanceof WorkspaceOwnerMissingError
+        ? internalErrorResponse(401, { error: 'Unauthorized' })
+        : null
+  ),
   mapInput: ({ params }) => ({ workspaceId: params.id }),
   useCase: recordWorkspaceVisit,
   present: () => ({ success: true as const }),

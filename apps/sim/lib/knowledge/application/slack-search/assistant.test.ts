@@ -76,7 +76,7 @@ vi.mock('@/lib/knowledge/application/slack-search/onboarding', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/title', () => ({
   generateSlackSearchChatTitle: hoisted.title,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
   loadCopilotSearchIntegrations: hoisted.inventory,

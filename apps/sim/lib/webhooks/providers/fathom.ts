@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   SubscriptionContext,
@@ -27,7 +28,7 @@ export const fathomHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing apiKey for Fathom webhook creation.`, {
           webhookId: webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Fathom API Key is required. Please provide your API key in the trigger configuration.'
         )
       }
@@ -108,6 +109,7 @@ export const fathomHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId: responseBody.id } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Fathom webhook creation for webhook ${webhook.id}.`,

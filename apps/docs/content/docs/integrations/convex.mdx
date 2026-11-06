@@ -1,37 +1,33 @@
 ---
 title: Convex
 description: Use Convex database
+integration:
+  type: "convex"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="convex"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Sim's Convex integration connects your workflows to any Convex deployment with two fields: the deployment URL and a deploy key from the dashboard Settings page. From there you can:
+Connect to [Convex](https://www.convex.dev/) with a deployment URL and deploy key from that deployment's settings. Grant the key the function and data access required by your operations.
 
-- **Run functions:** Call query, mutation, and action functions with named JSON arguments — or use Run Function when you don't want to specify the function type.
-- **Inspect your data model:** List Tables returns every table in the deployment with the JSON schema of its documents.
-- **Export and sync data:** List Documents pages through a consistent snapshot of a table, and Document Deltas returns only the documents that changed since a snapshot — including deletions — making incremental syncs to warehouses, search indexes, or other tools straightforward.
+Use **Run Query**, **Run Mutation**, or **Run Action** to call a function with JSON arguments; **Run Function** lets Convex resolve its type. **List Tables** returns document schemas. **List Documents** pages a consistent snapshot, and **Document Deltas** retrieves subsequent changes, including deletions, for incremental synchronization.
 
-The Run Query, Run Mutation, Run Action, and Run Function operations work on every Convex plan. List Tables, List Documents, and Document Deltas use Convex's streaming export API, which is available on Convex paid plans.
+Function calls are available across plans. List Tables, List Documents, and Document Deltas use [streaming export](https://docs.convex.dev/production/integrations/streaming-import-export), which Convex documents as requiring a Pro plan. Its deploy key needs `deployment:data:view`; confirm that your current plan includes streaming export.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.
-
-
+Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.
 
 ## Actions
 
 ### Convex Run Query
 
 Run a Convex query function and return its result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +45,13 @@ Run a Convex query function and return its result
 | `value` | json | Result returned by the query function |
 | `logLines` | array | Log lines printed during the function execution |
 
+</ReferenceDetails>
+
 ### Convex Run Mutation
 
 Run a Convex mutation function to write data and return its result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,9 +69,13 @@ Run a Convex mutation function to write data and return its result
 | `value` | json | Result returned by the mutation function |
 | `logLines` | array | Log lines printed during the function execution |
 
+</ReferenceDetails>
+
 ### Convex Run Action
 
 Run a Convex action function and return its result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -89,9 +93,13 @@ Run a Convex action function and return its result
 | `value` | json | Result returned by the action function |
 | `logLines` | array | Log lines printed during the function execution |
 
+</ReferenceDetails>
+
 ### Convex Run Function
 
 Run any Convex function (query, mutation, or action) by path without specifying its type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +117,13 @@ Run any Convex function (query, mutation, or action) by path without specifying 
 | `value` | json | Result returned by the function |
 | `logLines` | array | Log lines printed during the function execution |
 
+</ReferenceDetails>
+
 ### Convex List Tables
 
 List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +139,13 @@ List all tables in a Convex deployment along with their JSON schemas. Requires s
 | `tables` | array | Names of the tables in the deployment |
 | `schemas` | json | Map of table name to the JSON schema of its documents |
 
+</ReferenceDetails>
+
 ### Convex List Documents
 
 List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +166,13 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 | `snapshot` | string | Snapshot timestamp to pass back in when fetching the next page |
 | `pageCursor` | string | Page cursor to pass back in when fetching the next page |
 
+</ReferenceDetails>
+
 ### Convex Document Deltas
 
 List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,5 +190,7 @@ List documents that changed after a snapshot or previous delta cursor. Deleted d
 | `documents` | array | Changed documents, each including _table and _ts fields |
 | `hasMore` | boolean | Whether more delta pages remain |
 | `cursor` | string | Cursor to pass back in when fetching the next page of deltas |
+
+</ReferenceDetails>
 
 

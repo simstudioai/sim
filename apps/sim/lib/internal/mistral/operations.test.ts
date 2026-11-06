@@ -25,9 +25,9 @@ vi.mock('@/lib/internal/mistral/client', () => ({ submitMistralOcr: submit }))
 vi.mock('@/lib/internal/mistral/page-count', () => ({ countMistralPdfPages: countPages }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

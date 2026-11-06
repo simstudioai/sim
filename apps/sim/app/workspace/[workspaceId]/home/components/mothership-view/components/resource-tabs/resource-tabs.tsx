@@ -54,7 +54,7 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileLookups } from '@/hooks/queries/workspace-files'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -155,7 +155,7 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
  * Builds a `type:id` -> current name lookup from live query data so resource
  * tabs always reflect the latest name even after a rename. Skipped entirely
  * when there are no tabs to label — a chat with no open resources must not
- * fetch five workspace-wide lists.
+ * fetch four workspace-wide lists. Files resolve by id, only the open tabs'.
  */
 function useResourceNameLookup(
   workspaceId: string | undefined,
@@ -183,7 +183,16 @@ function useResourceNameLookup(
   const { data: tables } = useTablesList(workspaceId ?? '', 'active', {
     enabled: enabled && Boolean(workspaceId),
   })
-  const { data: files } = useWorkspaceFiles(workspaceId ?? '', 'active', {
+  const fileIds = useMemo(
+    () =>
+      resources.flatMap((resource) =>
+        resource.type === 'file' && (!resource.workspaceId || resource.workspaceId === workspaceId)
+          ? [resource.id]
+          : []
+      ),
+    [resources, workspaceId]
+  )
+  const { byValue: filesById } = useWorkspaceFileLookups(workspaceId ?? '', 'id', fileIds, {
     enabled: enabled && Boolean(workspaceId),
   })
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId ?? '', {
@@ -203,11 +212,11 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
+    for (const file of filesById.values()) map.set(`file:${file.id}`, file.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
+  }, [enabled, workflows, tables, filesById, knowledgeBases, folders, ownedWorkflows, owners])
 }
 
 interface ResourceTabsProps {
@@ -460,7 +469,7 @@ export function ResourceTabs({
           )
           continue
         }
-        onRemoveResource(r.type, r.id, r.workspaceId)
+        onRemoveResource(r)
         if (r.type === 'browser') {
           sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
         }

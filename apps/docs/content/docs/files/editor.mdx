@@ -1,55 +1,92 @@
 ---
 title: Editor
-description: A rich markdown editor for your files — type markdown and watch it render, or edit visually.
+description: Format Markdown documents, edit their source, and download them from Files.
 ---
 
 import { Image } from '@/components/ui/image'
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Callout } from 'fumadocs-ui/components/callout'
 
-Every markdown file in your workspace opens in a **rich editor**. Type markdown and it renders as you go, or format visually with the toolbar and slash menu. The file is saved as plain markdown.
-
-<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
-  <Image src="/static/files/editor/overview.png" alt="A markdown file rendered in the editor: headings, bold, italic, and a link, a nested bullet list, and a table" width={900} height={410} />
-</div>
+Open a Markdown document beside [Chat](/chat/files) or from **Files** to read or edit it. Ask Sim to create a document, or select **New file** in Files. Rich editing requires edit access and supported document size and syntax; files remain stored as Markdown.
 
 ## Formatting text
 
-Select any text to bring up the formatting toolbar — bold, italic, strikethrough, inline code, and links. The same marks appear instantly as you type the markdown for them, like `**bold**` or `*italic*`. Links show a hover card so you can open, copy, edit, or remove them without hunting through the source.
+Select text to open the formatting toolbar for bold, italic, strikethrough, inline code, and links. You can also type Markdown, such as `**bold**` and `*italic*`. A link's hover card lets you open, copy, edit, or remove it.
 
-## Structure
+<Image
+  src="/static/docs-captures/files-formatting.webp"
+  alt="Selected text in the Markdown editor with the text style, bold, italic, link, and more formatting controls"
+  width={900}
+  height={340}
+  variant="detail"
+  background="architecture"
+/>
 
-Headings, blockquotes, and dividers keep long documents scannable. Type `# ` through `###### ` for headings, `> ` for a quote, and `---` for a divider.
+| Action | Shortcut or Markdown |
+| --- | --- |
+| Bold | **Cmd/Ctrl + B** |
+| Italic | **Cmd/Ctrl + I** |
+| Link selected text | **Cmd/Ctrl + K** |
+| Heading | `# ` through `###### ` |
+| Blockquote | `> ` |
+| Divider | `---` |
 
-## Lists and checklists
+Bullet, numbered, and nested lists are supported. Task lists have checkboxes you can tick in the document when editing is allowed.
 
-Bullet, ordered, and nested lists all work, plus task lists you can tick right in the document.
+## Insert blocks [#slash-menu-and-shortcuts]
+
+Type `/` at the start of a block or after whitespace to open the insertion menu. Choose a heading, list, table, code block, image, or another available block. The menu does not open inside tables, code blocks, inline code, or links.
 
 ## Tables
 
-Insert a table from the slash menu, then click any cell for the floating table toolbar — add or remove rows and columns, toggle the header row, or delete the table. Drag a column border to resize it.
+Insert a table from the slash menu. Select a cell to open the table toolbar, then add or remove rows and columns, or delete the table. The header row stays in place; you can edit its text. Column resizing and merged cells are not supported.
+
+<Image
+  src="/static/docs-captures/files-table.webp"
+  alt="A Markdown owner table with controls for adding a row, managing columns, and deleting the table"
+  width={1200}
+  height={460}
+  variant="detail"
+  background="architecture"
+/>
 
 ## Code blocks
 
-Fenced code blocks are syntax-highlighted, with a language picker in the corner. Pick `mermaid` to render a live diagram instead of code.
+Fenced code blocks have syntax highlighting, a language picker, line wrapping, and a copy button. Hover over the block or focus a control to reveal its toolbar.
+
+<Image
+  src="/static/docs-captures/files-code.webp"
+  alt="A highlighted JSON code block with language, line wrap, and copy controls"
+  width={1200}
+  height={400}
+  variant="detail"
+  background="architecture"
+/>
+
+Choose `mermaid` to render a diagram. Select **Show source** when you need to edit its definition.
 
 ## Images
 
-Paste or drag an image straight into the document, then drag a corner to resize it.
-
-## Slash menu and shortcuts
-
-Type `/` anywhere to insert any block — heading, list, table, code block, image, and more — without leaving the keyboard. Familiar shortcuts work too: **Cmd/Ctrl + B** for bold, **Cmd/Ctrl + I** for italic, and **Cmd/Ctrl + K** to add a link over selected text.
+Paste or drag an image into the document, or insert one from the slash menu. Drag a corner to resize it. Uploaded images are stored as files and referenced from the Markdown document.
 
 ## Markdown fidelity
 
-The editor round-trips your markdown exactly — it saves what you wrote, with no reformatting churn.
+Rich editing can normalize Markdown syntax, such as changing `_italic_` to `*italic*` or a setext heading to a `#` heading. It does not promise byte-for-byte preservation of the entire document.
 
-<Callout type="info">
-A few constructs still can't round-trip: a `<br>` inside a table cell, a hard line break inside a heading, and non-canonical HTML entities such as `&copy;`. Files over 256 KB also open read-only. Footnotes, HTML comments, and raw HTML are preserved byte-for-byte and stay editable.
-</Callout>
+YAML frontmatter is kept separately and restored when the document is saved. Footnotes, HTML comments, and raw HTML constructs retain their source text. Preserving that source does not mean every HTML construct renders as a visual editing control.
 
-<Cards>
-  <Card title="Generating files" href="/files/generating" description="Have a workflow produce a document from a run." />
-  <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file into a workflow and produce one from a run." />
-</Cards>
+If a document cannot safely round-trip through rich editing, it opens with a read-only rich preview and an **Edit source** action for members with edit access. Examples include hard line breaks inside headings, non-canonical HTML entities such as `&copy;`, and some reference or image constructs.
+
+Rich editing supports up to 262,144 characters. **Edit source** can open text files up to 50 MiB, but saving sends the entire content in a JSON request capped at 10 MiB, including encoding and escaping. Download or process files elsewhere when these limits prevent editing.
+
+A file may also be temporarily read-only while Sim is writing it or the collaborative editor is connecting.
+
+## Download a document
+
+Select **Download** in the viewer. For an open Markdown document, the download can use the visible snapshot without saving it or advancing the collaborative file. Downloading a snapshot is separate from saving changes to the workspace.
+
+When a Markdown export includes eligible stored images, Sim downloads a ZIP containing the document and an `assets/` folder, with image references rewritten to those assets. An export without bundled assets is a Markdown file. Missing or oversized assets can retain their original links, so check the exported document before sharing it elsewhere.
+
+## Related docs
+
+- [Files](/files)
+- [Using files in workflows](/files/using-in-workflows)
+- [Generating files](/files/generating)

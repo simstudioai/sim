@@ -40,6 +40,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'claude-platform-service-account': ['claude-managed-agents'],
   'clickup-service-account': ['clickup'],
   'coda-service-account': ['coda'],
+  'fivetran-service-account': ['fivetran'],
   'github-app-installation': ['github'],
   'google-service-account': [
     'gmail',
@@ -56,7 +57,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
     'google-tasks',
     'google-vault',
   ],
+  'greenhouse-service-account': ['greenhouse'],
   'harmonic-service-account': [],
+  'helpscout-service-account': ['help-scout'],
   'hubspot-service-account': ['hubspot'],
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],

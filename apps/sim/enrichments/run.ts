@@ -67,12 +67,14 @@ function readCost(output: Record<string, unknown>): number {
 
 /**
  * Runs an enrichment's provider cascade for one row. Tries providers in order;
- * the first that returns a non-empty result wins and is returned. A provider is
- * skipped when its `buildParams` returns `null` (insufficient inputs); a tool
- * failure or empty mapped result falls through to the next. When every provider
- * that ran errored, `error` is set so the caller can mark the cell errored; a
- * clean miss leaves `error: null` (blank cell). Hosted-key cost is accumulated
- * across providers for the caller to bill.
+ * the first that returns a non-empty result wins and is returned. A hit its
+ * provider marks unverified (`isVerified` → false) is held while the cascade
+ * looks for a verified one, and fills the cell only if none turns up. A
+ * provider is skipped when its `buildParams` returns `null` (insufficient
+ * inputs); a tool failure or empty mapped result falls through to the next.
+ * When every provider that ran errored, `error` is set so the caller can mark
+ * the cell errored; a clean miss leaves `error: null` (blank cell). Hosted-key
+ * cost is accumulated across providers for the caller to bill.
  *
  * Server-only: imports `executeTool`, which pulls in DB / mailer code. Only the
  * background cell executor imports this module (dynamically).
@@ -88,13 +90,18 @@ export async function runEnrichment(
   let lastError: string | null = null
   let matchedProvider: string | null = null
   let winner: { result: Record<string, unknown>; label: string } | null = null
+  let fallback: {
+    result: Record<string, unknown>
+    label: string
+    outcome: EnrichmentProviderOutcome
+  } | null = null
   const providers: EnrichmentProviderOutcome[] = []
   const startedAt = Date.now()
 
   for (let i = 0; i < enrichment.providers.length; i++) {
     const provider = enrichment.providers[i]
     if (ctx.signal?.aborted) break
-    const params = provider.buildParams(inputs)
+    const params = fallback && provider.isVerified === false ? null : provider.buildParams(inputs)
     if (!params) {
       providers.push({
         id: provider.id,
@@ -140,7 +147,12 @@ export async function runEnrichment(
       const providerCost = readCost(response.output)
       cost += providerCost
       const result = provider.mapOutput(response.output)
-      if (result && hasResult(result)) {
+      const hit = result !== null && hasResult(result)
+      const verified =
+        typeof provider.isVerified === 'function'
+          ? provider.isVerified(response.output)
+          : provider.isVerified !== false
+      if (hit && verified) {
         providers.push({
           id: provider.id,
           label: provider.label,
@@ -155,8 +167,9 @@ export async function runEnrichment(
         logger.info('Enrichment hit', { enrichmentId: enrichment.id, provider: provider.id })
         break
       }
-      // Ran cleanly but mapped to nothing — a no-match, fall through to the next.
-      providers.push({
+      // Ran cleanly but mapped to nothing, or an unconfirmed hit (the first one
+      // is held as a fallback): a no-match, fall through to the next.
+      const outcome: EnrichmentProviderOutcome = {
         id: provider.id,
         label: provider.label,
         toolId: provider.toolId,
@@ -164,7 +177,9 @@ export async function runEnrichment(
         cost: providerCost,
         durationMs: Date.now() - providerStart,
         error: null,
-      })
+      }
+      providers.push(outcome)
+      if (hit) fallback ??= { result, label: provider.label, outcome }
     } catch (err) {
       errorCount++
       lastError = getErrorMessage(err)
@@ -183,6 +198,16 @@ export async function runEnrichment(
         error: lastError,
       })
     }
+  }
+
+  if (!winner && fallback) {
+    winner = { result: fallback.result, label: fallback.label }
+    matchedProvider = fallback.outcome.id
+    fallback.outcome.status = 'matched'
+    logger.info('Enrichment unverified hit', {
+      enrichmentId: enrichment.id,
+      provider: matchedProvider,
+    })
   }
 
   // Any provider not represented yet never ran — the cascade short-circuited on

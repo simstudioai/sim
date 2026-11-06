@@ -11,7 +11,7 @@ import type {
   SnowflakeStatementResponse,
   SnowflakeStatementStatus,
 } from '@/tools/snowflake/types'
-import type { ToolConfig } from '@/tools/types'
+import type { OAuthConfig, ToolConfig } from '@/tools/types'
 
 export const DEFAULT_MAX_ROWS = 1_000
 export const SIM_MAX_RESULT_ROWS = 10_000
@@ -133,6 +133,13 @@ export function normalizeSnowflakeHost(host: string): string {
   }
   return `https://${hostname}`
 }
+
+/** Snowflake tools authenticate with a saved Snowflake programmatic access token credential. */
+export const SNOWFLAKE_OAUTH = {
+  required: true,
+  provider: 'snowflake',
+  credentialKind: 'service-account',
+} as const satisfies OAuthConfig
 
 /**
  * Auth params every Snowflake tool declares. The account host and the

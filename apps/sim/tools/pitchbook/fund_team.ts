@@ -6,7 +6,7 @@ import type { ToolConfig } from '@/tools/types'
 export const pitchbookFundTeamTool: ToolConfig<PitchbookProfileParams, PitchbookResponse> = {
   id: 'pitchbook_fund_team',
   name: 'PitchBook Fund Team',
-  description: 'Retrieve the active and former people on a fund team',
+  description: 'Retrieve the active and former people on a fund’s team',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 

@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -113,6 +114,7 @@ export async function removeWorkspaceMemberRecord(
     return result
   })
   const { ownershipTransferred } = revocation
+  deliverRunStops(revocation.stoppedRuns)
 
   /**
    * Seats are tied to organization membership (one per member), so a
@@ -150,6 +152,9 @@ export async function removeWorkspaceMemberRecord(
           /** Leaving a workspace must not sign the leaver out of Sim. */
           ...(spareSessionId ? { spareSessionId } : {}),
         })
+        /** The workspace's runs were delivered with the revocation above. */
+        const delivered = new Set(revocation.stoppedRuns.map((run) => run.streamId))
+        deliverRunStops(removal.stoppedRuns.filter((run) => !delivered.has(run.streamId)))
 
         if (removal.success && removal.removed) {
           organizationRemoval = true

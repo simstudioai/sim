@@ -1,11 +1,11 @@
 import { JiraServiceManagementIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildJsmExtraFields,
   buildJsmRequestUpdatedOutputs,
   jsmSetupInstructions,
   jsmTriggerOptions,
 } from '@/triggers/jsm/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

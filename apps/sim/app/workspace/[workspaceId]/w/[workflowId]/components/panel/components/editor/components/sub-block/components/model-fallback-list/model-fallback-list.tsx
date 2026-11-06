@@ -4,7 +4,6 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Button, Chip, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import { useParams } from 'next/navigation'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
@@ -25,6 +24,7 @@ import {
   ordinalChoiceLabel,
   removeFallbackRow,
 } from '@/lib/workflows/blocks/fallback-models'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getModelOptions } from '@/blocks/utils'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
@@ -246,8 +246,7 @@ export function ModelFallbackList({
   previewPrimary,
   disabled = false,
 }: ModelFallbackListProps) {
-  const params = useParams()
-  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
+  const { workspaceId } = useWorkflowScope()
   const { navigateToSettings } = useSettingsNavigation()
   const { isModelUsable } = usePermissionConfig()
   const deploymentShape = useDeploymentShape()

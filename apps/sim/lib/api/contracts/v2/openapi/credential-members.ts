@@ -17,17 +17,20 @@ export const credentialMemberOpenApiRoutes = [
     {
       applicationOperation: credentialOperations.listMembers,
       operationId: 'listCredentialMembers',
-      summary: 'List Credential Members',
-      description: `List explicit credential grants, including revoked grants, and inherited workspace administrator access. Requires workspace read access and the integrations.manage capability. Personal API keys and OAuth tokens can access OAuth or service-account credentials; sessions can also access workspace environment credentials. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'List credential members',
+      description: `List explicit credential grants, including revoked grants, and inherited workspace Admin access. Personal API keys and OAuth access tokens can list grants for OAuth or service-account credentials. Requires workspace read access and the \`integrations.manage\` capability. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'List Credential Members result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of explicit and inherited credential grants.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2ListCredentialMembersContract.params,
         'ListCredentialMembersParams',
-        'List Credential Members parameters',
+        'List credential members parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -39,8 +42,8 @@ export const credentialMemberOpenApiRoutes = [
       response: documentedSchema(
         v2ListCredentialMembersContract.response.schema,
         'ListCredentialMembersResponse',
-        'List Credential Members response',
-        'List Credential Members result.'
+        'List credential members response',
+        'A page of explicit and inherited credential grants.'
       ),
     }
   ),
@@ -49,17 +52,20 @@ export const credentialMemberOpenApiRoutes = [
     {
       applicationOperation: credentialOperations.upsertMember,
       operationId: 'upsertCredentialMember',
-      summary: 'Upsert Credential Member',
-      description: `Grant or change an existing workspace member’s credential role. Requires credential administrator access and the integrations.manage capability. Revoked grants become active again; inherited administrators cannot be demoted. A new grant returns 201; an existing grant returns 200. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Upsert credential member',
+      description: `Grant or change a current workspace member’s credential role. Requires credential Admin access and the \`integrations.manage\` capability. Revoked grants become active again; inherited workspace Admins cannot be demoted. A new grant returns \`201\`; an existing grant returns \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Upsert Credential Member result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The saved credential role and whether a grant was created.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2UpsertCredentialMemberContract.params,
         'UpsertCredentialMemberParams',
-        'Upsert Credential Member parameters',
+        'Upsert credential member parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -71,14 +77,14 @@ export const credentialMemberOpenApiRoutes = [
       body: documentedSchema(
         v2UpsertCredentialMemberContract.body,
         'UpsertCredentialMemberBody',
-        'Upsert Credential Member body',
-        'Configuration accepted by Upsert Credential Member.'
+        'Upsert credential member body',
+        'The current workspace member and credential role to grant.'
       ),
       response: documentedSchema(
         v2UpsertCredentialMemberContract.response.schema,
         'UpsertCredentialMemberResponse',
-        'Upsert Credential Member response',
-        'Upsert Credential Member result.'
+        'Upsert credential member response',
+        'The saved credential role and whether a grant was created.'
       ),
     }
   ),
@@ -87,17 +93,20 @@ export const credentialMemberOpenApiRoutes = [
     {
       applicationOperation: credentialOperations.removeMember,
       operationId: 'removeCredentialMember',
-      summary: 'Remove Credential Member',
-      description: `Revoke an active explicit credential grant. Requires credential administrator access and the integrations.manage capability. Inherited workspace administrators cannot be removed; an absent or already-revoked grant returns 404. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Remove credential member',
+      description: `Revoke an active explicit credential grant. Requires credential Admin access and the \`integrations.manage\` capability. Inherited workspace Admins cannot be removed; an absent or already-revoked grant returns \`404\`. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Remove Credential Member result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Acknowledgement that the explicit credential grant was revoked.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2RemoveCredentialMemberContract.params,
         'RemoveCredentialMemberParams',
-        'Remove Credential Member parameters',
+        'Remove credential member parameters',
         'Resource identifiers.'
       ),
       query: documentedSchema(
@@ -109,8 +118,8 @@ export const credentialMemberOpenApiRoutes = [
       response: documentedSchema(
         v2RemoveCredentialMemberContract.response.schema,
         'RemoveCredentialMemberResponse',
-        'Remove Credential Member response',
-        'Remove Credential Member result.'
+        'Remove credential member response',
+        'Acknowledgement that the explicit credential grant was revoked.'
       ),
     }
   ),

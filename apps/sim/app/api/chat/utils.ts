@@ -7,11 +7,11 @@ import {
   type DeploymentAuthResource,
   setDeploymentAuthCookie,
 } from '@/lib/core/security/deployment'
-import {
-  type DeploymentAuthBody,
-  type DeploymentAuthResult,
-  validateDeploymentAuth,
-} from '@/lib/core/security/deployment-auth'
+import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
+import type {
+  DeploymentAuthBody,
+  DeploymentAuthResult,
+} from '@/lib/core/security/deployment-credentials'
 
 export async function setChatAuthCookie(
   response: NextResponse,

@@ -4,7 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { isOperationAllowed } from '@/lib/permission-groups/operation-access'
 import { toSearchToken } from '@/lib/search/tokens'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
-import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
+import { getTriggersForSidebar } from '@/lib/workflows/triggers/utils'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type {

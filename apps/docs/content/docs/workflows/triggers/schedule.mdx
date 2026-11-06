@@ -1,65 +1,59 @@
 ---
 title: Schedule
-description: The Schedule trigger runs a workflow on a timer — a simple interval or a cron expression.
+description: Start workflow runs with a configured frequency or cron expression.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
 import { BlockPreview } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
-The **Schedule trigger** runs a workflow on a timer, on its own with no input — on a simple interval or a cron expression.
+The **Schedule trigger** starts runs on a configured timer. It is an entry point with no incoming connections or caller input.
 
 <BlockPreview type="schedule" />
 
 ## Schedule
 
-Pick how often it runs:
+Choose **Run frequency**, then fill in its fields:
 
-<Tabs items={['Simple intervals', 'Cron expressions']}>
-  <Tab>
-    - **Every X minutes** — a minute interval (1–1440)
-    - **Hourly** — a set minute each hour
-    - **Daily** — a set time each day
-    - **Weekly** — a set day and time each week
-    - **Monthly** — a set day and time each month
-  </Tab>
-  <Tab>
-    For finer control, use a cron expression:
+| Frequency | Configuration |
+| --- | --- |
+| **Every X Minutes** | **Interval (minutes)**; use a valid minute step such as `1`, `5`, `15`, or `30` |
+| **Hourly** | **Minute**, from `0` to `59` |
+| **Daily** | **Time** |
+| **Weekly** | **Day of week** and **Time** |
+| **Monthly** | **Day of month** and **Time** |
+| **Custom (Cron)** | **Cron expression** |
 
-    - `0 9 * * 1-5` — weekdays at 9 AM
-    - `*/15 * * * *` — every 15 minutes
-    - `0 0 1 * *` — the first of each month
+Minute frequency uses a cron minute-field step, not a continuously elapsed timer. The minute step must fit within an hour; do not use values above `60`. Prefer Hourly, Daily, or a custom expression for longer cadences.
 
-    Cron expressions and intervals are evaluated in the configured timezone, which defaults to UTC.
-  </Tab>
-</Tabs>
+For Daily, Weekly, Monthly, and Cron, confirm **Timezone**. New blocks preselect the browser's timezone; if no timezone is stored, execution falls back to UTC. Minute/hourly modes do not show a timezone selector.
+
+Common five-field cron expressions:
+
+| Expression | Schedule in the configured timezone |
+| --- | --- |
+| `0 9 * * 1-5` | Weekdays at 9 AM |
+| `*/15 * * * *` | Every quarter-hour |
+| `0 0 1 * *` | First day of each month at midnight |
 
 ## Activation
 
-A schedule is tied to [deployment](/workflows/deployment):
+1. Configure the Schedule trigger and connect its downstream blocks.
+2. Deploy the workflow.
+3. Check its next run information and confirm executions in [Logs](/logs-debugging).
 
-- **Deploy** — the schedule becomes active and starts running
-- **Undeploy** — the schedule is removed
-- **Redeploy** — the schedule is recreated from the current configuration
+Each Schedule block receives a separate schedule record with its own expression and failure counter. A workflow can have several Schedule triggers.
 
+Deployment starts the configured schedules. Updating deployment uses the new schedule configuration; undeploying removes the schedule registrations. A queued job checks the registration before starting, while an already-executing run is separate from new starts.
 
+Self-hosted deployments need an external scheduler calling the authenticated schedule endpoint. See [background jobs](/platform/self-hosting/background-jobs) for setup and verification.
 
 ## Automatic disabling
 
-A schedule disables itself after **100 consecutive failures**, to stop runaway errors. A warning badge appears on the block and it stops running; click the badge to reactivate it. The counter resets to zero on any successful run.
+A schedule disables after 100 consecutive failures. A successful run resets the counter. The block shows a disabled badge; fix the cause, then use the badge to reactivate it.
 
-<div className="flex justify-center">
-  <Image src="/static/blocks/schedule-3.png" alt="A disabled schedule" width={500} height={310} className="my-6" />
-</div>
+When execution admission is rate-limited with HTTP `429`, the schedule defers the attempt for five minutes without counting it as a workflow failure. Other failure classes, including repeated usage-limit refusals, can contribute to automatic disabling. Scheduled runs remain subject to the deployment's execution policy.
 
-<Callout>
-A Schedule trigger is an entry point only — it can't receive incoming connections.
-</Callout>
+## Related docs
 
-<FAQ items={[
-  { question: "What happens if my scheduled workflow is rate-limited?", answer: "If a run hits a rate limit (HTTP 429), the schedule retries after a 5-minute delay rather than counting it as a failure." },
-  { question: "Can I have multiple schedule blocks in one workflow?", answer: "Yes. Deployment creates a separate schedule record for each schedule block, and each runs independently with its own expression and failure counter." },
-  { question: "What happens if the workflow is undeployed while a scheduled run is in progress?", answer: "The running workflow completes, but no new runs are triggered. Before each fire, the schedule checks that the workflow is still deployed and the schedule record still exists." },
-]} />
+- [How workflows run](/workflows/how-it-runs)
+- [Deployment](/workflows/deployment)
+- [Self-hosted background jobs](/platform/self-hosting/background-jobs)

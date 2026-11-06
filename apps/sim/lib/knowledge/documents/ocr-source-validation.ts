@@ -1,4 +1,4 @@
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 
 /** Canonical Git LFS pointers are text records smaller than 1 KiB, not the referenced binary. */
 const GIT_LFS_POINTER_MAX_BYTES = 1024

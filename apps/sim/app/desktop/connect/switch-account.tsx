@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip } from '@sim/emcn'
-import { signOut } from '@/lib/auth/auth-client'
+import { AuthButton as Chip } from '@sim/auth-ui'
+import { signOut } from '@/lib/auth/client'
 
 interface SwitchAccountProps {
   /** Where to return once the right account is signed in. */

@@ -7,7 +7,7 @@ export const SerperBlock: BlockConfig = {
   name: 'Serper',
   description: 'Search the web using Serper',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Serper into the workflow. Can search the web.',
+  longDescription: 'Search the web.',
   docsLink: 'https://docs.sim.ai/integrations/serper',
   category: 'tools',
   integrationType: IntegrationType.Search,

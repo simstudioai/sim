@@ -8,8 +8,8 @@ name: ci
 # A repo variable, not a committed value: during a Blacksmith outage there is no
 # working CI to merge a switchover through. Only unset/'blacksmith' selects
 # Blacksmith; anything unrecognized selects GitHub so a typo can't queue jobs
-# against the provider you're escaping. Every runs-on and both composite actions
-# share this predicate and must change together.
+# against the provider you're escaping. Integration, build and browser jobs and their cache
+# actions share this predicate. Task planning, the aggregate gate and HTTP acceptance use free GitHub runners.
 #
 # GitHub mode is break-glass, not a peer — cold layers, slower runs. The app image
 # is the one job on a paid larger runner: next build needs ~32 GB and OOM-kills
@@ -18,9 +18,8 @@ name: ci
 on:
   push:
     branches: [main, staging, dev]
-  # No path filter: `checks / ci` is the required status check, and a pull request whose run
-  # never starts never reports it, so it could not merge. Docs-only pull requests are rare enough
-  # that running CI on them costs nothing measurable.
+  # No path filter: a pull request whose run never starts never reports `checks / ci`. The
+  # `changes` job in checks.yml scopes the jobs to what the diff can affect instead.
   pull_request:
     branches: [main, staging, dev]
 
@@ -34,8 +33,29 @@ permissions:
 jobs:
   checks:
     name: checks
-    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/checks.yml
+
+  push-checks:
+    name: push-checks
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-24.04
+    # Validation can chain a 25-minute build and a 30-minute acceptance job.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout admission gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Require this commit's independent push validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-push-checks.sh
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   # Smallest runner on purpose: a few seconds of pure shell over the commit
@@ -113,15 +133,18 @@ jobs:
   # in place before the new app version deploys (replaces the removed ECS
   # migration sidecar)
   migrate:
+    permissions:
+      contents: read
+      id-token: write
     name: migrate
-    needs: [checks]
+    needs: [push-checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
     # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      needs.checks.result == 'success' &&
+      needs.push-checks.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrate.yml
@@ -132,9 +155,14 @@ jobs:
       STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
       STAGING_MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
   migrate-dev:
+    permissions:
+      contents: read
+      id-token: write
     name: migrate-dev
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/migrate.yml
@@ -142,6 +170,8 @@ jobs:
       environment: dev
     secrets:
       DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Dev: build immutable images alongside the schema push and Trigger upload.
   image-dev:
@@ -209,7 +239,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -240,6 +270,9 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
       environment: ${{ steps.target.outputs.environment }}
@@ -265,25 +298,35 @@ jobs:
           echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
           echo "preview_branch=$TRIGGER_BRANCH" >> "$GITHUB_OUTPUT"
 
+      # The deploy syncs an environment listed in `vars.TRIGGER_ENV_SYNC_TARGETS` from the app's
+      # env-vars secret (see `@sim/runtime-secrets/trigger-env`), which needs read access to that secret.
+      - name: Configure AWS credentials for the env sync
+        if: contains(format(',{0},', vars.TRIGGER_ENV_SYNC_TARGETS), format(',{0},', steps.target.outputs.environment))
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
       - name: Upload Trigger.dev version without promotion
         id: deploy
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (steps.target.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (steps.target.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ steps.target.outputs.environment }}
           TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
+          TRIGGER_ENV_SYNC_TARGETS: ${{ vars.TRIGGER_ENV_SYNC_TARGETS }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           TARGET_ARGS=(--env "$TRIGGER_ENV")
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.8.3 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -361,14 +404,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GHCR
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -516,8 +559,11 @@ jobs:
         run: |
           REGISTRY="${{ steps.login-ecr.outputs.registry }}"
 
+          RELEASE_TAG=""
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+            # ECR lifecycle retains release- aliases as prod rollback targets.
+            RELEASE_TAG="release-${SOURCE_TAG}"
           elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             ECR_TAG="dev"
           else
@@ -536,13 +582,11 @@ jobs:
           # Move the app last so a preceding tag failure cannot start app rollout
           # and then skip the downstream Trigger promotion job.
           for repo in $ECR_REPOS; do
-            echo "🚀 Promoting ${repo}:${SOURCE_TAG} to ${ECR_TAG}"
+            echo "🚀 Promoting ${repo}:${SOURCE_TAG} to ${ECR_TAG}${RELEASE_TAG:+ and ${RELEASE_TAG}}"
             if [ "$repo" = "$APP_REPO" ]; then
-              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG"
+              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             else
-              docker buildx imagetools create \
-                -t "${REGISTRY}/${repo}:${ECR_TAG}" \
-                "${REGISTRY}/${repo}:${SOURCE_TAG}"
+              bash .github/scripts/promote-image.sh "$REGISTRY" "$repo" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             fi
           done
 
@@ -564,6 +608,9 @@ jobs:
       needs.promote.result == 'success' &&
       needs.trigger-upload.result == 'success' &&
       needs.promote.outputs.promoted == 'true'
+    outputs:
+      # The new app serves traffic; indexnow keys off this, not the later Trigger.dev promotion.
+      cutover: ${{ steps.cutover.outcome }}
     # Mostly waiting on the ECS cutover after a dependency install: the smallest runner is enough.
     runs-on: *runner-2vcpu
     # Leave setup/promotion headroom above the 70-minute cutover poll.
@@ -591,6 +638,7 @@ jobs:
       # An unchanged tag may belong to a failed or still-running earlier deploy.
       # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
+        id: cutover
         env:
           OVERALL_TIMEOUT: 4200
           APP_IMAGE_CHANGED: ${{ needs.promote.outputs.app_image_changed }}
@@ -609,7 +657,7 @@ jobs:
       - name: Promote Trigger.dev version
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (needs.trigger-upload.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (needs.trigger-upload.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ needs.trigger-upload.outputs.environment }}
           TRIGGER_BRANCH: ${{ needs.trigger-upload.outputs.preview_branch }}
@@ -617,7 +665,7 @@ jobs:
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           if [ -z "$VERSION" ]; then
@@ -629,7 +677,69 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.8.3 promote "$VERSION" "${TARGET_ARGS[@]}"
+
+  # Production only, once the new app serves traffic: submit the library and comparison URLs this
+  # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
+  indexnow:
+    name: indexnow
+    needs: [promote, trigger-promote]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.promote.outputs.promoted == 'true' &&
+      needs.trigger-promote.outputs.cutover == 'success'
+    runs-on: *runner-2vcpu
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+
+      # Diff from the last earlier main commit whose `indexnow` check succeeded, not the previous
+      # push: a push that never deployed, or whose submission failed, would otherwise drop its
+      # changed URLs for good. The check-runs lookup asks for this one check per commit, so it
+      # stays small and counts every attempt of a re-run; a lookup that errors counts as no
+      # success. With no success in view, the base is the first parent of the oldest run in view,
+      # so URLs that no submission ever covered, that run's own included, are sent now; a failed
+      # parent lookup fails the step, so the next run retries from the same base. The diff
+      # needs only the two trees, so that one commit is fetched alone; an all-zero `before` (the
+      # branch's first push) has no base, which the script skips.
+      - name: Submit changed URLs to IndexNow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          BASE_SHA=""
+          OLDEST_SHA=""
+          while read -r head_sha; do
+            OLDEST_SHA="$head_sha"
+            if succeeded="$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?check_name=indexnow&filter=all" \
+              --jq '[.check_runs[] | select(.conclusion == "success")] | length')" && [[ "$succeeded" -gt 0 ]]; then
+              BASE_SHA="$head_sha"
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=30" \
+            --jq ".workflow_runs[] | select(.id < $GITHUB_RUN_ID) | .head_sha")
+          if [[ -z "$BASE_SHA" && -n "$OLDEST_SHA" ]]; then
+            BASE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/$OLDEST_SHA" --jq '.parents[0].sha // empty')"
+          fi
+          BASE_SHA="${BASE_SHA:-$PUSH_BEFORE}"
+          echo "Submitting URLs changed in $BASE_SHA..$GITHUB_SHA"
+          if [[ ! "$BASE_SHA" =~ ^0+$ ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
+          bun scripts/ping-indexnow.ts "$BASE_SHA" "$GITHUB_SHA"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
@@ -683,7 +793,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -737,7 +847,7 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -821,7 +931,7 @@ jobs:
       count: ${{ steps.resolve.outputs.count }}
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -1002,7 +1112,7 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -1078,12 +1188,26 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/**'
-              - 'apps/sim/scripts/process-docs.ts'
-              - 'apps/sim/lib/chunkers/**'
+              - 'apps/docs/content/**'
+              - 'apps/docs/components/workflow-preview/examples.ts'
+              - 'apps/docs/components/workflow-preview/block-display-workflows.ts'
+              - 'apps/docs/scripts/compile-content.ts'
+              - 'apps/docs/scripts/index-search.ts'
+              - 'apps/docs/lib/content/**'
+              - 'apps/docs/lib/search/**'
+              - 'apps/docs/lib/openapi-specs.ts'
+              - 'apps/docs/lib/urls.ts'
+              - 'apps/docs/openapi*.json'
+              - 'apps/docs/package.json'
+              - 'bun.lock'
+              - '.github/workflows/docs.yml'
+              - '.github/workflows/ci.yml'
 
   # Process docs embeddings (only when docs change, after images are promoted)
   docs:
+    permissions:
+      contents: read
+      id-token: write
     name: docs
     needs: [promote, docs-changes]
     # Explicit results: see migrate's comment.
@@ -1096,6 +1220,8 @@ jobs:
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
 
   # Create GitHub Release (only for version commits on main, after all builds complete)
   release:

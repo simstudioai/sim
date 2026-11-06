@@ -26,8 +26,7 @@ export const v2SelectorInputSchema = z
     workspaceId: workspaceIdSchema.describe('Explicit current workspace scope.'),
     selectorKey: z
       .enum(workspaceSelectorKeys as [ServerSelectorKey, ...ServerSelectorKey[]])
-      .describe('Selector key returned by an import or sync preview, for example gmail.labels.')
-      .describe('Registered selector key for discovering this field’s destination options.'),
+      .describe('Registered selector key from an import or sync preview, such as `gmail.labels`.'),
     context: selectorContextSchema
       .default({})
       .describe(
@@ -44,14 +43,16 @@ export const v2ListSelectorBodySchema = v2SelectorInputSchema
       .min(1)
       .max(32 * 1024)
       .optional()
-      .describe('Opaque continuation cursor returned by the preceding page.'),
+      .describe(
+        'Cursor returned by the preceding page. Keep `workspaceId`, `selectorKey`, `context`, and `search` unchanged; only `limit` may change. Restart without a cursor after a changed-page 409.'
+      ),
     limit: z
       .number()
       .int()
       .min(1)
       .max(100)
       .default(50)
-      .describe('Maximum number of items to return on one page.'),
+      .describe('Maximum options per page, from 1 to 100. Defaults to 50.'),
   })
   .strict()
 export const v2GetSelectorBodySchema = v2SelectorInputSchema
@@ -60,8 +61,7 @@ export const v2GetSelectorBodySchema = v2SelectorInputSchema
       .string()
       .min(1)
       .max(16 * 1024)
-      .describe('Provider resource identifier to resolve.')
-      .describe('Resource identifier.'),
+      .describe('Provider option ID to resolve with the same selector and declared context.'),
   })
   .strict()
 
@@ -76,7 +76,7 @@ export const v2ListSelectorContract = defineRouteContract({
       data: z
         .array(selectorOptionSchema)
         .max(100)
-        .describe('Requested options or operation result.'),
+        .describe('Authorized provider options in this page.'),
       nextCursor: z
         .string()
         .max(32 * 1024)
@@ -86,7 +86,9 @@ export const v2ListSelectorContract = defineRouteContract({
         ),
       truncated: z
         .boolean()
-        .describe('Whether the provider returned only a bounded subset of its options.'),
+        .describe(
+          'Whether provider limits left the result incomplete. A null `nextCursor` with `truncated: true` does not establish that all options were searched.'
+        ),
     }),
   },
 })

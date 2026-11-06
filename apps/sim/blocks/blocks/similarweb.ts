@@ -7,7 +7,7 @@ export const SimilarwebBlock: BlockConfig = {
   name: 'Similarweb',
   description: 'Website traffic and analytics data',
   longDescription:
-    'Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.',
+    'Retrieve website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.',
   docsLink: 'https://docs.sim.ai/integrations/similarweb',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

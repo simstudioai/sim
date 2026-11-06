@@ -22,7 +22,7 @@ import {
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnqueueOptions, WorkflowGroupExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -276,7 +276,7 @@ export async function buildEnqueueItems(
     assertBillingAttributionSnapshot,
     resolveBillingAttribution,
     resolveSystemBillingAttribution,
-  } = await import('@/lib/billing/core/billing-attribution')
+  } = await import('@/lib/billing/core/attribution')
   const attributions = new Map<string, Promise<BillingAttributionSnapshot>>()
   const hydratedRuns = await Promise.all(
     pendingRuns.map(async (runOpts) => {

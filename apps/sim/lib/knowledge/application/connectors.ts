@@ -10,10 +10,11 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
@@ -29,10 +30,12 @@ import {
 import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import type { DbTransaction } from '@/lib/db/types'
 import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -83,6 +86,10 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
 } from '@/lib/knowledge/constants'
+import {
+  isImageExtractionEnabled,
+  SEMANTIC_IMAGE_MIME_TYPES,
+} from '@/lib/knowledge/documents/image-extraction-policy'
 import {
   documentProcessingOutcomeSelection,
   failedDocumentCondition,
@@ -717,6 +724,8 @@ async function executeCreateKnowledgeConnector({
   if (!connectorMeta) {
     throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
   }
+  /** Defaults apply only here, at creation, so an existing connector never changes meaning. */
+  const requestedSourceConfig = { ...connectorMeta.defaultSourceConfig, ...input.sourceConfig }
   if (!supportsConnectorAccessMode(connectorMeta, input.accessMode ?? 'workspace')) {
     throw new OrchestrationError(
       'validation',
@@ -769,7 +778,7 @@ async function executeCreateKnowledgeConnector({
     else if (context.workspaceId) await requireCurrentHumanRole(subjectUserId, context, 'admin')
 
     if (input.accessMode === 'admin') {
-      await assertConnectorMirrorsSourceAcls(connectorMeta, input.sourceConfig, scope)
+      await assertConnectorMirrorsSourceAcls(connectorMeta, requestedSourceConfig, scope)
       if (connectorMeta.requiresMemberIdentity) {
         await requireKnowledgeMemberAccessAvailable(owner)
         await provisionKnowledgeConnectorMembersBinding({
@@ -783,7 +792,7 @@ async function executeCreateKnowledgeConnector({
         ...owner,
         connectorMeta,
         actingUserId: subjectUserId,
-        sourceConfig: input.sourceConfig,
+        sourceConfig: requestedSourceConfig,
       })
     }
   }
@@ -797,7 +806,7 @@ async function executeCreateKnowledgeConnector({
     isSearchIndex: context.knowledgeBase.isSearchIndex === true,
     accessMode: input.accessMode ?? 'workspace',
     actingUserId,
-    sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
+    sourceConfig: membersBinding?.sourceConfig ?? requestedSourceConfig,
   })
   if (membersBinding) membersBinding = { ...membersBinding, sourceConfig }
   const apiKey = await resolveConnectorApiKey(input.apiKey, principal, workspaceId)
@@ -1182,7 +1191,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     principal: Principal
     input: ListKnowledgeConnectorDocumentsInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const limit = input.limit ?? DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
     const offset = input.offset ?? 0
     if (
@@ -1210,15 +1219,16 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     }
     const filter =
       input.filter ?? (input.failedOnly ? 'failed' : input.includeExcluded ? undefined : 'active')
-    const baseConditions = [
+    const scopeConditions = [
       eq(document.connectorId, context.connectorId),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
       knowledgeAccessCondition(await context.access.get()),
-      search
-        ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
-        : undefined,
     ] as const
+    const searchCondition = search
+      ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
+      : undefined
+    const baseConditions = [...scopeConditions, searchCondition] as const
     const active = sql`${document.userExcluded} = false`
     /** One pass over the source's readable documents; excluded rows are scanned only when counted. */
     const [[counts], rows] = await Promise.all([
@@ -1252,9 +1262,13 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         .offset(offset),
     ])
     const hasMore = rows.length > limit
-    const documents = rows.slice(0, limit)
+    const page = rows.slice(0, limit)
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      page.map((row) => ({ id: row.id, value: row }))
+    )
     return {
-      documents,
+      documents: page.filter((row) => admitted.has(row.id)),
       counts: {
         active: counts?.active ?? 0,
         excluded: counts?.excluded ?? 0,
@@ -1267,6 +1281,38 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     }
   },
 })
+
+/**
+ * An excluded image keeps its indexed text, and turning image attachments off
+ * skips excluded rows so the exclusion survives turning them back on. Restoring
+ * one while images are off would re-enable text the source no longer lists.
+ *
+ * Runs after the restore's document update in the same transaction, matching a
+ * sync's lock order (documents, then a share lock on the connector). The share
+ * lock holds off a concurrent change of the setting until the restore commits,
+ * so that change queues removal of the restored image or this check sees it.
+ */
+async function assertImageRestoreAllowed(
+  tx: DbTransaction,
+  connector: { id: string; connectorType: string },
+  restored: { mimeType: string }[]
+) {
+  const imageExtraction = getConnectorMeta(connector.connectorType)?.imageExtraction
+  if (!imageExtraction || !restored.some((row) => SEMANTIC_IMAGE_MIME_TYPES.has(row.mimeType))) {
+    return
+  }
+  const [stored] = await tx
+    .select({ sourceConfig: knowledgeConnector.sourceConfig })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connector.id))
+    .for('share')
+  if (stored && !isImageExtractionEnabled(imageExtraction, toRecord(stored.sourceConfig))) {
+    throw new OrchestrationError(
+      'validation',
+      'Turn on image attachments for this connector before restoring an image.'
+    )
+  }
+}
 
 export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnectorDocuments,
@@ -1292,20 +1338,25 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
     if (restoring && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
       throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
     }
-    const updated = await db
-      .update(document)
-      .set({ userExcluded: !restoring, enabled: restoring })
-      .where(
-        and(
-          eq(document.connectorId, context.connectorId),
-          inArray(document.id, documentIds),
-          eq(document.userExcluded, restoring),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(await context.access.get())
+    const access = await context.access.get()
+    const updated = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(document)
+        .set({ userExcluded: !restoring, enabled: restoring })
+        .where(
+          and(
+            eq(document.connectorId, context.connectorId),
+            inArray(document.id, documentIds),
+            eq(document.userExcluded, restoring),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt),
+            knowledgeAccessCondition(access)
+          )
         )
-      )
-      .returning({ id: document.id })
+        .returning({ id: document.id, mimeType: document.mimeType })
+      if (restoring) await assertImageRestoreAllowed(tx, context.connector, rows)
+      return rows
+    })
     return {
       operation: input.operation,
       count: updated.length,

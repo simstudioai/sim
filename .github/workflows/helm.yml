@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Checkout code (mirror)
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
         with: &chart-checkout-options
           # Chart version checks need full history to compare against the PR base.
           fetch-depth: 0
@@ -57,12 +57,12 @@ jobs:
           version: v3.16.4
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
+        uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
 
       # Docker Compose and Kubernetes must run the same background jobs on the
       # same schedules; this fails the build if the two drift apart. The script
@@ -176,7 +176,7 @@ jobs:
           version: v3.16.4
 
       - name: Create kind cluster
-        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           version: v0.24.0
 
@@ -188,6 +188,12 @@ jobs:
             --values helm/sim/ci/kind-overlay.yaml \
             --wait --timeout 15m
 
+      - name: Run helm test
+        run: helm test sim --namespace sim --timeout 5m
+
+      # After the test, so it also explains a failed probe, not only a failed
+      # install. A failed test pod is kept (the hook deletes it only on success),
+      # so its log says which URL refused.
       - name: Diagnostics on failure
         if: failure()
         run: |
@@ -196,9 +202,8 @@ jobs:
           kubectl -n sim describe pods | tail -100 || true
           kubectl -n sim logs deploy/sim-app -c migrations --tail=50 || true
           kubectl -n sim logs deploy/sim-app --tail=80 || true
-
-      - name: Run helm test
-        run: helm test sim --namespace sim --timeout 5m
+          kubectl -n sim logs deploy/sim-realtime --tail=80 || true
+          kubectl -n sim logs sim-test-connection || true
 
   # Resolved once and shared, so the two publish paths cannot package the same
   # immutable chart version with different appVersions -- they run in parallel,
@@ -277,7 +282,7 @@ jobs:
       # oras also reads ~/.docker/config.json, so this one login covers both the
       # chart push and the Artifact Hub metadata push below.
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -286,7 +291,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
 
       # Derives appVersion rather than checking it, so the published chart cannot
       # be pinned to an older Sim than the release it ships with. The committed
@@ -398,7 +403,7 @@ jobs:
           push-to-registry: true
 
       - name: Set up ORAS
-        uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63 # v2.0.3
 
       # Artifact Hub reads repository metadata from the reserved `artifacthub.io`
       # tag on the chart's own OCI repository. Pushed on every run, including
@@ -481,7 +486,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
 
       # Derives appVersion rather than checking it, so the published chart cannot
       # be pinned to an older Sim than the release it ships with. The committed
@@ -506,7 +511,7 @@ jobs:
       # packages stay reachable no matter which domain serves the index.
       - name: Run chart-releaser
         if: steps.pages.outputs.exists == 'true'
-        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        uses: helm/chart-releaser-action@92c6b97fa9f664492a2592e0d1d80bc6bf378957 # v1.9.0
         with:
           charts_dir: helm
           # Re-running on an already-released version must be a no-op, the same

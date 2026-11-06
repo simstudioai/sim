@@ -28,7 +28,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
  * The context resolver imports straight from the manager, not the barrel, so
  * mocking only one of the two leaves the branch under test unreachable.
  */
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

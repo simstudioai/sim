@@ -1,5 +1,5 @@
 import type { AgentMailAttachment, InboxTask } from '@/lib/mothership/inbox/types'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 
 const FORWARDED_PATTERNS = [
   /^fwd?:/i,

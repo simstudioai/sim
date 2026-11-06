@@ -7,11 +7,11 @@ import {
 export default function ResetPasswordLoading() {
   return (
     <AuthLoadingFrame>
-      <AuthLoadingSkeleton shape='title' className='w-[160px]' />
-      <AuthLoadingSkeleton shape='label' className='mt-3 w-[280px]' />
-      <AuthLoadingField labelWidthClassName='w-[40px]' className='mt-8' />
-      <AuthLoadingSkeleton shape='control' className='mt-6 w-full' />
-      <AuthLoadingSkeleton shape='label' className='mt-6 w-[120px]' />
+      <AuthLoadingSkeleton shape='title' className='au:w-[160px]' />
+      <AuthLoadingSkeleton shape='label' className='au:w-[280px]' />
+      <AuthLoadingField labelWidthClassName='au:w-[40px]' />
+      <AuthLoadingSkeleton shape='control' className='au:w-full' />
+      <AuthLoadingSkeleton shape='label' className='au:w-[120px]' />
     </AuthLoadingFrame>
   )
 }

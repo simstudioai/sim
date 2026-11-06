@@ -57,6 +57,7 @@ export const oauthUtilsMockFns = {
         ? service.providerId
         : credentialProviderId
   ),
+  mockGetDefaultToolScopesForProvider: vi.fn((_providerId: string): string[] => []),
   mockGetCanonicalScopesForProvider: vi.fn((_providerId: string): string[] => []),
   mockGetPerRequestOAuthLinkScopes: vi.fn(),
   mockGetScopesForService: vi.fn((_serviceId: string): string[] => []),
@@ -103,6 +104,7 @@ export const oauthUtilsMock = {
   providerIdsForService: fns.mockProviderIdsForService,
   canonicalizeServiceProviderId: fns.mockCanonicalizeServiceProviderId,
   getCanonicalScopesForProvider: fns.mockGetCanonicalScopesForProvider,
+  getDefaultToolScopesForProvider: fns.mockGetDefaultToolScopesForProvider,
   getPerRequestOAuthLinkScopes: fns.mockGetPerRequestOAuthLinkScopes,
   getScopesForService: fns.mockGetScopesForService,
   getMissingRequiredScopes: fns.mockGetMissingRequiredScopes,

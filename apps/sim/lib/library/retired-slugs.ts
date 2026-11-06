@@ -26,4 +26,8 @@ export const LIBRARY_MERGED_SLUGS: Readonly<Record<string, string>> = {
   'best-ai-agent-builder-2026': 'best-ai-agent-platforms-2026',
   'best-ai-agent-builders-slack-crm-automation-2026': 'best-ai-agents-for-slack',
   'best-open-source-ai-agent-frameworks': 'open-source-ai-agent-platforms',
+  'ai-agents-stripe-payment-automation-failed-payment-alerts':
+    'stripe-billing-failed-payment-ai-agent-guide',
+  'github-mcp-server-ai-agent-builders': 'github-mcp-server-ai-agents',
+  'ai-agent-workflow-builders-multi-step-tasks': 'best-ai-workflow-builders',
 }

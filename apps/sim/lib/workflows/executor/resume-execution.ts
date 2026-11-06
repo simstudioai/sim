@@ -5,10 +5,12 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { RESUME_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
@@ -16,6 +18,12 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionResult } from '@/executor/types'
+import {
+  classifyExecutionError,
+  hasExecutionResult,
+  type StructuredExecutionError,
+} from '@/executor/utils/errors'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkflowResumeExecution')
@@ -47,10 +55,11 @@ export interface ExecuteResumeWorkflowOptions {
   userId: string
   resumeInput: unknown
   isApiCaller: boolean
+  /** `legacy` polls async resumes by job id; `v2` derives the job id from the resume entry so a retried dispatch is deduplicated. */
   pollingSurface: 'legacy' | 'v2'
-  allowStreaming?: boolean
+  allowStreaming: boolean
   requestSignal?: AbortSignal
-  requestHeaders?: Headers
+  requestHeaders?: OrchestrationRequestContext['headers']
 }
 
 export type ResumeWorkflowExecutionResult =
@@ -71,6 +80,8 @@ export type ResumeWorkflowExecutionResult =
       status: string
       output: unknown
       error: unknown
+      /** The run's failure classified the way a sync execute classifies it; null when it did not fail. */
+      structuredError: StructuredExecutionError | null
       metadata?: {
         duration?: number
         startTime?: string
@@ -157,7 +168,7 @@ export async function executeResumeWorkflow({
   resumeInput,
   isApiCaller,
   pollingSurface,
-  allowStreaming = true,
+  allowStreaming,
   requestSignal,
   requestHeaders,
 }: ExecuteResumeWorkflowOptions): Promise<ResumeWorkflowExecutionResult> {
@@ -232,6 +243,7 @@ export async function executeResumeWorkflow({
     actorUserId: preprocessResult.actorUserId,
   })
 
+  let admittedResumeExecutionId: string | undefined
   try {
     const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
       executionId,
@@ -241,6 +253,7 @@ export async function executeResumeWorkflow({
       userId,
       allowedPauseKinds: ['human'],
     })
+    admittedResumeExecutionId = enqueueResult.resumeExecutionId
 
     if (enqueueResult.status === 'queued') {
       return {
@@ -298,14 +311,37 @@ export async function executeResumeWorkflow({
     }
 
     if (isApiCaller && executionMode === 'sync') {
-      const result = await PauseResumeManager.startResumeExecution(resumeArgs)
+      let result: ExecutionResult
+      let runFailure: unknown
+      try {
+        result = await PauseResumeManager.startResumeExecution(resumeArgs)
+      } catch (error) {
+        /**
+         * A run that started and then failed carries its partial result: that is the run's
+         * answer, not a failed request. Anything else produced no run and stays an exception.
+         */
+        if (!hasExecutionResult(error)) throw error
+        result = error.executionResult
+        runFailure = error
+      }
+      const status =
+        runFailure !== undefined
+          ? 'failed'
+          : (result.status ?? (result.success ? 'completed' : 'failed'))
       return {
         kind: 'sync',
         executionId: enqueueResult.resumeExecutionId,
-        success: result.success,
-        status: result.status ?? (result.success ? 'completed' : 'failed'),
+        success: runFailure === undefined && result.success,
+        status,
         output: result.output,
         error: result.error,
+        structuredError:
+          status === 'failed' || (status === 'cancelled' && result.error)
+            ? classifyExecutionError(
+                runFailure ?? (result.error ? new Error(result.error) : undefined),
+                result
+              )
+            : null,
         metadata: result.metadata
           ? {
               duration: result.metadata.duration,
@@ -401,16 +437,19 @@ export async function executeResumeWorkflow({
     return { kind: 'started', executionId: enqueueResult.resumeExecutionId }
   } catch (error) {
     if (error instanceof ResumeWorkflowExecutionError) throw error
-    logger.error(
-      'Resume request failed',
-      projectResolvedSecretDiagnosticError(error, undefined, {
-        workflowId,
-        executionId,
-        contextId,
-      })
-    )
     const statusCode =
       isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : undefined
+    const retryable = isRecordLike(error) && error.retryable === true
+    if (statusCode !== undefined && statusCode < 500 && !retryable) markFailureKind(error, 'user')
+    logFailureOnce(logger, 'Resume request failed', error, {
+      executionId,
+      metadata: () =>
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          workflowId,
+          contextId,
+          resumeExecutionId: admittedResumeExecutionId,
+        }),
+    })
     if (statusCode !== undefined) {
       throw new ResumeWorkflowExecutionError(statusCode, toError(error).message, statusCode < 500)
     }

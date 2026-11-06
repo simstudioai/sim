@@ -11,7 +11,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const hoisted = vi.hoisted(() => ({ snapshot: vi.fn(), dispose: vi.fn() }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: vi.fn() },
@@ -31,7 +31,7 @@ vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 import { materializeStreamImage } from '@/lib/mothership/chat/application/inline-images'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 
 const mocks = { ...hoisted, upload: storageServiceMockFns.mockUploadFile }
 workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')

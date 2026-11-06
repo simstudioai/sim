@@ -6,7 +6,7 @@
  * nothing about what a workspace search returns. A signed-in reader's own grants widen what they
  * read, and a source whose reader must be proven live admits a candidate only once the proof
  * holds, with the readable rows below it filling the page when it does not. A Search-marked knowledge base
- * named explicitly by id is searched the same way.
+ * named explicitly by id is searched the same way, except that it keeps no vector candidates.
  */
 import { createHash } from 'node:crypto'
 import type { Principal } from '@sim/auth/principal'
@@ -26,6 +26,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -47,10 +48,14 @@ afterAll(async () => {
   await db.$client.end()
 })
 
+const ALL_MODES: readonly KnowledgeSearchMode[] = ['vector', 'hybrid']
+/** A Search knowledge base's chunk writes delete its candidate rows, so only keyword ranking finds it. */
+const KEYWORD_RANKED_MODES: readonly KnowledgeSearchMode[] = ['hybrid']
+
 describe.each([
-  ['a workspace knowledge base', false],
-  ['a dormant search index', true],
-] as const)('search of %s decides access on the document', (_label, isSearchIndex) => {
+  ['a workspace knowledge base', false, ALL_MODES],
+  ['a dormant search index', true, KEYWORD_RANKED_MODES],
+] as const)('search of %s decides access on the document', (_label, isSearchIndex, modes) => {
   const ids = createKnowledgeAclFixtureIds()
   const baseId = generateId()
   const readable = [generateId(), generateId(), generateId()]
@@ -137,7 +142,7 @@ describe.each([
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })
@@ -160,41 +165,43 @@ describe.each([
     return result.rows.map((row) => row.documentId).sort()
   }
 
-  it.each(['vector', 'hybrid'] as const)(
-    'returns a signed-in reader the rows an actorless run gets (%s)',
-    async (mode) => {
-      const previousDebug = db.$client.options.debug
-      const statements: string[] = []
-      db.$client.options.debug = (_connection, query) => {
-        statements.push(query)
-      }
-      try {
-        const signedIn = await search(reader, mode)
-        const workspaceKey = await search(actorless, mode)
-        expect(signedIn).toEqual([...readable].sort())
-        expect(workspaceKey).toEqual(signedIn)
-        /** Nothing read the per-row machinery the search-index path keeps for itself. */
-        for (const fragment of [
-          'embedding_keyword_search',
-          'knowledge_projection_dirty',
-          '"embedding_search"."acl"',
-          '"embedding_search"."connector_id"',
-        ]) {
-          expect(statements.filter((statement) => statement.includes(fragment))).toEqual([])
-        }
-      } finally {
-        db.$client.options.debug = previousDebug
-      }
+  it.each(modes)('returns a signed-in reader the rows an actorless run gets (%s)', async (mode) => {
+    const previousDebug = db.$client.options.debug
+    const statements: string[] = []
+    db.$client.options.debug = (_connection, query) => {
+      statements.push(query)
     }
-  )
+    try {
+      const signedIn = await search(reader, mode)
+      const workspaceKey = await search(actorless, mode)
+      expect(signedIn).toEqual([...readable].sort())
+      expect(workspaceKey).toEqual(signedIn)
+      /** Nothing read the per-row machinery the search-index path keeps for itself. */
+      for (const fragment of [
+        'embedding_keyword_search',
+        'knowledge_projection_dirty',
+        '"embedding_search"."acl"',
+        '"embedding_search"."connector_id"',
+      ]) {
+        expect(statements.filter((statement) => statement.includes(fragment))).toEqual([])
+      }
+    } finally {
+      db.$client.options.debug = previousDebug
+    }
+  })
 
-  it.each(['vector', 'hybrid'] as const)(
+  it.each(modes)(
     'returns a signed-in reader the document shared with them alone as well (%s)',
     async (mode) => {
       const owner: Principal = { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-owner' }
       expect(await search(owner, mode)).toEqual([...readable, personal].sort())
     }
   )
+
+  it.runIf(isSearchIndex)('finds nothing by vector, since no candidate row is kept', async () => {
+    const owner: Principal = { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-owner' }
+    expect(await search(owner, 'vector')).toEqual([])
+  })
 })
 
 describe('a workspace source whose reader must be proven live', () => {
@@ -352,7 +359,7 @@ describe('a workspace source whose reader must be proven live', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(credentialGroup).where(eq(credentialGroup.id, groupId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))

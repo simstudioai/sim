@@ -1,14 +1,18 @@
-/** Real PostgreSQL coverage for the atomic import primitive shared by the admin imports. */
+/** Real PostgreSQL coverage for the workflow create primitives: the atomic import and a plain create. */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
 import { user, workflow, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
+import {
+  createWorkflowWithState,
+  performCreateWorkflow,
+} from '@/lib/workflows/orchestration/workflow-lifecycle'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -60,7 +64,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values([
+    await insertWorkspaceFixture(db, [
       { id: workspaceId, name: 'Import target', ownerId: userId, billedAccountUserId: userId },
       {
         id: archivedWorkspaceId,
@@ -78,7 +82,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       resolve('test-results/create-workflow-with-state.json')
     await mkdir(dirname(reportPath), { recursive: true })
     await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-    await db.delete(workspace).where(eq(workspace.ownerId, userId))
+    await deleteWorkspaceFixture(db, eq(workspace.ownerId, userId))
     await db.delete(user).where(eq(user.id, userId))
   })
 
@@ -106,6 +110,55 @@ describe('createWorkflowWithState against PostgreSQL', () => {
     const second = await create('Same name', emptyState)
     if (!first.success || !second.success) throw new Error('Expected both imports to succeed')
     expect(second.workflow.name).not.toBe(first.workflow.name)
+  })
+
+  check('reports a caller-supplied id that already exists as a conflict', async () => {
+    const id = generateId()
+    const first = await performCreateWorkflow({ id, userId, workspaceId, name: 'Original' })
+    if (!first.success) throw new Error(`Expected the first create to succeed: ${first.error}`)
+
+    const second = await performCreateWorkflow({ id, userId, workspaceId, name: 'Replay' })
+
+    expect(second).toEqual({
+      success: false,
+      error: 'A workflow with this ID already exists',
+      errorCode: 'conflict',
+    })
+    expect(
+      await db.select({ name: workflow.name }).from(workflow).where(eq(workflow.id, id))
+    ).toEqual([{ name: 'Original' }])
+  })
+
+  check(
+    'reports a deduplicated create with a taken id as a conflict, not a name retry',
+    async () => {
+      const id = generateId()
+      const first = await performCreateWorkflow({ id, userId, workspaceId, name: 'Retried' })
+      if (!first.success) throw new Error(`Expected the first create to succeed: ${first.error}`)
+
+      const second = await performCreateWorkflow({
+        id,
+        userId,
+        workspaceId,
+        name: 'Retried',
+        deduplicate: true,
+      })
+
+      expect(second).toMatchObject({ success: false, errorCode: 'conflict' })
+    }
+  )
+
+  check('still reports an exact-name collision as a name conflict', async () => {
+    const first = await performCreateWorkflow({ userId, workspaceId, name: 'Taken name' })
+    if (!first.success) throw new Error(`Expected the first create to succeed: ${first.error}`)
+
+    const second = await performCreateWorkflow({ userId, workspaceId, name: 'Taken name' })
+
+    expect(second).toEqual({
+      success: false,
+      error: 'A workflow named "Taken name" already exists in this folder',
+      errorCode: 'conflict',
+    })
   })
 
   check('refuses an archived workspace without writing a row', async () => {

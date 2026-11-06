@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   summarize: vi.fn(),
   urlUpdate: vi.fn(),
 }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)

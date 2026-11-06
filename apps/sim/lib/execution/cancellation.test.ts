@@ -21,7 +21,7 @@ const {
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-vi.mock('@/lib/execution/execution-signal', () => ({
+vi.mock('@/lib/execution/signal', () => ({
   getExecutionSignalChannel: (executionId: string) => `execution:signal:${executionId}`,
   getExecutionSignalHub: () => ({ subscribe: mockSignalSubscribe }),
   LEGACY_EXECUTION_CANCEL_CHANNEL: 'execution:cancel',

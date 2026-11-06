@@ -8,7 +8,7 @@ export const ElasticsearchBlock: BlockConfig = {
   description: 'Search, index, and manage data in Elasticsearch',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Elasticsearch into workflows for powerful search, indexing, and data management. Supports document CRUD operations, advanced search queries, bulk operations, index management, and cluster monitoring. Works with both self-hosted and Elastic Cloud deployments.',
+    'Search with Query DSL, manage documents and indexes, run bulk operations, and inspect cluster health on a self-hosted or Elastic Cloud deployment.',
   docsLink: 'https://docs.sim.ai/integrations/elasticsearch',
   category: 'tools',
   integrationType: IntegrationType.Databases,

@@ -30,7 +30,7 @@ export const GrainBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'grain_v2' },
   longDescription:
-    'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
+    'Access meeting recordings, transcripts, highlights, and AI-generated summaries. Trigger workflows based on Grain webhook events.',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   docsLink: 'https://docs.sim.ai/integrations/grain',

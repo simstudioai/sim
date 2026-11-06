@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 

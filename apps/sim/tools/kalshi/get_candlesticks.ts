@@ -165,7 +165,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_candlesticks_v2',
   name: 'Get Market Candlesticks from Kalshi V2',
-  description: 'Retrieve OHLC candlestick data for a specific market (V2 - full API response)',
+  description: 'Retrieve OHLC candlestick data for a specific market',
   version: '2.0.0',
 
   params: {

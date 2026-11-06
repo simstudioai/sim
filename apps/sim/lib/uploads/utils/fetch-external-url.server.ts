@@ -9,7 +9,7 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { ensureFileNameExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024

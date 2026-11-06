@@ -3,8 +3,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPayloadSizeLimitError, PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
-import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
+import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/observer'
 import { isSandboxOutputLimitError } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
@@ -123,7 +123,8 @@ export async function writeSessionSandboxFile(
       const { created } = await ensureSessionSandbox({
         provider,
         kind: 'mothership',
-        options: {},
+        // A streamed transfer can outlast the idle lease; the machine must not pause mid-write.
+        options: { lifetimeMs: timeoutMs },
         selected: null,
         session: { key: sessionKey },
         signal,

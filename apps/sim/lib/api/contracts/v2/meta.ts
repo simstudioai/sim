@@ -6,7 +6,7 @@ import { v2DataResponse, v2TimestampSchema } from '@/lib/api/contracts/v2/shared
 export const v2ApiKeyTypeSchema = z
   .enum(['personal', 'workspace', 'oauth_access_token'])
   .describe(
-    'Whether the calling credential is a personal API key carrying the full authority of its owner across their workspaces, a key scoped to one workspace, or an OAuth access token acting for its user within the scopes it was granted.'
+    'Calling credential kind: a personal API key acting for its owner, a key bound to one workspace, or an OAuth access token acting for its user within granted scopes. Resource permissions and credential policies still apply.'
   )
 export type V2ApiKeyType = z.output<typeof v2ApiKeyTypeSchema>
 
@@ -25,7 +25,7 @@ export const v2MetaSchema = z
   })
   .meta({
     id: 'V2Meta',
-    title: 'API capabilities',
+    title: 'API status',
     description: 'API availability and lifecycle facts about the calling credential.',
   })
 export type V2Meta = z.output<typeof v2MetaSchema>

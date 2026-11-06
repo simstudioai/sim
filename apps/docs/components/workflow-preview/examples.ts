@@ -34,8 +34,16 @@ export const CLASSIFY_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 340, y: 0 },
       rows: [
-        { title: 'Model', value: 'claude-sonnet-4-6' },
-        { title: 'Messages', value: 'Classify <start.input>' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
+        {
+          title: 'Messages',
+          value: 'Classify <start.input> into sales, support, or billing and low or high urgency.',
+        },
+        {
+          title: 'Response Format',
+          value:
+            '{"name":"message_classification","schema":{"type":"object","properties":{"category":{"type":"string","enum":["sales","support","billing"]},"urgency":{"type":"string","enum":["low","high"]}},"required":["category","urgency"],"additionalProperties":false}}',
+        },
       ],
     },
   ],
@@ -76,7 +84,7 @@ export const CLASSIFY_REPLY_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 330, y: 0 },
       rows: [
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
         { title: 'Messages', value: 'Classify <start.input>' },
       ],
     },
@@ -94,7 +102,7 @@ export const CLASSIFY_REPLY_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
       rows: [
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
         { title: 'Messages', value: 'Draft a reply for <classify.content>' },
       ],
     },
@@ -156,7 +164,7 @@ export const SUPPORT_KB_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
       rows: [
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
         { title: 'Messages', value: 'Answer from <knowledge.results>' },
       ],
     },
@@ -197,7 +205,7 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'loop',
-      name: 'Loop',
+      name: 'Process leads',
       type: 'loop',
       typeLabel: 'Loop',
       bgColor: '#FAFAF9',
@@ -223,8 +231,12 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
       position: { x: 70, y: 85 },
       parentId: 'loop',
       rows: [
-        { title: 'Messages', value: 'Classify <loop.currentItem>' },
-        { title: 'Response Format', value: '{ "category": "string", "score": "number" }' },
+        { title: 'Messages', value: 'Classify <loop.currentItem.data>' },
+        {
+          title: 'Response Format',
+          value:
+            '{"name":"lead_classification","schema":{"type":"object","properties":{"category":{"type":"string"},"score":{"type":"number"}},"required":["category","score"],"additionalProperties":false}}',
+        },
       ],
     },
     {
@@ -247,7 +259,7 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
         {
           title: 'Row Data',
           value:
-            '{ "category": <classify.category>, "score": <classify.score>, "status": "processed" }',
+            '{ "category": "<classify.category>", "score": "<classify.score>", "status": "processed" }',
         },
       ],
     },
@@ -276,7 +288,7 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'City' }],
+      rows: [{ title: 'Input', value: 'User ID' }],
     },
     {
       id: 'api',
@@ -293,7 +305,7 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
       position: { x: 330, y: 0 },
       rows: [
         { title: 'Method', value: 'GET' },
-        { title: 'URL', value: 'api.weather.com/<start.input>' },
+        { title: 'URL', value: 'https://api.example.com/users/<start.input>' },
       ],
     },
     {
@@ -310,7 +322,7 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 660, y: 0 },
       rows: [
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
         { title: 'Messages', value: 'Summarize <api.data>' },
       ],
     },
@@ -414,7 +426,14 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       ],
       bgColor: '#33C482',
       position: { x: 0, y: 60 },
-      rows: [{ title: 'Messages', value: 'Score toxicity of <start.input>' }],
+      rows: [
+        { title: 'Messages', value: 'Score toxicity of <start.input> from 0 to 1.' },
+        {
+          title: 'Response Format',
+          value:
+            '{"name":"moderation","schema":{"type":"object","properties":{"toxicity":{"type":"number","minimum":0,"maximum":1}},"required":["toxicity"],"additionalProperties":false}}',
+        },
+      ],
     },
     {
       id: 'condition',
@@ -437,7 +456,7 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 700, y: 0 },
-      rows: [{ title: 'Code', value: "throw 'blocked'" }],
+      rows: [{ title: 'Code', value: 'throw new Error("Content blocked")' }],
     },
     {
       id: 'publish',
@@ -467,77 +486,6 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
   ],
 }
 
-/** Condition example: branch onboarding on the account tier. */
-export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
-  id: 'condition-onboard',
-  name: 'Branch onboarding',
-  blocks: [
-    {
-      id: 'plan',
-      name: 'Plan',
-      type: 'function',
-      typeLabel: 'Function',
-      sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
-      bgColor: '#FF402F',
-      position: { x: 0, y: 60 },
-      rows: [{ title: 'Code', value: 'return <start.account>' }],
-    },
-    {
-      id: 'condition',
-      name: 'Condition',
-      type: 'condition',
-      typeLabel: 'Condition',
-      bgColor: '#FF752F',
-      position: { x: 330, y: 60 },
-      rows: [],
-      branches: [
-        { id: 'condition-if', label: 'If', value: "<plan.result.tier> === 'enterprise'" },
-        { id: 'condition-else', label: 'else' },
-      ],
-    },
-    {
-      id: 'guided',
-      name: 'Guided setup',
-      type: 'agent',
-      typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
-      bgColor: '#33C482',
-      position: { x: 700, y: 0 },
-      rows: [{ title: 'Messages', value: 'Walk through SSO and SCIM' }],
-    },
-    {
-      id: 'quickstart',
-      name: 'Quick start',
-      type: 'agent',
-      typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
-      bgColor: '#33C482',
-      position: { x: 700, y: 140 },
-      rows: [{ title: 'Messages', value: 'Send the 2-minute setup' }],
-    },
-  ],
-  edges: [
-    { id: 'plan-condition', source: 'plan', target: 'condition' },
-    { id: 'condition-guided', source: 'condition', target: 'guided', sourceHandle: 'condition-if' },
-    {
-      id: 'condition-quickstart',
-      source: 'condition',
-      target: 'quickstart',
-      sourceHandle: 'condition-else',
-    },
-  ],
-}
-
 /** Function example: reshape an API response into the field a later block needs. */
 export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
   id: 'function-reshape',
@@ -552,7 +500,7 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'User ID' }],
+      rows: [{ title: 'Input', value: 'Team ID' }],
     },
     {
       id: 'api',
@@ -569,7 +517,7 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [
         { title: 'Method', value: 'GET' },
-        { title: 'URL', value: 'api.example.com/users/<start.input>' },
+        { title: 'URL', value: 'https://api.example.com/teams/<start.input>/users' },
       ],
     },
     {
@@ -582,7 +530,11 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       position: { x: 640, y: 0 },
       rows: [
         { title: 'Language', value: 'JavaScript' },
-        { title: 'Code', value: 'return <api.data>.profile' },
+        {
+          title: 'Code',
+          value:
+            'const data = <api.data>;\nreturn data.items.filter((item) => item.active).map((item) => item.id);',
+        },
       ],
     },
   ],
@@ -592,10 +544,10 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
   ],
 }
 
-/** Function example: validate and clean input before writing it. */
+/** Function example: normalize input before writing it. */
 export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
   id: 'function-validate',
-  name: 'Validate before write',
+  name: 'Normalize before write',
   blocks: [
     {
       id: 'start',
@@ -618,7 +570,11 @@ export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [
         { title: 'Language', value: 'JavaScript' },
-        { title: 'Code', value: 'return sanitize(<start.input>)' },
+        {
+          title: 'Code',
+          value:
+            'return { name: String(<start.input.name>).trim(), email: String(<start.input.email>).trim().toLowerCase() };',
+        },
       ],
     },
     {
@@ -638,6 +594,7 @@ export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
       position: { x: 640, y: 0 },
       rows: [
         { title: 'Method', value: 'POST' },
+        { title: 'URL', value: 'https://api.example.com/contacts' },
         { title: 'Body', value: '<clean.result>' },
       ],
     },
@@ -673,7 +630,7 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 95 },
       rows: [
         { title: 'Context', value: '<start.input>' },
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
       ],
       branches: [
         { id: 'router-sales', label: 'Sales' },
@@ -780,7 +737,7 @@ export const RESPONSE_API_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2F55FF',
       position: { x: 640, y: 0 },
       rows: [
-        { title: 'Data', value: '{ "answer": <agent.content> }' },
+        { title: 'Data', value: '{ "answer": "<agent.content>" }' },
         { title: 'Status', value: '200' },
       ],
     },
@@ -823,152 +780,34 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
     {
       id: 'product',
       name: 'Product',
-      type: 'workflow',
+      type: 'workflow_input',
       typeLabel: 'Workflow',
       sentence: ['Run', { subBlockId: 'Workflow', noun: 'workflow' }],
       bgColor: '#6366F1',
       position: { x: 700, y: 0 },
-      rows: [{ title: 'Workflow', value: 'product-intake' }],
+      rows: [
+        { title: 'Workflow', value: 'product-intake' },
+        { title: 'Inputs', value: 'input = <start.input>' },
+      ],
     },
     {
       id: 'bug',
       name: 'Bug report',
-      type: 'workflow',
+      type: 'workflow_input',
       typeLabel: 'Workflow',
       sentence: ['Run', { subBlockId: 'Workflow', noun: 'workflow' }],
       bgColor: '#6366F1',
       position: { x: 700, y: 140 },
-      rows: [{ title: 'Workflow', value: 'bug-triage' }],
+      rows: [
+        { title: 'Workflow', value: 'bug-triage' },
+        { title: 'Inputs', value: 'input = <start.input>' },
+      ],
     },
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
     { id: 'router-product', source: 'router', target: 'product', sourceHandle: 'router-product' },
     { id: 'router-bug', source: 'router', target: 'bug', sourceHandle: 'router-bug' },
-  ],
-}
-
-/** Router example: qualify a lead into sales or self-serve. */
-export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
-  id: 'router-lead',
-  name: 'Qualify a lead',
-  blocks: [
-    {
-      id: 'start',
-      name: 'Start',
-      type: 'start_trigger',
-      typeLabel: 'Start',
-      sentence: ['Start the workflow', 'with', { subBlockId: 'Input' }],
-      bgColor: '#2FB3FF',
-      position: { x: 0, y: 50 },
-      hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'Lead' }],
-    },
-    {
-      id: 'router',
-      name: 'Router',
-      type: 'router',
-      typeLabel: 'Router',
-      bgColor: '#28C43F',
-      position: { x: 320, y: 50 },
-      rows: [{ title: 'Context', value: '<start.input>' }],
-      branches: [
-        { id: 'router-enterprise', label: 'Enterprise' },
-        { id: 'router-selfserve', label: 'Self-serve' },
-      ],
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise',
-      type: 'agent',
-      typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
-      bgColor: '#33C482',
-      position: { x: 700, y: 0 },
-      rows: [{ title: 'Messages', value: 'Book a sales call' }],
-    },
-    {
-      id: 'selfserve',
-      name: 'Self-serve',
-      type: 'workflow',
-      typeLabel: 'Workflow',
-      sentence: ['Run', { subBlockId: 'Workflow', noun: 'workflow' }],
-      bgColor: '#6366F1',
-      position: { x: 700, y: 140 },
-      rows: [{ title: 'Workflow', value: 'onboarding' }],
-    },
-  ],
-  edges: [
-    { id: 'start-router', source: 'start', target: 'router' },
-    {
-      id: 'router-enterprise',
-      source: 'router',
-      target: 'enterprise',
-      sourceHandle: 'router-enterprise',
-    },
-    {
-      id: 'router-selfserve',
-      source: 'router',
-      target: 'selfserve',
-      sourceHandle: 'router-selfserve',
-    },
-  ],
-}
-
-/** Response example: acknowledge a webhook after processing it. */
-export const RESPONSE_WEBHOOK_WORKFLOW: PreviewWorkflow = {
-  id: 'response-webhook',
-  name: 'Acknowledge a webhook',
-  blocks: [
-    {
-      id: 'webhook',
-      name: 'Webhook',
-      type: 'webhook',
-      typeLabel: 'Webhook',
-      triggerMode: true,
-      sentence: ['Run when an HTTP request arrives'],
-      bgColor: '#10B981',
-      position: { x: 0, y: 0 },
-      hideTargetHandle: true,
-      rows: [{ title: 'Format', value: 'JSON' }],
-    },
-    {
-      id: 'process',
-      name: 'Process',
-      type: 'function',
-      typeLabel: 'Function',
-      sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
-      bgColor: '#FF402F',
-      position: { x: 320, y: 0 },
-      rows: [{ title: 'Code', value: 'save(<webhook.body>)' }],
-    },
-    {
-      id: 'ack',
-      name: 'Response',
-      type: 'response',
-      typeLabel: 'Response',
-      sentence: [
-        'Return',
-        { subBlockId: 'Data', noun: 'response' },
-        'with status',
-        { subBlockId: 'Status' },
-      ],
-      bgColor: '#2F55FF',
-      position: { x: 640, y: 0 },
-      rows: [
-        { title: 'Data', value: '{ "received": true }' },
-        { title: 'Status', value: '200' },
-      ],
-    },
-  ],
-  edges: [
-    { id: 'webhook-process', source: 'webhook', target: 'process' },
-    { id: 'process-ack', source: 'process', target: 'ack' },
   ],
 }
 
@@ -1003,7 +842,7 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'ok',
-      name: 'Response',
+      name: 'Success response',
       type: 'response',
       typeLabel: 'Response',
       sentence: [
@@ -1018,7 +857,7 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'bad',
-      name: 'Response',
+      name: 'Invalid response',
       type: 'response',
       typeLabel: 'Response',
       sentence: [
@@ -1042,50 +881,133 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
 /** Variables example: count retries across attempts. */
 export const VARIABLES_RETRY_WORKFLOW: PreviewWorkflow = {
   id: 'variables-retry',
-  name: 'Count retries',
+  name: 'Count retry attempts',
   blocks: [
     {
-      id: 'api',
-      name: 'API',
+      id: 'attempts',
+      name: 'Retry attempts',
+      type: 'loop',
+      typeLabel: 'Loop',
+      bgColor: '#FAFAF9',
+      position: {
+        x: 300,
+        y: 0,
+      },
+      rows: [
+        {
+          title: 'Loop Type',
+          value: 'While Loop',
+        },
+        {
+          title: 'While Condition',
+          value: '<variable.retryCount> < 3',
+        },
+      ],
+      size: {
+        width: 1060,
+        height: 450,
+      },
+    },
+    {
+      id: 'attempt',
+      name: 'Attempt',
       type: 'api',
       typeLabel: 'API',
-      sentence: [
-        'Send',
-        { subBlockId: 'Method', noun: 'method' },
-        'request to',
-        { subBlockId: 'URL', noun: 'URL' },
-      ],
       bgColor: '#2F55FF',
-      position: { x: 0, y: 0 },
-      rows: [{ title: 'Method', value: 'GET' }],
+      position: {
+        x: 70,
+        y: 90,
+      },
+      rows: [
+        {
+          title: 'Method',
+          value: 'GET',
+        },
+        {
+          title: 'URL',
+          value: 'https://api.example.com/job',
+        },
+      ],
+      parentId: 'attempts',
     },
     {
-      id: 'vars',
-      name: 'Variables',
+      id: 'done',
+      name: 'Finish retries',
       type: 'variables',
       typeLabel: 'Variables',
-      sentence: ['Set', { subBlockId: 'Set', noun: 'variables' }],
       bgColor: '#8B5CF6',
-      position: { x: 320, y: 0 },
-      rows: [{ title: 'Set', value: 'retryCount + 1' }],
+      position: {
+        x: 700,
+        y: 30,
+      },
+      rows: [
+        {
+          title: 'Variable Assignments',
+          value: 'retryCount = 3',
+        },
+      ],
+      parentId: 'attempts',
     },
     {
-      id: 'condition',
-      name: 'Condition',
-      type: 'condition',
-      typeLabel: 'Condition',
-      bgColor: '#FF752F',
-      position: { x: 640, y: 0 },
-      rows: [],
-      branches: [
-        { id: 'condition-if', label: 'If', value: '<variable.retryCount> < 3' },
-        { id: 'condition-else', label: 'else' },
+      id: 'increment',
+      name: 'Increment',
+      type: 'function',
+      typeLabel: 'Function',
+      bgColor: '#FF402F',
+      position: {
+        x: 380,
+        y: 230,
+      },
+      rows: [
+        {
+          title: 'Code',
+          value: 'return <variable.retryCount> + 1;',
+        },
       ],
+      parentId: 'attempts',
+    },
+    {
+      id: 'assign',
+      name: 'Update counter',
+      type: 'variables',
+      typeLabel: 'Variables',
+      bgColor: '#8B5CF6',
+      position: {
+        x: 700,
+        y: 230,
+      },
+      rows: [
+        {
+          title: 'Variable Assignments',
+          value: 'retryCount = <increment.result>',
+        },
+      ],
+      parentId: 'attempts',
     },
   ],
   edges: [
-    { id: 'api-vars', source: 'api', target: 'vars' },
-    { id: 'vars-condition', source: 'vars', target: 'condition' },
+    {
+      id: 'attempts-attempt',
+      source: 'attempts',
+      target: 'attempt',
+      sourceHandle: 'loop-start-source',
+    },
+    {
+      id: 'attempt-done',
+      source: 'attempt',
+      target: 'done',
+    },
+    {
+      id: 'attempt-increment',
+      source: 'attempt',
+      target: 'increment',
+      sourceHandle: 'error',
+    },
+    {
+      id: 'increment-assign',
+      source: 'increment',
+      target: 'assign',
+    },
   ],
 }
 
@@ -1107,7 +1029,10 @@ export const VARIABLES_CONFIG_WORKFLOW: PreviewWorkflow = {
       ],
       bgColor: '#2F55FF',
       position: { x: 0, y: 0 },
-      rows: [{ title: 'URL', value: 'api.example.com/profile' }],
+      rows: [
+        { title: 'URL', value: 'https://api.example.com/profile' },
+        { title: 'Method', value: 'GET' },
+      ],
     },
     {
       id: 'vars',
@@ -1117,7 +1042,7 @@ export const VARIABLES_CONFIG_WORKFLOW: PreviewWorkflow = {
       sentence: ['Set', { subBlockId: 'Set', noun: 'variables' }],
       bgColor: '#8B5CF6',
       position: { x: 320, y: 0 },
-      rows: [{ title: 'Set', value: 'userId, userTier' }],
+      rows: [{ title: 'Set', value: 'userId = <api.data.id>, userTier = <api.data.tier>' }],
     },
     {
       id: 'agent',
@@ -1227,6 +1152,7 @@ export const WAIT_FOLLOWUP_WORKFLOW: PreviewWorkflow = {
       rows: [
         { title: 'Amount', value: '2' },
         { title: 'Unit', value: 'Days' },
+        { title: 'Async', value: 'On' },
       ],
     },
     {
@@ -1286,7 +1212,7 @@ export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [
         { title: 'Metrics', value: 'Accuracy, Clarity' },
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
       ],
     },
     {
@@ -1309,7 +1235,7 @@ export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
   ],
 }
 
-/** Credential example: select one Google account and reuse it across blocks. */
+/** Credential example: select one Slack account and reuse it across compatible actions. */
 export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
   id: 'credential-share',
   name: 'Share a credential',
@@ -1324,14 +1250,14 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       position: { x: 0, y: 100 },
       rows: [
         { title: 'Operation', value: 'Select Credential' },
-        { title: 'Account', value: 'Google' },
+        { title: 'Account', value: 'Slack' },
       ],
     },
     {
-      id: 'gmail',
-      name: 'Gmail',
-      type: 'gmail',
-      typeLabel: 'Gmail',
+      id: 'send',
+      name: 'Send message',
+      type: 'slack',
+      typeLabel: 'Slack',
       isIntegration: true,
       sentence: ['Use account', { subBlockId: 'Account', noun: 'account' }],
       bgColor: '#FFFFFF',
@@ -1339,10 +1265,10 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       rows: [{ title: 'Account', value: '<credential.credentialId>' }],
     },
     {
-      id: 'drive',
-      name: 'Drive',
-      type: 'google_drive',
-      typeLabel: 'Google Drive',
+      id: 'read',
+      name: 'Read channel',
+      type: 'slack',
+      typeLabel: 'Slack',
       isIntegration: true,
       sentence: ['Use account', { subBlockId: 'Account', noun: 'account' }],
       bgColor: '#FFFFFF',
@@ -1350,10 +1276,10 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
       rows: [{ title: 'Account', value: '<credential.credentialId>' }],
     },
     {
-      id: 'calendar',
-      name: 'Calendar',
-      type: 'google_calendar',
-      typeLabel: 'Google Calendar',
+      id: 'reply',
+      name: 'Reply',
+      type: 'slack',
+      typeLabel: 'Slack',
       isIntegration: true,
       sentence: ['Use account', { subBlockId: 'Account', noun: 'account' }],
       bgColor: '#FFFFFF',
@@ -1362,74 +1288,149 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
     },
   ],
   edges: [
-    { id: 'credential-gmail', source: 'credential', target: 'gmail' },
-    { id: 'credential-drive', source: 'credential', target: 'drive' },
-    { id: 'credential-calendar', source: 'credential', target: 'calendar' },
+    { id: 'credential-gmail', source: 'credential', target: 'send' },
+    { id: 'credential-drive', source: 'credential', target: 'read' },
+    { id: 'credential-calendar', source: 'credential', target: 'reply' },
   ],
 }
 
 /** Credential example: pick a production or staging account at runtime. */
 export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
   id: 'credential-route',
-  name: 'Route to an account',
+  name: 'Choose a Slack account',
   blocks: [
     {
-      id: 'pick',
-      name: 'Pick account',
-      type: 'agent',
-      typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
-      bgColor: '#33C482',
-      position: { x: 0, y: 60 },
-      rows: [{ title: 'Messages', value: 'Production or staging?' }],
-    },
-    {
       id: 'condition',
-      name: 'Condition',
+      name: 'Choose account',
       type: 'condition',
       typeLabel: 'Condition',
       bgColor: '#FF752F',
-      position: { x: 330, y: 60 },
+      position: {
+        x: 300,
+        y: 60,
+      },
       rows: [],
       branches: [
-        { id: 'condition-if', label: 'If', value: "<variable.env> === 'prod'" },
-        { id: 'condition-else', label: 'else' },
+        {
+          id: 'condition-if',
+          label: 'If',
+          value: "<variable.env> === 'prod'",
+        },
+        {
+          id: 'condition-else',
+          label: 'else',
+        },
       ],
     },
     {
       id: 'prod',
-      name: 'Credential',
+      name: 'Production account',
       type: 'credential',
       typeLabel: 'Credential',
-      sentence: ['Select an OAuth credential', 'for', { subBlockId: 'Account' }],
       bgColor: '#6366F1',
-      position: { x: 700, y: 0 },
-      rows: [{ title: 'Account', value: 'Prod Slack' }],
+      position: {
+        x: 610,
+        y: 0,
+      },
+      rows: [
+        {
+          title: 'Operation',
+          value: 'Select Credential',
+        },
+        {
+          title: 'Credential',
+          value: 'Prod Slack',
+        },
+      ],
     },
     {
       id: 'staging',
-      name: 'Credential',
+      name: 'Staging account',
       type: 'credential',
       typeLabel: 'Credential',
-      sentence: ['Select an OAuth credential', 'for', { subBlockId: 'Account' }],
       bgColor: '#6366F1',
-      position: { x: 700, y: 140 },
-      rows: [{ title: 'Account', value: 'Staging Slack' }],
+      position: {
+        x: 610,
+        y: 180,
+      },
+      rows: [
+        {
+          title: 'Operation',
+          value: 'Select Credential',
+        },
+        {
+          title: 'Credential',
+          value: 'Staging Slack',
+        },
+      ],
+    },
+    {
+      id: 'postprod',
+      name: 'Production message',
+      type: 'slack',
+      typeLabel: 'Slack',
+      bgColor: '#FFFFFF',
+      position: {
+        x: 930,
+        y: 0,
+      },
+      rows: [
+        {
+          title: 'Operation',
+          value: 'Send Message',
+        },
+        {
+          title: 'Credential',
+          value: '<productionaccount.credentialId>',
+        },
+      ],
+      isIntegration: true,
+    },
+    {
+      id: 'poststaging',
+      name: 'Staging message',
+      type: 'slack',
+      typeLabel: 'Slack',
+      bgColor: '#FFFFFF',
+      position: {
+        x: 930,
+        y: 180,
+      },
+      rows: [
+        {
+          title: 'Operation',
+          value: 'Send Message',
+        },
+        {
+          title: 'Credential',
+          value: '<stagingaccount.credentialId>',
+        },
+      ],
+      isIntegration: true,
     },
   ],
   edges: [
-    { id: 'pick-condition', source: 'pick', target: 'condition' },
-    { id: 'condition-prod', source: 'condition', target: 'prod', sourceHandle: 'condition-if' },
+    {
+      id: 'condition-prod',
+      source: 'condition',
+      target: 'prod',
+      sourceHandle: 'condition-if',
+    },
     {
       id: 'condition-staging',
       source: 'condition',
       target: 'staging',
       sourceHandle: 'condition-else',
+    },
+    {
+      id: 'prod-postprod',
+      source: 'prod',
+      target: 'postprod',
+    },
+    {
+      id: 'staging-poststaging',
+      source: 'staging',
+      target: 'poststaging',
     },
   ],
 }
@@ -1467,7 +1468,10 @@ export const GUARDRAILS_JSON_WORKFLOW: PreviewWorkflow = {
       sentence: ['Validate content using', { subBlockId: 'Validation', noun: 'validation type' }],
       bgColor: '#3D642D',
       position: { x: 320, y: 0 },
-      rows: [{ title: 'Validation', value: 'Valid JSON' }],
+      rows: [
+        { title: 'Content to Validate', value: '<agent.content>' },
+        { title: 'Validation', value: 'Valid JSON' },
+      ],
     },
     {
       ...GUARDRAILS_GATE,
@@ -1477,10 +1481,37 @@ export const GUARDRAILS_JSON_WORKFLOW: PreviewWorkflow = {
         { id: 'condition-else', label: 'else' },
       ],
     },
+    {
+      id: 'parse',
+      name: 'Parse',
+      type: 'function',
+      typeLabel: 'Function',
+      sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
+      bgColor: '#FF402F',
+      position: { x: 960, y: -60 },
+      rows: [{ title: 'Code', value: 'return JSON.parse(<agent.content>);' }],
+    },
+    {
+      id: 'reject',
+      name: 'Reject',
+      type: 'function',
+      typeLabel: 'Function',
+      sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
+      bgColor: '#FF402F',
+      position: { x: 960, y: 140 },
+      rows: [{ title: 'Code', value: 'return { valid: false, error: <guardrails.error> };' }],
+    },
   ],
   edges: [
     { id: 'start-guardrails', source: 'start', target: 'guardrails' },
     { id: 'guardrails-condition', source: 'guardrails', target: 'condition' },
+    { id: 'condition-parse', source: 'condition', target: 'parse', sourceHandle: 'condition-if' },
+    {
+      id: 'condition-reject',
+      source: 'condition',
+      target: 'reject',
+      sourceHandle: 'condition-else',
+    },
   ],
 }
 
@@ -1504,8 +1535,10 @@ export const GUARDRAILS_HALLUCINATION_WORKFLOW: PreviewWorkflow = {
       bgColor: '#3D642D',
       position: { x: 320, y: 0 },
       rows: [
+        { title: 'Content to Validate', value: '<agent.content>' },
         { title: 'Validation', value: 'Hallucination' },
         { title: 'Knowledge Base', value: 'docs' },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
       ],
     },
     {
@@ -1548,8 +1581,9 @@ export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
       bgColor: '#3D642D',
       position: { x: 320, y: 0 },
       rows: [
+        { title: 'Content to Validate', value: '<start.input>' },
         { title: 'Validation', value: 'PII Detection' },
-        { title: 'Action', value: 'Block' },
+        { title: 'Action', value: 'Block Request' },
       ],
     },
     {
@@ -1570,34 +1604,67 @@ export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
 /** HITL example: a human approves AI content before it ships. */
 export const HITL_APPROVAL_WORKFLOW: PreviewWorkflow = {
   id: 'hitl-approval',
-  name: 'Approve before publish',
+  name: 'Approve before publishing',
   blocks: [
     {
       id: 'draft',
       name: 'Draft',
       type: 'agent',
       typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
       bgColor: '#33C482',
-      position: { x: 0, y: 0 },
-      rows: [{ title: 'Messages', value: 'Write the post' }],
+      position: {
+        x: 0,
+        y: 70,
+      },
+      rows: [
+        {
+          title: 'Messages',
+          value: 'Write the post',
+        },
+      ],
     },
     {
       id: 'approve',
-      name: 'Human in the Loop',
-      type: 'human_in_the_loop',
+      name: 'Approval',
+      type: 'human_in_the_loop_v2',
       typeLabel: 'Human',
-      sentence: ['Pause execution until a human responds'],
       bgColor: '#10B981',
-      position: { x: 300, y: 0 },
+      position: {
+        x: 300,
+        y: 70,
+      },
       rows: [
-        { title: 'Display', value: '<draft.content>' },
-        { title: 'Resume', value: 'approved' },
+        {
+          title: 'Display Data',
+          value: '<draft.content>',
+        },
+        {
+          title: 'Resume Form',
+          value: 'approved (boolean)',
+        },
+      ],
+    },
+    {
+      id: 'check',
+      name: 'Check approval',
+      type: 'condition',
+      typeLabel: 'Condition',
+      bgColor: '#FF752F',
+      position: {
+        x: 620,
+        y: 70,
+      },
+      rows: [],
+      branches: [
+        {
+          id: 'condition-if',
+          label: 'If',
+          value: '<approval.approved> === true',
+        },
+        {
+          id: 'condition-else',
+          label: 'else',
+        },
       ],
     },
     {
@@ -1605,20 +1672,63 @@ export const HITL_APPROVAL_WORKFLOW: PreviewWorkflow = {
       name: 'Publish',
       type: 'api',
       typeLabel: 'API',
-      sentence: [
-        'Send',
-        { subBlockId: 'Method', noun: 'method' },
-        'request to',
-        { subBlockId: 'URL', noun: 'URL' },
-      ],
       bgColor: '#2F55FF',
-      position: { x: 640, y: 0 },
-      rows: [{ title: 'Method', value: 'POST' }],
+      position: {
+        x: 950,
+        y: 0,
+      },
+      rows: [
+        {
+          title: 'Method',
+          value: 'POST',
+        },
+        {
+          title: 'Body',
+          value: '{"content":"<draft.content>"}',
+        },
+      ],
+    },
+    {
+      id: 'reject',
+      name: 'Rejected',
+      type: 'function',
+      typeLabel: 'Function',
+      bgColor: '#FF402F',
+      position: {
+        x: 950,
+        y: 180,
+      },
+      rows: [
+        {
+          title: 'Code',
+          value: 'return { approved: false };',
+        },
+      ],
     },
   ],
   edges: [
-    { id: 'draft-approve', source: 'draft', target: 'approve' },
-    { id: 'approve-publish', source: 'approve', target: 'publish' },
+    {
+      id: 'draft-approve',
+      source: 'draft',
+      target: 'approve',
+    },
+    {
+      id: 'approve-check',
+      source: 'approve',
+      target: 'check',
+    },
+    {
+      id: 'check-publish',
+      source: 'check',
+      target: 'publish',
+      sourceHandle: 'condition-if',
+    },
+    {
+      id: 'check-reject',
+      source: 'check',
+      target: 'reject',
+      sourceHandle: 'condition-else',
+    },
   ],
 }
 
@@ -1628,55 +1738,202 @@ export const HITL_MULTISTAGE_WORKFLOW: PreviewWorkflow = {
   name: 'Two-stage approval',
   blocks: [
     {
-      id: 'agent',
-      name: 'Agent',
+      id: 'draft',
+      name: 'Draft',
       type: 'agent',
       typeLabel: 'Agent',
-      sentence: [
-        'Prompt',
-        { subBlockId: 'Model', noun: 'model' },
-        'with',
-        { subBlockId: 'Messages' },
-      ],
       bgColor: '#33C482',
-      position: { x: 0, y: 0 },
-      rows: [{ title: 'Messages', value: 'Draft the change' }],
+      position: {
+        x: 0,
+        y: 70,
+      },
+      rows: [
+        {
+          title: 'Messages',
+          value: 'Write the post',
+        },
+      ],
     },
     {
       id: 'manager',
       name: 'Manager',
-      type: 'human_in_the_loop',
+      type: 'human_in_the_loop_v2',
       typeLabel: 'Human',
-      sentence: ['Pause execution until a human responds'],
       bgColor: '#10B981',
-      position: { x: 280, y: 0 },
-      rows: [{ title: 'Resume', value: 'approved' }],
+      position: {
+        x: 300,
+        y: 90,
+      },
+      rows: [
+        {
+          title: 'Display Data',
+          value: '<draft.content>',
+        },
+        {
+          title: 'Resume Form',
+          value: 'approved (boolean)',
+        },
+      ],
+    },
+    {
+      id: 'managergate',
+      name: 'Check manager',
+      type: 'condition',
+      typeLabel: 'Condition',
+      bgColor: '#FF752F',
+      position: {
+        x: 620,
+        y: 90,
+      },
+      rows: [],
+      branches: [
+        {
+          id: 'condition-if',
+          label: 'If',
+          value: '<manager.approved> === true',
+        },
+        {
+          id: 'condition-else',
+          label: 'else',
+        },
+      ],
     },
     {
       id: 'director',
       name: 'Director',
-      type: 'human_in_the_loop',
+      type: 'human_in_the_loop_v2',
       typeLabel: 'Human',
-      sentence: ['Pause execution until a human responds'],
       bgColor: '#10B981',
-      position: { x: 580, y: 0 },
-      rows: [{ title: 'Resume', value: 'approved' }],
+      position: {
+        x: 950,
+        y: 0,
+      },
+      rows: [
+        {
+          title: 'Display Data',
+          value: '<draft.content>',
+        },
+        {
+          title: 'Resume Form',
+          value: 'approved (boolean)',
+        },
+      ],
+    },
+    {
+      id: 'directorgate',
+      name: 'Check director',
+      type: 'condition',
+      typeLabel: 'Condition',
+      bgColor: '#FF752F',
+      position: {
+        x: 1280,
+        y: 0,
+      },
+      rows: [],
+      branches: [
+        {
+          id: 'condition-if',
+          label: 'If',
+          value: '<director.approved> === true',
+        },
+        {
+          id: 'condition-else',
+          label: 'else',
+        },
+      ],
     },
     {
       id: 'execute',
       name: 'Execute',
       type: 'function',
       typeLabel: 'Function',
-      sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
-      position: { x: 880, y: 0 },
-      rows: [{ title: 'Code', value: 'apply()' }],
+      position: {
+        x: 1610,
+        y: -80,
+      },
+      rows: [
+        {
+          title: 'Code',
+          value: 'return { approved: true, content: <draft.content> };',
+        },
+      ],
+    },
+    {
+      id: 'managerreject',
+      name: 'Manager rejected',
+      type: 'function',
+      typeLabel: 'Function',
+      bgColor: '#FF402F',
+      position: {
+        x: 950,
+        y: 230,
+      },
+      rows: [
+        {
+          title: 'Code',
+          value: 'return { approved: false, reviewer: "manager" };',
+        },
+      ],
+    },
+    {
+      id: 'directorreject',
+      name: 'Director rejected',
+      type: 'function',
+      typeLabel: 'Function',
+      bgColor: '#FF402F',
+      position: {
+        x: 1610,
+        y: 100,
+      },
+      rows: [
+        {
+          title: 'Code',
+          value: 'return { approved: false, reviewer: "director" };',
+        },
+      ],
     },
   ],
   edges: [
-    { id: 'agent-manager', source: 'agent', target: 'manager' },
-    { id: 'manager-director', source: 'manager', target: 'director' },
-    { id: 'director-execute', source: 'director', target: 'execute' },
+    {
+      id: 'draft-manager',
+      source: 'draft',
+      target: 'manager',
+    },
+    {
+      id: 'manager-managergate',
+      source: 'manager',
+      target: 'managergate',
+    },
+    {
+      id: 'managergate-director',
+      source: 'managergate',
+      target: 'director',
+      sourceHandle: 'condition-if',
+    },
+    {
+      id: 'managergate-managerreject',
+      source: 'managergate',
+      target: 'managerreject',
+      sourceHandle: 'condition-else',
+    },
+    {
+      id: 'director-directorgate',
+      source: 'director',
+      target: 'directorgate',
+    },
+    {
+      id: 'directorgate-execute',
+      source: 'directorgate',
+      target: 'execute',
+      sourceHandle: 'condition-if',
+    },
+    {
+      id: 'directorgate-directorreject',
+      source: 'directorgate',
+      target: 'directorreject',
+      sourceHandle: 'condition-else',
+    },
   ],
 }
 
@@ -1702,13 +1959,16 @@ export const HITL_VALIDATE_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'validate',
-      name: 'Human in the Loop',
-      type: 'human_in_the_loop',
+      name: 'Review data',
+      type: 'human_in_the_loop_v2',
       typeLabel: 'Human',
       sentence: ['Pause execution until a human responds'],
       bgColor: '#10B981',
       position: { x: 300, y: 0 },
-      rows: [{ title: 'Display', value: '<extract.content>' }],
+      rows: [
+        { title: 'Display Data', value: '<extract.content>' },
+        { title: 'Resume Form', value: 'corrected (object)' },
+      ],
     },
     {
       id: 'process',
@@ -1718,7 +1978,7 @@ export const HITL_VALIDATE_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 640, y: 0 },
-      rows: [{ title: 'Code', value: 'process()' }],
+      rows: [{ title: 'Code', value: 'return <reviewdata.corrected>;' }],
     },
   ],
   edges: [
@@ -1755,7 +2015,7 @@ export const WEBHOOK_NOTIFY_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 320, y: 0 },
-      rows: [{ title: 'Code', value: 'toSlackBlocks(<agent.content>)' }],
+      rows: [{ title: 'Code', value: 'return { text: <agent.content> };' }],
     },
     {
       id: 'webhook',
@@ -1770,7 +2030,10 @@ export const WEBHOOK_NOTIFY_WORKFLOW: PreviewWorkflow = {
       ],
       bgColor: '#10B981',
       position: { x: 640, y: 0 },
-      rows: [{ title: 'URL', value: 'hooks.slack.com/…' }],
+      rows: [
+        { title: 'URL', value: 'https://hooks.slack.com/services/YOUR/WEBHOOK/SECRET' },
+        { title: 'Payload', value: '<format.result>' },
+      ],
     },
   ],
   edges: [
@@ -1821,12 +2084,17 @@ export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
       ],
       bgColor: '#10B981',
       position: { x: 640, y: 0 },
-      rows: [{ title: 'URL', value: 'api.partner.com/hook' }],
+      rows: [{ title: 'URL', value: 'https://api.example.com/hook' }],
     },
   ],
   edges: [
     { id: 'start-condition', source: 'start', target: 'condition' },
-    { id: 'condition-webhook', source: 'condition', target: 'webhook' },
+    {
+      id: 'condition-webhook',
+      source: 'condition',
+      target: 'webhook',
+      sourceHandle: 'condition-if',
+    },
   ],
 }
 
@@ -1849,19 +2117,19 @@ export const WORKFLOW_CALL_WORKFLOW: PreviewWorkflow = {
     {
       id: 'child',
       name: 'Workflow',
-      type: 'workflow',
+      type: 'workflow_input',
       typeLabel: 'Workflow',
       sentence: [
         'Run',
         { subBlockId: 'Workflow', noun: 'workflow' },
         ', passing',
-        { subBlockId: 'Input' },
+        { subBlockId: 'Inputs' },
       ],
       bgColor: '#6366F1',
       position: { x: 320, y: 0 },
       rows: [
         { title: 'Workflow', value: 'enrich-lead' },
-        { title: 'Input', value: '<start.input>' },
+        { title: 'Inputs', value: 'input = <start.input>' },
       ],
     },
     {
@@ -1900,17 +2168,20 @@ export const LOOP_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 95 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'Reviews' }],
+      rows: [{ title: 'Input', value: 'reviews (array)' }],
     },
     {
       id: 'loop',
-      name: 'Loop',
+      name: 'Process Reviews',
       type: 'loop',
       typeLabel: 'Loop',
       bgColor: '#FAFAF9',
       position: { x: 340, y: 30 },
       size: { width: 480, height: 300 },
-      rows: [],
+      rows: [
+        { title: 'Loop Type', value: 'For Each' },
+        { title: 'Collection Items', value: '<start.reviews>' },
+      ],
     },
     {
       id: 'score',
@@ -1941,7 +2212,7 @@ export const LOOP_WORKFLOW: PreviewWorkflow = {
       ],
       bgColor: '#33C482',
       position: { x: 910, y: 95 },
-      rows: [{ title: 'Messages', value: 'Summarize <loop.results>' }],
+      rows: [{ title: 'Messages', value: 'Summarize <processreviews.results>' }],
     },
   ],
   edges: [
@@ -1965,17 +2236,21 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 95 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'Tasks' }],
+      rows: [{ title: 'Input', value: 'tasks (array)' }],
     },
     {
       id: 'parallel',
-      name: 'Parallel',
+      name: 'Process Tasks',
       type: 'parallel',
       typeLabel: 'Parallel',
       bgColor: '#1D1C1A',
       position: { x: 340, y: 30 },
       size: { width: 480, height: 300 },
-      rows: [],
+      rows: [
+        { title: 'Parallel Type', value: 'Parallel Each' },
+        { title: 'Parallel Items', value: '<start.tasks>' },
+        { title: 'Parallel Batch Size', value: '20' },
+      ],
     },
     {
       id: 'call',
@@ -1991,7 +2266,7 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2F55FF',
       position: { x: 150, y: 64 },
       parentId: 'parallel',
-      rows: [{ title: 'URL', value: '/tasks/<parallel.currentItem>' }],
+      rows: [{ title: 'URL', value: 'https://api.example.com/tasks/<parallel.currentItem>' }],
     },
     {
       id: 'aggregate',
@@ -2001,7 +2276,12 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 910, y: 95 },
-      rows: [{ title: 'Code', value: 'merge(<parallel.results>)' }],
+      rows: [
+        {
+          title: 'Code',
+          value: 'return <processtasks.results>.flat().map((output) => output.data);',
+        },
+      ],
     },
   ],
   edges: [
@@ -2034,7 +2314,7 @@ export const BUILD_AGENT_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'agent',
-      name: 'Score lead',
+      name: 'Agent',
       type: 'agent',
       typeLabel: 'Agent',
       sentence: [
@@ -2048,8 +2328,13 @@ export const BUILD_AGENT_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 320, y: 0 },
       rows: [
-        { title: 'Messages', value: 'Score <start.input>' },
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Messages', value: 'Score <start.input> from 0 to 100.' },
+        {
+          title: 'Response Format',
+          value:
+            '{"name":"lead_score","schema":{"type":"object","properties":{"score":{"type":"number","minimum":0,"maximum":100}},"required":["score"],"additionalProperties":false}}',
+        },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
       ],
       tools: [
         { type: 'knowledge', name: 'Knowledge', bgColor: '#00B0B0' },
@@ -2083,7 +2368,7 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
       name: 'File',
       type: 'file',
       typeLabel: 'File',
-      sentence: ['Parse', { subBlockId: 'File', noun: 'file' }],
+      sentence: ['Read', { subBlockId: 'File', noun: 'file' }],
       bgColor: '#40916C',
       position: { x: 0, y: 0 },
       rows: [
@@ -2111,7 +2396,7 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'write',
-      name: 'File',
+      name: 'Save summary',
       type: 'file',
       typeLabel: 'File',
       sentence: ['Create', { subBlockId: 'File Name', noun: 'file name' }],
@@ -2120,6 +2405,7 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
       rows: [
         { title: 'Operation', value: 'Write' },
         { title: 'File Name', value: 'summary.md' },
+        { title: 'Content', value: '<agent.content>' },
       ],
     },
   ],
@@ -2131,8 +2417,8 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
 
 /**
  * The running example of the choosing guide: a lead scorer combining a
- * workflow-as-tool (enrich), a deterministic Function, an Agent with tools,
- * and a deterministic Google Sheets append.
+ * fixed Workflow step (Enrich), a Function, an Agent with tools,
+ * and a fixed Google Sheets append.
  */
 export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
   id: 'lead-scorer',
@@ -2152,12 +2438,15 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
     {
       id: 'enrich',
       name: 'Enrich',
-      type: 'workflow',
+      type: 'workflow_input',
       typeLabel: 'Workflow',
       sentence: ['Run', { subBlockId: 'Workflow', noun: 'workflow' }],
       bgColor: '#6366F1',
       position: { x: 290, y: 0 },
-      rows: [{ title: 'Workflow', value: 'enrich-lead' }],
+      rows: [
+        { title: 'Workflow', value: 'enrich-lead' },
+        { title: 'Inputs', value: 'input = <start.input>' },
+      ],
     },
     {
       id: 'reshape',
@@ -2167,7 +2456,13 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 580, y: 0 },
-      rows: [{ title: 'Code', value: 'return fields(<enrich.result>)' }],
+      rows: [
+        {
+          title: 'Code',
+          value:
+            'const lead = <enrich.result>; return { company: lead.company, domain: lead.domain };',
+        },
+      ],
     },
     {
       id: 'score',
@@ -2185,14 +2480,19 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
       bgColor: '#33C482',
       position: { x: 870, y: 0 },
       rows: [
-        { title: 'Messages', value: 'Score <reshape.result>' },
-        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Messages', value: 'Score <reshape.result> from 0 to 100.' },
+        {
+          title: 'Response Format',
+          value:
+            '{"name":"lead_score","schema":{"type":"object","properties":{"score":{"type":"number","minimum":0,"maximum":100}},"required":["score"],"additionalProperties":false}}',
+        },
+        { title: 'Model', value: 'claude-sonnet-5-5' },
       ],
       tools: [
         { type: 'exa', name: 'Search', bgColor: '#1F40ED' },
         { type: 'gmail', name: 'Send Email', bgColor: '#E0E0E0' },
         { type: 'hubspot', name: 'CRM', bgColor: '#FF7A59' },
-        { type: 'workflow', name: 'Deep Enrich', bgColor: '#6366F1' },
+        { type: 'workflow_input', name: 'Deep Enrich', bgColor: '#6366F1' },
       ],
     },
     {
@@ -2242,7 +2542,7 @@ export const CONCURRENCY_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 360, y: 0 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
     {
       id: 'research',
@@ -2252,7 +2552,7 @@ export const CONCURRENCY_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 360, y: 150 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
   ],
   edges: [
@@ -2288,7 +2588,7 @@ export const COMBINATION_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 360, y: 0 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
     {
       id: 'research',
@@ -2298,7 +2598,7 @@ export const COMBINATION_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 360, y: 150 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
     {
       id: 'combine',
@@ -2310,7 +2610,11 @@ export const COMBINATION_WORKFLOW: PreviewWorkflow = {
       position: { x: 720, y: 75 },
       rows: [
         { title: 'Language', value: 'JavaScript' },
-        { title: 'Code', value: 'merge(<support.content>, <research.content>)' },
+        {
+          title: 'Code',
+          value:
+            'return { support: <customersupport.content>, research: <deepresearcher.content> };',
+        },
       ],
     },
   ],
@@ -2339,7 +2643,7 @@ export const ROUTING_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 140 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'Message' }],
+      rows: [{ title: 'Input', value: 'message (string), type (string)' }],
     },
     {
       id: 'condition',
@@ -2375,7 +2679,7 @@ export const ROUTING_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 740, y: 280 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
     {
       id: 'sales',
@@ -2385,7 +2689,7 @@ export const ROUTING_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 1120, y: -60 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
     {
       id: 'support',
@@ -2395,7 +2699,7 @@ export const ROUTING_WORKFLOW: PreviewWorkflow = {
       sentence: ['Prompt', { subBlockId: 'Model', noun: 'model' }],
       bgColor: '#33C482',
       position: { x: 1120, y: 90 },
-      rows: [{ title: 'Model', value: 'claude-sonnet-4-6' }],
+      rows: [{ title: 'Model', value: 'claude-sonnet-5-5' }],
     },
   ],
   edges: [
@@ -2447,7 +2751,7 @@ export const ERROR_PATH_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 720, y: 0 },
-      rows: [{ title: 'Code', value: 'return ok' }],
+      rows: [{ title: 'Code', value: 'return "ok";' }],
     },
     {
       id: 'handleError',
@@ -2457,7 +2761,7 @@ export const ERROR_PATH_WORKFLOW: PreviewWorkflow = {
       sentence: ['Run', { subBlockId: 'Code', noun: 'code' }],
       bgColor: '#FF402F',
       position: { x: 720, y: 170 },
-      rows: [{ title: 'Code', value: 'return recovered' }],
+      rows: [{ title: 'Code', value: 'return "recovered";' }],
     },
   ],
   edges: [

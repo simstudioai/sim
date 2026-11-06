@@ -5,6 +5,7 @@ import type {
 import {
   getSnowflakeBaseUrl,
   getSnowflakeHeaders,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -22,6 +23,7 @@ export const cortexAnalystFeedbackTool: ToolConfig<
 > = {
   id: 'snowflake_cortex_analyst_feedback',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Cortex Analyst Feedback',
   description:
     'Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab.',

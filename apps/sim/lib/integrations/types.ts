@@ -53,6 +53,8 @@ export interface Integration extends IntegrationMetadata {
   triggerCount: number
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
+  /** ISO date this entry's generated content last changed, stamped by `scripts/generate-docs.ts`. */
+  updatedAt: string
 }
 
 /**

@@ -39,27 +39,19 @@ const {
   mockListPinnedItemsForUser,
   mockListWorkspacesForViewer,
   mockListMothershipChats,
-  mockListWorkspaceFilesWithShares,
 } = vi.hoisted(() => ({
   mockGetWorkspaceHostContextForViewer: vi.fn(),
   mockKnowledgePresenterList: vi.fn(),
   mockListPinnedItemsForUser: vi.fn(),
   mockListWorkspacesForViewer: vi.fn(),
   mockListMothershipChats: vi.fn(),
-  mockListWorkspaceFilesWithShares: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
 }))
 vi.mock('@/lib/folders/queries', () => folderQueriesMock)
-vi.mock('@/lib/workspace-files/queries', () => ({
-  listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
-}))
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 vi.mock('@/lib/pinned-items/queries', () => ({
   listPinnedItemsForUser: mockListPinnedItemsForUser,
 }))
@@ -99,6 +91,7 @@ import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
+import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 
 const mockAuthenticate = apiServerRoutesMockFns.mockInternalSessionAuthenticate
 const mockListFoldersForWorkspace = folderQueriesMockFns.mockListFoldersForWorkspace
@@ -107,6 +100,7 @@ const mockListInternalKnowledgeBases =
 const mockListWorkflowsForUser = workflowsQueriesMockFns.mockListWorkflowsForUser
 const mockGetUserProfile = usersQueriesMockFns.mockGetUserProfile
 const mockListWorkspaceFileFolders = workspaceFileFoldersMockFns.mockListWorkspaceFileFolders
+const mockListWorkspaceFileCollection = workspaceFilesListMockFns.mockListWorkspaceFileCollection
 
 /** One authorization decision shared by the table, knowledge, and file module operations. */
 const mockAuthorizeResource = vi.fn()
@@ -125,6 +119,11 @@ const mockGetWorkspaceMemberProfiles = permissionsMockFns.mockGetWorkspaceMember
 
 const WORKSPACE_ID = 'ws-123'
 const USER_ID = 'user-1'
+const ROOT_FILE_LIST = workspaceFileListParams({
+  folderId: null,
+  sortBy: 'updatedAt',
+  sortOrder: 'desc',
+})
 
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -135,7 +134,7 @@ describe('workspace list prefetches', () => {
     mockAuthorizeResource.mockResolvedValue(undefined)
     mockGetWorkspaceHostContextForViewer.mockResolvedValue({ viewer: { permission: 'admin' } })
     mockListFoldersForWorkspace.mockResolvedValue([])
-    mockListWorkspaceFilesWithShares.mockResolvedValue([])
+    mockListWorkspaceFileCollection.mockResolvedValue({ files: [], nextKeys: null })
     mockListWorkspaceFileFolders.mockResolvedValue([])
     mockListPinnedItemsForUser.mockResolvedValue([])
     mockListWorkflowsForUser.mockResolvedValue([])
@@ -182,7 +181,12 @@ describe('workspace list prefetches', () => {
     })
   })
 
-  it.each([prefetchTables, prefetchKnowledgeBases, prefetchFilesBrowser])(
+  it.each([
+    prefetchTables,
+    prefetchKnowledgeBases,
+    (client: QueryClient, workspaceId: string, userId: string) =>
+      prefetchFilesBrowser(client, workspaceId, userId, { list: ROOT_FILE_LIST }),
+  ])(
     'seeds no protected data or chrome when the module operation refuses access',
     async (prefetch) => {
       mockAuthorizeResource.mockRejectedValue(
@@ -193,7 +197,7 @@ describe('workspace list prefetches', () => {
       expect(client.getQueryCache().getAll()).toHaveLength(0)
       expect(mockListTables).not.toHaveBeenCalled()
       expect(mockListInternalKnowledgeBases).not.toHaveBeenCalled()
-      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
+      expect(mockListWorkspaceFileCollection).not.toHaveBeenCalled()
       expect(mockListFoldersForWorkspace).not.toHaveBeenCalled()
       expect(mockListWorkspaceFileFolders).not.toHaveBeenCalled()
       expect(mockListPinnedItemsForUser).not.toHaveBeenCalled()
@@ -266,7 +270,7 @@ describe('workspace list prefetches', () => {
       mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
       const client = makeClient()
 
-      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
+      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID, { list: ROOT_FILE_LIST })
 
       expect(client.getQueryCache().getAll()).toHaveLength(0)
       expect(mockListWorkspaceFileFolders).not.toHaveBeenCalled()

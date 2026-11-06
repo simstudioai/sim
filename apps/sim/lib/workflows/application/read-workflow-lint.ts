@@ -20,6 +20,7 @@ import {
   collectSortFieldNames,
 } from '@/lib/table/query-builder/field-names'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
@@ -28,7 +29,6 @@ import {
   type ReadWorkflowGraphResult,
   readWorkflowGraph,
 } from '@/lib/workflows/application/read-workflow-graph'
-import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import {
   buildWorkflowLintReport,

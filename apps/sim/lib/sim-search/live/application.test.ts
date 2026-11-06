@@ -1,5 +1,5 @@
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { createDeferred, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import {
@@ -10,14 +10,16 @@ import {
   knowledgeContextsMock,
   knowledgeContextsMockFns,
 } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   resolveAccount: vi.fn(),
   search: vi.fn(),
   mcpCall: vi.fn(),
+  mcpClose: vi.fn(async () => {}),
   read: vi.fn(),
   admin: vi.fn(),
   adminSearch: vi.fn(),
@@ -26,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   json: vi.fn(),
   service: vi.fn(),
   destroyPool: vi.fn(),
+  requiresEveryTerm: vi.fn(),
+  preview: vi.fn(),
 }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/sim-search/live/service-session', () => ({
@@ -45,7 +49,7 @@ vi.mock('@/lib/sim-search/live/policy-store', () => ({
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
 vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
-  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: async () => {} }),
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: mocks.mcpClose }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   searchCodaMcp: vi.fn(),
@@ -65,11 +69,14 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
+  requiresEveryTerm: mocks.requiresEveryTerm,
+  previewNativeText: mocks.preview,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: (value: string) => ({ safe: true, value }),
 }))
 
+import { withSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import {
   decodeLiveReference,
   encodeLiveReference,
@@ -92,6 +99,7 @@ inputValidationMockFns.mockCreatePinnedConnectionPool.mockImplementation(() => (
   destroy: mocks.destroyPool,
 }))
 
+const diagnosticsLogger = getMockLogger('KnowledgeSearchDiagnostics')
 const principal = createSessionPrincipal({ userId: 'reader', sessionId: 's' })
 const input = { workspaceId: 'workspace', query: 'launch', topK: 20 }
 const account = {
@@ -136,6 +144,8 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
+    mocks.requiresEveryTerm.mockReset().mockReturnValue(false)
+    mocks.preview.mockReset().mockResolvedValue(undefined)
   })
   describe('Zoom continuation integrity', () => {
     const connected = {
@@ -551,6 +561,51 @@ describe('authorized live retrieval', () => {
     expect(statusOf('mail')?.nextCursor).toBeUndefined()
     expect(statusOf('account')).toMatchObject({ nextCursor: 'next' })
   })
+  it('ranks results across accounts by the query terms they hold, not by account order', async () => {
+    const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([account, gmail])
+    const result = (id: string, title: string, content: string) => ({
+      ...document,
+      id,
+      title,
+      content,
+      url: `https://docs.google.com/${id}`,
+    })
+    mocks.search.mockImplementation(async (provider: string) => ({
+      documents:
+        provider === 'gmail'
+          ? [
+              result('notes', 'Weekly notes', 'The merge train skipped two builds'),
+              result('named', 'Merge Train', 'How builds queue'),
+            ]
+          : [result('sheet', 'Question bank', 'Questions')],
+    }))
+    const { results } = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'merge train' },
+    })
+    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'named',
+      'notes',
+      'sheet',
+    ])
+  })
+  it('counts two-letter query terms, so a page named for the query leads one sharing a word', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [
+        { ...document, id: 'generic', title: 'Agents', url: 'https://docs.google.com/generic' },
+        { ...document, id: 'named', title: 'AI agents', url: 'https://docs.google.com/named' },
+      ],
+    })
+    const { results } = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'AI agents' },
+    })
+    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'named',
+      'generic',
+    ])
+  })
   it('applies date filters before spending provider verification', async () => {
     const verify = vi.fn(async () => true)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
@@ -611,6 +666,254 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts.map((status) => status.queryIndex)).toEqual([0, 1])
     expect(result.live?.guidance).toBe('Live coverage: slack')
   })
+  it('reports a search that reached no account as nothing searched, not as no results', async () => {
+    mocks.accounts.mockResolvedValue([])
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(result.results).toEqual([])
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.accounts).toEqual([])
+    expect(result.live?.guidance).toMatch(
+      /^Nothing was searched: you have no connected sources here\. Connect your accounts at \S*\/workspace\/workspace\/integrations,/
+    )
+  })
+  it('names the filtered source when only other sources are connected', async () => {
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, filters: { source: 'slack' } },
+    })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.guidance).toMatch(
+      /^Nothing was searched: you have no connected slack account here\. .* or search without the source filter\./
+    )
+  })
+  describe('result previews', () => {
+    const excerpts = ['a', 'b', 'c', 'd'].map((id) => ({
+      ...document,
+      id,
+      url: `https://docs.google.com/document/d/${id}/edit`,
+      content: `Excerpt ${id}`,
+    }))
+    const contents = (result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>>) =>
+      result.results.map((row) => row.content)
+
+    it('replaces the excerpts of an account’s top results with their full text', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      mocks.preview.mockImplementation(async (_provider, _client, { id }: { id: string }) =>
+        id === 'a' ? undefined : `Full ${id} launch text`
+      )
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual([
+        'Excerpt a',
+        'Full b launch text',
+        'Full c launch text',
+        'Excerpt d',
+      ])
+      expect(mocks.preview).toHaveBeenCalledTimes(3)
+    })
+
+    it('previews the passage around a match deep inside a long document', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+      mocks.preview.mockResolvedValue(`${'filler '.repeat(30_000)}the launch checklist`)
+      const [row] = (await searchLiveKnowledge.execute({ principal, input })).results
+      expect(row?.content).toContain('launch checklist')
+    })
+
+    it('keeps the provider excerpt when a preview read fails', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 2) })
+      mocks.preview
+        .mockRejectedValueOnce(new NativeSearchError('rate_limited', 'Slow down'))
+        .mockResolvedValueOnce('Full b launch text')
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual(['Excerpt a', 'Full b launch text'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    })
+
+    it('keeps the provider excerpt when a preview read misses its deadline', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+        mocks.preview.mockReturnValue(new Promise(() => {}))
+        const pending = searchLiveKnowledge.execute({ principal, input })
+        await vi.advanceTimersByTimeAsync(2500)
+        expect(contents(await pending)).toEqual(['Excerpt a'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not read previews for a native query, whose operators would anchor the passage', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: '',
+          nativeQueries: [
+            { provider: 'google_drive' as const, query: "fullText contains 'launch'" },
+          ],
+        },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+
+    it('does not read previews for a listing without search terms', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { sortBy: 'newest' } },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+
+    it('reads a permitted result’s preview while others verify, and never a denied one’s', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      const pendingB = createDeferred<boolean>()
+      mocks.service.mockResolvedValue({
+        policy: defaultLiveSearchPolicy(),
+        partial: false,
+        verify: async ({ id }: { id: string }) => (id === 'b' ? pendingB.promise : id !== 'c'),
+      })
+      mocks.preview.mockImplementation(
+        async (_provider, _client, { id }: { id: string }) => `Full ${id} launch text`
+      )
+      const previewedIds = () => mocks.preview.mock.calls.map(([, , { id }]) => id)
+      const pending = searchLiveKnowledge.execute({ principal, input })
+      await vi.waitFor(() => expect(previewedIds()).toEqual(['a', 'd']))
+      pendingB.resolve(true)
+      const result = await pending
+      expect(contents(result)).toEqual([
+        'Full a launch text',
+        'Full b launch text',
+        'Full d launch text',
+      ])
+      expect(previewedIds()).toEqual(['a', 'd', 'b'])
+    })
+
+    it('reads no preview until a verification that spends the same request budget finishes', async () => {
+      const googleDoc = 'application/vnd.google-apps.document'
+      vi.mocked(livePolicyFor).mockReturnValue({
+        ...defaultLiveSearchPolicy(),
+        fileTypes: [googleDoc],
+      })
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      const pendingB = createDeferred<unknown>()
+      mocks.json.mockReset().mockImplementation(async (path: string) => {
+        const id = path.split('/').at(-1)
+        return id === 'b' ? pendingB.promise : { id, mimeType: googleDoc }
+      })
+      mocks.preview.mockImplementation(
+        async (_provider, _client, { id }: { id: string }) => `Full ${id} launch text`
+      )
+      const pending = searchLiveKnowledge.execute({ principal, input })
+      await vi.waitFor(() => expect(mocks.json).toHaveBeenCalledTimes(4))
+      expect(mocks.preview).not.toHaveBeenCalled()
+      pendingB.resolve({ id: 'b', mimeType: googleDoc })
+      expect(contents(await pending)).toEqual([
+        'Full a launch text',
+        'Full b launch text',
+        'Full c launch text',
+        'Excerpt d',
+      ])
+    })
+
+    it('never surfaces the preview text of a candidate verification denies', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      mocks.service.mockResolvedValue({
+        policy: defaultLiveSearchPolicy(),
+        partial: false,
+        verify: async ({ id }: { id: string }) => id !== 'a',
+      })
+      mocks.preview.mockImplementation(async (_provider, _client, { id }: { id: string }) =>
+        id === 'a' ? 'Private a launch text' : `Full ${id} launch text`
+      )
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual([
+        'Full b launch text',
+        'Full c launch text',
+        'Full d launch text',
+      ])
+      expect(JSON.stringify(result)).not.toContain('Private a')
+    })
+  })
+
+  it('gives provider searches the account session cancellation signal', async () => {
+    const signals: (AbortSignal | undefined)[] = []
+    mocks.search.mockImplementation(async (_provider, _client, search) => {
+      signals.push(search.signal)
+      return { documents: [document] }
+    })
+    await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
+    expect(signals.length).toBeGreaterThan(0)
+    for (const signal of signals) expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
+  describe('when account token resolution never settles', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+        const controller = new AbortController()
+        setTimeout(
+          () => controller.abort(new DOMException('deadline', 'TimeoutError')),
+          milliseconds
+        )
+        return controller.signal
+      })
+    })
+    afterEach(() => {
+      vi.mocked(AbortSignal.timeout).mockRestore()
+      vi.useRealTimers()
+    })
+
+    it('reports the account timed out within the search deadline', async () => {
+      mocks.resolveAccount.mockReturnValue(new Promise(() => {}))
+      const pending = searchLiveKnowledge.execute({ principal, input })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const result = await pending
+      expect(result.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.search).not.toHaveBeenCalled()
+    })
+
+    it('fails a document read as retryable within the read deadline', async () => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      mocks.resolveAccount.mockReturnValue(new Promise(() => {}))
+      const read = readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]?.documentId ?? '',
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+      const rejected = expect(read).rejects.toMatchObject({
+        retryable: true,
+        message: expect.stringContaining('took too long'),
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      await rejected
+      expect(mocks.read).not.toHaveBeenCalled()
+    })
+  })
+
+  it('retries an underfilled search with any term for providers that require every term', async () => {
+    mocks.requiresEveryTerm.mockReturnValue(true)
+    const loose = { ...document, id: 'loose', url: 'https://docs.google.com/document/d/loose/edit' }
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents: search.textMatch === 'any' ? [loose, document] : [document],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'launch checklist' },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'doc',
+      'loose',
+    ])
+    expect(mocks.search).toHaveBeenCalledTimes(2)
+  })
+
   it('checks the service source before returning member-visible candidates', async () => {
     const verify = vi.fn().mockResolvedValue(false)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
@@ -945,5 +1248,147 @@ describe('authorized live retrieval', () => {
         modifiedAfter: '2026-09-02T00:00:00Z',
       })
     ).toBe(false)
+  })
+
+  const accounts = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...account,
+      id: `account-${String(index).padStart(2, '0')}`,
+      displayName: `Drive ${String(index).padStart(2, '0')}`,
+    }))
+
+  it('reports each account beyond the search limit instead of omitting it', async () => {
+    mocks.accounts.mockResolvedValue(accounts(21))
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    const statuses = result.live?.accounts ?? []
+    expect(statuses).toHaveLength(21)
+    expect(new Set(statuses.map(({ accountId }) => accountId)).size).toBe(21)
+    expect(statuses.at(-1)).toMatchObject({
+      accountId: 'account-20',
+      status: 'unavailable',
+      message: expect.stringContaining('Not searched'),
+    })
+    expect(result.retrieval.status).toBe('partial')
+  })
+
+  describe('latency', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+        const controller = new AbortController()
+        setTimeout(
+          () => controller.abort(new DOMException('deadline', 'TimeoutError')),
+          milliseconds
+        )
+        return controller.signal
+      })
+    })
+    afterEach(() => {
+      vi.mocked(AbortSignal.timeout).mockRestore()
+      vi.useRealTimers()
+    })
+
+    /** Settles after `ms` of fake time, like a provider round trip. */
+    const delayed = <T>(ms: number, value: T) =>
+      new Promise<T>((resolve) => setTimeout(() => resolve(value), ms))
+
+    it('searches every account at once while bounding concurrent account resolution', async () => {
+      mocks.accounts.mockResolvedValue(accounts(20))
+      let resolving = 0
+      let peak = 0
+      mocks.resolveAccount.mockImplementation(async () => {
+        peak = Math.max(peak, ++resolving)
+        await delayed(50, undefined)
+        resolving--
+        return { account, accessToken: 'secret' }
+      })
+      mocks.search.mockImplementation(() => delayed(3000, { documents: [document] }))
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      const pending = searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(3500)
+      expect(result?.live?.accounts.map(({ status }) => status)).toEqual(
+        Array.from({ length: 20 }, () => 'ok')
+      )
+      expect(peak).toBeLessThanOrEqual(6)
+      await pending
+    })
+
+    it('times an account out at its deadline when its session never opens', async () => {
+      mocks.service.mockReturnValue(new Promise(() => {}))
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(12_000)
+      expect(result?.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.search).not.toHaveBeenCalled()
+    })
+
+    it('gives each account its own deadline from its slot, and skips one the search left no time', async () => {
+      mocks.accounts.mockResolvedValue(accounts(13))
+      mocks.resolveAccount.mockImplementation(() =>
+        delayed(9500, { account, accessToken: 'secret' })
+      )
+      mocks.search.mockImplementation(async (_provider, _client, search) => {
+        search.signal?.throwIfAborted()
+        return { documents: [document] }
+      })
+      const pending = withSearchDiagnostics({ surface: 'copilot' }, () =>
+        searchLiveKnowledge.execute({ principal, input })
+      )
+      await vi.advanceTimersByTimeAsync(20_000)
+      const statuses = (await pending).live?.accounts ?? []
+      /** The second wave waits 9.5s for a slot, then still has its full account deadline. */
+      expect(statuses.slice(0, 12).map(({ status }) => status)).toEqual(
+        Array.from({ length: 12 }, () => 'ok')
+      )
+      expect(statuses[12]).toMatchObject({
+        accountId: 'account-12',
+        status: 'timeout',
+        message: expect.stringContaining('Not searched before the search deadline'),
+      })
+      expect(mocks.resolveAccount).toHaveBeenCalledTimes(12)
+      const skipped = diagnosticsLogger.info.mock.calls.find(
+        ([message, fields]) =>
+          message === 'Live search provider completed' && fields?.accountIndex === 12
+      )
+      expect(skipped?.[1]?.results).toEqual([
+        expect.objectContaining({ status: 'timeout', failure: { reason: 'not_started' } }),
+      ])
+    })
+
+    it('frees the slot of a session that never opens, so an account waiting on it still searches', async () => {
+      mocks.accounts.mockResolvedValue(accounts(7))
+      for (let index = 0; index < 6; index++)
+        mocks.service.mockReturnValueOnce(new Promise(() => {}))
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(result?.live?.accounts.map(({ status }) => status)).toEqual([
+        ...Array.from({ length: 6 }, () => 'timeout'),
+        'ok',
+      ])
+    })
+
+    it('closes a session that opens after its account stopped waiting for it', async () => {
+      mocks.accounts.mockResolvedValue([
+        { ...account, provider: 'coda', providerId: 'mcp:coda', type: 'managed_mcp' },
+      ])
+      const opening = createDeferred<undefined>()
+      mocks.service.mockReturnValueOnce(opening.promise)
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(12_000)
+      expect(result?.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.mcpClose).not.toHaveBeenCalled()
+      opening.resolve(undefined)
+      await vi.waitFor(() => expect(mocks.mcpClose).toHaveBeenCalledOnce())
+    })
   })
 })

@@ -14,7 +14,7 @@ vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { isStuckDocumentSweepEligible } from '@/lib/knowledge/connectors/sync-primitives'
 import {
   processDocumentsWithQueue,

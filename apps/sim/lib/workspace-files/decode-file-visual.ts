@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ArtifactObservation } from '@/lib/mothership/generated/observations'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { prepareImageForVision } from '@/lib/workspace-files/prepare-image-for-vision'
 import {
   renderDocumentForVision,

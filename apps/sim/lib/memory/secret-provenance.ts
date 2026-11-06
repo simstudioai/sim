@@ -162,6 +162,18 @@ export async function bindMemorySecretProvenanceToMessages(
   return normalized ? { status: 'exact', entries: normalized } : { status: 'unknown' }
 }
 
+/**
+ * A memory row's sidecar, selected beside it with
+ * `leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))`. The writer
+ * binds both in one transaction, so a reader takes both in one statement: a second read can pair
+ * the row with a later writer's sidecar, and that hash mismatch reads as unknown.
+ */
+export const MEMORY_SECRET_PROVENANCE_COLUMNS = {
+  provenanceContentHash: memorySecretProvenance.contentHash,
+  status: memorySecretProvenance.status,
+  entries: memorySecretProvenance.entries,
+}
+
 interface MemorySecretProvenanceRow {
   secretProvenanceVersion: number | null
   data: unknown

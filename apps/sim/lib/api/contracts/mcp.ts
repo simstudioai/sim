@@ -97,6 +97,11 @@ export const mcpToolSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   inputSchema: mcpToolInputSchema,
+  /** Server-authored below the `object` wrapper; passed through as discovered. */
+  outputSchema: z
+    .object({ type: z.literal('object') })
+    .passthrough()
+    .optional(),
   serverId: z.string(),
   canonicalServerId: z.string().optional(),
   serverName: z.string(),

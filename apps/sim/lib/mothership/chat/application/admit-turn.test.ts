@@ -1,4 +1,4 @@
-import { copilotChats, copilotRuns, member } from '@sim/db/schema'
+import { copilotChats, copilotRuns, member, settings, user } from '@sim/db/schema'
 import {
   dbChainMockFns,
   queueTableRows,
@@ -151,6 +151,9 @@ describe('organization turn admission through current private-chat authorization
   it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',
     async (mode) => {
+      setEnvFlags({ isMothershipBenchmarkEnabled: true })
+      queueTableRows(user, [{ role: 'admin' }])
+      queueTableRows(settings, [{ superUserModeEnabled: true }])
       queueTableRows(copilotChats, [{ ...chat, mode: mode === 'agent' ? 'assistant' : 'agent' }])
       queueTableRows(member, [{ role: 'owner' }])
       if (mode !== 'assistant') queueTableRows(member, [{ role: 'owner' }])

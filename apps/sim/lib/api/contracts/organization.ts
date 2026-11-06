@@ -502,6 +502,16 @@ export const getOrganizationResponseSchema = z.object({
   }),
   userRole: organizationRoleSchema,
   hasAdminAccess: z.boolean(),
+  chatAccess: z
+    .object({
+      mothershipAvailable: z.boolean(),
+      canBuild: z.boolean(),
+      searchAccess: z.object({
+        sourceMirrored: z.boolean(),
+        memberScoped: z.boolean(),
+      }),
+    })
+    .optional(),
 })
 export type GetOrganizationResponse = z.output<typeof getOrganizationResponseSchema>
 export const getOrganizationContract = defineRouteContract({

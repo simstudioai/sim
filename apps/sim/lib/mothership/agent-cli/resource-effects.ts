@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 import * as credentials from '@/lib/api/contracts/v2/credentials'
 import * as customTools from '@/lib/api/contracts/v2/custom-tools'
+import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import * as files from '@/lib/api/contracts/v2/files'
 import * as knowledge from '@/lib/api/contracts/v2/knowledge'
 import * as chunks from '@/lib/api/contracts/v2/knowledge-chunks'
@@ -10,14 +11,20 @@ import * as tags from '@/lib/api/contracts/v2/knowledge-tags'
 import * as logs from '@/lib/api/contracts/v2/logs'
 import * as logStats from '@/lib/api/contracts/v2/logs-stats'
 import * as mcpServers from '@/lib/api/contracts/v2/mcp-servers'
+import { v2UnzipProjectFileContract } from '@/lib/api/contracts/v2/project-file-extraction'
+import { v2CompleteProjectFileUploadContract } from '@/lib/api/contracts/v2/project-file-uploads'
+import * as projectFiles from '@/lib/api/contracts/v2/project-files'
 import * as sandboxes from '@/lib/api/contracts/v2/sandboxes'
 import * as secrets from '@/lib/api/contracts/v2/secrets'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
-import { parseFolderPath } from '@/lib/folders/paths'
+import { buildFolderPath, parseFolderPath } from '@/lib/folders/paths'
+import { isCommittedWriteResponse } from '@/lib/mothership/content-delivery'
 import type { ResourceAddress, ResourceChange } from '@/lib/mothership/generated/resources'
 import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 
 const logger = createLogger('ResourceEffects')
 
@@ -31,6 +38,8 @@ interface EffectRoute {
   path: string
   readBody?: boolean
   readOnly?: boolean
+  /** Projects from the request alone, so a committed write whose result was withheld still counts. */
+  fromRequest?: boolean
   project: (response: Response, context: EffectContext) => Promise<ResourceChange[]>
 }
 
@@ -40,9 +49,22 @@ function refresh(type: ResourceKind, id?: string): ResourceChange[] {
   return [{ op: 'refresh', resource: { type, ...(id ? { id } : {}) } }]
 }
 
+function ownedFilePath(owner: ResourceAddress['owner'], folderPath: string, name: string): string {
+  const path = `files/${encodeVfsPathSegments([...parseFolderPath(folderPath), name])}`
+  return owner ? fileOwnerVfsPath(owner, path) : path
+}
+
+/** Refreshes an owner's file and folder listings after a change too broad to open as one tab. */
+function refreshOwnerFiles(owner: NonNullable<ResourceAddress['owner']>): ResourceChange[] {
+  return [
+    { op: 'refresh', resource: { type: 'file', owner } },
+    { op: 'refresh', resource: { type: 'filefolder', owner } },
+  ]
+}
+
 function upsert(
   type: ResourceKind,
-  value: { id: string; name?: string; folderPath?: string },
+  value: { id: string; name?: string; folderPath?: string; owner?: ResourceAddress['owner'] },
   readOnly = false
 ): ResourceChange[] {
   return [
@@ -52,11 +74,10 @@ function upsert(
       resource: {
         type,
         id: value.id,
+        ...(value.owner ? { owner: value.owner } : {}),
         ...(value.name ? { title: value.name } : {}),
         ...(type === 'file' && value.name && value.folderPath !== undefined
-          ? {
-              path: `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`,
-            }
+          ? { path: ownedFilePath(value.owner, value.folderPath, value.name) }
           : {}),
       },
     },
@@ -99,6 +120,7 @@ function parentAccess(
         method: value.method,
         path: value.path,
         readOnly,
+        fromRequest: true,
         async project(_response: Response, context: EffectContext) {
           /** Literal collection routes also match, preventing /folders from becoming an ID. */
           const id = context.params[parameter]
@@ -148,6 +170,33 @@ function settingsMutations(
 }
 
 const EFFECT_ROUTES: EffectRoute[] = [
+  after(v2UnzipProjectFileContract, (_result, { params }) =>
+    refreshOwnerFiles({ entityType: 'project', entityId: params.projectId })
+  ),
+  after(v2CompleteProjectFileUploadContract, ({ data }) =>
+    data.file ? upsert('file', data.file) : []
+  ),
+  /** A single copied file opens as a tab; a bulk or folder copy refreshes the destination owner. */
+  after(v2CopyFileItemsContract, ({ data }) => {
+    const [file] = data.files
+    if (file && data.files.length === 1 && data.folders.length === 0)
+      return upsert('file', {
+        ...file,
+        folderPath: buildFolderPath(
+          file.folderPath ? parseWorkspaceFileFolderDisplayPath(file.folderPath) : []
+        ),
+      })
+    const owner = file?.owner ?? data.folders[0]?.owner
+    return owner ? refreshOwnerFiles(owner) : []
+  }),
+  {
+    ...after(projectFiles.v2GetProjectFileMetadataContract, ({ data }) =>
+      upsert('file', data, true)
+    ),
+    readOnly: true,
+  },
+  after(projectFiles.v2CreateProjectFileContract, ({ data }) => upsert('file', data)),
+  after(projectFiles.v2UpdateProjectFileContentContract, ({ data }) => upsert('file', data)),
   ...settingsMutations('secrets', [secrets.v2SetSecretContract, secrets.v2DeleteSecretContract]),
   ...settingsMutations('credentials', [
     credentials.v2CreateCredentialConnectionContract,
@@ -344,7 +393,7 @@ function matchParams(pattern: string, pathname: string): Record<string, string> 
 }
 
 /**
- * Only workspace files and chat uploads open as file tabs; other rows open as their owner. The
+ * Workspace/Project files and chat uploads open as file tabs; other rows open as their owner. The
  * request already committed, so a failed lookup opens no file tab rather than failing it.
  */
 async function onlyFileTabs(changes: ResourceChange[]): Promise<ResourceChange[]> {
@@ -389,7 +438,10 @@ export function createResourceEffectTransport(
           : undefined
       : undefined
     const response = await transport(input, init)
-    if (route && response.ok && (!route.readOnly || observeReads)) {
+    const changed =
+      response.ok ||
+      (route?.fromRequest === true && !route.readOnly && isCommittedWriteResponse(response))
+    if (route && changed && (!route.readOnly || observeReads)) {
       const params = matchParams(route.path, url.pathname)
       if (params)
         effects.push(...(await onlyFileTabs(await route.project(response, { params, body }))))

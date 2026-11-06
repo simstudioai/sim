@@ -7,8 +7,8 @@ import {
   getMimeTypeFromExtension,
   type RawFileInput,
   resolveFileType,
-} from '@/lib/uploads/utils/file-utils'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 import {
   bearerHeaders,
   graphUrl,

@@ -11,7 +11,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,

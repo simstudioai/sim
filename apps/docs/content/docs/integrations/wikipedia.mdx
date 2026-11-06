@@ -1,31 +1,29 @@
 ---
 title: Wikipedia
 description: Search and retrieve content from Wikipedia
+integration:
+  type: "wikipedia"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="wikipedia"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Wikipedia](https://www.wikipedia.org/) provides article content for research workflows. Search for a topic, retrieve a summary or full page, or request a random article. Use the returned article links when citing the retrieved material.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.
-
-
+Get page summary, search pages, get page content, and get random page.
 
 ## Actions
 
 ### Wikipedia Page Summary
 
 Get a summary and metadata for a specific Wikipedia page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,6 +69,8 @@ Get a summary and metadata for a specific Wikipedia page.
 |   ↳ `coordinates` | object | Geographic coordinates |
 |     ↳ `lat` | number | Latitude |
 |     ↳ `lon` | number | Longitude |
+
+</ReferenceDetails>
 
 ### Wikipedia Search
 

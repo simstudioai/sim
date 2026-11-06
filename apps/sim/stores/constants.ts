@@ -70,7 +70,8 @@ export const MOTHERSHIP_WIDTH = {
   MAX_PERCENTAGE: 0.8,
   /**
    * Narrowest the chat column beside the panel may be laid out at — the
-   * `min-w-[min(480px,100%)]` class on that column in home.tsx, so the two must agree.
+   * `min-w-[min(480px,50%)]` class on that column in home.tsx yields to half
+   * the available space when the regular layout is narrow.
    *
    * The panel is what yields to it: the chat's flex-basis is 0, so the whole of
    * any negative free space is taken out of the panel. A width written past

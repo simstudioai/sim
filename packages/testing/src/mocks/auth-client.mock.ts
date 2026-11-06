@@ -5,7 +5,7 @@ const mockRefetchSession = vi.fn(async (): Promise<void> => {})
 const mockSignOut = vi.fn()
 
 /**
- * Stand-in for the Better Auth `client` from `@/lib/auth/auth-client`: every endpoint the app
+ * Stand-in for the Better Auth `client` from `@/lib/auth/client`: every endpoint the app
  * calls is a bare `vi.fn()` (resolves `undefined` when awaited), grouped exactly like the real
  * client (`client.organization.setActive`, `client.oauth2.link`, …). `client.signOut` is the same
  * `vi.fn()` as the module-level `signOut` export, mirroring `const { signOut } = client`.
@@ -37,7 +37,7 @@ const client = {
 }
 
 /**
- * Controllable mock functions for `@/lib/auth/auth-client`.
+ * Controllable mock functions for `@/lib/auth/client`.
  *
  * Defaults:
  * - `mockUseSession` returns a signed-out session: `{ data: null, isPending: false, error: null,
@@ -77,12 +77,12 @@ export const authClientMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/auth/auth-client`. Covers every runtime export (`client`,
+ * Static mock module for `@/lib/auth/client`. Covers every runtime export (`client`,
  * `useSession`, `useActiveOrganization`, `useSubscription`, `signOut`).
  *
  * @example
  * ```ts
- * vi.mock('@/lib/auth/auth-client', () => authClientMock)
+ * vi.mock('@/lib/auth/client', () => authClientMock)
  * ```
  */
 export const authClientMock = {

@@ -4,6 +4,7 @@
  * completion. Calls are persisted the way the run loop persists a bound run's desktop calls, and
  * Stop runs through the real `requestRunStop`.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, presence } = await vi.hoisted(async () => {
@@ -36,6 +37,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -53,8 +55,10 @@ import {
 } from '@/lib/desktop/executor/errors'
 import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { claimDesktopToolCall, requestRunStop } from '@/lib/mothership/async-runs/repository'
+import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
 import { waitForToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import { unsealClientToolCompletion } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { settleAbandonedDesktopToolCalls } from '@/lib/mothership/request/tools/desktop-wait'
 
 const CAPABILITIES = { executor: 1, browser: true, terminal: true, localFiles: true }
 
@@ -87,7 +91,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       })
       const workspaceId = generateId()
       workspaceIds.set(userId, workspaceId)
-      await db.insert(workspace).values({
+      await insertWorkspaceFixture(db, {
         id: workspaceId,
         name: 'Desktop executor fixture',
         ownerId: userId,
@@ -243,7 +247,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       await db.delete(desktopDevices).where(inArray(desktopDevices.id, deviceIds))
     }
     const workspaces = [...workspaceIds.values()]
-    if (workspaces.length) await db.delete(workspace).where(inArray(workspace.id, workspaces))
+    if (workspaces.length) await deleteWorkspaceFixture(db, inArray(workspace.id, workspaces))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
   })
 
@@ -555,6 +559,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const toolCallId = await pendingCall(run.runId)
       const { executionToken } = await claim(desktop.principal, desktop.deviceId, toolCallId)
       const input = { deviceId: desktop.deviceId, toolCallId, executionToken }
+      expect((await row(toolCallId)).executionDeadlineAt).toBeNull()
 
       await db
         .update(copilotAsyncToolCalls)
@@ -580,6 +585,41 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       await expect(
         renewDesktopToolLease.execute({ principal: desktop.principal, input })
       ).rejects.toBeInstanceOf(DesktopCallRevokedError)
+    })
+
+    it('stops renewing a call once the resume gate gave up on its deadline, then settles it as outcome unknown', async () => {
+      const desktop = await signedInDesktop()
+      const run = await boundRun(desktop)
+      const toolCallId = await pendingCall(run.runId)
+      const setRow = (fields: PgUpdateSetSource<typeof copilotAsyncToolCalls>) =>
+        db
+          .update(copilotAsyncToolCalls)
+          .set(fields)
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      const deadlinePassedBy = (seconds: number) =>
+        setRow({ executionDeadlineAt: sql`clock_timestamp() - ${seconds} * interval '1 second'` })
+      await setRow({ executionDeadlineAt: sql`clock_timestamp() + interval '10 minutes'` })
+      const { executionToken } = await claim(desktop.principal, desktop.deviceId, toolCallId)
+      const input = { deviceId: desktop.deviceId, toolCallId, executionToken }
+
+      // Inside the gate's grace past the deadline, the device keeps the call.
+      await deadlinePassedBy(TOOL_WATCHDOG_RESUME_GRACE_MS / 1000 - 10)
+      await expect(
+        renewDesktopToolLease.execute({ principal: desktop.principal, input })
+      ).resolves.toEqual({ renewed: true })
+
+      await deadlinePassedBy(TOOL_WATCHDOG_RESUME_GRACE_MS / 1000 + 1)
+      await expect(
+        renewDesktopToolLease.execute({ principal: desktop.principal, input })
+      ).rejects.toBeInstanceOf(DesktopCallRevokedError)
+
+      // Unrenewed, the lease lapses, and the cleanup settles the call as it would any lapse.
+      await setRow({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
+      await settleAbandonedDesktopToolCalls(0)
+      expect(await row(toolCallId)).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('It may already have taken effect'),
+      })
     })
 
     it('after Stop, refuses the stopped calls, revokes the running one and lists it to cancel', async () => {

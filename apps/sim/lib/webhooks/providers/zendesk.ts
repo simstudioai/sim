@@ -4,6 +4,7 @@ import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -174,14 +175,26 @@ export const zendeskHandler: WebhookProviderHandler = {
     const apiToken = config.apiToken as string | undefined
     const triggerId = config.triggerId as string | undefined
 
-    if (!subdomain) throw new Error('Zendesk subdomain is required to create the webhook.')
+    if (!subdomain) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk subdomain is required to create the webhook.'
+      )
+    }
     if (!isValidZendeskSubdomain(subdomain)) {
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Zendesk subdomain must contain only letters, numbers, and hyphens (e.g. "yourcompany").'
       )
     }
-    if (!email) throw new Error('Zendesk admin email is required to create the webhook.')
-    if (!apiToken) throw new Error('Zendesk API token is required to create the webhook.')
+    if (!email) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk admin email is required to create the webhook.'
+      )
+    }
+    if (!apiToken) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk API token is required to create the webhook.'
+      )
+    }
 
     const { getZendeskSubscriptions } = await import('@/triggers/zendesk/utils')
     const apiBase = zendeskApiBase(subdomain)

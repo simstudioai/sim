@@ -30,9 +30,9 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
 }))
 
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 
 const mockParseBuffer = fileParsersMockFns.mockParseBuffer
 

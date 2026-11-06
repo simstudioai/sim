@@ -29,7 +29,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'

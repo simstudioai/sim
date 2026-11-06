@@ -10,11 +10,19 @@ import {
   workflowContextMockFns,
 } from '@sim/testing/mocks/workflow-context.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getRunFiles: vi.fn(),
 }))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
@@ -27,7 +35,30 @@ vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { Readable } from 'node:stream'
+import {
+  type ContentDeliveryGate,
+  ContentRefusedError,
+  isCopilotPrincipal,
+  observeContentDelivery,
+} from '@/lib/core/application'
 import { downloadWorkflowRunFileStream } from '@/lib/workflows/application/download-workflow-run-file'
+
+/** Chat's gate with no registry: it admits only a file with no recorded secret. */
+const secretFreeGate: ContentDeliveryGate = {
+  async admit(sources) {
+    return sources.map(
+      ({ provenance }) =>
+        provenance.status === 'unrecorded' ||
+        (provenance.status === 'exact' && provenance.entries.length === 0)
+    )
+  },
+}
+
+/** Runs as each surface does: Chat under its gate, every other caller unobserved. */
+function download(principal: Principal, args = input()) {
+  const execute = () => downloadWorkflowRunFileStream.execute({ principal, input: args })
+  return isCopilotPrincipal(principal) ? observeContentDelivery(secretFreeGate, execute) : execute()
+}
 
 const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
 
@@ -98,14 +129,48 @@ describe('downloadWorkflowRunFileStream', () => {
     )
     mocks.getRunFiles.mockResolvedValue(terminalRun())
     mockDownloadFileStream.mockResolvedValue(Readable.from([Buffer.from('pdf')]))
+    workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey.mockResolvedValue(
+      new Map([[FILE_KEY, { status: 'exact', entries: [] }]])
+    )
   })
 
   it.each(principals)('allows $kind at the read role', async (principal) => {
-    const result = await downloadWorkflowRunFileStream.execute({ principal, input: input() })
+    const result = await download(principal)
 
     expect(result.file.id).toBe(FILE_ID)
     expect(result.contentType).toBe('application/pdf')
     expect(result.contentLength).toBe(3)
+  })
+
+  it.each([
+    { status: 'unknown' },
+    { status: 'exact', entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }] },
+  ])('refuses Chat a run file its gate refuses, before opening it: %j', async (provenance) => {
+    workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey.mockResolvedValue(
+      new Map([[FILE_KEY, provenance]])
+    )
+    await expect(download(principals[3])).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey
+    ).toHaveBeenCalledWith('workspace-1', [FILE_KEY])
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
+  })
+
+  it('classifies storage no metadata row names as unrecorded, admitting it', async () => {
+    workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey.mockResolvedValue(
+      new Map([[FILE_KEY, undefined]])
+    )
+    expect((await download(principals[3])).file.id).toBe(FILE_ID)
+  })
+
+  it('serves a caller outside Chat without classifying', async () => {
+    workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey.mockResolvedValue(
+      new Map([[FILE_KEY, { status: 'unknown' }]])
+    )
+    expect((await download(principals[0])).file.id).toBe(FILE_ID)
+    expect(
+      workspaceFileSecretProvenanceMockFns.mockGetStoredFileSecretProvenanceByKey
+    ).not.toHaveBeenCalled()
   })
 
   /**

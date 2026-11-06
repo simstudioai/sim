@@ -38,6 +38,7 @@ export const listMcpOperations: InternalToolOperationHandler = async (request) =
     name: tool.name,
     description: tool.description ?? '',
     inputSchema: tool.inputSchema,
+    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
   }))
   const hasMore = remaining.length > limit
   return Response.json({

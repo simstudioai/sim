@@ -77,6 +77,9 @@ describe('Search MCP protocol', () => {
       const search = await client.callTool({ name: 'search', arguments: { query: 'release' } })
       expect(search.isError).not.toBe(true)
       expect(search.content).toEqual([{ type: 'text', text: expect.stringContaining(documentId) }])
+      expect(mocks.liveSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ input: expect.objectContaining({ topK: 30 }) })
+      )
       const read = await client.callTool({ name: 'read_document', arguments: { documentId } })
       expect(read.isError).not.toBe(true)
       expect(read.content).toEqual([

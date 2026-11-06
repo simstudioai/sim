@@ -191,8 +191,7 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
   {
     id: 'kalshi_get_orders_v2',
     name: 'Get Orders from Kalshi V2',
-    description:
-      'Retrieve your orders from Kalshi with optional filtering (V2 with full API response)',
+    description: 'Retrieve your orders from Kalshi with optional filtering',
     version: '2.0.0',
 
     params: {

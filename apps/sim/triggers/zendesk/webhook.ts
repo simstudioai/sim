@@ -1,5 +1,5 @@
 import { ZendeskIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 import {
   buildZendeskExtraFields,

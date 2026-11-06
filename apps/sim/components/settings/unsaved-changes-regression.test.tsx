@@ -53,7 +53,7 @@ vi.mock(
   'next/navigation',
   async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
 )
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 const credential: WorkspaceCredential = {
   id: 'credential-a',
@@ -786,7 +786,7 @@ function select(label: string, optionText: string) {
   const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
   if (!trigger) throw new Error(`Missing select ${label}`)
   act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
-  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
     (node) => node.textContent?.trim() === optionText
   )
   if (!option) throw new Error(`Missing option ${optionText}`)

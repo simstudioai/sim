@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { foldedEmail, organization, outboxEvent, session, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
@@ -330,7 +330,7 @@ async function reconcileManualEnterpriseSubscription(
     }
 
     const configOperationId = metadata.simConfigOperationId
-    const existingMetadata = isRecordLike(existing?.metadata) ? existing.metadata : {}
+    const existingMetadata = toRecord(existing?.metadata)
     const configurationAlreadyApplied =
       typeof configOperationId === 'string' &&
       configOperationId.length > 0 &&

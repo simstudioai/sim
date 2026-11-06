@@ -7,7 +7,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import {
   resolveSystemBillingAttribution,
   resolveSystemOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { getTerminalHeight } from '@/lib/workflows/layout'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 
 interface UseFloatBoundarySyncProps {
   isOpen: boolean
@@ -58,7 +58,7 @@ export function useFloatBoundarySync({
 
   const checkAndUpdatePosition = useCallback(() => {
     const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
-    const panelWidth = readBoundaryDimension('.panel-container', '--panel-width')
+    const panelWidth = getPanelWidth()
     const terminalHeight = getTerminalHeight()
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight

@@ -11,7 +11,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { workflowTestOperations } from '@/lib/workflow-tests/application/operations'
 import { testSourceHash } from '@/lib/workflow-tests/definition'
 import { requireWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
@@ -29,7 +29,7 @@ import {
 import { runWorkflowTestFile } from '@/lib/workflow-tests/run-test-file'
 import { MAX_TEST_SOURCE_BYTES } from '@/lib/workflow-tests/source-write'
 import type { WorkflowTestVersion } from '@/lib/workflows/application/run-workflow-for-test'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('WorkflowTestRuns')
 

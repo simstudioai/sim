@@ -68,7 +68,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
   useChatSurface: () => ({
     SearchConnectionComponent: ({ onConnected }: { onConnected?: () => void }) => (
@@ -520,6 +520,31 @@ describe('CredentialDisplay link tag', () => {
     expect(onOptionSelect).toHaveBeenCalledWith(
       'Credential setup submitted — {"integrations":[],"secrets":[{"name":"WORKSPACE_KEY","status":"skipped"},{"name":"PERSONAL_KEY","status":"saved"}]}'
     )
+    act(() => root.unmount())
+  })
+})
+
+describe('UsageUpgradeDisplay', () => {
+  it("shows a job run's own spend cap without an account billing action", () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    act(() => {
+      root.render(
+        <SpecialTags
+          segment={{
+            type: 'usage_upgrade',
+            data: {
+              reason: 'job_run_budget',
+              action: 'increase_limit',
+              message: 'This scheduled job run reached its $5.00 spend limit.',
+            },
+          }}
+        />
+      )
+    })
+
+    expect(container.querySelector('a')).toBeNull()
     act(() => root.unmount())
   })
 })

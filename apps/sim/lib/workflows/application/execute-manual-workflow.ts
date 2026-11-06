@@ -1,6 +1,10 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  inlinesRunFiles,
+  withholdUnadmittedInlineFiles,
+} from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
@@ -19,8 +23,7 @@ import {
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
 
-interface ManualExecutionInput
-  extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
+interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
   stopAfterBlockId?: string
@@ -133,13 +136,19 @@ function executionServiceInput(params: {
     callChain: params.input.callChain,
     useAuthenticatedUserAsActor: true,
     workflowRecord: params.context.workflow,
-    includeFileBase64: params.input.includeFileBase64,
+    includeFileBase64: inlinesRunFiles(
+      params.principal,
+      params.input.includeFileBase64,
+      params.input.mode
+    ),
     base64MaxBytes: params.input.base64MaxBytes,
     selectedOutputs: params.input.selectedOutputs,
     stopAfterBlockId: params.input.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
+    requestedTimeoutSeconds: params.input.requestedTimeoutSeconds,
     abortSignal: params.input.abortSignal,
     mode: params.input.mode,
+    detachable: params.input.detachable,
     requestHeaders: params.input.requestHeaders,
     includeThinking: params.input.includeThinking,
     includeToolCalls: params.input.includeToolCalls,
@@ -193,11 +202,12 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       throw new OrchestrationError('validation', validation.error)
     }
 
-    return executeWorkflowService({
+    const result = await executeWorkflowService({
       ...executionServiceInput({ principal, context, input, draftState: state }),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
+    return withholdUnadmittedInlineFiles(principal, context.workspaceId, result)
   },
 })
 
@@ -222,7 +232,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
       )
     }
 
-    return executeWorkflowService({
+    const result = await executeWorkflowService({
       ...executionServiceInput({ principal, context, input, draftState: state }),
       input: input.input,
       runFromBlock: {
@@ -231,5 +241,6 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
         sourceExecutionId: input.sourceRunId,
       },
     })
+    return withholdUnadmittedInlineFiles(principal, context.workspaceId, result)
   },
 })

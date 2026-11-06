@@ -36,6 +36,32 @@ export function assertGraphNextPageUrl(nextPageUrl: string): string {
   return url.toString()
 }
 
+/**
+ * Validates an `@odata.nextLink` and asserts it continues the collection the caller is querying.
+ *
+ * Every paged operation reads the one shared Next Page field, and a subBlock keeps its value
+ * after the operation changes. Without this check, paging `/users` and then switching the block
+ * to `/devices` would short-circuit back to the user page, silently returning the previous
+ * collection. Comparing the final path segment also rejects a continuation URL pasted from an
+ * unrelated response.
+ */
+export function assertGraphNextPageUrlForCollection(
+  nextPageUrl: string,
+  expectedSegments: string[]
+): string {
+  const url = new URL(assertGraphNextPageUrl(nextPageUrl))
+  const segments = url.pathname.split('/').filter(Boolean)
+  const collection = segments[segments.length - 1]
+  // Graph matches path segments case-insensitively, so a nextLink may not echo the request's casing.
+  const expected = expectedSegments.map((segment) => segment.toLowerCase())
+  if (!collection || !expected.includes(collection.toLowerCase())) {
+    throw new Error(
+      `Next Page URL continues "${collection ?? 'an unknown collection'}", but this operation reads "${expectedSegments.join('" or "')}". Clear the Next Page field when switching operations.`
+    )
+  }
+  return url.toString()
+}
+
 function stripHtmlTags(html: string): string {
   let text = html
   let previous: string

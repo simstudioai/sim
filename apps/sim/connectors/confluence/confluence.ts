@@ -12,6 +12,7 @@ import {
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import { isImageExtractionEnabled } from '@/lib/knowledge/documents/image-extraction-policy'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
@@ -845,6 +846,10 @@ export const confluenceConnector: ConnectorConfig = {
       accessToken,
       cloudId,
       domain: normalizeConfluenceDomainHost(sourceConfig.domain as string),
+      includeImages: isImageExtractionEnabled(
+        confluenceConnectorMeta.imageExtraction,
+        sourceConfig
+      ),
       cursor,
       syncContext,
       /** Attachment versions change independently of their parent pages. */

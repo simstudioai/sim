@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import type { BatchInvitationResult } from '@/lib/api/contracts/invitations'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'

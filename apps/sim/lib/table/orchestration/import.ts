@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream'
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -267,6 +268,27 @@ export interface PerformTableCsvImportResult {
   data?: TableCsvImportData
 }
 
+/** Rows coerced between event-loop yields; one slice of a wide sheet stays in single-digit ms. */
+const COERCE_SLICE_ROWS = 2_000
+
+/**
+ * {@link coerceRowsForTable} over a whole synchronous-import file, yielding between
+ * slices. One `rows.map` over a 25 MB file holds the event loop for up to a second,
+ * stalling every other request the process is serving.
+ */
+async function coerceRowsInSlices(
+  ...[rows, ...rest]: Parameters<typeof coerceRowsForTable>
+): Promise<ReturnType<typeof coerceRowsForTable>> {
+  const coerced: ReturnType<typeof coerceRowsForTable> = []
+  for (let start = 0; start < rows.length; start += COERCE_SLICE_ROWS) {
+    if (start > 0) await yieldToEventLoop()
+    for (const row of coerceRowsForTable(rows.slice(start, start + COERCE_SLICE_ROWS), ...rest)) {
+      coerced.push(row)
+    }
+  }
+  return coerced
+}
+
 /**
  * Imports a CSV into an EXISTING table, appending or replacing its rows.
  *
@@ -335,8 +357,20 @@ export async function performTableCsvImport(
     )
   }
 
+  const maxRows = await getMaxRowsPerTable(workspaceId)
+  const currentRowCount = mode === 'append' ? table.rowCount : 0
+  if (wouldExceedRowLimit(maxRows, currentRowCount, rows.length)) {
+    const deficit = currentRowCount + rows.length - maxRows
+    return fail(
+      mode === 'append'
+        ? `Append would exceed table row limit (${maxRows}). Currently ${table.rowCount} rows, ${rows.length} new rows, ${deficit} over.`
+        : `Replace would exceed table row limit (${maxRows}). The file has ${rows.length} rows, ${deficit} over.`,
+      'validation'
+    )
+  }
+
   let cellsRejected = 0
-  const coerced = coerceRowsForTable(
+  const coerced = await coerceRowsInSlices(
     rows,
     prospectiveSchema,
     validation.effectiveMap,
@@ -371,15 +405,6 @@ export async function performTableCsvImport(
 
   try {
     if (mode === 'append') {
-      const maxRows = await getMaxRowsPerTable(workspaceId)
-      if (wouldExceedRowLimit(maxRows, table.rowCount, coerced.length)) {
-        const deficit = table.rowCount + coerced.length - maxRows
-        return fail(
-          `Append would exceed table row limit (${maxRows}). Currently ${table.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
-          'validation'
-        )
-      }
-
       const { inserted, table: finalTable } = await importAppendRows(table, additions, coerced, {
         workspaceId,
         userId,

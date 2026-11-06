@@ -1,13 +1,20 @@
 /** Exercises a chat's explicit effort choice against real PostgreSQL rows. */
 import { db } from '@sim/db'
-import { copilotChats, permissions, user, workspace } from '@sim/db/schema'
+import { copilotChats, permissions, settings, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { setChatEffort } from '@/lib/mothership/chat/application/set-effort'
 import { getAccessibleCopilotChatWithMessages } from '@/lib/mothership/chat/lifecycle'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
+
+const benchmarkFlag = vi.hoisted(() => {
+  const previous = process.env.MOTHERSHIP_BENCHMARK_ENABLED
+  process.env.MOTHERSHIP_BENCHMARK_ENABLED = 'true'
+  return previous
+})
 
 const ownerId = generateId()
 const outsiderId = generateId()
@@ -42,11 +49,17 @@ beforeAll(async () => {
       name: 'Chat effort fixture',
       email: `${id}@chat-effort.test`,
       emailVerified: true,
+      role: id === ownerId ? 'admin' : 'user',
       createdAt: now,
       updatedAt: now,
     }))
   )
-  await db.insert(workspace).values({
+  await db.insert(settings).values({
+    id: ownerId,
+    userId: ownerId,
+    superUserModeEnabled: true,
+  })
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Chat effort fixture',
     ownerId,
@@ -64,8 +77,12 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  if (benchmarkFlag === undefined)
+    Reflect.deleteProperty(process.env, 'MOTHERSHIP_BENCHMARK_ENABLED')
+  else process.env.MOTHERSHIP_BENCHMARK_ENABLED = benchmarkFlag
   await db.delete(copilotChats).where(eq(copilotChats.workspaceId, workspaceId))
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await db.delete(settings).where(eq(settings.userId, ownerId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, [ownerId, outsiderId]))
   await db.$client.end()
 })

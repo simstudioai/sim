@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import {
   isPageNumber,
   normalizeFurnitureText,
@@ -33,10 +34,54 @@ function texts(pages: PdfLine[][]): string[][] {
 }
 
 describe('suppressFurniture', () => {
-  it('drops a header repeated on enough pages but keeps its first occurrence', () => {
+  it('lets timers run between pages instead of holding the event loop for the whole document', async () => {
+    const pages = Array.from({ length: 3000 }, (_, i) =>
+      page(i + 1, { header: 'Annual Report', footer: 'Confidential' })
+    )
+    let timerFired = false
+    let timerFiredBeforeLastPage = false
+    const lastPage = pages[pages.length - 1]
+    const [first, ...rest] = lastPage.lines
+    lastPage.lines = [
+      {
+        ...first,
+        get text() {
+          timerFiredBeforeLastPage ||= timerFired
+          return first.text
+        },
+      },
+      ...rest,
+    ]
+    await yieldWhenSliceExpires()
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+
+    await suppressFurniture(pages)
+
+    expect(timerFiredBeforeLastPage).toBe(true)
+  })
+
+  it('resolves a tall page packed with band baselines in linear time', async () => {
+    const lineCount = 40_000
+    const pageHeight = 100 * lineCount
+    const lines = Array.from({ length: lineCount }, (_, i) =>
+      line(`w${i.toString(36)}`, pageHeight - 3 * i, 50)
+    )
+    const startedAt = performance.now()
+
+    await suppressFurniture([
+      { lines, pageHeight },
+      { lines: [], pageHeight },
+    ])
+
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+  })
+
+  it('drops a header repeated on enough pages but keeps its first occurrence', async () => {
     const pages = [1, 2, 3, 4].map((i) => page(i, { header: 'ACME Corp — Internal Use Only' }))
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     expect(result[0]).toContain('ACME Corp — Internal Use Only')
     for (const remaining of result.slice(1)) {
@@ -45,34 +90,34 @@ describe('suppressFurniture', () => {
     }
   })
 
-  it('never applies the frequency rule to a single page', () => {
-    const result = texts(suppressFurniture([page(1, { header: 'Draft' })]))
+  it('never applies the frequency rule to a single page', async () => {
+    const result = texts(await suppressFurniture([page(1, { header: 'Draft' })]))
 
     expect(result[0]).toContain('Draft')
   })
 
-  it('treats two matching pages as furniture when the document has exactly two pages', () => {
+  it('treats two matching pages as furniture when the document has exactly two pages', async () => {
     const pages = [1, 2].map((i) =>
       page(i, { footer: `Confidential draft, do not distribute — Page ${i} of 2` })
     )
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     expect(result[0]).toContain('Confidential draft, do not distribute — Page 1 of 2')
     expect(result[1]).not.toContain('Confidential draft, do not distribute — Page 2 of 2')
   })
 
-  it('requires the fraction threshold on longer documents without a streak', () => {
+  it('requires the fraction threshold on longer documents without a streak', async () => {
     const pages = Array.from({ length: 10 }, (_, i) =>
       page(i, { footer: i % 4 === 0 ? 'Sporadic note' : undefined })
     )
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     expect(result.flat().filter((text) => text === 'Sporadic note')).toHaveLength(3)
   })
 
-  it('detects a footer by a three-page streak even when its title changes per chapter', () => {
+  it('detects a footer by a three-page streak even when its title changes per chapter', async () => {
     const pages = Array.from({ length: 12 }, (_, i) => {
       const chapter = i < 6 ? 'Chapter 1 Filing Information' : 'Chapter 2 Filing Status'
       const pageNumber = i + 6
@@ -83,7 +128,7 @@ describe('suppressFurniture', () => {
       return page(i, { footer })
     })
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
     const footers = result.flat().filter((text) => text.includes('Publication 17'))
 
     expect(footers).toEqual([
@@ -92,21 +137,21 @@ describe('suppressFurniture', () => {
     ])
   })
 
-  it('drops page numbers in the bands regardless of repetition', () => {
+  it('drops page numbers in the bands regardless of repetition', async () => {
     const pages: PdfPageLines[] = [
       { lines: [line('Page 1 of 3', 55), ...body(3, 600)], pageHeight: PAGE_HEIGHT },
       { lines: [line('2', 55), ...body(3, 600), line('ii', 729)], pageHeight: PAGE_HEIGHT },
       { lines: [line('- 3 -', 55), ...body(3, 600), line('925', 60)], pageHeight: PAGE_HEIGHT },
     ]
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     expect(result[0]).toEqual(['Body line 1', 'Body line 2', 'Body line 3'])
     expect(result[1]).toEqual(['Body line 1', 'Body line 2', 'Body line 3'])
     expect(result[2]).toEqual(['Body line 1', 'Body line 2', 'Body line 3', '925'])
   })
 
-  it('drops a folio outside the band only when a margin gap separates it from the text', () => {
+  it('drops a folio outside the band only when a margin gap separates it from the text', async () => {
     const pages = [1, 2].map((i) => ({
       lines: [...body(20, 700), line(`${i}`, 100)],
       pageHeight: PAGE_HEIGHT,
@@ -116,21 +161,21 @@ describe('suppressFurniture', () => {
       pageHeight: PAGE_HEIGHT,
     }))
 
-    for (const kept of texts(suppressFurniture(pages))) expect(kept).toHaveLength(20)
-    for (const kept of texts(suppressFurniture(tableCells))) expect(kept).toContain('1')
+    for (const kept of texts(await suppressFurniture(pages))) expect(kept).toHaveLength(20)
+    for (const kept of texts(await suppressFurniture(tableCells))) expect(kept).toContain('1')
   })
 
-  it('ignores band text longer than the furniture cap, such as a repeated table header', () => {
+  it('ignores band text longer than the furniture cap, such as a repeated table header', async () => {
     const header = `SKU Product Unit price Lead time Notes ${'Column '.repeat(14)}`.trim()
     expect(header.length).toBeGreaterThan(120)
     const pages = [1, 2, 3, 4].map((i) => page(i, { header }))
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     for (const kept of result) expect(kept).toContain(header)
   })
 
-  it('merges same-baseline fragments into one key before matching', () => {
+  it('merges same-baseline fragments into one key before matching', async () => {
     const pages = [1, 2, 3, 4].map((i) => ({
       lines: [
         ...body(3, 600),
@@ -141,13 +186,13 @@ describe('suppressFurniture', () => {
       pageHeight: PAGE_HEIGHT,
     }))
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     expect(result[0].slice(3)).toEqual(['1', 'Chapter 1', 'Publication 17 (2025)'])
     expect(result[3]).toHaveLength(3)
   })
 
-  it('keeps a table header that repeats at the top of every page while dropping the running header above it', () => {
+  it('keeps a table header that repeats at the top of every page while dropping the running header above it', async () => {
     const pages = Array.from({ length: 5 }, () => {
       const rows = Array.from({ length: 50 }, (_, i) =>
         line(`${1000 + i} ${2000 + i} ${3000 + i}`, 740 - (i + 1) * 8, 7.5)
@@ -163,7 +208,7 @@ describe('suppressFurniture', () => {
       }
     })
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     for (const kept of result) {
       expect(kept).toContain('Single Married filing jointly Head of household')
@@ -174,7 +219,7 @@ describe('suppressFurniture', () => {
     ).toHaveLength(1)
   })
 
-  it('keeps a footnote that sits directly under the body while dropping the footer below it', () => {
+  it('keeps a footnote that sits directly under the body while dropping the footer below it', async () => {
     const pages = Array.from({ length: 4 }, () => ({
       lines: [
         ...body(52, 700),
@@ -188,7 +233,7 @@ describe('suppressFurniture', () => {
       pageHeight: PAGE_HEIGHT,
     }))
 
-    const result = texts(suppressFurniture(pages))
+    const result = texts(await suppressFurniture(pages))
 
     for (const kept of result) {
       expect(kept).toContain('* This column must also be used by a qualifying surviving spouse.')
@@ -196,7 +241,7 @@ describe('suppressFurniture', () => {
     expect(result.flat().filter((text) => text === 'Visit IRS.gov.')).toHaveLength(1)
   })
 
-  it('keeps a band line whose text also occurs in body positions', () => {
+  it('keeps a band line whose text also occurs in body positions', async () => {
     const pages = [1, 2, 3, 4].map((i) => ({
       lines: [
         line('Quarter Revenue Margin', 760),
@@ -206,29 +251,29 @@ describe('suppressFurniture', () => {
       pageHeight: PAGE_HEIGHT,
     }))
 
-    for (const kept of texts(suppressFurniture(pages))) {
+    for (const kept of texts(await suppressFurniture(pages))) {
       expect(kept).toContain('Quarter Revenue Margin')
     }
   })
 
-  it('never drops a band line that would leave a hyphenated word orphaned', () => {
+  it('never drops a band line that would leave a hyphenated word orphaned', async () => {
     const pages = [1, 2, 3, 4].map(() => ({
       lines: [line('Married filing sepa-', 760), ...body(40, 660)],
       pageHeight: PAGE_HEIGHT,
     }))
 
-    for (const kept of texts(suppressFurniture(pages))) {
+    for (const kept of texts(await suppressFurniture(pages))) {
       expect(kept).toContain('Married filing sepa-')
     }
   })
 
-  it('leaves body text alone even when it repeats', () => {
+  it('leaves body text alone even when it repeats', async () => {
     const pages = [1, 2, 3, 4].map(() => ({
       lines: [line('Repeated body sentence.', 400)],
       pageHeight: PAGE_HEIGHT,
     }))
 
-    for (const kept of texts(suppressFurniture(pages))) {
+    for (const kept of texts(await suppressFurniture(pages))) {
       expect(kept).toEqual(['Repeated body sentence.'])
     }
   })

@@ -1,26 +1,9 @@
 import { parseAsStringLiteral } from 'nuqs/server'
+import {
+  RECENTLY_DELETED_FILTERS,
+  RECENTLY_DELETED_SORT_COLUMNS,
+} from '@/lib/api/contracts/recently-deleted'
 import { createSortParams } from '@/lib/url-state'
-
-/**
- * Selectable resource-type tabs in the Recently Deleted view, after the default
- * `all`: the sidebar's top-down order, so the tabs read the way the user already
- * reads these resources. `TABS` in `recently-deleted.tsx` labels this same list —
- * keep the two in step.
- */
-export const RECENTLY_DELETED_TABS = [
-  'all',
-  'chat',
-  'table',
-  'file',
-  'knowledge',
-  'workflow',
-  'folder',
-] as const
-
-export type RecentlyDeletedTab = (typeof RECENTLY_DELETED_TABS)[number]
-
-/** Sortable columns for the deleted-items list. */
-export const RECENTLY_DELETED_SORT_COLUMNS = ['deleted', 'name', 'type'] as const
 
 /**
  * Shared `sort` + `dir` params for the deleted-items list. Default sort:
@@ -44,7 +27,7 @@ export const recentlyDeletedSortParams = createSortParams(RECENTLY_DELETED_SORT_
  *   deliberately not redeclared here (two definitions of one wire key drift).
  */
 export const recentlyDeletedParsers = {
-  tab: parseAsStringLiteral(RECENTLY_DELETED_TABS).withDefault('all'),
+  tab: parseAsStringLiteral(RECENTLY_DELETED_FILTERS).withDefault('all'),
 } as const
 
 /** Tab/filter/sort view-state: clean URLs, no back-stack churn. */

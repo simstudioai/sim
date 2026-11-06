@@ -21,11 +21,13 @@ export const executeChatFunction = defineAuthorizedChatUseCase({
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'function-executions.execute_chat',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['organization_delegated'],

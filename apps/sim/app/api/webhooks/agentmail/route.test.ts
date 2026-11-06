@@ -15,16 +15,8 @@ const { mockVerify, mockExecuteInboxTask } = vi.hoisted(() => ({
   mockExecuteInboxTask: vi.fn(),
 }))
 
-vi.mock('svix', () => ({
-  Webhook: class {
-    private readonly secret: string
-    constructor(secret: string) {
-      this.secret = secret
-    }
-    verify(payload: string, headers: Record<string, string>) {
-      return mockVerify(this.secret, payload, headers)
-    }
-  },
+vi.mock('@sim/security/standard-webhooks', () => ({
+  verifyStandardWebhook: mockVerify,
 }))
 
 vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
@@ -92,9 +84,7 @@ describe('POST /api/webhooks/agentmail', () => {
 
     mockTryAdmit.mockReturnValue({ release: mockRelease })
     mockExecuteInboxTask.mockResolvedValue(undefined)
-    mockVerify.mockImplementation(() => {
-      throw new Error('signature mismatch')
-    })
+    mockVerify.mockReturnValue({ valid: false, reason: 'no_matching_signature' })
   })
 
   it('checks the signature against only the secret the payload routes to', async () => {
@@ -106,12 +96,14 @@ describe('POST /api/webhooks/agentmail', () => {
     expect(mockEq).toHaveBeenCalledWith(schemaMock.workspace.inboxProviderId, TARGET_INBOX_ID)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
     expect(mockVerify).toHaveBeenCalledTimes(1)
-    expect(mockVerify).toHaveBeenCalledWith('whsec_b', expect.any(String), expect.any(Object))
+    expect(mockVerify).toHaveBeenCalledWith(
+      expect.objectContaining({ secret: 'whsec_b', headerPrefix: 'svix' })
+    )
   })
 
   it('rejects a payload naming an inbox no workspace owns, without hashing it', async () => {
     queueTableRows(schemaMock.workspace, [])
-    mockVerify.mockReturnValue(undefined)
+    mockVerify.mockReturnValue({ valid: true })
 
     const response = await POST(
       webhookRequest(envelope({ inbox_id: 'agent-unknown@agentmail.to' }))

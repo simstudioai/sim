@@ -3,6 +3,7 @@ import type { SnowflakeLoadDataParams, SnowflakeStatementResponse } from '@/tool
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -23,6 +24,7 @@ function optionalCopyFlag(value: unknown): boolean | undefined {
 export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_load_data',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Load Data',
   description: 'Load files from an existing Snowflake stage with COPY INTO.',
   params: {

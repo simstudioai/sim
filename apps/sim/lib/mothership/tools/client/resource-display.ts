@@ -7,7 +7,7 @@ import {
   cliFlagValue,
   cliFlagValues,
   getToolDisplayTitle,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { getBlock } from '@/blocks/registry'
 import { skillsKeys } from '@/hooks/queries/skills'
@@ -17,9 +17,13 @@ import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import {
+  findCachedWorkspaceFile,
+  isWorkspaceFileRecordKey,
+} from '@/hooks/queries/utils/workspace-file-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 export interface ToolResourceContext {
   workspaceId?: string
@@ -40,11 +44,6 @@ function inventoryKeys(type: NamedResource, workspaceId: string): readonly Query
         knowledgeKeys.list(workspaceId),
         knowledgeKeys.countedList(workspaceId),
         knowledgeKeys.list(workspaceId, 'archived'),
-      ]
-    case 'file':
-      return [
-        workspaceFilesKeys.list(workspaceId),
-        workspaceFilesKeys.list(workspaceId, 'archived'),
       ]
     case 'filefolder':
       return [workspaceFileFolderKeys.list(workspaceId)]
@@ -100,6 +99,12 @@ export function resolveResourceDisplayName(
   const fallback = title && title !== resourceId ? title : undefined
   const workspaceId = context.workspaceId ?? resource?.workspaceId
   if (!workspaceId && type !== 'workspace') return fallback
+  if (type === 'file' && workspaceId) {
+    return (
+      findCachedWorkspaceFile(getQueryClient(), workspaceId, (file) => file.id === resourceId)?.file
+        .name ?? fallback
+    )
+  }
   for (const key of inventoryKeys(type, workspaceId ?? '')) {
     for (const row of inventoryRows(getQueryClient().getQueryData(key))) {
       if (!isRecordLike(row) || row.id !== resourceId) continue
@@ -113,12 +118,14 @@ export function resolveResourceDisplayName(
 /** Only successful inventory writes should refresh labels, never chat or tool-stream writes. */
 export function isResourceNameQuery(key: QueryKey, workspaceId?: string): boolean {
   if (key[0] === workspaceKeys.all[0]) return key[1] === 'list' || key[1] === 'adminList'
+  if (key[0] === workspaceFilesKeys.all[0]) {
+    return isWorkspaceFileRecordKey(key, workspaceId)
+  }
   return (
     [
       workflowKeys.all[0],
       tableKeys.all[0],
       knowledgeKeys.all[0],
-      workspaceFilesKeys.all[0],
       workspaceFileFolderKeys.all[0],
       folderKeys.all[0],
       skillsKeys.all[0],

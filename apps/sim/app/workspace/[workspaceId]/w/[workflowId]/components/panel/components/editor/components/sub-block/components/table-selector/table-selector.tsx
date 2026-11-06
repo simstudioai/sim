@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
-import { useParams } from 'next/navigation'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -36,8 +36,7 @@ export function TableSelector({
   previewValue,
 }: TableSelectorProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
 

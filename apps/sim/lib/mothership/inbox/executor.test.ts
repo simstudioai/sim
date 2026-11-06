@@ -60,7 +60,7 @@ afterAll(resetEnvFlagsMock)
 
 vi.mock('@/lib/auth/ban', () => authBanMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
@@ -100,7 +100,7 @@ vi.mock('@/lib/mothership/inbox/response', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

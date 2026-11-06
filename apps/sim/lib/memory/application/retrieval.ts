@@ -7,7 +7,7 @@ import {
   type RetrieveMemoryInput,
   retrieveMemory,
 } from '@/lib/memory/retrieval'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const retrieveAgentMemoryUseCase = defineAuthorizedWorkspaceUseCase({
   operation: memoryOperations.retrieve,

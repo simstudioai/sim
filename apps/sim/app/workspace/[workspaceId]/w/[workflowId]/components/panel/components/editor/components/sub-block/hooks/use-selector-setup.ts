@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useParams } from 'next/navigation'
 import {
   buildSelectorContextFromValues,
   getSelectorContextSubBlocks,
 } from '@/lib/selectors/context'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorClientContext } from '@/hooks/queries/selectors'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -32,10 +32,10 @@ export function useSelectorSetup(
   subBlock: SubBlockConfig,
   opts?: { disabled?: boolean; isPreview?: boolean; previewContextValues?: Record<string, any> }
 ) {
-  const params = useParams()
+  const scope = useWorkflowScope()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const workflowId = (params?.workflowId as string) || activeWorkflowId || ''
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workflowId = scope.workflowId ?? activeWorkflowId ?? ''
+  const workspaceId = scope.workspaceId
 
   const {
     finalDisabled,

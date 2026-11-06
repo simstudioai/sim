@@ -168,8 +168,8 @@ function guardParagraphLeading(text: string): string {
  * paragraph renders as just its inline children; this override wraps that with the leading guard.
  */
 const BlockSafeParagraph = Paragraph.extend({
-  parseMarkdown: (token, helpers) => {
-    const parsed = Paragraph.config.parseMarkdown?.(token, helpers) ?? []
+  parseMarkdown(token, helpers) {
+    const parsed = this.parent?.(token, helpers) ?? []
     return Array.isArray(parsed) ? parsed : splitBlockImageParagraph(parsed)
   },
   renderMarkdown: (node: JSONContent, h, context) => {
@@ -271,8 +271,8 @@ export function createMarkdownContentExtensions(
     nodeViews.mention ?? MarkdownMention,
     TaskList,
     TaskItem.extend({
-      parseMarkdown: (token, helpers) => {
-        const parsed = TaskItem.config.parseMarkdown?.(token, helpers) ?? []
+      parseMarkdown(token, helpers) {
+        const parsed = this.parent?.(token, helpers) ?? []
         if (Array.isArray(parsed)) return parsed
         const content = (parsed.content ?? []).flatMap(splitBlockImageParagraph)
         if (content[0]?.type !== 'paragraph') content.unshift({ type: 'paragraph' })

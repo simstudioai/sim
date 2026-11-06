@@ -1,120 +1,144 @@
 ---
 title: Chunking strategies
-description: The chunking settings and strategies, for the rare case you need to override Auto.
+description: Choose passage sizes and boundaries for knowledge base documents.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
+**Auto** is the default chunking strategy. Start with its default settings, inspect the chunks returned by real questions, then change settings when passages combine unrelated topics or lose needed context.
 
-<Callout type="warn">
-**Advanced.** Leave the strategy on **Auto** and the settings on their defaults unless you have a specific reason to change them and know how chunk boundaries affect retrieval. Auto inspects each file and routes it to the right chunker on its own. The rest of this page is for the case where you've confirmed Auto isn't producing the chunks you want.
-</Callout>
+Choose a different strategy when you need specific boundaries:
 
-If you do override Auto, the short version:
-
-- Sentence integrity matters (Q&A, legal text) → **[Sentence](#sentence)**
-- Content has structural markers Text misses (code, custom formats) → **[Recursive](#recursive)**
-- You need uniform chunk sizes → **[Token](#token)**
-- Content has explicit delimiters → **[Regex](#regex)**
-- Each record must be its own chunk → **[convert to JSONL](#one-record-per-chunk)**
+| Need | Strategy |
+| --- | --- |
+| General prose | [Text](#text) |
+| Custom structure or code markers | [Recursive](#recursive) |
+| Whole sentences where possible | [Sentence](#sentence) |
+| A fixed sliding window | [Token](#token) |
+| Explicit delimiters | [Regex](#regex) |
+| Structured records | [Auto with JSONL](#one-record-per-chunk), with batching and oversized-record limits |
 
 ## Settings
 
-| Setting | Unit | Default | Range | Description |
-|---------|------|---------|-------|-------------|
-| Max Chunk Size | tokens | 1,024 | 100–4,000 | Upper bound on chunk size. 1 token ≈ 4 characters. |
-| Min Chunk Size | characters | 100 | 100–2,000 | Tiny fragments below this are dropped. |
-| Overlap | tokens | 200 | 0–500 | Tokens repeated between adjacent chunks to preserve context. |
+Set these values when creating a base:
 
-[Pinecone's chunking guide](https://www.pinecone.io/learn/chunking-strategies/) covers the size and overlap tradeoffs.
+| Setting | Unit | Default | Range | Behavior |
+| --- | --- | --- | --- | --- |
+| **Max Chunk Size** | Estimated tokens | 1,024 | 100–4,000 | Size target before overlap; splitters can append overlapping text afterward. |
+| **Min Chunk Size** | Characters | 100 | 1–2,000 | Minimum fragment size in strategies that apply it; it is not enforced by every splitter. |
+| **Overlap** | Estimated tokens | 200 | 0–500 | Context repeated between adjacent chunks in strategies that support overlap. |
 
-Every strategy splits the document at boundaries, then packs adjacent splits together up to the max chunk size, so a chunk usually spans several splits and a split boundary is not a chunk boundary. This is why a precise [Regex](#regex) can still produce chunks containing multiple matches.
+Overlap must be smaller than Max Chunk Size. Min Chunk Size must be smaller than Max Chunk Size converted to characters (`maxSize × 4`).
 
-## Strategies
+The prose splitters estimate one token as roughly four characters. Tabular chunking uses a denser estimate of roughly three characters per token. These estimates guide splitting; they are not exact model-tokenizer counts.
 
-### Auto
+Text, Recursive, Sentence, and Regex retain small fragments rather than applying the minimum-size filter. Token can filter small windows, with a fallback that retains them when filtering would remove every window. JSON/YAML applies the minimum in some paths; tabular chunking groups rows independently of this setting.
 
-Sim inspects the file and routes to the right chunker:
+Overlap increases stored text and can produce similar hits from neighboring chunks. Text, Recursive, and non-strict Regex append overlap after forming chunks, so the final chunk can exceed the base size target. Token uses overlapping windows, and Sentence tries to repeat whole sentences.
 
-- `.json`, `.jsonl`, `.yaml`, `.yml` → structural chunking (records are never split mid-way; small records may still be batched together up to the chunk size)
-- `.csv`, `.xlsx`, `.xls`, `.tsv` → grouped by row, with headers preserved
-- Everything else (`.pdf`, `.docx`, `.txt`, `.md`, `.html`, `.pptx`, …) → Text strategy
+## Auto
 
-Routing is based on detected MIME type and content shape, not just the extension — a `.txt` file containing valid JSON is still routed structurally.
+Auto chooses from the parsed document type, MIME type, and tabular content shape:
 
-Pick Auto unless you've confirmed it isn't producing the chunks you want.
+- JSON, JSONL, and YAML use structural chunking when they parse as objects or arrays.
+- CSV and Excel content is grouped by row with headers preserved. Delimited text can also be detected as tabular content.
+- Other content, including ordinary PDF, Word, text, Markdown, HTML, and PowerPoint documents, uses Text.
 
-### Text
+Use `.json`, `.jsonl`, `.yaml`, or `.yml` when you need structural parsing. A plain `.txt` upload is not automatically treated as JSON just because it contains valid JSON. `.tsv` is not an offered knowledge-base upload extension; use an accepted format such as `.csv`.
 
-Hierarchical splitter that walks down a separator list: horizontal rules → markdown headings → paragraphs (`\n\n`) → lines (`\n`) → sentence punctuation (`. ! ?`) → clause punctuation (`; ,`) → spaces. It tries the largest separator first and falls back when a piece is still too large.
+Structural chunking keeps records together when they fit, batches small records, and splits oversized records or rows. Auto is not a guarantee of one record per chunk.
 
+## Text
 
+Text splits general prose using a separator hierarchy:
 
-Use it for general prose.
+Horizontal rules → Markdown headings → paragraphs (`\n\n`) → lines (`\n`) → sentence punctuation (`. `, `! `, `? `) → clause punctuation (`; `, `, `) → spaces.
 
-### Recursive
+It tries larger structural boundaries first and falls back when a piece is too large. Adjacent pieces can be packed together up to the size target before overlap is added.
 
-Same algorithm as Text, but you supply your own separator hierarchy or pick a built-in recipe (`plain`, `markdown`, `code`).
+## Recursive
 
+Recursive uses the same approach with a separator hierarchy you provide. For example, split code on `\nclass `, then `\nfunction `, then `\n\n`.
 
+Enter custom separators in the creation form. The v2 API also accepts the built-in `plain`, `markdown`, and `code` recipes through `strategyOptions.recipe` with `strategy: "recursive"`. Use Recursive when your content has markers the Text hierarchy misses.
 
-Use Recursive when your content has structural markers the default Text separators miss — splitting code on `\nclass `, `\nfunction `, then `\n\n`, for example.
+## Sentence
 
-### Sentence
+Sentence splits at sentence boundaries, with abbreviation handling, then packs whole sentences up to the size target. A sentence that exceeds the target is split at word boundaries.
 
-Splits on sentence boundaries (`. `, `! `, `? `, with abbreviation handling) and packs whole sentences up to the chunk size. A sentence is never split mid-way unless it individually exceeds the limit.
+Use it when an incomplete sentence would change the meaning, such as Q&A or legal text. Overlap prefers whole sentences; when none fits, it falls back to a text tail.
 
+## Token
 
+Token uses a fixed sliding window aligned to word boundaries. It does not recognize paragraphs or sentences, and its token sizes are estimates rather than exact tokenizer counts.
 
-Use it when sentence integrity matters — Q&A, legal text, or anything where mid-sentence cuts hurt comprehension.
+Use it when a regular window is more useful than structural boundaries.
 
-### Token
+## Regex
 
-Fixed-size sliding window aligned to word boundaries. No awareness of paragraphs or sentences.
+Regex splits text at a pattern you supply, then normally packs adjacent segments up to the size target. A pattern such as `(?=\n\s*\{\s*"id"\s*:)` can find record boundaries, but small segments can still share a chunk.
 
-LlamaIndex provides the same as `TokenTextSplitter`. Useful when downstream processing requires uniform chunk sizes; otherwise prefer Text or Sentence.
+A consuming delimiter is removed from the split text. Positive lookaround preserves it: `(?=X)` splits before `X`, and `(?<=X)` splits after it.
 
-### Regex
+Patterns can be up to **500 characters**. Negative lookaround, backreferences, and repeat counts above **1,000** are unsupported. Positive lookaround is supported.
 
-Splits on every match of a regex pattern you supply, then packs splits up to the chunk size by default — the same merge behavior as every other chunker. A precise boundary regex like `(?=\n\s*\{\s*"id"\s*:)` will still produce chunks containing multiple matches if those matches are small enough to fit together. This is standard across LangChain, LlamaIndex, Chonkie, and [Unstructured](https://docs.unstructured.io/api-reference/partition/chunking-documents).
+### Strict boundaries
 
-Use Regex when your content has explicit delimiters that don't fit any other strategy.
+Enable **Each match is its own chunk (don't merge)** under **Chunk Boundaries** to keep each nonempty segment separate:
 
-#### Strict boundaries
+- Adjacent segments are not merged.
+- Overlap is disabled.
+- Oversized segments produced by a successful split are divided at word boundaries.
 
-The regex strategy has an opt-in **"Each match is its own chunk (don't merge)"** checkbox. When enabled:
+The checkbox refers to the segments separated by matches, not to returning only the matched delimiter text.
 
-- Every regex match becomes its own chunk
-- Adjacent splits are not packed together
-- Overlap is disabled
-- Splits that exceed the chunk size are still sub-split at word boundaries
+For example, given:
 
+```text
+Question: How long do refunds take?
+Answer: Refunds are issued within 14 days.
 
+Question: Where can I find invoices?
+Answer: Open Billing in workspace settings.
+```
 
-Turn it on when each match is a discrete record (one QA pair, one log entry) and you need each isolated for retrieval.
+Use this pattern to split before the next question while retaining its label:
+
+```text
+(?=\nQuestion:)
+```
+
+With strict boundaries enabled, each question-and-answer segment is separate, provided it fits the size target. Check the generated chunks to confirm the pattern matches your actual source.
+
+### If the pattern does not split
+
+The prose splitters normalize text before splitting:
+
+- `\r\n` and lone `\r` become `\n`.
+- Three or more newlines become `\n\n`.
+- Tabs become spaces, and repeated spaces collapse to one.
+
+Adjust patterns that depend on the original whitespace. In non-strict mode, content that already fits the size target returns as one chunk without applying the pattern. If an oversized document produces no splits, non-strict mode falls back to word boundaries; strict mode returns it as a single chunk. Fix the pattern before relying on strict record boundaries.
 
 ## One record per chunk
 
-Each record (each QA pair, each log line, each row) as its own chunk is structural chunking, not regex chunking. Two paths:
+For structured input, JSONL makes record boundaries explicit:
 
-1. **Convert to JSONL** (one record per line) and upload. Sim's Auto strategy treats it as structured data and never splits a record mid-way. Small records may still be batched together up to the chunk size. Lowering the size reduces batching; use strict Regex boundaries when each match must become its own chunk. See [LlamaIndex's `JSONNodeParser`](https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/) and [Unstructured's element-based chunking](https://docs.unstructured.io/api-reference/partition/chunking-documents).
+```json title="records.jsonl"
+{"id":"refunds","question":"How long do refunds take?","answer":"Within 14 days."}
+{"id":"invoices","question":"Where can I find invoices?","answer":"In Billing settings."}
+```
 
-2. **Use Regex with strict boundaries enabled** when you can't restructure the source.
+Auto can batch these small records into one chunk. Lowering Max Chunk Size reduces batching, but records that exceed the target can still be split. Use strict Regex boundaries when each delimited segment must stay separate, subject to its oversized-segment behavior.
 
-Prefer option 1. Structural parsers handle nested records, escaped delimiters, and malformed entries that regex won't.
+Structural parsing is useful for nested records and escaped values. It does not guarantee recovery of malformed entries; inspect parsing errors and the resulting chunks.
 
-## Further reading
+## Change settings on an existing base
 
-- [LangChain — Text Splitters](https://python.langchain.com/docs/concepts/text_splitters/)
-- [LlamaIndex — Node Parsers](https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/)
-- [Chonkie](https://github.com/chonkie-inc/chonkie)
-- [Unstructured — Chunking](https://docs.unstructured.io/api-reference/partition/chunking-documents)
-- [Pinecone — Chunking Strategies](https://www.pinecone.io/learn/chunking-strategies/)
+The UI selects the strategy at creation and displays existing chunking settings as read-only. To use a different strategy through the UI, create a base with that strategy and upload the documents again.
 
-## FAQ
+The [Update knowledge base API](/api-reference/knowledge-bases/updateKnowledgeBase) can change the sizes, overlap, strategy, and strategy options. It replaces the configuration object rather than merging it: read the current configuration, change the intended fields, and send back every setting you want to retain. Omitted size fields take their defaults, and an omitted strategy uses Auto. Changed settings apply to later document processing; existing chunks are not automatically rebuilt.
 
-<FAQ items={[
-  { question: "What does overlap actually do?", answer: "Overlap repeats tokens from the end of one chunk at the start of the next, so a query spanning a chunk boundary can still match. Higher values increase storage and may surface duplicate hits in search." },
-  { question: "Can I change the chunking strategy on an existing knowledge base?", answer: "No. Chunking config is set at creation. To change it, create a new knowledge base and re-upload your documents." },
-  { question: "Why isn't my regex producing any splits?", answer: "Sim normalizes content before splitting: \\r\\n becomes \\n, runs of three or more newlines collapse to \\n\\n, and tabs become spaces. Patterns that depend on those characters won't match. Also: in non-strict mode, content that fits within the chunk size returns as a single chunk regardless of matches — enable strict boundaries to force splits." },
-]} />
+## Related docs
+
+- [Debugging retrieval](/knowledgebase/debugging-retrieval) — decide whether the problem comes from chunk boundaries.
+- [Using a knowledge base in a workflow](/knowledgebase/using-in-workflows) — inspect retrieved content and order.
+- [Knowledge Base](/knowledgebase) — supported uploads and processing.

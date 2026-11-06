@@ -140,7 +140,7 @@ describe('Chat Identifier API Route', () => {
       },
       outputConfigs: [{ blockId: 'block-1', path: 'output' }],
       includeThinking: false,
-      includeToolCalls: null,
+      includeToolCalls: false,
     },
   ]
 
@@ -362,13 +362,10 @@ describe('Chat Identifier API Route', () => {
       })
     }, 10000)
 
-    /**
-     * A row predating the column has no tool policy, so it has not opted in.
-     * Thinking must not drag tool frames along with it.
-     */
-    it('reads a null tool policy as off rather than inheriting thinking', async () => {
+    /** Thinking and tool calls are independent policies: thinking must not drag tool frames along. */
+    it('keeps tool calls off when only thinking is enabled', async () => {
       const thinkingChatResult = [
-        { ...mockChatResult[0], includeThinking: true, includeToolCalls: null },
+        { ...mockChatResult[0], includeThinking: true, includeToolCalls: false },
       ]
       dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
         if (fields && fields.isDeployed !== undefined) {

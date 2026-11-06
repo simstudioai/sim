@@ -19,7 +19,7 @@ import {
   OPERATION_SUBBLOCK_ID,
   type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
@@ -27,7 +27,7 @@ import {
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { overlayVisibility } from '@/blocks/visibility/context'

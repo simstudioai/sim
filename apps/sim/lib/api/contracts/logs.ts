@@ -101,6 +101,7 @@ const workflowSummarySchema = z
     workspaceId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
+    archivedAt: z.string().nullable(),
   })
   .partial()
 
@@ -217,6 +218,7 @@ export type LogTraceSpan = {
   tokens?: number | { total?: number; input?: number; output?: number }
   cost?: { total?: number; input?: number; output?: number; toolCost?: number }
   relativeStartMs?: number
+  contentWithheld?: true
   toolCalls?: Array<z.output<typeof toolCallSchema>>
   children?: LogTraceSpan[]
 }
@@ -271,6 +273,12 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         relativeStartMs: z
           .number()
           .describe('Offset from the root span in milliseconds.')
+          .optional(),
+        contentWithheld: z
+          .literal(true)
+          .describe(
+            "Present when the log projection withheld some or all of this span's content (input, output, thinking, error message, tool-call or provider-segment content) because it could not be proven safe to display. Status, timing, and usage remain. A withheld content field is omitted whole, never a key inside it: a content field absent from a span carrying this marker may exist on the run but was not returned, while a key missing inside a content field that is present is genuinely absent."
+          )
           .optional(),
         toolCalls: z.array(toolCallSchema).describe('Tool calls recorded by the span.').optional(),
         children: z.array(traceSpanSchema).describe('Nested child trace spans.').optional(),

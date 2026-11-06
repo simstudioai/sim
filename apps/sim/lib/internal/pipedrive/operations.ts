@@ -6,7 +6,7 @@ import {
   type InternalToolFile,
 } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('PipedriveOperations')
 

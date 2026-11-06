@@ -1,14 +1,13 @@
 ---
 title: Semrush
 description: Research SEO and paid search data with Semrush
+integration:
+  type: "semrush"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="semrush"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Semrush](https://www.semrush.com/) to query SEO reports for domains, subdomains, URLs, keywords, and backlinks. Choose a regional database and, where supported, a historical month in `YYYYMM15` format. Domain vs. Domain compares up to five domains.
@@ -22,18 +21,17 @@ Requests authenticate with a `key` query parameter and are billed in **API units
 The Semrush **Trends**, **Projects** (Site Audit, Position Tracking), and **Listing Management** APIs are separate products with their own endpoints and subscriptions, and are not part of this block. Three SEO API reports are also excluded: **Comparison by Referring Domains** (`backlinks_matrix`) and **Batch Comparison** (`backlinks_comparison`), whose multi-target array parameters do not fit the shared request builder, and **Subdomain Organic Pages** (`subdomain_organic_unique`), whose documented response format is inconsistent with every other report.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Query the Semrush SEO API for domain, subdomain, and URL traffic overviews, organic and paid keywords, ad and product listing creatives, competitor sets, keyword research, and backlink profiles. Requires a Semrush subscription with API units.
-
-
 
 ## Actions
 
 ### Semrush Domain Overview
 
 Get the Semrush rank plus organic and paid search totals for a domain in one regional database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +56,13 @@ Get the Semrush rank plus organic and paid search totals for a domain in one reg
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush Domain Overview (All Databases)
 
 Get organic and paid search totals for a domain across every regional Semrush database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +93,13 @@ Get organic and paid search totals for a domain across every regional Semrush da
 |   ↳ `plaKeywords` | number | Keywords used for product listing ads |
 |   ↳ `plaUniques` | number | Number of unique product listing ads |
 
+</ReferenceDetails>
+
 ### Semrush Domain Overview History
 
 Get the historical trend of a domain rank plus its organic and paid search totals.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +127,13 @@ Get the historical trend of a domain rank plus its organic and paid search total
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush Domain Organic Keywords
 
 List the keywords a domain ranks for in Google organic search, with position, volume, and traffic share.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -160,9 +170,13 @@ List the keywords a domain ranks for in Google organic search, with position, vo
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Domain Paid Keywords
 
 List the keywords a domain buys in Google Ads, with ad position, copy, and traffic share.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +212,13 @@ List the keywords a domain buys in Google Ads, with ad position, copy, and traff
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 
+</ReferenceDetails>
+
 ### Semrush Domain Ad Copies
 
 List the unique Google Ads creatives a domain runs, with title, description, and keyword count.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -225,9 +243,13 @@ List the unique Google Ads creatives a domain runs, with title, description, and
 |   ↳ `url` | string | URL of the ranking or advertised page |
 |   ↳ `numberOfKeywords` | number | Number of keywords the ad runs on |
 
+</ReferenceDetails>
+
 ### Semrush Domain Ad History
 
-List a domain past Google Ads placements month by month, with the copy used each time.
+List a domain’s past Google Ads placements month by month, with the copy used each time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -257,9 +279,13 @@ List a domain past Google Ads placements month by month, with the copy used each
 |   ↳ `description` | string | Ad text |
 |   ↳ `visibleUrl` | string | Display URL shown in the ad |
 
+</ReferenceDetails>
+
 ### Semrush Organic Competitors
 
 List the domains competing with a target domain in Google organic search results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +312,13 @@ List the domains competing with a target domain in Google organic search results
 |   ↳ `organicCost` | number | Estimated Google Ads price of this competing domain organic keywords |
 |   ↳ `paidKeywords` | number | Keywords this competing domain is buying in Google Ads |
 
+</ReferenceDetails>
+
 ### Semrush Paid Competitors
 
 List the domains competing with a target domain in Google paid search results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +345,13 @@ List the domains competing with a target domain in Google paid search results.
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this competing domain |
 |   ↳ `organicKeywords` | number | Keywords this competing domain ranks for in the Google top 100 organic results |
 
+</ReferenceDetails>
+
 ### Semrush Domain PLA Keywords
 
-List the keywords that trigger a domain product listing ads, with the promoted product and price.
+List the keywords that trigger a domain’s product listing ads, with the promoted product and price.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +381,13 @@ List the keywords that trigger a domain product listing ads, with the promoted p
 |   ↳ `productPrice` | number | Price of the promoted product |
 |   ↳ `timestamp` | number | Unix timestamp of the data point |
 
+</ReferenceDetails>
+
 ### Semrush Domain PLA Copies
 
 List the unique product listing ads a domain runs, with product title, price, and shop name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,9 +409,13 @@ List the unique product listing ads a domain runs, with product title, price, an
 |   ↳ `shopName` | string | Name of the shop running the product listing ad |
 |   ↳ `url` | string | URL of the ranking or advertised page |
 
+</ReferenceDetails>
+
 ### Semrush Domain vs. Domain
 
-Compare up to five domains on the keywords they rank for, returning each domain position side by side.
+Compare up to five domains on the keywords they rank for, returning each domain’s position side by side.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -393,16 +435,20 @@ Compare up to five domains on the keywords they rank for, returning each domain 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `domains` | array | The compared domains, in the order their positions appear |
-| `keywords` | array | Keywords with each compared domain position |
+| `keywords` | array | Keywords with each compared domain’s position |
 |   ↳ `keyword` | string | Keyword phrase |
 |   ↳ `positions` | json | Position of each compared domain, keyed by domain, where 0 means not ranked |
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `searchVolume` | number | Average monthly searches for the keyword |
 |   ↳ `cpc` | number | Average cost per click in USD \(Google Ads\) |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Overview
 
 Get the organic and paid search totals for a subdomain in one regional database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -427,9 +473,13 @@ Get the organic and paid search totals for a subdomain in one regional database.
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Overview (All Databases)
 
 Get organic and paid search totals for a subdomain across every regional Semrush database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -460,9 +510,13 @@ Get organic and paid search totals for a subdomain across every regional Semrush
 |   ↳ `plaKeywords` | number | Keywords used for product listing ads |
 |   ↳ `plaUniques` | number | Number of unique product listing ads |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Overview History
 
-Get the historical trend of a subdomain organic and paid search totals.
+Get the historical trend of a subdomain’s organic and paid search totals.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -490,9 +544,13 @@ Get the historical trend of a subdomain organic and paid search totals.
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Organic Keywords
 
 List the keywords a subdomain ranks for in Google organic search.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -529,9 +587,13 @@ List the keywords a subdomain ranks for in Google organic search.
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Paid Keywords
 
 List the keywords a subdomain buys in Google Ads.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -567,9 +629,13 @@ List the keywords a subdomain buys in Google Ads.
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 
+</ReferenceDetails>
+
 ### Semrush Subdomain Ad Copies
 
 List the unique Google Ads creatives a subdomain runs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -594,9 +660,13 @@ List the unique Google Ads creatives a subdomain runs.
 |   ↳ `url` | string | URL of the ranking or advertised page |
 |   ↳ `numberOfKeywords` | number | Number of keywords the ad runs on |
 
+</ReferenceDetails>
+
 ### Semrush URL Overview
 
 Get the organic and paid search totals for a single URL in one regional database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -621,9 +691,13 @@ Get the organic and paid search totals for a single URL in one regional database
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush URL Overview (All Databases)
 
 Get organic and paid search totals for a single URL across every regional Semrush database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -654,9 +728,13 @@ Get organic and paid search totals for a single URL across every regional Semrus
 |   ↳ `plaKeywords` | number | Keywords used for product listing ads |
 |   ↳ `plaUniques` | number | Number of unique product listing ads |
 
+</ReferenceDetails>
+
 ### Semrush URL Overview History
 
-Get the historical trend of a URL organic and paid search totals.
+Get the historical trend of a URL’s organic and paid search totals.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -684,9 +762,13 @@ Get the historical trend of a URL organic and paid search totals.
 |   ↳ `paidTraffic` | number | Traffic brought via paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
 
+</ReferenceDetails>
+
 ### Semrush URL Organic Keywords
 
 List the keywords a single URL ranks for in Google organic search.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -720,9 +802,13 @@ List the keywords a single URL ranks for in Google organic search.
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush URL Paid Keywords
 
 List the keywords a single URL is advertised on in Google Ads, with the ad copy used.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -755,9 +841,13 @@ List the keywords a single URL is advertised on in Google Ads, with the ad copy 
 |   ↳ `title` | string | Ad or product title |
 |   ↳ `description` | string | Ad text |
 
+</ReferenceDetails>
+
 ### Semrush Keyword Overview
 
 Get search volume, CPC, competition, difficulty, and intent for a single keyword.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -782,9 +872,13 @@ Get search volume, CPC, competition, difficulty, and intent for a single keyword
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Keyword Overview (All Databases)
 
 Get search volume, CPC, and competition for a keyword across every regional Semrush database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -809,9 +903,13 @@ Get search volume, CPC, and competition for a keyword across every regional Semr
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
 
+</ReferenceDetails>
+
 ### Semrush Batch Keyword Overview
 
 Get search volume, CPC, competition, difficulty, and intent for up to 100 keywords at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -836,9 +934,13 @@ Get search volume, CPC, competition, difficulty, and intent for up to 100 keywor
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Keyword Difficulty
 
 Get the Keyword Difficulty Index for up to 100 keywords at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -856,9 +958,13 @@ Get the Keyword Difficulty Index for up to 100 keywords at once.
 |   ↳ `keyword` | string | Keyword phrase |
 |   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
 
+</ReferenceDetails>
+
 ### Semrush Related Keywords
 
 Find keywords semantically related to a seed keyword, with volume, difficulty, and relevance.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -888,9 +994,13 @@ Find keywords semantically related to a seed keyword, with volume, difficulty, a
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Broad Match Keywords
 
 Find broad-match and phrase-match variations of a seed keyword, with volume and difficulty.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -919,9 +1029,13 @@ Find broad-match and phrase-match variations of a seed keyword, with volume and 
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Keyword Questions
 
 Find question-form keywords containing a seed keyword, with volume and difficulty.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -949,9 +1063,13 @@ Find question-form keywords containing a seed keyword, with volume and difficult
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 
+</ReferenceDetails>
+
 ### Semrush Organic Results
 
 List the domains and URLs ranking in Google organic search results for a keyword.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -976,9 +1094,13 @@ List the domains and URLs ranking in Google organic search results for a keyword
 |   ↳ `keywordSerpFeatures` | array | IDs of all SERP features triggered by the keyword |
 |   ↳ `serpFeatures` | array | IDs of the SERP features the domain appears in for the keyword |
 
+</ReferenceDetails>
+
 ### Semrush Paid Results
 
 List the domains and URLs advertising on a keyword in Google paid search results.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1122,13 @@ List the domains and URLs advertising on a keyword in Google paid search results
 |   ↳ `url` | string | URL of the ranking or advertised page |
 |   ↳ `visibleUrl` | string | Display URL shown in the ad |
 
+</ReferenceDetails>
+
 ### Semrush Keyword Ad History
 
 List which domains advertised on a keyword month by month, with the copy each one used.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1027,9 +1153,13 @@ List which domains advertised on a keyword month by month, with the copy each on
 |   ↳ `description` | string | Ad text |
 |   ↳ `visibleUrl` | string | Display URL shown in the ad |
 
+</ReferenceDetails>
+
 ### Semrush Winners and Losers
 
 List the domains that gained or lost the most organic and paid search visibility in a database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1062,9 +1192,13 @@ List the domains that gained or lost the most organic and paid search visibility
 |   ↳ `paidTrafficDifference` | number | Change in paid traffic since the previous month |
 |   ↳ `paidCostDifference` | number | Change in paid cost since the previous month |
 
+</ReferenceDetails>
+
 ### Semrush Top Domains
 
 List the highest-ranked domains in a regional database by Semrush rank.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1091,9 +1225,13 @@ List the highest-ranked domains in a regional database by Semrush rank.
 |   ↳ `paidTraffic` | number | Traffic this domain gets from paid search results |
 |   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this domain |
 
+</ReferenceDetails>
+
 ### Semrush Backlinks Overview
 
 Get the Authority Score and backlink profile totals for a domain, subdomain, or URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1123,9 +1261,13 @@ Get the Authority Score and backlink profile totals for a domain, subdomain, or 
 |   ↳ `formsNum` | number | Number of form backlinks |
 |   ↳ `framesNum` | number | Number of frame backlinks |
 
+</ReferenceDetails>
+
 ### Semrush Backlinks
 
 List the backlinks pointing at a domain, subdomain, or URL, with source page, anchor, and authority.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1155,9 +1297,13 @@ List the backlinks pointing at a domain, subdomain, or URL, with source page, an
 |   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
 |   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
 
+</ReferenceDetails>
+
 ### Semrush Referring Domains
 
 List the domains linking to a target, with Authority Score, backlink count, and country.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1184,9 +1330,13 @@ List the domains linking to a target, with Authority Score, backlink count, and 
 |   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
 |   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
 
+</ReferenceDetails>
+
 ### Semrush Referring IPs
 
 List the IP addresses linking to a target, with the domain and backlink counts behind each one.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1211,9 +1361,13 @@ List the IP addresses linking to a target, with the domain and backlink counts b
 |   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
 |   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
 
+</ReferenceDetails>
+
 ### Semrush Backlink TLD Distribution
 
-Break a target backlink profile down by the top-level domain of its referring domains.
+Break a target’s backlink profile down by the top-level domain of its referring domains.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1235,9 +1389,13 @@ Break a target backlink profile down by the top-level domain of its referring do
 |   ↳ `domainsNum` | number | Number of referring domains |
 |   ↳ `backlinksNum` | number | Number of backlinks |
 
+</ReferenceDetails>
+
 ### Semrush Backlink Country Distribution
 
-Break a target backlink profile down by the country of its referring domains.
+Break a target’s backlink profile down by the country of its referring domains.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1259,9 +1417,13 @@ Break a target backlink profile down by the country of its referring domains.
 |   ↳ `domainsNum` | number | Number of referring domains |
 |   ↳ `backlinksNum` | number | Number of backlinks |
 
+</ReferenceDetails>
+
 ### Semrush Backlink Anchors
 
 List the anchor texts used in backlinks to a target, with domain and backlink counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1285,9 +1447,13 @@ List the anchor texts used in backlinks to a target, with domain and backlink co
 |   ↳ `firstSeen` | number | Unix timestamp when the link was first seen |
 |   ↳ `lastSeen` | number | Unix timestamp when the link was last seen |
 
+</ReferenceDetails>
+
 ### Semrush Indexed Pages
 
 List the pages of a target that attract backlinks, with response code and link counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1314,9 +1480,13 @@ List the pages of a target that attract backlinks, with response code and link c
 |   ↳ `externalLinksNum` | number | External links on the source page |
 |   ↳ `internalLinksNum` | number | Internal links on the source page |
 
+</ReferenceDetails>
+
 ### Semrush Backlink Competitors
 
 List domains with a backlink profile similar to the target, ranked by shared referring domains.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1339,5 +1509,7 @@ List domains with a backlink profile similar to the target, ranked by shared ref
 |   ↳ `commonRefdomains` | number | Referring domains shared with the target |
 |   ↳ `domainsNum` | number | Number of referring domains |
 |   ↳ `backlinksNum` | number | Number of backlinks |
+
+</ReferenceDetails>
 
 

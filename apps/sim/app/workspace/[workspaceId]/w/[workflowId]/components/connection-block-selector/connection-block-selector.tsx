@@ -14,9 +14,12 @@ import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { Command } from 'cmdk'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
+import {
+  useScopedWorkflowId,
+  useWorkflowScope,
+} from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   CommandFadedList,
   CommandSearch,
@@ -150,9 +153,8 @@ function isRecentSelection(value: unknown): value is RecentSelection {
  * temporary edge reads as connected to the block that will replace it.
  */
 export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockSelectorNode>) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const currentWorkflowId = params.workflowId as string | undefined
+  const { workspaceId } = useWorkflowScope()
+  const currentWorkflowId = useScopedWorkflowId()
   const posthog = usePostHog()
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)

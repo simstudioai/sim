@@ -1,4 +1,11 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+} from '@/tools/microsoft_excel/shared'
 import type {
   MicrosoftExcelFormatRangeParams,
   MicrosoftExcelFormatRangeResponse,
@@ -9,7 +16,7 @@ import {
   getSpreadsheetWebUrl,
   parseGraphErrorMessage,
 } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Builds the font PATCH body from the provided font params, omitting any unset fields.
@@ -22,6 +29,15 @@ function buildFontBody(params: MicrosoftExcelFormatRangeParams): Record<string, 
   if (params.fontColor) body.color = params.fontColor
   if (params.fontSize !== undefined) body.size = params.fontSize
   if (params.fontName) body.name = params.fontName
+  if (params.fontUnderline) {
+    if (
+      !['None', 'Single', 'Double', 'SingleAccountant', 'DoubleAccountant'].includes(
+        params.fontUnderline
+      )
+    )
+      throw new Error('Invalid font underline style')
+    body.underline = params.fontUnderline
+  }
   return Object.keys(body).length > 0 ? body : null
 }
 
@@ -47,6 +63,7 @@ export const formatRangeTool: ToolConfig<
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -64,7 +81,7 @@ export const formatRangeTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     sheetName: {
       type: 'string',
@@ -109,6 +126,12 @@ export const formatRangeTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Font size in points (e.g., 12).',
     },
+    fontUnderline: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'None, Single, Double, SingleAccountant, or DoubleAccountant.',
+    },
     fontName: {
       type: 'string',
       required: false,
@@ -135,15 +158,7 @@ export const formatRangeTool: ToolConfig<
       return fontBody ? `${rangeUrl}/format/font` : `${rangeUrl}/format/fill`
     },
     method: 'PATCH',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: excelHeaders,
     body: (params) => {
       const fontBody = buildFontBody(params)
       if (fontBody) return fontBody
@@ -151,7 +166,12 @@ export const formatRangeTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelFormatRangeParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelFormatRangeParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     if (!params) {
       throw new Error('Format parameters are required')
     }
@@ -170,24 +190,32 @@ export const formatRangeTool: ToolConfig<
     let fillApplied = false
 
     if (fontBody) {
-      fontResult = await response.json().catch(() => null)
+      fontResult = await response.json()
 
       if (hasFill) {
         const basePath = getItemBasePath(spreadsheetId, driveId)
         const fillUrl = `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/format/fill`
-        const fillResp = await fetch(fillUrl, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ color: params.fillColor }),
-        })
-        if (!fillResp.ok) {
-          const errorText = await fillResp.text().catch(() => '')
-          const detail = parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText)
+        try {
+          const fillResp = await fetch(fillUrl, {
+            method: 'PATCH',
+            headers: excelHeaders(params),
+            signal: context?.signal,
+            body: JSON.stringify({ color: params.fillColor }),
+          })
+          if (!fillResp.ok) {
+            const errorText = await readResponseTextWithLimit(fillResp, {
+              maxBytes: 65536,
+              label: 'Excel error',
+              signal: context?.signal,
+            })
+            throw new Error(parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText))
+          }
+          await fillResp.body?.cancel()
+        } catch (error) {
+          context?.signal?.throwIfAborted()
           throw new Error(
-            `Font formatting was applied, but the fill color update failed: ${detail}. Re-run with only the fill color to finish.`
+            `Font formatting was applied, but the fill color update failed: ${getErrorMessage(error)}. Re-run with only the fill color to finish.`,
+            { cause: error }
           )
         }
         fillApplied = true
@@ -196,7 +224,7 @@ export const formatRangeTool: ToolConfig<
       fillApplied = true
     }
 
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     return {
       success: true,
@@ -210,6 +238,8 @@ export const formatRangeTool: ToolConfig<
               italic: (fontResult?.italic as boolean | undefined) ?? params.fontItalic ?? null,
               color: (fontResult?.color as string | undefined) ?? params.fontColor ?? null,
               name: (fontResult?.name as string | undefined) ?? params.fontName ?? null,
+              underline:
+                (fontResult?.underline as string | undefined) ?? params.fontUnderline ?? null,
               size: (fontResult?.size as number | undefined) ?? params.fontSize ?? null,
             }
           : null,
@@ -227,19 +257,22 @@ export const formatRangeTool: ToolConfig<
     fill: {
       type: 'object',
       description: 'The applied fill, or null if no fill was set',
+      nullable: true,
       properties: {
-        color: { type: 'string', description: 'The applied fill color' },
+        color: { nullable: true, type: 'string', description: 'The applied fill color' },
       },
     },
     font: {
       type: 'object',
       description: 'The applied font properties, or null if no font was set',
+      nullable: true,
       properties: {
-        bold: { type: 'boolean', description: 'Whether the font is bold' },
-        italic: { type: 'boolean', description: 'Whether the font is italic' },
-        color: { type: 'string', description: 'The font color' },
-        name: { type: 'string', description: 'The font name' },
-        size: { type: 'number', description: 'The font size in points' },
+        bold: { nullable: true, type: 'boolean', description: 'Whether the font is bold' },
+        italic: { nullable: true, type: 'boolean', description: 'Whether the font is italic' },
+        color: { nullable: true, type: 'string', description: 'The font color' },
+        name: { nullable: true, type: 'string', description: 'The font name' },
+        underline: { type: 'string', nullable: true, description: 'Underline style.' },
+        size: { nullable: true, type: 'number', description: 'The font size in points' },
       },
     },
     metadata: {

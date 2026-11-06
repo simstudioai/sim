@@ -33,6 +33,7 @@ import type { BreadcrumbDropConfig } from '@/app/workspace/[workspaceId]/compone
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
+import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
 
 export interface ResourceColumn {
   id: string
@@ -152,7 +153,10 @@ const CHECKBOX_COLUMN_WIDTH = '52px'
  * virtualized grid layout reproduces the exact column widths. The checkbox
  * column, when present, is a fixed leading track.
  */
-function buildGridTemplateColumns(columns: ResourceColumn[], hasCheckbox: boolean): string {
+function buildGridTemplateColumns(
+  columns: readonly ResourceColumn[],
+  hasCheckbox: boolean
+): string {
   const weights = columns.map(
     (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
   )
@@ -208,16 +212,19 @@ export interface ResourceTableHandle {
 }
 
 interface ResourceTableProps {
-  columns: ResourceColumn[]
+  columns: readonly ResourceColumn[]
   rows: ResourceRow[]
   selectedRowId?: string | null
   /** Optional imperative handle exposing {@link ResourceTableHandle} (e.g. for keyboard-nav scrolling). */
   apiRef?: RefObject<ResourceTableHandle | null>
   /**
    * Window the row list with `@tanstack/react-virtual`, keeping only the visible
-   * slice in the DOM. Opt-in because it removes off-screen rows — consumers that
-   * depend on every row being mounted (e.g. drag-and-drop drop targets) must stay
-   * on the full-DOM path. Enable it only for unbounded, accumulating lists (logs).
+   * slice in the DOM. Opt-in because it removes off-screen rows — a consumer that
+   * reaches rows through the DOM rather than its own row ids must stay on the
+   * full-DOM path. Row drag-and-drop works windowed: a drop target is only ever a
+   * row under the pointer, and the drag's teardown never depends on its source row
+   * staying mounted (`useDragTeardown`). Enable it only for unbounded, accumulating
+   * lists (logs, files).
    */
   virtualized?: boolean
   selectable?: SelectableConfig
@@ -227,7 +234,19 @@ interface ResourceTableProps {
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   onLoadMore?: () => void
   hasMore?: boolean
+  /** The next page is loading: shows the spinner under the rows. */
   isLoadingMore?: boolean
+  /**
+   * Any request for the list is in flight, a background refetch included. Paging waits while it
+   * runs and asks again once it settles, so a sentinel reached mid-refetch is not left idle.
+   * Defaults to `isLoadingMore`.
+   */
+  isFetching?: boolean
+  /**
+   * The last next-page load failed. Paging then waits for the sentinel to leave view and come
+   * back before asking again, rather than retrying a failing request in a loop.
+   */
+  loadMoreFailed?: boolean
   pagination?: PaginationConfig
   /**
    * Sanctioned overlay slot. Rendered absolutely against the table region
@@ -282,12 +301,23 @@ const ResourceTable = memo(function ResourceTable({
   onLoadMore,
   hasMore,
   isLoadingMore,
+  isFetching = isLoadingMore,
+  loadMoreFailed = false,
   pagination,
   overlay,
   emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
+  /**
+   * Re-armed whenever a load settles: an observer only reports a change in intersection, so a
+   * sentinel still on screen after the rows it revealed (or a request it was refused during)
+   * would otherwise never ask again.
+   */
+  const loadMoreRef = useLoadMoreSentinel({
+    onLoadMore,
+    enabled: Boolean(hasMore) && !isFetching,
+    waitForReentry: loadMoreFailed,
+  })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
 
@@ -320,20 +350,6 @@ const ResourceTable = memo(function ResourceTable({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [contextMenuRowId])
-
-  useEffect(() => {
-    if (!onLoadMore || !hasMore) return
-    const el = loadMoreRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) onLoadMore()
-      },
-      { rootMargin: '200px' }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onLoadMore, hasMore])
 
   const hasCheckbox = selectable != null
   const bodyDrop = rowDragDrop?.body
@@ -626,7 +642,7 @@ const CellContent = memo(function CellContent({
 
 interface DataRowProps {
   row: ResourceRow
-  columns: ResourceColumn[]
+  columns: readonly ResourceColumn[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
   rowDragDrop?: RowDragDropConfig

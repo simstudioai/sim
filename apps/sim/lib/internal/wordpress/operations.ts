@@ -6,13 +6,13 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { WordPressOperationError } from '@/lib/internal/wordpress/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   processSingleFileToUserFile,
-} from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { WordPressUploadMediaResponse } from '@/tools/wordpress/types'
 

@@ -121,7 +121,7 @@ export const MintlifyBlock: BlockConfig = {
   name: 'Mintlify',
   description: 'Deploy, edit, search, and measure Mintlify documentation',
   longDescription:
-    'Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.',
+    'Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.',
   docsLink: 'https://docs.sim.ai/integrations/mintlify',
   category: 'tools',
   integrationType: IntegrationType.Documents,

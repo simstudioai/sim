@@ -16,7 +16,7 @@ const hoisted = vi.hoisted(() => ({
   storeArtifact: vi.fn(),
   readArtifact: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/memory/conversation-store', () => ({
   openAgentMemoryTurn: hoisted.open,

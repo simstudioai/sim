@@ -1,0 +1,170 @@
+import '@sim/testing/mocks/executor'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BlockType } from '@/executor/constants'
+import { WaitBlockHandler } from '@/executor/handlers/wait/handler'
+import type { ExecutionContext } from '@/executor/types'
+import type { SerializedBlock } from '@/serializer/types'
+
+describe('WaitBlockHandler', () => {
+  let handler: WaitBlockHandler
+  let mockBlock: SerializedBlock
+  let mockContext: ExecutionContext
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+
+    handler = new WaitBlockHandler()
+
+    mockBlock = {
+      id: 'wait-block-1',
+      metadata: { id: BlockType.WAIT, name: 'Test Wait' },
+      position: { x: 50, y: 50 },
+      config: { tool: BlockType.WAIT, params: {} },
+      inputs: { timeValue: 'string', timeUnit: 'string' },
+      outputs: {},
+      enabled: true,
+    }
+
+    mockContext = {
+      workflowId: 'test-workflow-id',
+      blockStates: new Map(),
+      blockLogs: [],
+      metadata: { duration: 0 },
+      environmentVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      completedLoops: new Set(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+    }
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('should reject negative wait amounts', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, { timeValue: '-5', timeUnit: 'seconds' })
+    ).rejects.toThrow('Wait amount must be a positive number')
+  })
+
+  it('should reject async waits longer than the 30-day ceiling', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        async: true,
+        timeValue: '31',
+        timeUnitLong: 'days',
+      })
+    ).rejects.toThrow('Wait time exceeds maximum of 30 days')
+  })
+
+  it('should reject synchronous waits longer than 5 minutes', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, { timeValue: '10', timeUnit: 'minutes' })
+    ).rejects.toThrow('Wait time exceeds maximum of 5 minutes')
+  })
+
+  it('should reject seconds as a unit in async mode', async () => {
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        async: true,
+        timeValue: '30',
+        timeUnitLong: 'seconds',
+      })
+    ).rejects.toThrow('Seconds are not allowed in async mode')
+  })
+
+  it('should still execute in-process at the 5-minute boundary', async () => {
+    const inputs = { timeValue: '5', timeUnit: 'minutes' }
+
+    const executePromise = handler.execute(mockContext, mockBlock, inputs)
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+
+    const result = await executePromise
+
+    expect(result).toEqual({
+      waitDuration: 5 * 60 * 1000,
+      status: 'completed',
+    })
+  })
+
+  it('should suspend the workflow when wait exceeds the in-process threshold', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const inputs = { async: true, timeValue: '10', timeUnitLong: 'minutes' }
+
+    const result = (await handler.execute(mockContext, mockBlock, inputs)) as Record<string, any>
+
+    const waitMs = 10 * 60 * 1000
+    const expectedResumeAt = new Date(Date.now() + waitMs).toISOString()
+
+    expect(result.status).toBe('waiting')
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.resumeAt).toBe(expectedResumeAt)
+
+    const pauseMetadata = result._pauseMetadata
+    expect(pauseMetadata).toBeDefined()
+    expect(pauseMetadata.pauseKind).toBe('time')
+    expect(pauseMetadata.resumeAt).toBe(expectedResumeAt)
+    expect(pauseMetadata.contextId).toBe('wait-block-1')
+    expect(pauseMetadata.blockId).toBe('wait-block-1')
+    expect(pauseMetadata.response).toEqual({ waitDuration: waitMs, resumeAt: expectedResumeAt })
+  })
+
+  it('should handle cancellation via AbortSignal', async () => {
+    const abortController = new AbortController()
+    mockContext.abortSignal = abortController.signal
+
+    const inputs = { timeValue: '30', timeUnit: 'seconds' }
+
+    const executePromise = handler.execute(mockContext, mockBlock, inputs)
+
+    await vi.advanceTimersByTimeAsync(10000)
+    abortController.abort()
+    await vi.advanceTimersByTimeAsync(1)
+
+    const result = await executePromise
+
+    expect(result).toEqual({
+      waitDuration: 30000,
+      status: 'cancelled',
+    })
+  })
+
+  it('should suspend a 1.5-day wait without truncating', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
+      timeValue: '1.5',
+      timeUnitLong: 'days',
+    })) as Record<string, any>
+
+    const waitMs = 1.5 * 24 * 60 * 60 * 1000
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.status).toBe('waiting')
+    expect(result._pauseMetadata.pauseKind).toBe('time')
+  })
+
+  it('should always suspend when async is enabled, even for short waits', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      async: true,
+      timeValue: '2',
+      timeUnitLong: 'minutes',
+    })) as Record<string, any>
+
+    const waitMs = 2 * 60 * 1000
+    const expectedResumeAt = new Date(Date.now() + waitMs).toISOString()
+
+    expect(result.status).toBe('waiting')
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.resumeAt).toBe(expectedResumeAt)
+    expect(result._pauseMetadata.pauseKind).toBe('time')
+    expect(result._pauseMetadata.resumeAt).toBe(expectedResumeAt)
+  })
+})

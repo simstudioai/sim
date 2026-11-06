@@ -1,10 +1,19 @@
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
+import {
+  applyEditToLiveFileDoc,
+  invalidateLiveFileDoc,
+  retireLiveFileDoc,
+} from '@/lib/realtime/notify'
 
 urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://realtime')
 setEnv({ INTERNAL_API_SECRET: 'secret' })
+const target = {
+  fileId: 'file-1',
+  owner: { entityType: 'workspace', entityId: 'workspace-1' },
+} as const
+
 afterAll(() => {
   resetUrlsMock()
   resetEnvMock()
@@ -13,7 +22,7 @@ afterAll(() => {
 describe('applyEditToLiveFileDoc', () => {
   it('throws when the realtime call fails so the outbox can retry', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket pod down')))
-    await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
+    await expect(applyEditToLiveFileDoc(target, '# hello', { version: 42 })).rejects.toThrow(
       'socket pod down'
     )
   })
@@ -25,7 +34,7 @@ describe('applyEditToLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
     )
 
-    await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
+    await expect(applyEditToLiveFileDoc(target, '# hello', { version: 42 })).rejects.toThrow(
       'status 503'
     )
     expect(cancel).toHaveBeenCalledOnce()
@@ -40,7 +49,7 @@ describe('invalidateLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status }))
     )
 
-    const result = invalidateLiveFileDoc('file-1', 42)
+    const result = invalidateLiveFileDoc(target, 42)
     if (status === 200) {
       await expect(result).resolves.toBeUndefined()
     } else {
@@ -56,7 +65,7 @@ describe('invalidateLiveFileDoc', () => {
       vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }), { status: 503 }))
     )
 
-    await expect(invalidateLiveFileDoc('file-1', 42)).rejects.toThrow('status 503')
+    await expect(invalidateLiveFileDoc(target, 42)).rejects.toThrow('status 503')
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -64,18 +73,55 @@ describe('invalidateLiveFileDoc', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
-    await invalidateLiveFileDoc('file-1', 42)
+    await invalidateLiveFileDoc(target, 42)
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://realtime/api/file-doc/invalidate',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'x-api-key': 'secret' }),
-        body: JSON.stringify({ fileId: 'file-1', version: 42 }),
+        body: JSON.stringify({ fileId: target.fileId, version: 42 }),
       })
     )
 
     fetchMock.mockResolvedValueOnce({ ok: false, status: 503 })
-    await expect(invalidateLiveFileDoc('file-1', 42)).rejects.toThrow('status 503')
+    await expect(invalidateLiveFileDoc(target, 42)).rejects.toThrow('status 503')
   })
+})
+
+describe('app and relay rollout compatibility', () => {
+  it.each(['workspace', 'project'] as const)(
+    'encodes %s targets for every durable delivery',
+    async (entityType) => {
+      const fetchMock = vi
+        .fn()
+        .mockImplementation(async () => Response.json({ applied: true, status: 'applied' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const owner = { entityType, entityId: 'owner-1' }
+      const target = { fileId: 'file-1', owner }
+      await applyEditToLiveFileDoc(target, '# saved', { version: 42 })
+      await invalidateLiveFileDoc(target, 42)
+      await retireLiveFileDoc({ ...target, retiredDocId: 'old', replacementDocId: 'new' })
+      const bodies = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body))
+      expect(bodies).toEqual([
+        {
+          fileId: 'file-1',
+          markdown: '# saved',
+          version: 42,
+          ...(entityType === 'project' ? { owner, projectId: 'owner-1' } : {}),
+        },
+        {
+          fileId: 'file-1',
+          version: 42,
+          ...(entityType === 'project' ? { owner, projectId: 'owner-1' } : {}),
+        },
+        {
+          fileId: 'file-1',
+          retiredDocId: 'old',
+          replacementDocId: 'new',
+          ...(entityType === 'project' ? { owner, projectId: 'owner-1' } : {}),
+        },
+      ])
+    }
+  )
 })

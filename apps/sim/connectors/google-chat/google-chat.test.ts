@@ -53,7 +53,7 @@ beforeEach(() => {
     if (url.includes('/spaces?')) {
       return jsonResponse({ spaces: listedSpaces, nextPageToken: listNextPageToken })
     }
-    if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(fetchedSpace)
+    if (new URL(url).pathname.endsWith(`/${SPACE_NAME}`)) return jsonResponse(fetchedSpace)
     return jsonResponse({ error: { message: 'not found' } }, 404)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -94,11 +94,15 @@ describe('google-chat change detection', () => {
     const runTwo: Record<string, unknown> = {}
     const secondPage = await googleChatConnector.listDocuments('token', {}, undefined, runTwo)
 
-    // Stable within a run, so the hydrated document keeps the stub's hash …
     const hydrated = await googleChatConnector.getDocument('token', {}, SPACE_NAME, runOne)
-    expect(hydrated?.contentHash).toBe(firstPage.documents[0].contentHash)
+    if (!hydrated) throw new Error('Expected a space document')
+    expect(
+      googleChatConnector.matchContentHash?.(
+        firstPage.documents[0].contentHash,
+        hydrated.contentHash
+      )
+    ).toBe('current')
 
-    // … and different on the next run, so content never silently goes stale.
     expect(secondPage.documents[0].contentHash).not.toBe(firstPage.documents[0].contentHash)
   })
 })

@@ -13,7 +13,6 @@ export function compileMcpToolSchema(schema: McpToolSchema): ValidateFunction {
     const validate = new Validator({
       strict: false,
       validateFormats: false,
-      allErrors: false,
     }).compile(schema)
     if ('$async' in validate && validate.$async)
       throw new Error('Asynchronous schemas are not supported')

@@ -36,8 +36,12 @@ export function ContentIndexPage({
 }: ContentIndexPageProps) {
   const { featured, remaining, totalPages } = paginateContentPosts(posts, { tag, page })
 
-  const pageHref = (targetPage: number) =>
-    `${basePath}?page=${targetPage}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`
+  const tagQuery = tag ? `tag=${encodeURIComponent(tag)}` : ''
+  const pageHref = (targetPage: number) => {
+    if (targetPage === 1) return tagQuery ? `${basePath}?${tagQuery}` : basePath
+    return `${basePath}?page=${targetPage}${tagQuery ? `&${tagQuery}` : ''}`
+  }
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1)
 
   return (
     <>
@@ -138,7 +142,7 @@ export function ContentIndexPage({
 
             {totalPages > 1 && (
               <nav aria-label='Pagination' className='px-6 py-8'>
-                <div className='flex items-center justify-center gap-3'>
+                <div className='flex flex-wrap items-center justify-center gap-3'>
                   {page > 1 && (
                     <ChipLink
                       href={pageHref(page - 1)}
@@ -148,9 +152,20 @@ export function ContentIndexPage({
                       Previous
                     </ChipLink>
                   )}
-                  <span className='text-[var(--text-secondary)] text-sm'>
-                    Page {page} of {totalPages}
-                  </span>
+                  <ol className='flex flex-wrap items-center justify-center gap-1'>
+                    {pageNumbers.map((pageNumber) => (
+                      <li key={pageNumber}>
+                        <ChipLink
+                          href={pageHref(pageNumber)}
+                          active={pageNumber === page}
+                          aria-current={pageNumber === page ? 'page' : undefined}
+                          aria-label={`Page ${pageNumber}`}
+                        >
+                          {pageNumber}
+                        </ChipLink>
+                      </li>
+                    ))}
+                  </ol>
                   {page < totalPages && (
                     <ChipLink
                       href={pageHref(page + 1)}

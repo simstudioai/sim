@@ -14,7 +14,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',
   name: 'Firecrawl Website Scraper',
   description:
-    'Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.',
+    'Convert web pages to Markdown or HTML, including SEO metadata, Open Graph tags, and page information.',
   version: '1.0.0',
 
   params: {

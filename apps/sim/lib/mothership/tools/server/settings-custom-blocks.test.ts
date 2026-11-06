@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
 import { customBlockSettingsActions } from '@/lib/mothership/tools/server/settings-custom-blocks'

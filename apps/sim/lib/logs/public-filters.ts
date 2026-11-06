@@ -64,9 +64,10 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
 
   conditions.push(eq(workflowExecutionLogs.workspaceId, filters.workspaceId))
 
-  // Workflow IDs filter
+  // The log's own column, not the joined `workflow.id`: the FK nulls it on delete, so
+  // both select the same rows, but only this side reaches the log indexes.
   if (filters.workflowIds && filters.workflowIds.length > 0) {
-    conditions.push(inArray(workflow.id, filters.workflowIds))
+    conditions.push(inArray(workflowExecutionLogs.workflowId, filters.workflowIds))
   }
 
   // Folder IDs filter

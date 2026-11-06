@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Opt-in self-hosted GitLab test. GITLAB_LIVE_FIXTURE_FILE contains {url, token,
  * auditorToken?} for a disposable localhost HTTPS instance. The administrator
@@ -75,7 +76,7 @@ import type {
   UpdateConnectorBody,
 } from '@/lib/api/contracts/knowledge/connectors'
 import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
@@ -84,7 +85,7 @@ import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import * as storage from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { PATCH as updateConnectorRoute } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
 import { POST as createConnectorRoute } from '@/app/api/knowledge/[id]/connectors/route'
 import { gitlabConnector } from '@/connectors/gitlab/gitlab'
@@ -430,7 +431,7 @@ describe.skipIf(!fixtureFile)('live self-hosted GitLab ingestion and permission 
                 throw error
             }
           }
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(organization).where(eq(organization.id, ids.organizationId))
           await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId, ...extraSimIds]))
         }

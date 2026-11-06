@@ -17,14 +17,12 @@ import type {
   GcsPartUploadUrl,
 } from '@/lib/uploads/providers/google-cloud-storage/types'
 import type {
+  ByteRange,
   FileInfo,
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import {
-  sanitizeFilenameForMetadata,
-  sanitizeStorageMetadata,
-} from '@/lib/uploads/utils/file-utils'
+import { sanitizeFilenameForMetadata, sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('GcsClient')
@@ -365,11 +363,15 @@ export async function downloadFromGcs(
  */
 export async function downloadFromGcsStream(
   key: string,
-  customConfig?: GcsConfig
+  customConfig?: GcsConfig,
+  range?: ByteRange
 ): Promise<Readable> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
-  return storage.bucket(config.bucket).file(key).createReadStream()
+  return storage
+    .bucket(config.bucket)
+    .file(key)
+    .createReadStream(range ? { start: range.start, end: range.end } : undefined)
 }
 
 /**
@@ -535,8 +537,11 @@ async function gcsXmlApiRequest(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '')
-    throw new Error(
-      `GCS XML API ${method} ${query.split('&')[0]} failed for ${key}: ${response.status} ${response.statusText}${errorBody ? ` – ${errorBody.slice(0, 500)}` : ''}`
+    throw Object.assign(
+      new Error(
+        `GCS XML API ${method} ${query.split('&')[0]} failed for ${key}: ${response.status} ${response.statusText}${errorBody ? ` – ${errorBody.slice(0, 500)}` : ''}`
+      ),
+      { statusCode: response.status }
     )
   }
 

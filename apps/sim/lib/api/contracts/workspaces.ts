@@ -288,6 +288,11 @@ export const workspaceHostContextSchema = z.object({
       knowledgeMemberAccess: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate administrator mode. */
       knowledgeSourceMirroredAccess: z.boolean().optional(),
+      /**
+       * Whether the workspace payer may use Chat. Optional for rolling compatibility; absent
+       * leaves the composer open, and run admission still decides.
+       */
+      chat: z.boolean().optional(),
     })
     .optional(),
   /** Optional for rolling compatibility with app versions that predate deployment projection. */
@@ -341,6 +346,10 @@ export const getWorkspaceUsageGateContract = defineRouteContract({
   },
 })
 
+const updateWorkspaceResponseSchema = z.object({
+  workspace: workspaceSchema,
+})
+
 export const updateWorkspaceContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]',
@@ -348,9 +357,19 @@ export const updateWorkspaceContract = defineRouteContract({
   body: updateWorkspaceBodySchema,
   response: {
     mode: 'json',
-    schema: z.object({
-      workspace: workspaceSchema,
-    }),
+    schema: updateWorkspaceResponseSchema,
+  },
+})
+
+/** `PUT` is a legacy alias of {@link updateWorkspaceContract} with the same partial-update semantics. */
+export const updateWorkspacePutContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]',
+  params: workspaceParamsSchema,
+  body: updateWorkspaceBodySchema,
+  response: {
+    mode: 'json',
+    schema: updateWorkspaceResponseSchema,
   },
 })
 

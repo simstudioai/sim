@@ -1,118 +1,115 @@
 ---
-title: Files & documents
-description: Upload, create, edit, and generate files — documents, presentations, images, and more.
+title: Files and documents
+description: Process attachments and create or edit workspace documents, presentations, images, and charts.
 ---
 
 import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
 
-<Video src="mothership/files-pipeline-deals-summarizer.mp4" width={700} height={450} />
+Ask Sim to read an attachment, create a deliverable, or edit a workspace file. Name the output format and filename when you need a saved result. Supported generation and processing capabilities depend on your deployment.
 
-Describe a document, presentation, image, or visualization and Sim creates it — streaming the content live into the resource panel as it writes. Attach any file to your message and Sim reads it, processes it, and saves it to your workspace.
+<Image
+  variant="overview"
+  src="/static/docs-captures/files.webp"
+  alt="Release notes open beside Chat, with Sim summarizing shipped work and next steps"
+  width={2400}
+  height={1000}
+  background="architecture"
+/>
 
-## Uploading Files to the Workspace
+## Attach and save files [#uploading-files-to-the-workspace]
 
-Attach any file directly to your message in Chat — drag it into the input, paste it, or click the attachment icon. Sim reads the file as context and saves it to your workspace.
+Drag a supported file into the input, paste it, or select **Attach file**. Chat supports images, PDFs, text and code files, JSON, XML, and other supported document formats.
 
-Use this to:
-- Hand Sim a document and ask it to process, summarize, or extract data from it
-- Upload a CSV and have it create a table from it
-- Drop in a PDF and ask Sim to turn it into a knowledge base document
-- Attach a design mockup and ask Sim to describe it or generate code from it
+Attachments are stored under `uploads/` and stay readable within the conversation. They do not automatically appear in workspace **Files** or workflow file listings. Ask Sim to save a copy when you need a workspace file:
 
-An attached file is stored under `uploads/` and readable by Sim for the rest of the conversation, but it does not appear in the Files panel and is not listed for workflows. Ask Sim to save a copy into workspace Files if you need it there. Sim can also fetch a file directly from a URL and save it for you: "Download the JSON at [URL] and save it to the workspace."
+- "Summarize this document and extract the action items." Attach the document.
+- "Create a table from this CSV." Attach the CSV.
+- "Add this PDF to the Product Docs knowledge base." Attach the PDF.
+- "Describe this design mockup and write code for the layout." Attach the image.
+- "Save this attachment to workspace Files as source-data.json."
 
-## Creating Documents
+Sim can also download a file from an accessible URL: "Download the JSON at [URL] and save it as source-data.json."
 
-Sim can write any text-based file — markdown, plain text, code files, CSV, JSON, or any other format:
+A successful upload does not mean every format's contents have been parsed. For a file without a supported reader, Sim may need to process the original bytes with code. ZIP archives must be extracted before their contents can be read.
 
-- "Write a technical spec for the new auth system as a markdown file"
-- "Create a CSV of our test accounts with columns for name, email, and plan tier"
-- "Write a Python script that calls our workflow API and processes the response"
-- "Draft a postmortem for the outage last Tuesday and save it as a markdown file"
-- "Write a personalized outbound email for Acme Corp based on their recent funding announcement"
-- "Draft a weekly ops digest summarizing workflow run counts, errors, and top failures for the past 7 days"
+Direct uploads are deliberate input and are not automatically scanned for secrets. For stored files, Chat can mask tracked secret values or withhold content it cannot safely check. Your viewer can still open a file that Chat cannot read or receive as a rendered preview. Creating or returning a sharing link through Chat can also be refused.
 
-Files are saved to your workspace and accessible from the Files panel in the sidebar.
+## Create a text file [#creating-documents]
 
-## Editing Existing Files
+Sim can write Markdown, plain text, code, CSV, and JSON files. Ask for the content and its destination:
 
-Open a file using `@filename` or the **+** menu, then describe the change:
+> Create test-accounts.csv with name, email, and plan tier columns. Save it to workspace Files.
 
-- "Update the pricing section to reflect the new tiers"
-- "Refactor this Python script to use async/await"
-- "Add a section on error handling to this spec"
-- "Rewrite the introduction of this report to be more concise"
+Saved workspace files appear in **Files** and can open in the resource panel. Text edits can appear as Sim writes; generated binary documents and media appear when their artifacts are ready.
 
-## Presentations
+## Edit an existing file [#editing-existing-files]
 
-<Image src="/static/mothership/pptx-example.png" alt="Chat resource panel showing a generated Mothership-Use-Cases.pptx file open with the title slide and first use case slide visible" width={900} height={487} />
+Select the file through an `@`-mention or the **+** menu. It opens beside the conversation so you can review the edits. Describe the change:
 
-Sim can generate `.pptx` files:
+- "Update the pricing section with these new tiers: [details]."
+- "Refactor this Python script to use async/await."
+- "Shorten this report's introduction and keep its findings intact."
 
-- "Create a pitch deck for Q3 review — 8 slides covering growth, retention, and roadmap"
-- "Turn this research report into a 10-slide presentation"
-- "Build a deck that walks through our API onboarding flow"
-- "Build a battle card deck for our top 3 competitors — one slide each covering positioning, pricing, and how we win"
-- "Create an account plan for Acme Corp — their priorities, our solution fit, and proposed next steps"
+Name the existing file when you want Sim to update it rather than create another copy. Editing requires the relevant file access.
 
-The file is saved to your workspace and can be downloaded.
+## Generate documents and presentations [#presentations]
 
-## Images
+Specify a binary format such as `.pptx`, `.docx`, `.pdf`, or `.xlsx` when you need it. Availability depends on the configured document and sandbox capabilities. A request for a document can otherwise be fulfilled as Markdown.
 
-Sim can generate images using AI, and can use an existing image as a reference to guide the output:
+For presentations, include the audience, slide count, and contents:
 
-**Generating images:**
-- "Generate a banner image for the new feature announcement — dark background, clean typography"
-- "Create a diagram showing the data flow through our webhook pipeline"
-- "Make a social card for the blog post with the title and author name"
+> Create an eight-slide Q3 review as q3-review.pptx for the product team, covering growth, retention, and roadmap.
 
-**Using a reference image:**
-- Attach an existing image to your message, then describe what you want: "Generate a new version of this banner with a blue color scheme instead of green"
-- "Create a variation of this diagram with the boxes rearranged horizontally [attach image]"
+Ask Sim to save the final file to the workspace. Open it to review the content and layout, then download it from the resource panel or **Files**.
 
-<Image src="/static/mothership/image-example.png" alt="Chat resource panel showing a generated hero image of a Mothership-branded blimp flying over San Francisco at golden hour, alongside the chat response linking the file" width={900} height={487} />
+## Generate or edit an image [#images]
 
-Generated images are saved as workspace files.
+Describe the subject, style, size or aspect ratio, and intended use:
 
-## Charts and Visualizations
+- "Generate a feature announcement banner with a dark background and clean typography."
+- "Create a social card with this blog title and author name: [details]."
 
-Sim can generate charts and data visualizations from data you describe or reference:
+For a variation, attach an image or reference a workspace image: "Generate a version of this banner with a blue color scheme instead of green." Saved generated images appear in workspace **Files**.
 
-- "Plot the workflow run counts from the metrics table as a bar chart grouped by week"
-- "Create a line chart of token usage over the past 30 days from this data [paste data]"
-- "Generate a pie chart showing the distribution of lead sources from the leads table"
+## Create charts and diagrams [#charts-and-visualizations]
 
-<Image src="/static/mothership/chart-example.png" alt="Chat resource panel showing a generated chart file with bar charts for backend 5xx errors and error rate over time" width={900} height={571} />
+Reference the data and name the chart you need:
 
-Visualizations are saved as files and rendered in the resource panel.
+- "Plot workflow run counts from the metrics table as a weekly bar chart."
+- "Create a line chart of token usage over the past 30 days from this data: [data]."
+- "Show the distribution of lead sources from the leads table as a pie chart."
 
-## Calculations & Data Processing
+Sim can also create diagrams from a description, such as the webhook pipeline's data flow or a horizontal version of an existing diagram. Ask for a code-based diagram when exact labels and structure matter. Save the chart or visualization as a file, then inspect it in the resource panel.
 
-For one-off calculations and data transformations, describe what you need and Sim runs it directly in the chat:
+## Process data [#calculations-data-processing]
 
-- "Parse this JSON and extract all records where status is 'failed'"
-- "Calculate the p95 latency from these timing values: [paste values]"
-- "Convert these Unix timestamps to ISO 8601"
-- "Deduplicate this list of emails, case-insensitive"
+Sim can run code for calculations and one-off transformations:
 
-Results come back directly in the chat. Ask Sim to save the output as a file if you need it.
+- "Extract records from this JSON where status is 'failed'."
+- "Calculate p95 latency from these timing values: [values]."
+- "Convert these Unix timestamps to ISO 8601."
+- "Deduplicate this email list without case sensitivity."
 
-## File Viewer Modes
+Results can be returned in the chat. Ask Sim to save a file when you need to reuse them. The Chat workbench holds temporary computation files while its session exists; those files become workspace files only when explicitly saved or exported. Code outputs written to the per-call `SIM_OUTPUT_DIR` are exported to workspace **Files**.
 
-When a file opens in the resource panel, you can switch between three views:
+If a requested stored file, folder input, or table snapshot is withheld, the code does not run. Check the excluded-input report before trying again. Later calls without that input remain available.
 
-<Video src="mothership/toggle-file-view.mp4" width={700} height={450} />
+## View and reuse files [#file-viewer-modes]
 
-| Mode | What it shows |
-|------|--------------|
-| **Editor** | Raw editable text |
-| **Preview** | Rendered output (markdown, HTML) |
-| **Split** | Editor and preview side by side |
+The viewer depends on the file type and your access:
 
-<FAQ items={[
-  { question: "Can I use files created in Chat in workflows?", answer: "Yes. Workspace files can be referenced in workflows using the File block or by passing them as inputs." },
-  { question: "What file types can I upload in Chat?", answer: "You can attach images, PDFs, text files, JSON, XML, and other document formats directly to a message." },
-  { question: "What can Sim calculate or process?", answer: "Sim can run code to parse JSON, calculate values, transform strings, deduplicate records, and convert supported formats. Results come back in the chat." },
-]} />
+| File | Viewing and editing |
+| --- | --- |
+| Markdown | Read and edit in place |
+| Supported text with a rendered preview, such as HTML | Use **Edit Mode**, **Split Mode**, or **Preview Mode** when editing is allowed |
+| Images, PDFs, and supported Office files | Open the format's preview |
+| Unsupported files or files too large for an editor | Download the file or ask Sim to process it |
+
+Workspace files can be read with a File block or passed as workflow inputs. A chat attachment must first be saved to workspace **Files** when the workflow needs a reusable workspace file.
+
+## Related docs
+
+- [Files](/files)
+- [File editor](/files/editor)
+- [Generating files](/files/generating)
+- [Using files in workflows](/files/using-in-workflows)

@@ -6,7 +6,11 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ContentRefusedError, observeContentDelivery } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 
 const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
@@ -39,6 +43,19 @@ const mocks = {
 }
 
 const principal: Principal = createSessionPrincipal({ userId: 'u', sessionId: 's' })
+const chatPrincipal = createCopilotChatFilePrincipal({
+  userId: 'u',
+  workspaceId: 'ws',
+  chatId: 'chat',
+})
+
+/** Chat's reads run under the gate its transport installs; no registry, so secrets are refused. */
+function readAsChat(scope: { principal?: Principal } = {}) {
+  return observeContentDelivery(
+    createRegistryContentGate({ workspaceId: 'ws', actorUserId: 'u' }),
+    () => readChatSandboxFile.execute({ principal: scope.principal ?? chatPrincipal, input })
+  )
+}
 const input = { workspaceId: 'ws', chatId: 'chat', path: '/tmp/image.png' }
 const machine = { providerId: 'e2b', sandboxId: 'physical' }
 beforeEach(() => {
@@ -73,6 +90,7 @@ describe('owned scratch snapshot reads', () => {
       buffer: Buffer.from('png'),
       name: 'image.png',
       path: input.path,
+      hasRecordedSecrets: false,
     })
     expect(mocks.context).toHaveBeenCalledWith(principal, 'chat')
     expect(mocks.snapshot).toHaveBeenCalledWith(
@@ -97,12 +115,30 @@ describe('owned scratch snapshot reads', () => {
   it.each([
     { status: 'unknown' },
     { status: 'exact', entries: [{ encryptedValue: 'secret', sourceUserId: 'u' }] },
-  ])('refuses explicit unknown or secret-bearing opaque file provenance: %j', async (receipt) => {
-    mocks.receipt.mockReturnValue(receipt)
-    await expect(readChatSandboxFile.execute({ principal, input })).rejects.toThrow(
-      'no verified secret-free provenance'
-    )
-    expect(mocks.dispose).toHaveBeenCalledOnce()
+  ])(
+    'refuses Chat explicit unknown or unredactable secret-bearing provenance: %j',
+    async (receipt) => {
+      mocks.receipt.mockReturnValue(receipt)
+      await expect(readAsChat()).rejects.toBeInstanceOf(ContentRefusedError)
+      expect(mocks.dispose).toHaveBeenCalledOnce()
+    }
+  )
+  it('serves the user their own scratch file whatever its provenance, flagging recorded secrets', async () => {
+    mocks.receipt.mockReturnValue({
+      status: 'exact',
+      entries: [{ encryptedValue: 'secret', sourceUserId: 'u' }],
+    })
+    expect(await readChatSandboxFile.execute({ principal, input })).toMatchObject({
+      name: 'image.png',
+      hasRecordedSecrets: true,
+    })
+  })
+  it('passes a classified workbench failure through to the model unchanged', async () => {
+    const missing = new OrchestrationError('not_found', 'No file exists at /tmp/image.png')
+    mocks.snapshot.mockRejectedValue(missing)
+    const failure = await readAsChat().catch((error: unknown) => error)
+    expect(failure).toBe(missing)
+    expect(fileReadFailure(failure).stderr).toBe('Error: No file exists at /tmp/image.png')
   })
   it('enforces size before streaming and still disposes the snapshot', async () => {
     await expect(
@@ -128,14 +164,7 @@ describe('owned scratch snapshot reads', () => {
 
 describe('scoped chat file delegation', () => {
   it('accepts the canonical owned chat principal without minting an API key', async () => {
-    const delegated = createCopilotChatFilePrincipal({
-      userId: 'u',
-      workspaceId: 'ws',
-      chatId: 'chat',
-    })
-    expect((await readChatSandboxFile.execute({ principal: delegated, input })).name).toBe(
-      'image.png'
-    )
+    expect((await readAsChat()).name).toBe('image.png')
   })
   it.each(['chat', 'audience', 'expired', 'file'])(
     'denies wrong %s delegation before sandbox access',
@@ -173,9 +202,7 @@ it('rejects a workspace API key before canonical lookup or sandbox access', asyn
   expect(mocks.snapshot).not.toHaveBeenCalled()
 })
 
-it('permits a source explicitly classified as unrecorded', async () => {
+it('permits Chat a source explicitly classified as unrecorded', async () => {
   mocks.receipt.mockReturnValue({ status: 'unrecorded' })
-  expect((await readChatSandboxFile.execute({ principal, input })).buffer).toEqual(
-    Buffer.from('png')
-  )
+  expect((await readAsChat()).buffer).toEqual(Buffer.from('png'))
 })

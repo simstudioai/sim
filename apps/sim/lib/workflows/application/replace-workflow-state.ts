@@ -12,10 +12,10 @@ import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
+import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
-import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
@@ -29,6 +29,10 @@ import {
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import {
+  buildSubBlockValues,
+  evaluateSubBlockCondition,
+} from '@/lib/workflows/subblocks/visibility'
 import {
   getToolBindingAuthoringSchema,
   validateToolBindingAuthoring,
@@ -140,6 +144,10 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         const config = getBlock(block.type)
         if (!config) continue
         const fields = new Map(config.subBlocks.map((field) => [field.id, field]))
+        const values = buildSubBlockValues(block.subBlocks)
+        for (const field of config.subBlocks) {
+          if (evaluateSubBlockCondition(field.condition, values)) fields.set(field.id, field)
+        }
         for (const [fieldId, stored] of Object.entries(block.subBlocks ?? {})) {
           const field = fields.get(fieldId)
           if (!field) continue

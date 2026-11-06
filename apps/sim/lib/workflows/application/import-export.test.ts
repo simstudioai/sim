@@ -20,7 +20,7 @@ const hoisted = vi.hoisted(() => ({
   folderLock: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@sim/audit', () => auditMock)
@@ -41,8 +41,8 @@ vi.mock('@/lib/workflows/operations/export-workflow', () => ({
   buildWorkflowExportPayload: hoisted.buildExport,
 }))
 
+import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import { exportWorkflow, importWorkflow } from '@/lib/workflows/application/import-export'
-import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 
 const mocks = {
   ...hoisted,

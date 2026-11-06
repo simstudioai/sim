@@ -29,6 +29,8 @@ const TRANSIENT_READ_CODES = new Set([
 
 /** A read exhausted its budget before its query could begin. */
 export class DatabaseReadDeadlineError extends Error {
+  readonly code = 'DATABASE_READ_DEADLINE_EXCEEDED' as const
+
   constructor() {
     super('Database read deadline exceeded')
     this.name = 'DatabaseReadDeadlineError'

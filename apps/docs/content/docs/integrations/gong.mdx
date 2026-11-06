@@ -1,45 +1,33 @@
 ---
 title: Gong
-description: Revenue intelligence and conversation analytics
+description: Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure
+integration:
+  type: "gong"
+  color: "#8039DF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="gong"
-  color="#8039DF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Gong](https://www.gong.io/) is a revenue intelligence platform that captures and analyzes customer interactions across calls, emails, and meetings. By integrating Gong with Sim, your agents can access conversation data, user analytics, coaching metrics, and more through automated workflows.
+Use [Gong](https://www.gong.io/) to list calls, read call details and transcripts, and retrieve topics, trackers, interaction statistics, and other extensive call data. The actions also read users, activity and coaching metrics, answered scorecards, scorecard definitions, tracker configuration, call-library folders and content, and Engage flows.
 
-The Gong integration in Sim provides tools to:
+Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events. Connect your Gong API credentials and inspect the returned data when preparing coaching reports or syncing conversations to another system.
 
-- **List and retrieve calls:** Fetch calls by date range, get individual call details, or retrieve extensive call data including trackers, topics, interaction stats, and points of interest.
-- **Access call transcripts:** Retrieve full transcripts with speaker turns, topics, and sentence-level timestamps for any recorded call.
-- **Manage users:** List all Gong users in your account or retrieve detailed information for a specific user, including settings, spoken languages, and contact details.
-- **Analyze activity and performance:** Pull aggregated activity statistics, interaction stats (longest monologue, interactivity, patience, question rate), and answered scorecard data for your team.
-- **Work with scorecards and trackers:** List scorecard definitions and keyword tracker configurations to understand how your team's conversations are being evaluated and monitored.
-- **Browse the call library:** List library folders and retrieve their contents, including call snippets and notes curated by your team.
-- **Access coaching metrics:** Retrieve coaching data for managers and their direct reports to track team development.
-- **List Engage flows:** Fetch sales engagement sequences (flows) with visibility and ownership details.
-- **Look up contacts by email or phone:** Find all Gong references to a specific email address or phone number, including related calls, emails, meetings, CRM data, and customer engagement events.
-
-By combining these capabilities, you can automate sales coaching workflows, extract conversation insights, monitor team performance, sync Gong data with other systems, and build intelligent pipelines around your organization's revenue conversations -- all securely using your Gong API credentials.
+**Create Call** uploads metadata and asks Gong to fetch the recording from a media URL. **Assign Flow Prospects** and **Unassign Flow Prospects** change a prospect’s Engage flow assignments. **Purge Email Address** and **Purge Phone Number** request deletion of associated Gong data. [Gong processes these deletions in the background](https://help.gong.io/docs/delete-personal-data); a returned request ID does not confirm completion.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
-
-
+Read calls, recording URLs, transcripts, user data, activity statistics, scorecards, trackers, library content, coaching metrics, and Engage flows. Upload call metadata and let Gong fetch the media URL, assign or unassign flow prospects, and request data erasure for an email address or phone number.
 
 ## Actions
 
 ### Gong List Calls
 
 Retrieve call data by date range from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +71,13 @@ Retrieve call data by date range from Gong.
 | `currentPageSize` | number | Number of records in the current page |
 | `currentPageNumber` | number | Current page number |
 
+</ReferenceDetails>
+
 ### Gong Create Call
 
 Upload call metadata to Gong and let Gong pull the media from a URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +105,13 @@ Upload call metadata to Gong and let Gong pull the media from a URL.
 | `callId` | string | Gong's unique numeric identifier for the created call |
 | `requestId` | string | Gong request reference ID for troubleshooting |
 
+</ReferenceDetails>
+
 ### Gong Get Call
 
 Retrieve detailed data for a specific call from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -151,9 +147,13 @@ Retrieve detailed data for a specific call from Gong.
 | `isPrivate` | boolean | Whether the call is private |
 | `calendarEventId` | string | Calendar event identifier |
 
+</ReferenceDetails>
+
 ### Gong Get Call Transcript
 
 Retrieve transcripts of calls from Gong by call IDs or date range.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +183,13 @@ Retrieve transcripts of calls from Gong by call IDs or date range.
 |       ↳ `text` | string | The sentence text |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong Get Extensive Calls
 
 Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -306,9 +310,13 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 |     ↳ `videoUrl` | string | Video download URL |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong List Users
 
 List all users in your Gong account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -355,9 +363,13 @@ List all users in your Gong account.
 | `currentPageSize` | number | Number of records in the current page |
 | `currentPageNumber` | number | Current page number |
 
+</ReferenceDetails>
+
 ### Gong Get User
 
 Retrieve details for a specific user from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -398,9 +410,13 @@ Retrieve details for a specific user from Gong.
 |   ↳ `language` | string | Language code |
 |   ↳ `primary` | boolean | Whether this is the primary language |
 
+</ReferenceDetails>
+
 ### Gong Aggregate Activity
 
 Retrieve aggregated activity statistics for users by date range from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +457,13 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 | `toDateTime` | string | End of results in ISO-8601 format |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong Day-by-Day Activity
 
 Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +504,13 @@ Retrieve detailed day-by-day activity (call IDs per activity type) for users by 
 |     ↳ `callsMarkedAsFeedbackReceived` | array | IDs of the user's calls marked as reviewed by others |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong Aggregate by Period
 
 Retrieve aggregated user activity grouped into time periods (day, week, month, quarter, year) by date range from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -528,9 +552,13 @@ Retrieve aggregated user activity grouped into time periods (day, week, month, q
 |     ↳ `callsMarkedAsFeedbackReceived` | number | The user's calls marked as reviewed by others |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong Interaction Stats
 
 Retrieve interaction statistics for users by date range from Gong. Only includes calls with Whisper enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +587,13 @@ Retrieve interaction statistics for users by date range from Gong. Only includes
 | `toDateTime` | string | End of results in ISO-8601 format |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong Answered Scorecards
 
 Retrieve answered scorecards for reviewed users or by date range from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -602,9 +634,13 @@ Retrieve answered scorecards for reviewed users or by date range from Gong.
 |     ↳ `selectedOptions` | array | Identifiers of the options selected for select-type questions, null otherwise |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Gong List Library Folders
 
 Retrieve library folders from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -626,9 +662,13 @@ Retrieve library folders from Gong.
 |   ↳ `createdBy` | string | Gong unique numeric identifier for the user who added the folder |
 |   ↳ `updated` | string | Folder's last update time in ISO-8601 format |
 
+</ReferenceDetails>
+
 ### Gong Get Folder Content
 
 Retrieve the list of calls in a specific library folder from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -658,9 +698,13 @@ Retrieve the list of calls in a specific library folder from Gong.
 |     ↳ `fromSec` | number | Snippet start in seconds relative to call start |
 |     ↳ `toSec` | number | Snippet end in seconds relative to call start |
 
+</ReferenceDetails>
+
 ### Gong List Scorecards
 
 Retrieve scorecard definitions from Gong settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -696,9 +740,13 @@ Retrieve scorecard definitions from Gong settings.
 |       ↳ `id` | number | Identifier of the option |
 |       ↳ `text` | string | Display text of the option |
 
+</ReferenceDetails>
+
 ### Gong List Trackers
 
 Retrieve smart tracker and keyword tracker definitions from Gong settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -733,9 +781,13 @@ Retrieve smart tracker and keyword tracker definitions from Gong settings.
 |   ↳ `updated` | string | Last modification timestamp in ISO-8601 format |
 |   ↳ `updaterUserId` | string | ID of the user who last modified the tracker |
 
+</ReferenceDetails>
+
 ### Gong List Workspaces
 
 List all company workspaces in Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -754,9 +806,13 @@ List all company workspaces in Gong.
 |   ↳ `name` | string | Display name of the workspace |
 |   ↳ `description` | string | Description of the workspace's purpose or content |
 
+</ReferenceDetails>
+
 ### Gong List Flows
 
 List Gong Engage flows (sales engagement sequences).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -786,9 +842,13 @@ List Gong Engage flows (sales engagement sequences).
 | `currentPageNumber` | number | Current page number |
 | `cursor` | string | Pagination cursor for retrieving the next page of records |
 
+</ReferenceDetails>
+
 ### Gong Assign Flow Prospects
 
 Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -822,9 +882,13 @@ Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.
 |   ↳ `errorCode` | string | Failure reason: InvalidArgument, InvalidState, or UnexpectedError |
 |   ↳ `errorMessage` | string | Human-readable failure message |
 
+</ReferenceDetails>
+
 ### Gong Unassign Flow Prospects
 
 Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -843,9 +907,13 @@ Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospec
 | `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `unassignedFlowInstanceIds` | array | IDs of the flow instances the prospect was successfully removed from |
 
+</ReferenceDetails>
+
 ### Gong Get Prospect Flows
 
 Get the Gong Engage flows currently assigned to the given CRM prospects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -872,9 +940,13 @@ Get the Gong Engage flows currently assigned to the given CRM prospects.
 |   ↳ `workspaceId` | string | Workspace ID |
 |   ↳ `exclusive` | boolean | Whether this prospect can be added to other flows |
 
+</ReferenceDetails>
+
 ### Gong Get Coaching
 
 Retrieve coaching metrics for a manager from Gong.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -908,9 +980,13 @@ Retrieve coaching metrics for a manager from Gong.
 |       ↳ `title` | string | Job title of the Gong user |
 |     ↳ `metrics` | json | A map of metric names to arrays of string values representing coaching metrics |
 
+</ReferenceDetails>
+
 ### Gong Ask Anything
 
 Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -938,9 +1014,13 @@ Ask a natural-language question about a CRM account, deal, contact, or lead. Gon
 |   ↳ `callFindings` | array | Evidence from calls used to generate this answer item |
 |   ↳ `emailFindings` | array | Evidence from emails used to generate this answer item |
 
+</ReferenceDetails>
+
 ### Gong Get Brief
 
 Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -971,9 +1051,13 @@ Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, 
 |   ↳ `webFindings` | array | Evidence from web search results used to generate this section |
 |   ↳ `mcpResult` | object | Result from an MCP data source used to generate this section |
 
+</ReferenceDetails>
+
 ### Gong Get Logs
 
 Retrieve Gong log entries of a specific type within a time range.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1006,9 +1090,13 @@ Retrieve Gong log entries of a specific type within a time range.
 | `currentPageSize` | number | Number of records in the current page |
 | `currentPageNumber` | number | Current page number |
 
+</ReferenceDetails>
+
 ### Gong Lookup Email
 
 Find all references to an email address in Gong (calls, email messages, meetings, CRM data, engagement).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1058,9 +1146,13 @@ Find all references to an email address in Gong (calls, email messages, meetings
 |   ↳ `reportingSystem` | string | Event reporting system |
 |   ↳ `sourceEventId` | string | Source event ID |
 
+</ReferenceDetails>
+
 ### Gong Lookup Phone
 
 Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1105,9 +1197,13 @@ Find all references to a phone number in Gong (calls, email messages, meetings, 
 |       ↳ `name` | string | Field name |
 |       ↳ `value` | json | Field value |
 
+</ReferenceDetails>
+
 ### Gong Purge Email Address
 
 Erase all Gong data (calls, email messages, leads, contacts) referencing an email address. Asynchronous and irreversible.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1123,9 +1219,13 @@ Erase all Gong data (calls, email messages, leads, contacts) referencing an emai
 | --------- | ---- | ----------- |
 | `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 
+</ReferenceDetails>
+
 ### Gong Purge Phone Number
 
 Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1141,16 +1241,20 @@ Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchr
 | --------- | ---- | ----------- |
 | `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Gong Call Completed
 
 Trigger workflow when a call is completed and processed in Gong
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1165,7 +1269,7 @@ Trigger workflow when a call is completed and processed in Gong
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |
 | `callData` | json | Full call data object |
-| `metaData` | object | metaData output from the tool |
+| `metaData` | object |  |
 |   ↳ `id` | string | Gong call ID |
 |   ↳ `url` | string | URL to the call in Gong |
 |   ↳ `title` | string | Call title |
@@ -1192,13 +1296,14 @@ Trigger workflow when a call is completed and processed in Gong
 | `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
 | `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
 
-
----
+</ReferenceDetails>
 
 ### Gong Webhook
 
 Generic webhook trigger for all Gong events
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1213,7 +1318,7 @@ Generic webhook trigger for all Gong events
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |
 | `callData` | json | Full call data object |
-| `metaData` | object | metaData output from the tool |
+| `metaData` | object |  |
 |   ↳ `id` | string | Gong call ID |
 |   ↳ `url` | string | URL to the call in Gong |
 |   ↳ `title` | string | Call title |
@@ -1239,4 +1344,6 @@ Generic webhook trigger for all Gong events
 | `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
 | `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
 | `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
+
+</ReferenceDetails>
 

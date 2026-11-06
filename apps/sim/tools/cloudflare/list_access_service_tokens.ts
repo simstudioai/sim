@@ -1,15 +1,17 @@
+import { RESULT_INFO_OUTPUTS, SERVICE_TOKEN_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessServiceTokensParams,
   CloudflareListAccessServiceTokensResponse,
-  CloudflareRawAccessServiceToken,
 } from '@/tools/cloudflare/types'
 import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessServiceTokensTool: ToolConfig<
   CloudflareListAccessServiceTokensParams,
@@ -63,7 +65,7 @@ export const listAccessServiceTokensTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/service_tokens`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'search', params.search)
@@ -76,68 +78,38 @@ export const listAccessServiceTokensTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawAccessServiceToken[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { service_tokens: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Access service tokens'),
-      }
-    }
-
-    const tokens = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        service_tokens: tokens.map((token) => ({
-          id: token.id ?? '',
-          name: token.name ?? null,
-          client_id: token.client_id ?? null,
-          duration: token.duration ?? null,
-          enabled: token.enabled ?? null,
-          expires_at: token.expires_at ?? null,
-          last_seen_at: token.last_seen_at ?? null,
-          created_at: token.created_at ?? null,
-          updated_at: token.updated_at ?? null,
-        })),
-        total_count: data.result_info?.total_count ?? tokens.length,
+        service_tokens: rows.map((row) => mapCloudflareFields(row, SERVICE_TOKEN_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to list access service tokens') }
+        : {}),
     }
   },
-
   outputs: {
     service_tokens: {
       type: 'array',
-      description: 'Access service tokens in the account',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Service token identifier' },
-          name: { type: 'string', description: 'Service token name', optional: true },
-          client_id: {
-            type: 'string',
-            description: 'Client ID sent in the CF-Access-Client-Id header',
-            optional: true,
-          },
-          duration: {
-            type: 'string',
-            description: 'How long the token stays valid before it expires',
-            optional: true,
-          },
-          enabled: { type: 'boolean', description: 'Whether the token is active', optional: true },
-          expires_at: { type: 'string', description: 'Expiry timestamp', optional: true },
-          last_seen_at: {
-            type: 'string',
-            description: 'When the token was last used',
-            optional: true,
-          },
-          created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-          updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
-        },
-      },
+      description: 'Service tokens',
+      items: { type: 'object', properties: SERVICE_TOKEN_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of service tokens' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

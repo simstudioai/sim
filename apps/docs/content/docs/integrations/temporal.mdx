@@ -1,40 +1,38 @@
 ---
 title: Temporal
 description: Start, signal, query, and manage Temporal workflow executions
+integration:
+  type: "temporal"
+  color: "#141414"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="temporal"
-  color="#141414"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Temporal](https://temporal.io/) is an open-source durable execution platform that lets teams write workflows as code that survive crashes, retries, and outages. A Temporal cluster tracks every workflow execution's state and event history, so long-running business processes — order fulfillment, payment pipelines, infrastructure provisioning, human-in-the-loop approvals — run reliably for minutes or months at a time.
+Use [Temporal](https://temporal.io/) to start and manage durable workflow executions from Sim. Connect to the server's HTTP API, supply the namespace, and add an API key if the server uses bearer authentication. Your server must expose the HTTP API at a URL Sim can reach; `http://localhost:7243` is an example for a local server, not a guarantee that the API is enabled on every deployment.
 
-With the Temporal integration in Sim, your agents can drive those durable workflows directly. Connect to any Temporal cluster that exposes the server's HTTP API (enabled by default on the frontend's HTTP port, 7243, in modern Temporal servers) and:
+- **Start executions:** Supply the workflow type, task queue, and JSON arguments. Configure ID reuse policy, cron, timeouts, memo, or search attributes where needed. **Signal With Start** atomically signals an execution, creating it if necessary; it does not guarantee exactly-once application processing.
+- **Interact with executions:** Send signals, query state, or invoke an update handler and wait for its result.
+- **Inspect executions:** Read status, timing, pending activities, event history, or the close event. List and count use Temporal's visibility query language.
+- **Manage execution lifecycle:** Request cancellation, terminate immediately, or reset to a past workflow task. Schedule actions create, list, inspect, pause, unpause, trigger, or delete schedules.
 
-- **Run workflows**: start executions with JSON input, use signal-with-start for exactly-once delivery, and set ID reuse policies, cron schedules, timeouts, memo fields, and search attributes.
-- **Communicate with running workflows**: send signals, invoke update handlers and wait for their results, and run queries against live workflow state.
-- **Observe executions**: describe a single execution (status, timing, pending activities), list and count executions with Temporal's visibility query language, and fetch full event histories — including just the close event to read a workflow's outcome.
-- **Operate the fleet**: cancel or terminate runaway executions, reset a workflow to a previous point in its history, and manage schedules — list, describe, pause, unpause, trigger, and delete them.
+Inputs use Temporal's standard `json/plain` payload encoding, and result payloads are decoded into JSON values. Workers must accept that encoding; custom payload codecs may need a separate adapter. A top-level JSON array is treated as the argument list; any other JSON value becomes one argument. The workflow's worker must already implement the named type and poll the selected task queue.
 
-Workflow inputs and results are encoded with Temporal's standard `json/plain` payload converter, so the integration interoperates with workers written in any Temporal SDK. If your server has authentication enabled, provide an API key and Sim sends it as a Bearer token on every request.
+Starting an execution acknowledges its creation, rather than its completion. Poll its state or history before consuming a final outcome. See Temporal's [workflow messaging reference](https://docs.temporal.io/sending-messages) for signal and update semantics.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.
-
-
+Use a Temporal server’s HTTP API to start or signal executions, query or update workflow state, inspect execution history and workers, manage schedules, and cancel, terminate, or reset executions. Supply an API key when the server requires bearer authentication.
 
 ## Actions
 
 ### Temporal Start Workflow
 
 Start a new workflow execution on a Temporal cluster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +61,13 @@ Start a new workflow execution on a Temporal cluster.
 | `runId` | string | Run ID of the started workflow execution |
 | `started` | boolean | Whether a new execution was started \(false when an existing execution was reused\) |
 
+</ReferenceDetails>
+
 ### Temporal Signal Workflow
 
 Send a signal to a running Temporal workflow execution.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +88,13 @@ Send a signal to a running Temporal workflow execution.
 | `workflowId` | string | Workflow ID of the signaled execution |
 | `signalName` | string | Name of the signal that was sent |
 
+</ReferenceDetails>
+
 ### Temporal Signal With Start
 
-Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost.
+Atomically signal a Temporal workflow execution, starting it first if it is not already running.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +125,13 @@ Atomically signal a Temporal workflow, starting it first if it is not already ru
 | `runId` | string | Run ID of the signaled \(or newly started\) execution |
 | `started` | boolean | Whether this call started a new execution \(false when only signaled\) |
 
+</ReferenceDetails>
+
 ### Temporal Query Workflow
 
 Run a synchronous query against the state of a Temporal workflow execution and return the result.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +153,13 @@ Run a synchronous query against the state of a Temporal workflow execution and r
 | `queryType` | string | Name of the query that was run |
 | `result` | json | Decoded query result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
 
+</ReferenceDetails>
+
 ### Temporal Update Workflow
 
 Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +181,13 @@ Invoke an update handler on a running Temporal workflow and wait for its result.
 | `updateName` | string | Name of the update that was invoked |
 | `result` | json | Decoded update result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
 
+</ReferenceDetails>
+
 ### Temporal Describe Workflow
 
 Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,9 +221,13 @@ Get the current state of a Temporal workflow execution, including status, timing
 |   ↳ `attempt` | number | Current attempt number |
 |   ↳ `lastFailureMessage` | string | Message of the most recent failure, if the activity is retrying |
 
+</ReferenceDetails>
+
 ### Temporal List Workflows
 
 List workflow executions in a Temporal namespace, optionally filtered with a visibility query.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -234,9 +256,13 @@ List workflow executions in a Temporal namespace, optionally filtered with a vis
 |   ↳ `taskQueue` | string | Task queue of the execution |
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
 
+</ReferenceDetails>
+
 ### Temporal Count Workflows
 
 Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +282,13 @@ Count workflow executions in a Temporal namespace matching a visibility query, w
 |   ↳ `values` | json | Decoded values of the GROUP BY fields |
 |   ↳ `count` | number | Number of executions in the group |
 
+</ReferenceDetails>
+
 ### Temporal Get Workflow History
 
 Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +314,13 @@ Fetch the event history of a Temporal workflow execution, optionally filtered to
 |   ↳ `attributes` | json | The event's type-specific attributes \(payload data is base64-encoded\) |
 | `nextPageToken` | string | Token for the next page of events, null when no more pages exist |
 
+</ReferenceDetails>
+
 ### Temporal Cancel Workflow
 
 Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +339,13 @@ Request cooperative cancellation of a running Temporal workflow execution. The w
 | --------- | ---- | ----------- |
 | `workflowId` | string | Workflow ID of the execution whose cancellation was requested |
 
+</ReferenceDetails>
+
 ### Temporal Terminate Workflow
 
 Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -326,9 +364,13 @@ Forcefully terminate a Temporal workflow execution immediately, without giving t
 | --------- | ---- | ----------- |
 | `workflowId` | string | Workflow ID of the terminated execution |
 
+</ReferenceDetails>
+
 ### Temporal Reset Workflow
 
 Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -349,9 +391,13 @@ Reset a Temporal workflow execution to a past workflow task, terminating the cur
 | `workflowId` | string | Workflow ID of the reset execution |
 | `runId` | string | Run ID of the new run created by the reset |
 
+</ReferenceDetails>
+
 ### Temporal Describe Task Queue
 
 List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -373,9 +419,13 @@ List the workers currently polling a Temporal task queue, to check whether a wor
 |   ↳ `lastAccessTime` | string | Last time the worker polled the queue \(RFC 3339\) |
 |   ↳ `ratePerSecond` | number | Poller rate per second |
 
+</ReferenceDetails>
+
 ### Temporal Create Schedule
 
 Create a Temporal schedule that starts a workflow on a cron or interval cadence.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -402,9 +452,13 @@ Create a Temporal schedule that starts a workflow on a cron or interval cadence.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the created schedule |
 
+</ReferenceDetails>
+
 ### Temporal List Schedules
 
 List schedules in a Temporal namespace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,9 +483,13 @@ List schedules in a Temporal namespace.
 |   ↳ `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
 
+</ReferenceDetails>
+
 ### Temporal Describe Schedule
 
 Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -460,9 +518,13 @@ Get the configuration and current state of a Temporal schedule, including its sp
 |   ↳ `runId` | string | Run ID of the started execution |
 | `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
 
+</ReferenceDetails>
+
 ### Temporal Pause Schedule
 
 Pause a Temporal schedule so it stops taking actions until unpaused.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -480,9 +542,13 @@ Pause a Temporal schedule so it stops taking actions until unpaused.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the paused schedule |
 
+</ReferenceDetails>
+
 ### Temporal Unpause Schedule
 
 Unpause a Temporal schedule so it resumes taking actions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -500,9 +566,13 @@ Unpause a Temporal schedule so it resumes taking actions.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the unpaused schedule |
 
+</ReferenceDetails>
+
 ### Temporal Trigger Schedule
 
 Trigger an immediate action of a Temporal schedule, outside its normal spec.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -520,9 +590,13 @@ Trigger an immediate action of a Temporal schedule, outside its normal spec.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the triggered schedule |
 
+</ReferenceDetails>
+
 ### Temporal Delete Schedule
 
 Delete a Temporal schedule. Workflows already started by the schedule keep running.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -538,5 +612,7 @@ Delete a Temporal schedule. Workflows already started by the schedule keep runni
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the deleted schedule |
+
+</ReferenceDetails>
 
 

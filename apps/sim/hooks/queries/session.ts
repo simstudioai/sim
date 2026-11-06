@@ -1,5 +1,5 @@
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import {
   type AppSession,
   extractSessionDataFromAuthClientResult,

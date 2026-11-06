@@ -31,10 +31,13 @@ import {
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
-import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import {
+  fetchWorkspaceResourceRef,
+  readCachedWorkspaceResourceRef,
+} from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -76,10 +79,10 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
   const queryClient = useQueryClient()
   const controller = useResourcePanelController()
   const firstName = userName?.split(' ')[0] ?? ''
-  const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [selectedMode, setSelectedMode] = useState<'agent' | 'plan'>('agent')
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
@@ -294,10 +297,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     const contexts = handoff.contexts ?? []
     for (const context of contexts) handleContextAdd(context)
     addMothershipContexts(contexts)
-    // `handleContextAdd` is a body function, so it is a new value every render;
-    // listing it would re-run this drain on every render. Omitted deliberately to
-    // keep it one-shot — and harmless either way, since `consume` clears the entry
-    // atomically and any re-run would find nothing.
+    // `handleContextAdd` is omitted: it is a new function every render.
   }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(
@@ -354,7 +354,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
     })
     if (stillReferenced) return
-    removeResource(resolved.type, resolved.id)
+    removeResource(resolved)
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
@@ -363,35 +363,34 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   /**
    * Opens the resource a message chip points at, resolving it first. A chip may
-   * carry only a filename — the agent names a file before the client's file
-   * list knows it exists — so one forced refetch closes that window. What still
+   * carry only a filename — the agent names a file before the client has read
+   * it — so a cached miss is re-read once before giving up. What still
    * resolves to nothing opens nothing, rather than a tab that cannot be
    * viewed or removed.
    */
   async function handleWorkspaceResourceSelect(ref: WorkspaceResourceRef) {
-    const immediate = resolveWorkspaceResourceRef(ref, workspaceFiles)
+    const immediate = readCachedWorkspaceResourceRef(queryClient, workspaceId, ref)
     if (immediate) {
       openWorkspaceResource(immediate)
       return
     }
     if (ref.type !== 'file') return
 
-    // `staleTime: 0` forces the fetch this branch exists for — the cached list
-    // is what already failed to resolve. `fetchQuery` rejects on error and this
-    // handler is invoked as a void callback, so failure becomes null rather
-    // than an unhandled rejection — and stays distinct from an empty list, so
-    // "we could not look" is never reported as "it is not there".
-    const files = await queryClient
-      .fetchQuery({ ...getWorkspaceFilesQueryOptions(workspaceId), staleTime: 0 })
-      .catch(() => null)
-    const resolved = files && resolveWorkspaceResourceRef(ref, files)
+    // `fresh` forces the reads this branch exists for — what is cached already
+    // failed to resolve. A failed read rejects, and this handler is invoked as a
+    // void callback, so failure becomes `undefined` rather than an unhandled
+    // rejection — distinct from `null`, so "we could not look" is never
+    // reported as "it is not there".
+    const resolved = await fetchWorkspaceResourceRef(queryClient, workspaceId, ref, {
+      fresh: true,
+    }).catch(() => undefined)
     if (resolved) {
       openWorkspaceResource(resolved)
       return
     }
     // The chip looks clickable, so refusing silently reads as a broken button.
     toast.error(
-      files
+      resolved === null
         ? `Couldn't find "${ref.title}" in this workspace`
         : `Couldn't open "${ref.title}" — check your connection and try again`
     )
@@ -399,7 +398,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       type: ref.type,
       title: ref.title,
       hasPath: Boolean(ref.path),
-      reachedWorkspace: files !== null,
+      reachedWorkspace: resolved === null,
     })
   }
 
@@ -415,7 +414,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   return (
     <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
-      <div className='relative flex h-full @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,100%)]'>
+      <div className='relative flex h-full min-w-0 flex-1 flex-col md:min-w-[min(480px,50%)]'>
         {showEmptyState && (
           <div
             className={cn(
@@ -451,7 +450,11 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                   <UserInput
                     ref={initialViewUserInputRef}
                     requestMode={selectedMode}
-                    onModeChange={setSelectedMode}
+                    onPlanChange={
+                      planEnabled
+                        ? () => setSelectedMode((mode) => (mode === 'plan' ? 'agent' : 'plan'))
+                        : undefined
+                    }
                     defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}

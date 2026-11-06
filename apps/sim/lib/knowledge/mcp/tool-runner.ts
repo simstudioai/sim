@@ -22,7 +22,9 @@ export type KnowledgeMcpToolRunner = (
   toolName: SearchMcpActivityInput['toolName'],
   operation: ApplicationOperation,
   toolSignal: AbortSignal,
-  run: (registry: ResolvedSecretTraceRegistry, signal: AbortSignal) => Promise<CallToolResult>
+  run: (registry: ResolvedSecretTraceRegistry, signal: AbortSignal) => Promise<CallToolResult>,
+  /** Operations the call performs for the rate limit, such as each document a batched read reads. */
+  cost?: number
 ) => Promise<CallToolResult>
 
 /** A tool result projected for its resolved secrets and bounded in size. */

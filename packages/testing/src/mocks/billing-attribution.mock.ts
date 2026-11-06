@@ -119,7 +119,7 @@ function toUsageLimitSubscription(attribution: MockBillingAttributionSnapshot) {
 }
 
 /**
- * Controllable mock functions for `@/lib/billing/core/billing-attribution`.
+ * Controllable mock functions for `@/lib/billing/core/attribution`.
  *
  * Resolvers, usage/block checks, and header `require*` readers are bare `vi.fn()`s.
  * Pure transforms default to the real logic without the snapshot validator:
@@ -167,12 +167,12 @@ export const billingAttributionMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/billing/core/billing-attribution`, including the
+ * Static mock module for `@/lib/billing/core/attribution`, including the
  * billing-protocol header constants it re-exports.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+ * vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
  * ```
  */
 export const billingAttributionMock = {

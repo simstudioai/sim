@@ -55,7 +55,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -139,8 +139,25 @@ function createError(
   }
 }
 
+const SESSION_SIGNAL_STATUSES = new Set([400, 401, 404])
+
+/**
+ * Answers a well-formed request with a JSON-RPC error. Streamable HTTP clients read a 400, 401,
+ * or 404 as a lost or unauthenticated session and reconnect instead of surfacing the error, so
+ * those go out at 200, as the SDK server sends them; every other status keeps its limit, retry,
+ * or alarm meaning. A malformed message has no request to answer and keeps its 400.
+ */
+function jsonRpcErrorResponse(
+  error: JSONRPCError,
+  init: { status?: number; headers?: HeadersInit } = {}
+): NextResponse {
+  const status =
+    init.status === undefined || SESSION_SIGNAL_STATUSES.has(init.status) ? 200 : init.status
+  return NextResponse.json(error, { status, headers: init.headers })
+}
+
 function clientCancelledJsonRpcResponse(id: RequestId): NextResponse {
-  return NextResponse.json(
+  return jsonRpcErrorResponse(
     createError(id, ErrorCode.ConnectionClosed, 'Client cancelled request'),
     {
       status: 499,
@@ -753,11 +770,8 @@ export const POST = withRouteHandler(
 
           const paramsValidation = mcpToolCallParamsSchema.safeParse(rpcParams)
           if (!paramsValidation.success) {
-            return NextResponse.json(
-              createError(id, ErrorCode.InvalidParams, 'Invalid tool call parameters'),
-              {
-                status: 400,
-              }
+            return jsonRpcErrorResponse(
+              createError(id, ErrorCode.InvalidParams, 'Invalid tool call parameters')
             )
           }
 
@@ -780,11 +794,8 @@ export const POST = withRouteHandler(
         }
 
         default:
-          return NextResponse.json(
-            createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`),
-            {
-              status: 404,
-            }
+          return jsonRpcErrorResponse(
+            createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`)
           )
       }
     } catch (error) {
@@ -804,7 +815,7 @@ async function handleToolsList(
   try {
     const duplicateToolName = await getDuplicateToolName(serverId)
     if (duplicateToolName) {
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.InvalidRequest, 'MCP server has duplicate tool names', {
           code: 'duplicate_tool_name',
           toolName: duplicateToolName,
@@ -920,7 +931,7 @@ async function handleToolsList(
         maxBytes: error.maxBytes,
         observedBytes: error.observedBytes,
       })
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.InternalError, 'MCP tools/list response is too large', {
           code: 'payload_too_large',
           maxBytes: error.maxBytes,
@@ -931,7 +942,7 @@ async function handleToolsList(
       )
     }
     logger.error('Error listing tools:', error)
-    return NextResponse.json(createError(id, ErrorCode.InternalError, 'Failed to list tools'), {
+    return jsonRpcErrorResponse(createError(id, ErrorCode.InternalError, 'Failed to list tools'), {
       status: 500,
     })
   }
@@ -941,7 +952,7 @@ async function handleToolsCall(
   id: RequestId,
   serverId: string,
   serverWorkspaceId: string,
-  params: { name: string; arguments?: Record<string, unknown> } | undefined,
+  params: { name: string; arguments?: Record<string, unknown> },
   executeAuthContext?: ExecuteAuthContext | null,
   publicServerOwnerId?: string,
   simViaHeader?: string | null,
@@ -949,11 +960,6 @@ async function handleToolsCall(
 ): Promise<NextResponse> {
   let abortSignal: ManagedAbortSignal | null = null
   try {
-    if (!params?.name) {
-      return NextResponse.json(createError(id, ErrorCode.InvalidParams, 'Tool name required'), {
-        status: 400,
-      })
-    }
     abortSignal = createManagedAbortSignal(
       requestSignal ?? new AbortController().signal,
       getMaxExecutionTimeout()
@@ -979,7 +985,7 @@ async function handleToolsCall(
     const abortedAfterToolLookup = callerAbortedJsonRpcResponse(id, abortSignal)
     if (abortedAfterToolLookup) return abortedAfterToolLookup
     if (matchingTools.length > 1) {
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.InvalidRequest, `Duplicate tool name: ${params.name}`, {
           code: 'duplicate_tool_name',
           toolName: params.name,
@@ -990,11 +996,8 @@ async function handleToolsCall(
     }
     const [tool] = matchingTools
     if (!tool) {
-      return NextResponse.json(
-        createError(id, ErrorCode.InvalidParams, `Tool not found: ${params.name}`),
-        {
-          status: 404,
-        }
+      return jsonRpcErrorResponse(
+        createError(id, ErrorCode.InvalidParams, `Tool not found: ${params.name}`)
       )
     }
 
@@ -1023,11 +1026,8 @@ async function handleToolsCall(
      * the deploy status GET route.
      */
     if (!wf?.deploymentVersionId) {
-      return NextResponse.json(
-        createError(id, ErrorCode.InternalError, 'Workflow is not deployed'),
-        {
-          status: 400,
-        }
+      return jsonRpcErrorResponse(
+        createError(id, ErrorCode.InternalError, 'Workflow is not deployed')
       )
     }
 
@@ -1036,7 +1036,7 @@ async function handleToolsCall(
         serverId,
         workflowId: tool.workflowId,
       })
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.InternalError, 'Workflow is unavailable for this MCP server'),
         { status: 403 }
       )
@@ -1103,7 +1103,7 @@ async function handleToolsCall(
           Math.ceil(failure.retryAfterMs / 1000)
         ).toString()
       }
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(
           id,
           getWorkflowErrorCode(failure.statusCode, { code: failure.code }),
@@ -1125,7 +1125,7 @@ async function handleToolsCall(
     }
 
     if (serviceResult.aborted === 'client') {
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.ConnectionClosed, 'Client cancelled request', {
           httpStatus: 499,
           retryable: false,
@@ -1136,7 +1136,7 @@ async function handleToolsCall(
     }
 
     if (serviceResult.aborted === 'timeout') {
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(
           id,
           ErrorCode.InternalError,
@@ -1181,7 +1181,7 @@ async function handleToolsCall(
     )
   } catch (error) {
     if (abortSignal?.isTimedOut()) {
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(id, ErrorCode.InternalError, 'Tool execution timed out', {
           code: 'timeout',
           retryable: true,
@@ -1199,7 +1199,7 @@ async function handleToolsCall(
         observedBytes: error.observedBytes,
         label: error.label,
       })
-      return NextResponse.json(
+      return jsonRpcErrorResponse(
         createError(
           id,
           error.label === 'MCP workflow execution request body'
@@ -1217,7 +1217,7 @@ async function handleToolsCall(
       )
     }
     logger.error('Error calling tool:', error)
-    return NextResponse.json(createError(id, ErrorCode.InternalError, 'Tool execution failed'), {
+    return jsonRpcErrorResponse(createError(id, ErrorCode.InternalError, 'Tool execution failed'), {
       status: 500,
     })
   } finally {

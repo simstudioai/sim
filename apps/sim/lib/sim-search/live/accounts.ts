@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account, credential, user } from '@sim/db/schema'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   type ResourceOwner,
@@ -28,34 +28,17 @@ import {
 } from '@/lib/sim-search/live/provider-catalog'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
+/**
+ * A workspace searches the person's workspace credentials; an organization searches only the
+ * accounts its members connect on the integrations page (credential-group enrollments).
+ */
 async function listOAuthRows(scope: ResourceScope, userId: string) {
   if (scope.kind === 'workspace') return getPersonalOAuthCredentials(scope.workspaceId, userId)
-  const [managed, personal] = await Promise.all([
-    getOwnOrganizationManagedOAuthCredentials({ organizationId: scope.organizationId, userId }),
-    db
-      .select({
-        id: credential.id,
-        providerId: credential.providerId,
-        displayName: credential.displayName,
-      })
-      .from(credential)
-      .innerJoin(account, eq(account.id, credential.accountId))
-      .where(
-        and(
-          resourceScopeCondition(credential, scope),
-          eq(credential.type, 'oauth'),
-          eq(account.userId, userId),
-          eq(account.providerId, credential.providerId),
-          ne(credential.providerId, 'slack')
-        )
-      ),
-  ])
-  return [
-    ...managed.map((row) => ({ ...row, type: 'managed_oauth' as const })),
-    ...personal.flatMap((row) =>
-      row.providerId ? [{ ...row, providerId: row.providerId, type: 'oauth' as const }] : []
-    ),
-  ]
+  const managed = await getOwnOrganizationManagedOAuthCredentials({
+    organizationId: scope.organizationId,
+    userId,
+  })
+  return managed.map((row) => ({ ...row, type: 'managed_oauth' as const }))
 }
 
 async function listCodaTokenRows(scope: ResourceScope, userId: string) {
@@ -164,11 +147,16 @@ export async function listLiveAccounts(
 }
 
 /** Re-lists the member's accounts so a reference from an earlier request is checked afresh. */
-export async function resolveLiveAccount(owner: ResourceOwner, userId: string, accountId: string) {
+export async function resolveLiveAccount(
+  owner: ResourceOwner,
+  userId: string,
+  accountId: string,
+  signal?: AbortSignal
+) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
     throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
-  return resolveListedLiveAccount(owner, userId, current)
+  return resolveListedLiveAccount(owner, userId, current, signal)
 }
 
 export type ResolvedLiveAccount = Awaited<ReturnType<typeof resolveListedLiveAccount>>
@@ -180,7 +168,8 @@ export type ResolvedLiveAccount = Awaited<ReturnType<typeof resolveListedLiveAcc
 export async function resolveListedLiveAccount(
   owner: ResourceOwner,
   userId: string,
-  current: LiveAccount
+  current: LiveAccount,
+  signal?: AbortSignal
 ) {
   if (current.type === 'admin_source') return resolveAdminGitLabAccount(owner, current)
   if (current.type === 'managed_mcp') return { account: current, accessToken: '', mcp: true }
@@ -194,7 +183,14 @@ export async function resolveListedLiveAccount(
     })
     return { account: current, accessToken: token.accessToken }
   }
-  const token = await resolveCredentialTokenBundle(current.id, userId, 'live-search')
+  const token = await resolveCredentialTokenBundle(
+    current.id,
+    userId,
+    'live-search',
+    undefined,
+    undefined,
+    { signal }
+  )
   if (!token) throw new NativeSearchError('reconnect', 'Reconnect your personal account.')
   if (current.type === 'service_account') {
     const [person] = await db
@@ -205,7 +201,9 @@ export async function resolveListedLiveAccount(
     const api = createNativeClient({
       origin: 'https://coda.io',
       accessToken: token.accessToken,
-      signal: AbortSignal.timeout(10_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
     })
     const identity = object(await api.json('/apis/v1/whoami'))
     if (

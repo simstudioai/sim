@@ -1,10 +1,10 @@
 'use client'
 
 import { Combobox } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import { McpIcon } from '@/components/icons'
 import { getMcpTargetOptions } from '@/components/mcp/target-options'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -28,8 +28,7 @@ export function McpServerSelector({
   previewValue,
 }: McpServerSelectorProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const { data: servers = [], isLoading, error } = useMcpToolServers(workspaceId)
   const targetOptions = getMcpTargetOptions(servers)

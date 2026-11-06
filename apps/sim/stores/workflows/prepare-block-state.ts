@@ -10,10 +10,10 @@
  */
 
 import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks'
 import type { BlockState, Position, SubBlockState } from '@/stores/workflows/workflow/types'
 

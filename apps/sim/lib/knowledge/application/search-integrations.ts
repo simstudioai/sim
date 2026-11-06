@@ -12,8 +12,10 @@ import { and, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzl
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
-import { addOrganizationAccountProvider } from '@/lib/credential-groups/service'
-import { SLACK_SEARCH_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  addOrganizationAccountProvider,
+  ensureWorkspaceAccountsGroup,
+} from '@/lib/credential-groups/service'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
@@ -177,8 +179,8 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ApproveSearchIntegrationInput }) =>
     resolveKnowledgeOwnerContext({ organizationId: input.organizationId }),
   async execute({ input, context, principal }) {
-    if (!context.organizationId)
-      throw new OrchestrationError('validation', 'Organization is required')
+    const { organizationId } = context
+    if (!organizationId) throw new OrchestrationError('validation', 'Organization is required')
     const source = LIVE_SEARCH_SOURCE_TYPES.find(([type]) => type === input.connectorType)
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
@@ -271,17 +273,20 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
     let memberAccounts: { groupId: string; changed: boolean } | undefined
     const changed = await db.transaction(async (tx) => {
       await lockOrganizationSearchApproval(tx, context.organizationId!)
-      if (memberProvider)
+      /** Slack sign-in belongs to Slack setup (bot install or admin verification), not approval. */
+      if (memberProvider === 'slack') {
+        const group = await ensureWorkspaceAccountsGroup(
+          { kind: 'organization', organizationId },
+          requirePrincipalSubjectUserId(principal),
+          undefined,
+          tx
+        )
+        memberAccounts = { groupId: group.id, changed: group.created }
+      } else if (memberProvider)
         memberAccounts = await addOrganizationAccountProvider(
           context.organizationId!,
           requirePrincipalSubjectUserId(principal),
-          {
-            provider: memberProvider,
-            label: source[1].name,
-            ...(memberProvider === 'slack'
-              ? { requiredScopes: [...SLACK_SEARCH_USER_SCOPES] }
-              : {}),
-          },
+          { provider: memberProvider, label: source[1].name },
           tx
         ).catch((error: unknown) => {
           if (error instanceof CredentialGroupProviderConfigurationError)
@@ -328,7 +333,10 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
                   action: AuditAction.CREDENTIAL_GROUP_UPDATED,
                   resourceType: AuditResourceType.CREDENTIAL_GROUP,
                   resourceId: result.memberAccounts.groupId,
-                  description: `Configured ${result.connectorType} member sign-in for Sim Search`,
+                  description:
+                    result.connectorType === 'slack'
+                      ? 'Created connected accounts for Slack Sim Search'
+                      : `Configured ${result.connectorType} member sign-in for Sim Search`,
                   metadata: { connectorType: result.connectorType },
                 },
               ]

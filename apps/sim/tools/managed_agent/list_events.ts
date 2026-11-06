@@ -1,5 +1,6 @@
 import {
   ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
   CREDENTIAL_PARAM,
   SESSION_ID_PARAM,
 } from '@/tools/managed_agent/shared'
@@ -37,6 +38,7 @@ export const managedAgentListEventsTool: InternalToolConfig<
   name: 'Managed Agent List Events',
   description: "Read a Managed Agent session's event history and the agent's reply text.",
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

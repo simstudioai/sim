@@ -1,44 +1,31 @@
 ---
 title: Profound
 description: AI visibility and analytics with Profound
+integration:
+  type: "profound"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="profound"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Profound](https://tryprofound.com/) is an AI visibility and analytics platform that helps brands understand how they appear across AI-powered search engines, chatbots, and assistants. It tracks mentions, citations, sentiment, bot traffic, and referral patterns across platforms like ChatGPT, Perplexity, Google AI Overviews, and more.
+Use [Profound](https://tryprofound.com/) to retrieve brand visibility, share of voice, mentions, sentiment, and citation data across AI platforms. The actions also read AI crawler and referral traffic, prompt-answer pairs and query fanouts, prompt-volume trends, and content-optimization scores.
 
-With the Profound integration in Sim, you can:
-
-- **Monitor AI Visibility**: Track share of voice, visibility scores, and mention counts across AI platforms for your brand and competitors.
-- **Analyze Sentiment**: Measure how positively or negatively your brand is discussed in AI-generated responses.
-- **Track Citations**: See which URLs are being cited by AI models and your citation share relative to competitors.
-- **Monitor Bot Traffic**: Analyze AI crawler activity on your domain, including GPTBot, ClaudeBot, and other AI agents, with hourly granularity.
-- **Track Referral Traffic**: Monitor human visits arriving from AI platforms to your website.
-- **Explore Prompt Data**: Access raw prompt-answer pairs, query fanouts, and prompt volume trends across AI platforms.
-- **Optimize Content**: Get AEO (Answer Engine Optimization) scores and actionable recommendations to improve how AI models reference your content.
-- **Manage Categories & Assets**: List and explore your tracked categories, assets (brands), topics, tags, personas, and regions.
-
-These tools let your agents automate AI visibility monitoring, competitive intelligence, and content optimization workflows. To use the Profound integration, you'll need a Profound account with API access.
+List categories, assets, topics, tags, personas, and regions to choose the reporting scope. Connect a Profound account with API access, then use the metrics to prepare reports or compare brands and content.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.
-
-
 
 ## Actions
 
 ### Profound List Categories
 
 List all organization categories in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -54,9 +41,13 @@ List all organization categories in Profound
 |   ↳ `id` | string | Category ID |
 |   ↳ `name` | string | Category name |
 
+</ReferenceDetails>
+
 ### Profound List Regions
 
 List all organization regions in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +63,13 @@ List all organization regions in Profound
 |   ↳ `id` | string | Region ID \(UUID\) |
 |   ↳ `name` | string | Region name |
 
+</ReferenceDetails>
+
 ### Profound List Models
 
 List all AI models/platforms tracked in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +85,13 @@ List all AI models/platforms tracked in Profound
 |   ↳ `id` | string | Model ID \(UUID\) |
 |   ↳ `name` | string | Model/platform name |
 
+</ReferenceDetails>
+
 ### Profound List Domains
 
 List all organization domains in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +108,13 @@ List all organization domains in Profound
 |   ↳ `name` | string | Domain name |
 |   ↳ `createdAt` | string | When the domain was added |
 
+</ReferenceDetails>
+
 ### Profound List Assets
 
 List all organization assets (companies/brands) across all categories in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +137,13 @@ List all organization assets (companies/brands) across all categories in Profoun
 |   ↳ `categoryId` | string | Category ID the asset belongs to |
 |   ↳ `categoryName` | string | Category name |
 
+</ReferenceDetails>
+
 ### Profound List Personas
 
 List all organization personas across all categories in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +162,13 @@ List all organization personas across all categories in Profound
 |   ↳ `categoryName` | string | Category name |
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
 
+</ReferenceDetails>
+
 ### Profound Category Topics
 
 List topics for a specific category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -174,9 +185,13 @@ List topics for a specific category in Profound
 |   ↳ `id` | string | Topic ID \(UUID\) |
 |   ↳ `name` | string | Topic name |
 
+</ReferenceDetails>
+
 ### Profound Category Tags
 
 List tags for a specific category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +208,13 @@ List tags for a specific category in Profound
 |   ↳ `id` | string | Tag ID \(UUID\) |
 |   ↳ `name` | string | Tag name |
 
+</ReferenceDetails>
+
 ### Profound Category Prompts
 
 List prompts for a specific category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -229,9 +248,13 @@ List prompts for a specific category in Profound
 |   ↳ `platforms` | json | Associated platforms |
 |   ↳ `createdAt` | string | When the prompt was created |
 
+</ReferenceDetails>
+
 ### Profound Category Assets
 
 List assets (companies/brands) for a specific category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -253,9 +276,13 @@ List assets (companies/brands) for a specific category in Profound
 |   ↳ `createdAt` | string | When the asset was created |
 |   ↳ `logoUrl` | string | URL of the asset logo |
 
+</ReferenceDetails>
+
 ### Profound Category Personas
 
 List personas for a specific category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +300,13 @@ List personas for a specific category in Profound
 |   ↳ `name` | string | Persona name |
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
 
+</ReferenceDetails>
+
 ### Profound Visibility Report
 
 Query AI visibility report for a category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +331,13 @@ Query AI visibility report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Sentiment Report
 
 Query sentiment report for a category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -327,9 +362,13 @@ Query sentiment report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Citations Report
 
 Query citations report for a category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +393,13 @@ Query citations report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Query Fanouts
 
 Query fanout report showing how AI models expand prompts into sub-queries in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +424,13 @@ Query fanout report showing how AI models expand prompts into sub-queries in Pro
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Prompt Answers
 
 Get raw prompt answers data for a category in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -413,9 +460,13 @@ Get raw prompt answers data for a category in Profound
 |   ↳ `asset` | string | Asset name |
 |   ↳ `createdAt` | string | Timestamp when the answer was collected |
 
+</ReferenceDetails>
+
 ### Profound Bots Report
 
 Query bot traffic report with hourly granularity for a domain in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -440,9 +491,13 @@ Query bot traffic report with hourly granularity for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Referrals Report
 
 Query human referral traffic report with hourly granularity for a domain in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +522,13 @@ Query human referral traffic report with hourly granularity for a domain in Prof
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Raw Logs
 
 Get raw traffic logs with filters for a domain in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -492,9 +551,13 @@ Get raw traffic logs with filters for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values \(count\) |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Bot Logs
 
 Get identified bot visit logs with filters for a domain in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -517,9 +580,13 @@ Get identified bot visit logs with filters for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values \(count\) |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound List Optimizations
 
 List content optimization entries for an asset in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -543,9 +610,13 @@ List content optimization entries for an asset in Profound
 |   ↳ `type` | string | Content type: file, text, or url |
 |   ↳ `status` | string | Optimization status |
 
+</ReferenceDetails>
+
 ### Profound Optimization Analysis
 
 Get detailed content optimization analysis for a specific content item in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -580,9 +651,13 @@ Get detailed content optimization analysis for a specific content item in Profou
 |     ↳ `text` | string | Suggestion text |
 |     ↳ `rationale` | string | Why this recommendation matters |
 
+</ReferenceDetails>
+
 ### Profound Prompt Volume
 
 Query prompt volume data to understand search demand across AI platforms in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -606,9 +681,13 @@ Query prompt volume data to understand search demand across AI platforms in Prof
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
+</ReferenceDetails>
+
 ### Profound Citation Prompts
 
 Get prompts that cite a specific domain across AI platforms in Profound
+
+<ReferenceDetails>
 
 #### Input
 
@@ -622,5 +701,7 @@ Get prompts that cite a specific domain across AI platforms in Profound
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | json | Citation prompt data for the queried domain |
+
+</ReferenceDetails>
 
 

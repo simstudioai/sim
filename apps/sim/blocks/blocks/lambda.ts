@@ -406,7 +406,7 @@ export const LambdaBlock: BlockConfig = {
   name: 'Lambda',
   description: 'Invoke, deploy, and manage AWS Lambda functions',
   longDescription:
-    'Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.',
+    'Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   authMode: AuthMode.ApiKey,

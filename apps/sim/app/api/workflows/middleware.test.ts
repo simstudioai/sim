@@ -22,7 +22,7 @@ import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 function makeRequest() {
-  return new NextRequest(new URL('https://example.com/api/workflows/wf-1/log'))
+  return new NextRequest(new URL('https://example.com/api/workflows/wf-1'))
 }
 
 describe('validateWorkflowAccess (requireDeployment=false)', () => {

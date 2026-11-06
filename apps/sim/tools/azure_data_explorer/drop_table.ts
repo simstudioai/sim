@@ -16,7 +16,7 @@ export const azureDataExplorerDropTableTool: InternalToolConfig<
   id: 'azure_data_explorer_drop_table',
   name: 'Azure Data Explorer Drop Table',
   description:
-    'Drop a table from an Azure Data Explorer database. This permanently deletes the table and its data, and returns the tables that remain.',
+    'Drop a table from an Azure Data Explorer database. The table becomes unavailable to queries; data recovery depends on the retention policy. Returns the tables that remain.',
   version: '1.0.0',
   params: {
     clusterUri: {

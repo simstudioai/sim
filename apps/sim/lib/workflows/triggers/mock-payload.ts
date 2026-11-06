@@ -5,7 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
  *
  * Deliberately dependency-free. `@/triggers` imports this module, so anything reachable
  * from here becomes reachable from the trigger barrel — and reaching `@/blocks` (directly,
- * or via `trigger-utils`) recreates the `triggers` <-> `blocks` initialization cycle that
+ * or via `triggers/utils`) recreates the `triggers` <-> `blocks` initialization cycle that
  * `scripts/check-trigger-block-cycle.ts` guards against.
  */
 
@@ -48,6 +48,24 @@ function generateMockValue(type: string, _description?: string, fieldName?: stri
 }
 
 /**
+ * Samples each declared field as an own property. `fromEntries` defines rather
+ * than assigns, so a field named `__proto__` (an MCP output schema may declare
+ * one) stays a field instead of replacing the sample's prototype.
+ */
+function sampleFields(
+  fields: Record<string, unknown>,
+  depth: number,
+  maxDepth: number
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [
+      key,
+      processOutputField(key, field, depth + 1, maxDepth),
+    ])
+  )
+}
+
+/**
  * Recursively processes nested output structures, expanding JSON-Schema-style
  * objects/arrays that define `properties` or `items` instead of returning
  * a generic placeholder.
@@ -75,11 +93,7 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
       typedField.properties &&
       typeof typedField.properties === 'object'
     ) {
-      const nestedObject: Record<string, unknown> = {}
-      for (const [nestedKey, nestedField] of Object.entries(typedField.properties)) {
-        nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
-      }
-      return nestedObject
+      return sampleFields(typedField.properties, depth, maxDepth)
     }
 
     if (typedField.type === 'array' && typedField.items && typeof typedField.items === 'object') {
@@ -91,11 +105,7 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
   }
 
   if (isRecordLike(field)) {
-    const nestedObject: Record<string, unknown> = {}
-    for (const [nestedKey, nestedField] of Object.entries(field)) {
-      nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
-    }
-    return nestedObject
+    return sampleFields(field, depth, maxDepth)
   }
 
   return null

@@ -221,9 +221,15 @@ describe('updateWorkflowRunCounts', () => {
     )
   })
 
-  it('rejects when no workflow row was updated', async () => {
+  it('resolves null without throwing when the workflow was deleted before its run settled', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
-    await expect(updateWorkflowRunCounts('missing')).rejects.toThrow('Workflow missing not found')
+    await expect(updateWorkflowRunCounts('missing')).resolves.toBeNull()
+  })
+
+  it('rejects when the update itself fails', async () => {
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection reset'))
+
+    await expect(updateWorkflowRunCounts('wf-1')).rejects.toThrow('connection reset')
   })
 })

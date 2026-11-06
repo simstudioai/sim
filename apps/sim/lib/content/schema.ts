@@ -22,6 +22,16 @@ export const ContentFrontmatterSchema = z
     slug: z.string().min(1),
     title: z.string().min(5),
     description: z.string().min(20),
+    /**
+     * Search and social title when `title` is too long for search results; the H1, cards,
+     * feeds, and JSON-LD `headline` keep `title`. Length enforced by `check:library-content`.
+     */
+    seoTitle: z.string().min(5).optional(),
+    /**
+     * Search and social description when `description` is too long for search results; the
+     * on-page summary and JSON-LD keep `description`. Length enforced by `check:library-content`.
+     */
+    seoDescription: z.string().min(20).optional(),
     date: z.coerce.date(),
     updated: z.coerce.date().optional(),
     authors: z.array(z.string()).min(1),
@@ -64,6 +74,10 @@ export interface ContentMeta {
   slug: string
   title: string
   description: string
+  /** Search and social title; falls back to `title`. */
+  seoTitle?: string
+  /** Search and social description; falls back to `description`. */
+  seoDescription?: string
   date: string // ISO
   updated?: string // ISO
   author: Author

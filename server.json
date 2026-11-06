@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "ai.sim/sim",
+  "title": "Sim",
+  "description": "Build, deploy, and manage AI agents in Sim: workflows, tables, knowledge bases, files, and logs.",
+  "version": "1.0.0",
+  "websiteUrl": "https://docs.sim.ai/mcp/overview",
+  "repository": {
+    "url": "https://github.com/simstudioai/sim",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://www.sim.ai/favicon/android-chrome-512x512.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    },
+    {
+      "src": "https://www.sim.ai/favicon/android-chrome-192x192.png",
+      "mimeType": "image/png",
+      "sizes": ["192x192"]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.sim.ai/mcp"
+    }
+  ]
+}

@@ -1,5 +1,10 @@
 import { type ReactNode, Suspense } from 'react'
-import { Chip, ChipLink } from '@sim/emcn'
+import {
+  AuthButton as Chip,
+  AuthLinkButton as ChipLink,
+  AuthResourceRow as SettingsResourceRow,
+  AuthSection as SettingsSection,
+} from '@sim/auth-ui'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -16,16 +21,10 @@ import { CredentialGroupProviderConfigurationError } from '@/lib/credential-grou
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
-import { AuthHeader, SupportFooter } from '@/app/(auth)/components'
-import { LogoShell } from '@/app/(landing)/components/logo-shell'
+import { AuthHeader, AuthShell as LogoShell, SupportFooter } from '@/app/(auth)/components'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
 import { SourceCompletion } from '@/app/desktop/connect/source-completion'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 export const metadata: Metadata = {
   title: 'Connect accounts',
@@ -45,10 +44,8 @@ interface PageShellProps {
 
 function PageShell({ children }: PageShellProps) {
   return (
-    <LogoShell footer={<SupportFooter position='static' />}>
-      <div className='mx-auto flex w-full max-w-[640px] flex-1 flex-col px-5 pt-16 pb-20 max-sm:pt-10'>
-        {children}
-      </div>
+    <LogoShell footer={<SupportFooter />}>
+      <div>{children}</div>
     </LogoShell>
   )
 }
@@ -71,7 +68,7 @@ function UnavailableInvitation({
   return (
     <PageShell>
       {token && <SourceCompletion kind='enrollment' id={token} error='unavailable' />}
-      <div className='my-auto py-16 text-center'>
+      <div className='au:my-auto au:py-16 au:text-center'>
         <AuthHeader
           title={rateLimited ? 'Too many requests' : 'Invitation unavailable'}
           description={
@@ -81,7 +78,7 @@ function UnavailableInvitation({
               : 'Sign in with the account this invitation was sent to. If the link has expired, ask an organization admin for a new invitation.')
           }
         />
-        <div className='mt-6 flex justify-center'>
+        <div className='au:mt-6 au:flex au:justify-center'>
           <ChipLink href={recoveryHref}>{recoveryLabel}</ChipLink>
         </div>
       </div>
@@ -107,7 +104,7 @@ function UnavailableSearchConnection({
         title='Connection unavailable'
         description='Ask an admin to check this source’s connected account settings, then start a new connection.'
       />
-      <div className='mt-6 flex justify-end'>
+      <div className='au:mt-[var(--auth-group-gap)] au:flex au:justify-end'>
         <ChipLink href={returnHref}>{returnLabel}</ChipLink>
       </div>
     </PageShell>
@@ -284,9 +281,9 @@ export default async function CredentialGroupEnrollmentPage({
         }
       />
 
-      <div className='mt-8'>
-        <SettingsSection label='Accounts'>
-          <div className={RESOURCE_LIST_STACK}>
+      <div className='au:mt-[var(--auth-group-gap)]'>
+        <SettingsSection title='Accounts'>
+          <div className='au:space-y-2'>
             {visibleOptions.map((option) => {
               const ProviderIcon = getCredentialGroupProviderService(option.provider).icon
               const connection = option.connections[0]
@@ -296,11 +293,18 @@ export default async function CredentialGroupEnrollmentPage({
                   icon={<ProviderIcon />}
                   title={option.label}
                   description={
-                    focused && connection?.status === 'connected'
-                      ? `${connection.email} · Connected`
-                      : (connection?.email ?? 'Not connected')
+                    option.connections.length > 0
+                      ? option.connections.map((account) => (
+                          <span key={account.email} className='au:block'>
+                            {account.email}
+                            {account.status === 'connected'
+                              ? ' — Connected'
+                              : ' — Reconnect required'}
+                          </span>
+                        ))
+                      : 'Not connected'
                   }
-                  trailing={
+                  actions={
                     focusedConnected ? undefined : (
                       <OAuthConnectLink
                         href={`/api/credential-groups/enroll/${encodeURIComponent(token)}/oauth/${encodeURIComponent(option.id)}${focused ? `?returnTo=${returnToSearch ? 'search' : 'accounts'}` : ''}`}
@@ -327,7 +331,7 @@ export default async function CredentialGroupEnrollmentPage({
                           ? 'Reconnect required'
                           : server.description || 'Not connected'
                     }
-                    trailing={
+                    actions={
                       <OAuthConnectLink
                         href={`/api/credential-groups/enroll/${token}/mcp/${server.id}`}
                         reconnect={Boolean(server.connection)}
@@ -339,7 +343,7 @@ export default async function CredentialGroupEnrollmentPage({
           </div>
         </SettingsSection>
         {focused ? (
-          <div className='mt-6 flex justify-end'>
+          <div className='au:mt-[var(--auth-group-gap)] au:flex au:justify-end'>
             <ChipLink href={returnHref} variant={focusedConnected ? 'primary' : undefined}>
               {returnLabel}
             </ChipLink>
@@ -348,7 +352,7 @@ export default async function CredentialGroupEnrollmentPage({
           <form
             action={`/api/credential-groups/enroll/${token}/complete`}
             method='post'
-            className='mt-6 flex justify-end'
+            className='au:mt-[var(--auth-group-gap)] au:flex au:justify-end'
           >
             <Chip type='submit' variant='primary' disabled={enrollment.status === 'completed'}>
               {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}

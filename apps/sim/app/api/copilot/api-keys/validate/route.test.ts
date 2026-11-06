@@ -6,6 +6,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
@@ -95,8 +96,8 @@ const SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY = {
   workspaceId: 'local-self-hosted-workspace',
 } as const
 
-vi.mock('@/lib/billing/core/billing-attribution', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/billing/core/billing-attribution')>()),
+vi.mock('@/lib/billing/core/attribution', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/core/attribution')>()),
   BILLING_ACCOUNT_DECISION_HEADER: 'x-sim-billing-account-decision',
   BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
   BILLING_REQUEST_ID_HEADER: 'x-sim-billing-request-id',
@@ -145,7 +146,10 @@ import {
   validateCopilotApiKeyContract,
 } from '@/lib/api/contracts/copilot'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
-import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
+import {
+  NEAR_LIMIT_USAGE_GATE_TTL_MS,
+  resetUsageGateCache,
+} from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
 const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
@@ -288,9 +292,23 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
     expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('fails account admission closed when its subscription cannot be read', async () => {
+    mockGetHighestPrioritySubscription.mockImplementationOnce(
+      async (_userId: string, options?: { onError?: 'throw' | 'return-null' }) => {
+        if (options?.onError === 'throw') throw new Error('database unavailable')
+        return null
+      }
+    )
+
+    const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY), createRouteContext({}))
+
+    expect(res.status).toBe(500)
+    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
   it('rejects markerless admission on hosted Sim', async () => {
@@ -629,9 +647,40 @@ describe('validation lifecycle purposes', () => {
     })
   })
 
-  it('admits a direct-v1 continuation whose usage cannot be read', async () => {
+  it('re-reads a direct-v1 account near its limit, so a continuation past it is refused', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 4.2, limit: 5 })
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(200)
+
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 5.4, limit: 5 })
+      /** `lru-cache` captures `performance` at load: spy its clock, then fire its 1 ms debounce. */
+      const start = performance.now()
+      vi.spyOn(performance, 'now').mockReturnValue(start + NEAR_LIMIT_USAGE_GATE_TTL_MS + 1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(402)
+    } finally {
+      vi.runOnlyPendingTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('admits a paid direct-v1 continuation whose usage cannot be read', async () => {
     mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
-    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    const paidHeaders = {
+      ...directHeaders,
+      'x-sim-billing-account-decision': encode({
+        ...ACCOUNT_BILLING_DECISION,
+        payerSubscriptionId: 'sub-account-org',
+      }),
+    }
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
+  })
+
+  it('refuses a free direct-v1 continuation whose usage cannot be read', async () => {
+    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, unavailable: true })
+    expect((await POST(request(body, directHeaders), {})).status).toBe(402)
   })
 
   it.each([
@@ -748,14 +797,44 @@ describe('validation lifecycle purposes', () => {
     })
   })
 
-  it('admits a polled continuation whose spend cannot be read', async () => {
+  it('admits a paid payer polled continuation whose spend cannot be read', async () => {
+    const paidHeaders = {
+      ...attributedHeaders,
+      'x-sim-billing-attribution': encode({
+        ...ATTRIBUTION,
+        payerSubscription: {
+          id: 'sub-org-1',
+          referenceId: 'org-1',
+          plan: 'team',
+          status: 'active',
+          seats: 5,
+          periodStart: null,
+          periodEnd: null,
+        },
+      }),
+    }
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       reason: 'usage_unavailable',
     })
-    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
     mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
-    expect((await POST(request(body, attributedHeaders))).status).toBe(200)
+    expect((await POST(request(body, paidHeaders), {})).status).toBe(200)
+  })
+
+  it('refuses a free payer polled continuation whose spend cannot be read, with the usage card', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    const unavailable = await POST(request(body, attributedHeaders), {})
+    expect(unavailable.status).toBe(402)
+    await expect(unavailable.json()).resolves.toMatchObject({
+      code: 'USAGE_LIMIT_EXCEEDED',
+      usageUpgrade: { action: 'upgrade_plan' },
+    })
+    mockCheckAttributedUsageLimits.mockRejectedValue(new Error('ledger read timed out'))
+    expect((await POST(request(body, attributedHeaders), {})).status).toBe(402)
   })
 
   it('refuses a continuation over its usage limit with the card the worker writes', async () => {

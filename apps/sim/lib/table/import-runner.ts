@@ -29,6 +29,7 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
+import { importedRowSources, resolveImportedRowProvenance } from '@/lib/table/import-provenance'
 import { createCsvParser } from '@/lib/table/import-stream'
 import {
   markJobFailedInWorkspace,
@@ -161,6 +162,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
     const totalBytes = (await headObject(fileKey, storageContext))?.size ?? 0
+
+    /** Classified before a byte is read, by the key streamed below; see the resolver. */
+    const rowProvenance = await resolveImportedRowProvenance({ workspaceId, userId, fileKey })
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
     source = await downloadFileStream({ key: fileKey, context: storageContext })
@@ -319,6 +323,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           rows: coerced,
           startPosition: basePosition + inserted,
           afterOrderKey: lastOrderKey,
+          rowProvenance,
+          rowSources: importedRowSources(rows, schema, headerToColumn),
         },
         { ...table, schema },
         requestId,

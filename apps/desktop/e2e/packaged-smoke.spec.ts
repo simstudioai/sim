@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FuseV1Options, FuseVersion, getCurrentFuseWire } from '@electron/fuses'
@@ -27,6 +27,53 @@ test.skip(
   'Packaged smoke runs only after the desktop executable has been built'
 )
 
+/**
+ * The processes of a packaged run that can still write its profile. Chromium's helpers stay in the
+ * app's process group (it is spawned detached, so the group is its own), while Crashpad's handler
+ * starts its own session but names the profile's Crashpad database on its command line.
+ */
+function profileWriters(appGroup: number, profilePaths: readonly string[]): number[] {
+  return execFileSync('ps', ['-axww', '-o', 'pid=,pgid=,command='], { encoding: 'utf8' })
+    .split('\n')
+    .flatMap((line) => {
+      const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
+      if (!match) return []
+      const [, pid, group, command] = match
+      return Number(group) === appGroup || profilePaths.some((path) => command.includes(path))
+        ? [Number(pid)]
+        : []
+    })
+}
+
+/**
+ * Removes a profile only once nothing can write into it. Killing the main process leaves its
+ * helpers and Crashpad's handler running for a moment, and a file one of them creates while the
+ * directory is being removed fails the removal with ENOTEMPTY.
+ */
+async function stopAndRemoveProfile(child: ChildProcess, userDataPath: string): Promise<void> {
+  if (child.exitCode === null && child.signalCode === null) {
+    const exited = once(child, 'exit')
+    child.kill('SIGKILL')
+    await exited
+  }
+  const appGroup = child.pid
+  if (appGroup !== undefined) {
+    const profilePaths = [userDataPath, realpathSync(userDataPath)]
+    await expect
+      .poll(() => {
+        const writers = profileWriters(appGroup, profilePaths)
+        for (const pid of writers) {
+          try {
+            process.kill(pid, 'SIGKILL')
+          } catch {}
+        }
+        return writers
+      })
+      .toEqual([])
+  }
+  rmSync(userDataPath, { recursive: true, force: true })
+}
+
 test('packaged Electron binary has the production fuse policy', async () => {
   const executablePath = process.env.SIM_DESKTOP_EXECUTABLE
   if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
@@ -48,6 +95,7 @@ test('packaged main process starts and records launch telemetry', async () => {
   if (!executablePath) throw new Error('SIM_DESKTOP_EXECUTABLE is required')
   const userDataPath = mkdtempSync(join(tmpdir(), 'sim-desktop-packaged-e2e-'))
   const child = spawn(executablePath, [], {
+    detached: true,
     env: {
       ...process.env,
       SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:1',
@@ -74,12 +122,7 @@ test('packaged main process starts and records launch telemetry', async () => {
       )
       .toBe(true)
   } finally {
-    if (child.exitCode === null && child.signalCode === null) {
-      const exited = once(child, 'exit')
-      child.kill('SIGKILL')
-      await exited
-    }
-    rmSync(userDataPath, { recursive: true, force: true })
+    await stopAndRemoveProfile(child, userDataPath)
   }
 })
 
@@ -97,6 +140,7 @@ test('packaged shell renders the bundled offline page', async () => {
   // run on a machine that already has the real app's item) would block on a
   // Keychain prompt on its main thread, and the debugging endpoint with it.
   const child = spawn(executablePath, ['--remote-debugging-port=0', '--use-mock-keychain'], {
+    detached: true,
     env: {
       ...process.env,
       SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:1',
@@ -150,11 +194,6 @@ test('packaged shell renders the bundled offline page', async () => {
     await expect(picker.getByLabel('Server URL')).toHaveValue('http://127.0.0.1:1')
   } finally {
     await browser?.close().catch(() => {})
-    if (child.exitCode === null && child.signalCode === null) {
-      const exited = once(child, 'exit')
-      child.kill('SIGKILL')
-      await exited
-    }
-    rmSync(userDataPath, { recursive: true, force: true })
+    await stopAndRemoveProfile(child, userDataPath)
   }
 })

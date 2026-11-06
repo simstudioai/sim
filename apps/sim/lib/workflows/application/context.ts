@@ -10,7 +10,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ActiveWorkflowApplicationContext {
   workflowId: string

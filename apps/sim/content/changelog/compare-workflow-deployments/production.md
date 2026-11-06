@@ -36,3 +36,9 @@ Email body:
 > Open deployment history and choose Compare to review two workflow versions. You can also review a draft against the live workflow before redeploying. See the product walkthrough and setup guide: https://www.sim.ai/changelog/compare-workflow-deployments
 
 These are drafts, not sent announcements.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.10 coverage: [file diff rendering, #8543](https://github.com/simstudioai/sim/pull/8543) and [remembered resource-panel widths, #8531](https://github.com/simstudioai/sim/pull/8531). The technical release includes both; source and current documentation were reviewed.

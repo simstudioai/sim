@@ -10,7 +10,7 @@ import {
 import {
   fetchProviderJson,
   fetchProviderJsonWithStatus,
-} from '@/lib/selectors/server/providers/provider-http'
+} from '@/lib/selectors/server/providers/http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,

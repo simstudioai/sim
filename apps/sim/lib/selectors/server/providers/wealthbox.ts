@@ -2,7 +2,7 @@ import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import { fetchProviderJson } from '@/lib/selectors/server/providers/http'
 import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
 
 type WealthboxSelectorKey = Extract<ServerSelectorKey, 'wealthbox.contacts'>

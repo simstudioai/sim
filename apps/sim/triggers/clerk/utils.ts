@@ -70,7 +70,7 @@ export function clerkSetupInstructions(eventType: string): string {
 /**
  * Build Clerk-specific extra fields.
  * Includes the Svix Signing Secret used to verify incoming webhook signatures.
- * Use with the generic buildTriggerSubBlocks from @/triggers.
+ * Use with the generic buildTriggerSubBlocks from @/triggers/subblocks.
  */
 export function buildClerkExtraFields(triggerId: string): SubBlockConfig[] {
   return [

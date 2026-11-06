@@ -1,14 +1,25 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { resolveClientInfo } from '@sim/utils/client-info'
-import { describeError, findCause, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
+import {
+  describeError,
+  findCause,
+  getErrorMessage,
+  getTransientDatabaseFailure,
+  redactBoundParameters,
+} from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
+import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
+import { FILE_DELIVERY_CSP_PATH_PATTERN, getMainCSPPolicy } from '@/lib/core/security/csp'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { trackInFlightRequest } from '@/lib/monitoring/in-flight-requests'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+
+const fileDeliveryPath = new RegExp(`^${FILE_DELIVERY_CSP_PATH_PATTERN}$`)
 
 const logger = createLogger('RouteHandler')
 
@@ -57,6 +68,34 @@ function readTypedError(error: unknown): RouteHandlerTypedErrorContext['error'] 
   return error
 }
 
+class DatabaseTemporarilyUnavailableError extends HttpError {
+  readonly statusCode = 503
+
+  constructor() {
+    super('Service temporarily unavailable. Please try again.')
+    this.name = 'DatabaseTemporarilyUnavailableError'
+  }
+}
+
+/** Methods with no side effects (RFC 9110 §9.2.1), so a failed attempt left nothing behind. */
+const SAFE_METHODS = new Set(['GET', 'HEAD'])
+
+/**
+ * A safe request whose query failed for a reason that clears on its own — a replica
+ * recovery conflict, a statement or lock timeout, a lost connection, a server restart —
+ * answers a retryable 503 rather than an opaque 500. Writes stay unhandled: an earlier
+ * statement in the same request may already have committed, so "retry later" would be
+ * unsafe advice. The classifier only counts socket errors that a database query carried,
+ * so an upstream HTTP reset is never reported as a database outage.
+ */
+function readDatabaseUnavailableError(
+  method: string,
+  error: unknown
+): DatabaseTemporarilyUnavailableError | undefined {
+  if (!SAFE_METHODS.has(method) || !getTransientDatabaseFailure(error)) return undefined
+  return new DatabaseTemporarilyUnavailableError()
+}
+
 /**
  * Stamps the request id, plus the rate-limit trio when the route consulted a
  * bucket for this request. Applied on both the success and the unhandled-error
@@ -70,6 +109,12 @@ function applyResponseHeaders(
 ): void {
   if (!response?.headers) return
   response.headers.set('x-request-id', requestId)
+  if (
+    fileDeliveryPath.test(request.nextUrl?.pathname ?? '') &&
+    !response.headers.has('Content-Security-Policy')
+  ) {
+    response.headers.set('Content-Security-Policy', getMainCSPPolicy())
+  }
   const rateLimit = getRateLimitHeaders(request)
   if (!rateLimit) return
   for (const [name, value] of Object.entries(rateLimit)) {
@@ -169,6 +214,7 @@ export function withRouteHandler<T>(
       callChain: callChainFor(request),
     }
 
+    const settleInFlight = trackInFlightRequest(requestId, method, path)
     return runWithRequestContext(requestContext, async () => {
       let response: NextResponse | Response
       try {
@@ -187,7 +233,8 @@ export function withRouteHandler<T>(
           return response
         }
 
-        const typedError = readTypedError(error)
+        const databaseUnavailable = readDatabaseUnavailableError(method, error)
+        const typedError = readTypedError(error) ?? databaseUnavailable
         if (typedError) {
           const typedStatus = typedError.statusCode
           if (typedStatus >= 500) {
@@ -202,7 +249,10 @@ export function withRouteHandler<T>(
           }
           response = options.typedErrorResponse
             ? options.typedErrorResponse({ error: typedError, requestId, status: typedStatus })
-            : NextResponse.json({ error: message, requestId }, { status: typedStatus })
+            : NextResponse.json({ error: typedError.message, requestId }, { status: typedStatus })
+          if (databaseUnavailable && !response.headers.has('Retry-After')) {
+            response.headers.set('Retry-After', ADMISSION_RETRY_AFTER_SECONDS.toString())
+          }
           applyResponseHeaders(response, request, requestId)
           return response
         }
@@ -233,6 +283,6 @@ export function withRouteHandler<T>(
 
       applyResponseHeaders(response, request, requestId)
       return response
-    })
+    }).finally(settleInFlight)
   }
 }

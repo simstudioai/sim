@@ -1,31 +1,29 @@
 ---
 title: Agiloft
 description: Manage records in Agiloft CLM
+integration:
+  type: "agiloft"
+  color: "#001028"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="agiloft"
-  color="#001028"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Agiloft](https://www.agiloft.com/) stores records in knowledge-base tables. Use this integration to find, create, update, and delete records, work with attachments, manage record locks, and run action buttons. Select the target knowledge base and table for each operation; the action reference below lists its required fields.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.
-
-
 
 ## Actions
 
 ### Agiloft Async Status
 
 Check whether an asynchronous Agiloft call, such as a run action button, has completed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -47,9 +45,13 @@ Check whether an asynchronous Agiloft call, such as a run action button, has com
 | `status` | string | completed, queued, in_progress, failed, or unknown_callback |
 | `complete` | boolean | True when the operation has finished, whether it succeeded or failed |
 
+</ReferenceDetails>
+
 ### Agiloft Attach File
 
 Attach a file to a field in an Agiloft record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +77,13 @@ Attach a file to a field in an Agiloft record.
 | `fileName` | string | Name of the attached file |
 | `totalAttachments` | number | Total number of files attached in the field after the operation |
 
+</ReferenceDetails>
+
 ### Agiloft Attachment Info
 
 Get information about file attachments on a record field.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -101,9 +107,13 @@ Get information about file attachments on a record field.
 |   ↳ `size` | number | File size in bytes |
 | `totalCount` | number | Total number of attachments in the field |
 
+</ReferenceDetails>
+
 ### Agiloft Create Record
 
 Create a new record in an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,9 +133,13 @@ Create a new record in an Agiloft table.
 | `id` | string | ID of the created record |
 | `fields` | json | Field values of the created record |
 
+</ReferenceDetails>
+
 ### Agiloft Delete Record
 
 Delete a record from an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -147,9 +161,13 @@ Delete a record from an Agiloft table.
 | `id` | string | ID of the deleted record |
 | `deleted` | boolean | Whether the record was successfully deleted |
 
+</ReferenceDetails>
+
 ### Agiloft Get Choice Line ID
 
 Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +187,13 @@ Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHER
 | --------- | ---- | ----------- |
 | `choiceLineId` | number | Internal numeric line ID of the choice value |
 
+</ReferenceDetails>
+
 ### Agiloft List Tables
 
 List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +227,13 @@ List the tables and fields in an Agiloft knowledge base, to discover the logical
 |     ↳ `textFieldType` | string | Content type for text fields, e.g. text/plain |
 | `totalCount` | number | Number of tables returned |
 
+</ReferenceDetails>
+
 ### Agiloft Lock Record
 
 Lock, unlock, or check the lock status of an Agiloft record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +258,13 @@ Lock, unlock, or check the lock status of an Agiloft record.
 | `lockedBy` | string | Username of the user who locked the record |
 | `lockExpiresInMinutes` | number | Minutes until the lock expires |
 
+</ReferenceDetails>
+
 ### Agiloft Natural Language Search
 
 Search Agiloft records by describing what you want in plain language, such as "active NDAs submitted last month".
+
+<ReferenceDetails>
 
 #### Input
 
@@ -257,9 +287,13 @@ Search Agiloft records by describing what you want in plain language, such as "a
 | `totalCount` | number | Number of records in this response |
 | `truncated` | boolean | True when more records were returned upstream than this call reports |
 
+</ReferenceDetails>
+
 ### Agiloft Read Record
 
 Read a record by ID from an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -280,9 +314,13 @@ Read a record by ID from an Agiloft table.
 | `id` | string | ID of the record |
 | `fields` | json | Field values of the record |
 
+</ReferenceDetails>
+
 ### Agiloft Remove Attachment
 
 Remove an attached file from a field in an Agiloft record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +343,13 @@ Remove an attached file from a field in an Agiloft record.
 | `fieldName` | string | Name of the attachment field |
 | `remainingAttachments` | number | Number of attachments remaining in the field after removal |
 
+</ReferenceDetails>
+
 ### Agiloft Retrieve Attachment
 
 Download an attached file from an Agiloft record field.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -328,9 +370,13 @@ Download an attached file from an Agiloft record field.
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded attachment file |
 
+</ReferenceDetails>
+
 ### Agiloft Run Action Button
 
 Run an action button on an Agiloft record, such as an approval or send-for-signature step.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +397,13 @@ Run an action button on an Agiloft record, such as an approval or send-for-signa
 | `recordId` | string | ID of the record the action button was run on |
 | `callbackId` | string | Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID |
 
+</ReferenceDetails>
+
 ### Agiloft Saved Search
 
 List the saved searches defined for an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,9 +426,13 @@ List the saved searches defined for an Agiloft table.
 |   ↳ `description` | string | Saved search description |
 | `totalCount` | number | Number of saved searches returned |
 
+</ReferenceDetails>
+
 ### Agiloft Search Records
 
 Search for records in an Agiloft table using a query.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -405,9 +459,13 @@ Search for records in an Agiloft table using a query.
 | `page` | number | Page number that was requested \(0-based\) |
 | `limit` | number | Page size that was requested; 0 when no limit was sent and Agiloft chose one |
 
+</ReferenceDetails>
+
 ### Agiloft Select Records
 
 Select record IDs matching a SQL WHERE clause from an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -428,9 +486,13 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 | `recordIds` | array | Array of record IDs matching the query |
 | `totalCount` | number | Number of IDs in this response — compare with `truncated` |
 
+</ReferenceDetails>
+
 ### Agiloft Update Record
 
 Update an existing record in an Agiloft table.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -451,9 +513,13 @@ Update an existing record in an Agiloft table.
 | `id` | string | ID of the updated record |
 | `fields` | json | Updated field values of the record |
 
+</ReferenceDetails>
+
 ### Agiloft Upsert Record
 
 Create an Agiloft record, or update it when a record already matches the given fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -475,5 +541,7 @@ Create an Agiloft record, or update it when a record already matches the given f
 | `id` | string | ID of the created or updated record |
 | `created` | boolean | True when a new record was created, false when an existing one was updated |
 | `callbackId` | string | Returned for a queued upsert; pass it to Async Status to poll the result |
+
+</ReferenceDetails>
 
 

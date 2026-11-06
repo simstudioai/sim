@@ -1,22 +1,21 @@
-import { isMarkdownPreferred, rewritePath } from 'fumadocs-core/negotiation'
 import { type NextRequest, NextResponse } from 'next/server'
+import { prefersMarkdown } from '@/lib/http/negotiation'
+import routes from '@/.content/routes.json'
 
-const { rewrite: rewriteLLM } = rewritePath('/docs/*path', '/llms.mdx/*path')
+const documentPaths = new Set(routes)
 
 export default function proxy(request: NextRequest) {
-  if (isMarkdownPreferred(request)) {
-    const result = rewriteLLM(request.nextUrl.pathname)
-
-    if (result) {
-      return NextResponse.rewrite(new URL(result, request.nextUrl))
-    }
-  }
-
-  return NextResponse.next()
+  const path = request.nextUrl.pathname.replace(/\/$/, '') || '/'
+  const response =
+    documentPaths.has(path) && prefersMarkdown(request.headers.get('accept'))
+      ? NextResponse.rewrite(new URL(`/llms.mdx${path === '/' ? '' : path}`, request.nextUrl))
+      : NextResponse.next()
+  response.headers.append('Vary', 'Accept')
+  return response
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon|icon.svg|static|robots.txt|sitemap.xml|llms.txt|llms-full.txt).*)',
+    '/((?!api/|api$|llms.mdx|_next/|favicon|icon.svg|static|robots.txt|sitemap.xml|llms.txt|llms-full.txt|openapi.json).*)',
   ],
 }

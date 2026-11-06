@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { sanitizeForJsonb } from '@sim/utils/string'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
@@ -223,7 +224,15 @@ async function postChunkOnce(
       'content-type': 'application/json',
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ texts, entityTypes, language, customPatterns }),
+    body: JSON.stringify({
+      // The route refuses any NUL in a request body, so a log string carrying one would
+      // fail its whole chunk. Replacing it with U+FFFD (the substitution Presidio already
+      // gets for unpaired surrogates) is length-preserving, so no detected span moves.
+      texts: texts.map(sanitizeForJsonb),
+      entityTypes,
+      language,
+      customPatterns,
+    }),
   })
 
   if (!response.ok) {

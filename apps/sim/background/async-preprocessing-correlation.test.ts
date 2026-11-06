@@ -19,8 +19,9 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 
 const {
   mockExecuteWorkflowCore,
@@ -358,46 +359,183 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
-  it('preserves a core-finalized execution error for task failure semantics', async () => {
-    const rawError = Object.assign(new Error('Function 1 failed with activated-secret-value'), {
-      executionResult: {
-        success: false,
-        output: { error: 'Function failed' },
-        logs: [],
-      },
-    })
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: true,
-      actorUserId: 'actor-1',
-      workflowRecord: {
-        id: 'workflow-1',
-        userId: 'owner-1',
-        workspaceId: 'workspace-1',
-        variables: {},
-      },
-      billingAttribution,
-      executionTimeout: {},
-    })
-    mockExecuteWorkflowCore.mockRejectedValueOnce(rawError)
-    mockHasExecutionResult.mockImplementation((error) => error === rawError)
-    mockWasExecutionFinalizedByCore.mockReturnValue(true)
+  describe('a workflow failure core already recorded', () => {
+    const recordedError = () =>
+      Object.assign(new Error('Function 1 failed: RuntimeError'), {
+        executionResult: { success: false, output: { error: 'Function failed' }, logs: [] },
+      })
 
-    await expect(
-      executeWorkflowJob({
+    /** Core marks the failure finalized from a post-execution promise it does not await. */
+    function finalizeWhenPostExecutionSettles() {
+      let finalized = false
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        finalized = true
+      })
+      mockWasExecutionFinalizedByCore.mockImplementation(() => finalized)
+    }
+
+    function runRecordedFailure(executionId: string) {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: true,
+        actorUserId: 'actor-1',
+        workflowRecord: {
+          id: 'workflow-1',
+          userId: 'owner-1',
+          workspaceId: 'workspace-1',
+          variables: {},
+        },
+        billingAttribution,
+        executionTimeout: {},
+      })
+      return executeWorkflowJob({
         principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
         billingAttribution,
         triggerType: 'api',
-        executionId: 'execution-finalized',
-        requestId: 'request-finalized',
+        executionId,
+        requestId: 'request-recorded',
       })
-    ).rejects.toBe(rawError)
+    }
 
-    expect(loggingSessionMockFns.mockWaitForPostExecution).not.toHaveBeenCalled()
-    expect(mockWasExecutionFinalizedByCore).toHaveBeenCalledWith(rawError, 'execution-finalized')
-    expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    it('completes the job with the failure once core finalization settles', async () => {
+      const error = recordedError()
+      mockExecuteWorkflowCore.mockRejectedValueOnce(error)
+      mockHasExecutionResult.mockImplementation((value) => value === error)
+      finalizeWhenPostExecutionSettles()
+
+      await expect(runRecordedFailure('execution-recorded')).resolves.toMatchObject({
+        success: false,
+        workflowId: 'workflow-1',
+        executionId: 'execution-recorded',
+        error: 'Function 1 failed: RuntimeError',
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('still fails the job when the deadline passes while finalization settles', async () => {
+      const error = recordedError()
+      mockExecuteWorkflowCore.mockRejectedValueOnce(error)
+      let timedOut = false
+      mockIsWorkflowTimedOut.mockImplementation(() => timedOut)
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        timedOut = true
+      })
+      mockWasExecutionFinalizedByCore.mockReturnValue(true)
+
+      await expect(runRecordedFailure('execution-recorded-deadline')).rejects.toBe(error)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('still fails the job when the run passed its deadline', async () => {
+      const error = recordedError()
+      mockExecuteWorkflowCore.mockRejectedValueOnce(error)
+      mockIsWorkflowTimedOut.mockReturnValue(true)
+      mockWasExecutionFinalizedByCore.mockReturnValue(true)
+
+      await expect(runRecordedFailure('execution-recorded-late')).rejects.toBe(error)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a run whose workspace was deleted', () => {
+    afterEach(() => {
+      loggingSessionMockFns.mockGetDeletedScope.mockReset()
+      loggingSessionMockFns.mockSafeCompleteWithError.mockReset()
+    })
+
+    function runInDeletedWorkspace(executionId: string) {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: true,
+        actorUserId: 'actor-1',
+        workflowRecord: {
+          id: 'workflow-1',
+          userId: 'owner-1',
+          workspaceId: 'workspace-1',
+          variables: {},
+        },
+        billingAttribution,
+        executionTimeout: {},
+      })
+      return executeWorkflowJob({
+        principal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId,
+        requestId: 'request-deleted',
+      })
+    }
+
+    it('completes without alerting when core finds the workspace gone at start', async () => {
+      mockExecuteWorkflowCore.mockRejectedValueOnce(
+        new ExecutionScopeDeletedError('execution-deleted-start', 'workspace')
+      )
+
+      await expect(runInDeletedWorkspace('execution-deleted-start')).resolves.toMatchObject({
+        success: false,
+        executionId: 'execution-deleted-start',
+        error: 'The workspace of execution execution-deleted-start was deleted',
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+      expect(workflowExecutionLogger.info).toHaveBeenCalledWith(
+        '[request-deleted] Workflow execution ended: its workspace was deleted',
+        { workflowId: 'workflow-1', executionId: 'execution-deleted-start' }
+      )
+    })
+
+    it('completes without alerting when a block fails after the workspace is deleted mid-run', async () => {
+      const blockError = new Error('insert or update on table "workspace_files" violates FK')
+      mockExecuteWorkflowCore.mockRejectedValueOnce(blockError)
+      let deletedScope: 'workspace' | null = null
+      loggingSessionMockFns.mockGetDeletedScope.mockImplementation(() => deletedScope)
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        deletedScope = 'workspace'
+      })
+
+      await expect(runInDeletedWorkspace('execution-deleted-mid')).resolves.toMatchObject({
+        success: false,
+        executionId: 'execution-deleted-mid',
+        error: blockError.message,
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('completes without alerting when its own failure log finds the workspace gone', async () => {
+      const pipelineError = new Error('Workflow state not found')
+      mockExecuteWorkflowCore.mockRejectedValueOnce(pipelineError)
+      loggingSessionMockFns.mockSafeCompleteWithError.mockImplementationOnce(async () => {
+        loggingSessionMockFns.mockGetDeletedScope.mockReturnValue('workspace')
+      })
+
+      await expect(runInDeletedWorkspace('execution-deleted-log')).resolves.toMatchObject({
+        success: false,
+        error: pipelineError.message,
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+    })
+
+    it('completes without alerting when a run in a deleted workspace times out', async () => {
+      mockIsWorkflowTimedOut.mockReturnValue(true)
+      mockExecuteWorkflowCore.mockResolvedValueOnce({
+        success: false,
+        status: 'cancelled',
+        output: undefined,
+        metadata: { duration: 120_000, userId: 'actor-1' },
+      })
+      loggingSessionMockFns.mockGetDeletedScope.mockReturnValue('workspace')
+
+      await expect(runInDeletedWorkspace('execution-deleted-timeout')).resolves.toMatchObject({
+        success: false,
+        error: 'Execution timed out after 2 minutes',
+      })
+    })
   })
 
   it('fails the backing job after a cooperative workflow timeout is finalized', async () => {
@@ -526,6 +664,100 @@ describe('async preprocessing correlation threading', () => {
         skipUsageLimits: true,
       })
     )
+  })
+
+  describe('a preprocessing rejection', () => {
+    function runRejected(error: Record<string, unknown>) {
+      mockPreprocessExecution.mockResolvedValueOnce({ success: false, error })
+      return executeWorkflowJob({
+        principal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        triggerType: 'api',
+        executionId: 'execution-rejected',
+        requestId: 'request-rejected',
+        billingAttribution,
+      })
+    }
+
+    it.each([
+      { statusCode: 404, message: 'Workflow not found', workflowState: 'not_found' },
+      {
+        statusCode: 403,
+        message: 'Workflow is not deployed',
+        code: 'WORKFLOW_NOT_DEPLOYED',
+        workflowState: 'not_deployed',
+      },
+      {
+        statusCode: 403,
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+        workflowState: 'not_attached',
+      },
+    ])('completes the job for a $statusCode $message that never started a log', async (error) => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
+
+      await expect(runRejected(error)).resolves.toMatchObject({
+        success: false,
+        workflowId: 'workflow-1',
+        executionId: 'execution-rejected',
+        error: error.message,
+      })
+    })
+
+    const loggedRejections = [
+      {
+        statusCode: 402,
+        message: 'Usage limit exceeded. Please upgrade your plan to continue.',
+        code: 'USAGE_LIMIT_EXCEEDED',
+      },
+      {
+        statusCode: 402,
+        message: 'Usage headroom exhausted',
+        code: 'EXECUTION_PAYER_HEADROOM_EXHAUSTED',
+        retryable: false,
+      },
+      {
+        statusCode: 429,
+        message: 'Rate limit exceeded. Please try again later.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      },
+      { statusCode: 403, message: 'Account suspended', code: 'ACCOUNT_SUSPENDED' },
+    ]
+
+    it.each(loggedRejections)('completes the job for a logged $code rejection', async (error) => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
+
+      await expect(runRejected(error)).resolves.toMatchObject({
+        success: false,
+        workflowId: 'workflow-1',
+        executionId: 'execution-rejected',
+        error: error.message,
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
+      )
+    })
+
+    it.each(loggedRejections)(
+      'fails the job when a $code rejection could not be logged',
+      async (error) => {
+        loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
+
+        await expect(runRejected(error)).rejects.toThrow(error.message)
+      }
+    )
+
+    it.each([
+      { statusCode: 429, message: 'Too many concurrent executions', retryable: true },
+      { statusCode: 402, message: 'Usage is temporarily unavailable', retryable: true },
+      { statusCode: 503, message: 'Usage admission is temporarily unavailable', retryable: true },
+      { statusCode: 500, message: 'Internal error while fetching workflow' },
+      { statusCode: 404, message: 'Workflow not found' },
+    ])('fails the job for $statusCode $message', async (error) => {
+      await expect(runRejected(error)).rejects.toThrow(error.message)
+    })
   })
 
   it('routes retryable reservation concurrency through bounded infrastructure backoff', async () => {

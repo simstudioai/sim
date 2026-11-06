@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db } from '@sim/db'
 import { knowledgeBase, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
@@ -28,14 +29,14 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   importWorkspaceFileSecretProvenanceForModelView,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { UserFile } from '@/executor/types'
@@ -132,7 +133,7 @@ afterAll(async () => {
   validateUrlSpy.mockRestore()
   for (const ids of fixtures) {
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }

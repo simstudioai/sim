@@ -1,12 +1,16 @@
 import type { createLogger } from '@sim/logger'
-import { authorizeRoom } from '@sim/platform-authz/rooms'
 import type { RoomRef } from '@sim/realtime-protocol/rooms'
-import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
+import {
+  authorizeRoomAccess,
+  beginRoomPermissionRead,
+  commitRoomPermission,
+} from '@/middleware/permissions'
 
-type Authorized = Awaited<ReturnType<typeof authorizeRoom>>
+type Authorized = Awaited<ReturnType<typeof authorizeRoomAccess>>
 
 interface ResolveRoomJoinAuthParams {
   userId: string
+  connectionId?: string
   room: RoomRef
   action: 'read' | 'write'
   logger: ReturnType<typeof createLogger>
@@ -25,7 +29,7 @@ interface ResolveRoomJoinAuthParams {
  * Deliberately excludes the auth/readiness/id-validation preamble and the join-generation
  * capture/recheck — those differ per handler, and for file-doc the generation capture sits
  * mid-preamble. This helper is always invoked strictly between a handler's generation capture
- * and its post-authorize recheck; it contains exactly the one `await authorizeRoom` that the
+ * and its post-authorize recheck; it contains exactly the one `await authorizeRoomAccess` that the
  * recheck was designed to cover and returns before any state mutation, so it never straddles
  * that seam. Pass each handler's own `logger` so the log namespace/request-id context is kept.
  */
@@ -40,7 +44,7 @@ export async function resolveRoomJoinAuth(
   // is never overwritten by this older result — see {@link commitRoomPermission}.
   const readSeq = beginRoomPermissionRead()
   try {
-    authorized = await authorizeRoom({ userId, room, action })
+    authorized = await authorizeRoomAccess(userId, room, action, params.connectionId)
   } catch (error) {
     logger.warn(`Error authorizing ${logLabel}:`, error)
     emitError({ error: messages.verifyFailed, code: 'VERIFY_ACCESS_FAILED', retryable: true })

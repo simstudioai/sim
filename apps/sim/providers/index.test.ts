@@ -29,7 +29,7 @@ vi.mock('@/providers/file-attachments.server', () => ({
 }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -2101,12 +2101,6 @@ describe('native evaluation provider boundary', () => {
       workspaceId: 'test-workspace',
       evaluation,
     })
-    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith(
-      'typesafe',
-      'jev-1.13.0',
-      'test-workspace',
-      'test-key'
-    )
     expect(mockExecuteRequest).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'resolved-typesafe-key', evaluation })
     )

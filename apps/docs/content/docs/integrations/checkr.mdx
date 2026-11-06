@@ -1,46 +1,33 @@
 ---
 title: Checkr
 description: Run and manage background checks with Checkr
+integration:
+  type: "checkr"
+  color: "#009BB5"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="checkr"
-  color="#009BB5"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Checkr](https://checkr.com/) is a background screening platform for employment checks: criminal, motor vehicle, identity, education, and employment verifications, plus ongoing monitoring.
+Use [Checkr](https://checkr.com/) to create candidates, send hosted background-check invitations, order and read reports, and inspect screening results. The actions also cover report reviews and tags, adverse actions, recurring checks, continuous monitoring, and account reference data. Order a report directly only when you already collect the required candidate information and consent.
 
-With the Checkr block, you can:
+Create a secret API key under **Account Settings > Developer Settings** in the Checkr Dashboard. Use a production key: Sim uses Checkr's production API host and registers live-environment webhooks; staging keys are not supported. Checkr must also [enable the account for live report requests](https://docs.checkr.com/) before production report ordering works.
 
-- **Start background checks**: Create candidates and send them a Checkr-hosted invitation, or order a report directly when you already collect their information and consent.
-- **Track and read results**: Get reports, their estimated completion, progressive checkpoint status, verifications, address history, assessments, and the detailed results of each screening.
-- **Adjudicate**: Engage reports, apply review actions to paused reports, manage report tags, and run the adverse action process from adverse items through cancellation.
-- **Keep screening going**: Schedule recurring checks with subscriptions and enroll candidates in continuous criminal or motor vehicle monitoring.
-- **Look up account setup**: Read packages, geos, hierarchy nodes, programs, counties, candidate documents, users, and account details, and create, update, or delete geos.
-- **React to events**: Start workflows when reports, invitations, candidates, verifications, adverse actions, or continuous checks change.
-
-To connect, create a secret API key in the Checkr Dashboard under **Account Settings > Developer Settings** and paste it into the block. Use a production key: Checkr's staging environment uses a different API host and is not supported, and triggers register live-environment webhooks.
-
-Triggers register a webhook in Checkr when you deploy the workflow and verify every delivery's signature with your API key. Checkr allows at most two webhooks per account, and each deployed Checkr trigger uses one, so choose **All Events** when one workflow needs to handle several event types.
-
-In Sim, the Checkr block lets your agents send background checks the moment a candidate is selected, summarize completed reports for recruiters, queue consider results for human review, and keep drivers and other regulated roles under continuous monitoring.
+Triggers register a webhook when you deploy the workflow and verify delivery signatures with your API key. Checkr permits at most two webhooks per account, and each deployed Checkr trigger uses one. Choose **All Events** when one workflow needs several event types.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.
-
-
+Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.
 
 ## Actions
 
 ### Checkr Add Report Tag
 
 Add a tag to a report, keeping its existing tags.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -57,9 +44,13 @@ Add a tag to a report, keeping its existing tags.
 | `tags` | array | Tag names on the report |
 | `count` | number | Number of tags on the report |
 
+</ReferenceDetails>
+
 ### Checkr Apply Report Review Action
 
 Continue or skip the remaining screenings on a report that is paused awaiting a review action.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +66,13 @@ Continue or skip the remaining screenings on a report that is paused awaiting a 
 | --------- | ---- | ----------- |
 | `message` | string | Confirmation message from Checkr |
 
+</ReferenceDetails>
+
 ### Checkr Cancel Adverse Action
 
 Cancel an adverse action so the post-adverse action notice is not sent.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +111,13 @@ Cancel an adverse action so the post-adverse action notice is not sent.
 |     ↳ `trigger` | string | What triggered the event |
 |     ↳ `user` | string | User who triggered the event |
 
+</ReferenceDetails>
+
 ### Checkr Cancel Continuous Check
 
 Cancel a continuous check to stop monitoring the candidate.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,9 +141,13 @@ Cancel a continuous check to stop monitoring the candidate.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Cancel Invitation
 
 Cancel a pending invitation so the candidate can no longer complete it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +175,13 @@ Cancel a pending invitation so the candidate can no longer complete it.
 |   ↳ `archived` | boolean | Whether the invitation is archived |
 |   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
 
+</ReferenceDetails>
+
 ### Checkr Cancel Subscription
 
 Cancel a subscription so no further recurring checks run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +212,13 @@ Cancel a subscription so no further recurring checks run.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Complete Report
 
 Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +288,13 @@ Complete a report now, canceling any pending or suspended screenings. Canceled s
 |   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
 |   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
 
+</ReferenceDetails>
+
 ### Checkr Create Adverse Action
 
 Start the adverse action process on a report by sending the pre-adverse action notice. The report must have a consider result and no active adverse action.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,9 +337,13 @@ Start the adverse action process on a report by sending the pre-adverse action n
 |     ↳ `trigger` | string | What triggered the event |
 |     ↳ `user` | string | User who triggered the event |
 
+</ReferenceDetails>
+
 ### Checkr Create Candidate
 
 Create a candidate to screen. Only email is required when the candidate will be invited; ordering a report directly also needs name, date of birth, and the PII its package requires.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +401,13 @@ Create a candidate to screen. Only email is required when the candidate will be 
 |   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
+</ReferenceDetails>
+
 ### Checkr Create Continuous Check
 
 Enroll a candidate in continuous criminal or motor vehicle monitoring so new records trigger a report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -412,9 +435,13 @@ Enroll a candidate in continuous criminal or motor vehicle monitoring so new rec
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Create Geo
 
 Create a geo to group candidates by work location. A geo with the same name and state already existing returns an error.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -438,9 +465,13 @@ Create a geo to group candidates by work location. A geo with the same name and 
 |   ↳ `createdAt` | string | Time the geo was created |
 |   ↳ `deletedAt` | string | Time the geo was deleted |
 
+</ReferenceDetails>
+
 ### Checkr Create Invitation
 
 Invite a candidate to complete a background check through the Checkr-hosted apply flow. Checkr emails the candidate a link to provide their information and consent.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -472,9 +503,13 @@ Invite a candidate to complete a background check through the Checkr-hosted appl
 |   ↳ `archived` | boolean | Whether the invitation is archived |
 |   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
 
+</ReferenceDetails>
+
 ### Checkr Create Report
 
 Order a background check report for a candidate using a package. Use only when you collect the candidate’s PII and consent yourself; otherwise create an invitation. Packages with international screenings must use invitations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -549,9 +584,13 @@ Order a background check report for a candidate using a package. Use only when y
 |   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
 |   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
 
+</ReferenceDetails>
+
 ### Checkr Create Subscription
 
 Schedule a recurring background check for a candidate, running a package every interval starting on a date.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -588,9 +627,13 @@ Schedule a recurring background check for a candidate, running a package every i
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Delete Candidate PII
 
 Request removal of a candidate's personally identifiable information. Fails if PII was already removed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -632,9 +675,13 @@ Request removal of a candidate's personally identifiable information. Fails if P
 |   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
+</ReferenceDetails>
+
 ### Checkr Delete Geo
 
 Delete a geo.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -650,9 +697,13 @@ Delete a geo.
 | `deleted` | boolean | Whether the geo was deleted |
 | `geoId` | string | ID of the deleted geo |
 
+</ReferenceDetails>
+
 ### Checkr Get Account
 
 Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -686,9 +737,13 @@ Retrieve the authenticated Checkr account, including whether it is authorized to
 |   ↳ `company` | json | Company details \(name, dba_name, street, city, state, zipcode, phone, website, industry, incorporation_state, incorporation_type, tax_id\) |
 |   ↳ `accountDeauthorization` | json | Deauthorization details \(reason\) when the account is deauthorized |
 
+</ReferenceDetails>
+
 ### Checkr Get Adverse Action
 
 Retrieve an adverse action by ID, including its status and notice delivery state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -727,9 +782,13 @@ Retrieve an adverse action by ID, including its status and notice delivery state
 |     ↳ `trigger` | string | What triggered the event |
 |     ↳ `user` | string | User who triggered the event |
 
+</ReferenceDetails>
+
 ### Checkr Get Candidate
 
 Retrieve a candidate by ID, including their report and geo IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -768,9 +827,13 @@ Retrieve a candidate by ID, including their report and geo IDs.
 |   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
+</ReferenceDetails>
+
 ### Checkr Get Continuous Check
 
 Retrieve a continuous check by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -794,9 +857,13 @@ Retrieve a continuous check by ID.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Get Document
 
 Retrieve a report or candidate document by ID, including a download link valid for 15 minutes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -819,9 +886,13 @@ Retrieve a report or candidate document by ID, including a download link valid f
 |   ↳ `locale` | string | Document locale |
 |   ↳ `createdAt` | string | Time the document was created |
 
+</ReferenceDetails>
+
 ### Checkr Get Geo
 
 Retrieve a geo by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -843,9 +914,13 @@ Retrieve a geo by ID.
 |   ↳ `createdAt` | string | Time the geo was created |
 |   ↳ `deletedAt` | string | Time the geo was deleted |
 
+</ReferenceDetails>
+
 ### Checkr Get Invitation
 
 Retrieve an invitation by ID, including its status and invitation URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -874,9 +949,13 @@ Retrieve an invitation by ID, including its status and invitation URL.
 |   ↳ `archived` | boolean | Whether the invitation is archived |
 |   ↳ `archivedInfo` | json | Archive details \(time, user with email and id\) |
 
+</ReferenceDetails>
+
 ### Checkr Get Node
 
 Retrieve an account hierarchy node by its custom ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -897,9 +976,13 @@ Retrieve an account hierarchy node by its custom ID.
 |   ↳ `parentCustomId` | string | Parent node custom ID |
 |   ↳ `packages` | array | Package slugs visible to the node \(when packages are included\) |
 
+</ReferenceDetails>
+
 ### Checkr Get Package
 
 Retrieve a package by ID, including its slug, price, and screenings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -925,9 +1008,13 @@ Retrieve a package by ID, including its slug, price, and screenings.
 |     ↳ `type` | string | Screening type |
 |     ↳ `subtype` | string | Screening subtype |
 
+</ReferenceDetails>
+
 ### Checkr Get Program
 
 Retrieve a program by ID, including its package and geo IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -948,9 +1035,13 @@ Retrieve a program by ID, including its package and geo IDs.
 |   ↳ `packageIds` | array | Associated package IDs |
 |   ↳ `geoIds` | array | Associated geo IDs |
 
+</ReferenceDetails>
+
 ### Checkr Get Report
 
 Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1020,9 +1111,13 @@ Retrieve a report by ID, including its status, result, adjudication, and the IDs
 |   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
 |   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
 
+</ReferenceDetails>
+
 ### Checkr Get Report ETA
 
 Retrieve the estimated completion date for a report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1038,9 +1133,13 @@ Retrieve the estimated completion date for a report.
 | `estimateGeneratedAt` | string | Time the estimate was generated |
 | `estimatedCompletionTime` | string | Predicted completion date \(only the date is meaningful\) |
 
+</ReferenceDetails>
+
 ### Checkr Get Progressive Report Status
 
 Retrieve checkpoint progress for an Enterprise Progressive report, including which checkpoint is waiting on a review action.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1070,9 +1169,13 @@ Retrieve checkpoint progress for an Enterprise Progressive report, including whi
 |     ↳ `expired` | boolean | Whether the review window closed and the default decision applied |
 |     ↳ `pausedAt` | string | Time the report paused for this review |
 
+</ReferenceDetails>
+
 ### Checkr Get Report Tags
 
 List the tags on a report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1088,9 +1191,13 @@ List the tags on a report.
 | `tags` | array | Tag names on the report |
 | `count` | number | Number of tags on the report |
 
+</ReferenceDetails>
+
 ### Checkr Get Screening
 
 Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1120,9 +1227,13 @@ Retrieve the results of one screening in a report, such as an SSN trace, county 
 |   ↳ `records` | json | Records found by criminal and civil searches \(case_number, county, state, charges with charge, classification, disposition, offense_date, and more\); empty for screenings without records |
 |   ↳ `details` | json | Complete screening object as returned by Checkr, including type-specific fields such as county, state, licenses, violations, or verification results |
 
+</ReferenceDetails>
+
 ### Checkr Get Subscription
 
 Retrieve a subscription by ID, including its schedule and next occurrence.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1153,9 +1264,13 @@ Retrieve a subscription by ID, including its schedule and next occurrence.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Get Verification
 
 Retrieve a verification by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1178,9 +1293,13 @@ Retrieve a verification by ID.
 |   ↳ `completedAt` | string | Time the candidate completed the verification |
 |   ↳ `processedAt` | string | Time the verification was processed |
 
+</ReferenceDetails>
+
 ### Checkr List Adverse Actions
 
 List the adverse actions for a report, optionally filtered by context.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1223,9 +1342,13 @@ List the adverse actions for a report, optionally filtered by context.
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Adverse Items
 
 List the adverse items on a report that can be cited in an adverse action. The report must have a consider result and no active adverse action.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1244,9 +1367,13 @@ List the adverse items on a report that can be cited in an adverse action. The r
 |   ↳ `assessment` | json | Assess details \(value, rule with name and type\) when Assess is enabled |
 | `count` | number | Number of adverse items |
 
+</ReferenceDetails>
+
 ### Checkr List Assessments
 
 List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1266,9 +1393,13 @@ List the Assess results for a report, including the ruleset applied and which ru
 |   ↳ `results` | json | Rule results, each with value, assessed_objects \(object_id, object_type\), and rule \(name, type\) |
 | `count` | number | Number of assessments |
 
+</ReferenceDetails>
+
 ### Checkr List Candidate Documents
 
 List documents a candidate provided, such as driver licenses and consent forms. Download links expire after 15 minutes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1293,9 +1424,13 @@ List documents a candidate provided, such as driver licenses and consent forms. 
 |   ↳ `createdAt` | string | Time the document was created |
 | `count` | number | Number of documents |
 
+</ReferenceDetails>
+
 ### Checkr List Candidates
 
 List candidates, optionally filtered by email, name, custom ID, adjudication, dates, geo, or program. Candidates with non-US work locations are not returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1352,9 +1487,13 @@ List candidates, optionally filtered by email, name, custom ID, adjudication, da
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Continuous Checks
 
 List the continuous checks a candidate is enrolled in.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1379,9 +1518,13 @@ List the continuous checks a candidate is enrolled in.
 |     ↳ `city` | string | City name |
 | `count` | number | Number of continuous checks |
 
+</ReferenceDetails>
+
 ### Checkr List Counties
 
 List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1399,9 +1542,13 @@ List US counties for one or more states, with their FIPS codes. Use the county n
 |   ↳ `name` | string | County name, e.g. BOULDER |
 |   ↳ `fipsCode` | string | 5-digit county FIPS code \(state + county\) |
 
+</ReferenceDetails>
+
 ### Checkr List Geos
 
 List geos (work locations used for compliance), optionally filtered by name or state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1429,9 +1576,13 @@ List geos (work locations used for compliance), optionally filtered by name or s
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Invitations
 
 List invitations, optionally filtered by candidate or status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1465,9 +1616,13 @@ List invitations, optionally filtered by candidate or status.
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Nodes
 
 List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node custom ID to order reports and invitations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1494,9 +1649,13 @@ List the nodes in the account hierarchy. Hierarchy-enabled accounts need a node 
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Packages
 
 List the background check packages on the account, with their slugs, prices, and included screenings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1526,9 +1685,13 @@ List the background check packages on the account, with their slugs, prices, and
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Programs
 
 List programs, which group packages and geos, optionally filtered by name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1554,9 +1717,13 @@ List programs, which group packages and geos, optionally filtered by name.
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Report Addresses
 
 List the address history found for a report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1579,9 +1746,13 @@ List the address history found for a report.
 |   ↳ `endDate` | string | End of residence |
 | `count` | number | Number of addresses |
 
+</ReferenceDetails>
+
 ### Checkr List Subscriptions
 
 List recurring check subscriptions, optionally filtered by candidate, status, or creation date.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1620,9 +1791,13 @@ List recurring check subscriptions, optionally filtered by candidate, status, or
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Users
 
 List the users on the Checkr account and their roles.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1646,9 +1821,13 @@ List the users on the Checkr account and their roles.
 | `nextHref` | string | URL of the next page of results, if any |
 | `previousHref` | string | URL of the previous page of results, if any |
 
+</ReferenceDetails>
+
 ### Checkr List Verifications
 
 List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1672,9 +1851,13 @@ List the verifications on a report, such as requests for the candidate to confir
 |   ↳ `processedAt` | string | Time the verification was processed |
 | `count` | number | Number of verifications |
 
+</ReferenceDetails>
+
 ### Checkr Remove Report Tag
 
 Remove a tag from a report.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1691,9 +1874,13 @@ Remove a tag from a report.
 | `tags` | array | Tag names on the report |
 | `count` | number | Number of tags on the report |
 
+</ReferenceDetails>
+
 ### Checkr Set Report Tags
 
 Replace all tags on a report with the given list. Pass [] to remove every tag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1710,9 +1897,13 @@ Replace all tags on a report with the given list. Pass [] to remove every tag.
 | `tags` | array | Tag names on the report |
 | `count` | number | Number of tags on the report |
 
+</ReferenceDetails>
+
 ### Checkr Update Candidate
 
 Update a candidate. Once a report is ordered only empty fields can change, except email, phone, previous driver license, copy requested, custom ID, and geo IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1770,9 +1961,13 @@ Update a candidate. Once a report is ordered only empty fields can change, excep
 |   ↳ `postalAddress` | json | Postal address \(name, street, street2, city, state, zipcode\) |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
+</ReferenceDetails>
+
 ### Checkr Update Continuous Check
 
 Change the node or work locations of a continuous check.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1798,9 +1993,13 @@ Change the node or work locations of a continuous check.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 ### Checkr Update Geo
 
 Add a city to a geo. A geo’s city can only be set once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1823,9 +2022,13 @@ Add a city to a geo. A geo’s city can only be set once.
 |   ↳ `createdAt` | string | Time the geo was created |
 |   ↳ `deletedAt` | string | Time the geo was deleted |
 
+</ReferenceDetails>
+
 ### Checkr Update Report
 
 Upgrade a report to a different package or mark it as engaged. Provide a package, an adjudication, or both.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1897,9 +2100,13 @@ Upgrade a report to a different package or mark it as engaged. Provide a package
 |   ↳ `professionalReferenceVerificationIds` | array | Professional reference verification IDs |
 |   ↳ `drugScreening` | json | Embedded drug screening \(id, status, result, disposition, mro_notes, analytes, events, screening_pass_expires_at, appointment_id\) |
 
+</ReferenceDetails>
+
 ### Checkr Update Subscription
 
 Change the package, schedule, node, or work locations of a subscription.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1936,16 +2143,20 @@ Change the package, schedule, node, or work locations of a subscription.
 |     ↳ `state` | string | Two-letter state code |
 |     ↳ `city` | string | City name |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Checkr Adverse Action Canceled
 
 Trigger workflow when an adverse action is canceled
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1962,7 +2173,7 @@ Trigger workflow when an adverse action is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -1974,19 +2185,20 @@ Trigger workflow when an adverse action is canceled
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Adverse Action Completed
 
 Trigger workflow when the post-adverse action notice is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2003,7 +2215,7 @@ Trigger workflow when the post-adverse action notice is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2015,19 +2227,20 @@ Trigger workflow when the post-adverse action notice is sent
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Adverse Action Created
 
 Trigger workflow when an adverse action is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2044,7 +2257,7 @@ Trigger workflow when an adverse action is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2056,19 +2269,20 @@ Trigger workflow when an adverse action is created
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Adverse Action Notice Not Delivered
 
 Trigger workflow when an adverse action notice cannot be delivered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2085,7 +2299,7 @@ Trigger workflow when an adverse action notice cannot be delivered
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2097,19 +2311,20 @@ Trigger workflow when an adverse action notice cannot be delivered
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Adverse Action Paused
 
 Trigger workflow when delivery of a post-adverse action notice is paused
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2126,7 +2341,7 @@ Trigger workflow when delivery of a post-adverse action notice is paused
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2138,19 +2353,20 @@ Trigger workflow when delivery of a post-adverse action notice is paused
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Adverse Action Resumed
 
 Trigger workflow when a paused adverse action resumes
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2167,7 +2383,7 @@ Trigger workflow when a paused adverse action resumes
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2179,18 +2395,19 @@ Trigger workflow when a paused adverse action resumes
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
 |   ↳ `adverse_items` | array | Adverse items \(id, object, text\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr All Events
 
 Trigger workflow on any Checkr event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2210,13 +2427,14 @@ Trigger workflow on any Checkr event
 | `objectId` | string | ID of the object in the event |
 | `data` | json | The event object \(a report, candidate, invitation, verification, adverse action, package, continuous check, or Form I-9\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Candidate Created
 
 Trigger workflow when a candidate is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2233,7 +2451,7 @@ Trigger workflow when a candidate is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Candidate ID |
 |   ↳ `object` | string | Object type \(candidate\) |
 |   ↳ `uri` | string | Candidate API URI |
@@ -2254,13 +2472,14 @@ Trigger workflow when a candidate is created
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Candidate Updated
 
 Trigger workflow when a candidate is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2277,7 +2496,7 @@ Trigger workflow when a candidate is updated
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Candidate ID |
 |   ↳ `object` | string | Object type \(candidate\) |
 |   ↳ `uri` | string | Candidate API URI |
@@ -2298,13 +2517,14 @@ Trigger workflow when a candidate is updated
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `metadata` | json | Custom key-value metadata |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Continuous Check Confirmation Required
 
 Trigger workflow when a candidate is unenrolled from Continuous MVR and must be re-enrolled
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2321,7 +2541,7 @@ Trigger workflow when a candidate is unenrolled from Continuous MVR and must be 
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `continuousCheck` | object | continuousCheck output from the tool |
+| `continuousCheck` | object |  |
 |   ↳ `id` | string | Continuous check ID |
 |   ↳ `object` | string | Object type \(continuous_check\) |
 |   ↳ `candidate_id` | string | Enrolled candidate ID |
@@ -2329,13 +2549,14 @@ Trigger workflow when a candidate is unenrolled from Continuous MVR and must be 
 |   ↳ `node` | string | Hierarchy node custom ID |
 |   ↳ `work_locations` | array | Work locations \(country, state, city\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Continuous Check Enrollment Error
 
 Trigger workflow when enrolling a candidate in Continuous MVR fails
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2352,7 +2573,7 @@ Trigger workflow when enrolling a candidate in Continuous MVR fails
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `continuousCheck` | object | continuousCheck output from the tool |
+| `continuousCheck` | object |  |
 |   ↳ `id` | string | Continuous check ID |
 |   ↳ `object` | string | Object type \(continuous_check\) |
 |   ↳ `candidate_id` | string | Enrolled candidate ID |
@@ -2360,13 +2581,14 @@ Trigger workflow when enrolling a candidate in Continuous MVR fails
 |   ↳ `node` | string | Hierarchy node custom ID |
 |   ↳ `work_locations` | array | Work locations \(country, state, city\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Invitation Canceled
 
 Trigger workflow when an invitation is canceled
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2383,7 +2605,7 @@ Trigger workflow when an invitation is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2397,13 +2619,14 @@ Trigger workflow when an invitation is canceled
 |   ↳ `completed_at` | string | Time the invitation was completed |
 |   ↳ `deleted_at` | string | Time the invitation was canceled |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Invitation Completed
 
 Trigger workflow when a candidate completes an invitation
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2420,7 +2643,7 @@ Trigger workflow when a candidate completes an invitation
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2434,13 +2657,14 @@ Trigger workflow when a candidate completes an invitation
 |   ↳ `completed_at` | string | Time the invitation was completed |
 |   ↳ `deleted_at` | string | Time the invitation was canceled |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Invitation Created
 
 Trigger workflow when an invitation is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2457,7 +2681,7 @@ Trigger workflow when an invitation is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2471,13 +2695,14 @@ Trigger workflow when an invitation is created
 |   ↳ `completed_at` | string | Time the invitation was completed |
 |   ↳ `deleted_at` | string | Time the invitation was canceled |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Invitation Expired
 
 Trigger workflow when an invitation expires
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2494,7 +2719,7 @@ Trigger workflow when an invitation expires
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2508,13 +2733,14 @@ Trigger workflow when an invitation expires
 |   ↳ `completed_at` | string | Time the invitation was completed |
 |   ↳ `deleted_at` | string | Time the invitation was canceled |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Canceled
 
 Trigger workflow when a report is canceled
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2531,7 +2757,7 @@ Trigger workflow when a report is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2561,13 +2787,14 @@ Trigger workflow when a report is canceled
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Completed
 
 Trigger workflow when a report is completed
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2584,7 +2811,7 @@ Trigger workflow when a report is completed
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2614,13 +2841,14 @@ Trigger workflow when a report is completed
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Created
 
 Trigger workflow when a report is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2637,7 +2865,7 @@ Trigger workflow when a report is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2667,13 +2895,14 @@ Trigger workflow when a report is created
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Dispute Completed
 
 Trigger workflow when a report dispute is resolved
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2690,7 +2919,7 @@ Trigger workflow when a report dispute is resolved
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2720,13 +2949,14 @@ Trigger workflow when a report dispute is resolved
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Disputed
 
 Trigger workflow when a candidate disputes a report
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2743,7 +2973,7 @@ Trigger workflow when a candidate disputes a report
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2773,13 +3003,14 @@ Trigger workflow when a candidate disputes a report
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Engaged
 
 Trigger workflow when a report is adjudicated as engaged
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2796,7 +3027,7 @@ Trigger workflow when a report is adjudicated as engaged
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2826,13 +3057,14 @@ Trigger workflow when a report is adjudicated as engaged
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Paused
 
 Trigger workflow when a report pauses awaiting a review action
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2849,7 +3081,7 @@ Trigger workflow when a report pauses awaiting a review action
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2879,13 +3111,14 @@ Trigger workflow when a report pauses awaiting a review action
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Post-Adverse Action Sent
 
 Trigger workflow when the post-adverse action notice for a report is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2902,7 +3135,7 @@ Trigger workflow when the post-adverse action notice for a report is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2932,13 +3165,14 @@ Trigger workflow when the post-adverse action notice for a report is sent
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Pre-Adverse Action Sent
 
 Trigger workflow when the pre-adverse action notice for a report is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2955,7 +3189,7 @@ Trigger workflow when the pre-adverse action notice for a report is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2985,13 +3219,14 @@ Trigger workflow when the pre-adverse action notice for a report is sent
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Resumed
 
 Trigger workflow when a suspended report resumes
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3008,7 +3243,7 @@ Trigger workflow when a suspended report resumes
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3038,13 +3273,14 @@ Trigger workflow when a suspended report resumes
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Suspended
 
 Trigger workflow when a report is suspended awaiting candidate documentation
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3061,7 +3297,7 @@ Trigger workflow when a report is suspended awaiting candidate documentation
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3091,13 +3327,14 @@ Trigger workflow when a report is suspended awaiting candidate documentation
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Updated
 
 Trigger workflow when a report is updated, such as an ETA change or drug screening update
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3114,7 +3351,7 @@ Trigger workflow when a report is updated, such as an ETA change or drug screeni
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3144,13 +3381,14 @@ Trigger workflow when a report is updated, such as an ETA change or drug screeni
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Report Upgraded
 
 Trigger workflow when a report is upgraded to another package
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3167,7 +3405,7 @@ Trigger workflow when a report is upgraded to another package
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3197,13 +3435,14 @@ Trigger workflow when a report is upgraded to another package
 |   ↳ `geo_ids` | array | Geo IDs |
 |   ↳ `dispute_summary` | json | Dispute outcome on report.dispute_completed \(unresolved_disputes, disputes with id, status, changes_made, resolved_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Verification Completed
 
 Trigger workflow when a candidate completes a verification
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3220,7 +3459,7 @@ Trigger workflow when a candidate completes a verification
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |
@@ -3231,13 +3470,14 @@ Trigger workflow when a candidate completes a verification
 |   ↳ `completed_at` | string | Time the candidate completed the verification |
 |   ↳ `processed_at` | string | Time the verification was processed |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Verification Created
 
 Trigger workflow when a candidate is asked to verify information or upload a document
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3254,7 +3494,7 @@ Trigger workflow when a candidate is asked to verify information or upload a doc
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |
@@ -3265,13 +3505,14 @@ Trigger workflow when a candidate is asked to verify information or upload a doc
 |   ↳ `completed_at` | string | Time the candidate completed the verification |
 |   ↳ `processed_at` | string | Time the verification was processed |
 
-
----
+</ReferenceDetails>
 
 ### Checkr Verification Processed
 
 Trigger workflow when a verification is processed and a decision is made
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3288,7 +3529,7 @@ Trigger workflow when a verification is processed and a decision is made
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |
@@ -3298,4 +3539,6 @@ Trigger workflow when a verification is processed and a decision is made
 |   ↳ `created_at` | string | Time the verification was created |
 |   ↳ `completed_at` | string | Time the candidate completed the verification |
 |   ↳ `processed_at` | string | Time the verification was processed |
+
+</ReferenceDetails>
 

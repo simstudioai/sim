@@ -14,13 +14,13 @@ import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
-import { workflowOperations } from '@/lib/workflows/application/operations'
-import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import {
   resolveWorkflowFolderPath,
   workflowFolderPathForId,
-} from '@/lib/workflows/application/workflow-folders'
+} from '@/lib/workflows/application/folders'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { updateWorkflowRecord } from '@/lib/workflows/orchestration'
 
 const logger = createLogger('UpdateWorkflow')

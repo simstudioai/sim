@@ -3,7 +3,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/http'
 import {
   detailSelectorResult,
   listSelectorResult,

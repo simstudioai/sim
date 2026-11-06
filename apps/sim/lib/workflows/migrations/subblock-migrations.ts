@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import {
+  GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
+  migrateGreenhouseAgentInputs,
+} from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
@@ -112,6 +116,13 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  microsoft_excel: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
+  microsoft_excel_v2: [
+    { from: 'valueInputOption', to: '_removed_valueInputOption' },
+    { from: 'sortTableName', to: 'tableName', whenOperation: ['sort_range'] },
+  ],
+  /** Greenhouse normalization selects active values and removes stale aliases before this pass. */
+  greenhouse_v2: GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
   /** MCP normalization selects the active replacement before this rename pass. */
   mcp: [
     { from: 'server', to: 'serverSelector' },
@@ -124,6 +135,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   /** Google Ads moved API access to the OAuth client's Cloud project and retired developer tokens. */
   google_ads: [{ from: 'developerToken', to: '_removed_developerToken' }],
+  /** Help Scout triggers now register their own webhook and generate its signing secret. */
+  helpscout: [{ from: 'webhookSecret', to: '_removed_webhookSecret' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
   /** Connected accounts resolve from the workspace; group selectors have no replacement. */
@@ -578,7 +591,7 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
-    const normalized = migrateMcpOperationControls(block)
+    const normalized = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
       ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)

@@ -23,6 +23,7 @@ const hoistedMocks = vi.hoisted(() => ({
   lowerWorkspace: vi.fn(),
   readPermission: vi.fn(),
   revokeWorkspace: vi.fn(),
+  stopRuns: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
@@ -42,6 +43,7 @@ vi.mock('@/lib/workspaces/access/workspace-access', () => ({
   lowerWorkspaceAccessTx: hoistedMocks.lowerWorkspace,
   readWorkspacePermission: hoistedMocks.readPermission,
   revokeWorkspaceAccessTx: hoistedMocks.revokeWorkspace,
+  stopRunsWithoutWorkspaceAccessTx: hoistedMocks.stopRuns,
   permissionRank: (permission: string) => ({ read: 1, write: 2, admin: 3 })[permission] ?? 0,
 }))
 
@@ -57,10 +59,10 @@ const params = {
   connectionId: 'conn-1',
   organizationId: 'org-1',
   scimUserId: 'su-1',
-  settings: {},
 }
 
 interface Scenario {
+  lockManualMembership?: boolean
   current?: Array<Record<string, unknown>>
   mappings?: Array<Record<string, unknown>>
   ownedWorkspaces?: string[]
@@ -70,6 +72,7 @@ interface Scenario {
 }
 
 function stage({
+  lockManualMembership = false,
   current = [],
   mappings = [],
   ownedWorkspaces = ['ws-1'],
@@ -77,7 +80,7 @@ function stage({
   actualGroups = [],
   actualRole = 'member',
 }: Scenario) {
-  queueTableRows(scimUser, [{ userId: 'u-1' }])
+  queueTableRows(scimUser, [{ userId: 'u-1', settings: { lockManualMembership } }])
   queueTableRows(scimProjectionGrant, current)
   queueTableRows(scimGroupMember, mappings)
   queueTableRows(
@@ -117,10 +120,20 @@ describe('reconcileUserProjection', () => {
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
     mocks.readPermission.mockResolvedValue('write')
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
+    mocks.stopRuns.mockResolvedValue([])
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
-    mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+    mocks.changeMemberRole.mockResolvedValue({
+      changed: true,
+      from: 'member',
+      to: 'admin',
+      stoppedRuns: [],
+    })
   })
 
   it('takes the organization and user locks before reading any grant', async () => {
@@ -198,6 +211,7 @@ describe('reconcileUserProjection', () => {
       organizationId: 'org-1',
       userId: 'u-1',
       role: 'admin',
+      deferRunStops: true,
     })
   })
 
@@ -270,6 +284,7 @@ describe('reconcileUserProjection', () => {
 
   it('withdraws the entire covered access when managed membership is locked', async () => {
     stage({
+      lockManualMembership: true,
       current: [
         {
           targetKind: 'workspace',
@@ -281,7 +296,7 @@ describe('reconcileUserProjection', () => {
       ],
     })
     mocks.readPermission.mockResolvedValue('admin')
-    await reconcileUserProjection(db, { ...params, settings: { lockManualMembership: true } })
+    await reconcileUserProjection(db, params)
     expect(mocks.revokeWorkspace).toHaveBeenCalled()
     expect(mocks.lowerWorkspace).not.toHaveBeenCalled()
   })
@@ -301,17 +316,19 @@ describe('reconcileUserProjection', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.readPermission.mockResolvedValue('write')
     stage({
+      lockManualMembership: true,
       current: [
         { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'adopted' },
       ],
     })
-    const withdrawn = await reconcileUserProjection(db, {
-      ...params,
-      settings: { lockManualMembership: true },
-    })
+    const withdrawn = await reconcileUserProjection(db, params)
     expect(mocks.revokeWorkspace).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ workspaceId: 'ws-1', userId: 'u-1' })

@@ -14,7 +14,12 @@ afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-import { getOrCreateOauthRow, loadOauthRow, withMcpOauthRefreshLock } from './storage'
+import {
+  getOrCreateOauthRow,
+  hasDecryptableOauthTokens,
+  loadOauthRow,
+  withMcpOauthRefreshLock,
+} from './storage'
 
 describe('MCP OAuth storage', () => {
   beforeEach(() => {
@@ -76,6 +81,21 @@ describe('MCP OAuth storage', () => {
     expect(row.id).toBe('oauth-row-1')
     expect(row.userId).toBe('authorizer-1')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  /** The row is the workspace's one grant; a presence check must never be what erases it. */
+  it('reports undecryptable tokens as unusable without clearing the shared row', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ tokens: 'ciphertext-from-a-rotated-key' }])
+    encryptionMockFns.mockDecryptSecret.mockRejectedValueOnce(new Error('bad decrypt'))
+
+    expect(await hasDecryptableOauthTokens('server-1')).toBe(false)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+
+    dbChainMockFns.limit.mockResolvedValueOnce([{ tokens: 'ciphertext' }])
+    expect(await hasDecryptableOauthTokens('server-1')).toBe(true)
+    dbChainMockFns.limit.mockResolvedValueOnce([{ tokens: null }])
+    expect(await hasDecryptableOauthTokens('server-1')).toBe(false)
   })
 })
 

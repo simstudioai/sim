@@ -1,14 +1,13 @@
 ---
 title: Oracle NetSuite
 description: Manage NetSuite records, queries, datasets, batches, and async jobs
+integration:
+  type: "netsuite"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="netsuite"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Oracle NetSuite](https://www.netsuite.com/) is a cloud ERP platform for financials, order management, inventory, procurement, CRM, and analytics. Sim connects through SuiteTalk REST Web Services using NetSuite's OAuth 2.0 client-credentials flow; it does not require a RESTlet or a user-interactive login.
@@ -32,18 +31,19 @@ Follow the [Oracle NetSuite service-account setup](/integrations/netsuite-servic
 - This integration does not include a trigger. SuiteTalk has no generic API for registering record-change webhooks; polling or customer-deployed SuiteScript requires a separate design.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Service account](/integrations/netsuite-service-account).
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect a reusable Oracle NetSuite service-account credential to SuiteTalk REST Web Services. Read and write account-specific records, execute SuiteQL and SuiteAnalytics datasets, run asynchronous record batches, inspect metadata, and monitor async jobs.
-
-
 
 ## Actions
 
 ### NetSuite List/Search Records
 
 List one page of a NetSuite record collection, optionally filtered with a q expression.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +74,13 @@ List one page of a NetSuite record collection, optionally filtered with a q expr
 |   ↳ `offset` | number | Offset of this page |
 |   ↳ `totalResults` | number | Total number of matching items |
 
+</ReferenceDetails>
+
 ### NetSuite Get Record
 
 Retrieve one NetSuite record by internal or external ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,9 +100,13 @@ Retrieve one NetSuite record by internal or external ID.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | NetSuite response body; record fields are account-specific and dynamic |
 
+</ReferenceDetails>
+
 ### NetSuite Create Record
 
 Create a NetSuite record using the account-specific record metadata schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +125,13 @@ Create a NetSuite record using the account-specific record metadata schema.
 | `data` | json | Empty for standard HTTP 204 creation; replacement creation can return the documented HTTP 201 post-state object |
 | `location` | string | Newly created record URL from the Location response header |
 
+</ReferenceDetails>
+
 ### NetSuite Update Record
 
 Update fields on an existing NetSuite record with PATCH.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,9 +151,13 @@ Update fields on an existing NetSuite record with PATCH.
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 | `location` | string | Updated record URL from the Location response header |
 
+</ReferenceDetails>
+
 ### NetSuite Upsert Record
 
 Create or update a NetSuite record by external ID with PUT.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -160,9 +176,13 @@ Create or update a NetSuite record by external ID with PUT.
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 | `location` | string | URL of the created or updated record, when NetSuite returns a Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Delete Record
 
 Delete one NetSuite record by internal or external ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +199,13 @@ Delete one NetSuite record by internal or external ID.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 
+</ReferenceDetails>
+
 ### NetSuite Get Subresource
 
 Retrieve a record sublist, subrecord, referenced record, or nested subresource.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +223,13 @@ Retrieve a record sublist, subrecord, referenced record, or nested subresource.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | NetSuite response body; record fields are account-specific and dynamic |
 
+</ReferenceDetails>
+
 ### NetSuite Get Record Form
 
 Return a prepopulated create form, or an edit form when a record ID is supplied.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +250,13 @@ Return a prepopulated create form, or an edit form when a record ID is supplied.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | NetSuite response body; record fields are account-specific and dynamic |
 
+</ReferenceDetails>
+
 ### NetSuite Get Select Options
 
 Retrieve valid select values for one or more fields on a new or existing record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,9 +281,13 @@ Retrieve valid select values for one or more fields on a new or existing record.
 |     ↳ `rel` | string | Link relationship |
 |     ↳ `href` | string | Link target |
 
+</ReferenceDetails>
+
 ### NetSuite Attach Record or File
 
 Attach a contact or file to another NetSuite record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -272,9 +308,13 @@ Attach a contact or file to another NetSuite record.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 
+</ReferenceDetails>
+
 ### NetSuite Detach Record or File
 
 Detach a contact or file from another NetSuite record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -293,9 +333,13 @@ Detach a contact or file from another NetSuite record.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 
+</ReferenceDetails>
+
 ### NetSuite Execute Record Action
 
 Execute a supported NetSuite record action such as approve, reject, or confirm.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +359,13 @@ Execute a supported NetSuite record action such as approve, reject, or confirm.
 | `data` | json | Documented NetSuite record-action response |
 |   ↳ `result` | boolean | True when NetSuite completed the record action |
 
+</ReferenceDetails>
+
 ### NetSuite Transform Record
 
 Transform a supported source record into another NetSuite record type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +385,13 @@ Transform a supported source record into another NetSuite record type.
 | `data` | json | Empty for the documented HTTP 204 No Content response |
 | `location` | string | URL of the transformed record, when NetSuite returns a Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Batch Get Records
 
 Submit an asynchronous request to retrieve up to 100 records of one type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +414,13 @@ Submit an asynchronous request to retrieve up to 100 records of one type.
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Batch Create Records
 
 Submit an asynchronous batch that creates up to 100 records of one type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +440,13 @@ Submit an asynchronous batch that creates up to 100 records of one type.
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Batch Update Records
 
 Submit an asynchronous batch that updates up to 100 records of one type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -406,9 +466,13 @@ Submit an asynchronous batch that updates up to 100 records of one type.
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Batch Upsert Records
 
 Submit an asynchronous batch that creates or updates up to 100 records by external ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -428,9 +492,13 @@ Submit an asynchronous batch that creates or updates up to 100 records by extern
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Batch Delete Records
 
 Submit an asynchronous request to delete up to 100 records of one type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -450,9 +518,13 @@ Submit an asynchronous request to delete up to 100 records of one type.
 | `location` | string | Asynchronous job URL from the Location response header |
 | `jobId` | string | Asynchronous job ID parsed from the Location header |
 
+</ReferenceDetails>
+
 ### NetSuite Execute SuiteQL
 
 Execute one page of a SuiteQL query through SuiteTalk REST web services.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -478,9 +550,13 @@ Execute one page of a SuiteQL query through SuiteTalk REST web services.
 |   ↳ `offset` | number | Offset of this page |
 |   ↳ `totalResults` | number | Total number of matching items |
 
+</ReferenceDetails>
+
 ### NetSuite List SuiteAnalytics Datasets
 
 List one page of SuiteAnalytics Workbook datasets available to the authenticated role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -505,9 +581,13 @@ List one page of SuiteAnalytics Workbook datasets available to the authenticated
 |   ↳ `offset` | number | Offset of this page |
 |   ↳ `totalResults` | number | Total number of matching items |
 
+</ReferenceDetails>
+
 ### NetSuite Execute SuiteAnalytics Dataset
 
 Execute one page of a standard or custom SuiteAnalytics Workbook dataset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -533,9 +613,13 @@ Execute one page of a standard or custom SuiteAnalytics Workbook dataset.
 |   ↳ `offset` | number | Offset of this page |
 |   ↳ `totalResults` | number | Total number of matching items |
 
+</ReferenceDetails>
+
 ### NetSuite List Record Types
 
 List record types exposed to the authenticated role by the REST metadata catalog.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +643,13 @@ List record types exposed to the authenticated role by the REST metadata catalog
 |       ↳ `href` | string | Link target |
 |       ↳ `mediaType` | string | Media type advertised for the linked metadata resource |
 
+</ReferenceDetails>
+
 ### NetSuite Get Record Metadata
 
 Retrieve account-specific metadata for one NetSuite record type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -578,9 +666,13 @@ Retrieve account-specific metadata for one NetSuite record type.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | NetSuite response body; record fields are account-specific and dynamic |
 
+</ReferenceDetails>
+
 ### NetSuite Get Async Status
 
 Retrieve job status, list job tasks, or retrieve one task status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -615,9 +707,13 @@ Retrieve job status, list job tasks, or retrieve one task status.
 |       ↳ `rel` | string | Link relationship |
 |       ↳ `href` | string | Link target |
 
+</ReferenceDetails>
+
 ### NetSuite Get Async Operation Result
 
 Retrieve the provider response for one task within a completed asynchronous job.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -634,9 +730,13 @@ Retrieve the provider response for one task within a completed asynchronous job.
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Result payload for the submitted asynchronous operation; record fields are account-specific and dynamic |
 
+</ReferenceDetails>
+
 ### NetSuite Get Server Time
 
 Retrieve the current UTC time from the NetSuite server.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -652,9 +752,13 @@ Retrieve the current UTC time from the NetSuite server.
 | `data` | json | NetSuite server time response |
 |   ↳ `serverTime` | string | Current NetSuite server time in UTC |
 
+</ReferenceDetails>
+
 ### NetSuite Get Governance Limits
 
 Retrieve REST web-services concurrency limits for the NetSuite account and integration; NetSuite requires an Administrator role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -672,5 +776,7 @@ Retrieve REST web-services concurrency limits for the NetSuite account and integ
 |   ↳ `accountUnallocatedConcurrencyLimit` | number | Account concurrency not allocated to integrations |
 |   ↳ `integrationConcurrencyLimit` | number | Concurrency allocated to this integration |
 |   ↳ `integrationLimitType` | string | Limit assignment: integrationSpecific, accountLimit, or internal |
+
+</ReferenceDetails>
 
 

@@ -1,6 +1,5 @@
 import { Extension, InputRule } from '@tiptap/core'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * Typed markdown link: `[text](url)` or `[text](url "title")`, completed by the closing `)`. The URL
@@ -20,10 +19,8 @@ const LINK_INPUT_RULE = /(?<!!)\[([^\]]+)]\(([^)\s]+)(?:\s+"([^"]*)")?\)(?![\s\S
 export const MarkdownLinkInputRule = Extension.create({
   name: 'markdownLinkInputRule',
 
-  addProseMirrorPlugins() {
-    return createTextInputRulePlugins(
-      this.editor,
-      this.name,
+  addInputRules() {
+    return [
       new InputRule({
         find: LINK_INPUT_RULE,
         handler: ({ state, range, match }) => {
@@ -41,7 +38,7 @@ export const MarkdownLinkInputRule = Extension.create({
           tr.addMark(range.from, markEnd, linkType.create({ href, title: title || null }))
           tr.removeStoredMark(linkType)
         },
-      })
-    )
+      }),
+    ]
   },
 })

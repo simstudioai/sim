@@ -11,28 +11,27 @@ import {
   organization,
   outboxEvent,
   permissions,
-  projectMembershipRollout,
+  project,
   subscription as subscriptionTable,
   user,
   userStats,
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
 import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockChangeOrganizationWorkspaceBilledAccountsInTx, mockChangeWorkspaceStoragePayersInTx } =
-  vi.hoisted(() => ({
-    mockChangeOrganizationWorkspaceBilledAccountsInTx: vi.fn(),
-    mockChangeWorkspaceStoragePayersInTx: vi.fn(),
-  }))
+const {
+  mockChangeOrganizationWorkspaceBilledAccountsInTx,
+  mockChangeProjectAndWorkspaceStoragePayersInTx,
+} = billingPayerTransferMockFns
 
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({
-  changeOrganizationWorkspaceBilledAccountsInTx: mockChangeOrganizationWorkspaceBilledAccountsInTx,
-  changeWorkspaceStoragePayerInTx: vi.fn(),
-  changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
-}))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 
 import {
   reapplyPaidOrgJoinBillingForExistingMemberTx,
@@ -105,7 +104,7 @@ describe('paid-org join billing lock ordering', () => {
   beforeEach(() => {
     resetDbChainMock()
     mockChangeOrganizationWorkspaceBilledAccountsInTx.mockReset()
-    mockChangeWorkspaceStoragePayersInTx.mockReset()
+    mockChangeProjectAndWorkspaceStoragePayersInTx.mockReset()
   })
 
   it('locks the personal subscription before pausing it and never mutates userStats', async () => {
@@ -183,19 +182,19 @@ describe('workspace payer-change transaction lock ordering', () => {
     const ops: Array<{ op: 'lock' | 'payer-transfer' | 'update'; table: unknown }> = []
     let memberSelectCount = 0
     const rowsForTable = (table: unknown, fields?: Record<string, unknown>): unknown[] => {
-      if (table === projectMembershipRollout) return [{ phase: 'column' }]
       if (table === workspace) {
-        if (fields?.id === workspace.projectId) return [{ id: null }]
+        if (fields?.id === workspace.projectId) return [{ id: 'project-1' }]
         return [
           {
             id: 'workspace-1',
-            projectId: null,
+            projectId: 'project-1',
             billedAccountUserId: 'user-1',
             organizationId: null,
             storageUsedBytes: 128,
           },
         ]
       }
+      if (table === project) return [{ id: 'project-1', organizationId: null }]
       if (table === permissions) return [{ userId: 'user-1' }]
       if (table === member) {
         memberSelectCount += 1
@@ -220,9 +219,6 @@ describe('workspace payer-change transaction lock ordering', () => {
         orderBy() {
           return chain
         },
-        as() {
-          return table
-        },
         for() {
           ops.push({ op: 'lock', table })
           return chain
@@ -235,7 +231,7 @@ describe('workspace payer-change transaction lock ordering', () => {
       return chain
     }
     const tx = {
-      execute: async () => [{ marker: true, complete: false }],
+      execute: async () => [{ acquired: true }],
       select,
       selectDistinct: select,
       insert: () => ({
@@ -259,7 +255,7 @@ describe('workspace payer-change transaction lock ordering', () => {
         }),
       }),
     }
-    mockChangeWorkspaceStoragePayersInTx.mockImplementationOnce(async () => {
+    mockChangeProjectAndWorkspaceStoragePayersInTx.mockImplementationOnce(async () => {
       ops.push({ op: 'payer-transfer', table: workspace })
       return []
     })

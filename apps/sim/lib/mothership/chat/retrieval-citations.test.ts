@@ -49,4 +49,28 @@ describe('persisted retrieval citations', () => {
       })
     ).toEqual({ success: true, data: { results: [] } })
   })
+  it('keeps cited web pages as bounded citations and drops uncited web research entirely', () => {
+    const page = { title: 'Guide', url: 'https://docs.example.test/guide', text: 'y'.repeat(4000) }
+    expect(
+      compactRetrievalCitations('web_fetch', {
+        results: [{ ...page, citationId: 'web:guide', links: ['https://drop.test'] }],
+        notice: 'drop',
+      })
+    ).toEqual({
+      success: true,
+      data: {
+        results: [
+          {
+            citationId: 'web:guide',
+            citationUrl: 'https://docs.example.test/guide',
+            documentName: 'Guide',
+          },
+        ],
+      },
+    })
+    expect(
+      compactRetrievalCitations('web_search', { query: 'guide', results: [page] })
+    ).toBeUndefined()
+    expect(compactRetrievalCitations('web_search', { error: 'Search failed' })).toBeUndefined()
+  })
 })

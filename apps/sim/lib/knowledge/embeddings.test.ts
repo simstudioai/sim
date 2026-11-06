@@ -10,7 +10,7 @@ import {
   type MockInstance,
   vi,
 } from 'vitest'
-import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import * as billingAttributionModule from '@/lib/billing/core/attribution'
 import * as usageLogModule from '@/lib/billing/core/usage-log'
 import * as thresholdBillingModule from '@/lib/billing/threshold-billing'
 import * as embeddingModelsModule from '@/lib/knowledge/embedding-models'

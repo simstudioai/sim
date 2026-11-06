@@ -14,9 +14,12 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
+import {
+  findDatabaseQueryError,
+  getUserFacingErrorMessage,
+} from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
   logFailureOnce,
@@ -50,7 +53,7 @@ import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
   serializeExecutionDeadlineHeader,
-} from '@/lib/execution/execution-deadline-header'
+} from '@/lib/execution/deadline-header'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
@@ -93,8 +96,8 @@ import {
 } from '@/lib/mothership/billing/service-observer'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/file-manager'
+import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
@@ -559,7 +562,8 @@ async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
-  requestId: string
+  requestId: string,
+  signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting) return { isUsingHostedKey: false }
   if (!isHosted) return { isUsingHostedKey: false }
@@ -576,16 +580,11 @@ async function injectHostedKeyIfNeeded(
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
 
   if (byokProviderId && workspaceId) {
-    try {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId)
-      if (byokResult) {
-        params[apiKeyParam] = byokResult.apiKey
-        logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
-        return { isUsingHostedKey: false } // Don't bill - user's own key
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
-      // Fall through to hosted key
+    const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId, { signal })
+    if (byokResult) {
+      params[apiKeyParam] = byokResult.apiKey
+      logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+      return { isUsingHostedKey: false }
     }
   }
 
@@ -1269,7 +1268,7 @@ async function processFileOutputs(
     return {
       ...result,
       success: false,
-      error: `Failed to store file outputs for ${tool.id}: ${normalizedError.message}`,
+      error: `Failed to store file outputs for ${tool.id}: ${getUserFacingErrorMessage(error)}`,
       output: {},
     }
   }
@@ -1729,6 +1728,10 @@ async function executeToolImplementation(
       const { getToolMetadata } = await import('@/tools/metadata')
       const { _context, ...modelParams } = params
       assertAssistantIntegrationCall(getToolMetadata(toolId), modelParams)
+      const { requireAssistantActionExecution } = await import(
+        '@/lib/assistant-actions/execution-scope'
+      )
+      await requireAssistantActionExecution(operationContext, toolId, modelParams)
       scope.envReferenceMode = 'off'
       scope.userId = operationContext.userId
       scope.workspaceId = operationContext.workspaceId
@@ -1851,7 +1854,8 @@ async function executeToolImplementation(
       tool,
       contextParams,
       executionContext,
-      requestId
+      requestId,
+      effectiveSignal
     )
 
     if (hostedKeyInfo.isUsingHostedKey) {
@@ -1899,7 +1903,7 @@ async function executeToolImplementation(
         if (tool?.oauth?.provider) {
           const scopesForProvider =
             tool.oauth.requiredScopes ??
-            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
+            (await import('@/lib/oauth/utils')).getDefaultToolScopesForProvider(tool.oauth.provider)
           if (scopesForProvider.length > 0) {
             providerScopes = scopesForProvider
           }
@@ -1931,6 +1935,7 @@ async function executeToolImplementation(
                 credentialId,
                 userId,
                 workflowId,
+                executionId: scope.executionId,
                 toolId,
                 toolLabel,
                 scopes: providerScopes,
@@ -2024,7 +2029,11 @@ async function executeToolImplementation(
           }
         }
         await resolveCredential(effectiveSignal)
-        if (tool.oauth?.retryOnUnauthorized && tool.operation) {
+        if (
+          tool.oauth?.retryOnUnauthorized &&
+          tool.operation &&
+          !(operationContext?.requestMode === 'assistant' && tool.assistant?.effect === 'write')
+        ) {
           refreshCredential = resolveCredential
         }
 
@@ -2063,7 +2072,7 @@ async function executeToolImplementation(
     // the canvas workflow block.
     if (normalizedToolId === 'workflow_executor') {
       logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
-      const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
+      const { runWorkflowTool } = await import('@/executor/handlers/workflow/tool-runner')
       const result = await runWorkflowTool(
         {
           ...contextParams,
@@ -2085,6 +2094,7 @@ async function executeToolImplementation(
           resolvedSecretTraceRegistry,
           executorDelegationOrigin: executionContext?.executorDelegationOrigin,
           principal: executionContext?.principal,
+          unrecordedModelCost: executionContext?.unrecordedModelCost,
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
           // inject its own env map or disable redaction.
@@ -2642,9 +2652,16 @@ async function executeDeclaredInternalOperation({
     Boolean(context.organizationId && context.chatId && context.userId) &&
     !context.workspaceId &&
     !context.workflowId
+  const organizationAssistantIntegration =
+    context?.copilotToolExecution === true &&
+    context.requestMode === 'assistant' &&
+    Boolean(context.organizationId && context.chatId && context.toolCallId && context.userId) &&
+    !context.workspaceId &&
+    !context.workflowId &&
+    Boolean(tool.assistant && tool.oauth?.required)
   if (
     !context ||
-    (!context.workspaceId && !organizationScratch) ||
+    (!context.workspaceId && !organizationScratch && !organizationAssistantIntegration) ||
     (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
   ) {
     throw new Error('Internal tool execution requires trusted execution scope')
@@ -2882,7 +2899,10 @@ async function executeToolRequest(
       headersRecord[key] = value
     })
 
-    const retryConfig = getRetryConfig(tool.request.retry, params, requestParams.method)
+    const retryConfig =
+      context?.requestMode === 'assistant' && tool.assistant?.effect === 'write'
+        ? null
+        : getRetryConfig(tool.request.retry, params, requestParams.method)
     const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1
 
     let response: Response | undefined
@@ -3086,7 +3106,15 @@ async function executeToolRequest(
         headers: response.headers,
         url: fullUrl,
         body: response.body,
-        json: () => response.json(),
+        json: async () => {
+          try {
+            return await response.json()
+          } catch (error) {
+            throw error instanceof SyntaxError
+              ? markFailureKind(error, 'third_party_server')
+              : error
+          }
+        },
         text: () => response.text(),
         arrayBuffer: () => response.arrayBuffer(),
         blob: () => response.blob(),

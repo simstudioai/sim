@@ -29,13 +29,14 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Provider model ID, such as gpt-image-1.5, gemini-3.1-flash-image-preview, or nano-banana-2',
+        'Provider model ID, such as gpt-image-2.5-sunburst, gemini-3-pro-image, nano-banana-pro, or a fal endpoint ID',
     },
     prompt: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Text prompt describing the image to generate',
+      description:
+        'Text prompt describing the image to generate, up to 4,000 characters. Some models have a lower limit.',
     },
     size: {
       type: 'string',
@@ -89,7 +90,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of images to generate, subject to provider limits',
+      description: 'Must be 1; each execution returns one image',
     },
     seed: {
       type: 'number',
@@ -113,7 +114,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Fal.ai thinking level when supported: minimal or high',
+      description: 'Thinking level supported by the selected Fal.ai model',
     },
   },
 

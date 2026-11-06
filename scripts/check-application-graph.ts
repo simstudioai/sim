@@ -17,7 +17,7 @@
  *
  * The edge this guards against is invisible without a check: adding one import
  * to a permission-group helper once widened this graph as far as
- * `lib/uploads/utils/file-utils.ts`, and the only symptom was two unrelated
+ * `lib/uploads/utils/file.ts`, and the only symptom was two unrelated
  * knowledge tests failing on a partial mock of a module they never meant to
  * load. Later, one import in the route wrapper pulled the whole billing graph
  * into every route test, and the only symptom was an unrelated OTP-route test

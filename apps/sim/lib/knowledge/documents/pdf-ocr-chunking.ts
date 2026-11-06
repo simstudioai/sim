@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import type { OcrRequestPolicy } from '@/lib/knowledge/documents/ocr-request-policy'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 
 export interface PdfOcrChunk {
   buffer: Buffer

@@ -15,7 +15,7 @@ Read these live sources before editing; do not copy their current entries into t
 2. `apps/sim/lib/execution/remote-sandbox/cli-tools.server.ts` — server-only recipes and recipe helpers.
 3. `apps/sim/lib/execution/remote-sandbox/cli-tools.test.ts` — catalog and supply-chain invariants.
 4. `apps/sim/lib/execution/remote-sandbox/cli-tools-boundary.test.ts` — client/server import boundary.
-5. `apps/sim/lib/execution/remote-sandbox/sandbox-spec.ts` — content-addressed hash inputs.
+5. `apps/sim/lib/execution/remote-sandbox/spec.ts` — content-addressed hash inputs.
 
 Read `resolve.ts` and `e2b.ts` only when changing provisioning mechanics. A normal catalog addition should not require UI, API, database, resolver, or provider edits; those paths derive from the registries.
 
@@ -114,7 +114,7 @@ Never commit downloaded artifacts or credentials.
 bun run --cwd apps/sim test \
   lib/execution/remote-sandbox/cli-tools.test.ts \
   lib/execution/remote-sandbox/cli-tools-boundary.test.ts \
-  lib/execution/remote-sandbox/sandbox-spec.test.ts \
+  lib/execution/remote-sandbox/spec.test.ts \
   lib/execution/remote-sandbox/resolve.test.ts \
   'app/workspace/[workspaceId]/settings/components/sandboxes/utils.test.ts'
 ```

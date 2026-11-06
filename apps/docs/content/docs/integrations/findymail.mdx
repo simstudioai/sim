@@ -1,44 +1,31 @@
 ---
 title: Findymail
 description: Find and verify B2B emails, phones, employees, and company data
+integration:
+  type: "findymail"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="findymail"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Findymail](https://findymail.com/) is a B2B contact data platform for finding and verifying work emails, phone numbers, and enriched profile data on company employees. It combines real-time email finding, deliverability verification, reverse-lookup, and technology stack detection in a single API.
+Use [Findymail](https://findymail.com/) to find work emails by name and company or LinkedIn URL, search a company's contacts by role, and verify email deliverability. The actions also reverse-lookup a profile from an email, enrich companies and employees, look up phone numbers from LinkedIn profiles, and search technology stacks.
 
-With Findymail, you can:
-
-- **Find work emails by name and company:** Resolve a verified work email from a person's name plus a company domain or company name.
-- **Find emails from LinkedIn:** Look up the verified work email behind any LinkedIn profile URL.
-- **Find contacts by role:** Search a company domain for verified emails matching specific target roles (e.g., CEO, Founder).
-- **Verify deliverability:** Check whether an email is deliverable and identify the underlying mail provider.
-- **Reverse-lookup profiles:** Given an email, return the matching LinkedIn URL and an optional enriched profile (job, education, skills, certificates).
-- **Enrich companies and employees:** Look up company metadata by LinkedIn URL, domain, or name, and find employees by website and target job titles.
-- **Find phone numbers:** Retrieve a contact's phone number (US-only) from a LinkedIn profile URL.
-- **Detect technology stacks:** Search the technology catalog or look up the full tech stack of a company by domain.
-
-In Sim, the Findymail integration lets your agents programmatically build verified contact lists, enrich CRMs, qualify leads, and gather technographic data without leaving your workflow. Use it to automate outbound prospecting, augment incoming form submissions, validate email captures before sending, and trigger downstream actions when a verified contact is found.
+Phone-number lookup is limited to US contacts. Inspect verification and match results before using the returned contact details in later steps.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.
-
-
 
 ## Actions
 
 ### Findymail Verify Email
 
 Verifies the deliverability of an email address. Uses one verifier credit.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,9 +42,13 @@ Verifies the deliverability of an email address. Uses one verifier credit.
 | `verified` | boolean | Whether the email is verified as deliverable |
 | `provider` | string | Email service provider \(e.g., Google, Microsoft\) |
 
+</ReferenceDetails>
+
 ### Findymail Find Email From Name
 
 Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +67,13 @@ Find someone's email from their name and a company domain or company name. Uses 
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
+</ReferenceDetails>
+
 ### Findymail Find Emails By Domain
 
 Find verified contacts at a given domain matching one or more target roles (max 3 roles). Limited to 5 concurrent synchronous requests.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +92,13 @@ Find verified contacts at a given domain matching one or more target roles (max 
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
+</ReferenceDetails>
+
 ### Findymail Find Email From LinkedIn
 
 Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +116,13 @@ Find someone's email from a LinkedIn profile URL or username. Uses one finder cr
 |   ↳ `email` | string | Contact email address |
 |   ↳ `domain` | string | Email domain |
 
+</ReferenceDetails>
+
 ### Findymail Reverse Email Lookup
 
 Find a business profile from an email address. Uses 1 finder credit if a profile is found, 2 credits if returning full profile data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -153,9 +156,13 @@ Find a business profile from an email address. Uses 1 finder credit if a profile
 | `educations` | array | Education history \(school, degree, fieldOfStudy, startDate, endDate\) |
 | `certificates` | array | Certifications \(name, issuingOrganization, issueDate, expirationDate\) |
 
+</ReferenceDetails>
+
 ### Findymail Get Company
 
 Retrieve company information from a LinkedIn URL, domain, or company name. Uses 1 finder credit per successful response.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -177,9 +184,13 @@ Retrieve company information from a LinkedIn URL, domain, or company name. Uses 
 | `linkedin_url` | string | Company LinkedIn URL |
 | `description` | string | Company description |
 
+</ReferenceDetails>
+
 ### Findymail Find Employees
 
 Find employees at a company by website and target job titles. Uses 1 credit per found contact. Does not return email addresses.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +212,13 @@ Find employees at a company by website and target job titles. Uses 1 credit per 
 |   ↳ `companyName` | string | Company name |
 |   ↳ `jobTitle` | string | Job title |
 
+</ReferenceDetails>
+
 ### Findymail Find Phone
 
 Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits if a phone is found. EU citizens are excluded for legal reasons.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +234,13 @@ Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits 
 | `phone` | string | Phone number in E.164 format. Only available for US numbers. |
 | `line_type` | string | Phone line type \(e.g., "Mobile", "Landline"\) |
 
+</ReferenceDetails>
+
 ### Findymail Search Technologies
 
 Search the technology catalog by name. Returns up to 25 technologies. Free endpoint, rate limited to 10 requests per minute.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -240,9 +259,13 @@ Search the technology catalog by name. Returns up to 25 technologies. Free endpo
 |   ↳ `subcategory` | string | Technology subcategory |
 |   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Findymail Lookup Technologies
 
 Get the technology stack for a company by domain. Optionally filter by technology names. 1 finder credit if technologies are found, free otherwise.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -263,9 +286,13 @@ Get the technology stack for a company by domain. Optionally filter by technolog
 |   ↳ `last_detected_at` | string | Last detection timestamp \(ISO 8601\) |
 | `domain` | string | The resolved company domain |
 
+</ReferenceDetails>
+
 ### Findymail Get Credits
 
 Retrieve the remaining finder and verifier credits for the authenticated account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,5 +306,7 @@ Retrieve the remaining finder and verifier credits for the authenticated account
 | --------- | ---- | ----------- |
 | `credits` | number | Remaining finder credits |
 | `verifier_credits` | number | Remaining verifier credits |
+
+</ReferenceDetails>
 
 

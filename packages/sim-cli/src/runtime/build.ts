@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, type Option } from 'commander'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
@@ -14,6 +14,7 @@ import {
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
   RESERVED_PROGRAM_FLAGS,
+  trailingListField,
 } from './request'
 import type { OperationSpec } from './types'
 
@@ -69,8 +70,6 @@ function commandPath(command: Command): string {
   return names.join(' ')
 }
 
-const UNKNOWN_OPTION_TOKEN = /^error: unknown option '(.+?)'/
-
 /**
  * Whether an unknown-option token reads as a resource id rather than a flag.
  *
@@ -86,52 +85,158 @@ const UNKNOWN_OPTION_TOKEN = /^error: unknown option '(.+?)'/
  */
 function looksLikeAnId(token: string): boolean {
   return (
-    token.length > 2 &&
-    !token.startsWith('--') &&
-    /^-[A-Za-z0-9_-]*[A-Z0-9][A-Za-z0-9_-]*$/.test(token)
+    token.length > 2 && !token.startsWith('--') && /^-[\w-]+$/.test(token) && /[A-Z0-9]/.test(token)
   )
 }
 
 /**
- * Appends a worked example to the parse errors a positional argument causes,
- * and the command's own flags to an unknown option.
- *
- * Covers the argument being absent and the argument being swallowed as an
- * option because its id opens with a dash; the second needs the `--` escape,
- * which commander never mentions. A guessed flag gets the real list: commander
- * suggests only a near spelling, so `--row-ids` for `--row` got a bare error
- * and a caller had to look the command up before retrying.
+ * Whether the command runs an action of its own rather than only dispatching
+ * to subcommands. Commander keeps the handler off its typings, and the tree
+ * mixes generated commands with hand-written ones, so the contract cannot say.
  */
-function addParseErrorGuidance(command: Command): Command {
-  const outputError = command.configureOutput().outputError
-  if (!outputError) throw new Error('Commander output formatter is not configured')
+function hasOwnAction(command: Command): boolean {
+  return Boolean((command as Command & { _actionHandler?: unknown })._actionHandler)
+}
 
-  command.configureOutput({
-    outputError: (message, write) => {
-      outputError(message, write)
+function longFlagSyntax(option: Option): string {
+  return option.flags.replace(/^-[A-Za-z], /, '')
+}
 
-      if (message.startsWith('error: missing required argument ')) {
-        const syntax = argumentSyntax(command)
-        const example = syntax ? `${commandPath(command)} ${syntax}` : commandPath(command)
-        write(`Example: ${example}\n`)
-        return
-      }
+/** The command line with its positionals and every required flag, as `--help` would read it. */
+function usageExample(command: Command): string {
+  const parts = [commandPath(command), argumentSyntax(command)]
+  for (const option of command.options) if (option.mandatory) parts.push(longFlagSyntax(option))
+  return parts.filter(Boolean).join(' ')
+}
 
-      const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
-      if (!token) return
+function optionList(command: Command): string {
+  const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
+  return flags.length > 0
+    ? `Options for ${commandPath(command)}: ${flags.join(', ')}`
+    : `${commandPath(command)} takes no options.`
+}
+
+/**
+ * The first unknown option commander saw. Commander files it, and every
+ * operand after it, at the end of `args`; an operand never opens with a dash
+ * unless it follows `--`, and then no option is unknown.
+ */
+function unknownOptionToken(command: Command): string | undefined {
+  return command.args.find((arg) => arg.length > 1 && arg.startsWith('-'))
+}
+
+/**
+ * The value a caller typed as a positional where the one missing required flag
+ * was wanted (`files rename <id> new.pdf`, `knowledge search <kbId>`), when
+ * that reading is the only one. An unknown option puts its own value among the
+ * operands, and with two flags missing the value could belong to either, so
+ * both cases name nothing (as does a dash-led operand escaped with `--`, which
+ * reads the same as an unknown option here).
+ */
+function misplacedFlagValue(command: Command): { option: Option; value: string } | undefined {
+  const missing = command.options.filter(
+    (option) => option.mandatory && command.getOptionValue(option.attributeName()) === undefined
+  )
+  if (missing.length !== 1 || unknownOptionToken(command) !== undefined) return undefined
+  if (command.registeredArguments.some((argument) => argument.variadic)) return undefined
+  const extra = command.args.slice(command.registeredArguments.length)
+  return extra.length === 1 ? { option: missing[0], value: extra[0] } : undefined
+}
+
+/**
+ * The visible sibling commands that do declare a flag this one does not, each
+ * with its description, so a read never picks a sibling that deletes.
+ */
+function siblingsDeclaring(command: Command, flag: string): string[] {
+  const parent = command.parent
+  if (!parent) return []
+  return parent
+    .createHelp()
+    .visibleCommands(parent)
+    .filter(
+      (sibling) =>
+        sibling !== command &&
+        sibling.options.some(
+          (option) => !option.hidden && (option.long === flag || option.short === flag)
+        )
+    )
+    .map((sibling) => `  ${commandPath(sibling)} — ${sibling.description().split('\n', 1)[0]}`)
+}
+
+/**
+ * Appends recovery guidance to commander's parse errors, keyed by the error
+ * code commander raises, so the retry needs no `--help` round.
+ *
+ * - A missing positional or required flag gets the full command line, and a
+ *   value typed as a positional where the flag was wanted is named against
+ *   that flag when nothing else could have put it there.
+ * - Too many positionals get the same command line and the flag list.
+ * - An unknown option gets the command's own flags, and the sibling commands
+ *   that do take it: `tables rows list --filter` belongs to `tables rows
+ *   query`, which commander's near-spelling suggestion never reaches.
+ * - An id swallowed as an option because it opens with a dash gets the `--`
+ *   escape, which commander never mentions.
+ */
+function parseErrorGuidance(command: Command, code: string | undefined): string[] {
+  switch (code) {
+    case 'commander.missingArgument':
+      return [`Example: ${usageExample(command)}`]
+    case 'commander.missingMandatoryOptionValue': {
+      const misplaced = misplacedFlagValue(command)
+      const moved = misplaced
+        ? [
+            `"${misplaced.value}" was passed as a positional; pass it as ${misplaced.option.long ?? misplaced.option.short} "${misplaced.value}".`,
+          ]
+        : []
+      return [...moved, `Example: ${usageExample(command)}`]
+    }
+    case 'commander.excessArguments':
+      return [`Example: ${usageExample(command)}`, optionList(command)]
+    case 'commander.unknownOption': {
+      const token = unknownOptionToken(command)
+      if (!token) return []
       if (looksLikeAnId(token) && command.registeredArguments.length > 0) {
-        write(`Example: ${commandPath(command)} -- ${token}\n`)
-        return
+        return [`Example: ${commandPath(command)} -- ${token}`]
       }
-      const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
-      write(
-        flags.length > 0
-          ? `Options for ${commandPath(command)}: ${flags.join(', ')}\n`
-          : `${commandPath(command)} takes no options.\n`
-      )
-    },
-  })
-  return command
+      const flag = token.split('=', 1)[0]
+      const owners = siblingsDeclaring(command, flag)
+      return [
+        optionList(command),
+        ...(owners.length > 0 ? [`${flag} is an option of:`, ...owners] : []),
+      ]
+    }
+    default:
+      return []
+  }
+}
+
+/**
+ * Wraps the command's own `error`, which every commander parse failure on it
+ * goes through. The output configuration cannot carry this: commands made with
+ * `.command()` share their parent's configuration object, so a formatter set on
+ * one would answer for all of them.
+ */
+function addParseErrorGuidance(command: Command): void {
+  const error = command.error.bind(command)
+  command.error = (message, options) => {
+    const guidance = parseErrorGuidance(command, options?.code)
+    return error(guidance.length > 0 ? `${message}\n${guidance.join('\n')}` : message, options)
+  }
+}
+
+/**
+ * Attaches {@link addParseErrorGuidance} to every command that parses its own
+ * arguments, generated or attached by hand (`files upload`, `secrets set`), so
+ * a hand-written command does not answer a guessed flag with a bare error.
+ * Pure dispatchers below the root are left to commander's unknown-command handling.
+ */
+export function addParseErrorGuidanceToTree(program: Command): void {
+  const walk = (command: Command): void => {
+    const parsesOwnArguments = command.commands.length === 0 || hasOwnAction(command)
+    if (parsesOwnArguments || !command.parent) addParseErrorGuidance(command)
+    for (const child of command.commands) walk(child)
+  }
+  walk(program)
 }
 
 /**
@@ -210,17 +315,13 @@ export function assertNoReservedProgramFlags(program: Command): void {
  */
 export function refuseHelpAfterUnknownCommand(program: Command): void {
   const walk = (command: Command): void => {
-    // Neither the action handler nor `unknownCommand` is in commander's
-    // typings, for the same reason `rawArgs` is not — reaching for them is what
-    // keeps this message, its "did you mean" suggestion, and its error code
-    // identical to the non-help path.
-    const internals = command as Command & {
-      _actionHandler?: unknown
-      unknownCommand: () => never
-    }
+    // `unknownCommand` is not in commander's typings, for the same reason
+    // `rawArgs` is not — reaching for it is what keeps this message, its "did
+    // you mean" suggestion, and its error code identical to the non-help path.
+    const internals = command as Command & { unknownCommand: () => never }
     const dispatchesOnly =
       command.commands.length > 0 &&
-      !internals._actionHandler &&
+      !hasOwnAction(command) &&
       command.registeredArguments.length === 0
 
     if (dispatchesOnly) {
@@ -312,6 +413,22 @@ function configureOperation(
     )
   }
 
+  const trailing = trailingListField(spec)
+  if (trailing) {
+    const trailingFlags = Object.values(spec.flags ?? {}).filter((flag) => flag.trailing)
+    const descriptor = operationSpec.query?.[trailing] ?? operationSpec.body?.[trailing]
+    if (trailingFlags.length > 1)
+      throw new Error(`${operation} declares more than one trailing list`)
+    if (!descriptor || !flagSpecFor(operation, trailing).list) {
+      throw new Error(`${operation}.${trailing} is trailing but not a list request field`)
+    }
+    const name = flagNameFor(operation, trailing)
+    command.argument(
+      `[${name}...]`,
+      `${flagSpecFor(operation, trailing).describe ?? descriptor.describe} Same as --${name}.`
+    )
+  }
+
   if (spec.requestFields) {
     for (const field of spec.requestFields) {
       if (
@@ -356,16 +473,12 @@ function configureOperation(
   return command
 }
 
-function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return addParseErrorGuidance(configureOperation(new Command(leafName), operation, spec))
-}
-
 /**
  * Registers a command at a path it used to have, hidden and warning on use.
  *
- * The leaf is built by the same `buildLeaf` the current spelling uses, so a
- * renamed command cannot drift from the one it forwards to — there is one
- * definition and two ways to reach it.
+ * The leaf is configured by the same `configureOperation` the current spelling
+ * uses, so a renamed command cannot drift from the one it forwards to — there
+ * is one definition and two ways to reach it.
  *
  * Commander resolves a subcommand before it fills a positional, so a rename
  * that turned a group into a leaf (`files restore create` into `files restore`)
@@ -390,7 +503,7 @@ function addRenamedCommand(
     parent = nestedGroup(parent, segment, { hidden: true })
   }
 
-  const leaf = buildLeaf(operation, spec, rest[rest.length - 1])
+  const leaf = configureOperation(new Command(rest[rest.length - 1]), operation, spec)
   leaf.hook('preAction', () => warnRenamedCommand(from, to))
   addSubcommand(parent, leaf, { hidden: true })
 }
@@ -460,11 +573,15 @@ function addLeafCommand(
     for (const segment of rest.slice(0, -1)) {
       parent = nestedGroup(parent, segment)
     }
-    parent.addCommand(buildLeaf(operation, spec, rest[rest.length - 1]))
+    parent.addCommand(configureOperation(new Command(rest[rest.length - 1]), operation, spec), {
+      isDefault: spec.defaultSubcommand === true,
+    })
     return
   }
 
-  group.addCommand(buildLeaf(operation, spec, rest[0]))
+  group.addCommand(configureOperation(new Command(rest[0]), operation, spec), {
+    isDefault: spec.defaultSubcommand === true,
+  })
 }
 
 function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): CommandSpec {
@@ -472,6 +589,7 @@ function variantCommandSpec(spec: CommandSpec, variant: CommandVariantSpec): Com
     ...spec,
     command: variant.command,
     groupDefault: false,
+    defaultSubcommand: undefined,
     aliases: [],
     positionals: variant.positionals,
     requestFields: variant.requestFields,

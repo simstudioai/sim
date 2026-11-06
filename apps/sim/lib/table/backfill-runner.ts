@@ -5,8 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { runDetached } from '@/lib/core/utils/background'
+import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type FunctionalExecutionDataSource,
@@ -29,6 +28,7 @@ import type {
   TableDefinition,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import type { tableBackfillTask } from '@/background/table-backfill'
 import {
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
@@ -421,29 +421,20 @@ export async function maybeBackfillGroupOutputs(opts: {
     actorUserId,
     capabilityGovernedUserId,
   }
-  if (isTriggerDevEnabled) {
-    try {
-      const [{ tableBackfillTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-backfill'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableBackfillTask>('table-backfill', payload, {
-        tags: [`tableId:${table.id}`, `jobId:${jobId}`],
-        region: await resolveTriggerRegion(),
-      })
-    } catch (error) {
-      // Release the claim so a ghost `running` job doesn't block imports/deletes.
-      // Swallowed (warn only): a failed backfill never fails the schema change —
-      // the data stays backfillable.
-      const { releaseJobClaim } = await import('@/lib/table/jobs/service')
-      await releaseJobClaim(table.id, jobId).catch(() => {})
-      logger.warn(
-        `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,
-        { error: getErrorMessage(error) }
-      )
-    }
-  } else {
-    runDetached('table-backfill', () => runTableBackfill(payload))
+  try {
+    await dispatchBackgroundTask<typeof tableBackfillTask>('table-backfill', payload, {
+      runInProcess: runTableBackfill,
+      trigger: { tags: [`tableId:${table.id}`, `jobId:${jobId}`] },
+    })
+  } catch (error) {
+    // Release the claim so a ghost `running` job doesn't block imports/deletes.
+    // Swallowed (warn only): a failed backfill never fails the schema change —
+    // the data stays backfillable.
+    const { releaseJobClaim } = await import('@/lib/table/jobs/service')
+    await releaseJobClaim(table.id, jobId).catch(() => {})
+    logger.warn(
+      `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,
+      { error: getErrorMessage(error) }
+    )
   }
 }

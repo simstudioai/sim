@@ -1,8 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { localUploadPartContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { queueRetiredProjectUploadCleanup } from '@/lib/projects/files/prefix-cleanup'
 import {
   LocalUploadBodyError,
   writeLocalMultipartPart,
@@ -18,6 +20,8 @@ import {
   v2HttpError,
   v2UploadDataPlaneError,
 } from '@/app/api/v2/lib/response'
+
+const logger = createLogger('LocalUploadPart')
 
 interface LocalPartRouteParams {
   params: Promise<{ uploadId: string; partNumber: string }>
@@ -88,10 +92,29 @@ export const PUT = withRouteHandler(
     try {
       await writeLocalMultipartPart({ uploadId, partNumber, body: request.body, expectedSize })
     } catch (error) {
+      try {
+        await queueRetiredProjectUploadCleanup(session)
+      } catch (cleanupError) {
+        logger.error('Could not schedule retired upload cleanup', {
+          uploadId: session.id,
+          error: cleanupError,
+        })
+      }
       if (error instanceof LocalUploadBodyError) {
         return v2Error('BAD_REQUEST', error.message)
       }
       throw error
+    }
+    try {
+      if (await queueRetiredProjectUploadCleanup(session))
+        return v2Error('CONFLICT', 'The Project no longer exists')
+    } catch (error) {
+      // The object is already written. The expired-session sweep cleans it up, as will completion's
+      // Project re-authorization once Project uploads can complete.
+      logger.warn('Could not check for a retired Project after upload', {
+        uploadId: session.id,
+        error,
+      })
     }
     return new NextResponse(null, { status: 204 })
   },

@@ -13,7 +13,7 @@ import {
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   bindWorkspaceFileUploadProvenance,
   parseWorkspaceFileSecretProvenance,

@@ -15,7 +15,7 @@ import { Search } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -29,7 +29,7 @@ import {
   managedSourceParam,
   searchSetupAccessParam,
   searchSetupParam,
-} from '@/lib/sim-search/search-params'
+} from '@/lib/sim-search/params'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   SettingsEmptyState,

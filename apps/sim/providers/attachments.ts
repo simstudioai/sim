@@ -10,7 +10,7 @@ import {
   MIME_TYPE_MAPPING,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   resolveFileType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 import {
   getNativeConversationMessage,

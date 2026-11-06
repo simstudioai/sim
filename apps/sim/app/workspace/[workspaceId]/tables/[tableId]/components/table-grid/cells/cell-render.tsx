@@ -3,8 +3,9 @@
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
+import { Globe } from '@sim/emcn/icons'
 import { parse } from 'tldts'
-import { faviconUrl } from '@/lib/core/utils/favicon'
+import { Favicon } from '@/components/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -407,15 +408,10 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'url':
       return (
         <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
-          <img
-            src={faviconUrl(kind.domain, 16)}
-            alt=''
-            width={12}
-            height={12}
-            className='shrink-0 rounded-[2px]'
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
+          <Favicon
+            host={kind.domain}
+            className='size-[12px] shrink-0 rounded-[2px]'
+            fallback={<Globe className='size-[12px] shrink-0 text-[var(--text-icon)]' />}
           />
           <a
             href={kind.href}

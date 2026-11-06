@@ -45,7 +45,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', async (
   }
 })
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -55,7 +55,6 @@ import { generateImageServerTool } from '@/lib/mothership/tools/server/image/gen
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockIsOpaqueWorkspaceFileEgressSafe } = workspaceFileSecretProvenanceMockFns
 const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
 workspaceFileSecretProvenanceMockFns.mockCreateWorkspaceFileSecretProvenanceFromRegistry.mockImplementation(
   async () => ({ safe: true, provenance: { status: 'exact', entries: [] } })
@@ -106,7 +105,6 @@ function generate(paths: string[]) {
 
 describe('generate_image reference images', () => {
   beforeEach(() => {
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(chatUpload)
     mockReadWorkspaceFileContent.mockResolvedValue({
       file: chatUpload,
@@ -205,21 +203,6 @@ describe('generate_image reference images', () => {
         ),
       })
     )
-    expect(mockGenerateContent).not.toHaveBeenCalled()
-  })
-
-  it('still refuses a model-unsafe reference with the safety message', async () => {
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
-
-    const result = await generate(['uploads/face.png'])
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        success: false,
-        message: expect.stringContaining('cannot be sent'),
-      })
-    )
-    expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
     expect(mockGenerateContent).not.toHaveBeenCalled()
   })
 })

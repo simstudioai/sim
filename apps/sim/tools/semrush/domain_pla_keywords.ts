@@ -20,7 +20,7 @@ export const semrushDomainPlaKeywordsTool: ToolConfig<
   id: 'semrush_domain_pla_keywords',
   name: 'Semrush Domain PLA Keywords',
   description:
-    'List the keywords that trigger a domain product listing ads, with the promoted product and price.',
+    'List the keywords that trigger a domain’s product listing ads, with the promoted product and price.',
   version: '1.0.0',
 
   params: {

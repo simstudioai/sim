@@ -64,4 +64,28 @@ describe('getInstanceUrl', () => {
     expect(() => getInstanceUrl()).toThrow('Salesforce instance URL is required')
     expect(() => getInstanceUrl('not-a-jwt')).toThrow('Salesforce instance URL is required')
   })
+
+  it('reduces a provided instance URL to its origin', () => {
+    expect(getInstanceUrl(undefined, `${ORG}/services/data?x=1`)).toBe(ORG)
+  })
+
+  it.each([
+    ['cloud metadata', 'https://169.254.169.254/latest/meta-data/?x='],
+    ['plain http on a Salesforce host', 'http://acme.my.salesforce.com'],
+    ['a lookalike suffix', 'https://acme.my.salesforce.com.attacker.example'],
+    ['a lookalike label', 'https://attackersalesforce.com'],
+    ['a bare Salesforce domain', 'https://salesforce.com'],
+    ['a login host', 'https://login.salesforce.com'],
+    ['a non-URL', 'not a url'],
+  ])('rejects a provided instance URL with %s', (_label, instanceUrl) => {
+    expect(() => getInstanceUrl(idTokenWith({ profile: `${ORG}/005` }), instanceUrl)).toThrow(
+      'Salesforce instance URL must be on a Salesforce domain'
+    )
+  })
+
+  it('skips an id token claim off Salesforce', () => {
+    expect(() => getInstanceUrl(idTokenWith({ profile: 'https://169.254.169.254/005' }))).toThrow(
+      'Salesforce instance URL is required'
+    )
+  })
 })

@@ -3,7 +3,7 @@ import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
+import type { StreamActivityReceipt, ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
 import type { ProviderToolCallIdentity } from '@/lib/mothership/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/mothership/request/session'
@@ -42,6 +42,14 @@ export interface ToolCallState {
   activityDescription?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
+  /**
+   * Display grouping, from the call's own arguments or inherited (a gateway's grouping on its
+   * resolved operation), with titles completed from its activity's earlier calls. Held beside
+   * `params`, which execute and persist as given.
+   */
+  activity?: ToolActivity
+  /** A gateway call rebound to its resolved operation, whose arguments are the operation's own. */
+  resolvedOperation?: boolean
   /** Accumulated partial JSON of the arguments while the model streams them. */
   streamingArgs?: string
   params?: Record<string, unknown>
@@ -49,6 +57,17 @@ export interface ToolCallState {
   error?: string
   startTime?: number
   endTime?: number
+  /**
+   * Epoch ms by which every wait and execution for this call must end: from the frame's
+   * `deadlineMs`, or the persisted deadline of a call handed before a takeover. Undefined when
+   * the worker named none.
+   */
+  deadlineAt?: number
+  /**
+   * For a workflow tool, how long to wait for its run to settle before settling the call still
+   * running (the frame's `waitTimeoutMs`). Undefined holds the call until the run settles.
+   */
+  waitTimeoutMs?: number
   /**
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
@@ -249,6 +268,7 @@ export interface OrchestratorOptions {
   /** Checks the server controller, independently of user cancellation. */
   assertControllerOwnership?: () => Promise<void>
   autoExecuteTools?: boolean
+  /** Optional caller-requested deadline; healthy runs have no default wall-clock limit. */
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>
   /**

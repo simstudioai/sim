@@ -1,4 +1,4 @@
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 

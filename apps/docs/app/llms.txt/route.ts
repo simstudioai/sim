@@ -1,16 +1,17 @@
+import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
 import { createLogger } from '@sim/logger'
-import { source } from '@/lib/source'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { getPages } from '@/lib/content/catalog'
+import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 
 const logger = createLogger('DocsLlmsManifest')
 
-export const revalidate = false
+export const dynamic = 'force-static'
 
 export async function GET() {
   const baseUrl = DOCS_BASE_URL
 
   try {
-    const pages = source.getPages().filter((page) => Boolean(page?.data && page.url))
+    const pages = getPages().filter((page) => page.url !== '/')
 
     const sections: Record<string, Array<{ title: string; url: string; description?: string }>> = {}
 
@@ -22,9 +23,9 @@ export async function GET() {
       }
 
       sections[section].push({
-        title: page.data.title || 'Untitled',
+        title: page.title || 'Untitled',
         url: `${baseUrl}${page.url}`,
-        description: page.data.description,
+        description: page.description,
       })
     })
 
@@ -32,11 +33,19 @@ export async function GET() {
 
 > The open-source AI workspace where teams build, deploy, and manage AI agents.
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_REACH} and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders.
+
+## Calling the Sim API
+
+- Sim Cloud base URL: \`${SIM_SITE_URL}\`. For self-hosted deployments, use your deployment's origin instead, including in the example below. Every endpoint is under \`/api\`; there is no \`api.sim.ai\` host.
+- Run a deployed workflow: \`POST ${SIM_SITE_URL}/api/v2/workflows/{workflowId}/execute\` with a JSON body like \`{ "input": { "fieldName": "value" } }\`.
+- Authenticate API keys with the \`X-API-Key\` header. \`Authorization: Bearer\` accepts only Sim OAuth access tokens, never API keys.
+- Responses wrap the payload in \`data\`. A synchronous run returns \`200 { "data": { "runId", "status", "output", ... } }\`; with \`"async": true\` in the body it returns \`202 { "data": { "runId", "statusUrl" } }\` and you poll \`statusUrl\`.
+- SDKs: \`simstudio-ts-sdk\` (npm) and \`simstudio-sdk\` (PyPI). Full reference: [API getting started](${baseUrl}/api-reference/getting-started).
 
 ## Documentation Overview
 
-This file provides an overview of our documentation. For full content of all pages, see [llms-full.txt](${baseUrl}/llms-full.txt).
+This file provides an overview of our documentation. For the full content of every guide and integration page, see [llms-full.txt](${baseUrl}/llms-full.txt). API reference operations are not in it: each one is served as markdown at its page URL with \`.md\` appended, e.g. ${baseUrl}/api-reference/tables/countTableRows.md.
 
 ## Main Sections
 
@@ -52,10 +61,13 @@ ${Object.entries(sections)
 
 ## Additional Resources
 
-- [Full documentation content](${baseUrl}/llms-full.txt)
-- Individual page content: ${baseUrl}/llms.mdx/[page-path]
+- [Full documentation content, excluding API reference operations](${baseUrl}/llms-full.txt)
+- Individual page content as markdown: ${baseUrl}/[page-path].md
 - [API documentation](${baseUrl}/api-reference/getting-started)
 - [Integrations](${baseUrl}/integrations)
+- [Page discovery API](${baseUrl}/api/docs/pages): paginated metadata; use \`section\`, \`cursor\`, and \`limit\` parameters.
+- Page retrieval API: ${baseUrl}/api/docs/page?path=/introduction returns complete processed Markdown.
+- Public read-only documentation MCP endpoint: ${baseUrl}/api/mcp (Streamable HTTP). Tools: list_pages, get_page, search.
 
 ## Statistics
 
@@ -63,13 +75,13 @@ ${Object.entries(sections)
 
 ---
 
-Generated: ${new Date().toISOString()}
 Format: llms.txt v0.1.0
 See: https://llmstxt.org for specification`
 
     return new Response(manifest, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=0, s-maxage=86400, must-revalidate',
       },
     })
   } catch (error) {

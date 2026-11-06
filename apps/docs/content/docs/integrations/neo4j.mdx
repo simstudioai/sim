@@ -1,31 +1,29 @@
 ---
 title: Neo4j
 description: Connect to Neo4j graph database
+integration:
+  type: "neo4j"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="neo4j"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Neo4j](https://neo4j.com) in Sim to query graph data with Cypher and create, merge, update, or delete nodes and relationships. Pass query results to later workflow steps for processing or storage.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Neo4j graph database into the workflow. Can query, create, merge, update, and delete nodes and relationships.
-
-
+Query, create, merge, update, and delete nodes and relationships.
 
 ## Actions
 
 ### Neo4j Query
 
 Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., "MATCH (n:User) RETURN n LIMIT 100") or use LIMIT $limit with a limit parameter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +47,13 @@ Execute MATCH queries to read nodes and relationships from Neo4j graph database.
 | `recordCount` | number | Number of records returned |
 | `summary` | json | Query execution summary with timing and counters |
 
+</ReferenceDetails>
+
 ### Neo4j Create
 
 Execute CREATE statements to add new nodes and relationships to Neo4j graph database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -73,9 +75,13 @@ Execute CREATE statements to add new nodes and relationships to Neo4j graph data
 | `message` | string | Operation status message |
 | `summary` | json | Creation summary with counters for nodes and relationships created |
 
+</ReferenceDetails>
+
 ### Neo4j Merge
 
 Execute MERGE statements to find or create nodes and relationships in Neo4j (upsert operation)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +103,13 @@ Execute MERGE statements to find or create nodes and relationships in Neo4j (ups
 | `message` | string | Operation status message |
 | `summary` | json | Merge summary with counters for nodes/relationships created or matched |
 
+</ReferenceDetails>
+
 ### Neo4j Update
 
 Execute SET statements to update properties of existing nodes and relationships in Neo4j
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +131,13 @@ Execute SET statements to update properties of existing nodes and relationships 
 | `message` | string | Operation status message |
 | `summary` | json | Update summary with counters for properties set |
 
+</ReferenceDetails>
+
 ### Neo4j Delete
 
 Execute DELETE or DETACH DELETE statements to remove nodes and relationships from Neo4j
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +160,13 @@ Execute DELETE or DETACH DELETE statements to remove nodes and relationships fro
 | `message` | string | Operation status message |
 | `summary` | json | Delete summary with counters for nodes and relationships deleted |
 
+</ReferenceDetails>
+
 ### Neo4j Execute
 
 Execute arbitrary Cypher queries on Neo4j graph database for complex operations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +190,13 @@ Execute arbitrary Cypher queries on Neo4j graph database for complex operations
 | `recordCount` | number | Number of records returned |
 | `summary` | json | Execution summary with timing and counters |
 
+</ReferenceDetails>
+
 ### Neo4j Introspect
 
 Introspect a Neo4j database to discover its schema including node labels, relationship types, properties, constraints, and indexes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,5 +220,7 @@ Introspect a Neo4j database to discover its schema including node labels, relati
 | `relationshipSchemas` | array | Array of relationship schemas with their properties |
 | `constraints` | array | Array of database constraints |
 | `indexes` | array | Array of database indexes |
+
+</ReferenceDetails>
 
 

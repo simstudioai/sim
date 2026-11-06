@@ -11,6 +11,8 @@ import {
 } from '@sim/testing/mocks/providers-conversation-history.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
+import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -111,6 +113,41 @@ describe('OpenAI non-streaming response status handling', () => {
       retryable: false,
     })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a request with no input items before sending, as a nonretryable author failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            message:
+              'One of input or previous_response_id or prompt or conversation must be provided.',
+          },
+        },
+        400
+      )
+    )
+    const error = await run(fetchMock, {
+      systemPrompt: '',
+      messages: [
+        { role: 'system', content: '' },
+        { role: 'user', content: '' },
+      ],
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ name: 'EmptyProviderInputError' })
+    expect(isNonRetryableExecutionError(error)).toBe(true)
+    expect(classifyFailure(error)).toBe('user')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('still sends a request that carries only a system prompt', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
+    await run(fetchMock, { systemPrompt: 'You are terse.', messages: [] })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.input).toEqual([{ role: 'system', content: 'You are terse.' }])
   })
 
   it('lets an estimated oversized request reach the provider and propagates its actual context rejection', async () => {

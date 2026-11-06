@@ -1,9 +1,10 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { Chip } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
 import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-empty-state'
@@ -13,32 +14,63 @@ import { RequestAccessAction } from '@/ee/access-requests/components/request-acc
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-request-keys'
 
+const PERMISSION_POLICY_REFRESH_INTERVAL = 30_000
+
 /** Safe feature metadata shared by navigation and access-required pages. */
 export function useWorkspaceAccessRequestFeatures() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
-  return useDiscoverAccessRequests(
+  const discovery = useDiscoverAccessRequests(
     workspaceFeatureDiscoveryQuery(workspaceId),
     Boolean(workspaceId)
   )
+  const requestableFeatureKeys = useMemo(
+    () =>
+      new Set(
+        discovery.data?.entries.flatMap((entry) =>
+          entry.target.kind === 'feature' && entry.state === 'requestable'
+            ? [entry.target.configKey]
+            : []
+        )
+      ),
+    [discovery.data?.entries]
+  )
+  return { ...discovery, requestableFeatureKeys }
 }
 
 interface PermissionAccessBoundaryProps {
   configKey: BooleanPermissionGroupConfigKey
   children?: ReactNode
+  navigationAction?: ReactNode
 }
 
 /** Omit children on a server-denied page to keep protected content behind a fresh server check. */
-export function PermissionAccessBoundary({ configKey, children }: PermissionAccessBoundaryProps) {
+export function PermissionAccessBoundary({
+  configKey,
+  children,
+  navigationAction,
+}: PermissionAccessBoundaryProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
-  const policy = useUserPermissionConfig(workspaceId)
+  const policy = useUserPermissionConfig(workspaceId, {
+    refetchInterval: PERMISSION_POLICY_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
+  })
   const discovery = useWorkspaceAccessRequestFeatures()
   const blocked = policy.data?.config?.[configKey] === true
   const entry = discovery.data?.entries.find(
     (candidate) => candidate.target.kind === 'feature' && candidate.target.configKey === configKey
   )
+  const withNavigationAction = (action?: ReactNode) =>
+    action && navigationAction ? (
+      <>
+        {action}
+        {navigationAction}
+      </>
+    ) : (
+      action || navigationAction
+    )
   const ResourceEmptyState =
     configKey === 'hideTablesTab'
       ? TablesEmptyState
@@ -50,15 +82,21 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
 
   if (policy.isPending) {
     return (
-      <EmptyState title='Checking access' description='Loading your organization access policy.' />
+      <EmptyState
+        title='Checking access'
+        description='Loading your organization access policy.'
+        action={navigationAction}
+      />
     )
   }
-  if (policy.isError) {
+  const transientPolicyError =
+    !isApiClientError(policy.error) || (policy.error.status >= 500 && policy.error.status < 600)
+  if (policy.isError && (!policy.data || !transientPolicyError)) {
     return (
       <EmptyState
         title='Unable to check access'
         description={policy.error.message}
-        action={<Chip onClick={() => void policy.refetch()}>Try again</Chip>}
+        action={withNavigationAction(<Chip onClick={() => void policy.refetch()}>Try again</Chip>)}
       />
     )
   }
@@ -68,14 +106,18 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
         <EmptyState
           title='Access updated'
           description='Reload to open this page.'
-          action={<Chip onClick={() => router.refresh()}>Reload page</Chip>}
+          action={withNavigationAction(<Chip onClick={() => router.refresh()}>Reload page</Chip>)}
         />
       )
     )
   }
   if (discovery.isPending) {
     return (
-      <EmptyState title='Checking access' description='Loading your organization access policy.' />
+      <EmptyState
+        title='Checking access'
+        description='Loading your organization access policy.'
+        action={navigationAction}
+      />
     )
   }
   if (discovery.isError) {
@@ -83,12 +125,12 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
       <EmptyState
         title='Unable to check access'
         description={discovery.error.message}
-        action={<Chip onClick={() => void discovery.refetch()}>Try again</Chip>}
+        action={withNavigationAction(
+          <Chip onClick={() => void discovery.refetch()}>Try again</Chip>
+        )}
       />
     )
   }
-  if (!discovery.data.enabled && children) return children
-
   if (entry?.state === 'allowed') {
     return (
       <EmptyState
@@ -98,7 +140,9 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
             ? 'Refreshing your permissions...'
             : 'Refresh to load your latest permissions.'
         }
-        action={<Chip onClick={() => void policy.refetch()}>Refresh access</Chip>}
+        action={withNavigationAction(
+          <Chip onClick={() => void policy.refetch()}>Refresh access</Chip>
+        )}
       />
     )
   }
@@ -110,9 +154,11 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
           ? entry.pendingRequestId
             ? 'Your request is pending.'
             : 'Ask an administrator for access.'
-          : (entry?.reason ?? 'Your organization restricts this feature.')
+          : entry?.state === 'requestable' && !discovery.data.enabled
+            ? 'Access requests are paused for your organization.'
+            : (entry?.reason ?? 'Your organization restricts this feature.')
       }
-      action={
+      action={withNavigationAction(
         discovery.data.enabled && entry?.state === 'requestable' ? (
           <RequestAccessAction
             scope={{ kind: 'workspace', workspaceId }}
@@ -122,7 +168,7 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
             variant='primary'
           />
         ) : undefined
-      }
+      )}
     />
   )
 }

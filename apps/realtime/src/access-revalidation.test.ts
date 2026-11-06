@@ -13,6 +13,7 @@ import {
   ACCESS_REVALIDATION_SWEEP_INTERVAL_MS,
   startAccessRevalidationSweep,
 } from '@/access-revalidation'
+import { registerRoomPermissionPublisher } from '@/handlers/room-permission'
 import type { IRoomManager, UserPresence } from '@/rooms'
 
 interface FakeSocket {
@@ -130,43 +131,34 @@ describe('access-revalidation sweep', () => {
     expect(tableSocket.leave).not.toHaveBeenCalled()
   })
 
-  it('evicts a file-doc socket downgraded to read, and keeps its table room', async () => {
-    // A file-doc room IS the editor and requires `write`; a table room requires only
-    // `read`. One downgraded user in both rooms must lose exactly the document.
+  it('keeps a downgraded reader subscribed and reports the loss of write access', async () => {
+    const publish = vi.fn()
+    registerRoomPermissionPublisher('workspace-file-doc', publish)
     const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
     socket.rooms.add('table:t-1')
     const manager = makeManager([socket])
     mockResolveRole.mockResolvedValue('read')
-
     const sweep = startAccessRevalidationSweep(manager)
     await sweep.runOnce()
     sweep.stop()
-
-    expect(socket.leave).toHaveBeenCalledWith('workspace-file-doc:file-1')
-    expect(socket.leave).not.toHaveBeenCalledWith('table:t-1')
-    expect(socket.emit).toHaveBeenCalledWith(
-      'room-access-revoked',
-      expect.objectContaining({ room: { type: 'workspace-file-doc', id: 'file-1' } })
+    expect(socket.leave).not.toHaveBeenCalled()
+    expect(publish).toHaveBeenCalledWith(
+      socket,
+      { type: 'workspace-file-doc', id: 'file-1' },
+      'read'
     )
   })
 
-  it('falls back to the room type own membership level on a cold-cache failure', async () => {
-    // A static 'read' fallback would have evicted every file-doc socket (which needs
-    // `write`) the first time the DB blipped with a cold cache.
+  it('retains a document subscription for retry when authorization is unavailable', async () => {
+    const publish = vi.fn()
+    registerRoomPermissionPublisher('workspace-file-doc', publish)
     const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
-    const manager = makeManager([socket])
-    mockResolveRole.mockResolvedValue('write')
-
-    const sweep = startAccessRevalidationSweep(manager)
+    mockResolveRole.mockRejectedValue(new Error('database unavailable'))
+    const sweep = startAccessRevalidationSweep(makeManager([socket]))
     await sweep.runOnce()
     sweep.stop()
-
-    expect(mockResolveRole).toHaveBeenCalledWith(
-      'user-1',
-      { type: 'workspace-file-doc', id: 'file-1' },
-      'write'
-    )
     expect(socket.leave).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
   })
 
   it('evicts only the revoked socket, not co-members of the room', async () => {

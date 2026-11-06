@@ -1,0 +1,75 @@
+diff --git a/dist/esm/server/lib/patch-set-header.js b/dist/esm/server/lib/patch-set-header.js
+index f2236f7ae222afcb8554267ed295ada59dceee6a..3be146fc8fa48196254d93a8a21c2ceac2596b09 100644
+--- a/dist/esm/server/lib/patch-set-header.js
++++ b/dist/esm/server/lib/patch-set-header.js
+@@ -1,3 +1,4 @@
++import { validateHeaderValue } from 'node:http';
+ import { getRequestMeta } from '../request-meta';
+ const PATCHED_SET_HEADER = Symbol('next.patchSetHeaderWithCookieSupport');
+ /**
+@@ -20,6 +21,26 @@ const PATCHED_SET_HEADER = Symbol('next.patchSetHeaderWithCookieSupport');
+         if ('headersSent' in res && res.headersSent) {
+             return res;
+         }
++        if (name.toLowerCase() === 'vary' && (typeof value === 'string' || Array.isArray(value))) {
++            validateHeaderValue(name, value);
++            const fields = [];
++            const seen = new Set();
++            const collect = (candidate)=>{
++                const values = Array.isArray(candidate) ? candidate : typeof candidate === 'string' ? [candidate] : [];
++                for (const entry of values){
++                    for (const field of entry.split(',')){
++                        const trimmed = field.trim();
++                        const normalized = trimmed.toLowerCase();
++                        if (!trimmed || seen.has(normalized)) continue;
++                        seen.add(normalized);
++                        fields.push(trimmed);
++                    }
++                }
++            };
++            collect(res.getHeader(name));
++            collect(value);
++            value = seen.has('*') ? '*' : fields.join(', ');
++        }
+         if (name.toLowerCase() === 'set-cookie') {
+             const middlewareValue = getRequestMeta(req, 'middlewareCookie');
+             if (!middlewareValue || !Array.isArray(value) || !value.every((item, idx)=>item === middlewareValue[idx])) {
+diff --git a/dist/server/lib/patch-set-header.js b/dist/server/lib/patch-set-header.js
+index 16cdc4703f3e9957a16c68c962cfaf5ee5d04561..a1c3c7061bc917284e01ed9947cd914818cfd708 100644
+--- a/dist/server/lib/patch-set-header.js
++++ b/dist/server/lib/patch-set-header.js
+@@ -8,6 +8,7 @@ Object.defineProperty(exports, "patchSetHeaderWithCookieSupport", {
+         return patchSetHeaderWithCookieSupport;
+     }
+ });
++const _nodehttp = require("node:http");
+ const _requestmeta = require("../request-meta");
+ const PATCHED_SET_HEADER = Symbol('next.patchSetHeaderWithCookieSupport');
+ function patchSetHeaderWithCookieSupport(req, res) {
+@@ -24,6 +25,26 @@ function patchSetHeaderWithCookieSupport(req, res) {
+         if ('headersSent' in res && res.headersSent) {
+             return res;
+         }
++        if (name.toLowerCase() === 'vary' && (typeof value === 'string' || Array.isArray(value))) {
++            (0, _nodehttp.validateHeaderValue)(name, value);
++            const fields = [];
++            const seen = new Set();
++            const collect = (candidate)=>{
++                const values = Array.isArray(candidate) ? candidate : typeof candidate === 'string' ? [candidate] : [];
++                for (const entry of values){
++                    for (const field of entry.split(',')){
++                        const trimmed = field.trim();
++                        const normalized = trimmed.toLowerCase();
++                        if (!trimmed || seen.has(normalized)) continue;
++                        seen.add(normalized);
++                        fields.push(trimmed);
++                    }
++                }
++            };
++            collect(res.getHeader(name));
++            collect(value);
++            value = seen.has('*') ? '*' : fields.join(', ');
++        }
+         if (name.toLowerCase() === 'set-cookie') {
+             const middlewareValue = (0, _requestmeta.getRequestMeta)(req, 'middlewareCookie');
+             if (!middlewareValue || !Array.isArray(value) || !value.every((item, idx)=>item === middlewareValue[idx])) {

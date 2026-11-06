@@ -1,5 +1,5 @@
 import type { NetSuiteAttachParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +9,7 @@ export const netsuiteAttachRecordTool: InternalToolConfig<NetSuiteAttachParams, 
     name: 'NetSuite Attach Record or File',
     description: 'Attach a contact or file to another NetSuite record.',
     version: '1.0.0',
+    oauth: NETSUITE_OAUTH,
     params: {
       ...netsuiteAuthParamFields,
       recordType: {

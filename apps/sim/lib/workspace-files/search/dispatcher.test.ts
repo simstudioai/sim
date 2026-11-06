@@ -1,6 +1,6 @@
 import {
+  fileSearchDispatchQueue,
   workspaceFileSearchBackfill,
-  workspaceFileSearchDispatchQueue,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -59,7 +59,7 @@ describe('workspace file search dispatch policy', () => {
         options: {
           idempotencyKey: 'workspace-file-search-v2:file-1:2026-08-29T12:00:00.000Z:initial',
           idempotencyKeyTTL: '1h',
-          tags: ['workspaceId:workspace-1', 'fileId:file-1'],
+          tags: ['fileOwner:workspace:workspace-1', 'fileId:file-1'],
           region: 'us-east-1',
         },
       },
@@ -141,14 +141,17 @@ describe('workspace file search dispatch deadlines', () => {
     async (releaseFails) => {
       queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
       queueTableRows(workspaceFileSearchRevision, [])
-      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      queueTableRows(fileSearchDispatchQueue, [
+        { entityType: 'workspace', entityId: 'workspace-1' },
+      ])
       dbChainMockFns.execute
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ acquired: true }])
         .mockResolvedValueOnce([{ active: 0 }])
         .mockResolvedValueOnce([
           {
-            workspaceId: 'workspace-1',
+            entityType: 'workspace',
+            entityId: 'workspace-1',
             fileId: 'file-1',
             sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
           },
@@ -194,14 +197,16 @@ describe('workspace file search dispatch deadlines', () => {
     queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
     queueTableRows(workspaceFileSearchRevision, [
       {
-        workspaceId: 'workspace-1',
+        entityType: 'workspace',
+        entityId: 'workspace-1',
         fileId: 'file-1',
         sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
         currentFileId: 'file-1',
         handoffExpired: true,
       },
       {
-        workspaceId: 'workspace-1',
+        entityType: 'workspace',
+        entityId: 'workspace-1',
         fileId: 'file-2',
         sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
         currentFileId: 'file-2',
@@ -233,14 +238,17 @@ describe('workspace file search dispatch deadlines', () => {
     async (handoffFails) => {
       queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
       queueTableRows(workspaceFileSearchRevision, [])
-      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      queueTableRows(fileSearchDispatchQueue, [
+        { entityType: 'workspace', entityId: 'workspace-1' },
+      ])
       dbChainMockFns.execute
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ acquired: true }])
         .mockResolvedValueOnce([{ active: 0 }])
         .mockResolvedValueOnce([
           {
-            workspaceId: 'workspace-1',
+            entityType: 'workspace',
+            entityId: 'workspace-1',
             fileId: 'file-1',
             sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
           },

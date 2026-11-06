@@ -14,9 +14,9 @@ import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveArchivedWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { workflowFolderPathForId } from '@/lib/workflows/application/folders'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
-import { workflowFolderPathForId } from '@/lib/workflows/application/workflow-folders'
 import { restoreWorkflow as restoreWorkflowRecord } from '@/lib/workflows/lifecycle'
 
 const logger = createLogger('RestoreWorkflow')

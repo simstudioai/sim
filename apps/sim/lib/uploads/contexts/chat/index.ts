@@ -1,1 +1,1 @@
-export { processChatFiles } from './chat-file-manager'
+export { processChatFiles } from './file-manager'

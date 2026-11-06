@@ -1,11 +1,28 @@
 /**
  * Character-heuristic token estimation. Exact, tokenizer-backed counting lives
  * in `@/lib/tokenization/accurate`.
+ *
+ * Keep this module free of `@/providers/utils` so the public token counter can
+ * load it in the browser.
  */
 
+import { createLogger } from '@sim/logger'
 import { MIN_TEXT_LENGTH_FOR_ESTIMATION, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
-import type { TokenEstimate } from '@/lib/tokenization/types'
-import { getProviderConfig } from '@/lib/tokenization/utils'
+import type { ProviderTokenizationConfig, TokenEstimate } from '@/lib/tokenization/types'
+
+const logger = createLogger('TokenizationEstimators')
+
+function getProviderConfig(providerId: string): ProviderTokenizationConfig {
+  const config =
+    TOKENIZATION_CONFIG.providers[providerId as keyof typeof TOKENIZATION_CONFIG.providers]
+
+  if (!config) {
+    logger.debug(`No specific config for provider ${providerId}, using fallback`, { providerId })
+    return TOKENIZATION_CONFIG.fallback
+  }
+
+  return config
+}
 
 /**
  * Estimates token count for text using provider-specific heuristics

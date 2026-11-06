@@ -2,7 +2,7 @@ import { v2GetSsoPolicyContract, v2UpdateSsoPolicyContract } from '@/lib/api/con
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2SsoErrorPolicy } from '@/lib/api/server/routes/sso'
 import { ssoSettingsOperations } from '@/lib/auth/sso/application/operations'
-import { readSsoRequirement, setSsoRequirement } from '@/lib/auth/sso/application/sso-requirement'
+import { readSsoRequirement, setSsoRequirement } from '@/lib/auth/sso/application/requirement'
 
 export const GET = defineV2JsonRoute({
   contract: v2GetSsoPolicyContract,

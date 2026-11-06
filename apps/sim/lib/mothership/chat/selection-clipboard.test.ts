@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatContext } from '@/stores/panel'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
   SIM_SELECTION_MIME,
-} from './selection-clipboard'
+} from '@/lib/mothership/chat/selection-clipboard'
+import type { ChatContext } from '@/stores/panel'
 
 /** Minimal DataTransfer stand-in (jsdom-free node env). */
 function fakeClipboard(initial: Record<string, string> = {}) {

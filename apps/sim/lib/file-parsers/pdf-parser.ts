@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
 import { PdfPageCollector } from '@/lib/file-parsers/pdf-layout'
@@ -50,9 +50,6 @@ const PDF_EXTRACTION_TIMEOUT_MS = 60_000
  * This protects parser state independently of the caller's rendered-output budget.
  */
 const MAX_LINE_DECORATION_BYTES = 5
-
-/** Pages assembled between event-loop yields, so a long document cannot block the loop. */
-const ASSEMBLY_YIELD_EVERY_PAGES = 32
 
 /** Pages are joined with a paragraph break. */
 const PAGE_SEPARATOR = '\n\n'
@@ -189,6 +186,7 @@ async function readPageWithinBudget(
      * zero: text that ends exactly on the budget is complete, not truncated.
      */
     while (!dropped) {
+      await yieldWhenSliceExpires()
       const result = await waitForDeadline(
         reader.read(),
         deadline,
@@ -262,8 +260,9 @@ function estimateRetainedPageBytes(lines: readonly PdfLine[]): number {
 /**
  * Turns the collected pages into text: repeated furniture is dropped, lines are
  * joined into paragraphs, hyphenation is undone, and pages are separated by a
- * paragraph break. Yields to the event loop periodically and honours `signal`
- * between pages, since this runs after the streaming budgets have stopped.
+ * paragraph break. Every whole-document pass yields to the event loop between
+ * pages and `signal` is honoured between joined pages, since this runs after
+ * the streaming budgets have stopped.
  */
 async function assemblePages(
   pages: readonly PdfPageLines[],
@@ -272,22 +271,20 @@ async function assemblePages(
   maxTextBytes: number
 ): Promise<string> {
   signal?.throwIfAborted()
-  const filteredPages = suppressFurniture(pages)
-  const allLines = filteredPages.flat()
-  const bodyHeight = dominantLineHeight(allLines)
+  const filteredPages = await suppressFurniture(pages)
+  const bodyHeight = await dominantLineHeight(filteredPages)
   const options = {
-    compounds: collectCompounds(allLines),
-    words: collectWords(allLines),
+    compounds: await collectCompounds(filteredPages),
+    words: await collectWords(filteredPages),
     bodyHeight,
-    headingMarkers: PDF_HEADING_MARKERS_ENABLED && headingMarkersViable(allLines, bodyHeight),
+    headingMarkers:
+      PDF_HEADING_MARKERS_ENABLED && (await headingMarkersViable(filteredPages, bodyHeight)),
   }
   const pageTexts: string[] = []
   let outputBytes = 0
-  for (const [index, lines] of filteredPages.entries()) {
-    if (index > 0 && index % ASSEMBLY_YIELD_EVERY_PAGES === 0) {
-      await sleep(0)
-      signal?.throwIfAborted()
-    }
+  for (const lines of filteredPages) {
+    await yieldWhenSliceExpires()
+    signal?.throwIfAborted()
     const joined = joinLines(lines, options)
     const text = complete ? normalizePdfWhitespace(sanitizeTextForUTF8(joined)).trim() : joined
     if (text.length > 0) {
@@ -317,6 +314,13 @@ function completeBudget(value: number | undefined, ceiling: number): number {
   return Math.min(value, ceiling)
 }
 
+/**
+ * pdf.js runs its "fake worker" on this thread and delivers every message as a
+ * microtask, so a loop that only awaits pdf.js never yields to timers or I/O: a
+ * large PDF, or one page with a huge content stream, would hold the event loop
+ * for the whole extraction, freezing every other request on the process. Page
+ * reads, text-stream reads, and assembly yield via `yieldWhenSliceExpires`.
+ */
 async function extractTextWithinBudget(
   pdf: PDFDocumentProxy,
   options: FileParseOptions,
@@ -344,6 +348,7 @@ async function extractTextWithinBudget(
   }
 
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber++) {
+    await yieldWhenSliceExpires()
     signal?.throwIfAborted()
     const pagePromise = pdf.getPage(pageNumber)
     const cleanupLatePage = () => {

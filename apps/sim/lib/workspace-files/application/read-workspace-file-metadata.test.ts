@@ -10,8 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const hoisted = vi.hoisted(() => ({}))
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'

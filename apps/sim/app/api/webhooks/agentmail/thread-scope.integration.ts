@@ -1,9 +1,10 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * An inbox reply continues its parent task's chat, and the parent is found by the
  * `In-Reply-To` header — a value every recipient of the agent's reply holds. Against
  * real PostgreSQL, a reply delivered to one workspace's inbox must never reach a chat,
  * task, or transcript owned by another workspace, while a reply inside the workspace
- * still continues its thread. The webhook is signed with the real Svix scheme.
+ * still continues its thread. The webhook is signed per the Standard Webhooks spec.
  */
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
 import {
@@ -26,7 +27,7 @@ const { mockExecuteInboxTask, mockSendInboxResponse } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
@@ -39,6 +40,7 @@ vi.mock('@/lib/mothership/inbox/executor', () => ({
   executeInboxTask: mockExecuteInboxTask,
 }))
 
+import { createHmac } from 'node:crypto'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -52,7 +54,6 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { Webhook } from 'svix'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
 import { POST } from '@/app/api/webhooks/agentmail/route'
@@ -97,7 +98,7 @@ async function seedWorkspace(ws: InboxWorkspace): Promise<void> {
     createdAt: now,
     updatedAt: now,
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: ws.id,
     name: 'Inbox thread scope fixture',
     ownerId: ws.ownerId,
@@ -141,15 +142,19 @@ async function deliver(
     },
   })
   const svixId = `msg_${generateId()}`
-  const timestamp = new Date()
+  const timestamp = String(Math.floor(Date.now() / 1000))
+  const key = Buffer.from(ws.secret.slice('whsec_'.length), 'base64')
+  const signature = createHmac('sha256', key)
+    .update(`${svixId}.${timestamp}.${body}`)
+    .digest('base64')
   return POST(
     new NextRequest('http://localhost:3000/api/webhooks/agentmail', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'svix-id': svixId,
-        'svix-timestamp': String(Math.floor(timestamp.getTime() / 1000)),
-        'svix-signature': new Webhook(ws.secret).sign(svixId, timestamp, body),
+        'svix-timestamp': timestamp,
+        'svix-signature': `v1,${signature}`,
       },
       body,
     }),
@@ -224,7 +229,7 @@ describe('inbox reply threading stays inside the receiving workspace', () => {
   afterAll(async () => {
     const ownerIds = [victim.ownerId, attacker.ownerId]
     await db.delete(permissions).where(inArray(permissions.userId, ownerIds))
-    await db.delete(workspace).where(inArray(workspace.id, [victim.id, attacker.id]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [victim.id, attacker.id]))
     await db.delete(user).where(inArray(user.id, ownerIds))
   })
 

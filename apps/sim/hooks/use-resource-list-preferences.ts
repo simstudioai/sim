@@ -58,7 +58,11 @@ function normalizePreference(
   return {
     sort: { ...preference.sort },
     filters: Object.fromEntries(
-      config.filterKeys.map((key) => [key, [...preference.filters[key]]])
+      config.filterKeys.map((key) => {
+        const allowed = config.filterValues?.[key]
+        const values = preference.filters[key]
+        return [key, allowed ? values.filter((value) => allowed.includes(value)) : [...values]]
+      })
     ),
   }
 }

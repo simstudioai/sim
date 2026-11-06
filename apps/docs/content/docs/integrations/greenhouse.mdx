@@ -1,507 +1,2162 @@
 ---
 title: Greenhouse
-description: Manage candidates, jobs, and applications in Greenhouse
+description: Manage recruiting with Greenhouse Harvest v3
+integration:
+  type: "greenhouse_v2"
+  color: "#469776"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="greenhouse"
-  color="#469776"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Greenhouse](https://www.greenhouse.com/) to read candidates, jobs, applications, users, and hiring-pipeline reference data. Webhook triggers can start workflows from recruiting events.
+Use [Greenhouse](https://www.greenhouse.com/) to manage recruiting through Harvest v3. The current block supports 50 operations covering candidates, applications, notes, attachments, tags, hiring teams, interviews, scorecards, offers, and reference data. Existing webhook triggers remain available.
+
+### Connect a Greenhouse account
+
+Save your own Greenhouse API credential, then select it in the block. In Greenhouse, open **Dev Center > API Credentials**, create a **Harvest V3 (OAuth)** credential, and copy its client ID and client secret. On the credential's settings, enable the Harvest scopes for the operations your workflows use; the scopes listed below cover every operation. Sim obtains access tokens with the [client credentials grant](https://harvestdocs.greenhouse.io/docs/authentication) and gets a new one when it expires. Requests act as the integration service user Greenhouse creates with the credential. You do not need a redirect URI or a Sim-owned OAuth application, and a legacy Harvest API key cannot authenticate the new block.
+
+Deployments that have [Greenhouse partner OAuth](https://harvestdocs.greenhouse.io/docs/harvest-partner-oauth) credentials can also connect an account through consent. Complete consent with a Site Admin, which Greenhouse requires for list endpoints. A partner connection that has not refreshed within the provider's 14-day refresh-token lifetime must reconnect.
+
+### Upgrade existing workflows
+
+The original API-key block remains as **Greenhouse (Legacy)** so existing workflows keep their saved configuration. New blocks use Harvest v3. Upgrade an existing block explicitly, select a Greenhouse credential, choose its operation again, and update input and output references before running it. The legacy integration is subject to Greenhouse's v1 availability; preserving a saved block does not extend provider support.
+
+Harvest v3 returns applications, attachments, education, and employment through separate resources. Use their list operations and candidate or application filters to assemble a complete record. Single-record reads use the provider's `ids` filter. Do not assume the old embedded response structure survives the upgrade.
+
+### Pagination and changes
+
+List operations return one page, its `count`, `nextCursor`, and `hasMore`. Set a page size from 1 to 500 and pass `nextCursor` into the next call until `hasMore` is false. A cursor carries the initial query, so other filters and page size are ignored while it is set. Date filters accept a JSON object such as `{"gte":"2026-01-01T00:00:00Z"}`; use either `created_at` or `updated_at`, not both.
+
+For list operations, Job IDs uses comma-separated IDs. For prospect application creation, Job IDs uses a JSON array of integers. Created At takes a JSON date range on list operations, an ISO 8601 timestamp when creating an application, and a `YYYY-MM-DD` date when updating an application.
+
+Partial reads leave unrequested fields as `null`, including collections. An explicit empty array means the collection is empty. Date-only filters, such as offer `sent_on` and `starts_on`, use `YYYY-MM-DD` bounds.
+
+When updating candidate contact arrays, tags, or linked users, read the current candidate first and submit the complete desired array: supplied arrays replace their existing values. Unset inputs are omitted; custom-field entries may use `null` to clear a value. Creating an email note records an email in Greenhouse and does not send one. Application movement may trigger Greenhouse stage automation, and rejection can optionally send a rejection email. Move, hire, reject, and unreject operations return no provider fields on success.
+
+See the [Harvest v3 API reference](https://harvestdocs.greenhouse.io/reference/get_v3-candidates), [list filtering guide](https://harvestdocs.greenhouse.io/docs/list-endpoints), and [write migration guide](https://harvestdocs.greenhouse.io/docs/write-endpoint-migration-guide) for provider behavior.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Greenhouse account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/greenhouse` |
+| Environment variables | `GREENHOUSE_CLIENT_ID`, `GREENHOUSE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `harvest:application_stages:list` | View Greenhouse application stages |
+| `harvest:applications:convert_to_candidate` | Convert prospects to candidates for Greenhouse applications |
+| `harvest:applications:create` | Create Greenhouse applications |
+| `harvest:applications:destroy` | Delete Greenhouse applications |
+| `harvest:applications:hire` | Mark Greenhouse applications as hired |
+| `harvest:applications:list` | View Greenhouse applications |
+| `harvest:applications:move` | Move Greenhouse applications between stages or jobs |
+| `harvest:applications:reject` | Reject Greenhouse applications |
+| `harvest:applications:unreject` | Reverse Greenhouse application rejections |
+| `harvest:applications:update` | Update Greenhouse applications |
+| `harvest:applied_candidate_tags:create` | Apply Greenhouse tags to candidates |
+| `harvest:applied_candidate_tags:destroy` | Remove Greenhouse tags from candidates |
+| `harvest:applied_candidate_tags:list` | View Greenhouse applied candidate tags |
+| `harvest:attachments:create` | Create Greenhouse attachments |
+| `harvest:attachments:destroy` | Delete Greenhouse attachments |
+| `harvest:attachments:list` | View Greenhouse attachments |
+| `harvest:candidate_educations:list` | View Greenhouse candidate education histories |
+| `harvest:candidate_employments:list` | View Greenhouse candidate employment histories |
+| `harvest:candidate_tags:create` | Create Greenhouse candidate tags |
+| `harvest:candidate_tags:list` | View Greenhouse candidate tags |
+| `harvest:candidates:create` | Create Greenhouse candidates |
+| `harvest:candidates:destroy` | Delete Greenhouse candidates |
+| `harvest:candidates:list` | View Greenhouse candidates |
+| `harvest:candidates:update` | Update Greenhouse candidates |
+| `harvest:close_reasons:list` | View Greenhouse close reasons |
+| `harvest:custom_field_options:list` | View Greenhouse custom field options |
+| `harvest:custom_fields:list` | View Greenhouse custom fields |
+| `harvest:departments:list` | View Greenhouse departments |
+| `harvest:email_templates:list` | View Greenhouse email templates |
+| `harvest:interviews:list` | View Greenhouse interviews |
+| `harvest:job_hiring_managers:list` | View Greenhouse job hiring managers |
+| `harvest:job_interview_stages:list` | View Greenhouse job interview stages |
+| `harvest:job_owners:list` | View Greenhouse job owners |
+| `harvest:jobs:list` | View Greenhouse jobs |
+| `harvest:notes:create` | Create Greenhouse notes |
+| `harvest:notes:list` | View Greenhouse notes |
+| `harvest:offers:list` | View Greenhouse offers |
+| `harvest:offices:list` | View Greenhouse offices |
+| `harvest:openings:list` | View Greenhouse openings |
+| `harvest:prospect_pool_stages:list` | View Greenhouse prospect pool stages |
+| `harvest:prospect_pools:list` | View Greenhouse prospect pools |
+| `harvest:referrers:list` | View Greenhouse referrers |
+| `harvest:rejection_reasons:list` | View Greenhouse rejection reasons |
+| `harvest:scorecards:list` | View Greenhouse scorecards |
+| `harvest:sources:list` | View Greenhouse sources |
+| `harvest:users:list` | View Greenhouse users |
 
+## Use the block [#usage-instructions]
+
+Read and manage candidates, applications, notes, attachments, and tags with Harvest v3 OAuth. Retrieve jobs, hiring teams, interviews, scorecards, offers, and configuration resources with cursor pagination. Existing Greenhouse webhooks remain available.
 
 ## Actions
 
 ### Greenhouse List Candidates
 
-Lists candidates from Greenhouse with optional filtering by date, job, or email
+Lists one page of candidates with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
-| `created_after` | string | No | Return only candidates created at or after this ISO 8601 timestamp |
-| `created_before` | string | No | Return only candidates created before this ISO 8601 timestamp |
-| `updated_after` | string | No | Return only candidates updated at or after this ISO 8601 timestamp |
-| `updated_before` | string | No | Return only candidates updated before this ISO 8601 timestamp |
-| `job_id` | string | No | Filter to candidates who applied to this job ID \(excludes prospects\) |
-| `email` | string | No | Filter to candidates with this email address |
-| `candidate_ids` | string | No | Comma-separated candidate IDs to retrieve \(max 50\) |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `last_activity_at` | json | No | Last activity at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `private` | boolean | No | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+| `email` | string | No | Email |
+| `tag` | string | No | Tag |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `candidates` | array | List of candidates |
-|   ↳ `id` | number | Candidate ID |
+| `candidates` | array | candidates on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
 |   ↳ `first_name` | string | First name |
 |   ↳ `last_name` | string | Last name |
-|   ↳ `company` | string | Current employer |
-|   ↳ `title` | string | Current job title |
-|   ↳ `is_private` | boolean | Whether candidate is private |
-|   ↳ `can_email` | boolean | Whether candidate can be emailed |
+|   ↳ `preferred_name` | string | Preferred name |
+|   ↳ `company` | string | Company |
+|   ↳ `title` | string | Title |
+|   ↳ `last_activity_at` | string | Last activity at \(ISO 8601\) |
+|   ↳ `private` | boolean | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+|   ↳ `can_email` | boolean | Whether the candidate consents to email communication. |
+|   ↳ `time_zone` | string | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
+|   ↳ `tags` | array | Tags |
+|   ↳ `linked_user_ids` | array | Linked user IDs |
+|   ↳ `phone_numbers` | array | Phone numbers |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `addresses` | array | Addresses |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
 |   ↳ `email_addresses` | array | Email addresses |
-|     ↳ `value` | string | Email address |
-|     ↳ `type` | string | Email type \(personal, work, other\) |
-|   ↳ `tags` | array | Candidate tags |
-|   ↳ `application_ids` | array | Associated application IDs |
-|   ↳ `created_at` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-|   ↳ `last_activity` | string | Last activity timestamp \(ISO 8601\) |
-| `count` | number | Number of candidates returned |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `website_addresses` | array | Website addresses |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `social_media_addresses` | array | Social media addresses |
+|     ↳ `value` | string | Value |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 ### Greenhouse Get Candidate
 
-Retrieves a specific candidate by ID with full details including contact info, education, and employment history
+Retrieves one candidate by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `candidateId` | string | Yes | The ID of the candidate to retrieve |
+| `id` | string | Yes | Greenhouse resource ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Candidate ID |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
 | `first_name` | string | First name |
 | `last_name` | string | Last name |
-| `company` | string | Current employer |
-| `title` | string | Current job title |
-| `is_private` | boolean | Whether candidate is private |
-| `can_email` | boolean | Whether candidate can be emailed |
-| `created_at` | string | Creation timestamp \(ISO 8601\) |
-| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-| `last_activity` | string | Last activity timestamp \(ISO 8601\) |
-| `email_addresses` | array | Email addresses |
-|   ↳ `value` | string | Email address |
-|   ↳ `type` | string | Type \(personal, work, other\) |
-| `phone_numbers` | array | Phone numbers |
-|   ↳ `value` | string | Phone number |
-|   ↳ `type` | string | Type \(home, work, mobile, skype, other\) |
-| `addresses` | array | Addresses |
-|   ↳ `value` | string | Address |
-|   ↳ `type` | string | Type \(home, work, other\) |
-| `website_addresses` | array | Website addresses |
-|   ↳ `value` | string | URL |
-|   ↳ `type` | string | Type \(personal, company, portfolio, blog, other\) |
-| `social_media_addresses` | array | Social media profiles |
-|   ↳ `value` | string | URL or handle |
+| `preferred_name` | string | Preferred name |
+| `company` | string | Company |
+| `title` | string | Title |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `private` | boolean | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+| `can_email` | boolean | Whether the candidate consents to email communication. |
+| `time_zone` | string | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
 | `tags` | array | Tags |
-| `application_ids` | array | Associated application IDs |
-| `recruiter` | object | Assigned recruiter |
-|   ↳ `id` | number | User ID |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `name` | string | Full name |
-|   ↳ `employee_id` | string | Employee ID |
-| `coordinator` | object | Assigned coordinator |
-|   ↳ `id` | number | User ID |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `name` | string | Full name |
-|   ↳ `employee_id` | string | Employee ID |
-| `attachments` | array | File attachments \(URLs expire after 7 days\) |
-|   ↳ `filename` | string | File name |
-|   ↳ `url` | string | Download URL \(expires after 7 days\) |
-|   ↳ `type` | string | Type \(resume, cover_letter, offer_packet, other\) |
-|   ↳ `created_at` | string | Upload timestamp |
-| `educations` | array | Education history |
-|   ↳ `id` | number | Education record ID |
-|   ↳ `school_name` | string | School name |
-|   ↳ `degree` | string | Degree type |
-|   ↳ `discipline` | string | Field of study |
-|   ↳ `start_date` | string | Start date \(ISO 8601\) |
-|   ↳ `end_date` | string | End date \(ISO 8601\) |
-| `employments` | array | Employment history |
-|   ↳ `id` | number | Employment record ID |
-|   ↳ `company_name` | string | Company name |
-|   ↳ `title` | string | Job title |
-|   ↳ `start_date` | string | Start date \(ISO 8601\) |
-|   ↳ `end_date` | string | End date \(ISO 8601\) |
-| `custom_fields` | object | Custom field values |
+| `linked_user_ids` | array | Linked user IDs |
+| `phone_numbers` | array | Phone numbers |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `addresses` | array | Addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `email_addresses` | array | Email addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `website_addresses` | array | Website addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `social_media_addresses` | array | Social media addresses |
+|   ↳ `value` | string | Value |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
 
-### Greenhouse List Jobs
+</ReferenceDetails>
 
-Lists jobs from Greenhouse with optional filtering by status, department, or office
+### Greenhouse Create Candidate
+
+Creates a candidate profile and optionally its first application.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
-| `status` | string | No | Filter by job status \(open, closed, draft\) |
-| `created_after` | string | No | Return only jobs created at or after this ISO 8601 timestamp |
-| `created_before` | string | No | Return only jobs created before this ISO 8601 timestamp |
-| `updated_after` | string | No | Return only jobs updated at or after this ISO 8601 timestamp |
-| `updated_before` | string | No | Return only jobs updated before this ISO 8601 timestamp |
-| `department_id` | string | No | Filter to jobs in this department ID |
-| `office_id` | string | No | Filter to jobs in this office ID |
+| `first_name` | string | Yes | First name |
+| `last_name` | string | Yes | Last name |
+| `preferred_name` | string | No | Preferred name |
+| `time_zone` | string | No | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
+| `company` | string | No | Company |
+| `title` | string | No | Title |
+| `can_email` | boolean | No | Whether the candidate consents to email communication. |
+| `phone_numbers` | array | No | Phone numbers JSON array of objects with value, type. type: home, work, mobile, skype, other. |
+| `addresses` | array | No | Addresses JSON array of objects with value, type. type: home, work, other. |
+| `email_addresses` | array | No | Email addresses JSON array of objects with value, type. type: personal, work, other. |
+| `website_addresses` | array | No | Website addresses JSON array of objects with value, type. type: personal, company, portfolio, blog, other. |
+| `social_media_addresses` | array | No | Social media addresses JSON array of objects with value. |
+| `tags` | array | No | Tags JSON array of string values. |
+| `linked_user_ids` | array | No | Linked Greenhouse user IDs as a JSON array of integers. |
+| `custom_fields` | array | No | JSON array of \{name_key or custom_field_id, value\}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. |
+| `application` | json | No | Optional first application as JSON: \{job_id, initial_stage_id?, source_id?, recruiter_id?, coordinator_id?, referrer_id?, created_at?, custom_fields?\}, or \{prospect:true, job_ids?, prospect_pool_id?, prospect_pool_stage_id?, prospect_owner_id?, prospective_department_id?, prospective_office_id?, source_id?, recruiter_id?, coordinator_id?, referrer_id?, created_at?, custom_fields?\}. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `jobs` | array | List of jobs |
-|   ↳ `id` | number | Job ID |
-|   ↳ `name` | string | Job title |
-|   ↳ `status` | string | Job status \(open, closed, draft\) |
-|   ↳ `confidential` | boolean | Whether the job is confidential |
-|   ↳ `departments` | array | Associated departments |
-|     ↳ `id` | number | Department ID |
-|     ↳ `name` | string | Department name |
-|   ↳ `offices` | array | Associated offices |
-|     ↳ `id` | number | Office ID |
-|     ↳ `name` | string | Office name |
-|   ↳ `opened_at` | string | Date job was opened \(ISO 8601\) |
-|   ↳ `closed_at` | string | Date job was closed \(ISO 8601\) |
-|   ↳ `created_at` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-| `count` | number | Number of jobs returned |
+| `candidate` | json | candidate created by this request |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `preferred_name` | string | Preferred name |
+|   ↳ `company` | string | Company |
+|   ↳ `title` | string | Title |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `can_email` | boolean | Whether the candidate consents to email communication. |
+|   ↳ `time_zone` | string | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
+|   ↳ `last_activity_at` | string | Last activity at \(ISO 8601\) |
+|   ↳ `private` | boolean | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+|   ↳ `tags` | array | Tags |
+|   ↳ `linked_user_ids` | array | Linked user IDs |
+|   ↳ `phone_numbers` | array | Phone numbers |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `addresses` | array | Addresses |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `email_addresses` | array | Email addresses |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `website_addresses` | array | Website addresses |
+|     ↳ `value` | string | Value |
+|     ↳ `type` | string | Type |
+|   ↳ `social_media_addresses` | array | Social media addresses |
+|     ↳ `value` | string | Value |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `application` | json | application created by this request |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `referrer_id` | number | Referrer ID |
+|   ↳ `source_id` | number | Source ID |
+|   ↳ `agency_note_id` | number | Agency note ID |
+|   ↳ `recruiter_id` | number | Recruiter ID |
+|   ↳ `coordinator_id` | number | Coordinator ID |
+|   ↳ `needs_decision` | boolean | Needs decision |
+|   ↳ `prospect` | boolean | Prospect |
+|   ↳ `rejected_at` | string | Rejected at \(ISO 8601\) |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `last_activity_at` | string | Last activity at \(ISO 8601\) |
+|   ↳ `stage_id` | number | Stage ID |
+|   ↳ `job_interview_stage_id` | number | Job interview stage ID |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `rejection_reason_id` | number | Rejection reason ID |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `job_post_id` | number | Job post ID |
+|   ↳ `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+|   ↳ `stage_name` | string | Stage name |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+|   ↳ `location_address` | string | Location address |
+|   ↳ `answers` | array | Answers |
+|     ↳ `question` | string | Question |
+|     ↳ `answer` | string | Answer |
+|   ↳ `prospective_job_ids` | array | Prospective job IDs |
 
-### Greenhouse Get Job
+</ReferenceDetails>
 
-Retrieves a specific job by ID with full details including hiring team, openings, and custom fields
+### Greenhouse Update Candidate
+
+Updates selected candidate fields. Read the current candidate first: supplied arrays replace the entire existing collection. Send the complete desired array, or [] to remove all entries.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `jobId` | string | Yes | The ID of the job to retrieve |
+| `id` | number | Yes | Greenhouse resource ID |
+| `first_name` | string | No | First name |
+| `last_name` | string | No | Last name |
+| `preferred_name` | string | No | Preferred name |
+| `time_zone` | string | No | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
+| `company` | string | No | Company |
+| `title` | string | No | Title |
+| `is_private` | boolean | No | Restrict candidate visibility to users with private-candidate access. |
+| `can_email` | boolean | No | Whether the candidate consents to email communication. |
+| `phone_numbers` | array | No | Phone numbers JSON array of objects with value, type. type: home, work, mobile, skype, other. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `addresses` | array | No | Addresses JSON array of objects with value, type. type: home, work, other. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `email_addresses` | array | No | Email addresses JSON array of objects with value, type. type: personal, work, other. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `website_addresses` | array | No | Website addresses JSON array of objects with value, type. type: personal, company, portfolio, blog, other. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `social_media_addresses` | array | No | Social media addresses JSON array of objects with value. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `tags` | array | No | Tags JSON array of string values. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `linked_user_ids` | array | No | Linked Greenhouse user IDs as a JSON array of integers. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
+| `custom_fields` | array | No | JSON array of \{name_key or custom_field_id, value\}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. Read first and send the full desired collection; this replaces all existing entries. Use \[\] to clear it. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Job ID |
-| `name` | string | Job title |
-| `requisition_id` | string | External requisition ID |
-| `status` | string | Job status \(open, closed, draft\) |
-| `confidential` | boolean | Whether the job is confidential |
-| `created_at` | string | Creation timestamp \(ISO 8601\) |
-| `opened_at` | string | Date job was opened \(ISO 8601\) |
-| `closed_at` | string | Date job was closed \(ISO 8601\) |
-| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-| `is_template` | boolean | Whether this is a job template |
-| `notes` | string | Hiring plan notes \(may contain HTML\) |
-| `departments` | array | Associated departments |
-|   ↳ `id` | number | Department ID |
-|   ↳ `name` | string | Department name |
-|   ↳ `parent_id` | number | Parent department ID |
-| `offices` | array | Associated offices |
-|   ↳ `id` | number | Office ID |
-|   ↳ `name` | string | Office name |
-|   ↳ `location` | object | Office location |
-|     ↳ `name` | string | Location name |
-| `hiring_team` | object | Hiring team members |
-|   ↳ `hiring_managers` | array | Hiring managers |
-|   ↳ `recruiters` | array | Recruiters \(includes responsible flag\) |
-|   ↳ `coordinators` | array | Coordinators \(includes responsible flag\) |
-|   ↳ `sourcers` | array | Sourcers |
-| `openings` | array | Job openings/slots |
-|   ↳ `id` | number | Opening internal ID |
-|   ↳ `opening_id` | string | Custom opening identifier |
-|   ↳ `status` | string | Opening status \(open, closed\) |
-|   ↳ `opened_at` | string | Date opened \(ISO 8601\) |
-|   ↳ `closed_at` | string | Date closed \(ISO 8601\) |
-|   ↳ `application_id` | number | Hired application ID |
-|   ↳ `close_reason` | object | Reason for closing |
-|     ↳ `id` | number | Close reason ID |
-|     ↳ `name` | string | Close reason name |
-| `custom_fields` | object | Custom field values |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `first_name` | string | First name |
+| `last_name` | string | Last name |
+| `preferred_name` | string | Preferred name |
+| `company` | string | Company |
+| `title` | string | Title |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `private` | boolean | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+| `can_email` | boolean | Whether the candidate consents to email communication. |
+| `time_zone` | string | Greenhouse time-zone identifier \(for example, eastern time \(us & canada\)\). |
+| `tags` | array | Tags |
+| `linked_user_ids` | array | Linked user IDs |
+| `phone_numbers` | array | Phone numbers |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `addresses` | array | Addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `email_addresses` | array | Email addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `website_addresses` | array | Website addresses |
+|   ↳ `value` | string | Value |
+|   ↳ `type` | string | Type |
+| `social_media_addresses` | array | Social media addresses |
+|   ↳ `value` | string | Value |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse Delete Candidate
+
+Delete candidate using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Greenhouse resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Deletion confirmation returned by Greenhouse |
+
+</ReferenceDetails>
 
 ### Greenhouse List Applications
 
-Lists applications from Greenhouse with optional filtering by job, status, or date
+Lists one page of applications with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
-| `job_id` | string | No | Filter applications by job ID |
-| `status` | string | No | Filter by status \(active, converted, hired, rejected\) |
-| `created_after` | string | No | Return only applications created at or after this ISO 8601 timestamp |
-| `created_before` | string | No | Return only applications created before this ISO 8601 timestamp |
-| `last_activity_after` | string | No | Return only applications with activity at or after this ISO 8601 timestamp |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `prospective_job_ids` | string | No | Prospective job IDs Comma-separated values \(maximum 50\). |
+| `job_post_ids` | string | No | Job post IDs Comma-separated values \(maximum 50\). |
+| `source_ids` | string | No | Source IDs Comma-separated values \(maximum 50\). |
+| `referrer_ids` | string | No | Referrer IDs Comma-separated values \(maximum 50\). |
+| `stage_ids` | string | No | Stage IDs Comma-separated values \(maximum 50\). |
+| `job_interview_stage_ids` | string | No | Job interview stage IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `status` | string | No | Status Allowed: rejected, hired, converted, active. |
+| `stage_name` | string | No | Stage name |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `last_activity_at` | json | No | Last activity at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `prospect` | boolean | No | Filter by prospect status: true for prospect applications, false for candidate applications. Omit to include both. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `applications` | array | List of applications |
-|   ↳ `id` | number | Application ID |
-|   ↳ `candidate_id` | number | Associated candidate ID |
-|   ↳ `prospect` | boolean | Whether this is a prospect application |
-|   ↳ `status` | string | Status \(active, converted, hired, rejected\) |
-|   ↳ `current_stage` | object | Current interview stage |
-|     ↳ `id` | number | Stage ID |
-|     ↳ `name` | string | Stage name |
-|   ↳ `jobs` | array | Associated jobs |
-|     ↳ `id` | number | Job ID |
-|     ↳ `name` | string | Job name |
-|   ↳ `applied_at` | string | Application date \(ISO 8601\) |
-|   ↳ `rejected_at` | string | Rejection date \(ISO 8601\) |
-|   ↳ `last_activity_at` | string | Last activity date \(ISO 8601\) |
-| `count` | number | Number of applications returned |
+| `applications` | array | applications on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `agency_note_id` | number | Agency note ID |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `coordinator_id` | number | Coordinator ID |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `job_post_id` | number | Job post ID |
+|   ↳ `recruiter_id` | number | Recruiter ID |
+|   ↳ `referrer_id` | number | Referrer ID |
+|   ↳ `rejection_reason_id` | number | Rejection reason ID |
+|   ↳ `source_id` | number | Source ID |
+|   ↳ `stage_id` | number | Stage ID |
+|   ↳ `job_interview_stage_id` | number | Job interview stage ID |
+|   ↳ `stage_name` | string | Stage name |
+|   ↳ `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+|   ↳ `needs_decision` | boolean | Needs decision |
+|   ↳ `prospect` | boolean | Prospect |
+|   ↳ `rejected_at` | string | Rejected at \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | Last activity at \(ISO 8601\) |
+|   ↳ `location_address` | string | Location address |
+|   ↳ `answers` | array | Answers |
+|     ↳ `question` | string | Question |
+|     ↳ `answer` | string | Answer |
+|   ↳ `prospective_job_ids` | array | Prospective job IDs |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 ### Greenhouse Get Application
 
-Retrieves a specific application by ID with full details including source, stage, answers, and attachments
+Retrieves one application by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `applicationId` | string | Yes | The ID of the application to retrieve |
+| `id` | string | Yes | Greenhouse resource ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Application ID |
-| `candidate_id` | number | Associated candidate ID |
-| `prospect` | boolean | Whether this is a prospect application |
-| `status` | string | Status \(active, converted, hired, rejected\) |
-| `applied_at` | string | Application date \(ISO 8601\) |
-| `rejected_at` | string | Rejection date \(ISO 8601\) |
-| `last_activity_at` | string | Last activity date \(ISO 8601\) |
-| `location` | object | Candidate location |
-|   ↳ `address` | string | Location address |
-| `source` | object | Application source |
-|   ↳ `id` | number | Source ID |
-|   ↳ `public_name` | string | Source name |
-| `credited_to` | object | User credited for the application |
-|   ↳ `id` | number | User ID |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `name` | string | Full name |
-|   ↳ `employee_id` | string | Employee ID |
-| `recruiter` | object | Assigned recruiter |
-|   ↳ `id` | number | User ID |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `name` | string | Full name |
-|   ↳ `employee_id` | string | Employee ID |
-| `coordinator` | object | Assigned coordinator |
-|   ↳ `id` | number | User ID |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `name` | string | Full name |
-|   ↳ `employee_id` | string | Employee ID |
-| `current_stage` | object | Current interview stage \(null when hired\) |
-|   ↳ `id` | number | Stage ID |
-|   ↳ `name` | string | Stage name |
-| `rejection_reason` | object | Rejection reason |
-|   ↳ `id` | number | Rejection reason ID |
-|   ↳ `name` | string | Rejection reason name |
-|   ↳ `type` | object | Rejection reason type |
-|     ↳ `id` | number | Type ID |
-|     ↳ `name` | string | Type name |
-| `jobs` | array | Associated jobs |
-|   ↳ `id` | number | Job ID |
-|   ↳ `name` | string | Job name |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `agency_note_id` | number | Agency note ID |
+| `candidate_id` | number | Candidate ID |
+| `coordinator_id` | number | Coordinator ID |
+| `job_id` | number | Job ID |
 | `job_post_id` | number | Job post ID |
-| `answers` | array | Application question answers |
-|   ↳ `question` | string | Question text |
-|   ↳ `answer` | string | Answer text |
-| `attachments` | array | File attachments \(URLs expire after 7 days\) |
-|   ↳ `filename` | string | File name |
-|   ↳ `url` | string | Download URL \(expires after 7 days\) |
-|   ↳ `type` | string | Type \(resume, cover_letter, offer_packet, other\) |
-|   ↳ `created_at` | string | Upload timestamp |
-| `custom_fields` | object | Custom field values |
+| `recruiter_id` | number | Recruiter ID |
+| `referrer_id` | number | Referrer ID |
+| `rejection_reason_id` | number | Rejection reason ID |
+| `source_id` | number | Source ID |
+| `stage_id` | number | Stage ID |
+| `job_interview_stage_id` | number | Job interview stage ID |
+| `stage_name` | string | Stage name |
+| `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+| `needs_decision` | boolean | Needs decision |
+| `prospect` | boolean | Prospect |
+| `rejected_at` | string | Rejected at \(ISO 8601\) |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `location_address` | string | Location address |
+| `answers` | array | Answers |
+|   ↳ `question` | string | Question |
+|   ↳ `answer` | string | Answer |
+| `prospective_job_ids` | array | Prospective job IDs |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse Create Application
+
+Creates a job application or prospect application for an existing candidate.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `source_id` | number | No | Source ID |
+| `recruiter_id` | number | No | Recruiter ID |
+| `coordinator_id` | number | No | Coordinator ID |
+| `referrer_id` | number | No | Referrer ID |
+| `created_at` | string | No | Creation time in ISO 8601 format |
+| `custom_fields` | array | No | JSON array of \{name_key or custom_field_id, value\}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. |
+| `candidate_id` | number | Yes | Candidate ID to create the application for. |
+| `job_id` | number | No | Job ID |
+| `initial_stage_id` | number | No | Initial stage ID |
+| `prospect` | boolean | No | Whether this is a prospect application. Set true to use prospect placement fields instead of job_id. |
+| `job_ids` | array | No | Job IDs for a prospect as a JSON array of integers. Requires prospect=true. |
+| `prospect_pool_id` | number | No | Prospect pool ID |
+| `prospect_pool_stage_id` | number | No | Prospect pool stage ID |
+| `prospect_owner_id` | number | No | Prospect owner ID |
+| `prospective_department_id` | number | No | Prospective department ID |
+| `prospective_office_id` | number | No | Prospective office ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `agency_note_id` | number | Agency note ID |
+| `candidate_id` | number | Candidate ID |
+| `coordinator_id` | number | Coordinator ID |
+| `job_id` | number | Job ID |
+| `job_post_id` | number | Job post ID |
+| `recruiter_id` | number | Recruiter ID |
+| `referrer_id` | number | Referrer ID |
+| `rejection_reason_id` | number | Rejection reason ID |
+| `source_id` | number | Source ID |
+| `stage_id` | number | Stage ID |
+| `job_interview_stage_id` | number | Job interview stage ID |
+| `stage_name` | string | Stage name |
+| `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+| `needs_decision` | boolean | Needs decision |
+| `prospect` | boolean | Prospect |
+| `rejected_at` | string | Rejected at \(ISO 8601\) |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `location_address` | string | Location address |
+| `answers` | array | Answers |
+|   ↳ `question` | string | Question |
+|   ↳ `answer` | string | Answer |
+| `prospective_job_ids` | array | Prospective job IDs |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse Update Application
+
+Update application using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+| `source_id` | number | No | Source ID |
+| `referrer_id` | number | No | Referrer ID |
+| `recruiter_id` | number | No | Recruiter ID |
+| `coordinator_id` | number | No | Coordinator ID |
+| `prospect_pool_id` | number | No | Prospect pool ID |
+| `prospect_stage_id` | number | No | Prospect stage ID |
+| `rejected_at` | string | No | Rejected at \(YYYY-MM-DD\) |
+| `created_at` | string | No | Application creation date in YYYY-MM-DD format. |
+| `custom_fields` | array | No | JSON array of \{name_key or custom_field_id, value\}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `agency_note_id` | number | Agency note ID |
+| `candidate_id` | number | Candidate ID |
+| `coordinator_id` | number | Coordinator ID |
+| `job_id` | number | Job ID |
+| `job_post_id` | number | Job post ID |
+| `recruiter_id` | number | Recruiter ID |
+| `referrer_id` | number | Referrer ID |
+| `rejection_reason_id` | number | Rejection reason ID |
+| `source_id` | number | Source ID |
+| `stage_id` | number | Stage ID |
+| `job_interview_stage_id` | number | Job interview stage ID |
+| `stage_name` | string | Stage name |
+| `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+| `needs_decision` | boolean | Needs decision |
+| `prospect` | boolean | Prospect |
+| `rejected_at` | string | Rejected at \(ISO 8601\) |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `location_address` | string | Location address |
+| `answers` | array | Answers |
+|   ↳ `question` | string | Question |
+|   ↳ `answer` | string | Answer |
+| `prospective_job_ids` | array | Prospective job IDs |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse Move Application
+
+Moves or advances an application using its current stage as a guard; configured stage rules may send emails.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+| `from_stage_id` | number | Yes | Current application stage ID, required to guard against a stale move. Use stage_id from the application. |
+| `to_stage_id` | number | No | Target stage ID for a move within the current job. Use to_job_id when transferring to another job. |
+| `to_job_id` | number | No | Destination job ID when transferring the application to another job. |
+| `email_from_user_id` | number | No | User ID to send any automated stage-transition emails from. |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Greenhouse Convert Prospect
+
+Converts a prospect application into a new candidate application on a job already associated with the prospect.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+| `job_id` | number | Yes | Job ID already associated with the prospect or its pool. |
+| `to_job_interview_stage_id` | number | No | Target job interview stage ID; omit to use the job’s first stage. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `agency_note_id` | number | Agency note ID |
+| `candidate_id` | number | Candidate ID |
+| `coordinator_id` | number | Coordinator ID |
+| `job_id` | number | Job ID |
+| `job_post_id` | number | Job post ID |
+| `recruiter_id` | number | Recruiter ID |
+| `referrer_id` | number | Referrer ID |
+| `rejection_reason_id` | number | Rejection reason ID |
+| `source_id` | number | Source ID |
+| `stage_id` | number | Stage ID |
+| `job_interview_stage_id` | number | Job interview stage ID |
+| `stage_name` | string | Stage name |
+| `status` | string | Status Allowed: rejected, hired, converted, in_process. |
+| `needs_decision` | boolean | Needs decision |
+| `prospect` | boolean | Prospect |
+| `rejected_at` | string | Rejected at \(ISO 8601\) |
+| `last_activity_at` | string | Last activity at \(ISO 8601\) |
+| `location_address` | string | Location address |
+| `answers` | array | Answers |
+|   ↳ `question` | string | Question |
+|   ↳ `answer` | string | Answer |
+| `prospective_job_ids` | array | Prospective job IDs |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse Reject Application
+
+Rejects an application; optionally sends or schedules the configured rejection email.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+| `rejection_reason_id` | number | Yes | Rejection reason ID |
+| `notes` | string | No | Notes |
+| `rejection_email` | json | No | Optional JSON object \{send_email_at, email_template_id, email_from_user_id\}; supplying it sends or schedules a rejection email. |
+| `custom_fields` | array | No | JSON array of \{name_key or custom_field_id, value\}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Greenhouse Unreject Application
+
+Restores a rejected application to its previous stage and clears its rejection reason and notes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Greenhouse Hire Application
+
+Marks an application hired and closes its opening; provide opening_id when the job has multiple open openings.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | number | Yes | Greenhouse resource ID |
+| `start_date` | string | No | Start date \(ISO 8601\) |
+| `opening_id` | number | No | Opening ID; required when hiring into a job with multiple open openings. |
+| `close_reason_id` | number | No | Close reason ID |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Greenhouse Delete Application
+
+Delete application using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Greenhouse resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Deletion confirmation returned by Greenhouse |
+
+</ReferenceDetails>
+
+### Greenhouse List Jobs
+
+Lists one page of jobs with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `opened_at` | json | No | Opened at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `closed_at` | json | No | Closed at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `requisition_id` | string | No | Requisition ID |
+| `department_id` | number | No | Department ID |
+| `office_id` | number | No | Office ID |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `confidential` | boolean | No | Confidential |
+| `status` | string | No | Status Allowed: open, draft, closed. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | array | jobs on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `requisition_id` | string | Requisition ID |
+|   ↳ `notes` | string | Notes |
+|   ↳ `confidential` | boolean | Confidential |
+|   ↳ `status` | string | Status Allowed: open, draft, closed. |
+|   ↳ `opened_at` | string | Opened at \(ISO 8601\) |
+|   ↳ `closed_at` | string | Closed at \(ISO 8601\) |
+|   ↳ `is_template` | boolean | Is template |
+|   ↳ `copied_from_id` | number | Copied from ID |
+|   ↳ `department_id` | number | Department ID |
+|   ↳ `external_department_id` | string | External department ID |
+|   ↳ `office_ids` | array | Office IDs |
+|   ↳ `external_office_ids` | array | External office IDs |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse Get Job
+
+Retrieves one job by ID using the v3 list endpoint.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Greenhouse resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `name` | string | Name |
+| `requisition_id` | string | Requisition ID |
+| `notes` | string | Notes |
+| `confidential` | boolean | Confidential |
+| `status` | string | Status Allowed: open, draft, closed. |
+| `opened_at` | string | Opened at \(ISO 8601\) |
+| `closed_at` | string | Closed at \(ISO 8601\) |
+| `is_template` | boolean | Is template |
+| `copied_from_id` | number | Copied from ID |
+| `department_id` | number | Department ID |
+| `external_department_id` | string | External department ID |
+| `office_ids` | array | Office IDs |
+| `external_office_ids` | array | External office IDs |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
+
+### Greenhouse List Job Interview Stages
+
+Lists one page of job interview stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `active` | boolean | No | Active |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job_interview_stages` | array | job interview stages on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `sort_order` | number | Sort order |
+|   ↳ `name` | string | Name |
+|   ↳ `active` | boolean | Active |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Application Stages
+
+Lists one page of application stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `job_interview_stage_ids` | string | No | Job interview stage IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `current` | boolean | No | Current |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `application_stages` | array | application stages on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `job_interview_stage_id` | number | Job interview stage ID |
+|   ↳ `entered_at` | string | Entered at \(ISO 8601\) |
+|   ↳ `exited_at` | string | Exited at \(ISO 8601\) |
+|   ↳ `days_in_stage` | number | Days in stage |
+|   ↳ `current` | boolean | Current |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Job Hiring Managers
+
+Lists one page of job hiring managers with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `user_ids` | string | No | User IDs Comma-separated values \(maximum 50\). |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job_hiring_managers` | array | job hiring managers on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `user_id` | number | User ID |
+|   ↳ `job_id` | number | Job ID |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Job Owners
+
+Lists one page of job owners with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `user_ids` | string | No | User IDs Comma-separated values \(maximum 50\). |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `type` | string | No | Type Allowed: sourcer, recruiter, coordinator. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job_owners` | array | job owners on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `user_id` | number | User ID |
+|   ↳ `type` | string | Type Allowed: sourcer, recruiter, coordinator. |
+|   ↳ `responsible` | boolean | Responsible |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Openings
+
+Lists one page of openings with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `close_reason_ids` | string | No | Close reason IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `opened_at` | json | No | Opened at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `closed_at` | json | No | Closed at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `open` | boolean | No | Open |
+| `opening_id` | string | No | Filter by the opening's identifier. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `openings` | array | openings on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `opened_at` | string | Opened at \(ISO 8601\) |
+|   ↳ `closed_at` | string | Closed at \(ISO 8601\) |
+|   ↳ `sort_order` | number | Sort order |
+|   ↳ `opening_id` | string | Opening ID; required when hiring into a job with multiple open openings. |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `close_reason_id` | number | Close reason ID |
+|   ↳ `target_start_on` | string | Target start on \(YYYY-MM-DD\) |
+|   ↳ `open` | boolean | Open |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Interviews
+
+Lists one page of interviews with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `job_interview_ids` | string | No | Job interview IDs Comma-separated values \(maximum 50\). |
+| `organizer_ids` | string | No | Organizer IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `starts_at` | json | No | Starts at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `ends_at` | json | No | Ends at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `all_day_start_on` | json | No | All day start on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example \{"gte":"2026-01-01"\}. |
+| `all_day_end_on` | json | No | All day end on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example \{"gte":"2026-01-01"\}. |
+| `external_event_id` | string | No | External event ID |
+| `status` | string | No | Status Allowed: to_be_scheduled, scheduled, awaiting_feedback, complete, skipped, collect_feedback, to_be_sent, sent, received. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `interviews` | array | interviews on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `job_interview_id` | number | Job interview ID |
+|   ↳ `starts_at` | string | Starts at \(ISO 8601\) |
+|   ↳ `ends_at` | string | Ends at \(ISO 8601\) |
+|   ↳ `location` | string | Location |
+|   ↳ `status` | string | Status Allowed: to_be_scheduled, scheduled, awaiting_feedback, complete, skipped, collect_feedback, to_be_sent, sent, received. |
+|   ↳ `organizer_id` | number | Organizer ID |
+|   ↳ `scheduled_at` | string | Scheduled at \(ISO 8601\) |
+|   ↳ `all_day_start_on` | string | All day start on \(YYYY-MM-DD\) |
+|   ↳ `all_day_end_on` | string | All day end on \(YYYY-MM-DD\) |
+|   ↳ `external_event_id` | string | External event ID |
+|   ↳ `video_conferencing_url` | string | Video conferencing url |
+|   ↳ `availability_received_at` | string | Availability received at \(ISO 8601\) |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Scorecards
+
+Lists one page of scorecards with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `interview_kit_ids` | string | No | Interview kit IDs Comma-separated values \(maximum 50\). |
+| `submitter_ids` | string | No | Submitter IDs Comma-separated values \(maximum 50\). |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `interviewer_ids` | string | No | Interviewer IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `interviewed_at` | json | No | Interviewed at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `submitted_at` | json | No | Submitted at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `status` | string | No | Status Allowed: draft, complete. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scorecards` | array | scorecards on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `interview_kit_id` | number | Interview kit ID |
+|   ↳ `interviewer_id` | number | Interviewer ID |
+|   ↳ `interviewed_at` | string | Interviewed at \(ISO 8601\) |
+|   ↳ `notes` | string | Notes |
+|   ↳ `notes_with_tags` | string | Notes with tags |
+|   ↳ `submitter_id` | number | Submitter ID |
+|   ↳ `candidate_rating` | string | Candidate rating |
+|   ↳ `private_notes` | string | Private notes |
+|   ↳ `private_notes_with_tags` | string | Private notes with tags |
+|   ↳ `status` | string | Status Allowed: draft, complete. |
+|   ↳ `public_notes` | string | Public notes |
+|   ↳ `public_notes_with_tags` | string | Public notes with tags |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `submitted_at` | string | Submitted at \(ISO 8601\) |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Offers
+
+Lists one page of offers with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `opening_ids` | string | No | Opening IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `current_only` | boolean | No | Current only |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `status` | string | No | Status Allowed: Created, Accepted, Rejected, Deprecated. |
+| `resolved_at` | json | No | Resolved at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `sent_on` | json | No | Sent on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example \{"gte":"2026-01-01"\}. |
+| `starts_on` | json | No | Starts on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example \{"gte":"2026-01-01"\}. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `offers` | array | offers on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `version` | number | Version |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `job_id` | number | Job ID |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `opening_id` | number | Opening ID; required when hiring into a job with multiple open openings. |
+|   ↳ `status` | string | Status Allowed: Created, Accepted, Rejected, Deprecated. |
+|   ↳ `starts_on` | string | Starts on \(YYYY-MM-DD\) |
+|   ↳ `sent_on` | string | Sent on \(YYYY-MM-DD\) |
+|   ↳ `resolved_at` | string | Resolved at \(ISO 8601\) |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Notes
+
+Lists one page of notes with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `user_ids` | string | No | User IDs Comma-separated values \(maximum 50\). |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `type` | string | No | Type Comma-separated values \(maximum 50\). |
+| `visibility` | string | No | Visibility Allowed: admin_only_visible, privately_visible, publicly_visible. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | notes on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `body` | string | Body |
+|   ↳ `subject` | string | Subject |
+|   ↳ `type` | string | Type Allowed: NOTE, ACTIVITY, INTERVIEW, EMAIL, FOLLOW_UP, TAKE_HOME_TEST, LINKEDIN_NOTE, LINKEDIN_INMAIL, AVAILABILITY_REQUEST, MIGRATION_ERROR, TOUCHPOINT, FORM, FEEDBACK. |
+|   ↳ `user_id` | number | User ID |
+|   ↳ `email_from` | string | Comma-separated sender addresses for an EMAIL note |
+|   ↳ `email_to` | string | Comma-separated recipient addresses for an EMAIL note |
+|   ↳ `email_cc` | array | CC addresses for an EMAIL note |
+|   ↳ `import_hash` | string | Import hash |
+|   ↳ `body_with_tags` | string | Body with tags |
+|   ↳ `visibility` | string | Visibility Allowed: admin_only_visible, privately_visible, publicly_visible. |
+|   ↳ `email_attachment_file_names` | string | Email attachment file names |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse Create Note
+
+Creates a candidate note or activity entry, or logs an email without sending it.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `candidate_id` | number | Yes | Candidate ID whose activity feed receives the note. |
+| `body` | string | Yes | Body |
+| `subject` | string | No | Note subject; required when note_type is EMAIL. |
+| `note_type` | string | Yes | Note classification: NOTE, ACTIVITY, or EMAIL. EMAIL logs an email and requires subject, email_from, email_to, and email_cc. Allowed: EMAIL, ACTIVITY, NOTE. |
+| `user_id` | number | No | User ID |
+| `email_from` | array | No | JSON array of sender addresses, required only when note_type is EMAIL. JSON array of string values. |
+| `email_to` | array | No | JSON array of recipient addresses, required only when note_type is EMAIL. JSON array of string values. |
+| `email_cc` | array | No | JSON array of CC addresses \(may be empty\), required only when note_type is EMAIL. JSON array of string values. |
+| `visibility` | string | Yes | Visibility Allowed: admin_only, private, public. |
+| `application_id` | number | No | Application ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `candidate_id` | number | Candidate ID |
+| `application_id` | number | Application ID |
+| `body` | string | Body |
+| `subject` | string | Subject |
+| `type` | string | Type Allowed: NOTE, ACTIVITY, INTERVIEW, EMAIL, FOLLOW_UP, TAKE_HOME_TEST, LINKEDIN_NOTE, LINKEDIN_INMAIL, AVAILABILITY_REQUEST, MIGRATION_ERROR, TOUCHPOINT, FORM, FEEDBACK. |
+| `user_id` | number | User ID |
+| `email_from` | string | Comma-separated sender addresses for an EMAIL note |
+| `email_to` | string | Comma-separated recipient addresses for an EMAIL note |
+| `email_cc` | array | CC addresses for an EMAIL note |
+| `import_hash` | string | Import hash |
+| `body_with_tags` | string | Body with tags |
+| `visibility` | string | Visibility Allowed: admin_only_visible, privately_visible, publicly_visible. |
+| `email_attachment_file_names` | string | Email attachment file names |
+
+</ReferenceDetails>
+
+### Greenhouse List Attachments
+
+Lists one page of attachments with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `application_ids` | string | No | Application IDs Comma-separated values \(maximum 50\). |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `type` | string | No | Type Allowed: resume, cover_letter, take_home_test, offer_packet, offer_letter, signed_offer_letter, other, form_attachment, midfunnel_agreement, automated_agreement. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | attachments on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `application_id` | number | Application ID |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `type` | string | Type Allowed: resume, cover_letter, take_home_test, offer_packet, offer_letter, signed_offer_letter, other, form_attachment, midfunnel_agreement, automated_agreement. |
+|   ↳ `filename` | string | Filename |
+|   ↳ `url` | string | Provider URL; attachment download URLs are temporary. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse Create Attachment
+
+Attaches a file to an application. A new resume or cover letter reclassifies the previous attachment of that type as other.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `application_id` | number | Yes | Application ID |
+| `filename` | string | Yes | Filename |
+| `type` | string | Yes | Type Allowed: resume, cover_letter, take_home_test, offer_packet, offer_letter, signed_offer_letter, other, form_attachment, midfunnel_agreement, automated_agreement. |
+| `content` | string | No | Base64-encoded attachment content. Supply exactly one of content or url. |
+| `url` | string | No | Public attachment URL for Greenhouse to fetch. Supply exactly one of url or content. |
+| `visibility` | string | No | Visibility Allowed: admin_only, private, public. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `application_id` | number | Application ID |
+| `candidate_id` | number | Candidate ID |
+| `type` | string | Type Allowed: resume, cover_letter, take_home_test, offer_packet, offer_letter, signed_offer_letter, other, form_attachment, midfunnel_agreement, automated_agreement. |
+| `filename` | string | Filename |
+| `url` | string | Provider URL; attachment download URLs are temporary. |
+
+</ReferenceDetails>
+
+### Greenhouse Delete Attachment
+
+Delete attachment using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Greenhouse resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Deletion confirmation returned by Greenhouse |
+
+</ReferenceDetails>
+
+### Greenhouse List Candidate Tags
+
+Lists one page of candidate tags with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate_tags` | array | candidate tags on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse Create Candidate Tag
+
+Create candidate tag using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `name` | string | Name |
+
+</ReferenceDetails>
+
+### Greenhouse List Applied Candidate Tags
+
+Lists one page of applied candidate tags with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `candidate_tag_ids` | string | No | Candidate tag IDs Comma-separated values \(maximum 50\). |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applied_candidate_tags` | array | applied candidate tags on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `candidate_tag_id` | number | Candidate tag ID |
+|   ↳ `candidate_id` | number | Candidate ID |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse Apply Candidate Tag
+
+Apply candidate tag using Greenhouse Harvest v3.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `candidate_id` | number | Yes | Candidate ID to tag. |
+| `candidate_tag_id` | number | Yes | Candidate tag ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
+| `candidate_tag_id` | number | Candidate tag ID |
+| `candidate_id` | number | Candidate ID |
+
+</ReferenceDetails>
+
+### Greenhouse Remove Candidate Tag
+
+Removes an applied tag by its applied_candidate_tags row ID, leaving the tag dictionary intact.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Greenhouse resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Deletion confirmation returned by Greenhouse |
+
+</ReferenceDetails>
+
+### Greenhouse List Candidate Educations
+
+Lists one page of candidate educations with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `start_at` | json | No | Start at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `end_at` | json | No | End at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. |
+| `latest` | boolean | No | Latest |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate_educations` | array | candidate educations on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `school_name_custom_field_option_id` | number | School name custom field option ID |
+|   ↳ `degree_custom_field_option_id` | number | Degree custom field option ID |
+|   ↳ `discipline_custom_field_option_id` | number | Discipline custom field option ID |
+|   ↳ `start_at` | string | Start at \(ISO 8601\) |
+|   ↳ `end_at` | string | End at \(ISO 8601\) |
+|   ↳ `latest` | boolean | Latest |
+|   ↳ `start_date_month` | number | Start date month |
+|   ↳ `start_date_year` | number | Start date year |
+|   ↳ `end_date_month` | number | End date month |
+|   ↳ `end_date_year` | number | End date year |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Candidate Employments
+
+Lists one page of candidate employments with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `candidate_ids` | string | No | Candidate IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `latest` | boolean | No | Latest |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate_employments` | array | candidate employments on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `candidate_id` | number | Candidate ID |
+|   ↳ `company_name` | string | Company name |
+|   ↳ `title` | string | Title |
+|   ↳ `start_date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `end_date` | string | End date \(YYYY-MM-DD\) |
+|   ↳ `latest` | boolean | Latest |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 ### Greenhouse List Users
 
-Lists Greenhouse users (recruiters, hiring managers, admins) with optional filtering
+Lists one page of users with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
-| `created_after` | string | No | Return only users created at or after this ISO 8601 timestamp |
-| `created_before` | string | No | Return only users created before this ISO 8601 timestamp |
-| `updated_after` | string | No | Return only users updated at or after this ISO 8601 timestamp |
-| `updated_before` | string | No | Return only users updated before this ISO 8601 timestamp |
-| `email` | string | No | Filter by email address |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `agency_ids` | string | No | Agency IDs Comma-separated values \(maximum 50\). |
+| `office_ids` | string | No | Office IDs Comma-separated values \(maximum 50\). |
+| `department_ids` | string | No | Department IDs Comma-separated values \(maximum 50\). |
+| `linked_candidate_ids` | string | No | Linked candidate IDs Comma-separated values \(maximum 50\). |
+| `interviewer_tag_ids` | string | No | Interviewer tag IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `employee_ids` | string | No | Employee IDs Comma-separated values \(maximum 50\). |
+| `custom_field_option_id` | number | No | Custom field option ID |
+| `deactivated` | boolean | No | Deactivated |
+| `primary_email` | string | No | Primary email |
+| `external_office_id` | string | No | External office ID |
+| `external_department_id` | string | No | External department ID |
+| `show_service_accounts` | boolean | No | Show service accounts |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `users` | array | List of Greenhouse users |
-|   ↳ `id` | number | User ID |
-|   ↳ `name` | string | Full name |
+| `users` | array | users on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
 |   ↳ `first_name` | string | First name |
 |   ↳ `last_name` | string | Last name |
-|   ↳ `primary_email_address` | string | Primary email |
-|   ↳ `disabled` | boolean | Whether the user is disabled |
-|   ↳ `site_admin` | boolean | Whether the user is a site admin |
-|   ↳ `emails` | array | All email addresses |
+|   ↳ `primary_email` | string | Primary email |
+|   ↳ `job_title` | string | Job title |
+|   ↳ `agency_id` | number | Agency ID |
+|   ↳ `name` | string | Name |
+|   ↳ `deactivated` | boolean | Deactivated |
+|   ↳ `site_admin` | boolean | Site admin |
 |   ↳ `employee_id` | string | Employee ID |
-|   ↳ `linked_candidate_ids` | array | IDs of candidates linked to this user |
-|   ↳ `created_at` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-| `count` | number | Number of users returned |
+|   ↳ `linked_candidate_ids` | array | Linked candidate IDs |
+|   ↳ `office_ids` | array | Office IDs |
+|   ↳ `department_ids` | array | Department IDs |
+|   ↳ `external_office_ids` | array | External office IDs |
+|   ↳ `external_department_ids` | array | External department IDs |
+|   ↳ `interviewer_tags` | array | Interviewer tags |
+|     ↳ `id` | number | Greenhouse resource ID |
+|     ↳ `name` | string | Name |
+|   ↳ `emails` | array | Emails |
+|   ↳ `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 ### Greenhouse Get User
 
-Retrieves a specific Greenhouse user by ID
+Retrieves one user by ID using the v3 list endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `userId` | string | Yes | The ID of the user to retrieve |
+| `id` | string | Yes | Greenhouse resource ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | User ID |
-| `name` | string | Full name |
+| `id` | number | Greenhouse resource ID |
+| `created_at` | string | Creation time in ISO 8601 format |
+| `updated_at` | string | Last update time in ISO 8601 format |
 | `first_name` | string | First name |
 | `last_name` | string | Last name |
-| `primary_email_address` | string | Primary email address |
-| `disabled` | boolean | Whether the user is disabled |
-| `site_admin` | boolean | Whether the user is a site admin |
-| `emails` | array | All email addresses |
+| `primary_email` | string | Primary email |
+| `job_title` | string | Job title |
+| `agency_id` | number | Agency ID |
+| `name` | string | Name |
+| `deactivated` | boolean | Deactivated |
+| `site_admin` | boolean | Site admin |
 | `employee_id` | string | Employee ID |
-| `linked_candidate_ids` | array | IDs of candidates linked to this user |
-| `created_at` | string | Creation timestamp \(ISO 8601\) |
-| `updated_at` | string | Last updated timestamp \(ISO 8601\) |
+| `linked_candidate_ids` | array | Linked candidate IDs |
+| `office_ids` | array | Office IDs |
+| `department_ids` | array | Department IDs |
+| `external_office_ids` | array | External office IDs |
+| `external_department_ids` | array | External department IDs |
+| `interviewer_tags` | array | Interviewer tags |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `name` | string | Name |
+| `emails` | array | Emails |
+| `custom_fields` | json | Custom fields keyed by field name, each containing name, type, and the dynamically typed value. |
+
+</ReferenceDetails>
 
 ### Greenhouse List Departments
 
-Lists all departments configured in Greenhouse
+Lists one page of departments with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `parent_id` | number | No | Parent ID |
+| `external_id` | string | No | External ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `departments` | array | List of departments |
-|   ↳ `id` | number | Department ID |
-|   ↳ `name` | string | Department name |
-|   ↳ `parent_id` | number | Parent department ID |
-|   ↳ `child_ids` | array | Child department IDs |
-|   ↳ `external_id` | string | External system ID |
-| `count` | number | Number of departments returned |
+| `departments` | array | departments on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `parent_id` | number | Parent ID |
+|   ↳ `external_id` | string | External ID |
+|   ↳ `external_parent_id` | string | External parent ID |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 ### Greenhouse List Offices
 
-Lists all offices configured in Greenhouse
+Lists one page of offices with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `parent_id` | number | No | Parent ID |
+| `external_id` | string | No | External ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `offices` | array | List of offices |
-|   ↳ `id` | number | Office ID |
-|   ↳ `name` | string | Office name |
-|   ↳ `location` | object | Office location |
-|     ↳ `name` | string | Location name |
-|   ↳ `primary_contact_user_id` | number | Primary contact user ID |
-|   ↳ `parent_id` | number | Parent office ID |
-|   ↳ `child_ids` | array | Child office IDs |
-|   ↳ `external_id` | string | External system ID |
-| `count` | number | Number of offices returned |
+| `offices` | array | offices on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `parent_id` | number | Parent ID |
+|   ↳ `external_id` | string | External ID |
+|   ↳ `external_parent_id` | string | External parent ID |
+|   ↳ `location` | string | Location |
+|   ↳ `primary_in_house_contact_user_id` | number | Primary in house contact user ID |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
 
-### Greenhouse List Job Stages
+</ReferenceDetails>
 
-Lists all interview stages for a specific job in Greenhouse
+### Greenhouse List Sources
+
+Lists one page of sources with cursor pagination and documented filters.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Greenhouse Harvest API key |
-| `jobId` | string | Yes | The job ID to list stages for |
-| `per_page` | number | No | Number of results per page \(1-500, default 100\) |
-| `page` | number | No | Page number for pagination |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `stages` | array | List of job stages in order |
-|   ↳ `id` | number | Stage ID |
-|   ↳ `name` | string | Stage name |
-|   ↳ `created_at` | string | Creation timestamp \(ISO 8601\) |
-|   ↳ `updated_at` | string | Last updated timestamp \(ISO 8601\) |
-|   ↳ `job_id` | number | Associated job ID |
-|   ↳ `priority` | number | Stage order priority |
-|   ↳ `active` | boolean | Whether the stage is active |
-|   ↳ `interviews` | array | Interview steps in this stage |
-|     ↳ `id` | number | Interview ID |
-|     ↳ `name` | string | Interview name |
-|     ↳ `schedulable` | boolean | Whether the interview is schedulable |
-|     ↳ `estimated_minutes` | number | Estimated duration in minutes |
-|     ↳ `default_interviewer_users` | array | Default interviewers |
-|       ↳ `id` | number | User ID |
-|       ↳ `name` | string | Full name |
-|       ↳ `first_name` | string | First name |
-|       ↳ `last_name` | string | Last name |
-|       ↳ `employee_id` | string | Employee ID |
-|     ↳ `interview_kit` | object | Interview kit details |
-|       ↳ `id` | number | Kit ID |
-|       ↳ `content` | string | Kit content \(HTML\) |
-|       ↳ `questions` | array | Interview kit questions |
-|         ↳ `id` | number | Question ID |
-|         ↳ `question` | string | Question text |
-| `count` | number | Number of stages returned |
+| `sources` | array | sources on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `type` | json | Type |
+|     ↳ `id` | number | Greenhouse resource ID |
+|     ↳ `name` | string | Name |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Referrers
+
+Lists one page of referrers with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `user_ids` | string | No | User IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `referrers` | array | referrers on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `user_id` | number | User ID |
+|   ↳ `name` | string | Name |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Rejection Reasons
+
+Lists one page of rejection reasons with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `include_defaults` | boolean | No | Include defaults |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rejection_reasons` | array | rejection reasons on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `type` | json | Type |
+|     ↳ `id` | number | Greenhouse resource ID |
+|     ↳ `key` | string | Key |
+|     ↳ `name` | string | Name |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Close Reasons
+
+Lists one page of close reasons with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `close_reasons` | array | close reasons on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Prospect Pools
+
+Lists one page of prospect pools with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `department_ids` | string | No | Department IDs Comma-separated values \(maximum 50\). |
+| `office_ids` | string | No | Office IDs Comma-separated values \(maximum 50\). |
+| `job_ids` | string | No | Job IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `active` | boolean | No | Active |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prospect_pools` | array | prospect pools on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `name` | string | Name |
+|   ↳ `active` | boolean | Active |
+|   ↳ `description` | string | Description |
+|   ↳ `department_ids` | array | Department IDs |
+|   ↳ `office_ids` | array | Office IDs |
+|   ↳ `job_ids` | array | Job IDs |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Prospect Pool Stages
+
+Lists one page of prospect pool stages with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `prospect_pool_ids` | string | No | Prospect pool IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `prospect_pool_stages` | array | prospect pool stages on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `prospect_pool_id` | number | Prospect pool ID |
+|   ↳ `name` | string | Name |
+|   ↳ `sort_order` | number | Sort order |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Custom Fields
+
+Lists one page of custom fields with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `field_type` | string | No | Field type Allowed: job, opening, standard, offer, compensation_frequency, candidate, referral_question, application, rejection_question, form, agency_question, user_attribute. |
+| `active` | boolean | No | Active |
+| `name` | string | No | Name |
+| `name_key` | string | No | Name key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_fields` | array | custom fields on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `field_type` | string | Field type Allowed: job, opening, standard, offer, compensation_frequency, candidate, referral_question, application, rejection_question, form, agency_question, user_attribute. |
+|   ↳ `sort_order` | number | Sort order |
+|   ↳ `name` | string | Name |
+|   ↳ `value_type` | string | Value type Allowed: short_text, long_text, yes_no, single_select, multi_select, currency, number, date, url, currency_range, number_range, user, linked, header, statement, attachment, rich_text. |
+|   ↳ `private` | boolean | Candidate or custom-field privacy flag; for candidate listing, false excludes private candidates. |
+|   ↳ `required` | boolean | Required |
+|   ↳ `require_approval` | boolean | Require approval |
+|   ↳ `trigger_new_version` | boolean | Trigger new version |
+|   ↳ `active` | boolean | Active |
+|   ↳ `updated_by_id` | number | Updated by ID |
+|   ↳ `internal_type` | string | Internal type Allowed: employment_type, offer_documents, start_date, school_name, degree, discipline, offer_opening. |
+|   ↳ `expose_in_job_board_api` | boolean | Expose in job board api |
+|   ↳ `placeholder` | string | Placeholder |
+|   ↳ `name_key` | string | Name key |
+|   ↳ `description` | string | Description |
+|   ↳ `application_type` | string | Application type Allowed: all_applications, candidate_applications, prospect_applications. |
+|   ↳ `api_only` | boolean | Api only |
+|   ↳ `use_for_job_approvals` | boolean | Use for job approvals |
+|   ↳ `use_for_offer_approvals` | boolean | Use for offer approvals |
+|   ↳ `template_token_string` | string | Template token string |
+|   ↳ `default_value` | json | Default value |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Custom Field Options
+
+Lists one page of custom field options with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `custom_field_ids` | string | No | Custom field IDs Comma-separated values \(maximum 50\). |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `active` | boolean | No | Active |
+| `custom_field_key` | string | No | Custom field key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `custom_field_options` | array | custom field options on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `custom_field_id` | number | Custom field ID |
+|   ↳ `name` | string | Name |
+|   ↳ `external_id` | string | External ID |
+|   ↳ `sort_order` | number | Sort order |
+|   ↳ `active` | boolean | Active |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
+
+### Greenhouse List Email Templates
+
+Lists one page of email templates with cursor pagination and documented filters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Opaque nextCursor from the previous page. When set, all other filters and per_page are ignored. |
+| `per_page` | number | No | Page size from 1 to 500 \(default 100\). Each call retrieves one page. |
+| `ids` | string | No | Ids Comma-separated values \(maximum 50\). |
+| `created_at` | json | No | Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with updated_at. |
+| `updated_at` | json | No | Updated at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example \{"gte":"2026-01-01T00:00:00Z"\}. Cannot be combined with created_at. |
+| `fields` | string | No | Comma-separated response field names. Omit to return all documented fields. Comma-separated values \(maximum 50\). |
+| `email_type` | string | No | Email type |
+| `from_type` | string | No | From type Allowed: user_email, organization_email, my_email_address, inviter, organizer, not_applicable. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email_templates` | array | email templates on this page |
+|   ↳ `id` | number | Greenhouse resource ID |
+|   ↳ `created_at` | string | Creation time in ISO 8601 format |
+|   ↳ `updated_at` | string | Last update time in ISO 8601 format |
+|   ↳ `email_type` | string | Email type |
+|   ↳ `subject` | string | Subject |
+|   ↳ `body` | string | Body |
+|   ↳ `user_id` | number | User ID |
+|   ↳ `name` | string | Name |
+|   ↳ `description` | string | Description |
+|   ↳ `recipients` | string | Recipients |
+|   ↳ `default` | boolean | Default |
+|   ↳ `html_body` | string | Html body |
+|   ↳ `office_anywhere` | boolean | Office anywhere |
+|   ↳ `from_type` | string | From type Allowed: user_email, organization_email, my_email_address, inviter, organizer, not_applicable. |
+|   ↳ `cc_recruiter` | boolean | Cc recruiter |
+|   ↳ `cc_coordinator` | boolean | Cc coordinator |
+| `count` | number | Number of records on this page |
+| `nextCursor` | string | Opaque cursor from the next Link header; null on the last page |
+| `hasMore` | boolean | Whether another page is available |
+
+</ReferenceDetails>
 
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Greenhouse Candidate Hired
 
 Trigger workflow when a candidate is hired
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -517,17 +2172,17 @@ Trigger workflow when a candidate is hired
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -538,23 +2193,24 @@ Trigger workflow when a candidate is hired
 |       ↳ `recruiter` | json | Assigned recruiter |
 |       ↳ `coordinator` | json | Assigned coordinator |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
-|     ↳ `offer` | object | offer output from the tool |
+|     ↳ `offer` | object |  |
 |       ↳ `id` | number | Offer ID |
 |       ↳ `version` | number | Offer version |
 |       ↳ `starts_at` | string | Offer start date |
 |       ↳ `custom_fields` | json | Offer custom fields |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Candidate Rejected
 
 Trigger workflow when a candidate is rejected
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -570,18 +2226,18 @@ Trigger workflow when a candidate is rejected
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status \(rejected\) |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `rejected_at` | string | When the candidate was rejected |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Stage ID where rejected |
 |       ↳ `name` | string | Stage name where rejected |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -592,12 +2248,13 @@ Trigger workflow when a candidate is rejected
 |     ↳ `rejection_details` | json | Rejection details with custom fields |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Candidate Stage Change
 
 Trigger workflow when a candidate changes interview stages
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -613,18 +2270,18 @@ Trigger workflow when a candidate changes interview stages
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
 |       ↳ `interviews` | json | Interviews in this stage |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -633,18 +2290,19 @@ Trigger workflow when a candidate changes interview stages
 |       ↳ `email_addresses` | json | Email addresses |
 |       ↳ `phone_numbers` | json | Phone numbers |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Job Created
 
 Trigger workflow when a new job is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -660,8 +2318,8 @@ Trigger workflow when a new job is created
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `job` | object | job output from the tool |
+| `payload` | object |  |
+|   ↳ `job` | object |  |
 |     ↳ `id` | number | Job ID |
 |     ↳ `name` | string | Job title |
 |     ↳ `requisition_id` | string | Requisition ID |
@@ -676,12 +2334,13 @@ Trigger workflow when a new job is created
 |     ↳ `openings` | json | Job openings |
 |     ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Job Updated
 
 Trigger workflow when a job is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -697,8 +2356,8 @@ Trigger workflow when a job is updated
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `job` | object | job output from the tool |
+| `payload` | object |  |
+|   ↳ `job` | object |  |
 |     ↳ `id` | number | Job ID |
 |     ↳ `name` | string | Job title |
 |     ↳ `requisition_id` | string | Requisition ID |
@@ -713,12 +2372,13 @@ Trigger workflow when a job is updated
 |     ↳ `openings` | json | Job openings |
 |     ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse New Application
 
 Trigger workflow when a new application is submitted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -734,17 +2394,17 @@ Trigger workflow when a new application is submitted
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -755,7 +2415,7 @@ Trigger workflow when a new application is submitted
 |       ↳ `phone_numbers` | json | Phone numbers |
 |       ↳ `tags` | json | Candidate tags |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
@@ -763,12 +2423,13 @@ Trigger workflow when a new application is submitted
 |     ↳ `attachments` | json | Application attachments |
 |     ↳ `custom_fields` | json | Application custom fields |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Offer Created
 
 Trigger workflow when a new offer is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -784,7 +2445,7 @@ Trigger workflow when a new offer is created
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | number | Offer ID |
 |   ↳ `application_id` | number | Associated application ID |
 |   ↳ `job_id` | number | Associated job ID |
@@ -797,12 +2458,13 @@ Trigger workflow when a new offer is created
 |   ↳ `offer_status` | string | Offer status |
 |   ↳ `custom_fields` | json | Custom field values |
 
-
----
+</ReferenceDetails>
 
 ### Greenhouse Webhook (Endpoint Events)
 
 Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -819,4 +2481,6 @@ Trigger on whichever event types you select for this URL in Greenhouse. Sim does
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
 | `payload` | json | Full event payload |
+
+</ReferenceDetails>
 

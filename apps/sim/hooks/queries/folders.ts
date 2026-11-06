@@ -24,6 +24,7 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -315,6 +316,7 @@ export function useRestoreFolder() {
       })
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       const resourceType = variables.resourceType ?? 'workflow'
       queryClient.invalidateQueries({ queryKey: folderKeys.resource(resourceType) })
       return invalidateCascadedResourceLists(queryClient, resourceType, variables.workspaceId)

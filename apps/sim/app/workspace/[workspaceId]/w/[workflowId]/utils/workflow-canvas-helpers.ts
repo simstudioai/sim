@@ -2,7 +2,7 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim
 import type { Edge, Node } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
+import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'

@@ -83,7 +83,7 @@ export const kalshiGetExchangeStatusV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_exchange_status_v2',
   name: 'Get Exchange Status from Kalshi V2',
-  description: 'Retrieve the current status of the Kalshi exchange (V2 - exact API response)',
+  description: 'Retrieve the current status of the Kalshi exchange',
   version: '2.0.0',
 
   params: {},

@@ -109,6 +109,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         runId: RUN_ID,
         contextId: 'context-1',
         resumeInput: { approved: true },
+        surface: 'v2',
       },
       request,
     })
@@ -144,6 +145,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
       executionId: 'resume-execution-3',
       output: { approved: true },
       error: undefined,
+      structuredError: null,
       metadata: {
         startTime: '2026-08-05T00:00:00.000Z',
         endTime: '2026-08-05T00:00:01.000Z',
@@ -164,6 +166,55 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         output: { approved: true },
         blockOutputs: null,
         error: null,
+        startedAt: '2026-08-05T00:00:00.000Z',
+        endedAt: '2026-08-05T00:00:01.000Z',
+        durationMs: 1000,
+      },
+    })
+    expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
+  })
+
+  it('answers a resume whose run failed in-band with the failed run resource', async () => {
+    mocks.resume.mockResolvedValueOnce({
+      kind: 'sync',
+      success: false,
+      status: 'failed',
+      executionId: 'resume-execution-4',
+      output: { partial: true },
+      error: 'Route: Condition evaluation failed',
+      structuredError: {
+        message: 'Condition evaluation failed',
+        code: 'BLOCK_EXECUTION_FAILED',
+        blockId: 'condition-1',
+        blockName: 'Route',
+        blockType: 'condition',
+      },
+      metadata: {
+        startTime: '2026-08-05T00:00:00.000Z',
+        endTime: '2026-08-05T00:00:01.000Z',
+        duration: 1000,
+      },
+    })
+    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-4' }))
+
+    const response = await POST(request, context)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({
+      data: {
+        runId: 'resume-execution-4',
+        workflowId: WORKFLOW_ID,
+        status: 'failed',
+        output: { partial: true },
+        blockOutputs: null,
+        error: {
+          message: 'Condition evaluation failed',
+          code: 'BLOCK_EXECUTION_FAILED',
+          blockId: 'condition-1',
+          blockName: 'Route',
+          blockType: 'condition',
+        },
         startedAt: '2026-08-05T00:00:00.000Z',
         endedAt: '2026-08-05T00:00:01.000Z',
         durationMs: 1000,

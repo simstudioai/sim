@@ -1,6 +1,6 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import {
   billingAttributionMock,
@@ -83,7 +83,7 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   holdsChatStreamLease: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/chat/title-context', () => ({ buildChatTitleContext }))
 
@@ -187,7 +187,7 @@ describe('createSSEStream terminal error handling', () => {
         },
       })
     )
-    trace.setGlobalTracerProvider(new BasicTracerProvider())
+    trace.setGlobalTracerProvider(new TracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
     vi.stubGlobal(
       'fetch',

@@ -1,10 +1,15 @@
 import { dbFor } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { describeError, toError } from '@sim/utils/errors'
+import { describeError, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
+import {
+  type ExecutionScope,
+  ExecutionScopeDeletedError,
+} from '@/lib/core/errors/execution-scope-deleted'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { RESERVATION_TTL_BUFFER_MS } from '@/lib/core/execution-limits'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
@@ -225,6 +230,12 @@ export class LoggingSession {
   private executionDeadlineAt?: Date
   private persistedCompletionStatus: PersistedWorkflowExecutionStatus | null = null
   private lastCompletionError: string | null = null
+  /** Set once the run's workspace or workflow is found deleted; nothing is left to record. */
+  private deletedScope: ExecutionScope | null = null
+  private markLogStarted: () => void = () => {}
+  private readonly logStarted = new Promise<void>((resolve) => {
+    this.markLogStarted = resolve
+  })
 
   constructor(
     workflowId: string,
@@ -298,11 +309,13 @@ export class LoggingSession {
 
   private async projectRawTraceSpans(
     traceSpans: TraceSpan[],
-    registry = this.resolvedSecretTraceRegistry
+    registry = this.resolvedSecretTraceRegistry,
+    phase?: 'live'
   ): Promise<TraceSpan[]> {
     return projectTraceSpansForSecrets(traceSpans, {
       registry,
       store: this.getSecretProjectionStore(),
+      phase,
     })
   }
 
@@ -354,7 +367,8 @@ export class LoggingSession {
             output: envelope,
           },
         ],
-        registry
+        registry,
+        'live'
       )
       const projected = this.readProjectedDisplayContent(projectedSpan?.output)
       return this.shouldClearLiveDisplay(registry)
@@ -415,7 +429,8 @@ export class LoggingSession {
               ...(log.childTraceSpans ? { children: log.childTraceSpans } : {}),
             },
           ],
-          registry
+          registry,
+          'live'
         )
         const display = this.readProjectedDisplayContent(projectedLog?.output)
         displayLogs.push({
@@ -702,6 +717,7 @@ export class LoggingSession {
     )
     const completedLog = await executionLogger.completeWorkflowExecution({
       executionId: this.executionId,
+      workspaceId: this.workspaceId,
       endedAt: params.endedAt,
       totalDurationMs: params.totalDurationMs,
       costSummary: params.costSummary,
@@ -726,13 +742,7 @@ export class LoggingSession {
      * protects the execution.
      */
     if (params.finalizationPath !== 'paused') {
-      try {
-        await releaseExecutionSlot(this.reservationId)
-      } catch (error) {
-        logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
-          error: toError(error).message,
-        })
-      }
+      await this.releaseAdmissionSlot()
     }
   }
 
@@ -864,10 +874,68 @@ export class LoggingSession {
           )
       }
     } catch (error) {
+      const deleted = skipLogCreation ? null : await this.findDeletedScope(error, workspaceId)
+      if (deleted) throw deleted
       if (this.requestId) {
         logger.error(`[${this.requestId}] Failed to start logging:`, error)
       }
       throw error
+    }
+  }
+
+  /**
+   * The run's deleted scope, when a log insert failed on a foreign key. Any other failure, or a
+   * lookup that itself fails, reports nothing so the caller keeps its usual path.
+   */
+  private async findDeletedScope(
+    error: unknown,
+    workspaceId: string
+  ): Promise<ExecutionScopeDeletedError | null> {
+    if (getPostgresErrorCode(error) !== FOREIGN_KEY_VIOLATION) return null
+    try {
+      const scope = await executionLogger.findDeletedExecutionScope({
+        workspaceId,
+        workflowId: this.workflowId,
+      })
+      return scope ? new ExecutionScopeDeletedError(this.executionId, scope) : null
+    } catch (lookupError) {
+      logger.warn(`Could not check whether execution ${this.executionId} lost its scope`, {
+        error: describeError(lookupError),
+      })
+      return null
+    }
+  }
+
+  /**
+   * Ends a run whose scope was deleted, once: logged at info since the owner deleted it, and only
+   * its admission slot released, since no log is left to write.
+   */
+  private async endDeletedScopeRun(error: ExecutionScopeDeletedError): Promise<void> {
+    if (this.deletedScope) return
+    this.deletedScope = error.scope
+    logger.info(`Execution ${this.executionId} ended: its ${error.scope} was deleted`, {
+      requestId: this.requestId,
+      workflowId: this.workflowId,
+      workspaceId: this.workspaceId,
+    })
+    await this.releaseAdmissionSlot()
+  }
+
+  /**
+   * The run's scope found deleted while it ran, or `null`. Once set, the run has no log, cost, or
+   * count left to record, and every later completion is a no-op.
+   */
+  getDeletedScope(): ExecutionScope | null {
+    return this.deletedScope
+  }
+
+  private async releaseAdmissionSlot(): Promise<void> {
+    try {
+      await releaseExecutionSlot(this.reservationId)
+    } catch (error) {
+      logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
+        error: toError(error).message,
+      })
     }
   }
 
@@ -937,6 +1005,7 @@ export class LoggingSession {
       }
     } catch (error) {
       this.completing = false
+      if (error instanceof ExecutionScopeDeletedError) throw error
       logger.error(`Failed to complete logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -1071,6 +1140,7 @@ export class LoggingSession {
       }
     } catch (enhancedError) {
       this.completing = false
+      if (enhancedError instanceof ExecutionScopeDeletedError) throw enhancedError
       logger.error(`Failed to complete error logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -1152,6 +1222,7 @@ export class LoggingSession {
       }
     } catch (cancelError) {
       this.completing = false
+      if (cancelError instanceof ExecutionScopeDeletedError) throw cancelError
       logger.error(`Failed to complete cancelled logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -1251,6 +1322,7 @@ export class LoggingSession {
       }
     } catch (pauseError) {
       this.completing = false
+      if (pauseError instanceof ExecutionScopeDeletedError) throw pauseError
       logger.error(`Failed to complete paused logging for execution ${this.executionId}:`, {
         requestId: this.requestId,
         workflowId: this.workflowId,
@@ -1262,11 +1334,35 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Resolves once {@link safeStart} has written the run's log, from which point the run can be
+   * found by its id; never, when no log could be started.
+   */
+  whenLogStarted(): Promise<void> {
+    return this.logStarted
+  }
+
+  /**
+   * Starts the run's log, falling back to a minimal log when the full start fails. `false` when
+   * no log could be started; {@link getDeletedScope} then tells whether the run's workspace or
+   * workflow is gone, in which case its admission slot is already released.
+   */
   async safeStart(params: SessionStartParams): Promise<boolean> {
+    const started = await this.startOrFallback(params)
+    if (started) this.markLogStarted()
+    return started
+  }
+
+  private async startOrFallback(params: SessionStartParams): Promise<boolean> {
+    if (this.deletedScope) return false
     try {
       await this.start(params)
       return true
     } catch (error) {
+      if (error instanceof ExecutionScopeDeletedError) {
+        await this.endDeletedScopeRun(error)
+        return false
+      }
       if (this.requestId) {
         logger.warn(
           `[${this.requestId}] Logging start failed - falling back to minimal session:`,
@@ -1326,6 +1422,11 @@ export class LoggingSession {
         }
         return true
       } catch (fallbackError) {
+        const deleted = await this.findDeletedScope(fallbackError, params.workspaceId)
+        if (deleted) {
+          await this.endDeletedScopeRun(deleted)
+          return false
+        }
         if (this.requestId) {
           logger.error(`[${this.requestId}] Minimal logging start also failed:`, fallbackError)
         }
@@ -1382,6 +1483,7 @@ export class LoggingSession {
     if (this.completionPromise && !this.shouldStartNewCompletionAttempt(attempt)) {
       return this.completionPromise
     }
+    if (this.deletedScope) return Promise.resolve()
 
     this.completionAttempt = attempt
     this.completionAttemptFailed = false
@@ -1405,7 +1507,7 @@ export class LoggingSession {
    * structure with no content rather than unprojected values.
    */
   async projectTraceSpansForLiveDisplay(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
-    return this.projectRawTraceSpans(traceSpans)
+    return this.projectRawTraceSpans(traceSpans, undefined, 'live')
   }
 
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {
@@ -1417,6 +1519,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.complete(params)
     } catch (error) {
+      if (error instanceof ExecutionScopeDeletedError) return this.endDeletedScopeRun(error)
       const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] Complete failed for execution ${this.executionId}, attempting fallback`,
@@ -1445,6 +1548,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithError(params)
     } catch (error) {
+      if (error instanceof ExecutionScopeDeletedError) return this.endDeletedScopeRun(error)
       const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithError failed for execution ${this.executionId}, attempting fallback`,
@@ -1478,6 +1582,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithCancellation(params)
     } catch (error) {
+      if (error instanceof ExecutionScopeDeletedError) return this.endDeletedScopeRun(error)
       const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithCancellation failed for execution ${this.executionId}, attempting fallback`,
@@ -1506,6 +1611,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithPause(params)
     } catch (error) {
+      if (error instanceof ExecutionScopeDeletedError) return this.endDeletedScopeRun(error)
       const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithPause failed for execution ${this.executionId}, attempting fallback`,
@@ -1532,6 +1638,7 @@ export class LoggingSession {
    */
   async markAsFailed(errorMessage?: string): Promise<void> {
     await this.waitForCompletion()
+    if (this.deletedScope) return
     await this.drainPendingProgressWrites()
     await LoggingSession.markExecutionAsFailed(
       this.executionId,
@@ -1667,6 +1774,9 @@ export class LoggingSession {
       )
     } catch (fallbackError) {
       this.completing = false
+      if (fallbackError instanceof ExecutionScopeDeletedError) {
+        return this.endDeletedScopeRun(fallbackError)
+      }
       this.completionAttemptFailed = true
       logger.error(
         `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,

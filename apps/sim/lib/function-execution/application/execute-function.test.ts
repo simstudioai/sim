@@ -14,7 +14,7 @@ vi.mock('@/lib/function-execution/execute-request', () => ({
   executeFunctionRequest: hoisted.executeRequest,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

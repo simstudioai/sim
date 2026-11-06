@@ -1,9 +1,10 @@
 import { MAX_NATIVE_QUERIES_PER_ACCOUNT } from '@/lib/api/contracts/mothership-assistant-tools'
-import { readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
+import { previewConfluence, readAtlassian, searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { readCoda, searchCoda } from '@/lib/sim-search/live/coda'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import {
+  previewDrive,
   readCalendar,
   readDrive,
   readGmail,
@@ -45,6 +46,13 @@ interface NativeQueryGuide {
 
 interface NativeProvider {
   guide: NativeQueryGuide
+  /** Plain queries must contain every word, so an underfilled search retries with any term. */
+  requiresEveryTerm?: true
+  /**
+   * Full text for a search preview, for providers whose search returns only an excerpt or
+   * metadata. At most one request; undefined for kinds without a cheap text form.
+   */
+  previewText?(client: NativeClient, document: NativeDocument): Promise<string | undefined>
   search(client: NativeClient, input: NativeSearchInput): Promise<NativePage>
   read(
     client: NativeClient,
@@ -82,6 +90,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'bare words without a term and operator, which Drive rejects, and trashed or modifiedTime clauses, which the server adds from startDate/endDate. Drive search does not search comments or replies; find the file by title/content, then read it to retrieve its discussion. PDF and DOCX reads extract text within download and parsing limits; scanned PDFs need OCR and unsupported binaries provide metadata only. Saved Google Meet transcripts and generated notes are Google Docs: use Drive fullText search and read their content. Drive date filters use file modification time, not meeting time.',
     },
+    previewText: previewDrive,
     search: searchDrive,
     read: (client, reference, options) => readDrive(client, reference.id, options.signal),
   },
@@ -167,6 +176,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'JQL with only an ORDER BY clause (Jira rejects unbounded queries), and identifying users other than currentUser() by display name or email; use their account ID.',
     },
+    requiresEveryTerm: true,
     search: (client, input) => searchAtlassian(client, 'jira', input),
     read: (client, reference) => readAtlassian(client, 'jira', reference.id, reference.container),
   },
@@ -180,6 +190,8 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'starting the query with a negative clause (NOT, !=, !~ or NOT IN), which CQL rejects; lead with a positive clause such as type IN (page, blogpost).',
     },
+    requiresEveryTerm: true,
+    previewText: previewConfluence,
     search: (client, input) => searchAtlassian(client, 'confluence', input),
     read: (client, reference) =>
       readAtlassian(client, 'confluence', reference.id, reference.container, reference.kind),
@@ -299,6 +311,25 @@ export function searchNativeProvider(
       `${provider} requires a connected member MCP account`
     )
   return adapter.search(client, input)
+}
+
+/** True when the provider's plain-text search matches only items containing every query word. */
+export function requiresEveryTerm(provider: LiveSearchProviderId): boolean {
+  const adapter = LIVE_SEARCH_PROVIDERS[provider]
+  return 'requiresEveryTerm' in adapter && adapter.requiresEveryTerm === true
+}
+
+/**
+ * Full text for a search result's preview, for providers whose search returns only an excerpt or
+ * metadata. Undefined when the provider or the document's kind has no single-request text form.
+ */
+export async function previewNativeText(
+  provider: LiveSearchProviderId,
+  client: NativeClient,
+  document: NativeDocument
+): Promise<string | undefined> {
+  const adapter = LIVE_SEARCH_PROVIDERS[provider]
+  return 'previewText' in adapter ? adapter.previewText(client, document) : undefined
 }
 
 export function readNativeProvider(

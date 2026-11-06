@@ -48,7 +48,11 @@ export function telemetryCommand(): Command {
 
   telemetry
     .command('status')
-    .description('Show whether usage reporting is on, and why not if it is off')
+    .description('Show usage-reporting status')
+    .addHelpText(
+      'after',
+      'Telemetry commands always print text. DO_NOT_TRACK and SIM_TELEMETRY_DISABLED override the saved preference; a build without a reporting destination remains off. See the usage-data guide for the data collected.'
+    )
     .action(() => {
       console.log(describe(currentStatus()))
       console.log(`Learn more: ${USAGE_DATA_DOCS_URL}`)
@@ -56,7 +60,7 @@ export function telemetryCommand(): Command {
 
   telemetry
     .command('enable')
-    .description('Turn usage reporting on for this machine')
+    .description('Enable the usage-reporting preference for this machine')
     .action(() => setEnabled(true))
 
   telemetry

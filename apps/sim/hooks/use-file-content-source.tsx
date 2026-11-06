@@ -1,11 +1,17 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import { contractUrl } from '@/lib/api/client/request'
+import {
+  readProjectFileArtifactContract,
+  readProjectFileContentContract,
+} from '@/lib/api/contracts/project-files'
 import {
   type EmbeddedFileRef,
-  extractEmbeddedFileRef,
+  resolveEmbeddedFileRef,
   storedFileId,
 } from '@/lib/uploads/utils/embedded-image-ref'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 export interface FileContentUrlOptions {
   /** Request the uncompiled source instead of the rendered/compiled bytes. */
@@ -58,6 +64,12 @@ export interface ImageDimensionsSource {
 export interface FileContentSource {
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
   /**
+   * The URLs {@link buildUrl} returns answer byte-range requests, so a media element can play and
+   * seek a file straight from them while it downloads. Absent where the route sends only whole
+   * bodies, from which a player can stream only start to end — and Safari not at all.
+   */
+  servesByteRanges?: boolean
+  /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
    * points at the workspace-scoped inline route, the public source at the token-scoped cascade route.
    * Non-workspace srcs (external, `data:`, public assets) pass through unchanged.
@@ -85,14 +97,20 @@ function buildServeUrl(
 /** Build a source whose embeds resolve through `inlineBase` (the workspace- or token-scoped inline route). */
 function inlineImageSource(
   buildUrl: FileContentSource['buildUrl'],
-  inlineBase: string
+  inlineBase: string,
+  owner?: EditableFileOwner
 ): FileContentSource {
   return {
     buildUrl,
     resolveImageSrc: (src) => {
       if (!src) return src
-      const ref = extractEmbeddedFileRef(src)
-      return ref ? `${inlineBase}?${inlineRefQuery(ref)}` : src
+      const resolved = resolveEmbeddedFileRef(
+        src,
+        owner,
+        typeof window === 'undefined' ? undefined : window.location.origin
+      )
+      if (resolved.kind === 'rejected') return undefined
+      return resolved.kind === 'file' ? `${inlineBase}?${inlineRefQuery(resolved.reference)}` : src
     },
   }
 }
@@ -110,8 +128,10 @@ export function createWorkspaceFileContentSource(
   return {
     ...inlineImageSource(
       (key, opts) => buildServeUrl(key, opts, storageContext),
-      `/api/workspaces/${workspaceId}/files/inline`
+      `/api/workspaces/${workspaceId}/files/inline`,
+      { entityType: 'workspace', entityId: workspaceId }
     ),
+    servesByteRanges: true,
     ...imageDimensions,
   }
 }
@@ -119,16 +139,49 @@ export function createWorkspaceFileContentSource(
 /**
  * Public share source. Direct file bytes come from the token content URL; embedded images route through
  * `/api/files/public/{token}/inline`, which serves them only when referenced by the shared document and
- * in its workspace.
+ * in its canonical owner.
  */
 export function createPublicFileContentSource(
   token: string,
-  contentUrl: string
+  contentUrl: string,
+  owner?: EditableFileOwner
 ): FileContentSource {
+  return {
+    ...inlineImageSource(
+      (_key, opts) =>
+        opts?.preview
+          ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1`
+          : contentUrl,
+      `/api/files/public/${token}/inline`,
+      owner
+    ),
+    servesByteRanges: true,
+  }
+}
+
+/**
+ * In-app source for one Project file, which has no workspace serve URL: bytes come from the Project
+ * file routes, and embedded images resolve only within the same Project.
+ */
+export function createProjectFileContentSource(
+  projectId: string,
+  fileId: string
+): FileContentSource {
+  const params = { id: projectId, fileId }
   return inlineImageSource(
     (_key, opts) =>
-      opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
-    `/api/files/public/${token}/inline`
+      opts?.raw
+        ? contractUrl(readProjectFileContentContract, { params })
+        : contractUrl(readProjectFileArtifactContract, {
+            params,
+            query: {
+              preview: opts?.preview ? '1' : undefined,
+              v: opts?.version == null ? undefined : String(opts.version),
+              t: opts?.version == null && opts?.bust ? String(Date.now()) : undefined,
+            },
+          }),
+    `/api/projects/${encodeURIComponent(projectId)}/files/inline`,
+    { entityType: 'project', entityId: projectId }
   )
 }
 
@@ -140,6 +193,7 @@ export function createPublicFileContentSource(
 export const workspaceFileContentSource: FileContentSource = {
   buildUrl: buildServeUrl,
   resolveImageSrc: (src) => src,
+  servesByteRanges: true,
 }
 
 const FileContentSourceContext = createContext<FileContentSource>(workspaceFileContentSource)

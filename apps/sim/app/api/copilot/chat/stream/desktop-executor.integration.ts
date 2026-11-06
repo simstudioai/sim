@@ -4,6 +4,7 @@
  * Redis through the production reconnect route, for the live tail and the replay batch a view
  * attaches with after a reload.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -72,7 +73,7 @@ describe.runIf(Boolean(redisUrl))('desktop executor binding on a chat stream', (
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop stream fixture',
       ownerId: userId,
@@ -105,7 +106,7 @@ describe.runIf(Boolean(redisUrl))('desktop executor binding on a chat stream', (
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     await db.delete(desktopDevices).where(eq(desktopDevices.id, deviceId))
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
   })

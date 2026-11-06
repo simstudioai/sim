@@ -83,6 +83,23 @@ function hasAdmissionCode(failure: AdmissionFailureLike, code: string): boolean 
   return failure.code === code || failure.cause?.code === code
 }
 
+const RESERVATION_HEADROOM_DESCRIPTORS = [
+  ADMISSION_ERROR_DESCRIPTOR.RESERVATION_PAYER_HEADROOM,
+  ADMISSION_ERROR_DESCRIPTOR.RESERVATION_MEMBER_HEADROOM,
+] as const
+
+/**
+ * Whether a reservation was denied because the payer's or member's usage headroom is spent. The
+ * run is refused for good, though a later one can be admitted as in-flight runs settle, which is
+ * why deterministic admission rejections leave these out.
+ */
+export function isReservationHeadroomDenial(failure: AdmissionFailureLike): boolean {
+  return RESERVATION_HEADROOM_DESCRIPTORS.some(
+    (descriptor) =>
+      failure.statusCode === descriptor.statusCode && hasAdmissionCode(failure, descriptor.code)
+  )
+}
+
 /**
  * Identifies only admission failures that unattended callers can safely retry.
  */

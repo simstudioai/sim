@@ -37,15 +37,15 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
     execute: vi.fn(),
   },
@@ -82,7 +82,7 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
@@ -127,7 +127,7 @@ import {
   isOpaqueWorkspaceFileEgressSafe,
   replaceWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

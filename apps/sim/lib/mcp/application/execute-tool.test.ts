@@ -36,7 +36,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-import { executeMcpToolUseCase } from '@/lib/mcp/application/execute-tool'
+import { executeMcpToolUseCase, validateToolArguments } from '@/lib/mcp/application/execute-tool'
 
 const mocks = {
   assertPermissionsAllowed: permissionCheckMockFns.mockAssertPermissionsAllowed,
@@ -389,5 +389,35 @@ describe('executeMcpToolUseCase', () => {
     ).rejects.toThrow('provenance')
     expect(mocks.discoverServerTools).not.toHaveBeenCalled()
     expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateToolArguments', () => {
+  const tool = {
+    name: 'search',
+    serverId: 'mcp-server-1',
+    serverName: 'Search',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['query'],
+      additionalProperties: false,
+      properties: {
+        query: { type: 'string' },
+        limit: { type: 'integer' },
+      },
+    },
+  }
+
+  it('names the invalid argument so the caller can correct the call', () => {
+    expect(() => validateToolArguments(tool, { query: 'sim', limit: 'ten' })).toThrow(
+      'Invalid MCP operation arguments: /limit must be integer'
+    )
+    expect(() => validateToolArguments(tool, { query: 'sim', extra: true })).toThrow(
+      "Invalid MCP operation arguments: must NOT have additional properties 'extra'"
+    )
+  })
+
+  it('accepts arguments the schema allows', () => {
+    expect(() => validateToolArguments(tool, { query: 'sim', limit: 5 })).not.toThrow()
   })
 })

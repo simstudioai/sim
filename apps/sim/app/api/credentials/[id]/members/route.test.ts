@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/credentials/members', () => ({
   leaveCredentialMembership: vi.fn(),
   listCredentialMembers: mocks.listMembers,
@@ -75,6 +75,7 @@ describe('/api/credentials/[id]/members compatibility', () => {
         joinedAt: new Date('2026-08-02T00:00:00.000Z'),
         userName: 'Member',
         userEmail: 'member@example.com',
+        explicitAdmin: false,
       },
     ])
   })

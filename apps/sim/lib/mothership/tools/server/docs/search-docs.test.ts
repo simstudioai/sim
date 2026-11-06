@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DocsSearchOutcome } from '@/lib/mothership/docs/docs-search'
+import type { DocsSearchOutcome } from '@/lib/mothership/docs/search'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { mockSearchDocs } = vi.hoisted(() => ({
   mockSearchDocs: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/docs/docs-search', () => ({
+vi.mock('@/lib/mothership/docs/search', () => ({
   searchDocs: mockSearchDocs,
 }))
 

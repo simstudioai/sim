@@ -8,6 +8,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -198,7 +199,9 @@ export const checkrHandler: WebhookProviderHandler = {
     const providerConfig = getProviderConfig(ctx.webhook)
     const apiKey = typeof providerConfig.apiKey === 'string' ? providerConfig.apiKey.trim() : ''
     if (!apiKey) {
-      throw new Error('Checkr API key is required to register the webhook.')
+      throw new WebhookDeploymentConfigurationError(
+        'Checkr API key is required to register the webhook.'
+      )
     }
 
     const notificationUrl = getNotificationUrl(ctx.webhook)

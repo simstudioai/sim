@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
+  classifyKnowledgeDocumentMetadata,
   createKnowledgeDocumentSourceValue,
   importKnowledgePersistedResponseSecretProvenance,
   importKnowledgeSearchResultSecretProvenance,
+  knowledgeDocumentSnapshot,
   loadKnowledgeDocumentSecretRegistry,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
@@ -165,5 +167,52 @@ describe('knowledge durable provenance enforcement', () => {
 
     expect(snapshot.imported).toBe(false)
     expect(registry.isPermanentlyIncomplete()).toBe(true)
+  })
+})
+
+describe('document metadata classification bound to the shown snapshot', () => {
+  const NUMBERED_ROW = { ...DOCUMENT_ROW, tag1: 'emea', number1: 42 }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('keeps the stored classification while the shown metadata is what is stored', async () => {
+    queueTableRows(document, [NUMBERED_ROW])
+    const result = await classifyKnowledgeDocumentMetadata(
+      [NUMBERED_ROW.id],
+      new Map([[NUMBERED_ROW.id, [{ filename: 'source.pdf', tag1: 'emea', number1: '42' }]]])
+    )
+    expect(result.get(NUMBERED_ROW.id)?.status).toBe('exact')
+  })
+
+  it.each([
+    ['a renamed document', { filename: 'previous-name.pdf' }],
+    ['an edited tag', { tag1: 'previous value' }],
+    ['a tag cleared since', { tag2: 'previous value' }],
+    ['an edited number', { number1: '7' }],
+  ])(
+    'reads %s as unknown, so stale values are not paired with new provenance',
+    async (_, shown) => {
+      queueTableRows(document, [NUMBERED_ROW])
+      const result = await classifyKnowledgeDocumentMetadata(
+        [NUMBERED_ROW.id],
+        new Map([[NUMBERED_ROW.id, [shown]]])
+      )
+      expect(result.get(NUMBERED_ROW.id)).toEqual({ status: 'unknown' })
+    }
+  )
+
+  it('picks only the editable metadata a returned value shows', () => {
+    expect(
+      knowledgeDocumentSnapshot({
+        id: 'd',
+        filename: 'f.pdf',
+        tag3: 'x',
+        fileUrl: '/u',
+        date1: 'd',
+      })
+    ).toEqual({ filename: 'f.pdf', tag3: 'x' })
+    expect(knowledgeDocumentSnapshot({ id: 'd', fileUrl: '/u' })).toBeUndefined()
   })
 })

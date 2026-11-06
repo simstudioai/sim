@@ -3,7 +3,7 @@ import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-
 import { submitExtendParse } from '@/lib/internal/extend/client'
 import { ExtendOperationError } from '@/lib/internal/extend/errors'
 import type { ExtendParseInput } from '@/lib/internal/extend/input'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 
 const logger = createLogger('ExtendOperations')
 

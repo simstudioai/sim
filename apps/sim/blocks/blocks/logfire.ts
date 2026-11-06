@@ -78,7 +78,7 @@ export const LogfireBlock: BlockConfig = {
   name: 'Logfire',
   description: 'Query traces, logs, and metrics in Pydantic Logfire',
   longDescription:
-    'Integrate Pydantic Logfire into workflows. Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.',
+    'Run SQL over your observability data, search spans and logs with structured filters, pull an entire trace by ID, and confirm which project a read token targets.',
   docsLink: 'https://docs.sim.ai/integrations/logfire',
   category: 'tools',
   authMode: AuthMode.ApiKey,

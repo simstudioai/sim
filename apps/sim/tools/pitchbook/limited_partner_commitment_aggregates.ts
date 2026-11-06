@@ -10,7 +10,7 @@ export const pitchbookLimitedPartnerCommitmentAggregatesTool: ToolConfig<
   id: 'pitchbook_limited_partner_commitment_aggregates',
   name: 'PitchBook Limited Partner Commitment Aggregates',
   description:
-    'Retrieve a limited partner commitments rolled up by fund type, both active and all-time',
+    'Retrieve a limited partner’s commitments rolled up by fund type, both active and all-time',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 

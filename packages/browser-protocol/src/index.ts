@@ -295,11 +295,19 @@ export interface BrowserPanelAction {
     /**
      * Declares that this renderer shows page dialogs. Until it arrives, the
      * shell keeps answering them itself, so an older renderer never leaves a
-     * page blocked on a dialog nobody can see.
+     * page blocked on a dialog nobody can see. With `pagePrompts`, it also
+     * declares {@link BrowserPageState.prompt} and
+     * {@link BrowserPageState.appLaunchNotice}; without it the shell cancels
+     * those requests at once.
      */
     | 'enable-page-dialogs'
     /** Answers {@link BrowserPageState.dialog}; `allowed` is Leave. */
     | 'respond-dialog'
+    /**
+     * Answers {@link BrowserPageState.prompt} or {@link BrowserPageState.appLaunchNotice}
+     * with `response`. Installed shells without page prompts never emit one to answer.
+     */
+    | 'respond-prompt'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
   /** Stable tab id for `switch-tab` and `close-tab`. */
@@ -316,6 +324,104 @@ export interface BrowserPanelAction {
   requestId?: string
   /** User decision for a permission or dialog response. */
   allowed?: boolean
+  /** `enable-page-dialogs` only: this renderer also shows page prompts. */
+  pagePrompts?: boolean
+  /** `respond-prompt` only: the user's answer. */
+  response?: BrowserPagePromptResponse
+}
+
+/**
+ * The user's answer to a {@link BrowserPagePrompt} or {@link BrowserAppLaunchNotice}.
+ * Anything but an accepted answer of the request's own kind is a refusal.
+ */
+export type BrowserPagePromptResponse =
+  /**
+   * `remember` marks a deliberate refusal the shell may keep for the site, such as
+   * "Don't send" on a certificate picker; closing the prompt omits it and only cancels.
+   */
+  | { allowed: false; remember?: boolean }
+  | { allowed: true; kind: 'http-auth'; username: string; password: string }
+  | { allowed: true; kind: 'passkey-account' | 'client-certificate'; choiceId: string }
+  /** `alwaysAllow` stops asking for this site and app until restart. */
+  | { allowed: true; kind: 'external-app'; alwaysAllow: boolean }
+  | { allowed: true; kind: 'app-launch-notice' }
+
+/**
+ * Credentials requested by a server for a top-level page, or by a proxy.
+ * Shown only for the tab whose navigation was challenged.
+ */
+export interface BrowserHttpAuthPrompt {
+  requestId: string
+  kind: 'http-auth'
+  /** Scheme, host, and port of the server, or host and port of a proxy. */
+  origin: string
+  proxy: boolean
+  /** The credentials would cross an unencrypted connection. */
+  insecure: boolean
+  /** The previous credentials were rejected. */
+  retry: boolean
+}
+
+interface BrowserPasskeyAccount {
+  /** The credential id the shell resolves the choice by. */
+  id: string
+  name: string
+  displayName: string
+}
+
+/** A passkey sign-in asking which of the authenticator's accounts to use. */
+export interface BrowserPasskeyPrompt {
+  requestId: string
+  kind: 'passkey-account'
+  relyingPartyId: string
+  accounts: BrowserPasskeyAccount[]
+}
+
+interface BrowserClientCertificate {
+  /** Certificate fingerprint; the shell resolves the choice by it. */
+  id: string
+  subject: string
+  issuer: string
+  /** Expiry, in milliseconds since the epoch. */
+  expiresAt: number
+}
+
+/** A site asking which client certificate, if any, identifies the user. */
+export interface BrowserClientCertificatePrompt {
+  requestId: string
+  kind: 'client-certificate'
+  /** Host and port of the server asking. */
+  host: string
+  certificates: BrowserClientCertificate[]
+}
+
+/** A page the user just interacted with asks to open another app. */
+export interface BrowserExternalAppPrompt {
+  requestId: string
+  kind: 'external-app'
+  /** Origin of the page that asked. */
+  origin: string
+  /** The app the operating system would open. */
+  appName: string
+  /** Only secure origins may be remembered. */
+  canAlwaysAllow: boolean
+}
+
+/** A decision the page is waiting on, owned by the user and never by the agent. */
+export type BrowserPagePrompt =
+  | BrowserHttpAuthPrompt
+  | BrowserPasskeyPrompt
+  | BrowserClientCertificatePrompt
+  | BrowserExternalAppPrompt
+
+/**
+ * A page asked to open another app without a recent click in it. Shown
+ * passively; nothing opens unless the user chooses Open.
+ */
+export interface BrowserAppLaunchNotice {
+  requestId: string
+  origin: string
+  appName: string
 }
 
 /** A leave-site decision awaiting the user's answer in browser chrome. */
@@ -360,6 +466,10 @@ export interface BrowserPageState {
   sitePermissionRequest?: BrowserSitePermissionRequest
   /** Page dialog awaiting the user's answer. Optional for older shells. */
   dialog?: BrowserPageDialog
+  /** Sign-in or app-launch decision awaiting the user. Optional for older shells. */
+  prompt?: BrowserPagePrompt
+  /** Passive offer to open another app. Optional for older shells. */
+  appLaunchNotice?: BrowserAppLaunchNotice
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */

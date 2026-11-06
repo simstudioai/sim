@@ -1,5 +1,5 @@
 import type { Edge } from '@xyflow/react'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
 import type {
@@ -225,6 +225,21 @@ export function isPersistedWorkflowExecutionStatus(
 ): value is PersistedWorkflowExecutionStatus {
   return (PERSISTED_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(value)
 }
+
+/**
+ * Statuses of a finished run's log. A resume can never claim a log in one of them (the
+ * same set the resume attempt-failure `CASE` preserves).
+ */
+const TERMINAL_WORKFLOW_EXECUTION_STATUSES = [
+  'cancelled',
+  'failed',
+  'completed',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+export function isTerminalWorkflowExecutionStatus(status: string): boolean {
+  return (TERMINAL_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(status)
+}
+
 /**
  * In-flight statuses a crashed worker can strand, which the stale-execution
  * cron terminalizes. `pending` and `paused` are excluded: both are written as
@@ -308,6 +323,15 @@ export interface TraceSpan {
    * one read, not the run.
    */
   childTraceAccess?: 'granted' | 'disabled' | 'missing' | 'truncated'
+  /**
+   * Set by secret projection when it omitted content it could not prove safe from
+   * this span (`input`, `output`, `thinking`, `errorMessage`, or its tool-call and
+   * provider-segment content), or reduced the span to structure only. Status, timing,
+   * and usage remain. Without it a withheld field is
+   * indistinguishable from one the block never produced. A content field is omitted
+   * whole, so a key missing inside a field that is present is genuinely absent.
+   */
+  contentWithheld?: true
   model?: string
   cost?: {
     input?: number

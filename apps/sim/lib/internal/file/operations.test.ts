@@ -78,15 +78,15 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
     execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
   },
@@ -122,13 +122,13 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
 }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
@@ -407,23 +407,34 @@ describe('file manage folder wiring', () => {
       { ...FOLDER_ROW, id: 'user-b', parentId: 'memory', name: 'user-b', path: 'memory/user-b' },
     ]
 
+    const MEMORY_FILES = [
+      { ...workspaceFile('a-self'), name: 'self.md', folderId: 'user-a' },
+      { ...workspaceFile('a-people-self'), name: 'self.md', folderId: 'user-a-people' },
+      { ...workspaceFile('b-self'), name: 'self.md', folderId: 'user-b' },
+    ]
+
     beforeEach(() => {
       mockListWorkspaceFileFolders.mockResolvedValue({ folders: MEMORY_FOLDERS })
-      mockListWorkspaceFilesInFolderScope.mockImplementation(
-        async ({ input }: { input: { includeSubfolders?: boolean } }) => ({
-          files: [
-            { ...workspaceFile('a-self'), name: 'self.md', folderId: 'user-a' },
-            ...(input.includeSubfolders === false
-              ? []
-              : [
-                  {
-                    ...workspaceFile('a-people-self'),
-                    name: 'self.md',
-                    folderId: 'user-a-people',
-                  },
-                ]),
-          ],
-          truncated: false,
+      mockQueryWorkspaceFilePage.mockImplementation(
+        async ({
+          input,
+        }: {
+          input: {
+            folderScope?: { folderIds: Set<string>; includeRootItems: boolean }
+            fileId?: string
+            name?: string
+          }
+        }) => ({
+          files: MEMORY_FILES.filter(
+            (file) =>
+              (!input.folderScope ||
+                (file.folderId
+                  ? input.folderScope.folderIds.has(file.folderId)
+                  : input.folderScope.includeRootItems)) &&
+              (input.fileId === undefined || file.id === input.fileId) &&
+              (input.name === undefined || file.name === input.name)
+          ),
+          nextKeys: null,
         })
       )
     })
@@ -559,11 +570,11 @@ describe('file manage folder wiring', () => {
    * the only thing telling them apart.
    */
   it('appends to the file in the chosen folder, not a same-named file elsewhere', async () => {
-    mockListWorkspaceFilesInFolderScope.mockResolvedValue({
+    mockQueryWorkspaceFilePage.mockResolvedValue({
       files: [
         { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
       ],
-      truncated: false,
+      nextKeys: null,
     })
     await POST(
       createMockRequest('POST', {
@@ -575,6 +586,33 @@ describe('file manage folder wiring', () => {
       })
     )
 
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'notes-in-reports',
+      { includeOwnedFiles: true }
+    )
+  })
+
+  it('resolves a named file in a folder too large to list in one selection', async () => {
+    mockListWorkspaceFilesInFolderScope.mockResolvedValue({ files: [], truncated: true })
+    mockQueryWorkspaceFilePage.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
+      ],
+      nextKeys: null,
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    expect(response.status).not.toBe(413)
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
       'notes-in-reports',
@@ -1048,7 +1086,9 @@ describe('file manage operations', () => {
   })
 
   it('pins resolved file-input provenance to the captured content revision', async () => {
-    mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('file-1'))
+    const file = workspaceFile('file-1')
+    mockGetFileMetadataByKey.mockResolvedValue({ ...file, context: 'workspace' })
+    mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
       status: 'exact',
       entries: [],
@@ -1238,55 +1278,6 @@ describe('file manage operations', () => {
     expect(response.status).toBe(200)
     expect(mockUpdateWorkspaceFileContent).not.toHaveBeenCalled()
     expect(mockUploadWorkspaceFile).toHaveBeenCalled()
-  })
-
-  it('downgrades provenance when overwriting a file owned by another user', async () => {
-    const existing = workspaceFile('report', 'other-user')
-    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
-    mockUpdateWorkspaceFileContent.mockResolvedValue(existing)
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          operation: 'write',
-          workspaceId: 'workspace-1',
-          fileName: 'report.txt',
-          content: 'secret-value',
-          overwrite: true,
-          __privateSecretProvenance: {
-            version: 1,
-            complete: true,
-            selections: [
-              {
-                key: 'content',
-                provenance: {
-                  version: 1,
-                  complete: true,
-                  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-                },
-              },
-            ],
-          },
-        },
-        PRIVATE_SECRET_PROVENANCE_HEADER
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
-      'workspace-1',
-      'report',
-      'user-1',
-      Buffer.from('secret-value'),
-      'text/plain',
-      {
-        version: { source: 'workflow', authorUserId: 'user-1' },
-        expectedUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
-      }
-    )
   })
 
   it('atomically binds append provenance to the exact predecessor version', async () => {

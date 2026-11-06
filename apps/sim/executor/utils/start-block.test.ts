@@ -430,6 +430,7 @@ describe('start-block utilities', () => {
             value: [
               { name: 'count', type: 'number' },
               { name: 'payload', type: 'object' },
+              { name: 'meta', type: 'json' },
             ],
           },
         },
@@ -446,12 +447,14 @@ describe('start-block utilities', () => {
         workflowInput: {
           count: '5',
           payload: '{"event":"push"}',
+          meta: '{"source":"api"}',
           extra: 'untouched',
         },
       })
 
       expect(output.count).toBe(5)
       expect(output.payload).toEqual({ event: 'push' })
+      expect(output.meta).toBe('{"source":"api"}')
       expect(output.extra).toBe('untouched')
     })
   })

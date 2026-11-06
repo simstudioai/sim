@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -21,6 +20,7 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   checkEnvVarTrigger,
@@ -301,8 +301,7 @@ export const Code = memo(function Code({
   hideInternalWand = false,
 }: CodeProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const [code, setCode] = useState<string>('')
   const [showTags, setShowTags] = useState(false)
@@ -404,6 +403,7 @@ export const Code = memo(function Code({
   const [sandboxIdValue] = useSubBlockValue<string>(blockId, 'sandboxId')
 
   const wandHook = useWand({
+    workspaceId,
     wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
     contextParams: {

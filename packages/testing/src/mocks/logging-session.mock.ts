@@ -5,9 +5,10 @@ import { vi } from 'vitest'
  * `@/lib/logs/execution/logging-session`. Every instance method is backed by a
  * shared `vi.fn()` so tests that construct multiple sessions observe identical
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
- * boolean result. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
+ * boolean result, and `mockWhenLogStarted` resolves at once, as for a log already written. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
- * `false`, `getPersistedCompletionStatus` is `null`, and other methods resolve to `undefined`.
+ * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods
+ * resolve to `undefined`.
  * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example
@@ -25,6 +26,7 @@ export const loggingSessionMockFns = {
   mockCompleteWithCancellation: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockCompleteWithPause: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockSafeStart: vi.fn(async (..._args: unknown[]): Promise<boolean> => true),
+  mockWhenLogStarted: vi.fn(async (): Promise<void> => {}),
   mockWaitForCompletion: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockWaitForPostExecution: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockSetTrustedExecutionCorrelation: vi.fn(),
@@ -41,6 +43,7 @@ export const loggingSessionMockFns = {
   mockOnBlockComplete: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockHasCompleted: vi.fn((): boolean => false),
   mockGetPersistedCompletionStatus: vi.fn((): string | null => null),
+  mockGetDeletedScope: vi.fn((): 'workspace' | 'workflow' | null => null),
   mockProjectTraceSpansForLiveDisplay: vi.fn(async (traceSpans: unknown) => traceSpans),
   mockMarkExecutionAsFailed: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
@@ -71,6 +74,7 @@ function buildLoggingSessionInstance() {
     completeWithCancellation: loggingSessionMockFns.mockCompleteWithCancellation,
     completeWithPause: loggingSessionMockFns.mockCompleteWithPause,
     safeStart: loggingSessionMockFns.mockSafeStart,
+    whenLogStarted: loggingSessionMockFns.mockWhenLogStarted,
     waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
     waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
     setTrustedExecutionCorrelation: loggingSessionMockFns.mockSetTrustedExecutionCorrelation,
@@ -82,6 +86,7 @@ function buildLoggingSessionInstance() {
     onBlockComplete: loggingSessionMockFns.mockOnBlockComplete,
     hasCompleted: loggingSessionMockFns.mockHasCompleted,
     getPersistedCompletionStatus: loggingSessionMockFns.mockGetPersistedCompletionStatus,
+    getDeletedScope: loggingSessionMockFns.mockGetDeletedScope,
     projectTraceSpansForLiveDisplay: loggingSessionMockFns.mockProjectTraceSpansForLiveDisplay,
     exportResolvedSecretTraceProvenanceForValue:
       loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue,

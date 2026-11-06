@@ -1,5 +1,7 @@
+import type { TailscaleDeleteDeviceResponse, TailscaleDeviceParams } from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { TailscaleDeleteDeviceResponse, TailscaleDeviceParams } from './types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleDeleteDeviceTool: ToolConfig<
   TailscaleDeviceParams,
@@ -9,58 +11,42 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
   name: 'Tailscale Delete Device',
   description: 'Remove a device from the tailnet',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
-    },
-    tailnet: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     deviceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Device ID to delete',
+      description: 'Device nodeId (preferred) or legacy device ID',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}`,
+      `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
+      'Content-Type': 'application/json',
     }),
   },
-
-  transformResponse: async (response: Response, params?: TailscaleDeviceParams) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { success: false, deviceId: '' },
-        error: (data as Record<string, string>).message ?? 'Failed to delete device',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        success: true,
-        deviceId: params?.deviceId ?? '',
-      },
-    }
+  transformResponse: async (response, params) => {
+    await assertTailscaleResponse(response)
+    return { success: true, output: { success: true, deviceId: params?.deviceId ?? '' } }
   },
-
   outputs: {
-    success: { type: 'boolean', description: 'Whether the device was successfully deleted' },
-    deviceId: { type: 'string', description: 'ID of the deleted device' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation succeeded',
+    },
+    deviceId: {
+      type: 'string',
+      description: 'ID of the affected device',
+    },
   },
 }

@@ -69,9 +69,11 @@ export type StorageContext =
   | 'mothership'
   | 'execution'
   | 'workspace'
+  | 'project'
   | 'test'
   | 'changelog'
   | 'table-import'
+  | 'knowledge-import'
   | 'profile-pictures'
   | 'og-images'
   | 'logs'
@@ -89,6 +91,19 @@ export type StorageContext =
  * `workspace_files.context`; the prefix answers only bucket and tenancy.
  */
 export const WORKSPACE_SCOPED_CONTEXTS = ['workspace', 'mothership'] as const
+
+/**
+ * Contexts whose chat-less `workspace_files` rows belong to their workspace rather than their
+ * uploader: a departing member hands them to a successor. Private chat attachments keep their
+ * user's lifecycle even when stored under a workspace key.
+ */
+export const WORKSPACE_SHARED_FILE_CONTEXTS = [
+  'workspace',
+  'knowledge-base',
+  'execution',
+  'chat',
+  'workspace-logos',
+] as const
 
 export type WorkspaceScopedContext = (typeof WORKSPACE_SCOPED_CONTEXTS)[number]
 
@@ -160,4 +175,10 @@ export interface StoredObjectInfo {
   metadata?: Record<string, string>
   uploadId?: string
   version?: string
+}
+
+/** A span of a stored object's bytes, with both offsets inclusive as HTTP `Range` counts them. */
+export interface ByteRange {
+  start: number
+  end: number
 }

@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { type Command, CommanderError } from 'commander'
+import { type Command, CommanderError, type OutputConfiguration } from 'commander'
 import { ProfileConfigError } from './config/index'
 import {
   type EmbedContext,
@@ -9,6 +9,7 @@ import {
   embedStore,
 } from './embed-context'
 import { EmbeddedOutput, EmbeddedOutputLimitError } from './embed-output'
+import type { V2OperationName } from './generated/v2-api'
 import {
   formatApiErrorDetails,
   isRequestTimeout,
@@ -19,6 +20,8 @@ import {
 import { writeStderr, writeStdout } from './output/io'
 import { sanitize } from './output/render'
 import { buildProgram } from './program'
+import { calledOperations } from './runtime/called-operations'
+import { commandPath } from './runtime/derive'
 
 /**
  * In-process execution of one CLI invocation, for a server that already knows
@@ -34,11 +37,13 @@ import { buildProgram } from './program'
  */
 
 export type { EmbeddedCliIdentity, EmbeddedFileSnapshot } from './embed-context'
+export { STILL_RUNNING_EXIT_CODE } from './exit-codes'
 export type {
   ExportWorkflowResponse,
   ListFilesResponse,
   ListWorkflowsResponse,
   ReadFileTextResponse,
+  V2OperationName,
 } from './generated/v2-api'
 export { SimApiError, SimClient } from './http/client'
 
@@ -132,8 +137,7 @@ export async function runEmbeddedCli(
     let exitCode = 0
     try {
       identity.signal?.throwIfAborted()
-      const program = buildProgram()
-      configureEmbeddedOutput(program)
+      const program = buildEmbeddedProgram({ writeOut: writeStdout, writeErr: writeStderr })
       await program.parseAsync(argv, { from: 'user' })
       // Commands that soft-fail (a failed run outcome, wait timeout) report through the
       // context via setSoftExitCode — never process.exitCode, which is shared and raced
@@ -198,9 +202,59 @@ function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
   return 1
 }
 
+function buildEmbeddedProgram(output: OutputConfiguration): Command {
+  const program = buildProgram({
+    hostCommands: false,
+    helpText: 'The embedding application supplies authentication, endpoint and workspace scope.',
+  })
+  configureEmbeddedOutput(program, output)
+  return program
+}
+
 /** Independently constructed subcommands do not inherit Commander output or exit overrides. */
-function configureEmbeddedOutput(command: Command): void {
-  command.configureOutput({ writeOut: writeStdout, writeErr: writeStderr })
+function configureEmbeddedOutput(command: Command, output: OutputConfiguration): void {
+  command.configureOutput(output)
   command.exitOverride()
-  for (const child of command.commands) configureEmbeddedOutput(child)
+  for (const child of command.commands) configureEmbeddedOutput(child, output)
+}
+
+/** Carries the command a parse dispatched to out of the parse, before its action runs. */
+class DispatchedCommand {
+  constructor(readonly command: Command) {}
+}
+
+const DISCARD_OUTPUT: OutputConfiguration = { writeOut: () => {}, writeErr: () => {} }
+
+interface EmbeddedCliCommand {
+  /** The command's canonical path (`['workflows', 'deploy']`), aliases resolved. */
+  path: string[]
+  /** Every v2 operation it may call: a command reaches only those it declares (`connect`). */
+  operations: readonly V2OperationName[]
+}
+
+/**
+ * The command `argv` runs under {@link runEmbeddedCli}, resolved by the same command
+ * tree and parser and stopped before any action runs.
+ *
+ * Null when the parse ends without dispatching (help, a usage error), which calls
+ * nothing. Undefined when the parse could not be followed to an answer, so a caller
+ * deciding whether to stop for consent can fail closed.
+ */
+export function resolveEmbeddedCliCommand(argv: string[]): EmbeddedCliCommand | null | undefined {
+  try {
+    const program = buildEmbeddedProgram(DISCARD_OUTPUT)
+    program.hook('preAction', (_program, action) => {
+      throw new DispatchedCommand(action)
+    })
+    program.parse(argv, { from: 'user' })
+  } catch (error) {
+    if (error instanceof DispatchedCommand) {
+      return {
+        path: commandPath(error.command),
+        operations: calledOperations(error.command) ?? [],
+      }
+    }
+    if (error instanceof CommanderError) return null
+  }
+  return undefined
 }

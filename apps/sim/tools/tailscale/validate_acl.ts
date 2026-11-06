@@ -1,0 +1,110 @@
+import type {
+  TailscaleValidateAclParams,
+  TailscaleValidateAclResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+export const tailscaleValidateAclTool: ToolConfig<
+  TailscaleValidateAclParams,
+  TailscaleValidateAclResponse
+> = {
+  id: 'tailscale_validate_acl',
+  name: 'Tailscale Validate ACL',
+  description: 'Validate a policy file or run ACL tests without changing the tailnet policy',
+  version: '1.0.0',
+  params: {
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
+    },
+    tailnet: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
+    },
+    acl: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Policy file in JSON or HuJSON, or a JSON array of ACL tests for validation',
+    },
+  },
+  request: {
+    url: (params) =>
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/acl/validate`,
+    method: 'POST',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey.trim()}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    }),
+    body: (params) => params.acl.trim(),
+  },
+  transformResponse: async (response) => {
+    await assertTailscaleResponse(response)
+    const text = await response.text()
+    const data: {
+      message?: string
+      data?: { user?: string; errors?: string[]; warnings?: string[] }[]
+    } = text.trim() ? JSON.parse(text) : {}
+    return {
+      success: true,
+      output: {
+        valid:
+          !data.message &&
+          !data.data?.some((result) => result.errors?.length || result.warnings?.length),
+        message: data.message ?? null,
+        results: (data.data ?? []).map((result) => ({
+          user: result.user ?? null,
+          errors: result.errors ?? [],
+          warnings: result.warnings ?? [],
+        })),
+      },
+    }
+  },
+  outputs: {
+    valid: {
+      type: 'boolean',
+      description: 'Whether validation and tests passed without warnings',
+    },
+    message: {
+      type: 'string',
+      description: 'Validation summary',
+      nullable: true,
+    },
+    results: {
+      type: 'array',
+      description: 'Validation and test diagnostics',
+      items: {
+        type: 'object',
+        properties: {
+          user: {
+            type: 'string',
+            description: 'Test identity',
+            nullable: true,
+          },
+          errors: {
+            type: 'array',
+            description: 'Test failures',
+            items: {
+              type: 'string',
+            },
+          },
+          warnings: {
+            type: 'array',
+            description: 'Policy warnings',
+            items: {
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
+  },
+}

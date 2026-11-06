@@ -2,17 +2,18 @@ import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/con
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
-import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
-import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
+import {
+  isDefaultVisualMediaType,
+  observePrivateFile,
+} from '@/lib/mothership/agent-cli/engines/observe-private-file'
+import {
+  isScratchReference,
+  readScratchFile,
+} from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import {
-  getFileExtension,
-  getMimeTypeFromExtension,
-  needsRenderedArtifact,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file-utils'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
+import { observedMediaType } from '@/lib/uploads/utils/file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
@@ -54,16 +55,17 @@ export const fileReadCommand: AgentCliEngine = {
         if (!match) return agentCliFail('Use knowledge/<knowledgeBaseId>/<documentId>.')
         const principal = enginePrincipal(runtime, readOriginalKnowledgeDocument)
         if (!principal) return agentCliFail('Knowledge authentication is unavailable.')
-        const { buffer, ...metadata } = await readOriginalKnowledgeDocument.execute({
-          principal,
-          input: {
-            knowledgeBaseId: match[1],
-            documentId: match[2],
-            assertedWorkspaceId: runtime.workspaceId,
-            maxBytes: query.data.maxBytes,
-            signal: runtime.signal,
-          },
-        })
+        const { buffer, hasRecordedSecrets, ...metadata } =
+          await readOriginalKnowledgeDocument.execute({
+            principal,
+            input: {
+              knowledgeBaseId: match[1],
+              documentId: match[2],
+              assertedWorkspaceId: runtime.workspaceId,
+              maxBytes: query.data.maxBytes,
+              signal: runtime.signal,
+            },
+          })
         if (!buffer)
           return agentCliOk(
             JSON.stringify({
@@ -74,13 +76,20 @@ export const fileReadCommand: AgentCliEngine = {
             })
           )
         return await observePrivateFile(
-          { buffer, ...metadata, knowledge: metadata, path: reference, source: 'knowledge' },
+          {
+            buffer,
+            ...metadata,
+            knowledge: metadata,
+            path: reference,
+            source: 'knowledge',
+            hasRecordedSecrets,
+          },
           flags,
           query.data,
           runtime.signal
         )
       }
-      if (reference.startsWith('/tmp/') || reference.startsWith('/home/user/'))
+      if (isScratchReference(reference))
         return await readScratchFile(reference, runtime, flags, query.data)
       if (
         runtime.chatOrganizationId &&
@@ -112,15 +121,8 @@ export const fileReadCommand: AgentCliEngine = {
         ...(runtime.chatId !== undefined ? { chatId: runtime.chatId } : {}),
       })
       runtime.signal?.throwIfAborted()
-      const type =
-        (needsRenderedArtifact(file.type, file.name)
-          ? getMimeTypeFromExtension(getFileExtension(file.name))
-          : resolveEffectiveMimeType(file.type, file.name)
-        )
-          .split(';')[0]
-          ?.trim()
-          .toLowerCase() ?? ''
-      if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
+      const type = observedMediaType(file.type, file.name)
+      if (visual || (!textRange && isDefaultVisualMediaType(type))) {
         const { metadata, ...result } = await readFileVisual(
           file.id,
           runtime,

@@ -35,7 +35,7 @@ import {
   WORKFLOW_EXECUTION_BUSY,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import {
   isExecutionStreamHttpError,
   isReconnectStreamOpen,
@@ -85,6 +85,8 @@ const manuallyStoppedToolCallIds = new Set<string>()
 type RunToolReleaseListener = (workflowId: string) => void
 const runToolReleaseListeners = new Set<RunToolReleaseListener>()
 const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
+/** A run tool whose workflow paused for approval: Sim reports its outcome once the run settles. */
+const SERVER_REPORTED_STORAGE_PREFIX = 'sim:copilot:run-tool-server-reported:'
 
 /**
  * Tab-local record of a completion this tab still owes Sim for a tool call,
@@ -435,6 +437,27 @@ async function enqueueAsyncWorkflowRun(
   })
 }
 
+function markServerReported(toolCallId: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(`${SERVER_REPORTED_STORAGE_PREFIX}${toolCallId}`, '1')
+  } catch (error) {
+    logger.warn('[RunTool] Failed to persist server-reported run tool', {
+      toolCallId,
+      error: toError(error).message,
+    })
+  }
+}
+
+function isServerReported(toolCallId: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.sessionStorage.getItem(`${SERVER_REPORTED_STORAGE_PREFIX}${toolCallId}`) !== null
+  } catch {
+    return false
+  }
+}
+
 function pendingCompletionStorageKey(toolCallId: string): string {
   return `${PENDING_COMPLETION_STORAGE_PREFIX}${toolCallId}`
 }
@@ -496,6 +519,13 @@ export async function bindRunToolToExecution(
   const ownerToolCallId = owner?.kind === 'runTool' ? owner.run.toolCallId : undefined
   if (ownerToolCallId === toolCallId || isRunToolWaiting(workflowId, toolCallId)) {
     logger.info('[RunTool] Recovery skipped: run tool is already active in this tab', {
+      workflowId,
+      toolCallId,
+    })
+    return true
+  }
+  if (isServerReported(toolCallId)) {
+    logger.info('[RunTool] Recovery skipped: Sim reports this paused run', {
       workflowId,
       toolCallId,
     })
@@ -885,6 +915,11 @@ async function doExecuteRunTool(
         toolCallId,
         toolName,
       })
+    } else if (isPlainRecord(result) && result.status === 'paused') {
+      // A paused run has no outcome to confirm yet; Sim reports it once a resume
+      // or cancellation settles the run.
+      logger.info('[RunTool] Workflow execution paused', { toolCallId, toolName, executionId })
+      markServerReported(toolCallId)
     } else if (succeeded) {
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
       const pendingCompletion = {

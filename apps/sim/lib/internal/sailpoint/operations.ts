@@ -11,11 +11,12 @@ import {
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
 import type { SailPointInput } from '@/lib/internal/sailpoint/schema'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { parseRawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SailPointOperations')
 
@@ -77,8 +78,8 @@ function queryString(params: Record<string, unknown>): string {
   return serialized ? `?${serialized}` : ''
 }
 
-function encodeId(value: unknown): string {
-  return encodeURIComponent(String(value))
+function encodeId(value: unknown, paramName: string): string {
+  return safeUrlPathSegment(String(value), paramName)
 }
 
 function toStringList(value: unknown): string[] | undefined {
@@ -301,8 +302,8 @@ async function executeLoad(
 
   const isAccountLoad = input.operation === 'sailpoint_load_accounts'
   const path = isAccountLoad
-    ? `/sources/v1/${encodeId(input.sourceId)}/load-accounts`
-    : `/sources/v1/${encodeId(input.sourceId)}/load-entitlements`
+    ? `/sources/v1/${encodeId(input.sourceId, 'sourceId')}/load-accounts`
+    : `/sources/v1/${encodeId(input.sourceId, 'sourceId')}/load-entitlements`
 
   const result = await sailpointFetch(
     credentials,
@@ -393,7 +394,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/identities/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/identities/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'identity'
@@ -403,7 +404,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/entitlements/v1/identities/${encodeId(input.id)}/entitlements${queryString({ limit: input.limit, offset: input.offset, count: input.count })}`,
+          url: `${hosts.apiBaseUrl}/entitlements/v1/identities/${encodeId(input.id, 'id')}/entitlements${queryString({ limit: input.limit, offset: input.offset, count: input.count })}`,
           init: { method: 'GET' },
         }),
         'list'
@@ -423,7 +424,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/accounts/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/accounts/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'account'
@@ -433,7 +434,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/accounts/v1/${encodeId(input.id)}/entitlements${queryString({ limit: input.limit, offset: input.offset, count: input.count })}`,
+          url: `${hosts.apiBaseUrl}/accounts/v1/${encodeId(input.id, 'id')}/entitlements${queryString({ limit: input.limit, offset: input.offset, count: input.count })}`,
           init: { method: 'GET' },
         }),
         'list'
@@ -453,7 +454,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/entitlements/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/entitlements/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'entitlement'
@@ -463,7 +464,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/entitlements/v1/${encodeId(input.id)}/entitlement-request-config`,
+          url: `${hosts.apiBaseUrl}/entitlements/v1/${encodeId(input.id, 'id')}/entitlement-request-config`,
           init: { method: 'GET' },
         }),
         'entitlementRequestConfig'
@@ -483,7 +484,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/roles/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/roles/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'role'
@@ -493,7 +494,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/roles/v1/${encodeId(input.id)}/entitlements${queryString({ filters: input.filters, sorters: input.sorters, limit: input.limit, offset: input.offset, count: input.count })}`,
+          url: `${hosts.apiBaseUrl}/roles/v1/${encodeId(input.id, 'id')}/entitlements${queryString({ filters: input.filters, sorters: input.sorters, limit: input.limit, offset: input.offset, count: input.count })}`,
           init: { method: 'GET' },
         }),
         'list'
@@ -513,7 +514,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/access-profiles/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/access-profiles/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'accessProfile'
@@ -523,7 +524,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/access-profiles/v1/${encodeId(input.id)}/entitlements${queryString({ filters: input.filters, sorters: input.sorters, limit: input.limit, offset: input.offset, count: input.count })}`,
+          url: `${hosts.apiBaseUrl}/access-profiles/v1/${encodeId(input.id, 'id')}/entitlements${queryString({ filters: input.filters, sorters: input.sorters, limit: input.limit, offset: input.offset, count: input.count })}`,
           init: { method: 'GET' },
         }),
         'list'
@@ -543,7 +544,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/sources/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/sources/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'source'
@@ -563,7 +564,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/account-activities/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/account-activities/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'accountActivity'
@@ -583,7 +584,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/campaigns/v1/${encodeId(input.id)}${queryString({ detail: input.detail })}`,
+          url: `${hosts.apiBaseUrl}/campaigns/v1/${encodeId(input.id, 'id')}${queryString({ detail: input.detail })}`,
           init: { method: 'GET' },
         }),
         'campaign'
@@ -603,7 +604,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'certification'
@@ -613,7 +614,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id)}/access-review-items${queryString({ filters: input.filters, sorters: input.sorters, entitlements: input.entitlements, 'access-profiles': input.accessProfiles, roles: input.roles, limit: input.limit, offset: input.offset, count: input.count })}`,
+          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id, 'id')}/access-review-items${queryString({ filters: input.filters, sorters: input.sorters, entitlements: input.entitlements, 'access-profiles': input.accessProfiles, roles: input.roles, limit: input.limit, offset: input.offset, count: input.count })}`,
           init: { method: 'GET' },
         }),
         'list'
@@ -623,7 +624,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id)}/decide`,
+          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id, 'id')}/decide`,
           init: jsonRequest(input.decisions),
         }),
         'certification'
@@ -633,7 +634,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id)}/sign-off`,
+          url: `${hosts.apiBaseUrl}/certifications/v1/${encodeId(input.id, 'id')}/sign-off`,
           init: { method: 'POST' },
         }),
         'certification'
@@ -717,7 +718,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/access-request-approvals/v1/${encodeId(input.approvalId)}/${action}`,
+          url: `${hosts.apiBaseUrl}/access-request-approvals/v1/${encodeId(input.approvalId, 'approvalId')}/${action}`,
           init,
         }),
         'write'
@@ -728,7 +729,7 @@ export async function executeSailPointOperation(
         credentials,
         context,
         (hosts) => ({
-          url: `${hosts.apiBaseUrl}/task-status/v1/${encodeId(input.id)}`,
+          url: `${hosts.apiBaseUrl}/task-status/v1/${encodeId(input.id, 'id')}`,
           init: { method: 'GET' },
         }),
         'task'

@@ -1,5 +1,5 @@
 import { getBillingEntityBlockStatus } from '@/lib/billing/core/access'
-import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'

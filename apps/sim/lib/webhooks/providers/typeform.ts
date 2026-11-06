@@ -4,6 +4,7 @@ import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -74,14 +75,14 @@ export const typeformHandler: WebhookProviderHandler = {
 
     if (!formId) {
       logger.warn(`[${ctx.requestId}] Missing formId for Typeform webhook ${ctx.webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Form ID is required to create a Typeform webhook. Please provide a valid form ID.'
       )
     }
 
     if (!apiKey) {
       logger.warn(`[${ctx.requestId}] Missing apiKey for Typeform webhook ${ctx.webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Personal Access Token is required to create a Typeform webhook. Please provide your Typeform API key.'
       )
     }

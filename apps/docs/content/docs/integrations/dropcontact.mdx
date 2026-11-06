@@ -1,31 +1,29 @@
 ---
 title: Dropcontact
 description: Enrich B2B contacts with verified email, phone, and company data
+integration:
+  type: "dropcontact"
+  color: "#0ABA9F"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dropcontact"
-  color="#0ABA9F"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Dropcontact](https://www.dropcontact.com/) to enrich contact data from a name, company, website, or LinkedIn URL. Requests are asynchronous; Sim polls until the result is ready. Credits are charged when a verified email is returned.
+Use [Dropcontact](https://www.dropcontact.com/) to enrich contact data from a name, company, website, or LinkedIn URL. Requests are asynchronous; Sim makes up to 24 polls, waiting five seconds before each attempt, then fails if the result is still pending. Request time adds to that wait budget. With your own API key, [Dropcontact charges one credit](https://developer.dropcontact.com/) when enrichment returns a verified email, or when you supply an existing email for verification. Inspect `qualification` before using a returned address.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.
-
-
+Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Dropcontact charges enrichment when a verified email is returned; supplying an existing email for verification is charged per check.
 
 ## Actions
 
 ### Dropcontact Enrich Contact
 
-Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.
+Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then makes up to 24 polls, waiting five seconds before each attempt. Dropcontact charges 1 credit for successful email enrichment or for checking an email supplied for verification. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,5 +81,7 @@ Enrich a contact with verified B2B email, phone, company data, and LinkedIn info
 | `job_function` | string | Job function \(e.g. Sales, Engineering\) |
 | `company_turnover` | string | Company revenue/turnover range |
 | `company_results` | string | Company net results |
+
+</ReferenceDetails>
 
 

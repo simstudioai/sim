@@ -32,6 +32,25 @@ export interface BuildFlyoutEntriesParams<Item extends FlyoutItemSource> {
   hrefForItem: (item: Item) => string
 }
 
+/**
+ * The folders one lazily built flyout level lists, as root folders of that level: `parentId`'s
+ * children, and at the root (`null`) also every folder whose parent is not among `folders` — an
+ * archived or missing parent — which {@link buildFlyoutEntries} surfaces at the root of a
+ * whole tree, so its contents stay reachable one level at a time too.
+ */
+export function flyoutLevelFolders<Folder extends FlyoutFolderSource>(
+  folders: readonly Folder[],
+  parentId: string | null
+): Folder[] {
+  const folderIds = new Set(folders.map((folder) => folder.id))
+  return folders
+    .filter((folder) => {
+      const parent = folder.parentId ?? null
+      return parentId === null ? parent === null || !folderIds.has(parent) : parent === parentId
+    })
+    .map((folder) => ({ ...folder, parentId: null }))
+}
+
 function flyoutSortTime(value: Date | string): number {
   const time = value instanceof Date ? value.getTime() : Date.parse(value)
   return Number.isNaN(time) ? 0 : time

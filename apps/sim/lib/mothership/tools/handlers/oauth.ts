@@ -3,7 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
 import { prepareOrganizationPersonalConnection } from '@/lib/credentials/application/resolve-organization-personal-token'
 import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
 import { executeCopilotOrganizationCredentialUseCase } from '@/lib/mothership/application/resolve-organization-personal-token'
 import type {

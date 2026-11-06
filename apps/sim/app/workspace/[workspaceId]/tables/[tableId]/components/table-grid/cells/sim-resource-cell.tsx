@@ -7,7 +7,7 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
 
 /** Sim resource kinds a table cell URL can point to within the current workspace. */
 export type SimResourceType = 'workflow' | 'table' | 'knowledge' | 'file'
@@ -34,7 +34,8 @@ interface SimResourceCellProps {
  * workspace as a tagged-resource chip — the same icon used for @-style resource
  * mentions, plus the resource's name as a link.
  * Only the list matching `resourceType` is fetched; the other queries stay
- * disabled so a sim-resource cell subscribes to a single shared list.
+ * disabled so a sim-resource cell subscribes to a single shared list. A file is
+ * looked up by id instead — a column of file cells resolves in one batched request.
  */
 export function SimResourceCell({
   workspaceId,
@@ -50,7 +51,7 @@ export function SimResourceCell({
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: resourceType === 'knowledge',
   })
-  const { data: files = [] } = useWorkspaceFiles(workspaceId, 'active', {
+  const { data: file } = useWorkspaceFileLookup(workspaceId, 'id', resourceId, {
     enabled: resourceType === 'file',
   })
 
@@ -66,9 +67,9 @@ export function SimResourceCell({
       case 'knowledge':
         return knowledgeBases.find((kb) => kb.id === resourceId)?.name
       case 'file':
-        return files.find((f) => f.id === resourceId)?.name
+        return file?.name
     }
-  }, [resourceType, resourceId, workflow, tables, knowledgeBases, files])
+  }, [resourceType, resourceId, workflow, tables, knowledgeBases, file])
 
   const label = name ?? FALLBACK_LABEL[resourceType]
 

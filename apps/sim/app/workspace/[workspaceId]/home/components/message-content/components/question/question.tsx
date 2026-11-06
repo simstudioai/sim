@@ -295,17 +295,19 @@ export function QuestionDisplay({
               </Button>
             </div>
           )}
-          {!disabled && dismissible && (
+          {dismissible && (
             <Button
               type='button'
               variant='ghost'
+              disabled={disabled}
               onClick={() => {
                 setPhase('dismissed')
                 onDismiss?.()
               }}
               className={cn(
                 ICON_BUTTON_CLASSES,
-                'before:absolute before:inset-[-14px] before:content-[""]'
+                'before:absolute before:inset-[-14px] before:content-[""]',
+                disabled && 'invisible'
               )}
             >
               <X className='size-[14px] text-[var(--text-icon)]' />

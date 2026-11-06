@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
@@ -11,7 +12,8 @@ import {
   createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
+import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
 import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'
@@ -339,7 +341,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             ...(params.admittedRun?.requestContext ?? {}),
             requestId,
             controllerToken: lease?.value,
-            recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
+            /** An admitted turn already wrote its recovery intent; a fresh run derives one. */
+            recovery:
+              toRecord(params.admittedRun?.requestContext).recovery ??
+              (await streamRecoveryConfig(orchestrateOptions, requestPayload)),
           }
           try {
             if (chatId && !orchestrateOptions.recovery) {
@@ -426,18 +431,20 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               abortSignal: abortController.signal,
               assertControllerOwnership,
               onBillingAdmission: async (admission) => {
-                if (!chatId || !savedRequestContext.recovery) return
-                await assertControllerOwnership()
-                if (!lease) throw new StreamControllerSupersededError()
-                const updated = await recordRunBillingAdmission(
-                  runId,
-                  {
-                    billingRequestId: admission.billingRequestId,
-                    serializedAttribution: admission.serializedAttribution,
-                  },
-                  lease.value
-                )
-                if (!updated) throw new Error('Run no longer owns billing admission')
+                if (chatId && savedRequestContext.recovery) {
+                  await assertControllerOwnership()
+                  if (!lease) throw new StreamControllerSupersededError()
+                  const updated = await recordRunBillingAdmission(
+                    runId,
+                    {
+                      billingRequestId: admission.billingRequestId,
+                      serializedAttribution: admission.serializedAttribution,
+                    },
+                    lease.value
+                  )
+                  if (!updated) throw new Error('Run no longer owns billing admission')
+                }
+                await orchestrateOptions.onBillingAdmission?.(admission)
               },
               onEvent: async (event) => {
                 try {
@@ -765,6 +772,8 @@ export async function requestChatTitle(params: {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
 
+      // A title is a Chat model call; a payer whose plan excludes Chat gets none.
+      if (!(await payerHasChatAccess(attribution))) return null
       const admission = await checkAttributedUsageLimits(attribution)
       if (admission.isExceeded) return null
 

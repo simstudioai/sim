@@ -6,6 +6,7 @@ import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -17,51 +18,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
-
-/**
- * Kept local rather than imported from `@/tools/ashby/utils`, which has the same
- * logic. The webhook providers are reachable from workspace page graphs, and the
- * knowledge page graph currently sits exactly at the ceiling
- * `check:tool-registry-boundary` allows - so neither an import edge into
- * `@/tools/**` nor an extra module in this directory fits. Both copies derive
- * from the same three documented Ashby error shapes and are covered
- * independently by `tools/ashby/utils.test.ts` and `ashby.test.ts` here.
- */
-/**
- * Extract a human-readable error message from an Ashby error response. Ashby
- * documents two shapes and uses three in practice:
- *
- * - `errorInfo: { code, message, requestId }`
- * - `errors: ['webhook_not_found']` - plain strings
- * - `errors: [{ message, parameter }]` - objects, which is the form a 403 for a
- *   missing module permission arrives in, and which stringifies to
- *   `[object Object]` unless the message is read explicitly
- *
- * A single response can carry more than one of these at once.
- */
-function ashbyErrorMessage(data: unknown, fallback: string): string {
-  if (!data || typeof data !== 'object') return fallback
-  const d = data as Record<string, unknown>
-  const info = d.errorInfo as Record<string, unknown> | undefined
-  if (info && typeof info.message === 'string' && info.message) return info.message
-  if (Array.isArray(d.errors) && d.errors.length > 0) {
-    const messages = d.errors
-      .map((e) => {
-        if (typeof e === 'string') return e
-        if (e && typeof e === 'object') {
-          const entry = e as Record<string, unknown>
-          const message = typeof entry.message === 'string' ? entry.message : ''
-          const parameter = typeof entry.parameter === 'string' ? entry.parameter : ''
-          if (message && parameter) return `${message} (${parameter})`
-          if (message) return message
-        }
-        return ''
-      })
-      .filter(Boolean)
-    if (messages.length > 0) return messages.join('; ')
-  }
-  return fallback
-}
+import { ashbyErrorMessage } from '@/tools/ashby/utils'
 
 /**
  * Whether an Ashby error response means the webhook id no longer exists.
@@ -279,13 +236,15 @@ export const ashbyHandler: WebhookProviderHandler = {
       }
 
       if (!apiKey) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Ashby API Key is required. Please provide your API Key with apiKeysWrite permission in the trigger configuration.'
         )
       }
 
       if (!triggerId) {
-        throw new Error('Trigger ID is required to create Ashby webhook.')
+        throw new WebhookDeploymentConfigurationError(
+          'Trigger ID is required to create Ashby webhook.'
+        )
       }
 
       const { ASHBY_TRIGGER_ACTION_MAP } = await import('@/triggers/ashby/utils')
@@ -366,6 +325,7 @@ export const ashbyHandler: WebhookProviderHandler = {
       )
       return { providerConfigUpdates: { externalId, secretToken } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${ctx.requestId}] Exception during Ashby webhook creation for webhook ${ctx.webhook.id}.`,

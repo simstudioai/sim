@@ -1,0 +1,314 @@
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { BlockType } from '@/executor/constants'
+import { VariablesBlockHandler } from '@/executor/handlers/variables/handler'
+import type { ExecutionContext } from '@/executor/types'
+import type { SerializedBlock } from '@/serializer/types'
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+vi.mock('@/lib/uploads', () => uploadsMock)
+
+function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+  return {
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    executionId: 'execution-1',
+    userId: 'user-1',
+    blockStates: new Map(),
+    blockLogs: [],
+    metadata: { duration: 0 },
+    environmentVariables: {},
+    workflowVariables: {
+      'var-1': { id: 'var-1', name: 'issues', type: 'array', value: [] },
+    },
+    decisions: { router: new Map(), condition: new Map() },
+    loopExecutions: new Map(),
+    executedBlocks: new Set(),
+    activeExecutionPath: new Set(),
+    completedLoops: new Set(),
+    ...overrides,
+  }
+}
+
+function createBlock(): SerializedBlock {
+  return {
+    id: 'variables-block-1',
+    metadata: { id: BlockType.VARIABLES, name: 'Variables' },
+    position: { x: 0, y: 0 },
+    config: { tool: BlockType.VARIABLES, params: {} },
+    inputs: {},
+    outputs: {},
+    enabled: true,
+  }
+}
+
+describe('VariablesBlockHandler', () => {
+  beforeEach(() => {
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+  })
+
+  it('includes unmatched assignments in block output without mutating workflow variables', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = [{ key: 'SIM-1', summary: 'Transient issue' }]
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableName: 'transientIssues',
+          type: 'array',
+          value,
+        },
+      ],
+    })
+
+    expect(ctx.workflowVariables).not.toHaveProperty('transientIssues')
+    expect(output).toEqual({ transientIssues: value })
+  })
+
+  it('does not treat inherited prototype keys as existing workflow variable IDs', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = { safe: true }
+    const originalPrototype = Object.getPrototypeOf(ctx.workflowVariables)
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: '__proto__',
+          variableName: 'prototypeAssignment',
+          type: 'object',
+          value,
+        },
+      ],
+    })
+
+    expect(Object.getPrototypeOf(ctx.workflowVariables)).toBe(originalPrototype)
+    expect(ctx.workflowVariables).not.toHaveProperty('__proto__')
+    expect(output).toEqual({ prototypeAssignment: value })
+  })
+
+  it('stores oversized array assignments as durable manifests in variables and block output', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+    const value = Array.from({ length: 120_000 }, (_, index) => ({
+      key: `SIM-${index}`,
+      summary: 'Issue summary that keeps each item small',
+    }))
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: 'var-1',
+          variableName: 'issues',
+          type: 'array',
+          value,
+        },
+      ],
+    })
+
+    const storedValue = ctx.workflowVariables?.['var-1'].value
+    expect(isLargeArrayManifest(storedValue)).toBe(true)
+    expect(output.issues).toBe(storedValue)
+    expect(storedValue).toMatchObject({
+      __simLargeArrayManifest: true,
+      kind: 'array',
+      totalCount: value.length,
+    })
+    expect(storedValue.chunkCount).toBeGreaterThan(1)
+    expect(mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: 'execution',
+        preserveKey: true,
+        customKey: expect.stringContaining('/execution-1/large-value-'),
+      })
+    )
+  })
+
+  it('fails clearly when durable context is missing for oversized assignments', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext({ workspaceId: undefined, executionId: undefined })
+    const value = Array.from({ length: 120_000 }, (_, index) => ({
+      key: `SIM-${index}`,
+      summary: 'Issue summary that keeps each item small',
+    }))
+
+    await expect(
+      handler.execute(ctx, createBlock(), {
+        variables: [
+          {
+            variableId: 'var-1',
+            variableName: 'issues',
+            type: 'array',
+            value,
+          },
+        ],
+      })
+    ).rejects.toThrow(
+      'Cannot persist large execution value without workspace, workflow, and execution IDs'
+    )
+
+    expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+
+  it('preserves whole large refs before scalar type coercion', async () => {
+    const handler = new VariablesBlockHandler()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'object',
+      size: 12 * 1024 * 1024,
+      executionId: 'execution-1',
+    }
+    const ctx = createContext({
+      workflowVariables: {
+        stringVar: { id: 'stringVar', name: 'stringRef', type: 'string', value: '' },
+        plainVar: { id: 'plainVar', name: 'plainRef', type: 'plain', value: '' },
+        numberVar: { id: 'numberVar', name: 'numberRef', type: 'number', value: 0 },
+        booleanVar: { id: 'booleanVar', name: 'booleanRef', type: 'boolean', value: false },
+      },
+    })
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: 'stringVar',
+          variableName: 'stringRef',
+          type: 'string',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'plainVar',
+          variableName: 'plainRef',
+          type: 'plain',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'numberVar',
+          variableName: 'numberRef',
+          type: 'number',
+          value: JSON.stringify(ref),
+        },
+        {
+          variableId: 'booleanVar',
+          variableName: 'booleanRef',
+          type: 'boolean',
+          value: JSON.stringify(ref),
+        },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.stringVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.plainVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.numberVar.value).toEqual(ref)
+    expect(ctx.workflowVariables?.booleanVar.value).toEqual(ref)
+  })
+
+  it('preserves existing variable metadata when compacting reassignment', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext({
+      workflowVariables: {
+        'var-1': {
+          id: 'var-1',
+          name: 'issues',
+          type: 'array',
+          value: [],
+          isExisting: true,
+        },
+      },
+    })
+    const value = [{ key: 'SIM-1', summary: 'Updated' }]
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        {
+          variableId: 'var-1',
+          variableName: 'issues',
+          type: 'array',
+          value,
+        },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.['var-1']).toEqual({
+      id: 'var-1',
+      name: 'issues',
+      type: 'array',
+      value,
+      isExisting: true,
+    })
+  })
+
+  it.each([
+    ['a blank variableName', { variableName: '  ', type: 'array', value: '[1]' }],
+    ['a name key instead of variableName', { name: 'issues', type: 'array', value: '[1]' }],
+    ['an unknown variableId and no name', { variableId: 'gone', type: 'boolean', value: false }],
+  ])('fails an assignment that sets a value through %s', async (_label, assignment) => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    await expect(
+      handler.execute(ctx, createBlock(), {
+        variables: [{ variableName: 'issues', type: 'array', value: '[0]' }, assignment],
+      })
+    ).rejects.toThrow('Assignment 2 sets a value but names no variable')
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([])
+  })
+
+  it('skips the blank rows the editor creates without failing', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        { id: 'row-1', variableName: '', type: 'string', value: '', isExisting: false },
+        { id: 'row-2', variableName: 'issues', type: 'array', value: '[1]', isExisting: true },
+        { id: 'row-3', variableName: '', type: 'number', value: '   ', isExisting: false },
+      ],
+    })
+
+    expect(output).toEqual({ issues: [1] })
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([1])
+  })
+
+  it('updates the variable a row selects by variableId when the row carries no name', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [{ variableId: 'var-1', type: 'array', value: '[2]' }],
+    })
+
+    expect(output).toEqual({ issues: [2] })
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([2])
+  })
+
+  it.each([
+    ['by name', { variableName: 'issues' }],
+    ['by variableId', { variableId: 'var-1' }],
+  ])('keeps the target variable type when a row %s omits type', async (_label, selector) => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext({
+      workflowVariables: {
+        'var-1': { id: 'var-1', name: 'issues', type: 'object', value: {} },
+        'var-2': { id: 'var-2', name: 'count', type: 'number', value: 0 },
+      },
+    })
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        { ...selector, value: { open: 2 } },
+        { variableName: 'count', value: 1 },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual({ open: 2 })
+    expect(ctx.workflowVariables?.['var-2'].value).toBe(1)
+  })
+})

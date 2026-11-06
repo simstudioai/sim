@@ -1,7 +1,12 @@
 import rawMetadata from '@/tools/generated/tool-metadata'
 import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { resolveToolId } from '@/tools/tool-ids'
-import type { OAuthConfig, PersonalTokenConfig, ToolConfig } from '@/tools/types'
+import type {
+  AssistantOperationMetadata,
+  OAuthConfig,
+  PersonalTokenConfig,
+  ToolConfig,
+} from '@/tools/types'
 
 /**
  * Serializable tool metadata, read without importing the executable registry.
@@ -30,6 +35,7 @@ export interface ToolMetadata {
   params: ToolConfig['params']
   oauth?: OAuthConfig
   personalToken?: PersonalTokenConfig
+  assistant?: AssistantOperationMetadata
   /**
    * Whether Sim supplies this tool's API key. Derived from the tool's `hosting`
    * config, which is itself excluded from the artifact because it holds

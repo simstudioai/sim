@@ -8,7 +8,7 @@ export const LogsBlock: BlockConfig = {
   sunset: { status: 'legacy', replacedBy: 'logs_v2' },
   description: 'Query workflow execution logs',
   longDescription:
-    'Search workflow execution logs in the current workspace, fetch a single log by id, or load full execution details with the per-block state snapshot.',
+    'Query workflow execution logs in the current workspace. Get Log by ID retrieves one log entry and its execution data; Get Execution Details returns the per-block workflow state snapshot, child-workflow snapshots, and execution metadata such as trigger, timestamps, duration, and cost.',
   bgColor: '#EAB308',
   bestPractices: `
   - The block always operates on the current workspace; you cannot query other workspaces.

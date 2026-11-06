@@ -7,7 +7,7 @@ export const ArxivBlock: BlockConfig = {
   name: 'ArXiv',
   description: 'Search and retrieve academic papers from ArXiv',
   longDescription:
-    'Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.',
+    'Search arXiv papers, retrieve paper metadata, or list an author’s papers. No API key or OAuth connection is required.',
   docsLink: 'https://docs.sim.ai/integrations/arxiv',
   category: 'tools',
   integrationType: IntegrationType.Search,

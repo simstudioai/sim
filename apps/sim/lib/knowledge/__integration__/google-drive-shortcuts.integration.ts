@@ -13,6 +13,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
@@ -40,7 +41,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -53,7 +54,7 @@ import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import * as memberAccess from '@/lib/knowledge/connectors/member-access'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 
 const json = (body: unknown) => Response.json(body)
 const denied = () => Response.json({ error: { errors: [{ reason: 'notFound' }] } }, { status: 404 })
@@ -216,7 +217,7 @@ describe('Drive shortcuts through indexing and search', () => {
     vi.stubGlobal('fetch', providerFetch)
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await rm(fixture.storageRoot, { recursive: true, force: true })

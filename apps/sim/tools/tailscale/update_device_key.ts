@@ -1,5 +1,10 @@
+import type {
+  TailscaleUpdateDeviceKeyParams,
+  TailscaleUpdateDeviceKeyResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { TailscaleUpdateDeviceKeyParams, TailscaleUpdateDeviceKeyResponse } from './types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleUpdateDeviceKeyTool: ToolConfig<
   TailscaleUpdateDeviceKeyParams,
@@ -7,72 +12,62 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
 > = {
   id: 'tailscale_update_device_key',
   name: 'Tailscale Update Device Key',
-  description: 'Enable or disable key expiry on a device',
+  description: 'Enable or disable device key expiry',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
-    },
-    tailnet: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     deviceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Device ID',
+      description: 'Device nodeId (preferred) or legacy device ID',
     },
     keyExpiryDisabled: {
       type: 'boolean',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Whether to disable key expiry (true) or enable it (false)',
+      description: 'Whether to disable device key expiry',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/key`,
+      `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}/key`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      keyExpiryDisabled: params.keyExpiryDisabled,
-    }),
+    body: (params) => ({ keyExpiryDisabled: params.keyExpiryDisabled }),
   },
-
-  transformResponse: async (response: Response, params?: TailscaleUpdateDeviceKeyParams) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { success: false, deviceId: '', keyExpiryDisabled: false },
-        error: (data as Record<string, string>).message ?? 'Failed to update device key',
-      }
-    }
-
+  transformResponse: async (response, params) => {
+    await assertTailscaleResponse(response)
     return {
       success: true,
       output: {
         success: true,
         deviceId: params?.deviceId ?? '',
-        keyExpiryDisabled: params?.keyExpiryDisabled ?? true,
+        keyExpiryDisabled: params?.keyExpiryDisabled ?? false,
       },
     }
   },
-
   outputs: {
-    success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    deviceId: { type: 'string', description: 'Device ID' },
-    keyExpiryDisabled: { type: 'boolean', description: 'Whether key expiry is now disabled' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation succeeded',
+    },
+    deviceId: {
+      type: 'string',
+      description: 'ID of the affected device',
+    },
+    keyExpiryDisabled: {
+      type: 'boolean',
+      description: 'Requested device key expiry setting',
+    },
   },
 }

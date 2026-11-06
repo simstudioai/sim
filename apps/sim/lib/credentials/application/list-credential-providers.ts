@@ -7,7 +7,7 @@ import {
   listCredentialProviderCatalog,
 } from '@/lib/credentials/application/provider-catalog'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ListCredentialProvidersInput {
   workspaceId: string

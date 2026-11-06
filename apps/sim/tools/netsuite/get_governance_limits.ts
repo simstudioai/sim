@@ -1,5 +1,5 @@
 import type { NetSuiteResponse, NetSuiteSystemParams } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -12,6 +12,7 @@ export const netsuiteGetGovernanceLimitsTool: InternalToolConfig<
   description:
     'Retrieve REST web-services concurrency limits for the NetSuite account and integration; NetSuite requires an Administrator role.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
   },

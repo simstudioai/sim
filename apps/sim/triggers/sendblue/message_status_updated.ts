@@ -1,10 +1,10 @@
 import { SendblueIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildSendblueOutputs,
   sendblueSetupInstructions,
   sendblueTriggerOptions,
 } from '@/triggers/sendblue/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const sendblueMessageStatusUpdatedTrigger: TriggerConfig = {

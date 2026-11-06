@@ -11,7 +11,6 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from '@xyflow/react'
-import { useParams } from 'next/navigation'
 import '@xyflow/react/dist/style.css'
 
 import { cn } from '@sim/emcn'
@@ -34,9 +33,11 @@ import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
 import { PreviewEdge } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-edge'
+import { PreviewScope } from '@/app/workspace/[workspaceId]/w/components/preview/preview-scope'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 
 const logger = createLogger('PreviewWorkflow')
 
@@ -173,9 +174,16 @@ function FitViewOnChange({ nodeIds, fitPadding, containerRef }: FitViewOnChangeP
 }
 
 /** Readonly workflow visualization with execution status highlighting. */
-export function PreviewWorkflow({
+export function PreviewWorkflow({ workspaceId, ...props }: PreviewWorkflowProps) {
+  return (
+    <PreviewScope workspaceId={workspaceId}>
+      <PreviewWorkflowContent {...props} />
+    </PreviewScope>
+  )
+}
+
+function PreviewWorkflowContent({
   workflowState,
-  workspaceId: propWorkspaceId,
   className,
   height = '100%',
   width = '100%',
@@ -194,9 +202,8 @@ export function PreviewWorkflow({
   edgeDiffStatus,
   changedFieldsByBlock,
   removedPortsByBlock,
-}: PreviewWorkflowProps) {
-  const params = useParams<{ workspaceId: string }>()
-  const workspaceId = propWorkspaceId ?? params.workspaceId
+}: Omit<PreviewWorkflowProps, 'workspaceId'>) {
+  const { workspaceId } = useWorkflowScope()
   const {
     data: workflowMap = {},
     isSuccess: isWorkflowMapLoaded,

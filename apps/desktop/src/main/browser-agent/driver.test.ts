@@ -804,7 +804,7 @@ describe('executeTool', () => {
     const popup = session.activeTab()?.view.webContents
     if (!popup) throw new Error('Expected user popup tab')
     expect(session.automationTab()?.view.webContents).toBe(source)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://user-popup.example/')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://user-popup.example/', expect.anything())
   })
 
   it('keeps agent-opened target-blank tabs agent-owned after dispatch ends', async () => {
@@ -823,7 +823,7 @@ describe('executeTool', () => {
     expect(session.activeTab()?.view.webContents).toBe(source)
     session.setAutomationActive(false)
     expect(session.automationTab()?.view.webContents).toBe(popup)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/', expect.anything())
   })
 
   it('does not report a timed-out restored tab as ready to the model', async () => {
@@ -1145,6 +1145,31 @@ describe('executeTool', () => {
       await expect(
         driver.executeTool('chat-test', 'browser_list_tabs', {}, 'scope-recovered')
       ).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports a browser action as running from queueing until it settles', async () => {
+    vi.useFakeTimers()
+    try {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      expect(driver.isBrowserToolRunning()).toBe(false)
+      const queued = driver.captureBrowserToolQueueBoundary('chat-test')
+      expect(driver.isBrowserToolRunning()).toBe(true)
+      if (queued) driver.releaseBrowserToolQueueBoundary(queued)
+      expect(driver.isBrowserToolRunning()).toBe(false)
+      const contents = session.requireTab().view.webContents
+      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+      vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
+
+      const held = driver.executeTool('chat-test', 'browser_snapshot', {}, 'held-running')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(driver.isBrowserToolRunning()).toBe(true)
+
+      driver.cancelTool('chat-test', 'held-running')
+      await held
+      expect(driver.isBrowserToolRunning()).toBe(false)
     } finally {
       vi.useRealTimers()
     }
@@ -2342,6 +2367,50 @@ describe('credential protection', () => {
         effectObserved: true,
       },
     })
+  })
+
+  it('reports a click whose tab closed during its release as unconfirmed, not failed', async () => {
+    const contents = await openPage()
+    let destroyed = false
+    vi.mocked(contents.isDestroyed).mockImplementation(() => destroyed)
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) {
+        return Promise.resolve({ found: true, element: 'Close', cursor: 'pointer' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: 'https://example.com/popup',
+          title: 'Popup',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        destroyed = true
+        throw new Error('Target closed')
+      }
+      return {}
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 100, y: 200 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        closedDuringDispatch: true,
+        doNotRetry: true,
+        possibleEffectObserved: true,
+      },
+    })
+    expect(toRecord(result.result)).not.toHaveProperty('effectObserved')
   })
 
   it('reports navigation obstructed by a dialog that opened with it', async () => {

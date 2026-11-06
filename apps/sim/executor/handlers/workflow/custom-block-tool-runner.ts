@@ -3,10 +3,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
-import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
-import type { ExecutionContext, ExecutorDelegationOrigin } from '@/executor/types'
+import { WorkflowBlockHandler } from '@/executor/handlers/workflow/handler'
+import type {
+  ExecutionContext,
+  ExecutorDelegationOrigin,
+  UnrecordedModelCost,
+} from '@/executor/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -76,6 +80,8 @@ export function buildCustomBlockExecutionContext(
     principal?: WorkflowExecutionPrincipal
     /** The invoking run's in-flight block-output redaction policy. */
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
+    /** The invoking run's unrecorded model spend, which a child billed on its log adds to. */
+    unrecordedModelCost?: UnrecordedModelCost
   }
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
@@ -98,6 +104,7 @@ export function buildCustomBlockExecutionContext(
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
     environmentVariables: options.environmentVariables,
     piiBlockOutputRedaction: options.piiBlockOutputRedaction,
+    unrecordedModelCost: options.unrecordedModelCost,
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],

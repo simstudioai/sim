@@ -1,39 +1,31 @@
 ---
 title: SSH
 description: Connect to remote servers via SSH
+integration:
+  type: "ssh_v2"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ssh_v2"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-The SSH block connects to remote servers using the Secure Shell protocol, supporting both password and private key (OpenSSH format) authentication. It provides direct command execution and file system access on any server reachable over SSH.
+Use SSH to execute remote commands or scripts, transfer files, and manage files and directories. Connect to a reachable server with a password or an OpenSSH-format private key.
 
-With SSH, you can:
-
-- **Run commands and scripts**: Execute shell commands or upload and run multi-line scripts with a configurable interpreter
-- **Manage the file system**: Upload, download, read, write, move, rename, and delete files and directories
-- **Inspect the remote environment**: Check whether a command or path exists, list directory contents, and retrieve system information such as OS, architecture, uptime, and disk/memory usage
-
-In Sim, the SSH block allows your agents to operate remote servers as part of a workflow—running commands and scripts, transferring and manipulating files, and gathering system diagnostics—all through authenticated SSH connections. This makes it possible to automate server administration, deployment steps, and remote data processing directly from an agent's workflow.
+The actions also check whether commands or paths exist, list directory contents, and retrieve OS, architecture, uptime, disk, and memory information. Provide the remote path, command, or script inputs required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.
-
-
 
 ## Actions
 
 ### SSH Execute Command
 
 Execute a shell command on a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +50,13 @@ Execute a shell command on a remote SSH server
 | `success` | boolean | Whether command succeeded \(exit code 0\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Execute Script
 
 Upload and execute a multi-line script on a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -87,9 +83,13 @@ Upload and execute a multi-line script on a remote SSH server
 | `scriptPath` | string | Temporary path where script was uploaded |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Check Command Exists
 
 Check if a command/program exists on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -112,9 +112,13 @@ Check if a command/program exists on the remote SSH server
 | `version` | string | Command version output \(if applicable\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Upload File
 
 Upload a file to a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +145,13 @@ Upload a file to a remote SSH server
 | `size` | number | File size in bytes |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Download File
 
 Download a file from a remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +172,13 @@ Download a file from a remote SSH server
 | `file` | file | Downloaded file stored in execution files |
 | `remotePath` | string | Source path on the remote server |
 
+</ReferenceDetails>
+
 ### SSH List Directory
 
 List files and directories in a remote directory
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +208,13 @@ List files and directories in a remote directory
 | `totalDirectories` | number | Total number of directories |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Check File Exists
 
 Check if a file or directory exists on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +240,13 @@ Check if a file or directory exists on the remote SSH server
 | `modified` | string | Last modified timestamp |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Create Directory
 
 Create a directory on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +271,13 @@ Create a directory on the remote SSH server
 | `alreadyExists` | boolean | Whether the directory already existed |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Delete File
 
 Delete a file or directory from the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +301,13 @@ Delete a file or directory from the remote SSH server
 | `remotePath` | string | Deleted path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Move/Rename
 
 Move or rename a file or directory on the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -304,9 +332,13 @@ Move or rename a file or directory on the remote SSH server
 | `destinationPath` | string | New path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Get System Info
 
 Retrieve system information from the remote SSH server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +363,13 @@ Retrieve system information from the remote SSH server
 | `diskSpace` | json | Disk space information \(total, free, used\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Read File Content
 
 Read the contents of a remote file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,9 +395,13 @@ Read the contents of a remote file
 | `remotePath` | string | Remote file path |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SSH Write File Content
 
 Write or append content to a remote file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,5 +426,7 @@ Write or append content to a remote file
 | `remotePath` | string | File path |
 | `size` | number | Final file size in bytes |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 

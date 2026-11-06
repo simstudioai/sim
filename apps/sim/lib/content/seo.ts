@@ -19,14 +19,46 @@ export interface ContentSection {
   description: string
   /** Visible article text available for spoken summaries; defaults to headline and description. */
   speakableSelectors?: readonly string[]
+  /** RSS feed path advertised by the index and post pages' `<link rel="alternate">`, e.g. "/blog/rss.xml". */
+  feedPath?: string
+  /** Whether `<basePath>/authors/<id>` profile pages exist, so post authors can link to them. */
+  hasAuthorPages?: boolean
 }
 
-export function buildPostMetadata(post: ContentMeta): Metadata {
+/** The `speakable` selectors for the `data-speakable` hooks on the post header. */
+const POST_SPEAKABLE_SELECTORS = ['[data-speakable="headline"]', '[data-speakable="description"]']
+
+function authorPageUrl(section: ContentSection, id: string): string {
+  return `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
+}
+
+/**
+ * The `@id` every `Person` node for an author shares, so a post's author and the author's
+ * profile page resolve to one entity.
+ */
+function authorEntityId(section: ContentSection, id: string): string {
+  return `${authorPageUrl(section, id)}#person`
+}
+
+function buildAuthorJsonLd(author: Author, section: ContentSection) {
+  return {
+    '@type': 'Person',
+    ...(section.hasAuthorPages
+      ? { '@id': authorEntityId(section, author.id), url: authorPageUrl(section, author.id) }
+      : { url: author.url }),
+    name: author.name,
+    ...(author.url ? { sameAs: [author.url] } : {}),
+  }
+}
+
+export function buildPostMetadata(post: ContentMeta, section: ContentSection): Metadata {
   const base = new URL(post.canonical)
   const baseUrl = `${base.protocol}//${base.host}`
+  const searchTitle = post.seoTitle ?? post.title
+  const searchDescription = post.seoDescription ?? post.description
   return {
-    title: post.title,
-    description: post.description,
+    title: searchTitle,
+    description: searchDescription,
     keywords: post.tags,
     authors: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       name: a.name,
@@ -37,10 +69,15 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
     robots: post.draft
       ? { index: false, follow: false, googleBot: { index: false, follow: false } }
       : { index: true, follow: true, googleBot: { index: true, follow: true } },
-    alternates: { canonical: post.canonical },
+    alternates: {
+      canonical: post.canonical,
+      types: {
+        ...(section.feedPath ? { 'application/rss+xml': `${SITE_URL}${section.feedPath}` } : {}),
+      },
+    },
     openGraph: {
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       url: post.canonical,
       siteName: 'Sim',
       locale: 'en_US',
@@ -62,8 +99,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
     },
     twitter: {
       card: 'summary_large_image',
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       images: [post.ogImage],
       creator: post.author.url?.includes('x.com') ? `@${post.author.xHandle || ''}` : undefined,
       site: '@simdotai',
@@ -86,12 +123,10 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
  * posts that are genuinely technical/developer content (`post.technical`) —
  * general announcements (funding, company news) get `BlogPosting` alone.
  */
-export function buildArticleJsonLd(
-  post: ContentMeta,
-  speakableSelectors: readonly string[] = ['[itemprop="headline"]', '[itemprop="description"]']
-) {
+export function buildArticleJsonLd(post: ContentMeta, section: ContentSection) {
   return {
     '@type': post.technical ? ['BlogPosting', 'TechArticle'] : 'BlogPosting',
+    '@id': `${post.canonical}#article`,
     url: post.canonical,
     headline: post.title,
     description: post.description,
@@ -108,14 +143,12 @@ export function buildArticleJsonLd(
     dateModified: post.updated ?? post.date,
     wordCount: post.wordCount,
     ...(post.technical ? { proficiencyLevel: 'Beginner' } : {}),
-    author: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
-      '@type': 'Person',
-      name: a.name,
-      url: a.url,
-      ...(a.url ? { sameAs: [a.url] } : {}),
-    })),
+    author: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) =>
+      buildAuthorJsonLd(a, section)
+    ),
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {
@@ -127,6 +160,7 @@ export function buildArticleJsonLd(
       '@type': 'WebPage',
       '@id': post.canonical,
     },
+    isPartOf: { '@id': `${SITE_URL}#website` },
     keywords: post.tags.join(', '),
     about: (post.about || []).map((a) => ({ '@type': 'Thing', name: a })),
     isAccessibleForFree: true,
@@ -135,7 +169,7 @@ export function buildArticleJsonLd(
     inLanguage: 'en-US',
     speakable: {
       '@type': 'SpeakableSpecification',
-      cssSelector: speakableSelectors,
+      cssSelector: section.speakableSelectors ?? POST_SPEAKABLE_SELECTORS,
     },
   }
 }
@@ -170,7 +204,7 @@ export function buildFaqJsonLd(items: { q: string; a: string }[] | undefined) {
 
 export function buildPostGraphJsonLd(post: ContentMeta, section: ContentSection) {
   const graph: Record<string, unknown>[] = [
-    buildArticleJsonLd(post, section.speakableSelectors),
+    buildArticleJsonLd(post, section),
     buildBreadcrumbJsonLd(post, section),
   ]
 
@@ -209,7 +243,12 @@ export function buildIndexMetadata(
     {
       title,
       description,
-      alternates: { canonical },
+      alternates: {
+        canonical,
+        ...(section.feedPath
+          ? { types: { 'application/rss+xml': `${SITE_URL}${section.feedPath}` } }
+          : {}),
+      },
       openGraph: {
         title: `${title} | Sim`,
         description,
@@ -292,10 +331,10 @@ export function buildAuthorMetadata(
   author?: Author
 ): Metadata {
   const name = author?.name ?? 'Author'
-  const canonical = `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
+  const canonical = authorPageUrl(section, id)
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
-    title: `${name} | Sim ${section.name}`,
+    title: `${name} | ${section.name}`,
     description,
     alternates: { canonical },
     openGraph: {
@@ -322,8 +361,9 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
     '@graph': [
       {
         '@type': 'Person',
+        '@id': authorEntityId(section, author.id),
         name: author.name,
-        url: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
+        url: authorPageUrl(section, author.id),
         sameAs: author.url ? [author.url] : [],
         image: author.avatarUrl?.startsWith('http')
           ? author.avatarUrl
@@ -348,7 +388,7 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
             '@type': 'ListItem',
             position: 3,
             name: author.name,
-            item: `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(author.id)}`,
+            item: authorPageUrl(section, author.id),
           },
         ],
       },
@@ -389,6 +429,7 @@ export function buildCollectionPageJsonLd(
     description: section.description,
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {

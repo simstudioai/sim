@@ -1,42 +1,31 @@
 ---
 title: Okta
 description: Manage users, groups, apps, and MFA in Okta
+integration:
+  type: "okta"
+  color: "#191919"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="okta"
-  color="#191919"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Okta](https://www.okta.com/) is an identity and access management platform that provides secure authentication, authorization, and user management for organizations.
+Use [Okta](https://www.okta.com/) to search and manage users, update profiles, reset passwords or MFA factors, clear sessions, and manage groups and group rules. The actions also inspect or change application assignments and admin roles and query the System Log.
 
-With the Okta integration in Sim, you can:
-
-- **List and search users**: Retrieve users from your Okta org with SCIM search expressions and filters
-- **Manage user lifecycle**: Create, activate, deactivate, suspend, unsuspend, and delete users
-- **Update user profiles**: Modify user attributes like name, email, phone, title, and department
-- **Reset passwords**: Trigger password reset flows with optional email notification
-- **Manage groups**: Create, update, delete, and list groups in your organization
-- **Manage group membership**: Add or remove users from groups, and list group members
-
-In Sim, the Okta integration enables your agents to automate identity management tasks as part of their workflows. This allows for scenarios such as onboarding new employees, offboarding departing users, managing group-based access, auditing user status, and responding to security events by suspending or deactivating accounts.
+Choose an account and API token with the permissions required for the selected action. User lifecycle and access changes affect real accounts; confirm the target user or group before executing them.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.
-
-
+Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.
 
 ## Actions
 
 ### List Users from Okta
 
 List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -73,9 +62,13 @@ List users in your Okta organization with optional search and filtering. Users w
 | `hasMore` | boolean | Whether more users are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get User from Okta
 
 Get a specific user by ID or login from your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +107,13 @@ Get a specific user by ID or login from your Okta organization
 | `passwordChanged` | string | Password change timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create User in Okta
 
 Create a new user in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -148,9 +145,13 @@ Create a new user in your Okta organization
 | `lastUpdated` | string | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update User in Okta
 
 Update a user profile in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +182,13 @@ Update a user profile in your Okta organization
 | `lastUpdated` | string | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Activate User in Okta
 
 Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,9 +209,13 @@ Activate a user in your Okta organization. Can only be performed on users with S
 | `activationToken` | string | Activation token \(only returned when sendEmail is false\) |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Deactivate User in Okta
 
 Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -225,9 +234,13 @@ Deactivate a user in your Okta organization. This transitions the user to DEPROV
 | `deactivated` | boolean | Whether the user was deactivated |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Suspend User in Okta
 
 Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +258,13 @@ Suspend a user in your Okta organization. Only users with ACTIVE status can be s
 | `suspended` | boolean | Whether the user was suspended |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Unsuspend User in Okta
 
 Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +282,13 @@ Unsuspend a previously suspended user in your Okta organization. Returns the use
 | `unsuspended` | boolean | Whether the user was unsuspended |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Reset Password in Okta
 
 Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +307,13 @@ Generate a one-time token to reset a user password. Can email the reset link to 
 | `resetPasswordUrl` | string | Password reset URL \(only returned when sendEmail is false\) |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete User from Okta
 
 Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +332,13 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 | `deleted` | boolean | Whether the delete request was accepted. An ACTIVE user is deactivated by the first call and needs a second call to actually be deleted. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Groups from Okta
 
 List all groups in your Okta organization with optional search and filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +368,13 @@ List all groups in your Okta organization with optional search and filtering
 | `hasMore` | boolean | Whether more groups are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Group from Okta
 
 Get a specific group by ID from your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -364,9 +397,13 @@ Get a specific group by ID from your Okta organization
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Group in Okta
 
 Create a new group in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -390,9 +427,13 @@ Create a new group in your Okta organization
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Group in Okta
 
 Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -417,9 +458,13 @@ Update a group profile in your Okta organization. Only groups of OKTA_GROUP type
 | `lastMembershipUpdated` | string | Last membership change timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Group from Okta
 
 Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -437,9 +482,13 @@ Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP ty
 | `deleted` | boolean | Whether the group was deleted |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Add User to Group in Okta
 
 Add a user to a group in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -459,9 +508,13 @@ Add a user to a group in your Okta organization
 | `added` | boolean | Whether the user was added |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Remove User from Group in Okta
 
 Remove a user from a group in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -481,9 +534,13 @@ Remove a user from a group in your Okta organization
 | `removed` | boolean | Whether the user was removed |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Group Members from Okta
 
 List all members of a specific group in your Okta organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -519,9 +576,13 @@ List all members of a specific group in your Okta organization
 | `hasMore` | boolean | Whether more members are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Group Rules from Okta
 
 List the group rules in your Okta organization. Each rule assigns users to groups automatically based on an expression over their profile, so this shows how group membership is being driven.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -554,9 +615,13 @@ List the group rules in your Okta organization. Each rule assigns users to group
 | `hasMore` | boolean | Whether more rules are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Group Rule from Okta
 
 Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -583,9 +648,13 @@ Retrieve a single Okta group rule by ID, including the expression that decides w
 | `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Group Rule in Okta
 
 Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -615,9 +684,13 @@ Create a group rule that automatically assigns users matching an Okta expression
 | `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Activate Group Rule in Okta
 
 Activate a group rule so Okta starts applying it, assigning every matching user to the target groups.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -635,9 +708,13 @@ Activate a group rule so Okta starts applying it, assigning every matching user 
 | `activated` | boolean | Whether the rule was activated |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Deactivate Group Rule in Okta
 
 Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -655,9 +732,13 @@ Deactivate a group rule so Okta stops applying it. Existing memberships the rule
 | `deactivated` | boolean | Whether the rule was deactivated |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Group Rule in Okta
 
 Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -676,9 +757,13 @@ Permanently delete a group rule. Destructive and irreversible. Optionally also r
 | `deleted` | boolean | Whether the deletion was accepted. Okta answers 202 and removes the rule asynchronously. |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Factors from Okta
 
 List the MFA factors a user has enrolled, with each factor type, provider, and enrollment status. Use this before resetting a factor to confirm which one to target.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -704,9 +789,13 @@ List the MFA factors a user has enrolled, with each factor type, provider, and e
 | `count` | number | Number of enrolled factors |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Factor from Okta
 
 Retrieve a single enrolled MFA factor for a user, including its type, provider, enrollment status, and factor-specific profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -731,9 +820,13 @@ Retrieve a single enrolled MFA factor for a user, including its type, provider, 
 | `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Enroll Factor in Okta
 
 Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -765,9 +858,13 @@ Enroll an MFA factor for a user. The profile fields required depend on the facto
 | `enrolled` | boolean | Whether the factor was enrolled |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Reset Factor in Okta
 
 Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -788,9 +885,13 @@ Unenroll one specific MFA factor for a user so they can re-enroll it. Destructiv
 | `reset` | boolean | Whether the factor was unenrolled |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Reset All Factors in Okta
 
 Reset every MFA factor for a user, returning all enrollments to the unenrolled state. Destructive and irreversible: the user must re-enroll each factor before they can complete MFA again. The user status stays ACTIVE.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -808,9 +909,13 @@ Reset every MFA factor for a user, returning all enrollments to the unenrolled s
 | `reset` | boolean | Whether all factors were reset |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Clear User Sessions in Okta
 
 Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -830,9 +935,13 @@ Revoke every active Okta session for a user, signing them out of all devices imm
 | `cleared` | boolean | Whether the sessions were revoked |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Session from Okta
 
 Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -859,9 +968,13 @@ Retrieve an Okta session by ID, including who it belongs to, when it expires, an
 | `idpType` | string | Identity provider type |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Revoke Session in Okta
 
 Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -879,9 +992,13 @@ Revoke a single Okta session by ID, ending that sign-in immediately. Destructive
 | `revoked` | boolean | Whether the session was revoked |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Applications from Okta
 
 List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -913,9 +1030,13 @@ List the applications configured in your Okta organization, with optional name s
 | `hasMore` | boolean | Whether more applications are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Application from Okta
 
 Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -952,9 +1073,13 @@ Retrieve a single Okta application by ID, including its sign-on mode, status, en
 | `profile` | json | Application profile attributes. Okta accepts any valid JSON schema here, so the shape is whatever the org configured |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Application Users from Okta
 
 List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -989,9 +1114,13 @@ List the users assigned to an Okta application, including how each assignment wa
 | `hasMore` | boolean | Whether more assignments are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Assign User to Application in Okta
 
 Assign a user to an Okta application, granting them access to it. Applications that require credentials also need the username the user signs in with.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1023,9 +1152,13 @@ Assign a user to an Okta application, granting them access to it. Applications t
 | `assigned` | boolean | Whether the user was assigned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Remove User from Application in Okta
 
 Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1046,9 +1179,13 @@ Unassign a user from an Okta application, revoking their access. Destructive and
 | `removed` | boolean | Whether the user was unassigned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Application Groups from Okta
 
 List the groups assigned to an Okta application. Every member of an assigned group inherits access to the app, so this is the starting point for an app access review.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1075,9 +1212,13 @@ List the groups assigned to an Okta application. Every member of an assigned gro
 | `hasMore` | boolean | Whether more assignments are available |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Assign Group to Application in Okta
 
 Assign a group to an Okta application so every member of the group inherits access to it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1100,9 +1241,13 @@ Assign a group to an Okta application so every member of the group inherits acce
 | `assigned` | boolean | Whether the group was assigned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Remove Group from Application in Okta
 
 Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1122,9 +1267,13 @@ Unassign a group from an Okta application. Destructive: every member who had acc
 | `removed` | boolean | Whether the group was unassigned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List User Roles from Okta
 
 List the administrator roles assigned to a user. Returns both standard roles and custom role bindings, so you can review who holds privileged access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1151,9 +1300,13 @@ List the administrator roles assigned to a user. Returns both standard roles and
 | `count` | number | Number of role assignments returned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Assign User Role in Okta
 
 Grant a user an administrator role. Use a standard role type such as USER_ADMIN or HELP_DESK_ADMIN, or CUSTOM together with a custom role ID and a resource set ID. This grants privileged access, so confirm the role is the least privilege that fits.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1183,9 +1336,13 @@ Grant a user an administrator role. Use a standard role type such as USER_ADMIN 
 | `assigned` | boolean | Whether the role was assigned |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Remove User Role in Okta
 
 Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1205,9 +1362,13 @@ Revoke an administrator role from a user. Destructive: the user immediately lose
 | `removed` | boolean | Whether the role was revoked |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get System Log Events from Okta
 
 Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1266,5 +1427,7 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 | `nextCursor` | string | Cursor to resume from, or null when Okta advertised no next link. On a polling query it stays set on an empty page so the next scheduled run resumes from here rather than replaying from the start |
 | `hasMore` | boolean | Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty |
 | `success` | boolean | Operation success status |
+
+</ReferenceDetails>
 
 

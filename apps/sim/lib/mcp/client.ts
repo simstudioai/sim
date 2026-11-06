@@ -11,12 +11,14 @@ import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { captureOutboundScopeFallback } from '@/lib/core/network/context.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   createCoordinatedMcpOauthFetch,
   createMcpEndpointFetch,
 } from '@/lib/mcp/oauth/coordinated-fetch'
+import { readMcpToolOutputSchema } from '@/lib/mcp/output-schema'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
@@ -142,10 +144,16 @@ export class McpClient {
             fetch: oauthFetch,
           })
         : (oauthFetch ?? guarded.fetch)
+    // The SDK sends some requests (e.g. `notifications/cancelled` from an abort listener)
+    // from whatever context fired the callback, which may carry no outbound scope.
+    const runInOutboundScope = captureOutboundScopeFallback()
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
-      fetch: transportFetch,
+      fetch: (input, init) => runInOutboundScope(() => transportFetch(input, init)),
+      // The SDK's default ('same-origin') refuses cross-origin redirects; the guarded
+      // fetch already follows them with per-hop SSRF checks and cross-origin header stripping.
+      redirectPolicy: 'follow',
     })
 
     this.client = new Client(
@@ -232,12 +240,11 @@ export class McpClient {
         logger.info(`[${this.config.name}] Registered tools/list_changed notification handler`)
       }
 
-      const serverVersion = this.client.getServerVersion()
       logger.info(`Successfully connected to MCP server: ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
         outcome: 'connected' satisfies ConnectionOutcome,
-        protocolVersion: serverVersion,
+        protocolVersion: this.getNegotiatedVersion(),
       })
     } catch (error) {
       this.isConnected = false
@@ -245,7 +252,7 @@ export class McpClient {
       await this.closeTransportAgent()
       const errorMessage = getErrorMessage(error, 'Unknown error')
       const outcome = classifyConnectionOutcome(error, this.config.authType)
-      logger.error(`Failed to connect to MCP server ${this.config.name}`, {
+      logger.warn(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
         error: getMcpSafeErrorDiagnostics(error),
@@ -378,10 +385,12 @@ export class McpClient {
             truncated = 'byte size'
             break
           }
+          const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
           tools.push({
             name: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema as McpTool['inputSchema'],
+            ...(outputSchema ? { outputSchema } : {}),
             serverId: this.config.id,
             serverName: this.config.name,
           })
@@ -507,7 +516,7 @@ export class McpClient {
       logger.info(`[${this.config.name}] Ping successful`)
       return response
     } catch (error) {
-      logger.error(`[${this.config.name}] Ping failed:`, error)
+      logger.warn(`[${this.config.name}] Ping failed:`, error)
       throw error
     }
   }
@@ -536,9 +545,9 @@ export class McpClient {
     }
   }
 
+  /** The protocol version agreed during initialize, which the transport records. */
   getNegotiatedVersion(): string | undefined {
-    const serverVersion = this.client.getServerVersion()
-    return typeof serverVersion === 'string' ? serverVersion : undefined
+    return this.transport.protocolVersion
   }
 
   getSessionId(): string | undefined {

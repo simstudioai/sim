@@ -1,129 +1,118 @@
 ---
-title: Automation & configuration
-description: Schedule recurring jobs, take immediate actions, connect integrations, and configure your workspace.
+title: Actions and configuration
+description: Call connected services, schedule workflows, and manage credentials, secrets, and tools from Chat.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
+Ask Sim to take an action through a connected service or configure the resources a workflow needs. Immediate service calls, recurring workflows, and one-time follow-ups have different execution paths.
 
-<Video src="mothership/job-create.mp4" width={700} height={450} />
+## Take an immediate action [#taking-direct-action]
 
-Sim can act on your behalf right now — send a message, create an issue, call an API — or on a schedule, running a prompt automatically every hour, day, or week. It can also connect integrations, set environment variables, add MCP servers, and create custom tools.
+For a one-off request, name the service, target, account, and contents. Sim can call the service without building a workflow:
 
-## Scheduled Jobs
+| Request | Action |
+| --- | --- |
+| "Send a Slack message to #eng saying the deploy finished." | Post through the selected Slack connection |
+| "Email q3-report.pdf to jane@example.com." | Send through an available Gmail or Outlook connection |
+| "Create a GitHub issue in [repo]: auth tokens do not rotate on logout." | Create the issue in that repository |
+| "Add Acme Corp and ceo@acme.com to HubSpot." | Create the CRM record |
+| "Call the webhook at [URL] with this JSON: [payload]." | Make the HTTP request |
 
-A scheduled job is a saved Chat prompt that runs on a cron schedule. On each run, Sim reads the current workspace state and executes the job's prompt as if you had just sent it.
+Actions use credentials available to the acting member and remain subject to workspace access and organization policy. If the required account is not connected, complete the connection flow before the action can run.
 
-### Creating a Job
+Review any tool approval card. Choose **Allow** to run the action or **Skip** to decline it. Reuse choices under **Don't ask again** depend on policy. Check the returned result before assuming the external service changed.
 
-Describe the recurring task and how often it should run:
+An action can finish while Chat withholds its returned result. Check the connected service or affected resource before repeating an action whose result could not be shown.
 
-- "Every morning at 8am, check the leads table for new entries and post a summary to #sales in Slack"
-- "Every Monday at 9am, pull last week's workflow run counts and write a report to the workspace"
-- "Run the data sync workflow every 6 hours"
-- "On the first of every month, export the billing table to CSV and email it to finance@example.com"
-- "Every weekday at 7am, check for new funding announcements from companies in our ICP and post the top 5 to #market-intel in Slack"
-- "Every Sunday night, run the lead enrichment workflow on all prospects added in the past week and update their scores in the table"
-- "Daily at 6am, pull the previous day's workflow errors, summarize the top issues, and post to #eng-alerts"
+Undo behavior depends on the service. Some records can be edited or deleted afterward; deleting a Chat conversation does not undo a sent email or other external action.
 
-Sim sets the cron expression and stores the job prompt. The first run happens at the next scheduled time.
+## Set up recurring work [#scheduled-jobs]
 
-### Viewing Job Logs
+Recurring execution uses a workflow with a Schedule trigger. Describe the work, cadence, and timezone, then ask Sim to build or update the workflow and deploy it:
 
-- "Show me the last 5 runs of the weekly report job"
-- "Did the sync job run successfully this morning?"
-- "What did the Monday digest job do last week?"
+- "Every morning at 8am America/New_York, summarize new leads and post to #sales in Slack. Build and deploy the workflow."
+- "Every Monday at 9am Europe/London, save a report of last week's workflow run counts."
+- "Add an every-six-hours schedule to the data sync workflow and deploy it."
+- "On the first of each month at 9am America/Los_Angeles, export the billing table to CSV and email it to finance@example.com."
 
-Logs show run time, status (completed, failed), and a summary of what the agent did.
+A Schedule trigger stores the timing configuration, including its cron expression and timezone. The deployed workflow defines what each run does; it can include Agent blocks for reasoning.
 
-### Managing Jobs
+Test the workflow with representative inputs and review its external effects before deployment. Confirm that the intended version is active and its schedule is ready. Scheduled runs use the active deployed version; changing the draft does not change recurring execution until redeployment.
 
-- "Pause the morning summary job"
-- "Change the sync job to run every 3 hours instead of 6"
-- "Delete the onboarding digest job"
-- "What scheduled jobs are currently active?"
+### Inspect scheduled runs [#viewing-job-logs]
 
-## Taking Direct Action
+Ask Sim to read the workflow's logs:
 
-For requests that should happen right now — without building a workflow — just ask. Sim acts immediately using the credentials connected to your workspace.
+- "Show the last five scheduled runs of the weekly report workflow."
+- "Did the sync workflow's scheduled run succeed this morning?"
+- "What did the Monday digest workflow produce last week?"
 
-{/* TODO: Screenshot of Chat showing the "Taking action" subagent label active during a direct action — e.g., posting to Slack or sending an email. Shows the subagent inline in the chat thread. */}
+Logs identify the execution time, status, block outputs, and errors. If nothing ran, ask Sim to check the deployment and Schedule trigger as well as the logs.
 
-| Request | What happens |
-|---------|-------------|
-| "Send a Slack message to #eng that the deploy finished" | Posts to Slack immediately |
-| "Email the Q3 report to jane@example.com" | Sends via connected Gmail or Outlook |
-| "Create a GitHub issue: auth tokens not rotating on logout" | Opens an issue in the specified repo |
-| "Add a contact to HubSpot: Acme Corp, ceo@acme.com" | Creates the contact via HubSpot API |
-| "Call the webhook at [URL] with this JSON payload" | Makes the HTTP request |
+### Change or stop recurring work [#managing-jobs]
 
-If an integration isn't connected, Sim walks you through connecting it.
+Name the workflow and trigger you want to change:
 
-## Connecting Integrations
+- "Change the sync workflow from every six hours to every three hours, then deploy the change."
+- "Remove the morning summary workflow's Schedule trigger and deploy the change."
+- "List workflows with active Schedule triggers."
 
-Sim can connect new OAuth integrations and API credentials on demand:
+To stop all deployed entry points, ask to undeploy the workflow. That affects its other deployment surfaces too; removing one Schedule trigger is more specific. Stopping future scheduled starts does not cancel an execution already running. See [Schedule triggers](/workflows/triggers/schedule) for setup, disabled schedules, and self-hosted scheduler requirements.
 
-- "Connect my Google account"
-- "Add the Slack workspace for our team"
-- "Set up GitHub with my personal access token"
+## Follow up later
 
-{/* TODO: Screenshot of Sim walking through connecting an integration — e.g., the Integration subagent active with an OAuth prompt or confirmation that a credential was connected. */}
+Chat can watch a background workflow execution and continue when it finishes, or set a one-time timer for up to 24 hours:
 
-Once connected, Sim can use the account for authorized actions. Configure a workflow to use the intended available credential.
+- "Run the deployed invoice sync in the background and tell me when it finishes."
+- "Remind me in 45 minutes to check the import results."
 
-<Callout type="info">
-  Select the intended account when configuring each integration. Which credentials are available depends on their ownership, sharing settings, and workspace policy. See [credentials](/platform/credentials).
-</Callout>
+Ask about the recorded status or stop a pending follow-up in the same chat. Stopping a watch cancels its notification; it does not cancel the workflow execution. Request workflow cancellation separately when that is what you intend. Timers are one-time follow-ups, not recurring schedules.
 
-See [Credentials](/platform/credentials) for managing connected accounts.
+## Connect an integration [#connecting-integrations]
 
-## Environment Variables
+Ask Sim to start the connection flow for the service you need:
 
-Save API keys, connection strings, and configuration under **Secrets**, then reference them with `{{ENV_VAR}}`. Choose personal or workspace scope according to who should use the value. See [secrets](/workflows/variables#environment-variables).
+- "Connect my Google account for Gmail."
+- "Connect the Slack workspace for our team."
+- "Set up GitHub with my personal access token."
 
-- "Set the DATABASE_URL environment variable to 'postgres://...'"
-- "Add an OPENAI_API_KEY environment variable"
-- "Add a WEBHOOK_SECRET variable for the inbound webhook workflow"
-- "Update the SCORING_API_URL variable to point to the new endpoint"
-- "What environment variables are currently set?"
+Complete OAuth authorization or enter the credential in the provided secure control. A Google connection for one service does not automatically authorize every Google service.
 
-{/* TODO: Screenshot of Sim confirming an environment variable was set — e.g., a response message showing the variable name was saved. */}
+Select the intended account for each action or workflow block. Available credentials depend on ownership, sharing, and workspace policy. Ask "Which integrations are connected?" or inspect **Integrations** to identify existing connections.
 
-## MCP Servers
+## Manage secrets [#environment-variables]
 
-MCP (Model Context Protocol) servers expose tools from external services that Agent blocks can call inside workflows. Connecting an MCP server makes all of its tools available in the workflow editor's tool picker — no custom integration code required.
+Save API keys, connection strings, and configuration under **Secrets**. Choose personal or workspace scope according to the intended execution and access:
 
-Sim can add and manage MCP servers connected to your workspace:
+- "Add an OPENAI_API_KEY secret for this workspace."
+- "Set a personal DATABASE_URL connection string."
+- "List the configured environment variable names."
 
-- "Add the Stripe MCP server using my API key"
-- "Remove the old analytics MCP server"
-- "What MCP servers are connected to this workspace?"
-- "Update the endpoint for the internal tools MCP server to [URL]"
+Provide secret values through the secure input when requested. Workflows reference environment variables with `{{ENV_VAR}}`; resolution depends on scope, grants, and execution context. See [workflow variables and secrets](/workflows/variables#environment-variables) for those rules.
 
-Once added, MCP tools appear in the workflow editor's tool picker and can be called from any Agent block.
+## Add an MCP server [#mcp-servers]
 
-{/* TODO: Screenshot of Sim confirming an MCP server was added or updated — showing the server name and its status. */}
+An MCP (Model Context Protocol) server exposes tools from another service. Ask Sim to add or manage an external server:
 
-## Custom Tools
+- "Add the internal tools MCP server at [URL] using its API key."
+- "Update that server's endpoint to [URL]."
+- "List the MCP servers connected to this workspace."
+- "Remove the old analytics MCP server."
 
-[Custom tools](/agents/custom-tools) combine a JSON parameter schema with a JavaScript function body. Use one for an internal API call, calculation, or reusable transformation, then add it to an Agent block's tools.
+Available, permitted tools can be selected for Agent blocks in the workflow builder. To use a server's tools directly in Chat, attach the server to the conversation. Server connection, tool discovery, and policy must permit the operation.
 
-Sim can build custom tools from a description:
+## Create a custom tool [#custom-tools]
 
-- "Create a custom tool that calls our internal scoring API at [URL] with a POST request and returns the score field"
-- "Build a tool for our Zendesk instance that creates a ticket with a subject and body"
-- "Create a tool that hits our internal enrichment API with a domain and returns company size, industry, and funding stage"
-- "Add a tool that calls our CRM's REST API to look up a contact by email and return their account owner"
+A custom tool combines a JSON parameter schema with a JavaScript function body. Describe its inputs, service call or calculation, and returned value:
 
+- "Create a tool that POSTs to our scoring API at [URL] and returns the score field."
+- "Create an enrichment tool that takes a domain and returns company size, industry, and funding stage."
 
+Add the resulting tool to an Agent block's tools and configure the credentials it needs. Verify it with an input appropriate for its external effects.
 
-{/* TODO: Screenshot of Chat with the Custom Tool subagent active — showing it building a tool definition. */}
+## Related docs
 
-<FAQ items={[
-  { question: "What's the difference between a scheduled job and a deployed workflow?", answer: "A scheduled job runs a Chat prompt on a cron schedule — Sim decides what to do each time based on current workspace state. A deployed workflow runs a saved graph of blocks, which can include Agent reasoning. Use jobs when you want Sim to reason and adapt; use workflows when you want predictable, auditable execution." },
-  { question: "Can a scheduled job trigger a workflow?", answer: "Yes. Include it in the job prompt: 'Run the invoice sync workflow and then post the results to Slack.'" },
-  { question: "Can direct actions be undone?", answer: "It depends on the service and action. Some records can be edited or deleted afterward; sending an email cannot be undone by deleting the Chat task." },
-  { question: "How do I know what integrations are connected?", answer: "Ask Sim: 'What integrations are connected to this workspace?' or check the Integrations page." },
-  { question: "How do workflows reference environment variables?", answer: "Use {{ENV_VAR}} syntax. Resolution depends on the variable's scope and the execution context." },
-]} />
+- [Schedule triggers](/workflows/triggers/schedule)
+- [Workflows in Chat](/chat/workflows)
+- [Credentials](/platform/credentials)
+- [MCP servers for agents](/agents/mcp)
+- [Custom tools](/agents/custom-tools)

@@ -1,40 +1,31 @@
 ---
 title: Calendly
 description: Manage Calendly scheduling and events
+integration:
+  type: "calendly"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="calendly"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Calendly](https://calendly.com/) is a popular scheduling automation platform that helps you book meetings, events, and appointments with ease. With Calendly, teams and individuals can streamline scheduling, reduce back-and-forth emails, and automate tasks around events.
+Use [Calendly](https://calendly.com/) to read account information, event types, scheduled events, and invitees. The actions also book or cancel meetings, create single-use scheduling links, mark invitees as no-shows, and inspect availability and organization membership. Configure a personal access token for the selected operation. **Book Meeting** requires a paid Calendly plan; see [Calendly’s booking requirements](https://developer.calendly.com/api-docs/calendly-api/scheduled-events/create-event-invitee).
 
-With the Sim Calendly integration, your agents can:
-
-- **Retrieve information about your account and scheduled events**: Use tools to fetch user info, event types, and scheduled events for analysis or automation.
-- **Manage event types and scheduling**: Access and list available event types for users or organizations, retrieve details about specific event types, and monitor scheduled meetings and invitee data.
-- **Automate follow-ups and workflows**: When users schedule, reschedule, or cancel meetings, Sim agents can automatically trigger corresponding workflows—such as sending reminders, updating CRMs, or notifying participants.
-- **Integrate easily using webhooks**: Set up Sim workflows to respond to real-time Calendly webhook events, including when invitees schedule, cancel, or interact with routing forms.
-
-Whether you want to automate meeting prep, manage invites, or run custom workflows in response to scheduling activity, the Calendly tools in Sim give you flexible and secure access. Unlock new automation by reacting instantly to scheduling changes—streamlining your team's operations and communications.
+Webhook subscriptions require a paid plan and the permissions for their user or organization scope. Switch to trigger mode to start workflows when an invitee schedules or cancels an event or submits a routing form. Pass the event data to follow-up steps, such as preparing a meeting brief, updating a CRM, or notifying participants.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
-
-
+Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
 
 ## Actions
 
 ### Calendly Get Current User
 
 Get information about the currently authenticated Calendly user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +49,13 @@ Get information about the currently authenticated Calendly user
 |   ↳ `updated_at` | string | ISO timestamp when user was last updated |
 |   ↳ `current_organization` | string | URI of current organization |
 
+</ReferenceDetails>
+
 ### Calendly Get User
 
 Get information about a specific Calendly user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +83,13 @@ Get information about a specific Calendly user
 |   ↳ `resource_type` | string | Resource type |
 |   ↳ `locale` | string | User locale |
 
+</ReferenceDetails>
+
 ### Calendly List Event Types
 
 Retrieve a list of all event types for a user or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -129,9 +128,13 @@ Retrieve a list of all event types for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Event Type
 
 Get detailed information about a specific event type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +169,13 @@ Get detailed information about a specific event type
 |   ↳ `type` | string | Event type classification |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Calendly List Event Type Available Times
 
 Retrieve bookable time slots for an event type within a date range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,9 +196,13 @@ Retrieve bookable time slots for an event type within a date range
 |   ↳ `start_time` | string | ISO timestamp of the slot start |
 |   ↳ `scheduling_url` | string | URL that books this exact slot |
 
+</ReferenceDetails>
+
 ### Calendly List Scheduled Events
 
 Retrieve a list of scheduled events for a user or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +247,13 @@ Retrieve a list of scheduled events for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Scheduled Event
 
 Get detailed information about a specific scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -277,9 +292,13 @@ Get detailed information about a specific scheduled event
 |   ↳ `created_at` | string | ISO timestamp of event creation |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
+</ReferenceDetails>
+
 ### Calendly List Event Invitees
 
 Retrieve a list of invitees for a scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,9 +341,13 @@ Retrieve a list of invitees for a scheduled event
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly Get Event Invitee
 
 Retrieve a single invitee of a scheduled event, including their intake answers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -381,9 +404,13 @@ Retrieve a single invitee of a scheduled event, including their intake answers
 |     ↳ `terms` | string | Payment terms |
 |     ↳ `successful` | boolean | Whether the payment succeeded |
 
+</ReferenceDetails>
+
 ### Calendly Book Meeting
 
 Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +451,13 @@ Book a meeting by creating an invitee on an event type at a chosen time. Require
 |     ↳ `answer` | string | Invitee answer |
 |     ↳ `position` | number | Question order |
 
+</ReferenceDetails>
+
 ### Calendly Cancel Event
 
 Cancel a scheduled event
+
+<ReferenceDetails>
 
 #### Input
 
@@ -446,9 +477,13 @@ Cancel a scheduled event
 |   ↳ `reason` | string | Cancellation reason |
 |   ↳ `created_at` | string | ISO timestamp when event was canceled |
 
+</ReferenceDetails>
+
 ### Calendly Mark Invitee No-Show
 
 Mark an invitee of a scheduled event as a no-show
+
+<ReferenceDetails>
 
 #### Input
 
@@ -466,9 +501,13 @@ Mark an invitee of a scheduled event as a no-show
 |   ↳ `invitee` | string | URI of the invitee marked as a no-show |
 |   ↳ `created_at` | string | ISO timestamp when the no-show was recorded |
 
+</ReferenceDetails>
+
 ### Calendly Unmark Invitee No-Show
 
 Remove the no-show status from an invitee
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +523,13 @@ Remove the no-show status from an invitee
 | `deleted` | boolean | Whether the no-show status was successfully removed |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### Calendly Create Scheduling Link
 
 Create a single-use scheduling link for an event type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -504,9 +547,13 @@ Create a single-use scheduling link for an event type
 |   ↳ `owner` | string | URI of the event type that owns the link |
 |   ↳ `owner_type` | string | Resource type of the owner |
 
+</ReferenceDetails>
+
 ### Calendly List User Busy Times
 
 Retrieve a user's internal and external busy times within a date range, based on their connected calendars
+
+<ReferenceDetails>
 
 #### Input
 
@@ -530,9 +577,13 @@ Retrieve a user's internal and external busy times within a date range, based on
 |   ↳ `event` | object | The Calendly event occupying this block |
 |     ↳ `uri` | string | URI of the scheduled event |
 
+</ReferenceDetails>
+
 ### Calendly List User Availability Schedules
 
 Retrieve a user's availability schedules, working hours, and date overrides
+
+<ReferenceDetails>
 
 #### Input
 
@@ -559,9 +610,13 @@ Retrieve a user's availability schedules, working hours, and date overrides
 |       ↳ `from` | string | Interval start time \(HH:MM\) |
 |       ↳ `to` | string | Interval end time \(HH:MM\) |
 
+</ReferenceDetails>
+
 ### Calendly List Organization Memberships
 
 Retrieve the members of an organization, including each member profile and role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -604,9 +659,13 @@ Retrieve the members of an organization, including each member profile and role
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly List Routing Forms
 
 Retrieve the routing forms of an organization, including their questions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -642,9 +701,13 @@ Retrieve the routing forms of an organization, including their questions
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### Calendly List Routing Form Submissions
 
 Retrieve the submissions of a routing form, including answers and routing result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,16 +751,20 @@ Retrieve the submissions of a routing form, including answers and routing result
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Calendly Invitee Canceled
 
 Trigger workflow when someone cancels a scheduled event on Calendly
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -712,7 +779,7 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Invitee URI |
 |   ↳ `email` | string | Invitee email address |
 |   ↳ `name` | string | Invitee full name |
@@ -722,7 +789,7 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |
@@ -754,13 +821,14 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |     ↳ `created_at` | string | Reconfirmation timestamp |
 |     ↳ `confirmed_at` | string | Confirmation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Invitee Created
 
 Trigger workflow when someone schedules a new event on Calendly
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -775,7 +843,7 @@ Trigger workflow when someone schedules a new event on Calendly
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Invitee URI |
 |   ↳ `email` | string | Invitee email address |
 |   ↳ `name` | string | Invitee full name |
@@ -785,7 +853,7 @@ Trigger workflow when someone schedules a new event on Calendly
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |
@@ -817,12 +885,13 @@ Trigger workflow when someone schedules a new event on Calendly
 |     ↳ `created_at` | string | Reconfirmation timestamp |
 |     ↳ `confirmed_at` | string | Confirmation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Routing Form Submitted
 
 Trigger workflow when someone submits a Calendly routing form
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -838,7 +907,7 @@ Trigger workflow when someone submits a Calendly routing form
 | `event` | string | Event type \(routing_form_submission.created\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Routing form submission URI |
 |   ↳ `routing_form` | string | Routing form URI |
 |   ↳ `submitter` | object | Submitter details |
@@ -847,7 +916,7 @@ Trigger workflow when someone submits a Calendly routing form
 |     ↳ `name` | string | Submitter full name |
 |   ↳ `submitter_type` | string | Type of submitter |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |
@@ -860,8 +929,7 @@ Trigger workflow when someone submits a Calendly routing form
 |   ↳ `created_at` | string | Submission creation timestamp |
 |   ↳ `updated_at` | string | Submission last update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Calendly Webhook
 

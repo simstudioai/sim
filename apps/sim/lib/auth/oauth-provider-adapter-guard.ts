@@ -1,10 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { db } from '@sim/db'
+import type { db } from '@sim/db'
 import { oauthConsent, oauthTokenFamily } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import type { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError } from 'better-auth/api'
 import { inArray } from 'drizzle-orm'
+import { getAuthPool } from '@/lib/auth/database-context'
 import { getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
@@ -37,7 +38,7 @@ async function deleteTrackedFamilies(
  */
 export async function withOAuthProviderIssuanceCompensation<T extends Response>(
   work: () => Promise<T>,
-  database: AuthDatabase = db
+  database: AuthDatabase = getAuthPool()
 ): Promise<T> {
   const familyIds = new Set<string>()
   try {
@@ -87,7 +88,7 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
  */
 export function guardOAuthProviderWrites(
   adapter: BetterAuthAdapter,
-  database: AuthDatabase = db
+  database: AuthDatabase = getAuthPool()
 ): BetterAuthAdapter {
   return {
     ...adapter,

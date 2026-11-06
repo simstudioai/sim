@@ -301,9 +301,9 @@ describe('stale execution cleanup deadline grace', () => {
 
   it('claims every cleanup page without overlapping concurrent workers', async () => {
     await runCleanupStaleExecutions()
-    // Nine batched arms: the connector sync-log retention pass is the newest.
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(9)
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(9)
+    // Eleven batched arms: the knowledge import stale and retention passes are the newest.
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(11)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(11)
     for (const [strength, options] of dbChainMockFns.for.mock.calls) {
       expect(strength).toBe('update')
       expect(options).toEqual({ skipLocked: true })
@@ -372,7 +372,7 @@ describe('stale execution cleanup deadline grace', () => {
     expect(mockDeleteFile).toHaveBeenCalledTimes(1000)
 
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
-    expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
+    expect(limits.filter((limit) => limit === 100)).toHaveLength(22)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
     expect(limits.filter((limit) => limit === 2000)).toHaveLength(12)
 

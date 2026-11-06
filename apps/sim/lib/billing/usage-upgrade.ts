@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { UsageUpgradePayload } from '@/lib/api/contracts/subscription'
-import type { AttributedUsageLimitsResult } from '@/lib/billing/core/billing-attribution'
+import type { CHAT_PLAN_REQUIRED_UPGRADE } from '@/lib/billing/chat-plan'
+import type { AttributedUsageLimitsResult } from '@/lib/billing/core/attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
@@ -68,7 +69,10 @@ export async function resolveUsageUpgradePayload(
   return { reason: 'usage_limit', action: 'increase_limit', message }
 }
 
+/** Every card body the usage tag carries: the worker-shared card or Sim's Chat plan card. */
+export type UsageUpgradeTagPayload = UsageUpgradePayload | typeof CHAT_PLAN_REQUIRED_UPGRADE
+
 /** The assistant text that renders {@link payload} as the usage card. */
-export function formatUsageUpgradeTag(payload: UsageUpgradePayload): string {
+export function formatUsageUpgradeTag(payload: UsageUpgradeTagPayload): string {
   return `<usage_upgrade>${JSON.stringify(payload)}</usage_upgrade>`
 }

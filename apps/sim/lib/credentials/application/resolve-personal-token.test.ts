@@ -20,7 +20,7 @@ const hoisted = vi.hoisted(() => ({
   decrypt: vi.fn(),
   enrollment: vi.fn(),
 }))
-vi.mock('@/lib/credentials/application/credential-context', () => ({
+vi.mock('@/lib/credentials/application/context', () => ({
   resolveCredentialApplicationContext: hoisted.context,
 }))
 vi.mock('@/lib/credentials/access', () => credentialsAccessMock)

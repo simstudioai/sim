@@ -1,5 +1,5 @@
 import { htmlToText } from 'html-to-text'
-import { DEFAULT_ZOHO_DESK_BASE, isZohoHost } from '@/tools/zoho_desk/host-allowlist'
+import { DEFAULT_ZOHO_DESK_BASE, safeZohoDeskBase } from '@/tools/zoho_desk/host-allowlist'
 import type { ZohoDeskBaseParams } from '@/tools/zoho_desk/types'
 
 /**
@@ -113,19 +113,11 @@ export function withDerivedContentText(resource: unknown): unknown {
  * always reach the correct data center instead of assuming `desk.zoho.com`.
  */
 export function getZohoDeskApiBase(params: Pick<ZohoDeskBaseParams, 'apiDomain'>): string {
-  const candidate = (params.apiDomain || DEFAULT_ZOHO_DESK_BASE).replace(/\/+$/, '')
-  // Anchor to the Zoho apex allowlist before this host receives the OAuth token.
-  // `apiDomain` is injected server-side from the credential and is hidden from
-  // the LLM tool schema, but the injection in tools/index.ts lets a pre-existing
+  // `apiDomain` is injected server-side from the credential and hidden from the
+  // LLM tool schema, but the injection in tools/index.ts lets a pre-existing
   // context value win over the credential-derived one - so validate rather than
-  // trust precedence, and fall back to the US base on anything unrecognized.
-  try {
-    const url = new URL(candidate)
-    if (url.protocol === 'https:' && isZohoHost(url.hostname)) return `${candidate}/api/v1`
-  } catch {
-    // fall through to the default base
-  }
-  return `${DEFAULT_ZOHO_DESK_BASE}/api/v1`
+  // trust precedence.
+  return `${safeZohoDeskBase(params.apiDomain) ?? DEFAULT_ZOHO_DESK_BASE}/api/v1`
 }
 
 /**
@@ -166,17 +158,6 @@ export function normalizeZohoDeskCommaList(value: unknown): string | undefined {
     .filter(Boolean)
     .join(',')
   return normalized || undefined
-}
-
-/**
- * Trim an identifier destined for a URL path segment, rejecting a missing or
- * whitespace-only value. A pasted trailing space would otherwise be encoded as
- * `%20` and 404 against Zoho with no indication of the real cause.
- */
-export function requireZohoDeskId(value: string | undefined, label: string): string {
-  const trimmed = value?.trim()
-  if (!trimmed) throw new Error(`${label} is required.`)
-  return trimmed
 }
 
 /** Build the auth + org headers required on every Zoho Desk API call. */

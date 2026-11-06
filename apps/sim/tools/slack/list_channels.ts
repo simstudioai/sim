@@ -14,6 +14,7 @@ export const slackListChannelsTool: InternalToolConfig<
   SlackListChannelsResponse
 > = {
   id: 'slack_list_channels',
+  assistant: { effect: 'read', version: 1 },
   name: 'Slack List Channels',
   description:
     'List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page.',

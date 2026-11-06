@@ -29,7 +29,7 @@ vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   requireAvailableServiceAccountCredentialProvider: hoisted.requireService,
   requireAvailableOAuthCredentialProvider: hoisted.requireOAuth,
 }))
-vi.mock('@/lib/credentials/application/credential-crud', () => ({
+vi.mock('@/lib/credentials/application/crud', () => ({
   throwCredentialMutationFailure: vi.fn(),
 }))
 vi.mock('@/lib/credentials/orchestration/credential-create', () => ({

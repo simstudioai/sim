@@ -1,13 +1,94 @@
 ---
-title: Export
-description: Download a knowledge base as one archive of its documents, chunks, tags, and settings.
+title: Export and import
+description: Move a knowledge base's documents, chunks, tags, and settings between workspaces and deployments in one archive.
 ---
 
-An **export** is a single archive that holds a knowledge base: every document, the chunks Sim split it into, the tag definitions and values, and the chunking settings. Use it to keep a copy of a base outside Sim.
+Export a knowledge base as a `.simkb.zip` archive. It carries the base's configuration, tag definitions and values, stored document files, and completed chunk text, with vectors included by default. Import the archive into any workspace, on this deployment or another, to create a new knowledge base from it.
 
-To export, right-click a base in the knowledge base list and choose **Export**, or open the base and click the **Export** button in the header. The download is named `<base name>.simkb.zip`.
+## Access and scope
 
-## What the archive contains
+Export requires at least workspace read access and the **Knowledge Base Export** capability. Enterprise permission groups can restrict members' exports. The API accepts supported personal credentials or a workspace API key; OAuth callers need `api:read`. A workspace API key uses its workspace role and operation policy rather than a member's permission group. See [API authentication](/api-reference/authentication).
+
+The archive includes active, included documents readable by the workspace as a whole. It does not include every document a particular member can personally access through source permissions. Archived, deleted, and excluded documents are left out.
+
+Documents with neither a stored file nor completed chunks are omitted. A document still processing can contribute its stored file, but not unfinished chunk text. Disabled flags are preserved for documents and chunks that are included.
+
+## Download the archive
+
+Right-click a base in the knowledge base list and choose **Export**, or open the base and choose **Export** in its header. The download is named `<base name>.simkb.zip`.
+
+### API
+
+```http
+GET /api/v2/knowledge/{knowledgeBaseId}/export?workspaceId={workspaceId}&vectors=true
+```
+
+The response is the ZIP archive. Set `vectors=false` to leave out embeddings. See [Export knowledge base](/api-reference/knowledge-bases/exportKnowledgeBase) for the request contract.
+
+### CLI
+
+```bash
+sim knowledge export <knowledgeBaseId> --output-file kb.zip
+sim knowledge export <knowledgeBaseId> --output-file kb.zip --no-vectors
+```
+
+The CLI uses the selected workspace profile. An existing output file requires `--force` to overwrite it. See the [CLI reference](/cli/reference).
+
+## Import an archive
+
+Importing creates a new knowledge base from a `.simkb.zip` archive. It never changes an existing base.
+
+### Access
+
+Import requires workspace write access and both the **Knowledge Base Creation** and **Knowledge Base Uploads** capabilities. OAuth callers need `api:write`; a workspace API key is accepted.
+
+### CLI
+
+```bash
+sim knowledge import ./kb.simkb.zip
+sim knowledge import ./kb.simkb.zip --name "Product Documentation (copy)"
+sim knowledge import ./kb.simkb.zip --no-wait
+```
+
+The new base takes the archive's name unless you pass `--name`. Knowledge base names are unique within a workspace, so importing next to the original needs a new name. The command uploads the archive, waits for the import to finish, and prints the new base's id with how many documents were imported. With `--no-wait` it returns as soon as the import starts.
+
+To check on or stop an import that is still running:
+
+```bash
+sim knowledge imports get <importId>
+sim knowledge imports cancel <importId>
+```
+
+### API
+
+An import is three requests, like other large uploads:
+
+1. `POST /api/v2/knowledge/imports` with the workspace, an optional `name`, and the archive's file name, type, and size. The response carries the import id, an upload token, and signed transfer instructions.
+2. Upload the archive's bytes as instructed. Multipart transfers request part URLs from `POST /api/v2/knowledge/imports/{importId}/parts`.
+3. `POST /api/v2/knowledge/imports/{importId}/complete` to start the import.
+
+Poll `GET /api/v2/knowledge/imports/{importId}?workspaceId={workspaceId}` until `status` is `completed`, `failed`, or `canceled`. See [Create knowledge base import](/api-reference/knowledge-bases/createKnowledgeImport) for the request contracts.
+
+### What the import creates
+
+The new base is created at the workspace root with the archive's description, chunking configuration, and tag definitions. Each document keeps its filename, tag values, and enabled flag, and its original file when the archive has one. It is attributed to the person who imported it.
+
+How a document is indexed depends on the embedding model:
+
+- **Same model**: when the archive includes vectors from the embedding model and dimensions this deployment uses, documents are indexed directly from the archive's chunks and vectors. Nothing is re-embedded, so nothing is billed for embeddings, and chunk enabled flags are kept.
+- **Different model or no vectors**: documents are processed from their original files, exactly as uploads are, and appear in the base as their processing finishes. A document with chunks but no original file is re-embedded from its chunk text instead.
+
+A document the archive carries only as chunks, such as one from a [connector](/knowledgebase/connectors), is stored as a plain-text file holding its chunk text, so it can still be reprocessed later.
+
+`documentsImported` counts documents created; re-indexed documents may still be processing when the import completes. Documents that cannot be imported, such as an unsupported file type or a storage limit reached partway through, are skipped and reported in `failures`; the rest of the import continues.
+
+### Limits
+
+Archives must be `.zip` files of at most **5 GiB**, and every document file at most **100 MB**. The archive is validated before anything is created, so a damaged or modified archive fails without leaving a partial base. Imports count toward storage and usage limits like uploads do.
+
+Canceling stops after the document in progress. Documents already imported stay in the new base. Starting an import records one audit event, naming the knowledge base it creates.
+
+## Archive contents
 
 ```text
 <base name>.simkb.zip
@@ -18,46 +99,43 @@ To export, right-click a base in the knowledge base list and choose **Export**, 
     └── <documentId>.ndjson
 ```
 
-- **`manifest.json`** describes the export (format version 1): the base name, description, and chunking config; the embedding model and dimension and whether vectors are included; the tag definitions; and a document list with each document's filename, MIME type, size, enabled flag, tag values, entry paths, and chunk, token, and character counts.
-- **`files/`** holds each document's original file, when it has one.
-- **`chunks/`** holds one NDJSON file per document, with one JSON line per chunk: its index, content, token count, start and end offsets, enabled flag, and the vector when vectors are included.
+Files and chunk entries are present when the document has that content.
 
-The export includes every document a workspace member can read, its file and its chunk text. Documents synced from a [connector](/knowledgebase/connectors) export as plain documents: their text and, where Sim stored it, their file.
+| Entry | Contents |
+| --- | --- |
+| `manifest.json` | Format version `1`, export time, base name and description, chunking configuration, embedding model and dimensions, whether vectors are included, tag definitions, and the document list. |
+| `files/<documentId>/<filename>` | The document's original stored file, when available. |
+| `chunks/<documentId>.ndjson` | One JSON line per chunk: index, content, token count, start/end offsets, enabled flag, and an optional vector. NDJSON is newline-delimited JSON. |
+
+Each document entry records its filename, MIME type, file size, enabled flag, tag values, entry paths, and chunk, token, and character counts. [Connector](/knowledgebase/connectors) documents export as plain documents with their text and any stored file.
+
+## Vectors and portability
+
+Vectors are the embeddings used to compare chunks with a query. Each exported vector is encoded as base64 float32 values in its chunk's NDJSON line.
+
+The manifest records the base's embedding model and dimensions. Reusing its vectors requires both to match the destination configuration; equal dimensions alone do not make vectors from different models comparable. Use `vectors=false` or `--no-vectors` when you need a text-and-file archive without vectors.
 
 ## What stays behind
 
-An export never includes:
+The archive does not include:
 
-- Access-control lists
-- Connector links and credentials
-- Who uploaded each document
-- Internal storage keys
+- Access-control lists or source-permission grants.
+- Connector links and credentials.
+- Uploader identities.
+- Internal storage keys or secret-provenance sidecars.
 
-Live [Organization Search](/search) queries providers directly and has no index to export. If an operator selects the legacy indexed Search backend, its organization index is not included in a workspace knowledge-base export.
+Live [Organization Search](/search) queries providers directly and has no document index to export. A legacy indexed organization Search backend is also outside a workspace knowledge-base export.
 
-## Vectors
+## Limits and audit
 
-Vectors are embeddings, the numbers a model produces so search can compare chunks. They are included by default. Each chunk's vector is stored as base64-encoded float32 values in its NDJSON line.
+Export preflight accepts at most **2,000** active, included, workspace-readable document rows. A larger eligible set returns `413`, even if some empty documents would otherwise be omitted from the archive.
 
-Vectors are only valid for a deployment that uses the same embedding model and dimension. The manifest records both for the base you exported. To skip vectors, set `vectors=false` on the API or pass `--no-vectors` to the CLI.
+The bundle format also bounds each document to **5,000 chunks** and each chunk's content to **100,000 characters**. These are format limits, independent of vector inclusion.
 
-## Limits and governance
+Each authorized export records an audit event with the base, vector option, and document count.
 
-A base with more than 2,000 documents cannot be exported. The request returns `413`.
+## Related docs
 
-Organization admins can withhold export through the permission group setting **Knowledge Base Export** (enterprise). Every export records an audit event.
-
-## API
-
-```http
-GET /api/v2/knowledge/{knowledgeBaseId}/export?workspaceId={workspaceId}&vectors=true
-```
-
-The response is the archive. See the [API reference](/api-reference/getting-started) for authentication.
-
-## CLI
-
-```bash
-sim knowledge export <knowledgeBaseId> --output-file kb.zip
-sim knowledge export <knowledgeBaseId> --output-file kb.zip --no-vectors
-```
+- [Knowledge Base](/knowledgebase) — uploads, processing, and embedding compatibility.
+- [Connectors](/knowledgebase/connectors) — source content and access methods.
+- [Access control](/platform/enterprise/access-control) — permission-group restrictions.

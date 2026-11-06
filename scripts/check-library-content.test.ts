@@ -254,6 +254,27 @@ describe('check-library-content', () => {
     expect(findings[0]).toMatchObject({ line: 3, rule: 'frontmatter' })
   })
 
+  it('rejects a published search title over 60 or description over 160 characters at the key search reads, and exempts drafts', async () => {
+    const long = { title: 'T'.repeat(55), description: 'D'.repeat(161) }
+    writePost('library', 'post', 'Body.', long)
+    expect(await findingsFor('library', 'post')).toEqual([
+      expect.objectContaining({ line: 3, rule: 'search-title' }),
+      expect.objectContaining({ line: 4, rule: 'search-description' }),
+    ])
+    writePost('library', 'post', 'Body.', {
+      ...long,
+      seoTitle: 'S'.repeat(54),
+      seoDescription: 'E'.repeat(160),
+    })
+    expect(await findingsFor('library', 'post')).toEqual([])
+    writePost('library', 'post', 'Body.', { seoTitle: 'S'.repeat(55) })
+    expect(await findingsFor('library', 'post')).toEqual([
+      expect.objectContaining({ line: 8, rule: 'search-title' }),
+    ])
+    writePost('library', 'post', 'Body.', { ...long, draft: 'true' })
+    expect(await findingsFor('library', 'post')).toEqual([])
+  })
+
   it('rejects invalid YAML', async () => {
     writePost('library', 'post', 'Body.', { title: 'Broken: [unclosed' })
     expect((await findingsFor('library', 'post'))[0]).toMatchObject({ rule: 'frontmatter' })

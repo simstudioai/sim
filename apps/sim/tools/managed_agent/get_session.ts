@@ -1,5 +1,6 @@
 import {
   ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
   CREDENTIAL_PARAM,
   SESSION_ID_PARAM,
 } from '@/tools/managed_agent/shared'
@@ -32,6 +33,7 @@ export const managedAgentGetSessionTool: InternalToolConfig<
   description:
     'Read a Managed Agent session: status, stop reason, token usage, metadata, and any tool calls awaiting approval.',
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

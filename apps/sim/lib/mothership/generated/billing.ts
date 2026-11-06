@@ -64,9 +64,10 @@ export const BillingCallbackHeaders = z
       context.addIssue({ code: "custom", message: "Incomplete or conflicting billing protocol headers" });
   });
 
-/** Sim's plan-aware usage card: the JSON body of the `<usage_upgrade>` tag its chat renders. */
+/** Sim's plan-aware usage card: the JSON body of the `<usage_upgrade>` tag its chat renders.
+ * `job_run_budget`: a scheduled job's run reached its own spend cap, not the payer's plan (D94). */
 export const UsageUpgrade = z.object({
-  reason: z.literal("usage_limit"),
+  reason: z.enum(["usage_limit", "job_run_budget"]),
   action: z.enum(["upgrade_plan", "increase_limit"]),
   message: z.string().min(1).max(1_000),
 });
@@ -90,6 +91,8 @@ export const UsageLimitRefusal = z.object({
   usageUpgrade: UsageUpgrade.optional().catch(undefined),
 });
 export const BillingDuplicateCode = "DUPLICATE_BILLING_EVENT";
+/** A 503: another attempt of the same request is still being applied, so this one's outcome is unknown. */
+export const BillingInFlightCode = "BILLING_REQUEST_IN_FLIGHT";
 
 /** Sim authors receipts at the paid execution boundary; tool output carries no billing authority. */
 export const ServiceUsageReceipt = z.strictObject({

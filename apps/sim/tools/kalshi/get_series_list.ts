@@ -127,8 +127,7 @@ export const kalshiGetSeriesListV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_series_list_v2',
   name: 'Get Series List from Kalshi V2',
-  description:
-    'Retrieve a list of market series from Kalshi with optional filtering (V2 - exact API response)',
+  description: 'Retrieve a list of market series from Kalshi with optional filtering',
   version: '2.0.0',
 
   params: {

@@ -1,13 +1,14 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import { cn } from '@sim/emcn'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
-import { ChangelogImage, ChangelogVideo } from '@/app/(landing)/changelog/components'
+import { ChangelogImage, ChangelogLink, ChangelogVideo } from '@/app/(landing)/changelog/components'
 import { HOME_TYPE } from '@/app/(landing)/components/landing-layout'
 import { PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
 
 export const changelogComponents = {
   ChangelogVideo,
   ChangelogImage,
+  a: ChangelogLink,
   h3: ({ className, ...props }: ComponentPropsWithoutRef<'h3'>) => (
     <h3 {...props} className={cn('mt-8 mb-3 text-balance', PROSE_TYPE.h2, className)} />
   ),

@@ -345,6 +345,67 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
+  describe('file-upload values', () => {
+    const multiple = { id: 'attachmentFiles', type: 'file-upload' as const, multiple: true }
+    const single = { id: 'file', type: 'file-upload' as const }
+    const stored = {
+      id: 'wf_a',
+      name: 'brief.txt',
+      path: '/api/files/serve/workspace%2Fws%2Fbrief.txt?context=workspace',
+      key: 'workspace/ws/brief.txt',
+      size: 12,
+      type: 'text/plain',
+    }
+    const validate = (config: typeof multiple | typeof single, value: unknown) =>
+      validateValueForSubBlockType(config, value, config.id, 'agent', 'agent-1')
+
+    it('stores a multi-file field as the list of file objects the editor writes', () => {
+      const files = [stored, { ...stored, id: 'wf_b', name: 'notes.txt' }]
+      expect(validate(multiple, files)).toEqual({ valid: true, value: files })
+    })
+
+    it('clears a multi-file field given an empty list, as removing its last file does', () => {
+      expect(validate(multiple, [])).toEqual({ valid: true, value: null })
+    })
+
+    it('names the entry of a multi-file list that is not a stored file', () => {
+      const result = validate(multiple, [stored, { name: 'notes.txt' }])
+      expect(result.valid).toBe(false)
+      expect(result.error?.error).toContain('attachmentFiles[1]')
+      expect(validate(multiple, [stored, 'brief.txt']).valid).toBe(false)
+    })
+
+    it('keeps a single-file field to one file object', () => {
+      expect(validate(single, stored)).toEqual({ valid: true, value: stored })
+      expect(validate(single, [stored]).valid).toBe(false)
+      expect(validate(single, []).valid).toBe(false)
+    })
+  })
+
+  it('stores input-format rows with legacy or aliased types unchanged', () => {
+    const rows = [
+      { name: 'payload', type: 'json' },
+      { name: 'title', type: 'short-input' },
+      { name: 'message' },
+    ]
+    expect(
+      validateValueForSubBlockType(
+        { id: 'inputFormat', type: 'input-format' },
+        rows,
+        'inputFormat',
+        'start_trigger',
+        'start-1'
+      )
+    ).toEqual({
+      valid: true,
+      value: [
+        { name: 'payload', type: 'json' },
+        { name: 'title', type: 'short-input' },
+        { name: 'message' },
+      ],
+    })
+  })
+
   describe('model-fallback-list', () => {
     const config = { id: 'fallbackModels', type: 'model-fallback-list' as const }
     const validate = (value: unknown) =>
@@ -374,8 +435,9 @@ describe('validateInputsForBlock', () => {
       )
     })
 
-    it('refuses sim-auto, unknown models, missing models, and non-arrays', () => {
+    it('refuses sim-auto, evaluation models, unknown models, missing models, and non-arrays', () => {
       expect(validate([{ model: 'sim-auto' }]).valid).toBe(false)
+      expect(validate([{ model: 'jev-latest' }]).valid).toBe(false)
       expect(validate([{ model: 'definitely-not-a-model-9000' }]).valid).toBe(false)
       expect(validate([{ apiKey: '{{KEY}}' }]).valid).toBe(false)
       expect(validate({ model: 'claude-sonnet-5' }).valid).toBe(false)

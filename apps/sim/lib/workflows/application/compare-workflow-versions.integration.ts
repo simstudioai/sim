@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { user, workflow, workflowDeploymentVersion, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -152,7 +153,8 @@ beforeAll(async () => {
     createdAt: now,
     updatedAt: now,
   })
-  await db.insert(workspace).values(
+  await insertWorkspaceFixture(
+    db,
     [workspaceId, otherWorkspaceId].map((id) => ({
       id,
       name: 'Comparison fixture',
@@ -188,7 +190,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+  await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
   await db.delete(user).where(eq(user.id, ownerId))
   await db.$client.end()
 })

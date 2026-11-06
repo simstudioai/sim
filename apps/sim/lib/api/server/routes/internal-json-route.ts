@@ -119,7 +119,7 @@ interface InternalUserRateLimitPolicy {
   enforce(request: NextRequest, principal: Principal): Promise<NextResponse | null>
 }
 
-type InternalRateLimitPolicy = InternalNoRateLimitPolicy | InternalUserRateLimitPolicy
+export type InternalRateLimitPolicy = InternalNoRateLimitPolicy | InternalUserRateLimitPolicy
 
 export const internalRateLimits = {
   none({ reason }: { reason: string }): InternalNoRateLimitPolicy {
@@ -238,7 +238,7 @@ export interface InternalJsonResponseFinalization {
 
 type InternalJsonParseOptions = Pick<
   ParseRequestOptions,
-  'maxBodyBytes' | 'validationErrorResponse'
+  'maxBodyBytes' | 'bypassesProxy' | 'validationErrorResponse' | 'optionalJsonBody'
 >
 
 /**

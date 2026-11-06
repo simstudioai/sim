@@ -8,7 +8,7 @@ import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
 import {

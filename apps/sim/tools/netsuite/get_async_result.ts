@@ -1,5 +1,5 @@
 import type { NetSuiteGetAsyncResultParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteGetAsyncResultTool: InternalToolConfig<
   name: 'NetSuite Get Async Operation Result',
   description: 'Retrieve the provider response for one task within a completed asynchronous job.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     jobId: {

@@ -5,7 +5,7 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'

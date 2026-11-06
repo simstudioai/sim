@@ -11,11 +11,8 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { matchesPendingWebhookVerificationProbe } from '@/lib/webhooks/pending-verification'
 import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { mapZohoWebhookError, zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
-
-function errorStatus(err: unknown): number | undefined {
-  return (err as { status?: number })?.status
-}
 
 function makeAuthContext(headers: Record<string, string>, providerConfig: Record<string, unknown>) {
   return {
@@ -73,10 +70,10 @@ describe('zohoDeskHandler', () => {
       return undefined
     }
 
-    it('fails terminally (400) when the organization ID is missing', async () => {
+    it('fails terminally when the organization ID is missing', async () => {
       const error = await captureCreateError({ eventType: 'Ticket_Add' })
       expect((error as Error)?.message).toMatch(/Organization ID/i)
-      expect(errorStatus(error)).toBe(400)
+      expect(error).toBeInstanceOf(WebhookDeploymentConfigurationError)
     })
   })
 
@@ -237,7 +234,7 @@ describe('zohoDeskHandler', () => {
   })
 
   describe('mapZohoWebhookError', () => {
-    it('surfaces INVALID_DATA field errors and is non-retryable (4xx)', () => {
+    it('surfaces INVALID_DATA field errors and is non-retryable', () => {
       const err = mapZohoWebhookError(
         422,
         JSON.stringify({
@@ -254,7 +251,7 @@ describe('zohoDeskHandler', () => {
       expect(err.message).toContain('INVALID_DATA')
       expect(err.message).toContain('/ignoreSourceId')
       expect(err.message).not.toContain('Professional edition')
-      expect(errorStatus(err)).toBe(422)
+      expect(err).toBeInstanceOf(WebhookDeploymentConfigurationError)
     })
 
     it('only claims the edition/permission cause when Zoho indicates it', () => {
@@ -264,12 +261,12 @@ describe('zohoDeskHandler', () => {
       )
       expect(err.message).toContain('permission')
       expect(err.message).toContain('Professional edition')
-      expect(errorStatus(err)).toBe(403)
+      expect(err).toBeInstanceOf(WebhookDeploymentConfigurationError)
     })
 
     it('keeps provider 5xx retryable', () => {
       const err = mapZohoWebhookError(500, JSON.stringify({ errorCode: 'INTERNAL_ERROR' }))
-      expect(errorStatus(err)).toBe(503)
+      expect(err).not.toBeInstanceOf(WebhookDeploymentConfigurationError)
     })
   })
 

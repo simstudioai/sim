@@ -1,4 +1,4 @@
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 

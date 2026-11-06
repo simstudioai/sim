@@ -217,8 +217,7 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
     if (input.allowedEmails) values.allowedEmails = input.allowedEmails
     if (input.outputConfigs) values.outputConfigs = input.outputConfigs
     if (input.includeThinking !== undefined) values.includeThinking = input.includeThinking
-    /** Partial updates keep the stored value; a row predating the column reads false. */
-    values.includeToolCalls = input.includeToolCalls ?? existing.includeToolCalls ?? false
+    if (input.includeToolCalls !== undefined) values.includeToolCalls = input.includeToolCalls
 
     const updated = await updateChatDeploymentRow(existing.id, values).catch(
       chatIdentifierUniquenessConflict(values.identifier ?? existing.identifier)

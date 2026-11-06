@@ -114,8 +114,8 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       className={cn('font-semibold text-[var(--text-primary)]', props.className)}
     />
   ),
-  em: (props: any) => (
-    <em {...props} className={cn('text-[var(--text-muted)] italic', props.className)} />
+  em: ({ className, ...props }: ComponentPropsWithoutRef<'em'>) => (
+    <em {...props} className={cn('text-inherit italic', className)} />
   ),
   a: (props: any) => {
     const isAnchorLink = props.className?.includes('anchor')

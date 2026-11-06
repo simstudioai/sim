@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import { PageContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
@@ -24,7 +25,14 @@ interface UserMessageContentProps {
   compact?: boolean
 }
 
-function MentionHighlight({ context }: { context: ChatMessageContext }) {
+interface MentionHighlightProps {
+  context: ChatMessageContext
+}
+
+function MentionHighlight({ context }: MentionHighlightProps) {
+  if (context.kind === 'browser_page' && context.snapshot) {
+    return <PageContext snapshot={context.snapshot} label={context.label} />
+  }
   return (
     <ResourceMention
       title={context.label ?? ''}

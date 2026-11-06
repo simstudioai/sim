@@ -17,9 +17,8 @@ import {
   v2TableImportSourceSchema,
   v2TableImportTargetSchema,
 } from '@/lib/api/contracts/v2/tables'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
@@ -43,9 +42,11 @@ import {
   type CreatedUploadSession,
   createUploadSession,
   getOwnedUploadSession,
+  importStatusForUploadSession,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { getUserSettings } from '@/lib/users/queries'
+import type { tableImportTask } from '@/background/table-import'
 
 const logger = createLogger('TableImportResource')
 
@@ -411,19 +412,10 @@ async function startTableImport(params: StartTableImportParams): Promise<TableIm
       timezone: params.options.timezone ?? (await getUserSettings(params.userId)).timezone ?? 'UTC',
     }
 
-    if (isTriggerDevEnabled) {
-      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-import'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableImportTask>('table-import', payload, {
-        tags: [`tableId:${tableId}`, `jobId:${params.id}`],
-        region: await resolveTriggerRegion(),
-      })
-    } else {
-      runDetached('table-import', () => runTableImport(payload))
-    }
+    await dispatchBackgroundTask<typeof tableImportTask>('table-import', payload, {
+      runInProcess: runTableImport,
+      trigger: { tags: [`tableId:${tableId}`, `jobId:${params.id}`] },
+    })
     return getTableImportResource({
       importId: params.id,
       assertedWorkspaceId: params.workspaceId,
@@ -477,7 +469,7 @@ function resourceFromUpload(
     target: body.target,
     options: importOptions(body),
     tableId: body.target.type === 'existing' ? body.target.tableId : null,
-    status: uploadStatus(upload),
+    status: importStatusForUploadSession(upload.status),
     rowsProcessed: 0,
     rowsRejected: 0,
     cellsRejected: 0,
@@ -648,23 +640,6 @@ async function requireWorkspaceSource(
     throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
   }
   return resolved
-}
-
-function uploadStatus(upload: UploadSessionRecord): TableImportStatus {
-  switch (upload.status) {
-    case 'uploading':
-    case 'completing':
-    case 'finalizing':
-    case 'completed':
-      return 'uploading'
-    case 'aborting':
-    case 'aborted':
-      return 'canceled'
-    case 'failed':
-      return 'failed'
-    case 'expired':
-      return 'expired'
-  }
 }
 
 async function markImportFailed(params: {

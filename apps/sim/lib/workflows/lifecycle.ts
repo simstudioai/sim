@@ -11,6 +11,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -29,6 +30,7 @@ interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
   archivedAt?: Date
+  strictExternalCleanup?: boolean
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -54,7 +56,8 @@ async function notifyWorkflowArchived(workflowId: string, requestId: string): Pr
 
 async function cleanupExternalWebhooksForWorkflow(
   workflowId: string,
-  requestId: string
+  requestId: string,
+  strict = false
 ): Promise<void> {
   try {
     const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
@@ -73,8 +76,11 @@ async function cleanupExternalWebhooksForWorkflow(
 
     for (const webhookData of webhooksToCleanup) {
       try {
-        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
+        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId, {
+          throwOnError: strict,
+        })
       } catch (error) {
+        if (strict) throw error
         logger.warn(
           `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} for workflow ${workflowId}`,
           { error }
@@ -82,6 +88,7 @@ async function cleanupExternalWebhooksForWorkflow(
       }
     }
   } catch (error) {
+    if (strict) throw error
     logger.warn(`[${requestId}] Error during external webhook cleanup for workflow ${workflowId}`, {
       error,
     })
@@ -285,8 +292,16 @@ export async function archiveWorkflowsByIdsInWorkspace(
 
 /**
  * Disables all resources owned by a banned user by archiving every workspace
- * they own (cascading to workflows, chats, KBs, tables, files, etc.)
- * and deleting their personal API keys.
+ * they own (cascading to workflows, chats, KBs, tables, files, etc.),
+ * deleting their personal API keys, and stopping the workflow runs in progress
+ * in every workspace they own once it is archived, including ones archived
+ * earlier. Each archive records Stop for its Chat runs, which they read on their
+ * next run-control call.
+ *
+ * Runs the user started in workspaces they do not own keep going. The log row
+ * has no actor column, and the user it records is the billed account for
+ * schedule and webhook runs, so it cannot tell whose run it is; revoking the
+ * keys and sessions stops the user starting more.
  */
 export async function disableUserResources(userId: string): Promise<void> {
   const requestId = generateRequestId()
@@ -297,17 +312,75 @@ export async function disableUserResources(userId: string): Promise<void> {
   /** Revoked first: the keys are the ban's access boundary, and an archive may fail. */
   await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
-  const ownedWorkspaces = await db
-    .select({ id: workspace.id })
+  const owned = await db
+    .select({ id: workspace.id, archivedAt: workspace.archivedAt })
     .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
+    .where(eq(workspace.ownerId, userId))
+  const ownedWorkspaces = owned.filter((row) => !row.archivedAt)
 
+  const { recordExecutionStops, signalExecutionStops } = await import(
+    '@/lib/execution/removal-stop-records'
+  )
+  /**
+   * Records the workspaces' stops and signals their in-flight runs; the recorded stop's queue
+   * sweep and retries run in the outbox worker, since this module sits in page graphs that must
+   * not load that delivery. Logged, not thrown: the ban and archives have committed, and banning
+   * the user again records the stops again, since every owned workspace is stopped, archived or
+   * not.
+   */
+  let stopFailed = false
+  const stopRuns = async (workspaceIds: string[]): Promise<void> => {
+    if (workspaceIds.length === 0) return
+    try {
+      const executions = await db.transaction((tx) =>
+        recordExecutionStops(tx, { workspaceIds, ownerId: userId })
+      )
+      await signalExecutionStops(executions)
+    } catch (error) {
+      stopFailed = true
+      logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
+        workspaceIds,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
+  const failures: { workspaceId: string; error: unknown }[] = []
+  /** Workspaces archived before this ban still have the runs an archive leaves going. */
+  const stopping = [stopRuns(owned.filter((row) => row.archivedAt).map((row) => row.id))]
+  // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
-    await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+    try {
+      await archiveWorkspace(row.id, {
+        requestId,
+        expectedOwnerId: userId,
+        /** Called once the archive commits, before its slower post-commit cleanup. */
+        deliverStops: () => {
+          stopping.push(stopRuns([row.id]))
+        },
+      })
+    } catch (error) {
+      failures.push({ workspaceId: row.id, error })
+    }
+  }
+
+  await Promise.all(stopping)
+
+  if (failures.length > 0) {
+    logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {
+      failures: failures.map(({ workspaceId, error }) => ({
+        workspaceId,
+        error: getErrorMessage(error),
+      })),
+    })
+    throw new AggregateError(
+      failures.map((failure) => failure.error),
+      `Failed to archive ${failures.length} of ${ownedWorkspaces.length} workspaces for banned user ${userId}`
+    )
   }
 
   logger.info(
-    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
+    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, ${stopFailed ? 'failed to stop some of their runs' : 'stopped their runs'}`
   )
 }
 
@@ -406,11 +479,22 @@ export async function finishWorkflowArchive(
     await notifyWorkflowArchived(workflowId, options.requestId)
   }
 
-  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+  await cleanupExternalWebhooksForWorkflow(
+    workflowId,
+    options.requestId,
+    options.strictExternalCleanup
+  )
 
   if (workspaceId && mcpPubSub) {
     for (const serverId of new Set(serverIds)) {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(
+          `[${options.requestId}] MCP tools-changed publish failed for server ${serverId}`,
+          { error }
+        )
+      }
     }
   }
 }

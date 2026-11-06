@@ -44,6 +44,7 @@ import {
   getHostedModels,
   isAutoModel,
   isCustomModelId,
+  isEvaluationModel,
   isKnownModelId,
   suggestModelIdsForUnknownModel,
 } from '@/providers/models'
@@ -487,6 +488,9 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   if (isAutoModel(model)) {
     return `${where}: sim-auto cannot be a fallback model; it already routes and falls back on its own`
   }
+  if (isEvaluationModel(model)) {
+    return `${where}: ${model} is an evaluation model and cannot serve as a chat fallback`
+  }
   if (!isKnownModelId(model) && !isCustomModelId(model)) {
     const suggestions = suggestModelIdsForUnknownModel(model)
     const suggestionText =
@@ -510,6 +514,11 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
     }
   }
   return null
+}
+
+/** A file object as the file-upload editor stores it: at least its name and serve path. */
+function isStoredFile(value: unknown): boolean {
+  return isPlainRecord(value) && Boolean(value.name) && Boolean(value.path)
 }
 
 /**
@@ -605,9 +614,11 @@ export function validateValueForSubBlockType(
     }
 
     case 'file-upload': {
-      // File upload should be an object with specific properties or null
-      if (value === null) return { valid: true, value: null }
-      if (typeof value !== 'object') {
+      // Removing the editor's last file stores null, so an empty list clears the field too.
+      if (subBlockConfig.multiple && Array.isArray(value)) {
+        if (value.length === 0) return { valid: true, value: null }
+        const index = value.findIndex((file) => !isStoredFile(file))
+        if (index === -1) return { valid: true, value }
         return {
           valid: false,
           error: {
@@ -615,12 +626,11 @@ export function validateValueForSubBlockType(
             blockType,
             field: fieldName,
             value,
-            error: `Invalid file-upload value for field "${fieldName}" - expected object with name and path properties, or null`,
+            error: `Invalid file-upload entry ${fieldName}[${index}] - each file must be an object with "name" and "path" properties`,
           },
         }
       }
-      // Validate file object has required properties
-      if (value && (!value.name || !value.path)) {
+      if (!isStoredFile(value)) {
         return {
           valid: false,
           error: {
@@ -628,7 +638,7 @@ export function validateValueForSubBlockType(
             blockType,
             field: fieldName,
             value,
-            error: `Invalid file-upload object for field "${fieldName}" - must have "name" and "path" properties`,
+            error: `Invalid file-upload value for field "${fieldName}" - expected ${subBlockConfig.multiple ? 'a list of objects' : 'one object'} with "name" and "path" properties, or null`,
           },
         }
       }

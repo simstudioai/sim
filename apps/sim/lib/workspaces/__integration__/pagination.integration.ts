@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceOperationReceipt } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -34,7 +35,8 @@ describe('workspace pagination against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       [workspaceId, otherWorkspaceId].map((id) => ({
         id,
         name: 'Pagination parent fixture',
@@ -52,7 +54,8 @@ describe('workspace pagination against PostgreSQL', () => {
         permissionType: 'admin' as const,
       }))
     )
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       childIds.map((id, index) => ({
         id,
         name: `Pagination child ${index}`,
@@ -89,9 +92,10 @@ describe('workspace pagination against PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await db
-      .delete(workspace)
-      .where(inArray(workspace.id, [...childIds, workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(
+      db,
+      inArray(workspace.id, [...childIds, workspaceId, otherWorkspaceId])
+    )
     await db.delete(user).where(eq(user.id, userId))
     await db.$client.end()
   })

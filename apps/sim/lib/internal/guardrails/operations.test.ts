@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredential,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(),

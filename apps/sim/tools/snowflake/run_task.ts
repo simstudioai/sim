@@ -3,6 +3,7 @@ import type { SnowflakeRunTaskParams, SnowflakeStatementResponse } from '@/tools
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -20,6 +21,7 @@ function isRetryLast(value: unknown): boolean {
 export const runTaskTool: ToolConfig<SnowflakeRunTaskParams, SnowflakeStatementResponse> = {
   id: 'snowflake_run_task',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Run Task',
   description: 'Run a Snowflake task immediately, optionally retrying its last failed graph.',
   params: {

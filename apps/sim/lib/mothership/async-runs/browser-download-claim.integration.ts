@@ -45,6 +45,8 @@ describe('browser download admission with PostgreSQL', () => {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), run_id uuid NOT NULL, checkpoint_id uuid,
       tool_call_id text NOT NULL UNIQUE, tool_name text NOT NULL,
       args jsonb NOT NULL DEFAULT '{}', status text NOT NULL DEFAULT 'pending',
+      executable_name text, target_workspace_id text, approved_args jsonb, assistant_action jsonb,
+      execution_retryable boolean NOT NULL DEFAULT true,
       result jsonb, error text, permission_decision text, permission_decided_at timestamp,
       permission_requested_at timestamp,
       pickup_deadline_at timestamp with time zone,
@@ -52,6 +54,8 @@ describe('browser download admission with PostgreSQL', () => {
       claimed_at timestamp, claimed_by text, execution_started_at timestamp,
       execution_settled_at timestamp, execution_owner_token text,
       execution_lease_expires_at timestamptz, execution_revoked_at timestamptz,
+      execution_attempts integer NOT NULL DEFAULT 0,
+      execution_deadline_at timestamptz,
       client_workflow_execution_id text, sandbox_processes jsonb NOT NULL DEFAULT '{}',
       completed_at timestamp, created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()

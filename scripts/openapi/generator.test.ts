@@ -344,7 +344,19 @@ describe('OpenAPI generator', () => {
       generateOpenApiDocument({
         ...document([simpleRoute()]),
         security: [{ oauthBearer: [] }],
-        securitySchemes: { oauthBearer: { type: 'http', scheme: 'bearer' } },
+        securitySchemes: {
+          oauthBearer: {
+            type: 'oauth2',
+            description: 'OAuth.',
+            flows: {
+              authorizationCode: {
+                authorizationUrl: 'https://example.com/authorize',
+                tokenUrl: 'https://example.com/token',
+                scopes: { 'api:read': 'Read.' },
+              },
+            },
+          },
+        },
       })
     ).toThrow("must declare its canonical application's OAuth scope")
   })

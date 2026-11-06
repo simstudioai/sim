@@ -22,7 +22,7 @@ vi.mock('@/providers', () => providersMock)
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredential,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,

@@ -1,15 +1,19 @@
+import { isRecordLike } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareRulesetResponse,
   CloudflareUpdateRulesetRuleParams,
 } from '@/tools/cloudflare/types'
 import {
+  appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyRuleset,
-  mapRuleset,
+  mapCloudflareRuleset,
   parseJsonObjectParam,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateRulesetRuleTool: ToolConfig<
   CloudflareUpdateRulesetRuleParams,
@@ -22,6 +26,26 @@ export const updateRulesetRuleTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    exposed_credential_check: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression.',
+    },
+    position: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. An object configuring where the rule will be placed. Fields: before, after, index.',
+    },
+    dry_run: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'dry run',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -103,8 +127,13 @@ export const updateRulesetRuleTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules/${params.ruleId.trim()}`,
+    url: (params) => {
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/${safeUrlPathSegment(params.rulesetId, 'rulesetId')}/rules/${safeUrlPathSegment(params.ruleId, 'ruleId')}`
+      )
+      appendParam(url, 'dry_run', params.dry_run)
+      return url.toString()
+    },
     method: 'PATCH',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
@@ -138,68 +167,28 @@ export const updateRulesetRuleTool: ToolConfig<
       const logging = parseJsonObjectParam(params.logging, 'Logging Configuration')
       if (logging) body.logging = logging
 
+      if (params.exposed_credential_check !== undefined && params.exposed_credential_check !== '')
+        body.exposed_credential_check = parseJsonObjectParam(
+          params.exposed_credential_check,
+          'exposed_credential_check'
+        )
+      if (params.position !== undefined && params.position !== '')
+        body.position = parseJsonObjectParam(params.position, 'position')
       return body
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyRuleset(),
-        error: cloudflareErrorMessage(data, 'Failed to update ruleset rule'),
-      }
+  transformResponse: async (response: Response, params) => {
+    const data = await readCloudflareResponse(response)
+    const success =
+      response.ok &&
+      data.success === true &&
+      (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
+    return {
+      success,
+      output: mapCloudflareRuleset(data.result),
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to update ruleset rule') } : {}),
     }
-
-    return { success: true, output: mapRuleset(data.result) }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Ruleset identifier' },
-    name: { type: 'string', description: 'Ruleset name' },
-    description: { type: 'string', description: 'Ruleset description' },
-    kind: { type: 'string', description: 'Ruleset kind (managed, custom, root, or zone)' },
-    phase: { type: 'string', description: 'Phase the ruleset runs in' },
-    version: { type: 'string', description: 'Ruleset version after the change', optional: true },
-    last_updated: {
-      type: 'string',
-      description: 'RFC 3339 timestamp of the last change',
-      optional: true,
-    },
-    rules: {
-      type: 'array',
-      description: 'Rules in the ruleset after the change, in evaluation order',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Rule identifier' },
-          version: { type: 'string', description: 'Rule version', optional: true },
-          action: { type: 'string', description: 'Action the rule performs' },
-          action_parameters: {
-            type: 'json',
-            description: 'Action-specific parameters',
-            optional: true,
-          },
-          expression: { type: 'string', description: 'Filter expression' },
-          description: { type: 'string', description: 'Rule description' },
-          enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
-          ref: { type: 'string', description: 'Rule reference tag', optional: true },
-          last_updated: {
-            type: 'string',
-            description: 'RFC 3339 timestamp of the last change',
-            optional: true,
-          },
-          categories: {
-            type: 'array',
-            description: 'Managed-rule categories',
-            items: { type: 'string', description: 'Category tag' },
-          },
-          logging: { type: 'json', description: 'Logging configuration', optional: true },
-          ratelimit: { type: 'json', description: 'Rate limiting configuration', optional: true },
-        },
-      },
-    },
-  },
+  outputs: RULESET_OUTPUTS,
 }

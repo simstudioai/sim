@@ -36,8 +36,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.createTag,
       operationId: 'createKnowledgeTag',
-      summary: 'Create Tag',
-      description: `Create a tag definition. Write document values by \`tagSlot\` and filter by \`displayName\`. Omitting \`tagSlot\` selects a free slot; exhaustion returns \`400\`. An occupied slot or duplicate name returns \`409\`. Use Bulk Save Tag Definitions for multiple definitions. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Create tag',
+      description: `Create a tag definition. Write document values by \`tagSlot\` and filter by \`displayName\`. Omitting \`tagSlot\` selects a free slot; exhaustion returns \`400\`. An occupied slot or duplicate name returns \`409\`. Use Bulk save tag definitions for multiple definitions. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created tag definition.' },
     }),
@@ -69,7 +69,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.updateTag,
       operationId: 'updateKnowledgeTag',
-      summary: 'Update Tag',
+      summary: 'Update tag',
       description: `Rename a tag or change its slot-compatible \`fieldType\`. Renaming changes read and filter names without moving the slot or its values. Slots are fixed for a tag's lifetime; an incompatible type returns \`400\` and requires creating a new tag. A duplicate display name returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated tag definition.' },
@@ -102,7 +102,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.deleteTag,
       operationId: 'deleteKnowledgeTag',
-      summary: 'Delete Tag',
+      summary: 'Delete tag',
       description: `Permanently delete a tag definition and its values from every document and chunk in the knowledge base. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tag deletion acknowledgement.' },
@@ -133,8 +133,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.readNextTagSlot,
       operationId: 'getNextKnowledgeTagSlot',
-      summary: 'Get Next Tag Slot',
-      description: `Get the next available slot and remaining capacity for a field type. This does not reserve a slot. Create Tag selects a free slot when \`tagSlot\` is omitted. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Get next tag slot',
+      description: `Get the next available slot and remaining capacity for a field type. This does not reserve a slot. Create tag selects a free slot when \`tagSlot\` is omitted. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Slot availability for the requested field type.' },
     }),
@@ -164,7 +164,7 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.readTagUsage,
       operationId: 'listKnowledgeTagUsage',
-      summary: 'List Tag Usage',
+      summary: 'List tag usage',
       description: `Count the documents and chunks with a value for each defined tag. ${FULL_SET_LIST} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Usage counts for every defined tag.' },
@@ -195,8 +195,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.saveDocumentTagDefinitions,
       operationId: 'bulkSaveKnowledgeTagDefinitions',
-      summary: 'Bulk Save Tag Definitions',
-      description: `Create or update tag definitions, preserving unspecified slots. Updates require \`originalDisplayName\`; other entries create tags. Slot and name conflicts appear in per-definition \`errors\` with HTTP \`200\`, leaving conflicting values unchanged. Use Update Document to set tag values. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Bulk save tag definitions',
+      description: `Create or update tag definitions, preserving unspecified slots. Updates require \`originalDisplayName\`; other entries create tags. Slot and name conflicts appear in per-definition \`errors\` with HTTP \`200\`, leaving conflicting values unchanged. Use Update document to set tag values. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Definitions created and updated by the save.' },
     }),
@@ -233,8 +233,8 @@ export const knowledgeTagOpenApiRoutes = [
     knowledgeOperation({
       applicationOperation: knowledgeOperations.deleteDocumentTagDefinitions,
       operationId: 'deleteKnowledgeTagDefinitions',
-      summary: 'Delete Tag Definitions',
-      description: `Delete unused tag definitions by default. With \`unused=false\`, permanently delete all definitions and their values from documents and chunks. Use Delete Tag to remove one definition. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Delete tag definitions',
+      description: `Delete unused tag definitions by default. With \`unused=false\`, permanently delete all definitions and their values from documents and chunks. Use Delete tag to remove one definition. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Number of tag definitions removed.' },
     }),

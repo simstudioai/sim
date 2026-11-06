@@ -1,5 +1,5 @@
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
 import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'

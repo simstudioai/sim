@@ -1,80 +1,103 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
-import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
-import { escapeRegExp } from '@sim/utils/string'
-import { useQueries } from '@tanstack/react-query'
+import { type ReactNode, useEffect, useRef } from 'react'
 import {
-  ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
-  isAssistantImageType,
-} from '@/lib/uploads/shared/assistant-images'
+  Chip,
+  ComposerActionButton,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
+import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
+import { useQueries } from '@tanstack/react-query'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
+import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
-import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import {
   PromptEditor,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
-import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
+import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
-import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { filterContextsPresentInMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import type {
+  PendingComposerSubmission,
+  useComposerSubmission,
+} from '@/hooks/use-composer-submission'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
 interface ComposerProps {
-  searchEnabled?: boolean
   requestMode?: ChatRequestMode
-  onModeChange?: (mode: ChatRequestMode) => void
-  showModeSelector?: boolean
+  onPlanChange?: () => void
   value: string
   files: ReturnType<typeof useFileAttachments>
+  submission: ReturnType<typeof useComposerSubmission>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
   onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
-  onSubmit: (text: string, contexts?: ChatContext[]) => void
+  onSubmit: (
+    text: string,
+    contexts?: ChatContext[]
+  ) => undefined | false | PendingComposerSubmission
   onSendQueuedHead?: () => void
+  onEditQueuedTail?: () => boolean
+  messages?: readonly ChatMessage[]
   onStop: () => void
+  compact?: boolean
+  attachments?: ReactNode
+  resourceActions?: ReactNode
+  toolbarActions?: ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
 }
 
-/**
- * The organization home composer: a question to the Assistant. Wears the
- * workspace chat input's chrome — the framed field and the send control — and
- * carries only the controls that are wired for the organization.
- */
+/** Organization composer with scoped resources, attachments, voice, and draft restoration. */
 export function Composer({
-  searchEnabled = true,
   requestMode = 'assistant',
-  onModeChange,
-  showModeSelector = false,
+  onPlanChange,
   value,
   files,
+  submission,
   isInitialView,
   isSending,
   onChange,
   onSubmit,
   onSendQueuedHead,
+  onEditQueuedTail,
+  messages,
   restoredContexts,
   onStop,
+  compact = false,
+  attachments,
+  resourceActions,
+  toolbarActions,
+  modelSelectorOptions,
 }: ComposerProps) {
   const attachedFilesRef = useRef(files.attachedFiles)
   attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
+  const searchInput = imagesOnly && !compact
+  const hasAdditionalAttachments = Boolean(attachments)
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -100,26 +123,13 @@ export function Composer({
     initialContexts: restoredContexts,
     onPasteFiles: files.processFiles,
   })
-  const { textareaRef } = editor
-  const searchBlocked =
-    editor.getActiveContexts().length > 0 ||
-    files.attachedFiles.some((file) => !isAssistantImageType(file.type))
-  const handleModeChange = (mode: ChatRequestMode) => {
-    if (mode === 'assistant' && searchBlocked) {
-      toast.info(
-        'Remove resource and skill mentions and non-image attachments before switching to Search.'
-      )
-      return
-    }
-    onModeChange?.(mode)
-  }
-  const handleModeShortcut = useConversationModeShortcut({
-    value: requestMode,
-    searchEnabled: searchEnabled && !searchBlocked,
-    onChange: showModeSelector && onModeChange ? handleModeChange : undefined,
-    textareaRef,
-    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
+  const history = usePromptHistory({
+    editor,
+    attachedFiles: files.attachedFiles,
+    restoreAttachedFiles: files.restoreAttachedFiles,
+    getMessages: () => messages ?? [],
   })
+  const { textareaRef } = editor
   const editorRef = useRef(editor)
   editorRef.current = editor
   const lastPublished = useRef(value)
@@ -143,19 +153,13 @@ export function Composer({
   }, [editor.value, editor.contexts, onChange])
   useEffect(() => {
     if (!restoredContexts) return
-    // A queued skill may belong to a workspace whose picker has never opened here.
-    // Restore its existing chip from the saved context, without rediscovering it.
-    let restoredText = editorRef.current.getValue()
-    for (const context of restoredContexts) {
-      if (context.kind !== 'skill') continue
-      restoredText = restoredText.replace(
-        new RegExp(`(^|\\s)/${escapeRegExp(context.label)}(?=\\s|$)`, 'g'),
-        `$1${SKILL_CHIP_TRIGGER}${context.label}`
-      )
-    }
-    editorRef.current.setValue(restoredText, { chipify: false })
-    editorRef.current.setContexts(restoredContexts)
-  }, [restoredContexts])
+    history.reset()
+    const { hasUnavailableContexts } = editorRef.current.restorePrompt(
+      editorRef.current.getPlainValue(),
+      restoredContexts
+    )
+    if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
+  }, [restoredContexts, history.reset])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({
     organizationId: organization.id,
@@ -164,27 +168,44 @@ export function Composer({
   })
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
-    (value.trim().length > 0 || files.attachedFiles.some((file) => file.key))
+    (value.trim().length > 0 ||
+      files.attachedFiles.some((file) => file.key) ||
+      hasAdditionalAttachments)
   const animatedPlaceholder = useAnimatedPlaceholder(
-    isInitialView && !value,
-    imagesOnly ? 'search' : 'build'
+    !compact && !imagesOnly && isInitialView && !value
   )
-  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
+  const placeholder = isInitialView && !compact ? animatedPlaceholder : 'Send message to Sim'
 
+  const { pending: preparingSubmission, accept: acceptSubmission } = submission
   const submit = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
     const hasPayload =
-      editor.getValue().trim().length > 0 || attachedFilesRef.current.some((file) => file.key)
+      editor.getValue().trim().length > 0 ||
+      attachedFilesRef.current.some((file) => file.key) ||
+      hasAdditionalAttachments
     if (!hasPayload) {
       if (isSending) onSendQueuedHead?.()
       return
     }
-    /** Consume attachments synchronously so a second Enter cannot submit them twice. */
-    attachedFilesRef.current = []
-    voice.resetTranscript()
-    const contexts = imagesOnly ? [] : editor.getActiveContexts()
-    onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
-    editor.clear()
+    const contexts = imagesOnly
+      ? filterContextsPresentInMessage(
+          editor.contexts.filter((context) => context.kind === 'browser_page'),
+          editor.getPlainValue()
+        )
+      : editor.getActiveContexts()
+    const raw = editor.getValue()
+    const filesAtSend = attachedFilesRef.current
+    acceptSubmission(
+      () => onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined),
+      () => {
+        attachedFilesRef.current = []
+        voice.resetTranscript()
+        history.reset()
+        editor.clear()
+      },
+      () => editorRef.current.getValue() === raw && attachedFilesRef.current === filesAtSend,
+      textareaRef.current
+    )
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
@@ -207,46 +228,65 @@ export function Composer({
     </Tooltip.Root>
   )
 
+  const recallQueuedTail = () => {
+    if (hasAdditionalAttachments || attachedFilesRef.current.length > 0) return false
+    return onEditQueuedTail?.() ?? false
+  }
   const promptEditor = (
     <PromptEditor
       editor={editor}
+      resourceActions={resourceActions}
       placeholder={placeholder}
       aria-label='Ask Sim'
       onSubmit={submit}
+      onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
+      onArrowUpOnEmpty={recallQueuedTail}
       className={cn(
         'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
-        isInitialView && 'min-h-[56px] max-md:min-h-0'
+        isInitialView && !compact && 'min-h-[56px] max-md:min-h-0'
       )}
     />
   )
 
   const leadingControls = (
     <>
-      {imagesOnly && !showModeSelector && (
-        <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      {searchInput && <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+      {imagesOnly && resourceActions && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Chip shape='round' leftIcon={Plus} aria-label='Add resources' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>{resourceActions}</DropdownMenuContent>
+        </DropdownMenu>
       )}
       {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
 
-      {!imagesOnly && (
+      {(!imagesOnly || compact) && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Chip
               shape='round'
               leftIcon={Paperclip}
               onClick={files.handleFileSelect}
-              aria-label='Attach file'
+              aria-label={imagesOnly ? 'Attach image' : 'Attach file'}
             />
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          <Tooltip.Content side='top'>
+            {imagesOnly ? 'Attach image' : 'Attach file'}
+          </Tooltip.Content>
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
-      {showModeSelector && (
-        <ConversationModeSelector
-          value={requestMode}
-          searchEnabled={searchEnabled}
-          onChange={onModeChange ? handleModeChange : undefined}
-        />
+      {toolbarActions}
+      {onPlanChange && (
+        <Chip
+          shape='round'
+          active={requestMode === 'plan'}
+          aria-pressed={requestMode === 'plan'}
+          onClick={onPlanChange}
+        >
+          Plan
+        </Chip>
       )}
     </>
   )
@@ -273,17 +313,20 @@ export function Composer({
     </ComposerActionButton>
   )
 
-  const attachmentList = files.attachedFiles.length ? (
-    <AttachedFilesList
-      attachedFiles={files.attachedFiles}
-      onFileClick={files.handleFileClick}
-      onRemoveFile={files.removeFile}
-    />
-  ) : null
+  const attachmentList =
+    files.attachedFiles.length || attachments ? (
+      <AttachedFilesList
+        attachedFiles={files.attachedFiles}
+        onFileClick={files.handleFileClick}
+        onRemoveFile={files.removeFile}
+        additionalAttachments={attachments}
+      />
+    ) : null
 
   return (
     <div
-      onKeyDown={handleModeShortcut}
+      aria-busy={preparingSubmission || undefined}
+      inert={preparingSubmission}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}
@@ -291,15 +334,15 @@ export function Composer({
       className={cn(
         inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
-        !imagesOnly &&
+        !searchInput &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        !imagesOnly && isInitialView && 'shadow-ambient'
+        !searchInput && !compact && isInitialView && 'shadow-ambient'
       )}
     >
-      {!imagesOnly && attachmentList}
-      {!imagesOnly && promptEditor}
+      {!searchInput && attachmentList}
+      {!searchInput && promptEditor}
 
-      {imagesOnly ? (
+      {searchInput ? (
         <SearchInputBar
           floating={isInitialView}
           attachments={attachmentList}
@@ -308,7 +351,13 @@ export function Composer({
           onChange={(text) => editor.setValue(text)}
           onSubmit={submit}
           onPaste={editor.handlePaste}
-          placeholder={placeholder}
+          onKeyDown={(event) =>
+            editor.handleKeyDown(event, {
+              onNavigateHistory: hasAdditionalAttachments ? undefined : history.navigate,
+              onArrowUpOnEmpty: recallQueuedTail,
+            })
+          }
+          placeholder={isInitialView ? 'Ask about your sources' : 'Ask a follow-up'}
           aria-label='Ask Sim'
           leadingControls={leadingControls}
           voiceControl={voiceControl}
@@ -316,6 +365,9 @@ export function Composer({
         />
       ) : (
         <InputToolbar
+          plan={requestMode === 'plan'}
+          showModelSelector={!imagesOnly}
+          modelSelectorOptions={imagesOnly ? undefined : modelSelectorOptions}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

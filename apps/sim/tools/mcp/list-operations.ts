@@ -9,7 +9,7 @@ export const mcpListOperationsTool: InternalToolConfig<
   name: 'List MCP operations',
   version: '1.0.0',
   description:
-    'Discover authorized MCP names, descriptions and input schemas without running operations.',
+    'Discover authorized MCP names, descriptions, input schemas and declared output schemas without running operations.',
   params: {
     server: {
       type: 'string',
@@ -55,6 +55,12 @@ export const mcpListOperationsTool: InternalToolConfig<
           name: { type: 'string', description: 'Exact operation name' },
           description: { type: 'string', description: 'Operation description' },
           inputSchema: { type: 'json', description: 'Provider-defined JSON Schema for arguments' },
+          outputSchema: {
+            type: 'json',
+            description:
+              'Provider-defined JSON Schema for the structuredContent reply, when the operation declares one',
+            optional: true,
+          },
         },
       },
     },

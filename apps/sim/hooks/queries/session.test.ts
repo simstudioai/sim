@@ -2,7 +2,7 @@ import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-clien
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 import { refreshSessionQuery, sessionKeys } from '@/hooks/queries/session'
 

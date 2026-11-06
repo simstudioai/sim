@@ -19,7 +19,7 @@ export const ExtendBlock: BlockConfig = {
   sunset: { status: 'legacy', replacedBy: 'extend_v2' },
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Extend AI into the workflow. Parse and extract structured content from documents including PDFs, images, and Office files.',
+    'Parse and extract structured content from documents including PDFs, images, and Office files.',
   docsLink: 'https://docs.sim.ai/integrations/extend',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -181,8 +181,7 @@ export const ExtendV2Block: BlockConfig = {
   type: 'extend_v2',
   name: 'Extend',
   hideFromToolbar: false,
-  longDescription:
-    'Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.',
+  longDescription: 'Parse and extract structured content from documents or file references.',
   canvasPresentation: {
     defaultTitle: 'Extend',
     sentences: {

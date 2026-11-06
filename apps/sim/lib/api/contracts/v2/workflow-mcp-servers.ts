@@ -55,7 +55,7 @@ export type V2WorkflowMcpServerParams = z.output<typeof v2WorkflowMcpServerParam
 
 export const v2WorkflowMcpToolParamsSchema = v2WorkflowMcpServerParamsSchema
   .extend({
-    workflowId: workflowIdSchema.describe('Workflow published as a tool on this server.'),
+    workflowId: workflowIdSchema.describe('Workflow registered as an MCP tool on this server.'),
   })
   .meta({
     id: 'WorkflowMcpToolParams',
@@ -73,7 +73,7 @@ export const v2WorkflowMcpServerSchema = z
     isPublic: z.boolean().describe('Whether the server answers MCP clients without a Sim API key.'),
     mcpServerUrl: z
       .string()
-      .describe('Endpoint an MCP client connects to. Published here so callers never build it.')
+      .describe('MCP client endpoint. Use this returned URL instead of constructing one.')
       .meta({ examples: ['https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2'] }),
     createdAt: z
       .string()
@@ -87,7 +87,7 @@ export const v2WorkflowMcpServerSchema = z
   .meta({
     id: 'WorkflowMcpServer',
     title: 'Workflow MCP server',
-    description: 'A workspace-published MCP server exposing deployed workflows as tools.',
+    description: 'A workflow MCP server exposing deployed workflows as tools.',
   })
 export type V2WorkflowMcpServer = z.output<typeof v2WorkflowMcpServerSchema>
 
@@ -99,15 +99,23 @@ export type V2WorkflowMcpServer = z.output<typeof v2WorkflowMcpServerSchema>
  */
 export const v2WorkflowMcpServerListItemSchema = v2WorkflowMcpServerSchema
   .extend({
-    toolCount: z.number().int().nonnegative().describe('Number of workflows published as tools.'),
+    toolCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Number of returned tool names for this server. It may undercount registrations when the page’s `toolNamesTruncated` flag is true.'
+      ),
     toolNames: z
       .array(z.string())
-      .describe('Tool names this server publishes, alphabetically ordered.'),
+      .describe(
+        'Returned registered tool names, ordered alphabetically. The list may be incomplete when toolNamesTruncated is true.'
+      ),
   })
   .meta({
     id: 'WorkflowMcpServerListItem',
     title: 'Workflow MCP server list item',
-    description: 'A published MCP server together with the tool names it exposes.',
+    description: 'A workflow MCP server and its bounded tool-name inventory.',
   })
 export type V2WorkflowMcpServerListItem = z.output<typeof v2WorkflowMcpServerListItemSchema>
 
@@ -116,7 +124,7 @@ export type V2WorkflowMcpServerSortBy = (typeof v2WorkflowMcpServerSortFields)[n
 
 export const v2ListWorkflowMcpServersQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace whose published MCP servers to list.'),
+    workspaceId: workspaceIdSchema.describe('Workspace whose workflow MCP servers to list.'),
     ...v2SortFields(v2WorkflowMcpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
     ...v2PaginationFields({ description: 'Maximum workflow-MCP servers to return per page.' }),
   })
@@ -124,13 +132,15 @@ export const v2ListWorkflowMcpServersQuerySchema = z
   .meta({
     id: 'ListWorkflowMcpServersQuery',
     title: 'List workflow MCP servers query',
-    description: 'Workspace scope, ordering, and pagination for published MCP servers.',
+    description: 'Workspace scope, ordering, and pagination for workflow MCP servers.',
   })
 export type V2ListWorkflowMcpServersQuery = z.output<typeof v2ListWorkflowMcpServersQuerySchema>
 
 export const v2CreateWorkflowMcpServerBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace in which to publish the server.'),
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace in which to create the workflow MCP server.'
+    ),
     name: z
       .string({ error: 'name is required' })
       .trim()
@@ -153,7 +163,7 @@ export const v2CreateWorkflowMcpServerBodySchema = z
       .boolean()
       .optional()
       .describe(
-        'Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.'
+        'Whether the server accepts MCP clients without a Sim API key. Defaults to false; a public server lets anyone holding its URL execute the workflows it exposes.'
       )
       .meta({ default: false }),
     workflowIds: z
@@ -163,13 +173,13 @@ export const v2CreateWorkflowMcpServerBodySchema = z
         `workflowIds must contain at most ${V2_WORKFLOW_MCP_PARAMETER_DESCRIPTIONS_MAX} entries`
       )
       .optional()
-      .describe('Deployed workflows to publish as tools on the new server.'),
+      .describe('Deployed workflows to expose as MCP tools on the new server.'),
   })
   .strict()
   .meta({
     id: 'CreateWorkflowMcpServerRequest',
     title: 'Create workflow MCP server request',
-    description: 'A new workspace-published MCP server and the workflows it exposes.',
+    description: 'A new workflow MCP server and deployed workflows to expose as tools.',
     examples: [
       {
         workspaceId: '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94',
@@ -216,27 +226,28 @@ export const v2UpdateWorkflowMcpServerBodySchema = z
   .meta({
     id: 'UpdateWorkflowMcpServerRequest',
     title: 'Update workflow MCP server request',
-    description: 'Merge-patch body for a published MCP server.',
+    description:
+      'Server fields to change. Omitted fields remain unchanged; `description: null` clears the description.',
     examples: [{ isPublic: true }],
   })
 export type V2UpdateWorkflowMcpServerBody = z.input<typeof v2UpdateWorkflowMcpServerBodySchema>
 
 export const v2DeleteWorkflowMcpServerDataSchema = z
   .object({
-    id: z.string().describe('Identifier of the unpublished server.'),
-    deleted: z.literal(true).describe('Whether the server was unpublished.'),
+    id: z.string().describe('Identifier of the deleted workflow MCP server.'),
+    deleted: z.literal(true).describe('Whether the workflow MCP server was deleted.'),
   })
   .meta({
     id: 'DeleteWorkflowMcpServerResult',
     title: 'Delete workflow MCP server result',
-    description: 'Unpublish acknowledgement.',
+    description: 'Workflow MCP server deletion acknowledgement.',
   })
 export type V2DeleteWorkflowMcpServerData = z.output<typeof v2DeleteWorkflowMcpServerDataSchema>
 
 export const v2WorkflowMcpToolSchema = z
   .object({
     id: z.string().describe('Unique tool identifier.'),
-    serverId: z.string().describe('Server that publishes this tool.'),
+    serverId: z.string().describe('Server exposing this MCP tool.'),
     workflowId: z.string().describe('Workflow this tool executes.'),
     toolName: z
       .string()
@@ -249,7 +260,7 @@ export const v2WorkflowMcpToolSchema = z
     updated: z
       .boolean()
       .describe(
-        'False when the workflow was newly published on this server, true when an existing tool was replaced. Publishing is idempotent per workflow, so a repeat call answers 200 with true rather than conflicting.'
+        'False for a new registration, true when an existing registration for this workflow was replaced. Repeating the operation returns 200 with true instead of a duplicate conflict.'
       ),
     createdAt: z
       .string()
@@ -263,14 +274,14 @@ export const v2WorkflowMcpToolSchema = z
   .meta({
     id: 'WorkflowMcpTool',
     title: 'Workflow MCP tool',
-    description: 'A deployed workflow published as a tool on a workflow-MCP server.',
+    description: 'A deployed workflow exposed as a tool on a workflow MCP server.',
   })
 export type V2WorkflowMcpTool = z.output<typeof v2WorkflowMcpToolSchema>
 
 export const v2DeployWorkflowMcpToolBodySchema = z
   .object({
     workflowId: workflowIdSchema.describe(
-      'Deployed workflow to publish. The workflow must already be deployed.'
+      'Workflow to expose as an MCP tool. It must already be deployed.'
     ),
     toolName: z
       .string()
@@ -326,8 +337,8 @@ export const v2DeployWorkflowMcpToolBodySchema = z
   .strict()
   .meta({
     id: 'DeployWorkflowMcpToolRequest',
-    title: 'Publish workflow as MCP tool request',
-    description: 'The workflow to publish and the tool metadata MCP clients see.',
+    title: 'Deploy workflow as MCP tool request',
+    description: 'The deployed workflow and tool metadata presented to MCP clients.',
     examples: [{ workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36', toolName: 'triage_ticket' }],
   })
 export type V2DeployWorkflowMcpToolBody = z.input<typeof v2DeployWorkflowMcpToolBodySchema>
@@ -336,12 +347,12 @@ export const v2UndeployWorkflowMcpToolDataSchema = z
   .object({
     id: z.string().describe('Identifier of the removed tool.'),
     serverId: z.string().describe('Server the tool was removed from.'),
-    workflowId: z.string().describe('Workflow that is no longer published.'),
+    workflowId: z.string().describe('Workflow whose MCP tool registration was removed.'),
     deleted: z.literal(true).describe('Whether the tool was removed.'),
   })
   .meta({
     id: 'UndeployWorkflowMcpToolResult',
-    title: 'Unpublish workflow MCP tool result',
+    title: 'Undeploy workflow MCP tool result',
     description: 'Tool removal acknowledgement.',
   })
 export type V2UndeployWorkflowMcpToolData = z.output<typeof v2UndeployWorkflowMcpToolDataSchema>
@@ -356,7 +367,7 @@ export const v2ListWorkflowMcpServersContract = defineRouteContract({
       toolNamesTruncated: z
         .boolean()
         .describe(
-          'Whether the page-wide tool-name limit left some inventories incomplete. Use List Workflow MCP Tools for one server and check its `truncated` flag before treating the inventory as complete. `nextCursor` paginates servers, not tool names.'
+          'Whether the page-wide tool-name limit left some inventories incomplete. Use List workflow MCP tools for one server and check its `truncated` flag before treating the inventory as complete. `nextCursor` paginates servers, not tool names.'
         ),
     }),
   },
@@ -383,7 +394,7 @@ export const v2CreateWorkflowMcpServerContract = defineRouteContract({
 export const v2WorkflowMcpToolStatusSchema = z
   .enum(['active', 'inactive'])
   .describe(
-    'Whether MCP clients can call the tool. `inactive` is a registration that undeploying its workflow archived: it is not callable and its name stays reserved on the server, and the next deploy of the workflow makes it `active` again. Unpublishing an inactive tool removes it for good.'
+    'Whether MCP clients can call the tool. Undeploying its workflow archives the registration as `inactive`; it cannot be called and its name stays reserved. Redeploying the workflow makes it `active` again. Undeploying an inactive MCP tool permanently removes its registration.'
   )
 export type V2WorkflowMcpToolStatus = z.output<typeof v2WorkflowMcpToolStatusSchema>
 
@@ -405,7 +416,7 @@ export const v2WorkflowMcpToolListItemSchema = v2WorkflowMcpToolSchema
     id: 'WorkflowMcpToolListItem',
     title: 'Workflow MCP tool list item',
     description:
-      'A tool a server publishes, as returned by a read. Archived registrations are included with `status: "inactive"`.',
+      'A tool registration on a workflow MCP server. Archived registrations are included with `status: "inactive"`.',
   })
 
 export type V2WorkflowMcpToolListItem = z.output<typeof v2WorkflowMcpToolListItemSchema>
@@ -432,7 +443,7 @@ export const v2ListWorkflowMcpToolsContract = defineRouteContract({
       truncated: z
         .boolean()
         .describe(
-          'Whether the tool limit left this inventory incomplete. The list is unpaginated and `nextCursor` remains null even when truncated. Do not treat a truncated inventory as the complete set of published tools.'
+          'Whether the tool limit left this inventory incomplete. The list is unpaginated and nextCursor remains null even when truncated; an incomplete inventory does not represent every registration.'
         ),
     }),
   },

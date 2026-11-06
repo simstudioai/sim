@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { SITE_URL } from '@/lib/core/utils/urls'
+import { SITE_URL, toSiteUrl } from '@/lib/core/utils/urls'
 import {
   HOME_PAGE_DESCRIPTION,
   HOME_PAGE_TITLE,
@@ -54,6 +54,7 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: SITE_URL,
+    types: { 'text/markdown': toSiteUrl('/index.md') },
     languages: {
       'en-US': SITE_URL,
       'x-default': SITE_URL,

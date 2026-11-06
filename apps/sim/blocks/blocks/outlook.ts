@@ -21,7 +21,7 @@ export const OutlookBlock: BlockConfig = {
   description: 'Send, read, search, reply, organize, and manage Outlook email and calendar',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/integrations/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,

@@ -20,18 +20,21 @@ import {
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import {
-  routeWindowScans,
-  windowScan,
-  windowScans,
+  routeWindowTallies,
+  windowTallies,
+  windowTally,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
-import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  removeDisabledImages,
+  runConnectorContentPass,
+} from '@/lib/knowledge/connectors/sync-content-pass'
 import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
@@ -53,7 +56,7 @@ uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
 
 function resetDbChainMock() {
   resetDatabaseMock()
-  routeWindowScans()
+  routeWindowTallies()
 }
 
 const hoisted = vi.hoisted(() => ({
@@ -94,7 +97,12 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-const SOURCE_CONFIG = { domain: 'fixture.atlassian.net', spaceKey: 'ENG' }
+/** Images on, as a new connector is created. */
+const SOURCE_CONFIG = {
+  domain: 'fixture.atlassian.net',
+  spaceKey: 'ENG',
+  imageAttachments: 'semantic',
+}
 const EXISTING: StoredPage = {
   id: 'document',
   externalId: 'page',
@@ -216,18 +224,9 @@ describe('completed listing removal counts', () => {
       complete: true,
       listedCount: 8,
     }
-    queueTableRows(schemaMock.document, [
-      {
-        ownedCount: 10,
-        listedCount: 8,
-        aclCount: options.revoked?.length ?? 0,
-        softCount: soft.length,
-        hardCount: hard.length,
-      },
-    ])
-    /** A walk whose count is zero never scans. Each walk here fits in one partial window. */
+    /** One partial window tallies every count and keeps each removal's rows, so nothing walks. */
+    windowTallies.push(windowTally({ owned: 10, listed: 8, acl: options.revoked, soft, hard }))
     if (options.revoked?.length) {
-      windowScans.push(windowScan(options.revoked))
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
       const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
       queueTableRows(schemaMock.document, granting)
@@ -242,14 +241,10 @@ describe('completed listing removal counts', () => {
         queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
     }
     if (!options.fullSync && soft.length) {
-      windowScans.push(windowScan(soft))
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
       dbChainMockFns.returning.mockResolvedValueOnce(
         options.updated ?? soft.map(({ id }) => ({ id }))
       )
-    }
-    if (hard.length) {
-      windowScans.push(windowScan(hard))
     }
     const result: SyncResult = {
       docsAdded: 0,
@@ -258,6 +253,7 @@ describe('completed listing removal counts', () => {
       docsUnchanged: 0,
       docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     }
     const pass = await runConnectorContentPass({
       connectorId: 'connector',
@@ -338,9 +334,7 @@ async function runPass(
   vi.clearAllMocks()
   resetDbChainMock()
   vi.setSystemTime(new Date(Date.now() + 60_000))
-  if (options.databaseTime) {
-    dbChainMockFns.execute.mockResolvedValue([{ startedAt: options.databaseTime.toISOString() }])
-  }
+  if (options.databaseTime) routeWindowTallies(options.databaseTime)
   for (let index = 0; index < 16; index++) {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -377,9 +371,7 @@ async function runPass(
       schemaMock.document,
       options.permissionStoredAfter ? [options.permissionStoredAfter] : []
     )
-  queueTableRows(schemaMock.document, [
-    { ownedCount: 1, listedCount: 1, softCount: 0, hardCount: 0 },
-  ])
+  windowTallies.push(windowTally({ owned: 1, listed: 1 }))
   for (let index = 0; index < 3; index++) queueTableRows(schemaMock.document, [])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'document' }])
 
@@ -448,6 +440,42 @@ function contentWrite(): Record<string, unknown> {
   expect(call).toBeDefined()
   return call![0]
 }
+
+describe('disabled image removal', () => {
+  it('keeps walking past a page that removed nothing', async () => {
+    queueTableRows(schemaMock.document, [{ id: 'detached' }])
+    queueTableRows(schemaMock.document, [{ id: 'image' }])
+    queueTableRows(schemaMock.document, [])
+    mocks.hardDelete.mockResolvedValueOnce(0).mockResolvedValueOnce(1)
+    const result: SyncResult = {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    }
+
+    const finished = await removeDisabledImages({
+      connectorId: 'connector',
+      connector: { knowledgeBaseId: 'kb', connectorType: 'confluence', imageRemovalPending: true },
+      lease: {
+        stillHeld: () => stillHoldsSyncLock('connector', 'run'),
+        beatIfDue: async () => undefined,
+        beatLive: async () => undefined,
+      },
+      leaseKind: 'content',
+      runId: 'run',
+      deadlineAt: Date.now() + 60_000,
+      result,
+    })
+
+    expect(finished).toBe(true)
+    expect(mocks.hardDelete.mock.calls.map((call) => call[0])).toEqual([['detached'], ['image']])
+    expect(result.docsDeleted).toBe(1)
+  })
+})
 
 describe('content pass checkpoint intent', () => {
   it('does not reconcile deletions after a user listing failed, even without the unsafe marker', async () => {

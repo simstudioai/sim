@@ -4,6 +4,7 @@ import {
   defineAuthorizedWorkspaceUseCase,
   type PrincipalForOperation,
   requireAllowedWorkspacePrincipal,
+  runDeclaredContentOperation,
   type WorkspaceAuthorizationContext,
   type WorkspaceAuthorizationOptions,
   type WorkspaceOperation,
@@ -128,11 +129,16 @@ export function defineAuthorizedChatUseCase<
           request,
         })
       const execution = { principal: resolved.principal, input, context: resolved.context, request }
-      return runWithOutboundOrganization(resolved.organizationId, async () => {
-        const result = await definition.execute(execution)
-        await definition.afterSuccess?.({ ...execution, result })
-        return result
-      })
+      return runWithOutboundOrganization(resolved.organizationId, () =>
+        runDeclaredContentOperation(
+          definition.operation,
+          resolved.principal,
+          () => definition.execute(execution),
+          async (result) => {
+            await definition.afterSuccess?.({ ...execution, result })
+          }
+        )
+      )
     },
   }
 }

@@ -38,7 +38,10 @@ import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
+import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
+import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
   applyRegistrationGate,
@@ -46,6 +49,7 @@ import {
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
 import { getAuthDatabase } from '@/lib/auth/database-context'
+import { refuseDisposableAccountEmail } from '@/lib/auth/disposable-email-gate'
 import {
   type AuthenticationSecurityAuditSnapshot,
   captureAuthenticationSecurityAudit,
@@ -53,7 +57,7 @@ import {
   recordAuthenticationSecurityAudit,
   recordPasswordResetAudit,
 } from '@/lib/auth/lifecycle-audit'
-import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import { hashOAuthToken, revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
   OAUTH_ACCESS_TOKEN_PREFIX,
@@ -74,7 +78,6 @@ import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
-import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
   authorizeSubscriptionReference,
@@ -86,19 +89,25 @@ import {
   releaseCheckoutAdmission,
   resolveCheckoutReferenceId,
 } from '@/lib/billing/checkout-admission'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   getOrganizationIdForSubscriptionReference,
+  sendPlanWelcomeEmail,
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { handleNewUser } from '@/lib/billing/core/usage'
+import { handleNewSignInAccount, handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
-import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { isEnterprise, isLegacyPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  didSubscriptionPriceChange,
+  getPlans,
+  resolvePlanFromStripeSubscription,
+} from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -136,10 +145,12 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
+import { CredentialAccountConflictError } from '@/lib/credentials/draft-hooks'
 import {
   captureOAuthCredentialDraftBinding,
   consumeOAuthCredentialDraftBinding,
   processCredentialDraft,
+  refuseConflictingCredentialReconnect,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -159,12 +170,8 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
-import {
-  isSalesforceLoginOrigin,
-  isSalesforceOAuthProviderId,
-  SALESFORCE_LOGIN_HOSTS,
-  withSalesforceInstanceScope,
-} from '@/lib/oauth/salesforce'
+import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/oauth/salesforce'
+import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
@@ -175,6 +182,26 @@ import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
+
+/**
+ * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
+ * for enterprise (priced per customer) and for a legacy plan still on the price it was sold at;
+ * a catalog plan, or a legacy plan moved to a new price, means a price env var is missing or wrong.
+ */
+function logUnresolvedStripePlan(
+  hook: 'onSubscriptionComplete' | 'onSubscriptionUpdate',
+  details: { subscriptionId: string; dbPlan: string | null; priceId: string | undefined },
+  priceChanged: boolean
+): void {
+  if (isEnterprise(details.dbPlan) || (isLegacyPlan(details.dbPlan) && !priceChanged)) {
+    logger.info(`[${hook}] Off-catalog Stripe price; keeping the stored plan`, details)
+    return
+  }
+  logger.error(
+    `[${hook}] Could not resolve plan from Stripe price; keeping the stored plan — check env var configuration`,
+    details
+  )
+}
 
 function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
   const callbackUrl =
@@ -211,47 +238,59 @@ if (env.NODE_ENV === 'production') {
   }
 }
 
-const validStripeKey = env.STRIPE_SECRET_KEY
-
-let stripeClient = null
-if (validStripeKey) {
-  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-  })
+/**
+ * Resolves the Stripe billing plugin's client and webhook signing secret, or `null` when the plugin
+ * must not register. Stripe's verifier accepts a signature computed with an empty key, so a missing
+ * `STRIPE_WEBHOOK_SECRET` disables the plugin rather than exposing a forgeable webhook receiver.
+ */
+function resolveStripeBilling() {
+  if (!isBillingEnabled || !env.STRIPE_SECRET_KEY) return null
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret?.trim()) {
+    logger.error(
+      'BILLING_ENABLED and STRIPE_SECRET_KEY are set but STRIPE_WEBHOOK_SECRET is not; the Stripe billing plugin is disabled until it is configured'
+    )
+    return null
+  }
+  return {
+    client: new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' }),
+    webhookSecret,
+  }
 }
 
+const stripeBilling = resolveStripeBilling()
+
 /**
- * Resolves the org's API instance URL for a freshly linked Salesforce account.
- *
- * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
- * returns a `profile` URL rooted at the org's own host. A response still rooted
- * at the login host means userinfo answered for the authorization server rather
- * than an org, which is not an instance URL — hence the guard.
- *
- * @returns The instance URL origin, or undefined when it cannot be determined
- * (the caller then leaves `scope` untouched rather than storing a wrong host).
+ * A fresh Slack connect re-issues the installation's rotating token chain,
+ * invalidating the copies held by sibling account rows for the same team (Slack
+ * bot tokens are per-installation, not per-grant). Propagates the new chain so
+ * every sibling is valid again, and clears the installation's dead flag. A
+ * failure is logged, never thrown: the connect itself already succeeded.
  */
-async function fetchSalesforceInstanceUrl(
-  providerId: string,
-  accessToken: string
-): Promise<string | undefined> {
-  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
-  if (!loginHost) return undefined
+async function propagateFreshSlackConnect(account: {
+  userId: string
+  providerId: string
+  accountId: string
+  accessToken?: string | null
+  refreshToken?: string | null
+  accessTokenExpiresAt?: Date | null
+}): Promise<void> {
+  if (account.providerId !== 'slack' || !account.accessToken) return
   try {
-    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const teamId = extractSlackTeamId(account.accountId)
+    if (!teamId) return
+    // Clear the dead flag before fanning out: the connect itself proves the
+    // installation has live tokens, and a fan-out failure must not leave the
+    // hour-long flag blocking refreshes.
+    await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
+    await fanOutSlackTokenChain(teamId, {
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken ?? null,
+      accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
     })
-    if (!response.ok) return undefined
-    const data = await response.json()
-    if (typeof data.profile !== 'string') return undefined
-    const url = new URL(data.profile)
-    // The origin becomes a tool base URL that carries the bearer token, so the
-    // scheme is pinned rather than inherited from whatever userinfo returned.
-    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
-    return url.origin
+    logger.info('Propagated Slack installation token chain', { userId: account.userId, teamId })
   } catch (error) {
-    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
-    return undefined
+    logger.error('Failed to propagate Slack token chain', { userId: account.userId, error })
   }
 }
 
@@ -318,11 +357,12 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
+        before: async (user, context) => {
           const accessControl = await getAccessControlConfig()
           if (isEmailBlockedByAccessControl(user.email, accessControl)) {
             throw new Error('Sign-ups from this email are not allowed.')
           }
+          if (isHosted) await refuseDisposableAccountEmail(user.email, context?.path)
           return { data: user }
         },
         after: async (user, context) => {
@@ -379,7 +419,7 @@ export const auth = betterAuth({
           }
 
           try {
-            await handleNewUser(user.id)
+            await handleNewUser(user.id, context)
           } catch (error) {
             logger.error('[databaseHooks.user.create.after] Failed to initialize user stats', {
               userId: user.id,
@@ -442,15 +482,36 @@ export const auth = betterAuth({
           }
         },
       },
+      /**
+       * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
+       * delete commits, which is when the stored reporting prefixes that counted them must be
+       * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
+       * queued ones by the outbox worker, since this module cannot load that delivery. The cleanup
+       * of the chats the cascade erases is queued, delayed, before the delete instead, and a
+       * failure to queue it refuses the removal.
+       */
+      delete: {
+        before: async (user) => {
+          await holdAdminRemovalStops(user)
+          await enqueueAdminRemovedChatCleanup(user)
+        },
+        after: async (user) => {
+          await stopAdminRemovedRuns(user)
+          await invalidateReportingUsagePrefixes()
+        },
+      },
     },
     account: {
       create: {
         before: async (account, context) => {
           const modifiedAccount = { ...account }
+          let reconnectDraftId: string | undefined
 
           if (context?.path.startsWith('/oauth2/callback/')) {
+            let draftId: string | undefined
             try {
-              await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
+              draftId = await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
             } catch (error) {
               logger.error('[account.create.before] Failed to read OAuth credential draft state', {
                 userId: account.userId,
@@ -459,6 +520,7 @@ export const auth = betterAuth({
               })
               throw error
             }
+            reconnectDraftId = draftId
           }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
@@ -485,25 +547,42 @@ export const auth = betterAuth({
             }
           }
 
+          /**
+           * The after-hook runs once the callback has already answered, so a
+           * reconnect onto an account another credential in the workspace uses
+           * has to be refused here, before the row exists, to send the user
+           * back with a reason instead of a 500. The fresh grant still lands
+           * on the identity's existing rows: the provider may already have
+           * rotated their tokens away (Slack installations do).
+           */
+          if (context && reconnectDraftId) {
+            const conflictRedirectUrl = await refuseConflictingCredentialReconnect({
+              draftId: reconnectDraftId,
+              account: modifiedAccount,
+              oauthState: await getOAuthState(),
+            })
+            if (conflictRedirectUrl) {
+              consumeOAuthCredentialDraftBinding(context)
+              await propagateFreshSlackConnect(modifiedAccount)
+              throw new APIError('FOUND', undefined, { location: conflictRedirectUrl })
+            }
+          }
+
           return { data: modifiedAccount }
         },
         after: async (account, context) => {
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
-           * Each `getUserInfo` in `lib/auth/connectors/providers.ts` appends a
-           * random UUID to the stable external ID so that Better Auth never
-           * blocks cross-user connections — keep the two in step. This means
-           * re-connecting the same external identity creates a new row. We detect
-           * the stale siblings here by comparing the stable prefix (everything
-           * before the trailing UUID), migrate any credential FKs to the new row,
-           * then delete the stale rows.
+           * Re-connecting the same external identity creates a new row (see
+           * `stableExternalAccountId`). We detect the stale siblings here by
+           * comparing the stable prefix, migrate any credential FKs to the new
+           * row, then delete the stale rows.
            */
           try {
-            const UUID_SUFFIX_RE = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-            const stablePrefix = account.accountId.replace(UUID_SUFFIX_RE, '')
+            const stablePrefix = stableExternalAccountId(account.accountId)
 
-            if (stablePrefix && stablePrefix !== account.accountId) {
+            if (stablePrefix) {
               const siblings = await db
                 .select({ id: schema.account.id, accountId: schema.account.accountId })
                 .from(schema.account)
@@ -516,7 +595,7 @@ export const auth = betterAuth({
                 )
 
               const staleRows = siblings.filter(
-                (row) => row.accountId.replace(UUID_SUFFIX_RE, '') === stablePrefix
+                (row) => stableExternalAccountId(row.accountId) === stablePrefix
               )
 
               if (staleRows.length > 0) {
@@ -545,40 +624,7 @@ export const auth = betterAuth({
             })
           }
 
-          /**
-           * A fresh Slack connect re-issues the installation's rotating token
-           * chain, invalidating the copies held by sibling account rows for the
-           * same team (Slack bot tokens are per-installation, not per-grant).
-           * Propagate the new chain so every sibling is valid again, and clear
-           * the installation's dead flag.
-           */
-          if (account.providerId === 'slack' && account.accessToken) {
-            try {
-              const teamId = extractSlackTeamId(account.accountId)
-              if (teamId) {
-                // Clear the dead flag before fanning out: the connect itself
-                // proves the installation has live tokens, and a fan-out
-                // failure must not leave the hour-long flag blocking refreshes.
-                await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
-                await fanOutSlackTokenChain(teamId, {
-                  accessToken: account.accessToken,
-                  refreshToken: account.refreshToken ?? null,
-                  accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
-                })
-                logger.info('[account.create.after] Propagated Slack installation token chain', {
-                  userId: account.userId,
-                  teamId,
-                  newAccountId: account.id,
-                })
-              }
-            } catch (error) {
-              logger.error('[account.create.after] Failed to propagate Slack token chain', {
-                userId: account.userId,
-                accountId: account.id,
-                error,
-              })
-            }
-          }
+          await propagateFreshSlackConnect(account)
 
           const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
           const credentialDraftBinding = context
@@ -600,22 +646,40 @@ export const auth = betterAuth({
                 accountId: account.id,
               })
             } catch (error) {
-              logger.error('[account.create.after] Failed to process credential draft', {
-                userId: account.userId,
-                providerId: account.providerId,
-                error,
-              })
-              if (credentialDraftBinding.draftId) throw error
+              if (error instanceof CredentialAccountConflictError) {
+                logger.warn('[account.create.after] Refused a conflicting credential reconnect', {
+                  userId: account.userId,
+                  providerId: account.providerId,
+                  credentialId: error.credentialId,
+                  conflictingCredentialId: error.conflictingCredentialId,
+                })
+              } else {
+                logger.error('[account.create.after] Failed to process credential draft', {
+                  userId: account.userId,
+                  providerId: account.providerId,
+                  error,
+                })
+                if (credentialDraftBinding.draftId) throw error
+              }
             }
           }
 
           try {
             const { ensureUserStatsExists } = await import('@/lib/billing/core/usage')
-            await ensureUserStatsExists(account.userId)
+            await ensureUserStatsExists(account.userId, context)
           } catch (error) {
             logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
               userId: account.userId,
               accountId: account.id,
+              error,
+            })
+          }
+
+          try {
+            await handleNewSignInAccount(account, context)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Deleted-identity check failed', {
+              userId: account.userId,
               error,
             })
           }
@@ -918,7 +982,7 @@ export const auth = betterAuth({
       banned: false,
       banReason: null,
       banExpires: null,
-      ...(isBillingEnabled && stripeClient ? { stripeCustomerId: null } : {}),
+      ...(stripeBilling ? { stripeCustomerId: null } : {}),
       ...additionalFields,
       id,
     }),
@@ -939,7 +1003,19 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
+    /**
+     * Re-sweeps sessions after `onPasswordReset`, catching one created while it ran (e.g. a social
+     * sign-in). Cookie-cached sessions survive until `cookieCache.maxAge`.
+     */
+    revokeSessionsOnPasswordReset: true,
+    /**
+     * Sessions go first: OAuth issuance references its session, so once they are deleted no new
+     * grant can be minted behind the sweep. A failure fails the reset, and the retry from a new
+     * link redoes the revocation.
+     */
     onPasswordReset: async ({ user: resetUser }, request) => {
+      await db.delete(schema.session).where(eq(schema.session.userId, resetUser.id))
+      await revokeUserOAuthGrants(resetUser.id)
       await recordPasswordResetAudit({ kind: 'completed', userId: resetUser.id, request })
     },
   },
@@ -1486,11 +1562,11 @@ export const auth = betterAuth({
      * SSO provider behind it.
      */
     ...(isSsoEnabled ? [configuredSsoPlugin] : []),
-    ...(isBillingEnabled && stripeClient
+    ...(stripeBilling
       ? [
           stripe({
-            stripeClient,
-            stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
+            stripeClient: stripeBilling.client,
+            stripeWebhookSecret: stripeBilling.webhookSecret,
             createCustomerOnSignUp: true,
             onCustomerCreate: async ({ stripeCustomer, user }) => {
               logger.info('[onCustomerCreate] Stripe customer created', {
@@ -1543,9 +1619,10 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
+                  logUnresolvedStripePlan(
+                    'onSubscriptionComplete',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    false
                   )
                 }
 
@@ -1622,17 +1699,6 @@ export const auth = betterAuth({
                 const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
-                if (priceId && !planFromStripe) {
-                  logger.warn(
-                    '[onSubscriptionUpdate] Could not determine plan from Stripe price ID',
-                    {
-                      subscriptionId: subscription.id,
-                      priceId,
-                      dbPlan: subscription.plan,
-                    }
-                  )
-                }
-
                 const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
                   subscription.referenceId
                 )
@@ -1651,9 +1717,10 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
+                  logUnresolvedStripePlan(
+                    'onSubscriptionUpdate',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    didSubscriptionPriceChange(stripeSubscription, event.data.previous_attributes)
                   )
                 }
 

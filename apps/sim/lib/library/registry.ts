@@ -16,3 +16,5 @@ export const getPostBySlug = libraryRegistry.getPostBySlug
 export const getPostSource = libraryRegistry.getPostSource
 export const getAllTags = libraryRegistry.getAllTags
 export const getRelatedPosts = libraryRegistry.getRelatedPosts
+export const getPostsLinkingTo = libraryRegistry.getPostsLinkingTo
+export const getLinkedPaths = libraryRegistry.getLinkedPaths

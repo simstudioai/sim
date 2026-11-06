@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Banner } from '@sim/emcn'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
 import { clearUserData } from '@/stores'

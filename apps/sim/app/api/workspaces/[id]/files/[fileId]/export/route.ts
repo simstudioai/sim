@@ -5,9 +5,9 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
 import { exportWorkspaceFileSnapshot } from '@/lib/workspace-files/application/export-workspace-file-snapshot'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 export const POST = defineInternalBinaryRoute({
   contract: exportWorkspaceFileSnapshotContract,

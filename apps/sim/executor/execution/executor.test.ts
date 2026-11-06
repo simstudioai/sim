@@ -197,7 +197,10 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
       version: '1',
       blocks: [
         createBlock('start', BlockType.STARTER),
-        createBlock('producer', BlockType.FUNCTION),
+        {
+          ...createBlock('producer', BlockType.FUNCTION),
+          metadata: { id: 'function', name: 'Fetch' },
+        },
         createBlock('consumer', BlockType.FUNCTION),
       ],
       connections: [
@@ -220,7 +223,12 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
     const error = await executor.executeFromBlock('wf', 'consumer', sourceSnapshot).catch((e) => e)
 
     expect(error).toBeInstanceOf(RunFromBlockValidationError)
-    expect(error.message).toBe('Upstream dependency not executed: producer')
+    expect(error.message).toBe('Upstream dependency not executed: Fetch')
+    expect(error.refusal).toEqual({
+      kind: 'upstream_not_executed',
+      blockId: 'consumer',
+      upstreamBlockId: 'producer',
+    })
   })
 })
 

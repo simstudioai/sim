@@ -24,19 +24,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/folders/queries', () => folderQueriesMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { listTableFoldersUseCase } from '@/lib/table/application/folders'
 import { listTablesUseCase } from '@/lib/table/application/tables'
+import { listWorkflowFolders } from '@/lib/workflows/application/folders'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
-import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 
 const mocks = {

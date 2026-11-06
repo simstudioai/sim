@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { AuthLinkButton as ChipLink } from '@sim/auth-ui'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
@@ -30,13 +30,13 @@ export default async function SlackSearchOnboardingPage({
       {session?.user?.id ? (
         <SlackSearchOnboarding token={token} userId={session.user.id} />
       ) : (
-        <div className='flex flex-col gap-5'>
-          <h1 className='text-2xl'>Get started with Sim in Slack</h1>
-          <p className='text-[var(--text-secondary)] text-sm'>
+        <div className='au:flex au:flex-col au:gap-5'>
+          <h1 className='au:text-2xl'>Get started with Sim in Slack</h1>
+          <p className='au:text-[var(--auth-secondary)] au:text-body'>
             Sign in or create an account using your Slack email. After setup, you can retry your
             question in the same Slack thread.
           </p>
-          <div className='flex gap-2'>
+          <div className='au:flex au:gap-2'>
             <ChipLink
               variant='primary'
               href={buildAuthCrossLink('/signup', { callbackUrl, isInviteFlow: false })}
@@ -47,7 +47,7 @@ export default async function SlackSearchOnboardingPage({
               Sign in
             </ChipLink>
           </div>
-          <p className='text-[var(--text-tertiary)] text-sm'>
+          <p className='au:text-[var(--auth-secondary)] au:text-body'>
             Your organization’s invitation and SSO requirements still apply.
           </p>
         </div>

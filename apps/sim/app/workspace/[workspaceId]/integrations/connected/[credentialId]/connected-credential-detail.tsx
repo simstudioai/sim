@@ -318,7 +318,12 @@ export function ConnectedCredentialDetail({
         </DetailSection>
 
         {credential.type !== 'personal_token' && (
-          <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
+          <CredentialMembersSection
+            credentialId={credential.id}
+            credentialName={credential.displayName}
+            isAdmin={isAdmin}
+            leaveHref={integrationsHref}
+          />
         )}
         {credential.type === 'personal_token' && credential.instanceUrl && (
           <DetailSection title='GitLab instance'>

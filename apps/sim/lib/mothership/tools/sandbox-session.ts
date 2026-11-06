@@ -17,7 +17,12 @@ import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
-import { sandboxResourceEndpoint } from '@/lib/mothership/tools/sandbox-resources'
+import {
+  activeSandboxChatOwner,
+  activeSandboxFileOwnerProtocol,
+  activeSandboxWorkspaceFileCopy,
+  sandboxResourceEndpoint,
+} from '@/lib/mothership/tools/sandbox-resources'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
 import {
   containsResolvedSecret,
@@ -70,7 +75,8 @@ async function workbenchCli(
   )
   signal?.throwIfAborted()
   const runtime = await readFile(path, 'utf8')
-  const baseURL = await getMothershipBaseURL({ userId })
+  const baseURL =
+    activeSandboxChatOwner()?.mothershipBaseURL ?? (await getMothershipBaseURL({ userId }))
   const deadline = AbortSignal.timeout(15_000)
   const response = await fetchGo(`${baseURL}/api/workbench/bootstrap`, {
     headers: mothershipRequestHeaders(),
@@ -147,6 +153,8 @@ export async function buildMothershipSandboxSession(args: {
           ? { SIM_ORGANIZATION_ID: args.organizationId }
           : { SIM_WORKSPACE: args.workspaceId! }),
         SIM_ENDPOINT: scopedEndpoint,
+        ...(activeSandboxFileOwnerProtocol() === 1 ? { SIM_FILE_OWNER_PROTOCOL: '1' } : {}),
+        ...(activeSandboxWorkspaceFileCopy() ? { SIM_WORKSPACE_FILE_COPY: '1' } : {}),
       }
     }
   } catch (error) {

@@ -321,7 +321,7 @@ interface GmailReadV2Response {
 export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> = {
   id: 'gmail_read_v2',
   name: 'Gmail Read',
-  description: 'Read emails from Gmail. Returns API-aligned fields only.',
+  description: 'Read emails from Gmail.',
   version: '2.0.0',
   oauth: gmailReadTool.oauth,
   params: gmailReadTool.params,

@@ -1,11 +1,11 @@
 import { ServiceNowIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildIncidentOutputs,
   buildServiceNowExtraFields,
   servicenowSetupInstructions,
   servicenowTriggerOptions,
 } from '@/triggers/servicenow/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

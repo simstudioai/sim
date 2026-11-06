@@ -1,5 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import {
+  ROLE_LIMIT_MAX,
+  SEARCH_LIMIT_MAX,
+  STANDARD_LIMIT_MAX,
+} from '@/lib/internal/sailpoint/schema'
+import {
   createSailPointListOutputs,
   createSailPointOperationInput,
   createSailPointResourceOutput,
@@ -226,7 +231,7 @@ function getInput(params: SailPointGetByIdParams, label: string): Record<string,
 function listInput(
   params: SailPointListParams,
   extra: Record<string, unknown> = {},
-  maxLimit = 250
+  maxLimit = STANDARD_LIMIT_MAX
 ): Record<string, unknown> {
   validatePagination(params.limit, params.offset, maxLimit)
   return {
@@ -239,7 +244,7 @@ function listInput(
   }
 }
 
-function segmentedListInput(params: SailPointSegmentedListParams, maxLimit = 250) {
+function segmentedListInput(params: SailPointSegmentedListParams, maxLimit = STANDARD_LIMIT_MAX) {
   return listInput(
     params,
     {
@@ -509,7 +514,7 @@ export const sailpointSearchTool = defineSailPointTool<SailPointSearchParams>({
   description: 'Search current SailPoint indices with every documented search query mode.',
   params: { ...searchParams(), ...sailpointSearchPaginationParams },
   input: (params) => {
-    validatePagination(params.limit, params.offset, 10_000)
+    validatePagination(params.limit, params.offset, SEARCH_LIMIT_MAX)
     return {
       ...searchInput(params, true),
       limit: params.limit,
@@ -916,7 +921,7 @@ export const sailpointListRolesTool = defineSailPointTool<SailPointSegmentedList
     sorters: SORTERS_PARAM,
     ...sailpointRolePaginationParams,
   },
-  input: (params) => segmentedListInput(params, 50),
+  input: (params) => segmentedListInput(params, ROLE_LIMIT_MAX),
   outputs: createSailPointListOutputs(SAILPOINT_ROLE_OUTPUT_PROPERTIES, 'Roles in this page'),
 })
 
@@ -933,7 +938,7 @@ export const sailpointGetRoleEntitlementsTool =
       ...sailpointRolePaginationParams,
     },
     input: (params) => ({
-      ...listInput(params, {}, 50),
+      ...listInput(params, {}, ROLE_LIMIT_MAX),
       id: requireNonEmptyString(params.id, 'Role ID'),
     }),
     outputs: createSailPointListOutputs(

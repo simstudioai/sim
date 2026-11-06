@@ -34,7 +34,7 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   },
 
   request: {
-    url: (params) => databricksUrl(params.host, '/api/2.1/jobs/runs/cancel'),
+    url: (params) => databricksUrl(params.host, '/api/2.2/jobs/runs/cancel'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

@@ -81,8 +81,23 @@ export async function searchDrive(
     nextCursor: string(data.nextPageToken) || undefined,
     partial: data.incompleteSearch === true,
     message:
-      'Drive searches file names and full text, including Docs, Sheets and Slides. Previews are file metadata; read a result for its content.',
+      'Drive searches file names and full text, including Docs, Sheets and Slides. For a plain-text search the top Docs and Slides results preview their text; other previews are file metadata, so read a result for its content.',
   }
+}
+
+/** Docs and Slides export as plain text in one request; other kinds need a download and parse. */
+const PREVIEW_EXPORT_KINDS = new Set([
+  'application/vnd.google-apps.document',
+  'application/vnd.google-apps.presentation',
+])
+
+/** Plain text of a Doc or Slides file for a search preview; Drive search returns only metadata. */
+export async function previewDrive(
+  client: NativeClient,
+  document: NativeDocument
+): Promise<string | undefined> {
+  if (!PREVIEW_EXPORT_KINDS.has(document.kind ?? '')) return undefined
+  return client.text(`/drive/v3/files/${segment(document.id)}/export`, { mimeType: 'text/plain' })
 }
 
 export async function readDrive(

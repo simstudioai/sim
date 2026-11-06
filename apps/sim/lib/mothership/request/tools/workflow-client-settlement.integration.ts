@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * A browser claims a Chat workflow tool, the execute route runs it, and the browser may never
  * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL and Redis:
@@ -20,6 +21,7 @@ import {
   copilotAsyncToolCalls,
   copilotChats,
   copilotRuns,
+  pausedExecutions,
   user,
   workflow,
   workflowExecutionLogs,
@@ -31,20 +33,36 @@ import { eq, inArray } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
+  claimToolExecution,
   claimWorkflowToolExecution,
   completeAsyncToolCall,
   detachAsyncToolCall,
+  getDetachedWorkflowExecutions,
+  prepareWorkbenchAccess,
   settleClientWorkflowToolExecution,
+  upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
 import { getToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
+import { raceWorkflowToolClientPickup } from '@/lib/mothership/request/tools/workflow-client-fallback'
 import {
   reportQueuedClientWorkflowTool,
   reportSettledClientWorkflowTool,
 } from '@/lib/mothership/request/tools/workflow-client-settlement'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 /** Longer than the waiter's durable poll, far shorter than the hour it used to park for. */
 const WAIT_MS = 10_000
+const APPROVAL_CONTEXT_ID = 'approval'
+
+/** Carries no snapshot metadata, so a resume of it fails the run. */
+const UNRESUMABLE_SNAPSHOT = '{}'
+
+/** The resume engine, private to the manager; the one piece a test of its settling stands in for. */
+interface ResumeEngine {
+  runResumeExecution: (...args: unknown[]) => Promise<unknown>
+}
 
 /**
  * The confirmation a report published for the worker's durable waiter. Reads on the publisher's
@@ -76,6 +94,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
   const workflowId = generateId()
   const chatId = generateId()
   const runId = generateId()
+  const streamId = generateId()
   const snapshotIds: string[] = []
 
   beforeAll(async () => {
@@ -88,7 +107,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Workflow settlement fixture',
       ownerId: userId,
@@ -116,7 +135,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       chatId,
       userId,
       workspaceId,
-      streamId: generateId(),
+      streamId,
       toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
       status: 'paused_waiting_for_tool',
       requestContext: { source: 'headless_lifecycle' },
@@ -125,13 +144,15 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    // Deleting a paused execution cascades to its resume queue entries.
+    await db.delete(pausedExecutions).where(eq(pausedExecutions.workflowId, workflowId))
     await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workspaceId, workspaceId))
     if (snapshotIds.length)
       await db
         .delete(workflowExecutionSnapshots)
         .where(inArray(workflowExecutionSnapshots.id, snapshotIds))
     await db.delete(workflow).where(eq(workflow.id, workflowId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 
@@ -139,7 +160,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
   async function executionLog(
     toolCallId: string,
     executionId: string,
-    status: 'completed' | 'failed' | 'cancelled' | 'pending'
+    status: 'completed' | 'failed' | 'cancelled' | 'pending' | 'running'
   ) {
     const snapshotId = generateId()
     snapshotIds.push(snapshotId)
@@ -183,6 +204,44 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     await executionLog(toolCallId, executionId, status)
     await settleClientWorkflowToolExecution(toolCallId, executionId)
     return { toolCallId, executionId }
+  }
+
+  /**
+   * A claimed call whose bound execution paused at a human approval: the execute route settled the
+   * claim and its own report left the call running, as it does for every paused execution.
+   */
+  async function claimedAndPaused(snapshot: string = UNRESUMABLE_SNAPSHOT) {
+    const { toolCallId, executionId } = await claimed()
+    await executionLog(toolCallId, executionId, 'pending')
+    await db.insert(pausedExecutions).values({
+      id: generateId(),
+      workflowId,
+      executionId,
+      executionSnapshot: { snapshot, triggerIds: [] },
+      pausePoints: {
+        [APPROVAL_CONTEXT_ID]: {
+          contextId: APPROVAL_CONTEXT_ID,
+          blockId: APPROVAL_CONTEXT_ID,
+          response: {},
+          registeredAt: new Date().toISOString(),
+          resumeStatus: 'paused',
+          snapshotReady: true,
+          pauseKind: 'human',
+        },
+      },
+      totalPauseCount: 1,
+    })
+    await settleClientWorkflowToolExecution(toolCallId, executionId)
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+    return { toolCallId, executionId }
+  }
+
+  async function setLogStatus(executionId: string, status: 'completed' | 'failed' | 'cancelled') {
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status, endedAt: new Date() })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
   }
 
   async function toolRow(toolCallId: string) {
@@ -274,13 +333,132 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
   })
 
-  it('leaves a paused execution to the client', async () => {
-    const { toolCallId, executionId } = await claimed()
-    await executionLog(toolCallId, executionId, 'pending')
+  it('delivers a paused execution a resume completes', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused(
+      JSON.stringify({
+        metadata: {
+          workspaceId,
+          userId,
+          billingAttribution: {
+            actorUserId: userId,
+            workspaceId,
+            organizationId: null,
+            billedAccountUserId: userId,
+            billingEntity: { type: 'user', id: userId },
+            billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+            payerSubscription: null,
+          },
+        },
+      })
+    )
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    const started = await PauseResumeManager.enqueueOrStartResume({
+      executionId,
+      workflowId,
+      contextId: APPROVAL_CONTEXT_ID,
+      resumeInput: {},
+      userId,
+    })
+    if (started.status !== 'starting') throw new Error('The resume was queued instead of started')
+    // Only the engine stands in: it completes the parent's log as a finished resume does.
+    // double-cast-allowed: runResumeExecution is private; the test stands in only for the resume engine
+    const resumeEngine = PauseResumeManager as unknown as ResumeEngine
+    const engine = vi.spyOn(resumeEngine, 'runResumeExecution').mockImplementationOnce(async () => {
+      await setLogStatus(executionId, 'completed')
+      return {
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+        metadata: { executionId, duration: 1, startTime: 'start' },
+      }
+    })
 
-    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+    try {
+      await PauseResumeManager.startResumeExecution({
+        resumeEntryId: started.resumeEntryId,
+        resumeExecutionId: started.resumeExecutionId,
+        pausedExecution: started.pausedExecution,
+        contextId: started.contextId,
+        resumeInput: started.resumeInput,
+        userId: started.userId,
+      })
+    } finally {
+      engine.mockRestore()
+    }
 
-    expect(await toolRow(toolCallId)).toMatchObject({ status: 'running', result: null })
+    expect(await waiting).toMatchObject({
+      status: 'success',
+      data: { success: true, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'completed', claimedBy: null })
+  })
+
+  it('delivers a paused execution whose resume failed the run', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    const started = await PauseResumeManager.enqueueOrStartResume({
+      executionId,
+      workflowId,
+      contextId: APPROVAL_CONTEXT_ID,
+      resumeInput: {},
+      userId,
+    })
+    if (started.status !== 'starting') throw new Error('The resume was queued instead of started')
+
+    await expect(
+      PauseResumeManager.startResumeExecution({
+        resumeEntryId: started.resumeEntryId,
+        resumeExecutionId: started.resumeExecutionId,
+        pausedExecution: started.pausedExecution,
+        contextId: started.contextId,
+        resumeInput: started.resumeInput,
+        userId: started.userId,
+      })
+    ).rejects.toThrow()
+
+    expect(await waiting).toMatchObject({
+      status: 'error',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({ status: 'error', executionId })
+  })
+
+  it('delivers a paused execution cancelled before it resumed', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+
+    expect(await PauseResumeManager.beginPausedCancellation(executionId, workflowId)).toBe(true)
+    expect(await PauseResumeManager.completePausedCancellation(executionId, workflowId)).toBe(true)
+
+    expect(await waiting).toMatchObject({
+      status: 'cancelled',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'cancelled', claimedBy: null })
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({
+      status: 'cancelled',
+      executionId,
+    })
+  })
+
+  it('delivers a paused execution whose cancel lost the race to a run that ended unreported', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    expect(await PauseResumeManager.beginPausedCancellation(executionId, workflowId)).toBe(true)
+    // The stale-execution sweep fails the run's log and reports nothing to Copilot.
+    await setLogStatus(executionId, 'failed')
+
+    expect(
+      await PauseResumeManager.finalizePausedCancellationForTerminalRun(executionId, workflowId, [])
+    ).toBe(true)
+
+    expect(await waiting).toMatchObject({
+      status: 'error',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
   })
 
   it('moves a queued async run to the background when the browser never reports', async () => {
@@ -318,5 +496,220 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       completedAt: reported?.completedAt,
     })
     expect(await publishedConfirmation(toolCallId)).toBeNull()
+  })
+
+  it("settles a browser run that outlasts the worker's wait as running, bound to the call", async () => {
+    const { toolCallId, executionId } = await claimed()
+    // The execute route's log of the browser's run, still going: what the worker waits on.
+    await executionLog(toolCallId, executionId, 'running')
+    const runOnServer = vi.fn()
+
+    const outcome = await raceWorkflowToolClientPickup({
+      toolCallId,
+      workflowId,
+      timeoutMs: WAIT_MS,
+      graceMs: WAIT_MS,
+      waitTimeoutMs: 500,
+      runOnServer,
+    })
+
+    // The worker gets the run's ids and waits on it in slices; the browser's run goes on.
+    expect(outcome).toMatchObject({
+      winner: 'client',
+      completion: {
+        status: 'background',
+        data: { workflowId, executionId, status: 'running' },
+      },
+    })
+    expect(runOnServer).not.toHaveBeenCalled()
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({
+      status: 'background',
+      executionId,
+    })
+    // Still bound to the call and unsettled, so a Stop's open-client-run read still cancels it.
+    expect(await toolRow(toolCallId)).toMatchObject({
+      status: 'delivered',
+      claimedBy: `workflow:${executionId}`,
+      clientWorkflowExecutionId: executionId,
+      executionSettledAt: null,
+    })
+  })
+
+  it("names the runs this run's calls started and left running, for a Stop to cancel", async () => {
+    const insertCall = async (executableName: string, args: unknown, result: unknown) => {
+      const toolCallId = generateId()
+      await db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId,
+        toolName: executableName,
+        executableName,
+        args: args as Record<string, unknown>,
+        result: result as Record<string, unknown>,
+        status: 'completed',
+      })
+      return toolCallId
+    }
+    const record = (runIdValue: string, status: string) =>
+      JSON.stringify({ runId: runIdValue, workflowId, status })
+    const detachedCli = generateId()
+    await executionLog(
+      await insertCall(
+        'sim_cli',
+        { request: { invocation: { kind: 'cli', argv: ['workflows', 'run', workflowId] } } },
+        { exitCode: 4, stdout: record(detachedCli, 'running'), stderr: '' }
+      ),
+      detachedCli,
+      'running'
+    )
+    // A wait on a run proves nothing about who started it.
+    await insertCall(
+      'sim_cli',
+      { request: { invocation: { kind: 'cli', argv: ['workflows', 'runs', 'wait', 'other'] } } },
+      { exitCode: 4, stdout: record(generateId(), 'running'), stderr: '' }
+    )
+    const detachedTool = generateId()
+    await executionLog(
+      await insertCall(
+        'run_workflow',
+        { workflowId },
+        { status: 'running', executionId: detachedTool, workflowId }
+      ),
+      detachedTool,
+      'running'
+    )
+    // Answered running but not yet logged: it may still be starting, and a Stop must reach it.
+    const startingTool = generateId()
+    await insertCall(
+      'run_from_block',
+      { workflowId },
+      { status: 'running', executionId: startingTool, workflowId }
+    )
+    await insertCall('run_block', { workflowId }, { success: true, executionId: generateId() })
+
+    expect((await getDetachedWorkflowExecutions(streamId, userId)).sort()).toEqual(
+      [detachedCli, detachedTool, startingTool].sort()
+    )
+  })
+
+  it.each([
+    ['pending (paused at a human approval)', 'pending'],
+    ['completed', 'completed'],
+    ['failed', 'failed'],
+    ['cancelled', 'cancelled'],
+  ] as const)(
+    'leaves a detached run whose log is %s for a Stop to skip',
+    async (_label, logStatus) => {
+      const detachedCli = generateId()
+      const detachedTool = generateId()
+      const cliCall = generateId()
+      const toolCall = generateId()
+      await db.insert(copilotAsyncToolCalls).values([
+        {
+          runId,
+          toolCallId: cliCall,
+          toolName: 'sim_cli',
+          executableName: 'sim_cli',
+          args: {
+            request: { invocation: { kind: 'cli', argv: ['workflows', 'run', workflowId] } },
+          },
+          result: {
+            exitCode: 4,
+            stdout: JSON.stringify({ runId: detachedCli, workflowId, status: 'running' }),
+            stderr: '',
+          },
+          status: 'completed',
+        },
+        {
+          runId,
+          toolCallId: toolCall,
+          toolName: 'run_workflow',
+          executableName: 'run_workflow',
+          args: { workflowId },
+          result: { status: 'running', executionId: detachedTool, workflowId },
+          status: 'completed',
+        },
+      ])
+      // The run went on past its call and then settled, or paused at a human approval: a paused
+      // run's resume subscribes under the same id, so a cancel flag would fail it.
+      await executionLog(cliCall, detachedCli, logStatus)
+      await executionLog(toolCall, detachedTool, logStatus)
+
+      const cancellable = await getDetachedWorkflowExecutions(streamId, userId)
+      expect(cancellable).not.toContain(detachedCli)
+      expect(cancellable).not.toContain(detachedTool)
+    }
+  )
+
+  /**
+   * An earlier turn of a new chat whose `earlierTool` call is still executing under a live lease,
+   * as a workflow tool answered still running is while its run goes on, and a later turn whose
+   * own Sim call asks for the chat's workbench.
+   */
+  async function laterTurnWorkbenchAccess(earlierTool: string) {
+    const turnChatId = generateId()
+    await db.insert(copilotChats).values({
+      id: turnChatId,
+      userId,
+      workspaceId,
+      type: 'mothership',
+      conversationId: generateId(),
+    })
+    try {
+      const turn = async (startedAt: Date, toolName: string) => {
+        const turnRunId = generateId()
+        await db.insert(copilotRuns).values({
+          id: turnRunId,
+          executionId: generateId(),
+          chatId: turnChatId,
+          userId,
+          workspaceId,
+          streamId: generateId(),
+          toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
+          status: 'active',
+          startedAt,
+          requestContext: { source: 'headless_lifecycle' },
+        })
+        const owner = {
+          toolCallId: generateId(),
+          runId: turnRunId,
+          userId,
+          ownerToken: generateId(),
+        }
+        await upsertAsyncToolCall({ runId: turnRunId, toolCallId: owner.toolCallId, toolName })
+        expect(await claimToolExecution(owner)).toMatchObject({ outcome: 'claimed' })
+        return owner
+      }
+      const earlier = await turn(new Date(Date.now() - 60_000), earlierTool)
+      await completeAsyncToolCall({
+        toolCallId: earlier.toolCallId,
+        status: 'completed',
+        result: { status: 'running', executionId: generateId(), workflowId },
+      })
+      // The earlier turn answered and ended; its call's execution still holds the run.
+      await db
+        .update(copilotRuns)
+        .set({ status: 'complete', toolAdmissionClosedAt: new Date() })
+        .where(eq(copilotRuns.id, earlier.runId))
+      const later = await turn(new Date(), 'function_execute')
+      return await prepareWorkbenchAccess({
+        ...later,
+        sessionKey: chatSandboxSessionKey(turnChatId),
+      })
+    } finally {
+      await db.delete(copilotChats).where(eq(copilotChats.id, turnChatId))
+    }
+  }
+
+  it("opens the workbench to a later turn while an earlier turn's workflow tool run goes on", async () => {
+    expect(await laterTurnWorkbenchAccess('run_workflow')).toEqual({
+      handlersPending: false,
+      processes: [],
+    })
+  })
+
+  it("keeps the workbench closed while an earlier turn's other tool is still executing", async () => {
+    expect(await laterTurnWorkbenchAccess('function_execute')).toMatchObject({
+      handlersPending: true,
+    })
   })
 })

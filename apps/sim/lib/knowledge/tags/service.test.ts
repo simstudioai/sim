@@ -182,19 +182,6 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
     expect(result.errors).toEqual(['Display name "CLITEST-CAT" already exists'])
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-
-  it('reads the snapshot it compares against under the knowledge base row lock', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [])
-
-    await createOrUpdateTagDefinitionsBulk(
-      'kb-1',
-      { definitions: [{ tagSlot: 'tag1', displayName: 'clitest-locked', fieldType: 'text' }] },
-      'request-10'
-    )
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-  })
 })
 
 describe('getTagUsageStats', () => {

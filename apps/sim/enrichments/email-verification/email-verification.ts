@@ -3,13 +3,25 @@ import { str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
 /**
+ * Verdicts that say nothing about the mailbox; the cascade falls through to the
+ * next verifier on these. MillionVerifier reports `unverified` (and may report
+ * `error`) when it could not complete a check.
+ */
+const INCONCLUSIVE_STATUSES = new Set(['unknown', 'unverified', 'error'])
+
+function mapVerdict(output: Record<string, unknown>) {
+  const status = str(output.status)
+  if (!status || INCONCLUSIVE_STATUSES.has(status)) return null
+  return { status, deliverable: output.deliverable === true }
+}
+
+/**
  * Email Verification enrichment. Checks an email address's deliverability via a
  * verifier waterfall — ZeroBounce first (highest coverage), then NeverBounce,
- * then MillionVerifier, then Enrow. A provider that returns a
- * definitive verdict (valid / invalid / catch_all / disposable / etc.) fills the
- * cell; a provider that can only return `unknown` falls through to the next so
- * the row gets the most confident answer available. All providers support hosted
- * keys.
+ * then MillionVerifier, then Enrow. A provider that returns a definitive verdict
+ * (valid / invalid / catch_all / disposable / etc.) fills the cell; an
+ * inconclusive one falls through to the next so the row gets the most confident
+ * answer available. All providers support hosted keys.
  */
 export const emailVerificationEnrichment: EnrichmentConfig = {
   id: 'email-verification',
@@ -31,12 +43,7 @@ export const emailVerificationEnrichment: EnrichmentConfig = {
         if (!email) return null
         return { email }
       },
-      mapOutput: (output) => {
-        const status = str(output.status)
-        // Fall through to the next verifier when the verdict is missing or inconclusive.
-        if (!status || status === 'unknown') return null
-        return { status, deliverable: output.deliverable === true }
-      },
+      mapOutput: mapVerdict,
     }),
     toolProvider({
       id: 'neverbounce',
@@ -47,11 +54,7 @@ export const emailVerificationEnrichment: EnrichmentConfig = {
         if (!email) return null
         return { email }
       },
-      mapOutput: (output) => {
-        const status = str(output.status)
-        if (!status || status === 'unknown') return null
-        return { status, deliverable: output.deliverable === true }
-      },
+      mapOutput: mapVerdict,
     }),
     toolProvider({
       id: 'millionverifier',
@@ -62,11 +65,7 @@ export const emailVerificationEnrichment: EnrichmentConfig = {
         if (!email) return null
         return { email }
       },
-      mapOutput: (output) => {
-        const status = str(output.status)
-        if (!status || status === 'unknown') return null
-        return { status, deliverable: output.deliverable === true }
-      },
+      mapOutput: mapVerdict,
     }),
     toolProvider({
       id: 'enrow',

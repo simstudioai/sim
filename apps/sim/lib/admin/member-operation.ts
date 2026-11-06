@@ -7,7 +7,7 @@ import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,
@@ -24,6 +24,7 @@ import {
   outboxPayloadHasSourceOperationId,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
@@ -514,6 +515,7 @@ async function applyMembership(
       usageLimitDollars: request.usageLimitDollars,
       setBy: request.actor.id ?? undefined,
     })
+    deliverRunStops(transferred.stoppedRuns)
     if (!transferred.success || !transferred.memberId) {
       throw new Error(transferred.error ?? 'Failed to transfer organization member')
     }

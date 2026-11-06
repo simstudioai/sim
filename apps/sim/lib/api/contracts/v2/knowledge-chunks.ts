@@ -146,12 +146,14 @@ const v2KnowledgeChunkContentSchema = z
     MAX_V2_KNOWLEDGE_CHUNK_CONTENT_LENGTH,
     `content cannot exceed ${MAX_V2_KNOWLEDGE_CHUNK_CONTENT_LENGTH} characters`
   )
-  .describe('Text to embed. It is embedded on write, so the chunk is searchable immediately.')
+  .describe(
+    'Text embedded before the response. Search includes it when the chunk and document are enabled and the document has completed processing.'
+  )
 
 /**
  * A created chunk is appended: its `chunkIndex` is assigned server-side as one
  * past the document's current maximum, and it inherits the document's tag
- * values. The document must have finished processing.
+ * values. Search includes it after the document has finished processing.
  */
 export const v2CreateKnowledgeChunkBodySchema = z
   .object({

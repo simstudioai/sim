@@ -1,6 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { recordWorkspaceVisitRecord } from '@/lib/workspaces/visits'
 
 export const workspaceVisitOperations = {

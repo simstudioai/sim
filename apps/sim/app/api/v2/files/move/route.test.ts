@@ -24,7 +24,7 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
-import { WorkspaceFileMoveConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { WorkspaceFileMoveConflictError } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { POST } from '@/app/api/v2/files/move/route'
 
 const WS = 'workspace-1'

@@ -10,7 +10,7 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.moc
 import { tableConstantsMock, tableConstantsMockFns } from '@sim/testing/mocks/table-constants.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 vi.mock('@/lib/table/constants', () => tableConstantsMock)
 

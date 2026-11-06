@@ -1,5 +1,5 @@
 import type { DbOrTx } from '@/lib/db/types'
-import type { ActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { ActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/file-manager'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 
 /**

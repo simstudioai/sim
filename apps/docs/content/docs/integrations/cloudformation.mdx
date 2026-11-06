@@ -1,31 +1,29 @@
 ---
 title: CloudFormation
 description: Manage and inspect AWS CloudFormation stacks, resources, and drift
+integration:
+  type: "cloudformation"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudformation"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS CloudFormation](https://aws.amazon.com/cloudformation/) to manage template-defined resource stacks. Create or update stacks, preview changes with change sets, inspect resources and events, and check drift or template validity from a workflow.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.
-
-
+Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.
 
 ## Actions
 
 ### CloudFormation Describe Stacks
 
 List and describe CloudFormation stacks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +40,13 @@ List and describe CloudFormation stacks
 | --------- | ---- | ----------- |
 | `stacks` | array | List of CloudFormation stacks with status, outputs, and tags |
 
+</ReferenceDetails>
+
 ### CloudFormation Create Stack
 
 Create a new CloudFormation stack from a template
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,9 +69,13 @@ Create a new CloudFormation stack from a template
 | --------- | ---- | ----------- |
 | `stackId` | string | The unique ID of the created stack |
 
+</ReferenceDetails>
+
 ### CloudFormation Update Stack
 
 Update an existing CloudFormation stack with a new or previous template
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +97,13 @@ Update an existing CloudFormation stack with a new or previous template
 | --------- | ---- | ----------- |
 | `stackId` | string | The unique ID of the updated stack |
 
+</ReferenceDetails>
+
 ### CloudFormation Delete Stack
 
 Delete a CloudFormation stack and its resources
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,9 +121,13 @@ Delete a CloudFormation stack and its resources
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### CloudFormation Cancel Update Stack
 
 Cancel an in-progress stack update and roll back to the last known stable state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +144,13 @@ Cancel an in-progress stack update and roll back to the last known stable state
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### CloudFormation Create Change Set
 
 Preview the changes a stack create or update would make before applying them
+
+<ReferenceDetails>
 
 #### Input
 
@@ -157,9 +175,13 @@ Preview the changes a stack create or update would make before applying them
 | `changeSetId` | string | The unique ID of the created change set |
 | `stackId` | string | The unique ID of the target stack |
 
+</ReferenceDetails>
+
 ### CloudFormation Describe Change Set
 
 View the resource changes a change set would make and its execution status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +209,13 @@ View the resource changes a change set would make and its execution status
 | `capabilities` | array | Capabilities required to execute the change set |
 | `changes` | array | List of resource changes \(action, logical/physical resource ID, resource type, replacement\) |
 
+</ReferenceDetails>
+
 ### CloudFormation Execute Change Set
 
 Apply a previously created and reviewed change set to its stack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +233,13 @@ Apply a previously created and reviewed change set to its stack
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### CloudFormation List Stack Resources
 
 List all resources in a CloudFormation stack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +256,13 @@ List all resources in a CloudFormation stack
 | --------- | ---- | ----------- |
 | `resources` | array | List of stack resources with type, status, and drift information |
 
+</ReferenceDetails>
+
 ### CloudFormation Detect Stack Drift
 
 Initiate drift detection on a CloudFormation stack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +279,13 @@ Initiate drift detection on a CloudFormation stack
 | --------- | ---- | ----------- |
 | `stackDriftDetectionId` | string | ID to use with Describe Stack Drift Detection Status to check results |
 
+</ReferenceDetails>
+
 ### CloudFormation Describe Stack Drift Detection Status
 
 Check the status of a stack drift detection operation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -270,9 +308,13 @@ Check the status of a stack drift detection operation
 | `driftedStackResourceCount` | number | Number of resources that have drifted |
 | `timestamp` | number | Timestamp of the detection |
 
+</ReferenceDetails>
+
 ### CloudFormation Describe Stack Events
 
 Get the event history for a CloudFormation stack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -290,9 +332,13 @@ Get the event history for a CloudFormation stack
 | --------- | ---- | ----------- |
 | `events` | array | List of stack events with resource status and timestamps |
 
+</ReferenceDetails>
+
 ### CloudFormation Get Template
 
 Retrieve the template body for a CloudFormation stack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,9 +357,13 @@ Retrieve the template body for a CloudFormation stack
 | `templateBody` | string | The template body as a JSON or YAML string |
 | `stagesAvailable` | array | Available template stages |
 
+</ReferenceDetails>
+
 ### CloudFormation Get Template Summary
 
 Get a summary of a template or deployed stack: resource types, required capabilities, and parameters, without full validation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +387,13 @@ Get a summary of a template or deployed stack: resource types, required capabili
 | `version` | string | Template format version |
 | `declaredTransforms` | array | Transforms used in the template \(e.g., AWS::Serverless-2016-10-31\) |
 
+</ReferenceDetails>
+
 ### CloudFormation Validate Template
 
 Validate a CloudFormation template for syntax and structural correctness
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,5 +413,7 @@ Validate a CloudFormation template for syntax and structural correctness
 | `capabilities` | array | Required capabilities \(e.g., CAPABILITY_IAM\) |
 | `capabilitiesReason` | string | Reason capabilities are required |
 | `declaredTransforms` | array | Transforms used in the template \(e.g., AWS::Serverless-2016-10-31\) |
+
+</ReferenceDetails>
 
 

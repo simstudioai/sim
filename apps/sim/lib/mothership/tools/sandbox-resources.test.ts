@@ -1,3 +1,4 @@
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   mothershipAsyncRunsMock,
   mothershipAsyncRunsMockFns,
@@ -6,21 +7,37 @@ import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+
 const { values, lists, seen, persist, redis } = vi.hoisted(() => {
   const values = new Map<string, string>()
+  const expiresAt = new Map<string, number>()
   const lists = new Map<string, string[]>()
   const seen = new Map<string, Set<string>>()
+  const live = (key: string) => {
+    if ((expiresAt.get(key) ?? Number.POSITIVE_INFINITY) <= Date.now()) {
+      values.delete(key)
+      expiresAt.delete(key)
+    }
+    return values.has(key)
+  }
   return {
     values,
     lists,
     seen,
     persist: vi.fn(async () => {}),
     redis: {
-      set: vi.fn(async (key: string, value: string) => {
+      set: vi.fn(async (key: string, value: string, _mode?: 'EX', ttlSeconds?: number) => {
         values.set(key, value)
+        if (ttlSeconds) expiresAt.set(key, Date.now() + ttlSeconds * 1000)
       }),
-      get: vi.fn(async (key: string) => values.get(key) ?? null),
-      exists: vi.fn(async (key: string) => (values.has(key) ? 1 : 0)),
+      expire: vi.fn(async (key: string, ttlSeconds: number) => {
+        if (!live(key)) return 0
+        expiresAt.set(key, Date.now() + ttlSeconds * 1000)
+        return 1
+      }),
+      get: vi.fn(async (key: string) => (live(key) ? (values.get(key) ?? null) : null)),
+      exists: vi.fn(async (key: string) => (live(key) ? 1 : 0)),
       del: vi.fn(async (key: string) => {
         values.delete(key)
         lists.delete(key)
@@ -180,6 +197,36 @@ describe('sandbox resource ownership and publication', () => {
     })
   })
 
+  it('keeps the callback scope live for a call that outlasts its expiry, and revokes it after', async () => {
+    vi.useFakeTimers()
+    try {
+      let release = () => {}
+      const finished = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let token = ''
+      const call = withSandboxResourceScope(
+        identity,
+        new AbortController().signal,
+        undefined,
+        async () => {
+          token =
+            (await sandboxResourceEndpoint('https://sim.test', args, 'secret')).split('/').at(-1) ??
+            ''
+          await finished
+        }
+      )
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      expect(await readSandboxResourceScope(token, 'secret')).not.toBeNull()
+      release()
+      await vi.advanceTimersByTimeAsync(1_000)
+      await call
+      expect(await readSandboxResourceScope(token, 'secret')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('revokes on cancellation and never emits an abandoned callback', async () => {
     const controller = new AbortController()
     const emit = vi.fn()
@@ -298,3 +345,41 @@ describe('sandbox resource ownership and publication', () => {
     expect(persist).toHaveBeenCalledTimes(1)
   })
 })
+
+it.each([
+  [true, true, true, 1],
+  [false, true, true, undefined],
+  [true, false, true, undefined],
+  [true, true, false, undefined],
+] as const)(
+  'negotiates the callback protocol only with admission=%s projects=%s peer=%s; copies follow admission alone',
+  async (admitted, enabled, supported, expected) => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(enabled)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(null, {
+            headers: supported ? { 'X-Mothership-File-Owner-Protocol': '1' } : {},
+          })
+      )
+    )
+    await withSandboxResourceScope(
+      {
+        ...identity,
+        resourceAdmitted: admitted,
+        mothershipBaseURL: `https://worker-${supported ? 'current' : 'previous'}.invalid`,
+      },
+      new AbortController().signal,
+      undefined,
+      async () => {
+        const endpoint = await sandboxResourceEndpoint('https://sim.test', args, 'secret')
+        const token = endpoint.split('/').at(-1)
+        if (!token) throw new Error('Callback token missing')
+        const scope = await readSandboxResourceScope(token, 'secret')
+        expect(scope?.fileOwnerProtocolVersion).toBe(expected)
+        expect(scope?.workspaceFileCopy).toBe(admitted ? true : undefined)
+      }
+    )
+  }
+)

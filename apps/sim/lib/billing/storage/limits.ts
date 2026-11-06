@@ -17,7 +17,7 @@ import { eq } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
-import type { StorageBillingContext } from '@/lib/billing/storage/context'
+import type { StoragePayerContext } from '@/lib/billing/storage/context'
 import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -219,7 +219,7 @@ export function getStorageLimits() {
  * Gets the storage limit for an immutable workspace payer without resolving an
  * actor subscription.
  */
-export function getStorageLimitForBillingContext(context: StorageBillingContext): number {
+export function getStorageLimitForBillingContext(context: StoragePayerContext): number {
   return resolveStorageLimit({
     plan: context.plan,
     scope: context.billingEntity.type,
@@ -294,7 +294,7 @@ export async function getUserStorageUsage(
  * Reads the exact workspace payer's storage counter.
  */
 export async function getStorageUsageForBillingContext(
-  context: StorageBillingContext
+  context: StoragePayerContext
 ): Promise<number> {
   try {
     return await readStorageUsageForEntity(context.billingEntity)
@@ -320,7 +320,7 @@ async function resolveUserStorageQuota(userId: string): Promise<StorageQuotaSnap
  * Resolves an immutable workspace payer quota snapshot.
  */
 async function resolveBillingContextStorageQuota(
-  context: StorageBillingContext
+  context: StoragePayerContext
 ): Promise<StorageQuotaSnapshot> {
   return {
     currentUsage: await readStorageUsageForEntity(context.billingEntity),
@@ -368,7 +368,7 @@ export async function checkStorageQuota(
  * Checks storage quota against a workspace-selected immutable payer.
  */
 export async function checkStorageQuotaForBillingContext(
-  context: StorageBillingContext,
+  context: StoragePayerContext,
   additionalBytes: number
 ): Promise<StorageQuotaResult> {
   return checkStorageQuotaWithResolver(

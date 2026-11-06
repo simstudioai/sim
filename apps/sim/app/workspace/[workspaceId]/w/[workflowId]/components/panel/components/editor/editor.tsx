@@ -18,7 +18,6 @@ import {
   isWorkflowBlockProtected,
 } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -35,6 +34,7 @@ import {
   isStandaloneAdvancedMode,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
@@ -121,15 +121,14 @@ export function Editor() {
     if (isNoteBlock) clearCurrentBlock()
   }, [clearCurrentBlock, isNoteBlock])
 
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId, workflowId: scopedWorkflowId } = useWorkflowScope()
   const posthog = usePostHog()
 
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
   const userPermissions = useUserPermissionsContext()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const workflowId = activeWorkflowId ?? (params.workflowId as string | undefined)
+  const workflowId = activeWorkflowId ?? scopedWorkflowId ?? undefined
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const workflowMetadata = workflowId ? workflows[workflowId] : undefined

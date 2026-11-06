@@ -25,6 +25,7 @@ import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
 export const organizationAccountManagementOperations = {
   people: defineOrganizationOperation({
     id: 'organization_accounts.people.list',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -33,6 +34,7 @@ export const organizationAccountManagementOperations = {
   }),
   invite: defineOrganizationOperation({
     id: 'organization_accounts.people.invite',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -41,6 +43,7 @@ export const organizationAccountManagementOperations = {
   }),
   resend: defineOrganizationOperation({
     id: 'organization_accounts.people.resend',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -49,6 +52,7 @@ export const organizationAccountManagementOperations = {
   }),
   revoke: defineOrganizationOperation({
     id: 'organization_accounts.people.revoke',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -57,6 +61,7 @@ export const organizationAccountManagementOperations = {
   }),
   addMcp: defineOrganizationOperation({
     id: 'organization_accounts.mcp.add',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -65,6 +70,7 @@ export const organizationAccountManagementOperations = {
   }),
   removeMcp: defineOrganizationOperation({
     id: 'organization_accounts.mcp.remove',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',

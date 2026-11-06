@@ -232,3 +232,93 @@ describe('Google service search scope and continuation', () => {
     })
   })
 })
+
+describe('Google service session latency', () => {
+  /** Settles after `ms` of fake time, like a provider round trip. */
+  const delayed = <T>(ms: number, value: T) =>
+    new Promise<T>((resolve) => setTimeout(() => resolve(value), ms))
+  const failAfter = (ms: number, error: Error) =>
+    new Promise<never>((_, reject) => setTimeout(() => reject(error), ms))
+  const clientFor = (json: NativeClient['json']) => ({
+    json: vi.fn(json),
+    text: vi.fn(),
+    bytes: vi.fn(),
+  })
+
+  it('looks up the member identity, the administrator, and every source user concurrently', async () => {
+    member.json.mockImplementation(() =>
+      delayed(1000, { user: { emailAddress: 'reader@example.com' } })
+    )
+    mocks.directory.mockImplementation((_token, email: string) => delayed(1000, person(email)))
+    mint.mockImplementation(() => delayed(1000, 'delegated-token'))
+    let settled = false
+    const session = create('google_drive', {
+      userEmails: ['first@example.com', 'second@example.com', 'third@example.com'],
+    }).finally(() => {
+      settled = true
+    })
+    /** Identity and administrator in parallel, then each user's lookup and mint in parallel. */
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(settled).toBe(true)
+    await vi.runAllTimersAsync()
+    expect((await session).partial).toBe(false)
+    expect(mint.mock.calls.map(([email]) => email)).toEqual([
+      'first@example.com',
+      'second@example.com',
+      'third@example.com',
+    ])
+  })
+
+  it('surfaces the member identity failure ahead of a failed administrator lookup', async () => {
+    member.json.mockImplementation(() =>
+      failAfter(500, new NativeSearchError('reconnect', 'Member grant revoked'))
+    )
+    mocks.directory.mockRejectedValue(new Error('Directory unavailable'))
+    const session = create('gmail')
+    const outcome = expect(session).rejects.toThrow('Member grant revoked')
+    await vi.advanceTimersByTimeAsync(500)
+    await outcome
+  })
+
+  it('verifies a Drive file with one source user at a time, stopping at the first allow', async () => {
+    member.json.mockResolvedValue({ user: { emailAddress: 'reader@example.com' } })
+    const first = clientFor(async () => ({ id: 'file', mimeType: 'text/plain' }))
+    const second = clientFor(async () => ({ id: 'file', mimeType: 'text/plain' }))
+    mocks.createClient.mockReturnValueOnce(first).mockReturnValueOnce(second)
+    const session = await create('google_drive', {
+      userEmails: ['first@example.com', 'second@example.com'],
+    })
+    expect(await session.verify({ id: 'file' })).toBe(true)
+    expect(first.json).toHaveBeenCalledOnce()
+    expect(second.json).not.toHaveBeenCalled()
+  })
+
+  it('fails on a throttled source user before asking a later one', async () => {
+    member.json.mockResolvedValue({ user: { emailAddress: 'reader@example.com' } })
+    const throttled = clientFor(() =>
+      Promise.reject(new NativeSearchError('rate_limited', 'Provider limit'))
+    )
+    const allowed = clientFor(async () => ({ id: 'file', mimeType: 'text/plain' }))
+    mocks.createClient.mockReturnValueOnce(throttled).mockReturnValueOnce(allowed)
+    const session = await create('google_drive', {
+      userEmails: ['first@example.com', 'second@example.com'],
+    })
+    await expect(session.verify({ id: 'file' })).rejects.toThrow('Provider limit')
+    expect(allowed.json).not.toHaveBeenCalled()
+  })
+
+  it('propagates throttling over an unavailable user when no source user allows the file', async () => {
+    member.json.mockResolvedValue({ user: { emailAddress: 'reader@example.com' } })
+    mocks.createClient
+      .mockReturnValueOnce(
+        clientFor(() => Promise.reject(new NativeSearchError('unavailable', 'Source timed out')))
+      )
+      .mockReturnValueOnce(
+        clientFor(() => Promise.reject(new NativeSearchError('rate_limited', 'Provider limit')))
+      )
+    const session = await create('google_drive', {
+      userEmails: ['first@example.com', 'second@example.com'],
+    })
+    await expect(session.verify({ id: 'file' })).rejects.toThrow('Provider limit')
+  })
+})

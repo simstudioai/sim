@@ -37,7 +37,7 @@ export function lemlistSetupInstructions(): string {
 /**
  * Helper to build Lemlist-specific extra fields.
  * Includes API key (required) and optional campaign filter.
- * Use with the generic buildTriggerSubBlocks from @/triggers.
+ * Use with the generic buildTriggerSubBlocks from @/triggers/subblocks.
  */
 export function buildLemlistExtraFields(triggerId: string) {
   return [

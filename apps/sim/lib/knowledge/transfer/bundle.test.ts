@@ -71,6 +71,15 @@ describe('knowledgeBundleManifestSchema', () => {
     ).toBe(false)
   })
 
+  /** The tag cross-checks read each entry, so they must never see an oversized list unparsed. */
+  it('refuses an oversized tag list on its size before the tag cross-checks read it', () => {
+    const result = knowledgeBundleManifestSchema.safeParse(manifest({ tags: Array(100).fill({}) }))
+
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ code: 'too_big', path: ['tags'] }),
+    ])
+  })
+
   it('refuses duplicate tag slots and case-insensitively duplicate tag names', () => {
     expect(
       knowledgeBundleManifestSchema.safeParse(

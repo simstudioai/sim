@@ -1,25 +1,21 @@
 ---
 title: Sixtyfour AI
 description: Enrich leads and companies with AI-powered research
+integration:
+  type: "sixtyfour"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sixtyfour"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Sixtyfour AI](https://sixtyfour.ai/) in Sim to find email addresses and phone numbers and research people or companies. Enrichment actions return structured fields with source references and confidence scores; company research can include associated people and an organization chart.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.
-
-
 
 ## Actions
 
@@ -51,6 +47,8 @@ Find phone numbers for a lead using Sixtyfour AI.
 
 Find email addresses for a lead using Sixtyfour AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -81,6 +79,8 @@ Find email addresses for a lead using Sixtyfour AI.
 |   ↳ `address` | string | Email address |
 |   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
 |   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+
+</ReferenceDetails>
 
 ### Sixtyfour Enrich Lead
 

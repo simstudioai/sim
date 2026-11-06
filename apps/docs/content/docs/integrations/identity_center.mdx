@@ -1,37 +1,35 @@
 ---
 title: AWS Identity Center
-description: Manage temporary elevated access in AWS IAM Identity Center
+description: Manage account access in AWS IAM Identity Center
+integration:
+  type: "identity_center"
+  color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="identity_center"
-  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) to assign or revoke permission sets for AWS accounts, resolve users and groups, and inspect account access.
 
 The same operations support the reverse direction — access review. Starting from an account, an agent can list its assignments, resolve the principals, expand groups into their members, and produce a written report of exactly who can reach that account and through which permission set.
 
-One detail shapes how that review has to be built. AWS requires a permission set ARN alongside the account ID on this call, so *List Assignments For Account* returns only the assignments granted through that one permission set — not every assignment on the account. To cover an account completely, run *List Permission Sets* for the instance first, then call *List Assignments For Account* once per permission set and combine the results. Skipping that loop silently omits access granted through the permission sets you did not ask about.
+AWS requires a permission set ARN alongside the account ID on this call, so *List Assignments For Account* returns only the assignments granted through that one permission set — not every assignment on the account. To cover an account completely, run *List Permission Sets* for the instance first, then call *List Assignments For Account* once per permission set and combine the results. Skipping that loop silently omits access granted through the permission sets you did not ask about.
 
-Two AWS behaviors are worth knowing. Creating and deleting an account assignment are **asynchronous**: both return a request ID, and each has its own status poller — use *Check Assignment Status* for creations and *Check Assignment Deletion Status* for deletions, as the two request-ID types are not interchangeable. And the account-listing operations call AWS Organizations, which is global per partition; the block resolves the correct endpoint for commercial, GovCloud, and China regions automatically.
+Creating and deleting an account assignment are **asynchronous**: both return a request ID, and each has its own status poller — use *Check Assignment Status* for creations and *Check Assignment Deletion Status* for deletions, as the two request-ID types are not interchangeable. And the account-listing operations call AWS Organizations, which is global per partition; the block resolves the correct endpoint for commercial, GovCloud, and China regions automatically.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.
-
-
+Assign and revoke access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.
 
 ## Actions
 
 ### Identity Center List Instances
 
 List all AWS IAM Identity Center instances in your account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +56,13 @@ List all AWS IAM Identity Center instances in your account
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of instances returned |
 
+</ReferenceDetails>
+
 ### Identity Center List Accounts
 
 List all AWS accounts in your organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +88,13 @@ List all AWS accounts in your organization
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of accounts returned |
 
+</ReferenceDetails>
+
 ### Identity Center Describe Account
 
 Retrieve details about a specific AWS account by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,9 +116,13 @@ Retrieve details about a specific AWS account by its ID
 | `status` | string | Account status \(ACTIVE, SUSPENDED, etc.\) |
 | `joinedTimestamp` | string | Date the account joined the organization |
 
+</ReferenceDetails>
+
 ### Identity Center List Permission Sets
 
 List all permission sets defined in an IAM Identity Center instance
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +148,13 @@ List all permission sets defined in an IAM Identity Center instance
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of permission sets returned |
 
+</ReferenceDetails>
+
 ### Identity Center Get User
 
 Look up a user in the Identity Store by email address
+
+<ReferenceDetails>
 
 #### Input
 
@@ -161,9 +175,13 @@ Look up a user in the Identity Store by email address
 | `displayName` | string | Display name of the user |
 | `email` | string | Email address of the user |
 
+</ReferenceDetails>
+
 ### Identity Center Describe User
 
 Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,9 +207,13 @@ Resolve an Identity Store user ID to the user behind it. Use to turn the princip
 |   ↳ `issuer` | string | Identity provider that issued the ID |
 |   ↳ `id` | string | Identifier at the issuer |
 
+</ReferenceDetails>
+
 ### Identity Center Get Group
 
 Look up a group in the Identity Store by display name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +233,13 @@ Look up a group in the Identity Store by display name
 | `displayName` | string | Display name of the group |
 | `description` | string | Group description |
 
+</ReferenceDetails>
+
 ### Identity Center Describe Group
 
 Resolve an Identity Store group ID to the group behind it. Use to turn the principalId on an account assignment into a group name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +262,13 @@ Resolve an Identity Store group ID to the group behind it. Use to turn the princ
 |   ↳ `issuer` | string | Identity provider that issued the ID |
 |   ↳ `id` | string | Identifier at the issuer |
 
+</ReferenceDetails>
+
 ### Identity Center List Groups
 
 List all groups in the Identity Store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +295,13 @@ List all groups in the Identity Store
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of groups returned |
 
+</ReferenceDetails>
+
 ### Identity Center List Group Memberships
 
 List the users who belong to an Identity Store group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +326,13 @@ List the users who belong to an Identity Store group
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of memberships returned |
 
+</ReferenceDetails>
+
 ### Identity Center Create Account Assignment
 
 Grant a user or group access to an AWS account via a permission set (temporary elevated access)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +361,13 @@ Grant a user or group access to an AWS account via a permission set (temporary e
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
+</ReferenceDetails>
+
 ### Identity Center Delete Account Assignment
 
 Revoke a user or group access to an AWS account by removing a permission set assignment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +396,13 @@ Revoke a user or group access to an AWS account by removing a permission set ass
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
+</ReferenceDetails>
+
 ### Identity Center Check Assignment Status
 
 Check the provisioning status of an account assignment creation request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +428,13 @@ Check the provisioning status of an account assignment creation request
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
+</ReferenceDetails>
+
 ### Identity Center Check Assignment Deletion Status
 
 Check the deprovisioning status of an account assignment deletion request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -410,9 +460,13 @@ Check the deprovisioning status of an account assignment deletion request
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
+</ReferenceDetails>
+
 ### Identity Center List Account Assignments For Principal
 
 List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -439,9 +493,13 @@ List every account and permission set a specific user or group is assigned. Use 
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of assignments returned |
 
+</ReferenceDetails>
+
 ### Identity Center List Assignments For Account
 
 List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,5 +525,7 @@ List every principal assigned a specific permission set on a specific AWS accoun
 |   ↳ `principalId` | string | Identity Store user or group ID — resolve with Describe User or Describe Group |
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of assignments returned |
+
+</ReferenceDetails>
 
 

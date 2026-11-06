@@ -1,5 +1,6 @@
 import {
   type ClipboardEventHandler,
+  type KeyboardEventHandler,
   type ReactNode,
   type RefObject,
   useLayoutEffect,
@@ -15,9 +16,11 @@ import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user
 interface SearchInputBarProps {
   inputRef: RefObject<HTMLTextAreaElement | null>
   value: string
+  disabled?: boolean
   onChange: (value: string) => void
   onSubmit: () => void
   onPaste?: ClipboardEventHandler<HTMLTextAreaElement>
+  onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>
   placeholder?: string
   'aria-label'?: string
   leadingControls?: ReactNode
@@ -34,9 +37,11 @@ export function SearchInputBar({
   attachments,
   inputRef,
   value,
+  disabled = false,
   onChange,
   onSubmit,
   onPaste,
+  onKeyDown,
   placeholder = 'Search your sources',
   'aria-label': ariaLabel = 'Search your sources',
   selectionControl,
@@ -103,11 +108,14 @@ export function SearchInputBar({
             inputRef={inputRef}
             scrollerRef={scrollerRef}
             value={value}
+            disabled={disabled}
             compact={!hasAttachments && !expanded}
             className={hasAttachments ? 'min-h-[56px]' : undefined}
             maxHeight={200}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
+              onKeyDown?.(event)
+              if (event.defaultPrevented) return
               if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 onSubmit()

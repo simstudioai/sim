@@ -7,6 +7,7 @@ export const functionExecutionOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['executor', 'copilot'],
   }),

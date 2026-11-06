@@ -36,15 +36,19 @@ export async function executeAgentCliService(
   const invocation = request.invocation
   if (invocation.kind !== 'service' && invocation.kind !== 'stdout')
     throw new OrchestrationError('validation', 'Invalid service invocation')
+  if (request.fileOwner)
+    throw new OrchestrationError('validation', 'Service invocations do not take a file owner')
   const scope =
-    invocation.kind === 'service' && invocation.name === 'settings'
-      ? invocation.input.scope
-      : invocation.kind === 'service' &&
-          (invocation.name === 'dashboards' ||
-            invocation.name === 'tests' ||
-            invocation.name === 'changelog')
-        ? 'workspace'
-        : 'organization'
+    invocation.kind === 'service' && invocation.name === 'list_user_projects'
+      ? 'account'
+      : invocation.kind === 'service' && invocation.name === 'settings'
+        ? invocation.input.scope
+        : invocation.kind === 'service' &&
+            (invocation.name === 'dashboards' ||
+              invocation.name === 'tests' ||
+              invocation.name === 'changelog')
+          ? 'workspace'
+          : 'organization'
   if (
     invocation.kind === 'service' &&
     invocation.name !== 'list_workspaces' &&

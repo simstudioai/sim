@@ -1,14 +1,17 @@
+import { IDENTITY_PROVIDER_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessIdentityProvidersParams,
   CloudflareListAccessIdentityProvidersResponse,
-  CloudflareRawAccessIdentityProvider,
 } from '@/tools/cloudflare/types'
 import {
+  appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessIdentityProvidersTool: ToolConfig<
   CloudflareListAccessIdentityProvidersParams,
@@ -21,6 +24,25 @@ export const listAccessIdentityProvidersTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    scim_enabled: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Indicates to Access to only retrieve identity providers that have the System for Cross-Domain Identity Management (SCIM) enabled.',
+    },
+    page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page number of results.',
+    },
+    per_page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of results per page.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -36,77 +58,52 @@ export const listAccessIdentityProvidersTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/identity_providers`,
+    url: (params) => {
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/identity_providers`
+      )
+      appendParam(url, 'scim_enabled', params.scim_enabled)
+      appendParam(url, 'page', params.page)
+      appendParam(url, 'per_page', params.per_page)
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawAccessIdentityProvider[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { identity_providers: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Access identity providers'),
-      }
-    }
-
-    const providers = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        identity_providers: providers.map((provider) => ({
-          id: provider.id ?? '',
-          name: provider.name ?? null,
-          type: provider.type ?? null,
-          read_only: provider.read_only ?? null,
-          config: provider.config ?? null,
-          scim_config: provider.scim_config ?? null,
-        })),
-        total_count: data.result_info?.total_count ?? providers.length,
+        identity_providers: rows.map((row) => mapCloudflareFields(row, IDENTITY_PROVIDER_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to list access identity providers') }
+        : {}),
     }
   },
-
   outputs: {
     identity_providers: {
       type: 'array',
-      description: 'Identity providers configured for Access',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Identity provider identifier' },
-          name: {
-            type: 'string',
-            description: 'Display name shown to users on the login page',
-            optional: true,
-          },
-          type: {
-            type: 'string',
-            description: 'Provider type, e.g. azureAD, okta, google, saml, oidc, or onetimepin',
-            optional: true,
-          },
-          read_only: {
-            type: 'boolean',
-            description: 'Whether the provider is immutable through the API',
-            optional: true,
-          },
-          config: {
-            type: 'json',
-            description: 'Provider-specific configuration parameters',
-            optional: true,
-          },
-          scim_config: {
-            type: 'json',
-            description: 'SCIM user and group provisioning configuration',
-            optional: true,
-          },
-        },
-      },
+      description: 'Identity providers',
+      items: { type: 'object', properties: IDENTITY_PROVIDER_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of identity providers' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

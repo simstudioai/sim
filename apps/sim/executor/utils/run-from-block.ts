@@ -29,7 +29,23 @@ export function resolveContainerToSentinelStart(blockId: string, dag: DAG): stri
 export interface RunFromBlockValidation {
   valid: boolean
   error?: string
+  /** Why the start was refused, by id, for callers that phrase their own guidance. */
+  refusal?: RunFromBlockRefusal
 }
+
+/**
+ * The structured reason behind a refused run-from-block start. `blockId` is always the
+ * requested start block.
+ */
+export type RunFromBlockRefusal =
+  | { kind: 'block_not_found'; blockId: string }
+  | {
+      kind: 'inside_subflow'
+      blockId: string
+      subflowId: string
+      subflowType: 'loop' | 'parallel'
+    }
+  | { kind: 'upstream_not_executed'; blockId: string; upstreamBlockId: string }
 
 /**
  * A run-from-block start the executor refused before running anything: the block is
@@ -38,9 +54,12 @@ export interface RunFromBlockValidation {
  * to the caller as a validation failure instead of the generic system-error fallback.
  */
 export class RunFromBlockValidationError extends Error {
-  constructor(message: string) {
+  readonly refusal?: RunFromBlockRefusal
+
+  constructor(message: string, refusal?: RunFromBlockRefusal) {
     super(message)
     this.name = 'RunFromBlockValidationError'
+    this.refusal = refusal
   }
 }
 
@@ -158,13 +177,33 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
  * @param blockId - The block ID to validate
  * @param dag - The workflow DAG
  * @param executedBlocks - Set of blocks that were executed in the source run
+ * @param blockNames - Display names by block id, so the message names blocks instead of ids
  * @returns Validation result with error message if invalid
  */
 export function validateRunFromBlock(
   blockId: string,
   dag: DAG,
-  executedBlocks: Set<string>
+  executedBlocks: Set<string>,
+  blockNames: ReadonlyMap<string, string> = new Map()
 ): RunFromBlockValidation {
+  const label = (id: string) => blockNames.get(id) ?? id
+  const insideSubflow = (
+    subflowId: string | undefined,
+    subflowType: 'loop' | 'parallel'
+  ): RunFromBlockValidation => {
+    if (!subflowId) {
+      return { valid: false, error: `Cannot run from block inside ${subflowType}: ${blockId}` }
+    }
+    return {
+      valid: false,
+      error: `Cannot run from block inside ${subflowType}: ${label(subflowId)}. Run the ${subflowType} or the whole workflow instead.`,
+      refusal: { kind: 'inside_subflow', blockId, subflowId, subflowType },
+    }
+  }
+
+  const container = findOutermostContainer(blockId, dag)
+  if (container) return insideSubflow(container.id, container.type)
+
   const node = dag.nodes.get(blockId)
   const isLoopContainer = dag.loopConfigs.has(blockId)
   const isParallelContainer = dag.parallelConfigs.has(blockId)
@@ -172,26 +211,14 @@ export function validateRunFromBlock(
   let validationNode = node
 
   if (!node && !isContainer) {
-    return { valid: false, error: `Block not found in workflow: ${blockId}` }
+    return {
+      valid: false,
+      error: `Block not found in workflow: ${blockId}`,
+      refusal: { kind: 'block_not_found', blockId },
+    }
   }
 
   if (isContainer) {
-    const parentLoopId = findParentLoop(blockId, dag)
-    if (parentLoopId) {
-      return {
-        valid: false,
-        error: `Cannot run from block inside loop: ${parentLoopId}`,
-      }
-    }
-
-    const parentParallelId = findParentParallel(blockId, dag)
-    if (parentParallelId) {
-      return {
-        valid: false,
-        error: `Cannot run from block inside parallel: ${parentParallelId}`,
-      }
-    }
-
     const sentinelStartId = resolveContainerToSentinelStart(blockId, dag)
     if (!sentinelStartId || !dag.nodes.has(sentinelStartId)) {
       return {
@@ -203,19 +230,8 @@ export function validateRunFromBlock(
   }
 
   if (node) {
-    if (node.metadata.isLoopNode) {
-      return {
-        valid: false,
-        error: `Cannot run from block inside loop: ${node.metadata.subflowId}`,
-      }
-    }
-
-    if (node.metadata.isParallelBranch) {
-      return {
-        valid: false,
-        error: `Cannot run from block inside parallel: ${node.metadata.subflowId}`,
-      }
-    }
+    // A branch-clone id (`block₍0₎`) is in no subflow config, so findOutermostContainer misses it.
+    if (node.metadata.isParallelBranch) return insideSubflow(node.metadata.subflowId, 'parallel')
 
     if (node.metadata.isSentinel) {
       return { valid: false, error: 'Cannot run from sentinel node' }
@@ -236,13 +252,41 @@ export function validateRunFromBlock(
       if (!executedBlocks.has(sourceId)) {
         return {
           valid: false,
-          error: `Upstream dependency not executed: ${sourceId}`,
+          error: `Upstream dependency not executed: ${label(sourceId)}`,
+          refusal: { kind: 'upstream_not_executed', blockId, upstreamBlockId: sourceId },
         }
       }
     }
   }
 
   return { valid: true }
+}
+
+/**
+ * The top-level loop or parallel a block sits in, however deeply nested. A nested container
+ * is refused as a start too, so naming the immediate parent would point at another refusal.
+ * Parallel children are matched by their workflow id, which the DAG only holds as branch clones.
+ */
+function findOutermostContainer(
+  blockId: string,
+  dag: DAG
+): { id: string; type: 'loop' | 'parallel' } | undefined {
+  let outermost: { id: string; type: 'loop' | 'parallel' } | undefined
+  const visited = new Set([blockId])
+  let current = blockId
+  while (true) {
+    const loopId = findParentLoop(current, dag)
+    const parallelId = loopId ? undefined : findParentParallel(current, dag)
+    const parent = loopId
+      ? { id: loopId, type: 'loop' as const }
+      : parallelId
+        ? { id: parallelId, type: 'parallel' as const }
+        : undefined
+    if (!parent || visited.has(parent.id)) return outermost
+    visited.add(parent.id)
+    outermost = parent
+    current = parent.id
+  }
 }
 
 function findParentLoop(blockId: string, dag: DAG): string | undefined {

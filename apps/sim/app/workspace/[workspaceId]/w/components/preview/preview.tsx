@@ -10,6 +10,7 @@ import {
   getLeftmostBlockId,
   PreviewWorkflow,
 } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
+import { PreviewScope } from '@/app/workspace/[workspaceId]/w/components/preview/preview-scope'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface TraceSpan {
@@ -283,79 +284,81 @@ export function Preview({
   const currentWorkflowName = isNested ? workflowStack[workflowStack.length - 1].workflowName : null
 
   return (
-    <div
-      style={{ height, width }}
-      className={cn(
-        'relative flex overflow-hidden',
-        showBorder && 'rounded-sm border border-[var(--border)]',
-        className
-      )}
-    >
-      {isNested && (
-        <div className='absolute top-3 left-[12px] z-20 flex items-center gap-1.5'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={handleGoBack}
-                className='flex h-[28px] gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs hover-hover:bg-[var(--surface-4)]'
-              >
-                <ArrowLeft className='size-[12px]' />
-                <span className='text-caption'>Back</span>
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
-          </Tooltip.Root>
-          {currentWorkflowName && (
-            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs'>
-              <OverflowText
-                label={currentWorkflowName}
-                className='text-[var(--text-secondary)] text-caption'
-              />
-            </div>
-          )}
-        </div>
-      )}
+    <PreviewScope>
+      <div
+        style={{ height, width }}
+        className={cn(
+          'relative flex overflow-hidden',
+          showBorder && 'rounded-sm border border-[var(--border)]',
+          className
+        )}
+      >
+        {isNested && (
+          <div className='absolute top-3 left-[12px] z-20 flex items-center gap-1.5'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  onClick={handleGoBack}
+                  className='flex h-[28px] gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs hover-hover:bg-[var(--surface-4)]'
+                >
+                  <ArrowLeft className='size-[12px]' />
+                  <span className='text-caption'>Back</span>
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
+            </Tooltip.Root>
+            {currentWorkflowName && (
+              <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs'>
+                <OverflowText
+                  label={currentWorkflowName}
+                  className='text-[var(--text-secondary)] text-caption'
+                />
+              </div>
+            )}
+          </div>
+        )}
 
-      <div role='presentation' className='h-full flex-1' onContextMenu={onCanvasContextMenu}>
-        <PreviewWorkflow
-          workflowState={workflowState}
-          isPannable={true}
-          defaultPosition={{ x: 0, y: 0 }}
-          defaultZoom={0.8}
-          onNodeClick={handleNodeClick}
-          onNodeContextMenu={onNodeContextMenu}
-          onPaneClick={handlePaneClick}
-          cursorStyle='pointer'
-          executedBlocks={blockExecutions}
-          selectedBlockId={pinnedBlockId}
-        />
+        <div role='presentation' className='h-full flex-1' onContextMenu={onCanvasContextMenu}>
+          <PreviewWorkflow
+            workflowState={workflowState}
+            isPannable={true}
+            defaultPosition={{ x: 0, y: 0 }}
+            defaultZoom={0.8}
+            onNodeClick={handleNodeClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onPaneClick={handlePaneClick}
+            cursorStyle='pointer'
+            executedBlocks={blockExecutions}
+            selectedBlockId={pinnedBlockId}
+          />
+        </div>
+
+        {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
+          <div style={{ width: panelWidth }} className='relative h-full shrink-0'>
+            {/* Left-edge resize handle */}
+            <div
+              role='separator'
+              aria-orientation='vertical'
+              className='absolute top-0 bottom-0 left-0 z-10 w-1 cursor-ew-resize transition-colors hover-hover:bg-[var(--border-1)]'
+              onMouseDown={handleResizeMouseDown}
+            />
+            <PreviewEditor
+              block={workflowState.blocks[pinnedBlockId]}
+              executionData={blockExecutions[pinnedBlockId]}
+              allBlockExecutions={blockExecutions}
+              workflowBlocks={workflowState.blocks}
+              workflowVariables={workflowState.variables}
+              loops={workflowState.loops}
+              parallels={workflowState.parallels}
+              isExecutionMode={isExecutionMode}
+              childWorkflowSnapshots={childWorkflowSnapshots}
+              onClose={showBlockCloseButton ? handleEditorClose : undefined}
+              onDrillDown={handleDrillDown}
+            />
+          </div>
+        )}
       </div>
-
-      {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
-        <div style={{ width: panelWidth }} className='relative h-full shrink-0'>
-          {/* Left-edge resize handle */}
-          <div
-            role='separator'
-            aria-orientation='vertical'
-            className='absolute top-0 bottom-0 left-0 z-10 w-1 cursor-ew-resize transition-colors hover-hover:bg-[var(--border-1)]'
-            onMouseDown={handleResizeMouseDown}
-          />
-          <PreviewEditor
-            block={workflowState.blocks[pinnedBlockId]}
-            executionData={blockExecutions[pinnedBlockId]}
-            allBlockExecutions={blockExecutions}
-            workflowBlocks={workflowState.blocks}
-            workflowVariables={workflowState.variables}
-            loops={workflowState.loops}
-            parallels={workflowState.parallels}
-            isExecutionMode={isExecutionMode}
-            childWorkflowSnapshots={childWorkflowSnapshots}
-            onClose={showBlockCloseButton ? handleEditorClose : undefined}
-            onDrillDown={handleDrillDown}
-          />
-        </div>
-      )}
-    </div>
+    </PreviewScope>
   )
 }

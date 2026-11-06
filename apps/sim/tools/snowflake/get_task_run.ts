@@ -3,6 +3,7 @@ import type { SnowflakeGetTaskRunParams, SnowflakeStatementResponse } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getTaskRunTool: ToolConfig<SnowflakeGetTaskRunParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_task_run',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Task Run',
   description:
     'Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters.',

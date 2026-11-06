@@ -1,0 +1,875 @@
+{
+  "GET /api/v2/workspaces": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "color": "#33C482",
+          "createdAt": "<time>",
+          "id": "<workspace>",
+          "logoUrl": null,
+          "memberCount": 2,
+          "name": "ACL integration fixture",
+          "updatedAt": "<time>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "deletedAt": null,
+          "folderPath": "/",
+          "id": "<file:clean>",
+          "key": "<minted>",
+          "name": "clean.txt",
+          "size": 50,
+          "type": "text/plain",
+          "updatedAt": "<time>",
+          "uploadedAt": "<time>",
+          "uploadedByEmail": "<alice>@fixture.test",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/files/<file:clean>"
+        },
+        {
+          "deletedAt": null,
+          "folderPath": "/",
+          "id": "<file:entries>",
+          "key": "<minted>",
+          "name": "entries.txt",
+          "size": 64,
+          "type": "text/plain",
+          "updatedAt": "<time>",
+          "uploadedAt": "<time>",
+          "uploadedByEmail": "<alice>@fixture.test",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/files/<file:entries>"
+        },
+        {
+          "deletedAt": null,
+          "folderPath": "/",
+          "id": "<file:unknown>",
+          "key": "<minted>",
+          "name": "unknown.txt",
+          "size": 56,
+          "type": "text/plain",
+          "updatedAt": "<time>",
+          "uploadedAt": "<time>",
+          "uploadedByEmail": "<alice>@fixture.test",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/files/<file:unknown>"
+        },
+        {
+          "deletedAt": null,
+          "folderPath": "/",
+          "id": "<file:unrecorded>",
+          "key": "<minted>",
+          "name": "unrecorded.txt",
+          "size": 59,
+          "type": "text/plain",
+          "updatedAt": "<time>",
+          "uploadedAt": "<time>",
+          "uploadedByEmail": "<alice>@fixture.test",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/files/<file:unrecorded>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files/<file:clean>?workspaceId=<workspace>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line"
+  },
+  "GET /api/v2/files/<file:clean>/text?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "byteCount": 50,
+        "charCount": 50,
+        "degraded": false,
+        "degradedReason": null,
+        "fileId": "<file:clean>",
+        "name": "clean.txt",
+        "path": "files/clean.txt",
+        "text": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line",
+        "truncated": false,
+        "type": "text/plain"
+      }
+    }
+  },
+  "GET /api/v2/files/<file:clean>/versions?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "authors": [
+            {
+              "email": "<alice>@fixture.test",
+              "id": "<alice>"
+            }
+          ],
+          "contentType": "text/plain",
+          "createdAt": "<time>",
+          "fileId": "<file:clean>",
+          "isCurrent": true,
+          "restoredFromVersion": null,
+          "size": 50,
+          "source": "upload",
+          "supersededAt": null,
+          "updatedAt": "<time>",
+          "version": 1
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files/<file:entries>?workspaceId=<workspace>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line"
+  },
+  "GET /api/v2/files/<file:entries>/text?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "byteCount": 64,
+        "charCount": 64,
+        "degraded": false,
+        "degradedReason": null,
+        "fileId": "<file:entries>",
+        "name": "entries.txt",
+        "path": "files/entries.txt",
+        "text": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line",
+        "truncated": false,
+        "type": "text/plain"
+      }
+    }
+  },
+  "GET /api/v2/files/<file:entries>/versions?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "authors": [
+            {
+              "email": "<alice>@fixture.test",
+              "id": "<alice>"
+            }
+          ],
+          "contentType": "text/plain",
+          "createdAt": "<time>",
+          "fileId": "<file:entries>",
+          "isCurrent": true,
+          "restoredFromVersion": null,
+          "size": 64,
+          "source": "upload",
+          "supersededAt": null,
+          "updatedAt": "<time>",
+          "version": 1
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files/<file:unknown>?workspaceId=<workspace>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line"
+  },
+  "GET /api/v2/files/<file:unknown>/text?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "byteCount": 56,
+        "charCount": 56,
+        "degraded": false,
+        "degradedReason": null,
+        "fileId": "<file:unknown>",
+        "name": "unknown.txt",
+        "path": "files/unknown.txt",
+        "text": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line",
+        "truncated": false,
+        "type": "text/plain"
+      }
+    }
+  },
+  "GET /api/v2/files/<file:unknown>/versions?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "authors": [
+            {
+              "email": "<alice>@fixture.test",
+              "id": "<alice>"
+            }
+          ],
+          "contentType": "text/plain",
+          "createdAt": "<time>",
+          "fileId": "<file:unknown>",
+          "isCurrent": true,
+          "restoredFromVersion": null,
+          "size": 56,
+          "source": "upload",
+          "supersededAt": null,
+          "updatedAt": "<time>",
+          "version": 1
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files/<file:unrecorded>?workspaceId=<workspace>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "untracked upload UNRECORDED_PROVENANCE_TEXT_4M8\nsecond line"
+  },
+  "GET /api/v2/files/<file:unrecorded>/text?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "byteCount": 59,
+        "charCount": 59,
+        "degraded": false,
+        "degradedReason": null,
+        "fileId": "<file:unrecorded>",
+        "name": "unrecorded.txt",
+        "path": "files/unrecorded.txt",
+        "text": "untracked upload UNRECORDED_PROVENANCE_TEXT_4M8\nsecond line",
+        "truncated": false,
+        "type": "text/plain"
+      }
+    }
+  },
+  "GET /api/v2/files/<file:unrecorded>/versions?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "authors": [
+            {
+              "email": "<alice>@fixture.test",
+              "id": "<alice>"
+            }
+          ],
+          "contentType": "text/plain",
+          "createdAt": "<time>",
+          "fileId": "<file:unrecorded>",
+          "isCurrent": true,
+          "restoredFromVersion": null,
+          "size": 59,
+          "source": "upload",
+          "supersededAt": null,
+          "updatedAt": "<time>",
+          "version": 1
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/files/bulk-download?workspaceId=<workspace>&fileIds=<file:clean>,<file:entries>,<file:unknown>,<file:unrecorded>": {
+    "status": 200,
+    "contentType": "application/zip",
+    "zip": {
+      "clean.txt": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line",
+      "entries.txt": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line",
+      "unknown.txt": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line",
+      "unrecorded.txt": "untracked upload UNRECORDED_PROVENANCE_TEXT_4M8\nsecond line"
+    }
+  },
+  "GET /api/v2/files/search?workspaceId=<workspace>&query=second%20line&mode=exact": {
+    "status": 200,
+    "json": {
+      "data": {
+        "complete": true,
+        "count": 4,
+        "indexStatus": {
+          "failedFiles": 0,
+          "partialFiles": 0,
+          "pendingFiles": 0,
+          "readyFiles": 4,
+          "skippedFiles": 0
+        },
+        "results": [
+          {
+            "fileId": "<file:clean>",
+            "lineNumber": 2,
+            "text": "second line"
+          },
+          {
+            "fileId": "<file:entries>",
+            "lineNumber": 2,
+            "text": "second line"
+          },
+          {
+            "fileId": "<file:unknown>",
+            "lineNumber": 2,
+            "text": "second line"
+          },
+          {
+            "fileId": "<file:unrecorded>",
+            "lineNumber": 2,
+            "text": "second line"
+          }
+        ],
+        "truncated": false
+      }
+    }
+  },
+  "PATCH /api/v2/files/<file:unknown>/share": {
+    "status": 200,
+    "json": {
+      "data": {
+        "allowedEmails": [],
+        "authType": "public",
+        "hasPassword": false,
+        "id": "<id>",
+        "isActive": true,
+        "resourceId": "<file:unknown>",
+        "resourceType": "file",
+        "token": "<minted>",
+        "url": "http://localhost:3000/f/<minted>"
+      }
+    }
+  },
+  "GET /api/v2/knowledge?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "chunkingConfig": {
+            "maxSize": 1024,
+            "minSize": 1,
+            "overlap": 20
+          },
+          "connectorTypes": ["confluence"],
+          "createdAt": "<time>",
+          "deletedAt": null,
+          "description": null,
+          "docCount": 1,
+          "embeddingDimension": 1536,
+          "embeddingModel": "text-embedding-3-small",
+          "folderPath": "/",
+          "id": "<kb>",
+          "name": "Search fixture",
+          "ownerEmail": "<alice>@fixture.test",
+          "tokenCount": 0,
+          "updatedAt": "<time>",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/knowledge/<kb>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "characterCount": 0,
+          "chunkCount": 0,
+          "createdAt": "<time>",
+          "enabled": true,
+          "fileSize": 64,
+          "filename": "fixture.txt",
+          "id": "<document>",
+          "knowledgeBaseId": "<kb>",
+          "mimeType": "text/plain",
+          "processingStatus": "completed",
+          "tags": {},
+          "tokenCount": 0
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents/<document>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "characterCount": 0,
+        "chunkCount": 0,
+        "connectorId": null,
+        "connectorType": null,
+        "createdAt": "<time>",
+        "enabled": true,
+        "fileSize": 64,
+        "filename": "fixture.txt",
+        "id": "<document>",
+        "knowledgeBaseId": "<kb>",
+        "mimeType": "text/plain",
+        "processingCompletedAt": null,
+        "processingError": null,
+        "processingStartedAt": null,
+        "processingStatus": "completed",
+        "sourceUrl": null,
+        "tags": {},
+        "tokenCount": 0
+      }
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents/<document>/chunks?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "chunkIndex": 0,
+          "content": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line",
+          "contentLength": 50,
+          "createdAt": "<time>",
+          "enabled": true,
+          "endOffset": 50,
+          "id": "<chunk:clean>",
+          "startOffset": 0,
+          "tag1": null,
+          "tag2": null,
+          "tag3": null,
+          "tag4": null,
+          "tag5": null,
+          "tag6": null,
+          "tag7": null,
+          "tokenCount": 8,
+          "updatedAt": "<time>"
+        },
+        {
+          "chunkIndex": 1,
+          "content": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line",
+          "contentLength": 64,
+          "createdAt": "<time>",
+          "enabled": true,
+          "endOffset": 64,
+          "id": "<chunk:entries>",
+          "startOffset": 0,
+          "tag1": null,
+          "tag2": null,
+          "tag3": null,
+          "tag4": null,
+          "tag5": null,
+          "tag6": null,
+          "tag7": null,
+          "tokenCount": 8,
+          "updatedAt": "<time>"
+        },
+        {
+          "chunkIndex": 2,
+          "content": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line",
+          "contentLength": 56,
+          "createdAt": "<time>",
+          "enabled": true,
+          "endOffset": 56,
+          "id": "<chunk:unknown>",
+          "startOffset": 0,
+          "tag1": null,
+          "tag2": null,
+          "tag3": null,
+          "tag4": null,
+          "tag5": null,
+          "tag6": null,
+          "tag7": null,
+          "tokenCount": 8,
+          "updatedAt": "<time>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents/<document>/chunks/<chunk:clean>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "chunkIndex": 0,
+        "content": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line",
+        "contentLength": 50,
+        "createdAt": "<time>",
+        "enabled": true,
+        "endOffset": 50,
+        "id": "<chunk:clean>",
+        "startOffset": 0,
+        "tag1": null,
+        "tag2": null,
+        "tag3": null,
+        "tag4": null,
+        "tag5": null,
+        "tag6": null,
+        "tag7": null,
+        "tokenCount": 8,
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents/<document>/chunks/<chunk:entries>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "chunkIndex": 1,
+        "content": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line",
+        "contentLength": 64,
+        "createdAt": "<time>",
+        "enabled": true,
+        "endOffset": 64,
+        "id": "<chunk:entries>",
+        "startOffset": 0,
+        "tag1": null,
+        "tag2": null,
+        "tag3": null,
+        "tag4": null,
+        "tag5": null,
+        "tag6": null,
+        "tag7": null,
+        "tokenCount": 8,
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "GET /api/v2/knowledge/<kb>/documents/<document>/chunks/<chunk:unknown>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "chunkIndex": 2,
+        "content": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line",
+        "contentLength": 56,
+        "createdAt": "<time>",
+        "enabled": true,
+        "endOffset": 56,
+        "id": "<chunk:unknown>",
+        "startOffset": 0,
+        "tag1": null,
+        "tag2": null,
+        "tag3": null,
+        "tag4": null,
+        "tag5": null,
+        "tag6": null,
+        "tag7": null,
+        "tokenCount": 8,
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "POST /api/v2/knowledge/search": {
+    "status": 200,
+    "json": {
+      "data": {
+        "knowledgeBaseIds": ["<kb>"],
+        "query": "second line",
+        "rerankerStatus": "not_requested",
+        "results": [
+          {
+            "chunkIndex": 0,
+            "content": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line",
+            "documentId": "<document>",
+            "documentName": "fixture.txt",
+            "knowledgeBaseId": "<kb>",
+            "metadata": {},
+            "rank": "<minted>",
+            "rankScore": "<minted>",
+            "similarity": "<minted>",
+            "sourceUrl": null
+          },
+          {
+            "chunkIndex": 1,
+            "content": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line",
+            "documentId": "<document>",
+            "documentName": "fixture.txt",
+            "knowledgeBaseId": "<kb>",
+            "metadata": {},
+            "rank": "<minted>",
+            "rankScore": "<minted>",
+            "similarity": "<minted>",
+            "sourceUrl": null
+          },
+          {
+            "chunkIndex": 2,
+            "content": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line",
+            "documentId": "<document>",
+            "documentName": "fixture.txt",
+            "knowledgeBaseId": "<kb>",
+            "metadata": {},
+            "rank": "<minted>",
+            "rankScore": "<minted>",
+            "similarity": "<minted>",
+            "sourceUrl": null
+          }
+        ],
+        "topK": 10,
+        "totalResults": 3
+      }
+    }
+  },
+  "GET /api/v2/tables?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "createdAt": "<time>",
+          "description": null,
+          "folderPath": "/",
+          "id": "<table>",
+          "job": null,
+          "locks": {
+            "deleteLocked": false,
+            "insertLocked": false,
+            "schemaLocked": false,
+            "updateLocked": false
+          },
+          "maxRows": 9007199254740991,
+          "name": "content_fixture",
+          "ownerEmail": "<alice>@fixture.test",
+          "rowCount": "<minted>",
+          "schema": {
+            "columns": [
+              {
+                "id": "<id>",
+                "name": "note",
+                "required": false,
+                "type": "string",
+                "unique": false
+              }
+            ]
+          },
+          "updatedAt": "<time>",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/tables/<table>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/tables/<table>/rows?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line"
+          },
+          "id": "<row:clean>",
+          "updatedAt": "<time>"
+        },
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line"
+          },
+          "id": "<row:entries>",
+          "updatedAt": "<time>"
+        },
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line"
+          },
+          "id": "<row:unknown>",
+          "updatedAt": "<time>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/tables/<table>/rows/<row:clean>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "createdAt": "<time>",
+        "data": {
+          "note": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line"
+        },
+        "id": "<row:clean>",
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "GET /api/v2/tables/<table>/rows/<row:entries>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "createdAt": "<time>",
+        "data": {
+          "note": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line"
+        },
+        "id": "<row:entries>",
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "GET /api/v2/tables/<table>/rows/<row:unknown>?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": {
+        "createdAt": "<time>",
+        "data": {
+          "note": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line"
+        },
+        "id": "<row:unknown>",
+        "updatedAt": "<time>"
+      }
+    }
+  },
+  "POST /api/v2/tables/<table>/query": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line"
+          },
+          "id": "<row:clean>",
+          "updatedAt": "<time>"
+        },
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line"
+          },
+          "id": "<row:entries>",
+          "updatedAt": "<time>"
+        },
+        {
+          "createdAt": "<time>",
+          "data": {
+            "note": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line"
+          },
+          "id": "<row:unknown>",
+          "updatedAt": "<time>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "POST /api/v2/tables/<table>/rows/search": {
+    "status": 200,
+    "json": {
+      "data": {
+        "matches": [
+          {
+            "column": "note",
+            "ordinal": 0,
+            "rowId": "<row:clean>"
+          },
+          {
+            "column": "note",
+            "ordinal": 1,
+            "rowId": "<row:entries>"
+          },
+          {
+            "column": "note",
+            "ordinal": 2,
+            "rowId": "<row:unknown>"
+          }
+        ],
+        "truncated": false
+      }
+    }
+  },
+  "GET /api/v2/workflows?workspaceId=<workspace>": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "createdAt": "<time>",
+          "deployedAt": null,
+          "description": null,
+          "folderPath": "/",
+          "id": "<workflow>",
+          "isDeployed": false,
+          "lastRunAt": null,
+          "name": "content fixture <workflow>",
+          "runCount": 0,
+          "updatedAt": "<time>",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/w/<workflow>",
+          "workspaceId": "<workspace>"
+        }
+      ],
+      "nextCursor": null
+    }
+  },
+  "GET /api/v2/workflows/<workflow>/runs/<run>?includeOutput=true&includeFileBase64=true": {
+    "status": 200,
+    "json": {
+      "data": {
+        "blockOutputs": null,
+        "cost": null,
+        "durationMs": null,
+        "endedAt": "<time>",
+        "error": null,
+        "files": [
+          {
+            "base64": "cHVibGljIG5vdGVzIENMRUFOX1BST1ZFTkFOQ0VfVEVYVF85SzEKc2Vjb25kIGxpbmU=",
+            "downloadPath": "/api/v2/workflows/<workflow>/runs/<run>/files/<run-file:clean>",
+            "id": "<run-file:clean>",
+            "name": "clean.txt",
+            "size": 50,
+            "type": "text/plain"
+          },
+          {
+            "base64": "Y29uZmlnIHRva2VuPXNrX2xpdmVfRklYVFVSRV9FTlRSWV9TRUNSRVRfMDEyMzQ1Njc4OQpzZWNvbmQgbGluZQ==",
+            "downloadPath": "/api/v2/workflows/<workflow>/runs/<run>/files/<run-file:entries>",
+            "id": "<run-file:entries>",
+            "name": "entries.txt",
+            "size": 64,
+            "type": "text/plain"
+          },
+          {
+            "base64": "dGFpbnRlZCBleHBvcnQgVU5LTk9XTl9QUk9WRU5BTkNFX0NBTkFSWV83UTIKc2Vjb25kIGxpbmU=",
+            "downloadPath": "/api/v2/workflows/<workflow>/runs/<run>/files/<run-file:unknown>",
+            "id": "<run-file:unknown>",
+            "name": "unknown.txt",
+            "size": 56,
+            "type": "text/plain"
+          }
+        ],
+        "output": {
+          "clean": {
+            "context": "execution",
+            "id": "<run-file:clean>",
+            "key": "<minted>",
+            "name": "clean.txt",
+            "size": 50,
+            "type": "text/plain",
+            "url": "http://localhost:3000/api/files/serve/<minted>"
+          },
+          "entries": {
+            "context": "execution",
+            "id": "<run-file:entries>",
+            "key": "<minted>",
+            "name": "entries.txt",
+            "size": 64,
+            "type": "text/plain",
+            "url": "http://localhost:3000/api/files/serve/<minted>"
+          },
+          "unknown": {
+            "context": "execution",
+            "id": "<run-file:unknown>",
+            "key": "<minted>",
+            "name": "unknown.txt",
+            "size": 56,
+            "type": "text/plain",
+            "url": "http://localhost:3000/api/files/serve/<minted>"
+          }
+        },
+        "paused": null,
+        "runId": "<run>",
+        "startedAt": "<time>",
+        "status": "completed",
+        "trigger": "api",
+        "workflowId": "<workflow>"
+      }
+    }
+  },
+  "GET /api/v2/workflows/<workflow>/runs/<run>/files/<run-file:clean>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "public notes CLEAN_PROVENANCE_TEXT_9K1\nsecond line"
+  },
+  "GET /api/v2/workflows/<workflow>/runs/<run>/files/<run-file:entries>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "config token=sk_live_FIXTURE_ENTRY_SECRET_0123456789\nsecond line"
+  },
+  "GET /api/v2/workflows/<workflow>/runs/<run>/files/<run-file:unknown>": {
+    "status": 200,
+    "contentType": "text/plain",
+    "text": "tainted export UNKNOWN_PROVENANCE_CANARY_7Q2\nsecond line"
+  }
+}

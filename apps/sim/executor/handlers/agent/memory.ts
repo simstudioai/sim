@@ -40,10 +40,11 @@ import { AGENT_MEMORY_RETRIEVAL_TOOL_ID } from '@/lib/memory/retrieval-tool-type
 import {
   bindMemorySecretProvenanceToMessages,
   createMemorySecretProvenanceSelector,
+  MEMORY_SECRET_PROVENANCE_COLUMNS,
   readBoundMemorySecretProvenance,
 } from '@/lib/memory/secret-provenance'
 import type { AgentInputs, FileNameProjection, Message } from '@/executor/handlers/agent/types'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import {
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonStrings,
@@ -118,6 +119,27 @@ function isOptionalMemoryStorageFailure(error: unknown): boolean {
   )
 }
 
+/**
+ * The attachments each message sends to the model. A storage key pins its bytes, so a file a user
+ * attached on several turns is sent once, where it first appears, keeping the replayed prefix
+ * stable across runs; a user turn with no text keeps its own so it is never sent empty. Only user
+ * turns are deduplicated: every provider sends their attachments, while some drop other roles'.
+ */
+export function selectReplayAttachments(messages: readonly Message[]): UserFile[][] {
+  const sent = new Set<string>()
+  return messages.map((message) => {
+    const files = message.files ?? []
+    if (message.role !== 'user') return files
+    const unsent = files.filter((file) => {
+      const identity = file.key || file.id
+      if (sent.has(identity)) return false
+      sent.add(identity)
+      return true
+    })
+    return unsent.length === 0 && !message.content?.trim() ? files : unsent
+  })
+}
+
 export class Memory {
   async fetchMemoryMessages(
     ctx: ExecutionContext,
@@ -177,7 +199,10 @@ export class Memory {
     }
 
     /** Bound historical downloads independently of text-token windows and per-file byte caps. */
-    const fileCount = messages.reduce((count, message) => count + (message.files?.length ?? 0), 0)
+    const fileCount = selectReplayAttachments(messages).reduce(
+      (count, files) => count + files.length,
+      0
+    )
     if (fileCount > MEMORY.MAX_REPLAY_FILE_REFERENCES) {
       throw new Error(
         `Conversation memory exceeds ${MEMORY.MAX_REPLAY_FILE_REFERENCES} file attachments. Use a smaller memory window.`
@@ -650,9 +675,7 @@ export class Memory {
             storageVersion: memory.storageVersion,
             data: memory.data,
             secretProvenanceVersion: memory.secretProvenanceVersion,
-            provenanceContentHash: memorySecretProvenance.contentHash,
-            provenanceStatus: memorySecretProvenance.status,
-            provenanceEntries: memorySecretProvenance.entries,
+            ...MEMORY_SECRET_PROVENANCE_COLUMNS,
           })
           .from(memory)
           .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
@@ -665,13 +688,7 @@ export class Memory {
     }
 
     let data = row.data
-    let provenance = readBoundMemorySecretProvenance({
-      secretProvenanceVersion: row.secretProvenanceVersion,
-      data,
-      provenanceContentHash: row.provenanceContentHash,
-      status: row.provenanceStatus,
-      entries: row.provenanceEntries,
-    })
+    let provenance = readBoundMemorySecretProvenance(row)
     if (row.storageVersion === 2 && !options.richHistory) {
       const tail = await readPlainMemoryTail(row.id, workspaceId)
       data = [...(Array.isArray(data) ? data : []), ...tail.messages]

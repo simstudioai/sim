@@ -1,44 +1,31 @@
 ---
 title: CloudWatch
 description: Query and monitor AWS CloudWatch logs, metrics, and alarms
+integration:
+  type: "cloudwatch"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudwatch"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS CloudWatch](https://aws.amazon.com/cloudwatch/) is a monitoring and observability service that provides data and actionable insights for AWS resources, applications, and services. CloudWatch collects monitoring and operational data in the form of logs, metrics, and events, giving you a unified view of your AWS environment.
+Use [AWS CloudWatch](https://aws.amazon.com/cloudwatch/) to query logs, retrieve log events, inspect log groups and streams, read metrics and alarms, and publish custom metric data. Connect with an AWS access key ID and secret access key.
 
-With the CloudWatch integration, you can:
-
-- **Query Logs (Insights)**: Run CloudWatch Log Insights queries against one or more log groups to analyze log data with a powerful query language
-- **Describe Log Groups**: List available CloudWatch log groups in your account, optionally filtered by name prefix
-- **Get Log Events**: Retrieve log events from a specific log stream within a log group
-- **Describe Log Streams**: List log streams within a log group, ordered by last event time or filtered by name prefix
-- **List Metrics**: Browse available CloudWatch metrics, optionally filtered by namespace, metric name, or recent activity
-- **Get Metric Statistics**: Retrieve statistical data for a metric over a specified time range with configurable granularity
-- **Publish Metric**: Publish custom metric data points to CloudWatch for your own application monitoring
-- **Describe Alarms**: List and filter CloudWatch alarms by name prefix, state, or alarm type
-
-In Sim, the CloudWatch integration enables your agents to monitor AWS infrastructure, analyze application logs, track custom metrics, and respond to alarm states as part of automated DevOps and SRE workflows. This is especially powerful when combined with other AWS integrations like CloudFormation and SNS for end-to-end infrastructure management.
+Choose **Query Logs (Insights)** for a query across log groups, or **Get Log Events** for one stream. Metric statistics use a time range and period; alarm actions report the current state. Pass results to later steps for incident investigation or threshold-based notifications.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
-
-
+Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
 
 ## Actions
 
 ### CloudWatch Query Logs
 
 Run a CloudWatch Log Insights query against one or more log groups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,9 +51,13 @@ Run a CloudWatch Log Insights query against one or more log groups
 |   ↳ `recordsScanned` | number | Total log records scanned |
 | `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
 
+</ReferenceDetails>
+
 ### CloudWatch Filter Log Events
 
 Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -93,9 +84,13 @@ Search log events across all streams in a log group by filter pattern and time r
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
 
+</ReferenceDetails>
+
 ### CloudWatch Describe Log Groups
 
 List available CloudWatch log groups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +113,13 @@ List available CloudWatch log groups
 |   ↳ `retentionInDays` | number | Retention period in days \(if set\) |
 |   ↳ `creationTime` | number | Creation time in epoch milliseconds |
 
+</ReferenceDetails>
+
 ### CloudWatch Get Log Events
 
 Retrieve log events from a specific CloudWatch log stream
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +143,13 @@ Retrieve log events from a specific CloudWatch log stream
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
 
+</ReferenceDetails>
+
 ### CloudWatch Describe Log Streams
 
 List log streams within a CloudWatch log group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +173,13 @@ List log streams within a CloudWatch log group
 |   ↳ `creationTime` | number | Stream creation time in epoch milliseconds |
 |   ↳ `storedBytes` | number | Total stored bytes |
 
+</ReferenceDetails>
+
 ### CloudWatch Set Log Group Retention
 
 Set (or clear, for never-expire) the retention period for a CloudWatch log group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,9 +199,13 @@ Set (or clear, for never-expire) the retention period for a CloudWatch log group
 | `logGroupName` | string | Log group the policy applies to |
 | `retentionInDays` | number | Retention period in days, or null if events never expire |
 
+</ReferenceDetails>
+
 ### CloudWatch List Metrics
 
 List available CloudWatch metrics
+
+<ReferenceDetails>
 
 #### Input
 
@@ -217,9 +228,13 @@ List available CloudWatch metrics
 |   ↳ `metricName` | string | Metric name \(e.g., CPUUtilization\) |
 |   ↳ `dimensions` | array | Array of name/value dimension pairs |
 
+</ReferenceDetails>
+
 ### CloudWatch Get Metric Statistics
 
 Get statistics for a CloudWatch metric over a time range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -250,9 +265,13 @@ Get statistics for a CloudWatch metric over a time range
 |   ↳ `sampleCount` | number | Sample count statistic value |
 |   ↳ `unit` | string | Unit of the metric |
 
+</ReferenceDetails>
+
 ### CloudWatch Publish Metric
 
 Publish a custom metric data point to CloudWatch
+
+<ReferenceDetails>
 
 #### Input
 
@@ -278,9 +297,13 @@ Publish a custom metric data point to CloudWatch
 | `unit` | string | Metric unit |
 | `timestamp` | string | Timestamp when the metric was published |
 
+</ReferenceDetails>
+
 ### CloudWatch Describe Alarms
 
 List and filter CloudWatch alarms
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +331,13 @@ List and filter CloudWatch alarms
 |   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
 |   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
 
+</ReferenceDetails>
+
 ### CloudWatch Describe Alarm History
 
 Retrieve state-change and configuration history for CloudWatch alarms
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +364,13 @@ Retrieve state-change and configuration history for CloudWatch alarms
 |   ↳ `historyItemType` | string | ConfigurationUpdate, StateUpdate, Action, or contributor variants |
 |   ↳ `historySummary` | string | Human-readable summary of the event |
 
+</ReferenceDetails>
+
 ### CloudWatch Mute Alarm
 
 Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +396,13 @@ Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration
 | `expression` | string | Schedule expression used by the mute rule |
 | `duration` | string | ISO 8601 duration of the mute window |
 
+</ReferenceDetails>
+
 ### CloudWatch Unmute Alarm
 
 Delete a CloudWatch alarm mute rule, restoring alarm notifications
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,5 +419,7 @@ Delete a CloudWatch alarm mute rule, restoring alarm notifications
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the mute rule was deleted successfully |
 | `muteRuleName` | string | Name of the mute rule that was deleted |
+
+</ReferenceDetails>
 
 

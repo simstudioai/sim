@@ -1,31 +1,29 @@
 ---
 title: Polymarket
 description: Access prediction markets data from Polymarket
+integration:
+  type: "polymarket"
+  color: "#4C82FB"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="polymarket"
-  color="#4C82FB"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Polymarket](https://polymarket.com) in Sim to retrieve prediction-market data: markets, events, orderbooks, prices, price history, positions, trades, and related statistics. These read operations support research, reporting, and monitoring workflows.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.
-
-
+Get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.
 
 ## Actions
 
 ### Get Markets from Polymarket
 
 Retrieve a list of prediction markets from Polymarket with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +57,13 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 |   ↳ `liquidityNum` | number | Liquidity as number |
 |   ↳ `clobTokenIds` | array | CLOB token IDs |
 
+</ReferenceDetails>
+
 ### Get Market from Polymarket
 
 Retrieve details of a specific prediction market by ID or slug
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,9 +100,13 @@ Retrieve details of a specific prediction market by ID or slug
 |   ↳ `acceptingOrders` | boolean | Whether accepting orders |
 |   ↳ `negRisk` | boolean | Whether negative risk |
 
+</ReferenceDetails>
+
 ### Get Events from Polymarket
 
 Retrieve a list of events from Polymarket with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +140,13 @@ Retrieve a list of events from Polymarket with optional filtering
 |   ↳ `volume` | number | Total volume |
 |   ↳ `markets` | array | Array of markets in this event |
 
+</ReferenceDetails>
+
 ### Get Event from Polymarket
 
 Retrieve details of a specific event by ID or slug
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +179,13 @@ Retrieve details of a specific event by ID or slug
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `markets` | array | Array of markets in this event |
 
+</ReferenceDetails>
+
 ### Get Tags from Polymarket
 
 Retrieve available tags for filtering markets from Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -191,9 +205,13 @@ Retrieve available tags for filtering markets from Polymarket
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Search Polymarket
 
 Search for markets, events, and profiles on Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +240,13 @@ Search for markets, events, and profiles on Polymarket
 |   ↳ `tags` | array | Array of matching tag objects |
 |   ↳ `profiles` | array | Array of matching profile objects |
 
+</ReferenceDetails>
+
 ### Get Series from Polymarket
 
 Retrieve series (related market groups) from Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,9 +276,13 @@ Retrieve series (related market groups) from Polymarket
 |   ↳ `liquidity` | number | Total liquidity |
 |   ↳ `eventCount` | number | Number of events in series |
 
+</ReferenceDetails>
+
 ### Get Series by ID from Polymarket
 
 Retrieve a specific series (related market group) by ID from Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -287,9 +313,13 @@ Retrieve a specific series (related market group) by ID from Polymarket
 |   ↳ `eventCount` | number | Number of events in series |
 |   ↳ `events` | array | Array of events in this series |
 
+</ReferenceDetails>
+
 ### Get Orderbook from Polymarket
 
 Retrieve the order book summary for a specific token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -317,9 +347,13 @@ Retrieve the order book summary for a specific token
 |   ↳ `neg_risk` | boolean | Whether negative risk |
 |   ↳ `last_trade_price` | string | Last trade price |
 
+</ReferenceDetails>
+
 ### Get Price from Polymarket
 
 Retrieve the market price for a specific token and side
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +368,13 @@ Retrieve the market price for a specific token and side
 | --------- | ---- | ----------- |
 | `price` | string | Market price |
 
+</ReferenceDetails>
+
 ### Get Midpoint Price from Polymarket
 
 Retrieve the midpoint price for a specific token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -350,9 +388,13 @@ Retrieve the midpoint price for a specific token
 | --------- | ---- | ----------- |
 | `midpoint` | string | Midpoint price |
 
+</ReferenceDetails>
+
 ### Get Price History from Polymarket
 
 Retrieve historical price data for a specific market token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +414,13 @@ Retrieve historical price data for a specific market token
 |   ↳ `t` | number | Unix timestamp |
 |   ↳ `p` | number | Price at timestamp |
 
+</ReferenceDetails>
+
 ### Get Last Trade Price from Polymarket
 
 Retrieve the last trade price for a specific token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -389,9 +435,13 @@ Retrieve the last trade price for a specific token
 | `price` | string | Last trade price |
 | `side` | string | Side of the last trade \(BUY or SELL\) |
 
+</ReferenceDetails>
+
 ### Get Spread from Polymarket
 
 Retrieve the bid-ask spread for a specific token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -406,9 +456,13 @@ Retrieve the bid-ask spread for a specific token
 | `spread` | object | Spread value between bid and ask |
 |   ↳ `spread` | string | The spread value |
 
+</ReferenceDetails>
+
 ### Get Tick Size from Polymarket
 
 Retrieve the minimum tick size for a specific token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,9 +476,13 @@ Retrieve the minimum tick size for a specific token
 | --------- | ---- | ----------- |
 | `tickSize` | string | Minimum tick size |
 
+</ReferenceDetails>
+
 ### Get Positions from Polymarket
 
 Retrieve user positions from Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -473,9 +531,13 @@ Retrieve user positions from Polymarket
 |   ↳ `endDate` | string | End date |
 |   ↳ `negativeRisk` | boolean | Whether negative risk |
 
+</ReferenceDetails>
+
 ### Get Trades from Polymarket
 
 Retrieve trade history from Polymarket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -516,9 +578,13 @@ Retrieve trade history from Polymarket
 |   ↳ `profileImageOptimized` | string | Optimized profile image URL |
 |   ↳ `transactionHash` | string | Transaction hash |
 
+</ReferenceDetails>
+
 ### Get Activity from Polymarket
 
 Retrieve on-chain activity for a user including trades, splits, merges, redemptions, rewards, and conversions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -563,9 +629,13 @@ Retrieve on-chain activity for a user including trades, splits, merges, redempti
 |   ↳ `profileImage` | string | User profile image URL |
 |   ↳ `profileImageOptimized` | string | Optimized profile image URL |
 
+</ReferenceDetails>
+
 ### Get Leaderboard from Polymarket
 
 Retrieve trader leaderboard rankings by profit/loss or volume
+
+<ReferenceDetails>
 
 #### Input
 
@@ -593,9 +663,13 @@ Retrieve trader leaderboard rankings by profit/loss or volume
 |   ↳ `xUsername` | string | Twitter/X username |
 |   ↳ `verifiedBadge` | boolean | Whether user has verified badge |
 
+</ReferenceDetails>
+
 ### Get Market Holders from Polymarket
 
 Retrieve top holders of a specific market token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -623,5 +697,7 @@ Retrieve top holders of a specific market token
 |     ↳ `profileImage` | string | Profile image URL |
 |     ↳ `profileImageOptimized` | string | Optimized profile image URL |
 |     ↳ `verified` | boolean | Whether the holder is verified |
+
+</ReferenceDetails>
 
 

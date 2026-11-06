@@ -16,7 +16,7 @@ import {
   type CopilotChatDelegationContext,
   createCopilotChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   completeWorkspaceFileUploadOperation,
   createWorkspaceFileUploadOperation,

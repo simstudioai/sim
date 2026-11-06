@@ -21,7 +21,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/credentials/application/connection-target', () => ({
   resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))

@@ -5,7 +5,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getActivityHeaderTool,
+  getInProgressActivityLabel,
+  ToolActivityGroup,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -124,5 +128,76 @@ describe('ToolActivityGroup search disclosure', () => {
     render([emptySearch, completedSearch], true)
     expect(container.querySelector('a[href="https://example.test/guide"]')).not.toBeNull()
     expect(container.textContent).not.toContain('No results')
+  })
+
+  it('lists cited web results like connected-source results, and leaves uncited web research plain', () => {
+    const webSearch = (citationId?: string): ToolCallData => ({
+      id: 'web-1',
+      toolName: 'web_search',
+      displayTitle: 'Searching online',
+      status: 'success',
+      result: {
+        success: true,
+        output: {
+          query: 'guide',
+          results: [
+            {
+              title: 'Public guide',
+              url: 'https://public.example.test/guide',
+              ...(citationId ? { citationId } : {}),
+            },
+          ],
+        },
+      },
+    })
+
+    render([webSearch('web:guide')], true)
+    expect(disclosure().getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('a[href="https://public.example.test/guide"]')).not.toBeNull()
+
+    render([webSearch()], true)
+    expect(container.querySelector('[role="button"][aria-expanded]')).toBeNull()
+    expect(container.querySelector('a[href="https://public.example.test/guide"]')).toBeNull()
+  })
+})
+
+describe('in-progress activity header', () => {
+  const streamingCli: ToolCallData = {
+    id: 'cli-1',
+    toolName: 'sim_cli',
+    displayTitle: 'Running CLI command',
+    status: 'executing',
+  }
+
+  function headerLabel(tools: ToolCallData[]) {
+    const statusTool = tools[tools.length - 1]
+    const headerTool = getActivityHeaderTool(tools, statusTool)
+    return getInProgressActivityLabel(headerTool.displayTitle ?? '', headerTool, tools, undefined)
+  }
+
+  it('keeps the wait wording while a first CLI call has no title yet', () => {
+    expect(headerLabel([streamingCli])).toBe('Thinking')
+  })
+
+  it('uses the streamed description as soon as it arrives', () => {
+    const described = {
+      ...streamingCli,
+      activityDescription: 'Looking up the failed run',
+      displayTitle: 'Looking up the failed run',
+    }
+    expect(headerLabel([described])).toBe('Looking up the failed run')
+  })
+
+  it('holds the earlier call while a refined CLI call waits for its description', () => {
+    const earlier: ToolCallData = {
+      id: 'cli-0',
+      toolName: 'cli_workflows_list',
+      displayTitle: 'Listing workflows',
+      status: 'success',
+      activityDescription: 'Listing workflows',
+      params: { args: ['workflows', 'list'] },
+    }
+    const refined = { ...streamingCli, toolName: 'cli_logs_get', displayTitle: 'Reading run logs' }
+    expect(getActivityHeaderTool([earlier, refined], refined)).toBe(earlier)
   })
 })

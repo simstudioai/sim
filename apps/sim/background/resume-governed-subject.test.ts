@@ -26,7 +26,7 @@ const hoisted = vi.hoisted(() => ({
   readStampedCapabilitySubject: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: hoisted.withCascadeLock }))
 vi.mock('@/lib/table/deps', () => ({ isExecCancelled: () => false }))
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)

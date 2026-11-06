@@ -19,7 +19,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: ChangelogEntryPageProps): Promise<Metadata> {
   const { slug } = await params
   const entry = await getEntryBySlug(slug)
-  return entry ? buildPostMetadata(entry) : {}
+  return entry ? buildPostMetadata(entry, CHANGELOG_SECTION) : {}
 }
 
 export default async function ChangelogEntryPage({ params }: ChangelogEntryPageProps) {

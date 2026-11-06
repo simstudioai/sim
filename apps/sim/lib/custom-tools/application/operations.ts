@@ -28,6 +28,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listAvailable: defineWorkspaceOperation({
@@ -36,6 +37,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -44,6 +46,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   readAvailableByIdOrTitle: defineWorkspaceOperation({
@@ -51,6 +54,7 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot', 'executor'],
   }),
@@ -60,6 +64,7 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -68,6 +73,7 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
@@ -76,6 +82,7 @@ export const customToolOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
 } as const

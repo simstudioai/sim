@@ -1,9 +1,9 @@
-import { useChangeDetection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-change-detection'
-import { useChangeDetectionCanary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-change-detection-canary'
 import {
   type DeployButtonStatus,
   resolveDeployButtonStatus,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-button-status'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-button-status'
+import { useChangeDetection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-change-detection'
+import { useChangeDetectionCanary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-change-detection-canary'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'

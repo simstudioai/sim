@@ -9,6 +9,7 @@ function buildFieldsUrl(cloudId: string): string {
 
 export const jiraGetFieldsTool: ToolConfig<JiraGetFieldsParams, JiraGetFieldsResponse> = {
   id: 'jira_get_fields',
+  assistant: { effect: 'read', version: 1 },
   name: 'Jira Get Fields',
   description:
     'Get all system and custom fields defined in the Jira instance. Useful for discovering custom field IDs (e.g., customfield_10001) to use when writing or updating issues.',

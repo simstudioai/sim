@@ -1,9 +1,11 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 
 export const metadata: Metadata = { title: 'Search' }
 
@@ -18,5 +20,9 @@ export default async function OrganizationSearchPage({
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
-  return <OrganizationSearch userId={session.user.id} />
+  return (
+    <Suspense fallback={<HomeFallback />}>
+      <OrganizationSearch userId={session.user.id} />
+    </Suspense>
+  )
 }

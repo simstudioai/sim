@@ -5,7 +5,7 @@ const { mockUpsertCustomTools } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  upsertCustomTools: mockUpsertCustomTools,
+  upsertCustomToolsSkippingTakenTitles: mockUpsertCustomTools,
 }))
 
 import { persistCustomToolsToDatabase } from '@/lib/workflows/persistence/custom-tools-persistence'
@@ -34,7 +34,7 @@ function customTool(overrides: Record<string, unknown> = {}) {
 
 describe('persistCustomToolsToDatabase', () => {
   beforeEach(() => {
-    mockUpsertCustomTools.mockResolvedValue([])
+    mockUpsertCustomTools.mockResolvedValue({ skippedTitles: [] })
   })
 
   it('skips a declaration missing the function discriminator the public API republishes', async () => {

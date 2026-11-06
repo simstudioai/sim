@@ -1,43 +1,38 @@
 ---
 title: Research
-description: Ask Sim to research anything — it searches, reads, and synthesizes from the web.
+description: Research web sources and save answers or cited reports from Chat.
 ---
 
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
+Ask Sim to investigate a topic, read a URL, or compare sources. Specify the question, time range, and output you need. Web research is available when the deployment provides the required search or page-reading tools.
 
-<Video src="mothership/research-agent.mp4" width={700} height={450} />
+## Ask a research question [#asking-questions]
 
-Ask Sim to research anything and it figures out the best approach — searching the web, reading specific pages, crawling sites, looking up technical docs. Just describe what you want to know.
+Include enough scope to identify useful sources:
 
-## Asking Questions
+- "What did Salesforce, HubSpot, and Gong ship in the past 30 days? Cite the product updates."
+- "Read [URL] and explain what changed in this release."
+- "Check Stripe's documentation for webhook retries and idempotency handling."
 
-Ask anything — about a company, a competitor, a market, a technical question, or a specific URL:
+Sim can search web sources, read pages, and look up technical documentation. It returns an answer in the chat; ask for a saved file when you need a longer deliverable.
 
-- "What did Salesforce, HubSpot, and Gong each ship in the past 30 days? Summarize the key product updates."
-- "What's Acme Corp's tech stack, recent hires, and open engineering roles?"
-- "Find everything published about [competitor] in the past 90 days — press, product changes, job postings."
-- "What are the current rate limits on the Anthropic API?"
-- "Read [URL] and tell me what changed in this release"
-- "What does Stripe's API say about handling webhooks with idempotency keys?"
-- "Who are the main players in AI-powered revenue operations, and how do they differentiate?"
+## Save a report [#research-reports]
 
-Sim returns an answer directly in the chat. For anything that needs a longer written output, ask it to save the result as a file.
+Name the comparison criteria, intended audience, and destination. For example:
 
-## Research Reports
+> Compare five AI sales tools on pricing, features, and customer feedback. Save a cited analysis as ai-sales-tools.md, including missing or conflicting evidence.
 
-When you need a structured, saved document rather than a chat answer, ask Sim to write it up. Sim searches, reads, and cross-references multiple sources until it has enough to produce a full report. The output is saved as a file in your workspace and opened in the resource panel.
+Open the saved report beside the conversation to review its evidence. Find it later in **Files**, or ask Sim to turn it into a presentation.
 
-{/* TODO: Screenshot of a completed research report open in the resource panel as a file — showing a structured markdown document with sections, findings, and citations. */}
+## Check source access and freshness
 
-- "Research the top 10 AI SDR tools — pricing, features, positioning, and what customers say. Save as a competitive analysis."
-- "Do a full market landscape for AI in healthcare diagnostics — major players, funding, use cases, and regulatory environment."
-- "Research how our top 5 competitors handle multi-tenant auth — pricing, architecture, and any known vulnerabilities. Write it up as a report."
-- "Find every public case study on AI agents in financial compliance from the past 2 years. Summarize the key outcomes and save as a markdown file."
-- "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them."
+Hosted web research reads publicly accessible pages. In Sim Desktop, the built-in browser can also work with websites you sign in to when browser tools are available. A link to a private page does not itself give Sim access.
 
-<FAQ items={[
-  { question: "Does Sim have access to real-time information?", answer: "Sim can search current web sources. Check the cited source and its publication date when freshness matters." },
-  { question: "Can Sim read pages that require login?", answer: "Hosted web research reads publicly accessible pages. In Sim Desktop, the built-in browser can also use websites you sign in to." },
-  { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
-]} />
+For connected organizational sources such as Slack or Google Drive, use [Search](/search) or ask Sim to inspect those sources under your current permissions.
+
+Check the cited source and publication date when freshness matters. Search results can be incomplete; a report should distinguish what the sources establish from what remains unknown. Request a specific site or documentation page when that source is required.
+
+## Related docs
+
+- [Files and documents in Chat](/chat/files)
+- [Search](/search)
+- [Sim Desktop](/desktop)

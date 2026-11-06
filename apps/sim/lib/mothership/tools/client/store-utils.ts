@@ -6,7 +6,7 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/mothership/resources/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
-import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/mothership/tools/tool-display'
+import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/mothership/tools/display'
 import { decodeVfsSegmentSafe } from '@/lib/vfs/path'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */

@@ -15,9 +15,14 @@ export interface SelectableFolder {
   path: string
 }
 
+/**
+ * A resolved selection. `scope` is `undefined` when the selection covers every
+ * file in the workspace (the root with its subfolders), matching how the query
+ * builders spell "no folder filter".
+ */
 export type FolderPathSelection =
-  | (FolderIdScope & { missingPath?: undefined })
-  | { folderIds?: undefined; includeRootItems?: undefined; missingPath: string }
+  | { scope: FolderIdScope | undefined; missingPath?: undefined }
+  | { scope?: undefined; missingPath: string }
 
 /**
  * Resolves canonical folder paths to the folder ids a run should read from.
@@ -38,7 +43,9 @@ export type FolderPathSelection =
  * in `folderIds`, because the root is the *absence* of a folder id: a file at
  * the root carries `null`, so there is no id to match. Encoding it as a
  * sentinel string in a set of real ids would survive every type check and then
- * match nothing the first time the set reached a SQL `in (...)`.
+ * match nothing the first time the set reached a SQL `in (...)`. The root with
+ * its subfolders is every file, so it resolves to no scope rather than to a list
+ * of every folder id.
  */
 export function resolveFolderIdsForPaths(
   folders: readonly SelectableFolder[],
@@ -49,6 +56,7 @@ export function resolveFolderIdsForPaths(
   const maxDepth = includeSubfolders ? undefined : 0
   const folderIds = new Set<string>()
   let includeRootItems = false
+  let coversWorkspace = false
 
   for (const folderPath of folderPaths) {
     const segments = parseFolderPath(folderPath)
@@ -60,9 +68,7 @@ export function resolveFolderIdsForPaths(
      */
     if (segments.length === 0) {
       includeRootItems = true
-      if (includeSubfolders) {
-        for (const folder of folders) folderIds.add(folder.id)
-      }
+      if (includeSubfolders) coversWorkspace = true
       continue
     }
 
@@ -81,7 +87,7 @@ export function resolveFolderIdsForPaths(
     }
   }
 
-  return { folderIds, includeRootItems }
+  return { scope: coversWorkspace ? undefined : { folderIds, includeRootItems } }
 }
 
 /**

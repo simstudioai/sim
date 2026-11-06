@@ -18,6 +18,7 @@ import {
   TOOL_PERMISSION_DECISION,
   type ToolPermissionDecision,
 } from '@/lib/mothership/persistence/tool-permission'
+import { toolApprovalKey } from '@/lib/mothership/persistence/tool-permission/approval-key'
 import {
   addAutoAllowedTool,
   addChatAutoAllowedTool,
@@ -56,7 +57,7 @@ async function applyDecision(
     logger.warn('Failed to fetch async tool call', { toolCallId, error: getErrorMessage(err) })
     return null
   })
-  if (!existing) return null
+  if (!existing || existing.assistantAction) return null
 
   const run = await getRunSegment(existing.runId).catch((err) => {
     logger.warn('Failed to fetch run segment', {
@@ -113,7 +114,7 @@ async function applyDecision(
       toolName: claimed.toolName,
     })
   } else if (decision === TOOL_PERMISSION_DECISION.always_allow) {
-    await addAutoAllowedTool(userId, claimed.toolName).catch((err) => {
+    await addAutoAllowedTool(userId, toolApprovalKey(claimed.toolName)).catch((err) => {
       logger.error('Failed to persist always-allow preference', {
         toolCallId,
         toolName: claimed.toolName,
@@ -121,7 +122,7 @@ async function applyDecision(
       })
     })
   } else if (decision === TOOL_PERMISSION_DECISION.allow_chat && run.chatId) {
-    await addChatAutoAllowedTool(run.chatId, claimed.toolName).catch((err) => {
+    await addChatAutoAllowedTool(run.chatId, toolApprovalKey(claimed.toolName)).catch((err) => {
       logger.error('Failed to persist chat-scoped allow preference', {
         toolCallId,
         chatId: run.chatId,

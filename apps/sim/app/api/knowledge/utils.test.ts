@@ -12,7 +12,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
-import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import * as billingAttributionModule from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
@@ -94,7 +94,7 @@ function applyBillingSpies() {
  */
 applyBillingSpies()
 
-vi.mock('@/lib/knowledge/documents/document-processor', () => ({
+vi.mock('@/lib/knowledge/documents/processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
       {

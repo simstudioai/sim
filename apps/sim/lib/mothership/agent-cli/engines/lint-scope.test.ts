@@ -3,6 +3,7 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import {
   secretsUseCasesMock,
   secretsUseCasesMockFns,
@@ -82,18 +83,7 @@ describe('Mothership workflow lint scope', () => {
     })
     mocks.permission.mockResolvedValue('read')
     mocks.snapshot.mockResolvedValue({ workflowRecord: { id: 'wf-1' }, normalizedData: graph })
-    mocks.report.mockResolvedValue({
-      sources: [],
-      sinks: [],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-      fieldIssues: [],
-      unresolvedReferences: [],
-      tableFieldIssues: [],
-      notes: [],
-    })
+    mocks.report.mockResolvedValue(createEmptyWorkflowLintReport())
     mocks.secrets.mockResolvedValue({ secrets: [{ envKey: 'WORKFLOW_KEY' }], nextCursorKeys: null })
   })
 

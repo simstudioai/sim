@@ -18,7 +18,8 @@ vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   writeSessionSandboxFile: mockWrite,
   resolveSessionPath: (path: string) => (path.startsWith('/') ? path : `/home/user/${path}`),
 }))
-vi.mock('sim/embed', () => ({
+vi.mock('sim/embed', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('sim/embed')>()),
   runEmbeddedCli: mockRunEmbeddedCli,
   createEmbeddedClient: vi.fn(),
 }))
@@ -201,5 +202,18 @@ describe('sim-cli handler executes the worker-built request', () => {
     )
     expect(mockWrite).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
+  })
+
+  it('settles a wait that outlasted --wait-timeout as done, keeping its exit status for the worker', async () => {
+    const stderr = 'Run run-1 is still running after 240s and continues in the background.'
+    mockRunEmbeddedCli.mockResolvedValue({ exitCode: 4, stdout: '{"status":"running"}', stderr })
+    const result = await executeSimCli(
+      cli(['workflows', 'runs', 'wait', 'run-1', '--workflow', 'wf-1', '--wait-timeout', '240']),
+      context
+    )
+    expect(result).toEqual({
+      success: true,
+      output: { exitCode: 4, stdout: '{"status":"running"}', stderr },
+    })
   })
 })

@@ -1,7 +1,14 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
 import { generateShortId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, isTimeoutError } from '@/lib/core/execution-limits'
+import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+} from '@/lib/mcp/domain-check'
 import {
   type McpApiResponse,
   McpConnectionError,
@@ -137,15 +144,32 @@ export function mcpOrchestrationStatus(errorCode: string | undefined): number {
 }
 
 /**
- * Enhanced error categorization for more specific HTTP status codes.
- * Returns safe, generic messages to prevent leaking internal details.
+ * Reports whether a registered MCP server failed to answer usefully: its hostname no
+ * longer resolves, it could not be reached, timed out, is cooling down after a recent
+ * failure, or answered `tools/list` with a protocol or HTTP error. Typed only, never
+ * matched on message text, because `McpConnectionError` interpolates the server's display
+ * name into its message. Check authorization errors first: `UnauthorizedError` is not one
+ * of these, but a caller that wants to answer reauthorization separately must do so
+ * before asking.
  */
-export function categorizeError(error: unknown): { message: string; status: number } {
-  if (!(error instanceof Error)) {
-    return { message: 'Unknown error occurred', status: 500 }
-  }
+export function isMcpServerUnavailableError(error: unknown): boolean {
+  return (
+    isTimeoutError(error) ||
+    error instanceof McpDnsResolutionError ||
+    error instanceof McpConnectionError ||
+    error instanceof McpSdkError ||
+    error instanceof StreamableHTTPError
+  )
+}
 
-  // Typed dispatch first — our own classes carry definitive intent.
+/**
+ * Status and safe message for a failure raised by one of Sim's own MCP server error
+ * classes, or `null` for anything else. Unlike {@link categorizeError} it never guesses
+ * from message text, so a caller can apply it where an unrelated error must stay a 500.
+ */
+export function categorizeMcpServerError(
+  error: unknown
+): { message: string; status: number } | null {
   if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
     return { message: 'Authentication required', status: 401 }
   }
@@ -155,6 +179,26 @@ export function categorizeError(error: unknown): { message: string; status: numb
   if (error instanceof McpConnectionError) {
     return { message: 'Connection failed', status: 502 }
   }
+  if (error instanceof McpDnsResolutionError) {
+    return { message: 'Server hostname could not be resolved', status: 502 }
+  }
+  if (error instanceof McpSsrfError || error instanceof McpDomainNotAllowedError) {
+    return { message: 'Server URL is not allowed by egress policy', status: 403 }
+  }
+  return null
+}
+
+/**
+ * HTTP status and safe, generic message for any error: Sim's own MCP error classes
+ * first, then message matching for SDK and third-party errors.
+ */
+export function categorizeError(error: unknown): { message: string; status: number } {
+  if (!(error instanceof Error)) {
+    return { message: 'Unknown error occurred', status: 500 }
+  }
+
+  const typed = categorizeMcpServerError(error)
+  if (typed) return typed
 
   // Fall back to substring matching for SDK / third-party errors we don't
   // own a typed class for.

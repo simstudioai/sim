@@ -51,8 +51,7 @@ export function toList(value: string[] | string | undefined): string[] {
 export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   id: 'parallel_search',
   name: 'Parallel AI Search',
-  description:
-    'Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction.',
+  description: 'Search the web with Parallel AI and return matching pages with content excerpts.',
   version: '1.0.0',
 
   hosting: {

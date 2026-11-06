@@ -29,7 +29,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: async () => 'write',
   permissionSatisfies: () => true,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+vi.mock('@/lib/workspaces/application/context', () => ({
   resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
     workspaceId,
     workspaceOrganizationId: null,

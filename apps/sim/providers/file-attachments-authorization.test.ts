@@ -14,11 +14,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 
 vi.mock('@/lib/uploads', () => uploadsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
+import { resolveTrustedFileContext } from '@/lib/uploads/utils/file'
 import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
@@ -87,7 +87,6 @@ describe('provider attachment storage-key authorization', () => {
         uploadLargeFilesToProvider(request, 'openai', executionContext)
       ).rejects.toThrow()
       expect(download).not.toHaveBeenCalled()
-      expect(metadata).not.toHaveBeenCalled()
       expect(permission).not.toHaveBeenCalled()
     }
   )

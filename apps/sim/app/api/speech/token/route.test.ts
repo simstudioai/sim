@@ -38,13 +38,13 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: hoisted.billOverage,
 }))
 vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createSpeechToken } from '@/lib/speech/application/create-token'

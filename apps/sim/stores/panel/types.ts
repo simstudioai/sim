@@ -1,5 +1,7 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 
 /**
  * Available panel tabs
@@ -43,6 +45,7 @@ interface WorkspaceOwned {
 }
 
 export type ChatContext =
+  | { kind: 'browser_page'; label: string; snapshot: PageSnapshot }
   | ({ kind: 'past_chat'; chatId: string; label: string } & WorkspaceOwned)
   | ({ kind: 'workflow'; workflowId: string; label: string } & WorkspaceOwned)
   | { kind: 'current_workflow'; workflowId: string; label: string }
@@ -80,10 +83,11 @@ export type ChatContext =
        */
       columnIds?: string[]
     } & WorkspaceOwned)
-  | ({ kind: 'file'; fileId: string; label: string } & WorkspaceOwned)
+  | ({ kind: 'file'; fileId: string; label: string; owner?: FileOperationOwner } & WorkspaceOwned)
   | ({ kind: 'dashboard'; dashboardId: string; label: string } & WorkspaceOwned)
   | ({
       kind: 'file_selection'
+      owner?: FileOperationOwner
       fileId: string
       label: string
       /** Name of the file the selection came from. See `tableName` above. */
@@ -106,6 +110,7 @@ export type ChatContext =
   | ({ kind: 'filefolder'; fileFolderId: string; label: string } & WorkspaceOwned)
   /** A whole workspace in an organization chat: "I'm working in this one". */
   | { kind: 'workspace'; workspaceId: string; label: string }
+  | { kind: 'project'; projectId: string; label: string }
   | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to

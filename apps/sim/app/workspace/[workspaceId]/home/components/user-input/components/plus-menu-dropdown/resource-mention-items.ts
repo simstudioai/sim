@@ -3,7 +3,10 @@ import type { TerminalTabState } from '@sim/terminal-protocol'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import { terminalTabTitle } from '@/lib/terminal/tab-label'
-import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
+import {
+  type AvailableItem,
+  isServerMatchFor,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface ResourceMentionGroup {
@@ -38,6 +41,7 @@ export function resourceMentionMatches(item: AvailableItem, query: string): bool
   const normalized = query.toLowerCase().trim()
   if (!normalized) return true
   return (
+    isServerMatchFor(item, normalized) ||
     item.name.toLowerCase().includes(normalized) ||
     (typeof item.workspaceName === 'string' &&
       item.workspaceName.toLowerCase().includes(normalized)) ||

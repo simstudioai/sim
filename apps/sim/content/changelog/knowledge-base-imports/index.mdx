@@ -1,0 +1,33 @@
+---
+slug: knowledge-base-imports
+title: 'Move knowledge bases between workspaces'
+description: 'Move prepared knowledge between Sim workspaces or deployments, keeping documents, tags, and settings. Also: Amazon EC2 actions for agents and workflows.'
+date: '2026-10-26T16:00:00Z'
+authors: [waleed]
+tags: [Knowledge Base, Workspace]
+ogImage: /changelog/knowledge-open-rooms-v1.jpg
+ogAlt: 'Monochrome illustration of an open stone walkway overlooking the coast'
+technical: false
+draft: false
+release:
+  versions: [v0.9.32]
+---
+
+<ChangelogImage
+  src="/changelog/knowledge-open-rooms-v1.jpg"
+  alt="Monochrome illustration of a curved walkway connecting open stone rooms"
+  width="1672"
+  height="941"
+/>
+
+Move a knowledge base between Sim workspaces or deployments without rebuilding it document by document. Export a `.simkb.zip` archive, then import it through the Sim CLI or API to create a new base with its documents, tags, and settings.
+
+When the archive includes a search index compatible with the destination's embedding model and dimensions, Sim reuses it without embedding charges. Otherwise, Sim processes the documents again, with normal usage charges.
+
+The original base stays unchanged. Exports include only active, included documents readable by the whole workspace. Imported connector content is a snapshot; live connections and access permissions do not transfer. Your permissions must allow export in the source and knowledge-base creation and uploads in the destination. [Export and import guide](https://docs.sim.ai/knowledgebase/export-import).
+
+### Also in v0.9.32
+
+- **[Amazon EC2](/integrations/amazon-ec2):** Agents and workflows can inspect and control instances, create disk snapshots, and manage resource tags using an AWS access key with the required permissions. [EC2 setup](https://docs.sim.ai/integrations/ec2).
+
+Read the full [v0.9.32 technical release notes](https://github.com/simstudioai/sim/releases/tag/v0.9.32).

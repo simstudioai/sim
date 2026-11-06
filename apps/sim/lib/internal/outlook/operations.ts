@@ -16,8 +16,8 @@ import type { OutlookGetAttachmentInput } from '@/lib/internal/outlook/get-attac
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { CleanedOutlookAttachmentMetadata } from '@/tools/outlook/types'
 

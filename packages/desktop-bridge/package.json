@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.2",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -25,6 +25,10 @@
     "./tool-results": {
       "types": "./src/tool-results.ts",
       "default": "./src/tool-results.ts"
+    },
+    "./computer-use": {
+      "types": "./src/computer-use.generated.ts",
+      "default": "./src/computer-use.generated.ts"
     }
   },
   "scripts": {
@@ -39,12 +43,13 @@
     "@sim/browser-protocol": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
-    "micromatch": "4.0.8"
+    "micromatch": "4.0.8",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/micromatch": "4.0.10",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

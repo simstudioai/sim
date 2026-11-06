@@ -3,6 +3,7 @@ import { slackApp } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import type { DbOrTx } from '@/lib/db/types'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Shared credentials always come from the deployment, even for previously registered apps. */
@@ -29,6 +30,17 @@ export async function resolveSlackAppCredentials(app: typeof slackApp.$inferSele
     signingSecret: signing.decrypted,
     revision: app.revision,
   }
+}
+
+/** The row supplies foreign-key identity only; shared secrets remain in the environment. */
+export async function ensureSharedSlackAppRow(
+  executor: DbOrTx,
+  app: { id: string; revision: string }
+): Promise<void> {
+  await executor
+    .insert(slackApp)
+    .values({ id: app.id, kind: 'shared', organizationId: null, revision: app.revision })
+    .onConflictDoNothing()
 }
 
 /** Authentication lookup only: an app ID selects a key, never grants organization access. */

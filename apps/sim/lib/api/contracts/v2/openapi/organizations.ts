@@ -31,24 +31,27 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.list,
       operationId: 'listOrganizations',
-      summary: 'List Organizations',
+      summary: 'List organizations',
       description: `List organizations the acting user belongs to. Organizations that disallow the calling credential are omitted. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'List Organizations result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of organizations and the acting user’s role in each.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       query: documentedSchema(
         v2ListOrganizationsContract.query,
         'ListOrganizationsQuery',
-        'List Organizations query',
+        'List organizations query',
         'Filtering and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationsContract.response.schema,
         'ListOrganizationsResponse',
-        'List Organizations response',
-        'List Organizations result.',
+        'List organizations response',
+        'A page of organizations and the acting user’s role in each.',
         [
           {
             data: [
@@ -72,25 +75,28 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.read,
       operationId: 'getOrganization',
-      summary: 'Get Organization',
+      summary: 'Get organization',
       description: `Get organization metadata and the acting user’s organization role. Requires organization membership. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Get Organization result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Organization metadata and the acting user’s role.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2GetOrganizationContract.params,
         'GetOrganizationParams',
-        'Get Organization parameters',
-        'Organization and resource identifiers.'
+        'Get organization parameters',
+        'Organization identifier.'
       ),
       query: v2GetOrganizationContract.query,
       response: documentedSchema(
         v2GetOrganizationContract.response.schema,
         'GetOrganizationResponse',
-        'Get Organization response',
-        'Get Organization result.',
+        'Get organization response',
+        'Organization metadata and the acting user’s role.',
         [
           {
             data: {
@@ -111,30 +117,33 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.listWorkspaces,
       operationId: 'listOrganizationWorkspaces',
-      summary: 'List Organization Workspaces',
-      description: `List active workspaces owned by the organization. Requires organization administrator access; does not require Access Control. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'List organization workspaces',
+      description: `List active workspaces owned by the organization. Requires organization Admin access; does not require Access Control. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'List Organization Workspaces result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of active workspaces owned by the organization.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2ListOrganizationWorkspacesContract.params,
         'ListOrganizationWorkspacesParams',
-        'List Organization Workspaces parameters',
-        'Organization and resource identifiers.'
+        'List organization workspaces parameters',
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationWorkspacesContract.query,
         'ListOrganizationWorkspacesQuery',
-        'List Organization Workspaces query',
+        'List organization workspaces query',
         'Filtering and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationWorkspacesContract.response.schema,
         'ListOrganizationWorkspacesResponse',
-        'List Organization Workspaces response',
-        'List Organization Workspaces result.',
+        'List organization workspaces response',
+        'A page of active workspaces owned by the organization.',
         [{ data: [{ id: 'workspace-123', name: 'Engineering' }], nextCursor: null }]
       ),
     }
@@ -144,30 +153,33 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.listMembers,
       operationId: 'listOrganizationMembers',
-      summary: 'List Organization Members',
+      summary: 'List organization members',
       description: `List organization members by name or email. Ordinary members must have access to the member directory; organization administrators retain access. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'List Organization Members result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of organization members and their organization roles.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2ListOrganizationMembersContract.params,
         'ListOrganizationMembersParams',
-        'List Organization Members parameters',
-        'Organization and resource identifiers.'
+        'List organization members parameters',
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationMembersContract.query,
         'ListOrganizationMembersQuery',
-        'List Organization Members query',
+        'List organization members query',
         'Filtering and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationMembersContract.response.schema,
         'ListOrganizationMembersResponse',
-        'List Organization Members response',
-        'List Organization Members result.',
+        'List organization members response',
+        'A page of organization members and their organization roles.',
         [
           {
             data: [
@@ -190,32 +202,35 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.updateMember,
       operationId: 'updateOrganizationMember',
-      summary: 'Update Organization Member',
-      description: `Change a member’s organization role. Requires organization administrator access. The owner’s role and memberships managed by an identity provider cannot be changed here. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Update organization member',
+      description: `Change a member’s organization role. Requires organization Admin access. The owner’s role and memberships managed by an identity provider cannot be changed here. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Update Organization Member result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The member with the updated organization role.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2UpdateOrganizationMemberContract.params,
         'UpdateOrganizationMemberParams',
-        'Update Organization Member parameters',
+        'Update organization member parameters',
         'Organization and resource identifiers.'
       ),
       query: v2UpdateOrganizationMemberContract.query,
       body: documentedSchema(
         v2UpdateOrganizationMemberContract.body,
         'UpdateOrganizationMemberBody',
-        'Update Organization Member body',
-        'Update Organization Member input.',
+        'Update organization member body',
+        'The new organization role for this member.',
         [{ role: 'admin' }]
       ),
       response: documentedSchema(
         v2UpdateOrganizationMemberContract.response.schema,
         'UpdateOrganizationMemberResponse',
-        'Update Organization Member response',
-        'Update Organization Member result.',
+        'Update organization member response',
+        'The member with the updated organization role.',
         [
           {
             data: {
@@ -235,25 +250,28 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.removeMember,
       operationId: 'removeOrganizationMember',
-      summary: 'Remove Organization Member',
+      summary: 'Remove organization member',
       description: `Remove a member and revoke their access to organization workspaces. Administrators may remove members; members may remove themselves. The organization owner cannot be removed. Owned organization resources are reassigned and the departing member’s sessions end. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Remove Organization Member result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Acknowledgement that organization access was removed.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2RemoveOrganizationMemberContract.params,
         'RemoveOrganizationMemberParams',
-        'Remove Organization Member parameters',
+        'Remove organization member parameters',
         'Organization and resource identifiers.'
       ),
       query: v2RemoveOrganizationMemberContract.query,
       response: documentedSchema(
         v2RemoveOrganizationMemberContract.response.schema,
         'RemoveOrganizationMemberResponse',
-        'Remove Organization Member response',
-        'Remove Organization Member result.',
+        'Remove organization member response',
+        'Acknowledgement that organization access was removed.',
         [{ data: { userId: 'user-123', deleted: true } }]
       ),
     }
@@ -263,12 +281,12 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.listInvitations,
       operationId: 'listOrganizationInvitations',
-      summary: 'List Organization Invitations',
-      description: `List invitations owned by the organization, including invitations with workspace grants. Requires organization administrator access. Expired invitations are reported without modifying them. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'List organization invitations',
+      description: `List invitations owned by the organization, including invitations with workspace grants. Requires organization Admin access. Expired invitations are reported without modifying them. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: {
-        description: 'List Organization Invitations result.',
+        description: 'A page of invitations, including their current status.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -276,20 +294,20 @@ export const organizationOpenApiRoutes = [
       params: documentedSchema(
         v2ListOrganizationInvitationsContract.params,
         'ListOrganizationInvitationsParams',
-        'List Organization Invitations parameters',
-        'Organization and resource identifiers.'
+        'List organization invitations parameters',
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationInvitationsContract.query,
         'ListOrganizationInvitationsQuery',
-        'List Organization Invitations query',
+        'List organization invitations query',
         'Filtering and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationInvitationsContract.response.schema,
         'ListOrganizationInvitationsResponse',
-        'List Organization Invitations response',
-        'List Organization Invitations result.',
+        'List organization invitations response',
+        'A page of invitations, including their current status.',
         [
           {
             data: [
@@ -316,12 +334,12 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.createInvitation,
       operationId: 'createOrganizationInvitation',
-      summary: 'Create Organization Invitation',
-      description: `Email an invitation to join the organization as a member or administrator. Requires organization administrator access, invitations enabled, and an available seat on an eligible plan. This grants no workspace-specific permissions. An unexpired pending invitation for the email conflicts; use Resend Organization Invitation to send it again. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Create organization invitation',
+      description: `Email an invitation to join the organization as a member or Admin. Requires organization Admin access and invitations enabled; an eligible plan and available seat are required when billing is enabled. It grants no workspace-specific permissions. Existing organization membership or an unexpired pending invitation for the email returns \`409\`. Use Resend organization invitation to send a pending invitation again. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
-        description: 'Create Organization Invitation result.',
+        description: 'The pending organization invitation.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -329,22 +347,22 @@ export const organizationOpenApiRoutes = [
       params: documentedSchema(
         v2CreateOrganizationInvitationContract.params,
         'CreateOrganizationInvitationParams',
-        'Create Organization Invitation parameters',
-        'Organization and resource identifiers.'
+        'Create organization invitation parameters',
+        'Organization identifier.'
       ),
       query: v2CreateOrganizationInvitationContract.query,
       body: documentedSchema(
         v2CreateOrganizationInvitationContract.body,
         'CreateOrganizationInvitationBody',
-        'Create Organization Invitation body',
-        'Create Organization Invitation input.',
+        'Create organization invitation body',
+        'Invitee email and organization role to offer.',
         [{ email: 'member@example.com', role: 'member' }]
       ),
       response: documentedSchema(
         v2CreateOrganizationInvitationContract.response.schema,
         'CreateOrganizationInvitationResponse',
-        'Create Organization Invitation response',
-        'Create Organization Invitation result.',
+        'Create organization invitation response',
+        'The pending organization invitation.',
         [
           {
             data: {
@@ -368,25 +386,28 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.readInvitation,
       operationId: 'getOrganizationInvitation',
-      summary: 'Get Organization Invitation',
-      description: `Get an invitation owned by the organization. Requires organization administrator access. Use List Organization Invitation Workspaces to inspect its workspace grants. The response excludes the acceptance token. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Get organization invitation',
+      description: `Get an invitation owned by the organization. Requires organization Admin access. Use List organization invitation workspaces to inspect its workspace grants. The response excludes the acceptance token. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Get Organization Invitation result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Invitation metadata without its acceptance token.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
         v2GetOrganizationInvitationContract.params,
         'GetOrganizationInvitationParams',
-        'Get Organization Invitation parameters',
+        'Get organization invitation parameters',
         'Organization and resource identifiers.'
       ),
       query: v2GetOrganizationInvitationContract.query,
       response: documentedSchema(
         v2GetOrganizationInvitationContract.response.schema,
         'GetOrganizationInvitationResponse',
-        'Get Organization Invitation response',
-        'Get Organization Invitation result.',
+        'Get organization invitation response',
+        'Invitation metadata without its acceptance token.',
         [
           {
             data: {
@@ -410,8 +431,8 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: organizationOperations.listInvitationWorkspaces,
       operationId: 'listOrganizationInvitationWorkspaces',
-      summary: 'List Organization Invitation Workspaces',
-      description: `List workspace grants attached to an invitation of any status. Includes archived workspaces still owned by the organization; workspaces moved to another organization are omitted. Requires organization administrator access. These grants describe the invitation, not the invitee's current access. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'List organization invitation workspaces',
+      description: `List workspace grants attached to an invitation of any status. Includes archived workspaces still owned by the organization; workspaces moved to another organization are omitted. Requires organization Admin access. These grants describe the invitation, not the invitee's current access. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_ERRORS,
       success: {
@@ -423,19 +444,19 @@ export const organizationOpenApiRoutes = [
       params: documentedSchema(
         v2ListOrganizationInvitationWorkspacesContract.params,
         'ListOrganizationInvitationWorkspacesParams',
-        'List Organization Invitation Workspaces parameters',
+        'List organization invitation workspaces parameters',
         'Organization and invitation identifiers.'
       ),
       query: documentedSchema(
         v2ListOrganizationInvitationWorkspacesContract.query,
         'ListOrganizationInvitationWorkspacesQuery',
-        'List Organization Invitation Workspaces query',
+        'List organization invitation workspaces query',
         'Filtering, sorting, and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationInvitationWorkspacesContract.response.schema,
         'ListOrganizationInvitationWorkspacesResponse',
-        'List Organization Invitation Workspaces response',
+        'List organization invitation workspaces response',
         'Workspace grants retained on an invitation.',
         [
           {
@@ -453,12 +474,12 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: invitationOperations.resend,
       operationId: 'resendOrganizationInvitation',
-      summary: 'Resend Organization Invitation',
-      description: `Email an unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization administrator access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Resend organization invitation',
+      description: `Email an unexpired pending invitation again, renew its expiry, and replace its previous acceptance link. Requires organization Admin access and current invitation eligibility. Retrying sends another email; inspect the invitation after a delivery failure before retrying. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
-        description: 'Resend Organization Invitation result.',
+        description: 'The pending invitation with its renewed expiry.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -466,22 +487,22 @@ export const organizationOpenApiRoutes = [
       params: documentedSchema(
         v2ResendOrganizationInvitationContract.params,
         'ResendOrganizationInvitationParams',
-        'Resend Organization Invitation parameters',
+        'Resend organization invitation parameters',
         'Organization and resource identifiers.'
       ),
       query: v2ResendOrganizationInvitationContract.query,
       body: documentedSchema(
         v2ResendOrganizationInvitationContract.body,
         'ResendOrganizationInvitationBody',
-        'Resend Organization Invitation body',
-        'Resend Organization Invitation input.',
+        'Resend organization invitation body',
+        'An empty JSON object; the pending invitation supplies the recipient and role.',
         [{}]
       ),
       response: documentedSchema(
         v2ResendOrganizationInvitationContract.response.schema,
         'ResendOrganizationInvitationResponse',
-        'Resend Organization Invitation response',
-        'Resend Organization Invitation result.',
+        'Resend organization invitation response',
+        'The pending invitation with its renewed expiry.',
         [
           {
             data: {
@@ -505,12 +526,12 @@ export const organizationOpenApiRoutes = [
     {
       applicationOperation: invitationOperations.revoke,
       operationId: 'revokeOrganizationInvitation',
-      summary: 'Revoke Organization Invitation',
-      description: `Cancel an unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization administrator access. This does not remove a person who already accepted; use Remove Organization Member for that. ${WORKSPACE_API_KEY_DENIED}`,
+      summary: 'Revoke organization invitation',
+      description: `Cancel an unexpired pending invitation and all its workspace grants so it can no longer be accepted. Requires organization Admin access. This does not remove a person who already accepted; use Remove organization member for that. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
-        description: 'Revoke Organization Invitation result.',
+        description: 'Acknowledgement that the pending invitation was cancelled.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -518,15 +539,15 @@ export const organizationOpenApiRoutes = [
       params: documentedSchema(
         v2RevokeOrganizationInvitationContract.params,
         'RevokeOrganizationInvitationParams',
-        'Revoke Organization Invitation parameters',
+        'Revoke organization invitation parameters',
         'Organization and resource identifiers.'
       ),
       query: v2RevokeOrganizationInvitationContract.query,
       response: documentedSchema(
         v2RevokeOrganizationInvitationContract.response.schema,
         'RevokeOrganizationInvitationResponse',
-        'Revoke Organization Invitation response',
-        'Revoke Organization Invitation result.',
+        'Revoke organization invitation response',
+        'Acknowledgement that the pending invitation was cancelled.',
         [{ data: { id: 'invitation-123', status: 'cancelled' } }]
       ),
     }

@@ -4,7 +4,7 @@ import {
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 
 /**
@@ -13,13 +13,49 @@ import { coalesceLocally } from '@/lib/concurrency/singleflight'
  * The gate sums the payer's usage ledger for the billing period, which grows
  * with the payer's activity, so a large organization scans its whole period on
  * every uncached call. Bulk ingestion re-checks per document and knowledge
- * search checks per query. Staleness is bounded by this TTL and fails in the
- * harmless direction: a payer who crosses their limit keeps going for at most
- * this long, which charges nobody wrongly. Five minutes: the sum is a few
- * hundred milliseconds for a busy payer, and a minute made every search after
- * a pause pay it.
+ * search checks per query. A payer who crosses their limit keeps going for at
+ * most this long, so only an admission with ample headroom is held this long
+ * (see {@link usageAdmissionTtlMs}). Five minutes: the sum is a few hundred
+ * milliseconds for a busy payer, and a minute made every search after a pause
+ * pay it.
  */
 export const USAGE_GATE_TTL_MS = 5 * 60 * 1000
+
+/**
+ * How long an admission near its limit stays usable. Every spend landing
+ * inside this window is spend past the limit nobody bills (a free plan) or
+ * past a cap the payer set, so it is short; it stays above zero so a burst of
+ * executions or model steps from one payer shares a read instead of summing
+ * the ledger on each. Staleness is this plus any lag in the usage read itself.
+ */
+export const NEAR_LIMIT_USAGE_GATE_TTL_MS = 10 * 1000
+
+/**
+ * An admission is near its limit when the remaining headroom is under the
+ * larger of this floor and {@link NEAR_LIMIT_HEADROOM_SHARE} of the limit. The
+ * floor puts every free-plan payer permanently near its limit; the share keeps
+ * a large pool from caching its last stretch.
+ */
+const NEAR_LIMIT_HEADROOM_FLOOR_USD = 25
+const NEAR_LIMIT_HEADROOM_SHARE = 0.2
+
+type UsageStanding = NonNullable<AttributedUsageLimitsResult['memberUsage']>
+
+function isNearLimit(usage: UsageStanding | undefined): boolean {
+  if (!usage || usage.limit === null) return false
+  const headroom = usage.limit - usage.currentUsage
+  return headroom < Math.max(NEAR_LIMIT_HEADROOM_FLOOR_USD, usage.limit * NEAR_LIMIT_HEADROOM_SHARE)
+}
+
+/**
+ * How long an admission may be served from cache: the full gate TTL while
+ * every standing (the payer's, the acting member's) has ample headroom,
+ * otherwise {@link NEAR_LIMIT_USAGE_GATE_TTL_MS}. An admission that carries no
+ * figures (billing off) has no limit to approach.
+ */
+export function usageAdmissionTtlMs(...standings: Array<UsageStanding | undefined>): number {
+  return standings.some(isNearLimit) ? NEAR_LIMIT_USAGE_GATE_TTL_MS : USAGE_GATE_TTL_MS
+}
 
 /**
  * How long a coalesced usage read may take before its callers give up on it. The read's cost is
@@ -78,7 +114,8 @@ function gateKey(attribution: BillingAttributionSnapshot): string {
  * `coalesceLocally` collapses concurrent misses onto one ledger read and bounds
  * a hung read at {@link USAGE_GATE_SETTLE_TIMEOUT_MS}. The write stays on the
  * value this caller received, so a producer that timed out and later resolved
- * cannot overwrite a fresher answer.
+ * cannot overwrite a fresher answer. An admission is stored for
+ * {@link usageAdmissionTtlMs}, a refusal for the full TTL.
  *
  * There is deliberately no invalidator: usage and limit changes land in other
  * processes (execution workers, Stripe webhooks), so the TTL is the real bound.
@@ -96,7 +133,13 @@ async function checkUsageLimitsThroughCache(
     () => checkAttributedUsageLimits(attribution),
     USAGE_GATE_SETTLE_TIMEOUT_MS
   )
-  if (cacheRefusals || !result.isExceeded) gateCache.set(key, result)
+  if (cacheRefusals || !result.isExceeded) {
+    gateCache.set(key, result, {
+      ttl: result.isExceeded
+        ? USAGE_GATE_TTL_MS
+        : usageAdmissionTtlMs(result.payerUsage, result.memberUsage),
+    })
+  }
   return result
 }
 

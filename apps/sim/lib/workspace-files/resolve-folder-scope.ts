@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
-import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/folders'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 
@@ -20,14 +20,15 @@ import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-sele
  *
  * Folders only. Callers that need the files filter their own listing against
  * the result; the search path pushes it into SQL instead, which is why the
- * folder half is resolved separately from the file half.
+ * folder half is resolved separately from the file half. Returns `undefined`
+ * when the paths cover the whole workspace.
  */
 export async function resolveWorkspaceFolderScope(args: {
   principal: Principal
   workspaceId: string
   folderPaths: readonly string[]
   includeSubfolders: boolean | undefined
-}): Promise<FolderIdScope> {
+}): Promise<FolderIdScope | undefined> {
   const { folders } = await listWorkspaceFileFoldersOperation.execute({
     principal: args.principal,
     input: { workspaceId: args.workspaceId },
@@ -45,5 +46,5 @@ export async function resolveWorkspaceFolderScope(args: {
     throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
   }
 
-  return { folderIds: selection.folderIds, includeRootItems: selection.includeRootItems }
+  return selection.scope
 }

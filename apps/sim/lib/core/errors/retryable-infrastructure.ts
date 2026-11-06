@@ -55,6 +55,17 @@ const RETRYABLE_PG_CLIENT_ERROR_CODES = new Set([
   'CONNECTION_DESTROYED',
 ])
 
+/**
+ * Deadlines the app enforces on its own reads: a read whose budget ran out before its query
+ * began (`DatabaseReadDeadlineError`) and a coalesced read that never settled
+ * (`CoalesceSettleTimeoutError`). Neither read produced an answer or an effect, the same
+ * class as `ETIMEDOUT` above.
+ */
+const RETRYABLE_READ_DEADLINE_ERROR_CODES = new Set([
+  'DATABASE_READ_DEADLINE_EXCEEDED',
+  'COALESCE_SETTLE_TIMEOUT',
+])
+
 function getErrorChain(error: unknown): Array<Error & Record<string, unknown>> {
   const chain: Array<Error & Record<string, unknown>> = []
   let current: unknown = error
@@ -79,6 +90,7 @@ export function describeRetryableInfrastructureError(
       (code && RETRYABLE_NETWORK_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_APP_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_PG_CLIENT_ERROR_CODES.has(code)) ||
+      (code && RETRYABLE_READ_DEADLINE_ERROR_CODES.has(code)) ||
       (errno && RETRYABLE_NETWORK_ERROR_CODES.has(errno))
     ) {
       return {

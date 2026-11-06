@@ -89,6 +89,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand', () => ({
   }),
 }))
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -100,7 +101,9 @@ const MATCH_START = SECRET.indexOf(SECRET_MATCH)
 
 function render(password: boolean) {
   return renderToStaticMarkup(
-    <LongInput blockId='block-1' subBlockId='privateKey' config={config} password={password} />
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <LongInput blockId='block-1' subBlockId='privateKey' config={config} password={password} />
+    </WorkflowScopeProvider>
   )
 }
 

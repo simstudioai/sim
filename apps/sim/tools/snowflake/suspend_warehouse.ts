@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeWarehouseParams } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -15,6 +16,7 @@ export const suspendWarehouseTool: ToolConfig<
 > = {
   id: 'snowflake_suspend_warehouse',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Suspend Warehouse',
   description: 'Suspend a Snowflake virtual warehouse.',
   params: {

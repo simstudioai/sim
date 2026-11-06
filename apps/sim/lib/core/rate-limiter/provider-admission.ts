@@ -9,7 +9,7 @@ import { createStorageAdapter } from '@/lib/core/rate-limiter/storage/factory'
 export interface ProviderIdentity {
   providerId: string
   credentialFingerprint: string
-  operation: 'embedding' | 'ocr' | 'rerank'
+  operation: 'embedding' | 'ocr' | 'vision' | 'rerank'
 }
 
 /**
@@ -80,9 +80,11 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       ? envNumber(env.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE, 600, { min: 1 })
       : input.operation === 'ocr'
         ? envNumber(env.KB_CONFIG_OCR_REQUESTS_PER_MINUTE, 60, { min: 1 })
-        : isHostedRerank
-          ? hostedRerankRequestsPerMinute()
-          : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
+        : input.operation === 'vision'
+          ? envNumber(env.KB_CONFIG_VISION_REQUESTS_PER_MINUTE, 300, { min: 1 })
+          : isHostedRerank
+            ? hostedRerankRequestsPerMinute()
+            : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
   const tokenBudget =
     input.operation === 'embedding' && input.inputTokens
       ? {

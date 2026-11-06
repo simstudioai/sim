@@ -72,6 +72,7 @@ import { DubBlock, DubBlockMeta, DubV2Block } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
 import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
+import { EC2Block, EC2BlockMeta } from '@/blocks/blocks/ec2'
 import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
@@ -92,6 +93,7 @@ import {
   FirefliesV2Block,
   FirefliesV2BlockMeta,
 } from '@/blocks/blocks/fireflies'
+import { FivetranBlock, FivetranBlockMeta } from '@/blocks/blocks/fivetran'
 import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
@@ -142,10 +144,16 @@ import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_v
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
 import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
-import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
+import {
+  GreenhouseBlock,
+  GreenhouseBlockMeta,
+  GreenhouseV2Block,
+  GreenhouseV2BlockMeta,
+} from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
+import { HelpScoutBlock, HelpScoutBlockMeta } from '@/blocks/blocks/helpscout'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
@@ -256,6 +264,10 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleFusionFinancialsBlock,
+  OracleFusionFinancialsBlockMeta,
+} from '@/blocks/blocks/oracle_fusion_financials'
 import { OracleDatabaseBlock, OracleDatabaseBlockMeta } from '@/blocks/blocks/oracledb'
 import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
@@ -467,6 +479,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   dynatrace: DynatraceBlock,
+  ec2: EC2Block,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   emailbison: EmailBisonBlock,
@@ -491,6 +504,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
+  fivetran: FivetranBlock,
   flint: FlintBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
@@ -528,9 +542,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   grain_v2: GrainV2Block,
   granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
+  greenhouse_v2: GreenhouseV2Block,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   harmonic: HarmonicBlock,
+  helpscout: HelpScoutBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
@@ -616,6 +632,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  oracle_fusion_financials: OracleFusionFinancialsBlock,
   oracledb: OracleDatabaseBlock,
   otter: OtterBlock,
   outlook: OutlookBlock,
@@ -834,6 +851,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   duckduckgo: DuckDuckGoBlockMeta,
   dynamodb: DynamoDBBlockMeta,
   dynatrace: DynatraceBlockMeta,
+  ec2: EC2BlockMeta,
   elasticsearch: ElasticsearchBlockMeta,
   elevenlabs: ElevenLabsBlockMeta,
   emailbison: EmailBisonBlockMeta,
@@ -848,6 +866,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   firecrawl: FirecrawlBlockMeta,
   fireflies: FirefliesBlockMeta,
   fireflies_v2: FirefliesV2BlockMeta,
+  fivetran: FivetranBlockMeta,
   flint: FlintBlockMeta,
   gamma: GammaBlockMeta,
   github: GitHubBlockMeta,
@@ -883,8 +902,10 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   grain_v2: GrainV2BlockMeta,
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
+  greenhouse_v2: GreenhouseV2BlockMeta,
   greptile: GreptileBlockMeta,
   harmonic: HarmonicBlockMeta,
+  helpscout: HelpScoutBlockMeta,
   hex: HexBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
@@ -955,6 +976,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  oracle_fusion_financials: OracleFusionFinancialsBlockMeta,
   oracledb: OracleDatabaseBlockMeta,
   otter: OtterBlockMeta,
   outlook: OutlookBlockMeta,

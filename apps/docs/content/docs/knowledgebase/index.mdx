@@ -1,54 +1,66 @@
 ---
-title: Knowledge Base
-description: A store of documents your agents can search by meaning.
+title: Knowledge bases
+description: Store documents that your agents can search and use in their answers.
 ---
 
-import { Video } from '@/components/ui/video'
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { FAQ } from '@/components/ui/faq'
+A **knowledge base** stores documents for your agents to search. Sim extracts their text, splits it into passages called chunks, and creates embeddings: numerical representations used to match a question to relevant content. The [Knowledge block](/knowledgebase/using-in-workflows) retrieves those chunks for an Agent to use in its answer.
 
-A **knowledge base** is a store of documents your agents can search by meaning. You upload files, Sim splits them into chunks and indexes them, and a [Knowledge block](/knowledgebase/using-in-workflows) retrieves the chunks most relevant to a query. This is how an agent answers from your own content instead of the model's general training.
+Upload files for a fixed collection, or use a [connector](/knowledgebase/connectors) to keep content in sync with an external source. [Organization Search](/search) has a separate live-provider catalog; connecting a source to a knowledge base does not enable it in Search.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
-  <Video src="knowledgebase-1.mp4" width={700} height={450} />
-</div>
+## Create a knowledge base
 
-## How a document becomes searchable
+1. Open **Knowledge bases** in the sidebar and select **New base**.
+2. Enter a name and, optionally, a description. Leave **Chunking Strategy** on **Auto** unless you need different boundaries. See [chunking strategies](/knowledgebase/chunking-strategies) for the settings.
+3. Add files when creating the base, or open it and choose **New documents**.
+4. Wait for processing to finish before searching. A successful upload starts processing; it does not mean the document is indexed yet.
 
-When you upload a document, Sim processes it in the background:
+Creating a base and adding documents require workspace write access and the relevant [permission-group capabilities](/platform/enterprise/access-control).
 
-1. **Extract** the text, with a parser for each file type and OCR for scanned PDFs.
-2. **Chunk** it into passages, with a size and overlap you can tune.
-3. **Embed** each chunk as a vector so it can be matched by meaning, not just keywords.
+## Supported files and limits
 
-A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
+| Content | File extensions |
+| --- | --- |
+| PDF | `.pdf` |
+| Word | `.doc`, `.docx` |
+| Text and Markdown | `.txt`, `.md` |
+| HTML | `.html`, `.htm` |
+| Excel and CSV | `.xls`, `.xlsx`, `.csv` |
+| PowerPoint | `.pptx` |
+| Structured data | `.json`, `.jsonl`, `.yaml`, `.yml` |
 
-Every knowledge base records the embedding model and the vector width it was built with, and keeps them for its lifetime. Two bases built differently cannot be searched in one request — vectors are only comparable when they come from the same model at the same size — so search them separately, or rebuild one to match. On Sim Cloud every base uses `text-embedding-3-small` at 1,536 dimensions; self-hosted deployments choose both with [`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS`](/platform/self-hosting/environment-variables), including models on their own Ollama.
+Each file can be up to **100 MiB**. One upload action accepts at most **20 files**, with **500 MiB** total. Legacy `.ppt` files are not supported; convert them to `.pptx` first.
 
-## What you can upload
+Scanned PDFs need Azure-hosted Mistral OCR or [Mistral OCR](https://docs.mistral.ai/studio/document-processing/basic_ocr) configured on the deployment. Password-protected, malformed, or overly complex files can fail processing even when they meet the upload-size limit. Read the document's error to find the required change.
 
-Sim accepts PDF, Word, text, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML files, up to 100 MB each (best under 50 MB). Scanned PDFs work too: with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/) configured, Sim extracts text from image-based pages.
+## Verify processing
 
-## Shaping what a search returns
+Sim processes documents in the background:
 
-Two things control retrieval quality, and each has its own page:
+1. **Extract** text using the parser for the file type, with OCR for scanned PDFs.
+2. **Chunk** the text using the base's settings.
+3. **Embed** the chunks so a query can match them by meaning.
 
-- **Chunking** decides how a document is split. Smaller chunks are more precise; larger ones keep more context. See [chunking strategies](/knowledgebase/chunking-strategies).
-- **Tags** label documents so a search can filter to a subset. See [tags and filtering](/knowledgebase/tags).
+A document becomes eligible for search when `processingStatus` is `completed`. It and its chunks must also be enabled, included, and readable by the caller. See [debugging retrieval](/knowledgebase/debugging-retrieval) for status and access checks.
 
-To keep a base in sync with an outside source like Google Drive, use a [connector](/knowledgebase/connectors).
+Open a completed document to inspect its chunks. For uploaded documents, you can edit, add, disable, or delete chunks. Connector-managed chunks are read-only; change their content at the source and sync again.
 
-## Next
+## Retrieve and refine
 
-<Cards>
-  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="The Knowledge block: search, tags, reranking, and reading the results." />
-  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="How chunk size and boundaries shape retrieval." />
-  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Label documents and narrow a search." />
-  <Card title="Connectors" href="/knowledgebase/connectors" description="Sync documents from an external source." />
-  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
-</Cards>
+Add a [Knowledge block](/knowledgebase/using-in-workflows) before an Agent, then reference `<knowledge.results>` in the Agent's prompt. The block can retrieve by query, by [tags](/knowledgebase/tags), or by both. Its retrieval mode controls whether a query uses semantic matching alone or combines it with keyword matching.
 
-<FAQ items={[
-  { question: "Does it support scanned PDFs?", answer: "Yes. With Azure or Mistral OCR configured, Sim extracts text from image-based and scanned PDF pages." },
-  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block searches one knowledge base. Use multiple Knowledge blocks in a workflow to search across several." },
-]} />
+Inspect the returned content before changing settings. Use tags to select the relevant document set, and adjust [chunking](/knowledgebase/chunking-strategies) when passages lose context or combine unrelated topics.
+
+## Embedding compatibility
+
+Each base records its embedding model and dimensions at creation and retains them for later document processing. The default configuration uses `text-embedding-3-small` at 1,536 dimensions. Self-hosted operators can choose a supported model and width with [`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS`](/platform/self-hosting/environment-variables), including an embedding model on their own Ollama server.
+
+A query search across multiple bases requires the same embedding model and dimensions in every base. Search incompatible bases separately, or rebuild them with matching configuration. Tag-only searches do not compare vectors and do not require this compatibility. Each Knowledge block selects one base; use separate blocks when a workflow needs several.
+
+## Related docs
+
+- [Using a knowledge base in a workflow](/knowledgebase/using-in-workflows) for retrieval and Agent setup
+- [Connectors](/knowledgebase/connectors) for syncing documents from external sources
+- [Tags and filtering](/knowledgebase/tags) for narrowing a search
+- [Debugging retrieval](/knowledgebase/debugging-retrieval) for missing or irrelevant results
+- [Chunking strategies](/knowledgebase/chunking-strategies) for passage sizes and boundaries
+- [Export and import](/knowledgebase/export-import) for moving documents, chunks, tags, and settings between workspaces and deployments

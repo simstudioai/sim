@@ -6,8 +6,8 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
+import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/folders'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 
 export const POST = defineInternalJsonRoute({
   contract: restoreWorkspaceFileFolderContract,

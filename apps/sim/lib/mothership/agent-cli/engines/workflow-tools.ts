@@ -1,6 +1,6 @@
 import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { inspectWorkflowTools } from '@/lib/workflows/application/inspect-workflow-tools'
 
 export const workflowToolsCommand: AgentCliEngine = {

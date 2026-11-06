@@ -7,12 +7,17 @@ import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('RetireKeywordWriters')
 
-/** Stops retired keyword writes while keeping Tin's table available to draining detach workers. */
+/**
+ * Stops retired keyword writes. Deploys reach this with Tin's table present (0031 drops it next),
+ * but `db:push` runs this after Drizzle has already dropped the undeclared table.
+ */
 export async function retireKeywordWriters(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '100ms'")
     await tx.unsafe("SET LOCAL statement_timeout = '5s'")
-    await tx.unsafe(`LOCK TABLE knowledge_base, embedding, document, embedding_keyword_tin
+    const [{ hasTin }] = await tx<{ hasTin: boolean }[]>`
+      SELECT to_regclass('embedding_keyword_tin') IS NOT NULL AS "hasTin"`
+    await tx.unsafe(`LOCK TABLE knowledge_base, embedding, document${hasTin ? ', embedding_keyword_tin' : ''}
       IN SHARE ROW EXCLUSIVE MODE NOWAIT`)
     await tx.unsafe('DROP TRIGGER IF EXISTS embedding_keyword_search_sync ON embedding')
     await tx.unsafe('DROP TRIGGER IF EXISTS knowledge_base_keyword_search_sync ON knowledge_base')

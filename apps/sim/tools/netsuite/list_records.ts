@@ -1,5 +1,5 @@
 import type { NetSuiteListRecordsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -12,6 +12,7 @@ export const netsuiteListRecordsTool: InternalToolConfig<
   description:
     'List one page of a NetSuite record collection, optionally filtered with a q expression.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

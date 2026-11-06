@@ -137,7 +137,7 @@ export const v2RevertFileVersionBodySchema = z
       .min(1)
       .optional()
       .describe(
-        'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.'
+        'Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.'
       ),
   })
   .strict()
@@ -217,7 +217,11 @@ export const v2DeleteFileVersionResultSchema = z
   .object({
     fileId: z.string().describe('File whose version was deleted.'),
     version: versionNumberSchema.describe('Version number that was deleted.'),
-    deleted: z.literal(true).describe('Always true: the version and its stored content are gone.'),
+    deleted: z
+      .literal(true)
+      .describe(
+        'True when the version was removed from history. Stored-content deletion may finish through a background retry.'
+      ),
   })
   .strict()
   .meta({

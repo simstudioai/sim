@@ -6,7 +6,7 @@ export const PerplexityBlock: BlockConfig = {
   name: 'Perplexity',
   description: 'Use Perplexity AI for chat and search',
   longDescription:
-    'Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
+    'Generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
   authMode: AuthMode.ApiKey,
   docsLink: 'https://docs.sim.ai/integrations/perplexity',
   category: 'tools',

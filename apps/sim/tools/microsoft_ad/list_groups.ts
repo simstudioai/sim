@@ -3,12 +3,8 @@ import type {
   MicrosoftAdListGroupsResponse,
 } from '@/tools/microsoft_ad/types'
 import { GROUP_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import {
-  assertGraphNextPageUrlForCollection,
-  graphCollectionHeaders,
-  usesGraphAdvancedQuery,
-} from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { graphCollectionHeaders, usesGraphAdvancedQuery } from '@/tools/microsoft_ad/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listGroupsTool: ToolConfig<

@@ -207,6 +207,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
             const {
               queuedSendHandoff,
               resumeUserMessageId: _staleResume,
+              hasUnavailableContexts: _unavailableContexts,
               hold: _hold,
               heldSurface: _surface,
               retry: _retry,

@@ -221,67 +221,71 @@ export const workspaceSearchFiltersSchema = z.object({
     ),
 })
 
-export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
-  .extend({
-    nativeQueries: nativeSearchQueriesSchema
-      .optional()
-      .describe(
-        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
-      ),
-    query: z
-      .string()
-      .trim()
-      .max(2000)
-      .default('')
-      .describe(
-        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.'
-      ),
-    topK: z
-      .number()
-      .int()
-      .min(1)
-      .max(50)
-      .default(20)
-      .describe(
-        'Maximum matching passage previews; retrieval ranking is independent of preview length.'
-      ),
-  })
-  .superRefine((input, context) => {
-    const bounded = Boolean(
-      input.startDate ||
-        input.endDate ||
-        input.modifiedAfter ||
-        input.modifiedBefore ||
-        input.sortBy === 'newest' ||
-        input.sortBy === 'oldest'
-    )
-    if (
-      !input.query &&
-      !input.nativeQueries?.some((query) => query.query || query.browse) &&
-      !bounded
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['query'],
-        message: 'Supply search terms, a native query, a date bound, or sortBy newest or oldest.',
-      })
-    if (
-      input.startDate &&
-      input.endDate &&
-      Date.parse(input.startDate) >= Date.parse(input.endDate)
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['endDate'],
-        message: 'endDate must be after startDate.',
-      })
-    if (input.nativeQueries?.some((query) => !query.query && !query.browse) && !bounded)
-      context.addIssue({
-        code: 'custom',
-        path: ['nativeQueries'],
-        message: 'Empty native queries require a date bound or sortBy newest or oldest.',
-      })
-  })
+export const searchWorkspaceInputFieldsSchema = workspaceSearchFiltersSchema.extend({
+  nativeQueries: nativeSearchQueriesSchema
+    .optional()
+    .describe(
+      `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
+    ),
+  query: z
+    .string()
+    .trim()
+    .max(2000)
+    .default('')
+    .describe(
+      'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.'
+    ),
+  topK: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(20)
+    .describe(
+      'Maximum matching passage previews; retrieval ranking is independent of preview length.'
+    ),
+})
+
+/** Rules shared by every search input schema built from {@link searchWorkspaceInputFieldsSchema}. */
+export function refineSearchWorkspaceInput(
+  input: Omit<z.output<typeof searchWorkspaceInputFieldsSchema>, 'topK'>,
+  context: z.RefinementCtx
+) {
+  const bounded = Boolean(
+    input.startDate ||
+      input.endDate ||
+      input.modifiedAfter ||
+      input.modifiedBefore ||
+      input.sortBy === 'newest' ||
+      input.sortBy === 'oldest'
+  )
+  if (
+    !input.query &&
+    !input.nativeQueries?.some((query) => query.query || query.browse) &&
+    !bounded
+  )
+    context.addIssue({
+      code: 'custom',
+      path: ['query'],
+      message: 'Supply search terms, a native query, a date bound, or sortBy newest or oldest.',
+    })
+  if (input.startDate && input.endDate && Date.parse(input.startDate) >= Date.parse(input.endDate))
+    context.addIssue({
+      code: 'custom',
+      path: ['endDate'],
+      message: 'endDate must be after startDate.',
+    })
+  if (input.nativeQueries?.some((query) => !query.query && !query.browse) && !bounded)
+    context.addIssue({
+      code: 'custom',
+      path: ['nativeQueries'],
+      message: 'Empty native queries require a date bound or sortBy newest or oldest.',
+    })
+}
+
+export const searchWorkspaceInputSchema = searchWorkspaceInputFieldsSchema.superRefine(
+  refineSearchWorkspaceInput
+)
 
 export const readDocumentInputSchema = z.object({
   documentId: z
@@ -347,8 +351,22 @@ export const listWorkspacesInputSchema = z.object({
   cursor: z.string().uuid().optional().describe('Copy nextCursor from the preceding page.'),
 })
 
+/** Project discovery accepts pagination only; the conversation determines the accessible scope. */
+export const listUserProjectsInputSchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+})
+export type ListUserProjectsInput = z.output<typeof listUserProjectsInputSchema>
+
 /** Executor identity belongs to Sim; model-facing profile guidance belongs to its caller. */
 export const assistantToolContracts = [
+  {
+    id: 'list_user_projects',
+    route: 'sim',
+    description:
+      'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.',
+    inputSchema: listUserProjectsInputSchema,
+  },
   {
     id: 'list_workspaces',
     route: 'sim',
@@ -404,12 +422,26 @@ export const listWorkspacesResultSchema = z.object({
   nextCursor: z.uuid().nullable(),
   storedNotes: z
     .array(
-      z.object({
-        id: z.string(),
-        kind: z.enum(['user_pref', 'workspace_fact']),
-        content: z.string(),
-        updatedAt: z.iso.datetime(),
-      })
+      z
+        .object({
+          id: z.string(),
+          content: z.string(),
+          updatedAt: z.iso.datetime(),
+          by: z.enum(['this user', 'another workspace member', 'another user']).optional(),
+          chat: z.enum(['this chat', 'another chat']).optional(),
+        })
+        .and(
+          z.union([
+            z.object({ kind: z.enum(['user_pref', 'workspace_fact']) }),
+            z.object({
+              scope: z.enum(['personal', 'project', 'workspace']),
+              visibility: z.enum(['private', 'shared']),
+              projectId: z.uuid().nullable(),
+              workspaceId: z.uuid().nullable(),
+              revision: z.number().int().positive(),
+            }),
+          ])
+        )
     )
     .optional(),
 })

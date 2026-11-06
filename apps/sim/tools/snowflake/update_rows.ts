@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeUpdateRowsParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -36,6 +37,7 @@ function parseMatchColumns(value: unknown): string[] {
 export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_update_rows',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Update Rows',
   description: 'Update matching rows with a bound MERGE statement without inserting new rows.',
   params: {

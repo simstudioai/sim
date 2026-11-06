@@ -12,7 +12,7 @@ import {
 import {
   listCredentialMembersUseCase,
   upsertCredentialMemberUseCase,
-} from '@/lib/credentials/application/credential-members'
+} from '@/lib/credentials/application/members'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
@@ -39,7 +39,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: listCredentialMembersUseCase,
   present: ({ members, nextCursorKeys }, { params, query }) => ({
-    data: members.map((member) => ({
+    data: members.map(({ explicitAdmin, ...member }) => ({
       ...member,
       joinedAt: member.joinedAt?.toISOString() ?? null,
     })),

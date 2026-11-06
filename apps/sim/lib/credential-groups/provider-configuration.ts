@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credentialGroup, slackApp, slackSearchInstallation } from '@sim/db/schema'
+import { credentialGroup, slackApp } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -158,22 +158,9 @@ async function resolveSlackConfiguration(
     )
     .limit(1)
   if (!app) throw new Error('Organization Slack app configuration is missing')
-  if (app.kind === 'shared') {
-    await requireSlackSearchAppAvailable(app.id, params.organizationId)
-    const [installation] = await (params.executor ?? db)
-      .select({ id: slackSearchInstallation.id })
-      .from(slackSearchInstallation)
-      .where(
-        and(
-          eq(slackSearchInstallation.slackAppId, app.id),
-          eq(slackSearchInstallation.organizationId, params.organizationId),
-          eq(slackSearchInstallation.teamId, configuration.teamId),
-          eq(slackSearchInstallation.enabled, true)
-        )
-      )
-      .limit(1)
-    if (!installation) throw new Error('The shared Slack installation is disabled or removed')
-  }
+  /** Member grants are verified against the app and team directly; the Search bot is optional. */
+  if (app.kind === 'shared')
+    await requireSlackSearchAppAvailable(app.id, params.organizationId, params.executor)
   const resolved = await resolveSlackAppCredentials(app)
   return {
     appId: app.id,

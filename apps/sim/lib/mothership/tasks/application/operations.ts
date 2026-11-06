@@ -21,11 +21,13 @@ export const taskOperations = {
     id: 'mothership.tasks.workflow_status',
     ...taskPrincipalPolicy,
     capability: 'copilot.use',
+    contentDelivery: 'none',
   }),
   wake: defineWorkspaceOperation({
     id: 'mothership.tasks.wake',
     ...taskPrincipalPolicy,
     capability: 'copilot.use',
+    contentDelivery: 'none',
   }),
 } as const
 
@@ -38,6 +40,7 @@ export const organizationTaskOperations = {
   }),
   readWorkflowStatus: defineOrganizationOperation({
     id: taskOperations.readWorkflowStatus.id,
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['organization_delegated'],
@@ -46,6 +49,7 @@ export const organizationTaskOperations = {
   }),
   wake: defineOrganizationOperation({
     id: taskOperations.wake.id,
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['organization_delegated'],

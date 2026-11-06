@@ -11,7 +11,7 @@ import {
 import {
   CredentialProviderOperationError,
   updateWorkspaceCredentialUseCase,
-} from '@/lib/credentials/application/credential-crud'
+} from '@/lib/credentials/application/crud'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toV2Credential } from '@/lib/credentials/application/presentation'
 import { deleteCredentialUseCase } from '@/lib/credentials/application/service-account'

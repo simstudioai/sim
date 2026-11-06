@@ -1,97 +1,62 @@
 ---
-title: Logging
-description: Where run logs live — the real-time console, the Logs page, and what each entry records.
+title: Run logs
+description: Find recorded runs, inspect their details, and compare them with the workflow that ran.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Every workflow run is logged. There are two places to read them: the **Console** for the run you're watching, and the **Logs page** for everything.
+Use **Logs** to find recorded runs in your workspace. Use the workflow builder's console to watch a manual or chat run as it executes. For a debugging procedure, see [Trace a failure](/logs-debugging).
 
-## Real-time Console
+## Find a run
 
-During manual or chat runs, the Console panel in the editor shows each block as it runs — active-block highlighting, outputs as they complete, per-block timing, and success/error status.
+The list shows workflow, date, status, cost in credits, trigger, and duration. Filter by time range, status, trigger, folder, or workflow. Search text matches run IDs; it does not search arbitrary input or output text. Structured filters also support date, duration, and cost. For example:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/logs/console.png"
-    alt="The current run console with block timings and the selected block output"
-    width={1008}
-    height={380}
-    className="my-6"
-  />
-</div>
+```text
+status:error workflow:"Support" duration:>5s
+```
 
-## Logs page
+The list holds a stable snapshot. Select **Refresh**, **N new logs**, or **Updates available** to load new or changed runs. With editing access, select **Export** to download a CSV using the current filters.
 
-Every run from every trigger — manual, API, chat, schedule, webhook — lands on the Logs page, with filtering by time range, status, trigger type, folder, and workflow, full-text search, and a **Live mode** that streams new entries in as they're recorded.
+<Image
+  src="/static/docs-captures/logs.webp"
+  alt="Workspace Logs list with workflow, date, status, credits, trigger, and duration columns"
+  width={2400}
+  height={482}
+  variant="overview"
+  background="canyon"
+/>
 
-<div className="flex justify-center">
-  <Image
-    src="/static/logs/logs.png"
-    alt="The current workspace Logs page"
-    width={1064}
-    height={800}
-    className="my-6"
-  />
-</div>
+## Read log details
 
-## Log details
+Select an entry to open **Log Details**. The run records its execution ID, workflow ID, trigger, start and end timestamps, duration in milliseconds, final output, trace spans, and associated files where available. Use the copy controls to copy identifiers or data.
 
-Click any entry to open its sidebar: the run's timeline (start/end, total duration, per-block timing) and each block's data flow.
+### Overview
 
-<div className="flex justify-center">
-  <Image
-    src="/static/logs/logs-sidebar.png"
-    alt="The current Log Details sidebar with run metadata, output, and credit total"
-    width={518}
-    height={760}
-    className="my-6 mx-auto h-auto w-full max-w-sm"
-  />
-</div>
+**Overview** shows run metadata and available **Workflow Input**, **Workflow Output**, and cost details. Current usage-ledger itemization can include **Base Run**, model and tool usage, and token totals. Older runs may have a total without itemized rows.
 
-<Tabs items={['Output', 'Input']}>
-  <Tab>
-    The block's result — JSON-formatted structured data, markdown rendering for AI content, and a copy button.
-  </Tab>
-  <Tab>
-    What the block received — resolved variable values, referenced outputs, and environment variables. Exact secret values activated by a successful `{{KEY}}` substitution are masked in this trace view. See [Execution log protection](/platform/credentials#execution-log-protection).
-  </Tab>
-</Tabs>
+### Trace
 
-## Workflow snapshots
+**Trace** shows the block and child spans with their timing and status. Select a span to inspect stacked, collapsible **Input**, **Output** or **Error**, and any **Thinking** or **Error message** sections. Inputs contain resolved variable values and referenced outputs. Structured data can be inspected and copied; agent text can render as Markdown.
 
-**View Snapshot** opens a frozen copy of the workflow exactly as it was at run time — structure, block states, connections — and each block is clickable to its inputs and outputs. This is how you debug a run of a workflow you've since changed.
+Workspace access settings govern which trace, workflow data, snapshot, and cost details are visible. Protected resolved secret values are masked in the log-facing copy, subject to documented exceptions. See [Permission groups](/platform/enterprise/access-control) and [Execution log protection](/platform/credentials#execution-log-protection).
 
-<div className="flex justify-center">
-  <Image
-    src="/static/logs/logs-frozen-canvas.png"
-    alt="Workflow Snapshot"
-    width={600}
-    height={628}
-    className="my-6 mx-auto h-auto w-full max-w-md"
-  />
-</div>
+## Watch a manual run
 
-<Callout type="info">
-Snapshots exist for runs after the enhanced logging system was introduced. Older migrated logs show "Logged State Not Found".
-</Callout>
+During manual or chat runs, the workflow builder's console highlights active blocks and shows outputs as they complete, per-block timing, and success or error status. Select a block and use its **Output** and **Input** tabs to inspect values as a typed tree. These console tabs are separate from the recorded run's trace sections.
+
+## Open the run snapshot
+
+Select **View Snapshot** to inspect the saved workflow structure, block configurations, and connections from that run, where available. Inspect its blocks and recorded inputs and outputs to compare the version that ran with your current draft.
+
+Some older migrated logs have no saved workflow state and show **Logged State Not Found**. A log's existence does not guarantee that a snapshot is available or that your access settings allow it.
 
 ## Retention
 
-- **Free**: 7 days — logs are archived to cloud storage, then deleted.
-- **Pro / Team / Enterprise**: retained indefinitely.
+Sim Cloud Free defaults to 30 days. Paid plans and billing-disabled deployments have no plan-based default log expiry. Organization or workspace policies can change effective retention; cleanup removes expired data rather than providing a recoverable archive. See [Data retention](/platform/enterprise/data-retention).
 
-## Next
+## Related docs
 
+- [Debug a run](/logs-debugging) for tracing errors through resolved values
 - [Alerts](/logs-debugging/alerts) for notifications on failures and slow runs
-- [Cost calculation](/platform/costs) for what each run costs
-- [External API](/api-reference/getting-started) for programmatic log access
-
-import { FAQ } from '@/components/ui/faq'
-
-<FAQ items={[
-  { question: "What data is captured in each run log?", answer: "Each log entry includes the run ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), run data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
-  { question: "Are saved secrets visible in logs?", answer: "When a value saved under Secrets is successfully substituted through {{KEY}}, exact, case-sensitive occurrences are masked throughout the log-facing copy, including the live block-log display, Logs Overview input and output, Trace, log-read APIs, and the Logs block's Get Run Details output. Direct reads such as environmentVariables['KEY'] or shell $KEY also activate masking when Sim can recognize the read in the code beforehand; a name built at runtime, a reassigned binding, or a hardcoded literal is not recognized. This is not a general redactor: encoded, hashed, or transformed values are not matched. Functional execution responses, streams, and callbacks remain unchanged. See Execution log protection under Secrets for details." },
-]} />
+- [Costs](/platform/costs) for run charges and credit units
+- [API getting started](/api-reference/getting-started) for programmatic log access

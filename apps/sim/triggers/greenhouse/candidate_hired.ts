@@ -1,11 +1,11 @@
 import { GreenhouseIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildCandidateHiredOutputs,
   buildGreenhouseExtraFields,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
 } from '@/triggers/greenhouse/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

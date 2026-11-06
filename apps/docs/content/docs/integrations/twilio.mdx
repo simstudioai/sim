@@ -1,28 +1,28 @@
 ---
 title: Twilio
-description: Twilio triggers for automating workflows
+description: Start workflows from Twilio events
+integration:
+  type: "twilio"
+  color: "#6B7280"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard
-  type="twilio"
-  color="#6B7280"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use Twilio triggers in Sim to start workflows from messaging events. **Message Status** reports status changes for a sent message, including its SID and any error code. **SMS Received** provides the sender, recipient, body, and media from an inbound SMS or MMS.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Twilio Message Status
 
 Trigger workflow when a Twilio message status changes (sent, delivered, failed)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -57,13 +57,14 @@ Trigger workflow when a Twilio message status changes (sent, delivered, failed)
 | `toCountry` | string | Country of the recipient, when available |
 | `raw` | string | Complete raw webhook payload from Twilio as a JSON string |
 
-
----
+</ReferenceDetails>
 
 ### Twilio SMS Received
 
 Trigger workflow when an inbound SMS or MMS message is received via Twilio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -97,4 +98,6 @@ Trigger workflow when an inbound SMS or MMS message is received via Twilio
 | `toZip` | string | Zip/postal code of the recipient, when available |
 | `toCountry` | string | Country of the recipient, when available |
 | `raw` | string | Complete raw webhook payload from Twilio as a JSON string |
+
+</ReferenceDetails>
 

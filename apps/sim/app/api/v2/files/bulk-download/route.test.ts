@@ -76,6 +76,7 @@ describe('GET /api/v2/files/bulk-download', () => {
       folderPaths: new Map<string, string>(),
       renderedDocuments: new Map<string, Buffer>(),
       declaredBytes: 6,
+      excludedFileIds: [],
     })
   })
 

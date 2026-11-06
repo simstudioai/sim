@@ -66,26 +66,29 @@ describe('Slack stream response config', () => {
     ).toBe('Running')
   })
 
-  it('rejects non-reply events and malformed output selectors', () => {
-    expect(() =>
-      normalizeSlackStreamResponseConfig(
-        {
-          eventType: 'reaction_added',
-          streamResponse: true,
-          streamOutputs: ['block.content'],
-        },
-        {}
-      )
-    ).toThrow('reply-capable')
-    expect(() =>
-      normalizeSlackStreamResponseConfig(
-        {
-          eventType: 'message',
-          streamResponse: true,
-          streamOutputs: ['block_content'],
-        },
-        {}
-      )
-    ).toThrow('Invalid Slack stream output selector')
-  })
+  it.each(['reaction_added', 'assistant_thread_started'])(
+    'rejects unsupported streaming event %s and malformed output selectors',
+    (eventType) => {
+      expect(() =>
+        normalizeSlackStreamResponseConfig(
+          {
+            eventType,
+            streamResponse: true,
+            streamOutputs: ['block.content'],
+          },
+          {}
+        )
+      ).toThrow('reply-capable')
+      expect(() =>
+        normalizeSlackStreamResponseConfig(
+          {
+            eventType: 'message',
+            streamResponse: true,
+            streamOutputs: ['block_content'],
+          },
+          {}
+        )
+      ).toThrow('Invalid Slack stream output selector')
+    }
+  )
 })

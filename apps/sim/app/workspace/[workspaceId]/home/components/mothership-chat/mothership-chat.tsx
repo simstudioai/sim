@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import type { ComponentType, RefObject } from 'react'
 import {
   memo,
   type ReactNode,
@@ -22,13 +22,19 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import {
+  AssistantActionReviewMessage,
+  useHasAssistantActionReview,
+} from '@/components/assistant-actions'
+import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
   assistantMessageHasRenderableContent,
   getOrchestratorMessageText,
@@ -55,7 +61,12 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
+import {
+  fetchWorkspaceResourceRef,
+  readCachedWorkspaceResourceRef,
+} from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import type {
   ChatMessage,
   ChatMessageAttachment,
@@ -66,7 +77,6 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
@@ -76,15 +86,21 @@ interface MothershipChatProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
+  composerAttachments?: ReactNode
+  composerResourceActions?: ReactNode
+  composerToolbarActions?: ReactNode
+  composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
+  /** Returning false synchronously preserves the composer draft. */
+  onComposerSubmit?: MothershipChatProps['onSubmit']
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -103,9 +119,14 @@ interface MothershipChatProps {
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
+  /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
+  composerKey?: string
+  fileDropTarget?: RefObject<HTMLElement | null>
   layout?: 'mothership-view' | 'copilot-view'
+  reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
   animateInput?: boolean
   onInputAnimationEnd?: () => void
@@ -132,9 +153,9 @@ const OVERSCAN = 6
 
 /**
  * How close to the bottom (px) the transcript must be to count as pinned for
- * re-pinning across container resizes. Covers the fractional sub-pixel gap a
- * DPR-scaled `scrollTop` can leave, without capturing a user who deliberately
- * scrolled up.
+ * re-pinning across container resizes and older messages loading in above.
+ * Covers the fractional sub-pixel gap a DPR-scaled `scrollTop` can leave,
+ * without capturing a user who deliberately scrolled up.
  */
 const PIN_THRESHOLD = 2
 /**
@@ -156,7 +177,7 @@ const LAYOUT_STYLES = {
     userBubble:
       'max-w-[85%] md:max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
+    footer: 'px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -168,13 +189,12 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[85%]',
     userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-3 pb-3',
+    footer: 'px-3 pb-3',
     footerInner: '',
   },
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
-const EMPTY_WORKSPACE_FILES: readonly WorkspaceFileRecord[] = []
 
 interface UserMessageRowProps {
   content: string
@@ -186,24 +206,36 @@ interface UserMessageRowProps {
 }
 
 /**
- * A background-task notification that opened a turn (mothership 21-background-tasks.md
- * §6.4): a muted system chip, never a user bubble — the user did not type it. Shows the
- * outcome line; the provenance header and the agent's own note stay out of the way.
+ * A turn automation opened, never a user bubble — the user did not type it: a muted system chip
+ * with one line. A background-task notification (mothership 21-background-tasks.md §6.4) shows
+ * its outcome line; a scheduled job's run shows the brief's first line (the job and its run).
  */
-const TaskNotificationRow = memo(function TaskNotificationRow({
-  content,
-  rowClassName,
-}: {
+interface AutomatedTurnRowProps {
+  origin: TurnOrigin
   content: string
   rowClassName: string
-}) {
+}
+
+const AutomatedTurnRow = memo(function AutomatedTurnRow({
+  origin,
+  content,
+  rowClassName,
+}: AutomatedTurnRowProps) {
   const lines = content.split('\n').filter((line) => line.length > 0)
-  const outcome = lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? ''
+  const summary =
+    origin === 'task'
+      ? (lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? '').replace(
+          /^Task [0-9a-f-]+ /,
+          ''
+        )
+      : (lines[0] ?? '').replace(/^Job: /, '')
   return (
     <div className={cn('flex w-full justify-center', rowClassName)}>
       <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
-        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>Background task</span>
-        {outcome.replace(/^Task [0-9a-f-]+ /, '')}
+        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>
+          {origin === 'task' ? 'Background task' : 'Scheduled job'}
+        </span>
+        {summary}
       </div>
     </div>
   )
@@ -266,6 +298,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
+  const hasActionReview = useHasAssistantActionReview()
   const permissions = useOptionalWorkspacePermissionsContext()
   const canEdit = permissions?.userPermissions.canEdit ?? false
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
@@ -309,15 +342,18 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   // Settle timing lives in MessageContent (the actions take the thinking
   // slot's place in the same render), so eligibility here is phase-free:
   // `phase: 'settled'` asks the helper "would a settled turn show them?".
-  const actionsEligible = shouldShowAssistantMessageActions({
-    phase: 'settled',
-    hasContent: Boolean(message.content) || hasAnyBlocks,
-    endsWithInteraction: endsWithQuestion || showsCredentialCard,
-    questionDismissed,
-  })
+  const actionsEligible =
+    !hasActionReview &&
+    shouldShowAssistantMessageActions({
+      phase: 'settled',
+      hasContent: Boolean(message.content) || hasAnyBlocks,
+      endsWithInteraction: endsWithQuestion || showsCredentialCard,
+      questionDismissed,
+    })
 
   /** Match the 16px prose/card gap when the card is the message's last visible content. */
-  const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
+  const showsInteractionCard =
+    (endsWithQuestion && !questionDismissed) || showsCredentialCard || hasActionReview
 
   return (
     <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
@@ -329,6 +365,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         fallbackContent={message.content}
         isStreaming={isStreaming}
         isLast={isLast}
+        awaitingInteraction={hasActionReview}
         questionAnswers={questionAnswers}
         credentialSubmission={credentialSubmission}
         credentialAbandoned={credentialAbandoned}
@@ -357,11 +394,16 @@ export function MothershipChat({
   SearchConnectionComponent,
   workspaceId,
   composer,
+  composerAttachments,
+  composerResourceActions,
+  composerToolbarActions,
+  composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
   isLoading = false,
   onSubmit,
+  onComposerSubmit,
   onStopGeneration,
   messageQueue,
   editingQueuedId,
@@ -375,9 +417,13 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onViewSources,
+  onNavigateToChat,
   onWorkspaceResourceSelect,
   draftScopeKey,
+  composerKey,
+  fileDropTarget,
   layout = 'mothership-view',
+  reserveResourceHeader = true,
   initialScrollBlocked = false,
   animateInput = false,
   onInputAnimationEnd,
@@ -395,6 +441,9 @@ export function MothershipChat({
    * starving the main thread on every streaming token.
    */
   const messages = useDeferredValue(messagesProp)
+  const historyMessagesRef = useRef(messagesProp)
+  historyMessagesRef.current = messagesProp
+  const getHistoryMessages = useCallback(() => historyMessagesRef.current, [])
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
@@ -409,14 +458,8 @@ export function MothershipChat({
       workspaceId
         ? prepareCopyableMarkdown(
             content,
-            queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
-              workspaceFilesKeys.list(workspaceId)
-            ) ?? EMPTY_WORKSPACE_FILES,
-            () =>
-              queryClient.fetchQuery({
-                ...getWorkspaceFilesQueryOptions(workspaceId),
-                staleTime: 0,
-              })
+            (ref) => readCachedWorkspaceResourceRef(queryClient, workspaceId, ref),
+            (ref) => fetchWorkspaceResourceRef(queryClient, workspaceId, ref, { fresh: true })
           )
         : toCopyableMarkdown(content),
     [queryClient, workspaceId]
@@ -729,6 +772,32 @@ export function MothershipChat({
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
 
+  /**
+   * Older messages load in above the newest window while the chat is open, pushing every row
+   * below them down. A viewport at the bottom is re-pinned to the last row, which also keeps a
+   * landing scroll aimed at it rather than at the index it had before the insert; any other
+   * viewport moves down by the inserted height and keeps showing what the user was reading.
+   */
+  const firstRowKeyRef = useRef<string | undefined>(undefined)
+  const firstRowKey = rowKeyByIndex[0]
+  useLayoutEffect(() => {
+    const previousFirstRowKey = firstRowKeyRef.current
+    firstRowKeyRef.current = firstRowKey
+    if (!previousFirstRowKey || previousFirstRowKey === firstRowKey) return
+    const shiftedIndex = rowKeyByIndex.indexOf(previousFirstRowKey)
+    const shifted = shiftedIndex > 0 ? virtualizer.measurementsCache[shiftedIndex] : undefined
+    const first = virtualizer.measurementsCache[0]
+    const scrollElement = scrollElementRef.current
+    if (!shifted || !first || !scrollElement) return
+    const inserted = shifted.start - first.start
+    const { scrollTop, scrollHeight, clientHeight } = scrollElement
+    if (scrollHeight - inserted - scrollTop - clientHeight <= PIN_THRESHOLD) {
+      virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+    } else {
+      virtualizer.scrollToOffset(scrollTop + inserted)
+    }
+  }, [firstRowKey, lastIndex, rowKeyByIndex, virtualizer])
+
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
@@ -752,16 +821,17 @@ export function MothershipChat({
   const handleEditQueued = useCallback(
     (id: string) => {
       const msg = onEditQueuedMessage(id)
-      if (!msg) return
-      userInputRef.current?.loadQueuedMessage(msg)
+      if (!msg || !userInputRef.current) return false
+      userInputRef.current.loadQueuedMessage(msg)
+      return true
     },
     [onEditQueuedMessage, userInputRef]
   )
 
   const handleEditQueuedTail = useCallback(() => {
     const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
-    if (!tail) return
-    handleEditQueued(tail.id)
+    if (!tail) return false
+    return handleEditQueued(tail.id)
   }, [handleEditQueued])
 
   /**
@@ -826,6 +896,17 @@ export function MothershipChat({
   }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
 
   const virtualItems = virtualizer.getVirtualItems()
+  const receiptQueryOwners = new Map<string, string>()
+  const mountedReceiptMessages = new Map<string, string[]>()
+  for (const item of virtualItems) {
+    const message = messages[item.index]
+    if (message.streamId) {
+      receiptQueryOwners.set(message.streamId, message.id)
+      const ids = mountedReceiptMessages.get(message.streamId) ?? []
+      ids.push(message.id)
+      mountedReceiptMessages.set(message.streamId, ids)
+    }
+  }
 
   return (
     <ChatSurfaceProvider
@@ -835,6 +916,7 @@ export function MothershipChat({
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
       onViewSources={onViewSources}
+      onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div
@@ -844,7 +926,8 @@ export function MothershipChat({
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
           layout === 'mothership-view' &&
-            '@max-[960px]/chat-panel:mt-[var(--resource-header-controls-height)] @max-[960px]/chat-panel:h-auto @max-[960px]/chat-panel:flex-1',
+            reserveResourceHeader &&
+            'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
         )}
@@ -898,35 +981,52 @@ export function MothershipChat({
                     className='absolute left-0 w-full'
                     style={{ top: virtualItem.start }}
                   >
-                    {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin === 'task' ? (
-                        <TaskNotificationRow content={msg.content} rowClassName={styles.rowGap} />
+                    <AssistantActionReviewMessage
+                      messageId={msg.id}
+                      mountedMessageIds={
+                        (msg.streamId && mountedReceiptMessages.get(msg.streamId)) || [msg.id]
+                      }
+                      mountedReceiptTurnCount={receiptQueryOwners.size}
+                      isReceiptQueryOwner={
+                        !msg.streamId || receiptQueryOwners.get(msg.streamId) === msg.id
+                      }
+                    >
+                      {msg.role === 'user' ? (
+                        interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
+                          <AutomatedTurnRow
+                            origin={msg.origin}
+                            content={msg.content}
+                            rowClassName={styles.rowGap}
+                          />
+                        ) : (
+                          <UserMessageRow
+                            content={msg.content}
+                            contexts={msg.contexts}
+                            attachments={msg.attachments}
+                            rowClassName={cn(styles.userRow, styles.rowGap)}
+                            bubbleClassName={styles.userBubble}
+                            attachmentWidthClassName={styles.attachmentWidth}
+                          />
+                        )
                       ) : (
-                        <UserMessageRow
-                          content={msg.content}
-                          contexts={msg.contexts}
-                          attachments={msg.attachments}
-                          rowClassName={cn(styles.userRow, styles.rowGap)}
-                          bubbleClassName={styles.userBubble}
-                          attachmentWidthClassName={styles.attachmentWidth}
+                        <AssistantMessageRow
+                          message={msg}
+                          prepareContentForCopy={prepareContentForCopy}
+                          isStreaming={isLast && msg.id === streamingMessageId}
+                          isLast={isLast}
+                          precedingUserContent={precedingUserByIndex[index]?.content}
+                          requestMode={precedingUserByIndex[index]?.requestMode}
+                          questionAnswers={interactionPairing.answersByIndex[index]}
+                          credentialSubmission={
+                            interactionPairing.credentialSubmissionByIndex[index]
+                          }
+                          credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
+                          rowClassName={cn(styles.assistantRow, styles.rowGap)}
+                          onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                          onAnimatingChange={isLast ? setLastRowAnimating : undefined}
                         />
-                      )
-                    ) : (
-                      <AssistantMessageRow
-                        message={msg}
-                        prepareContentForCopy={prepareContentForCopy}
-                        isStreaming={isLast && msg.id === streamingMessageId}
-                        isLast={isLast}
-                        precedingUserContent={precedingUserByIndex[index]?.content}
-                        requestMode={precedingUserByIndex[index]?.requestMode}
-                        questionAnswers={interactionPairing.answersByIndex[index]}
-                        credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
-                        credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
-                        rowClassName={cn(styles.assistantRow, styles.rowGap)}
-                        onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                        onAnimatingChange={isLast ? setLastRowAnimating : undefined}
-                      />
-                    )}
+                      )}
+                    </AssistantActionReviewMessage>
                   </div>
                 )
               })}
@@ -934,11 +1034,12 @@ export function MothershipChat({
           )}
         </div>
 
-        <div
+        <ComposerScrollArea
           className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            <ComputerUseActivity />
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}
@@ -951,19 +1052,25 @@ export function MothershipChat({
             {!isLoading &&
               (composer ?? (
                 <UserInput
-                  key={draftScopeKey}
+                  key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
-                  onSubmit={onSubmit}
+                  fileDropTarget={fileDropTarget}
+                  onSubmit={onComposerSubmit ?? onSubmit}
+                  attachments={composerAttachments}
+                  resourceActions={composerResourceActions}
+                  toolbarActions={composerToolbarActions}
+                  modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}
                   onSendQueuedHead={handleSendQueuedHead}
                   onEditQueuedTail={handleEditQueuedTail}
                   draftScopeKey={draftScopeKey}
+                  getMessages={getHistoryMessages}
                 />
               ))}
           </div>
-        </div>
+        </ComposerScrollArea>
       </div>
     </ChatSurfaceProvider>
   )

@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +23,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { POST } from '@/app/api/v2/workflows/[workflowId]/operations/route'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -41,19 +42,7 @@ const DROPPED_INPUT = {
   error: 'Invalid credential ID',
 }
 
-/** An empty report, with every field the contract publishes. */
-const LINT = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
-  unresolvedReferences: [],
-  tableFieldIssues: [],
-  notes: [],
-}
+const LINT = createEmptyWorkflowLintReport()
 
 const auth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },

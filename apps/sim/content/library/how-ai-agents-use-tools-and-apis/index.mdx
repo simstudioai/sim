@@ -1,0 +1,309 @@
+---
+slug: how-ai-agents-use-tools-and-apis
+title: 'How Do AI Agents Use Tools and APIs?'
+description: 'Learn how AI agents use tool calling and APIs through structured requests, trusted runtimes, validation, permissions, approvals, and secure execution.'
+date: 2026-10-18
+updated: 2026-10-18
+authors:
+  - andrew
+readingTime: 12
+tags: [AI Agents, Tool Calling, APIs, MCP, Sim]
+ogImage: /library/how-ai-agents-use-tools-and-apis/cover.jpg
+draft: false
+faq:
+  - q: "What is tool calling in AI?"
+    a: "Tool calling in AI is the process in which a model requests an approved function with structured arguments so a trusted runtime can execute it and return the result."
+  - q: "What is function calling in an AI agent?"
+    a: "Function calling in an AI agent is another name for requesting a defined software operation, although the broader term tool calling also covers APIs, databases, searches, workflows, and human-input steps."
+  - q: "How do APIs work with AI agents?"
+    a: "APIs work with AI agents by giving the execution runtime a documented way to read data or perform actions after the agent selects an allowed tool."
+  - q: "What is the difference between an AI tool and an API?"
+    a: "An AI tool is a model-facing capability with a name, description, and input schema, while an API is the underlying interface that software uses to communicate with another system."
+  - q: "Does an LLM call APIs directly?"
+    a: "An LLM usually does not call APIs directly; the LLM generates a tool request, and application code validates and executes the corresponding API call."
+  - q: "How does an AI agent choose which tool to use?"
+    a: "An AI agent chooses a tool by matching the user’s goal and current context to the names, descriptions, schemas, and policies associated with its available tools."
+  - q: "Can an AI agent use multiple tools?"
+    a: "An AI agent can use multiple tools by executing a sequence in which each tool result supplies information needed to select or configure the next action."
+  - q: "Can an AI agent use any API?"
+    a: "An AI agent can use an API only when the runtime can reach and authenticate to it, an appropriate tool has been exposed, and the action passes validation, authorization, and policy checks."
+  - q: "Can an AI agent call a private internal API?"
+    a: "An AI agent can call a private internal API when its execution runtime has secure network access, appropriate credentials, a constrained tool definition, and permission to perform the requested operation."
+  - q: "What information should an AI agent tool definition contain?"
+    a: "An AI agent tool definition should contain a unique name, a precise usage description, a structured input schema, and a clear contract for the result or error."
+  - q: "What is the difference between tool calling and MCP?"
+    a: "Tool calling is the general act of requesting an external capability, while MCP is a protocol that standardizes how compatible clients discover and invoke tools and other resources from MCP servers."
+  - q: "Does MCP replace APIs?"
+    a: "MCP does not replace APIs because an MCP server may wrap existing APIs and present their capabilities through a standardized interface for compatible AI clients."
+  - q: "Does MCP make AI agent tools secure?"
+    a: "MCP does not make AI agent tools secure by itself because authentication, authorization, input validation, network restrictions, output handling, and approvals remain necessary."
+  - q: "Are AI agent tool calls deterministic?"
+    a: "AI agent tool selection is often probabilistic, but schema validation, permission checks, workflow routing, approval rules, and API execution can be deterministic."
+  - q: "What happens when an AI agent tool call fails?"
+    a: "An AI agent tool call should return a structured error that tells the runtime whether to correct the input, retry a transient failure, request help, or stop safely."
+  - q: "How do AI agents avoid duplicate API actions?"
+    a: "AI agents avoid duplicate API actions by using idempotency keys, recording execution state, limiting retries, and checking whether a write operation already succeeded."
+  - q: "How do AI agents authenticate to APIs?"
+    a: "AI agents authenticate to APIs through a trusted runtime that retrieves scoped credentials at execution time instead of placing secrets in the model prompt."
+  - q: "How do you prevent an AI agent from using the wrong tool?"
+    a: "AI agent systems reduce wrong-tool use with distinct tool descriptions, narrow schemas, context-specific allowlists, deterministic routing rules, permission checks, and tests based on real requests."
+  - q: "How do you protect AI agent tools from prompt injection?"
+    a: "AI agent systems protect tools from prompt injection by treating retrieved content as untrusted data and preventing that content from changing permissions, revealing secrets, or bypassing approval policies."
+  - q: "When should an AI agent ask for human approval?"
+    a: "An AI agent should ask for human approval before actions with meaningful financial, legal, privacy, security, operational, or reputational consequences."
+  - q: "Can an AI agent use tools without code?"
+    a: "An AI agent can use tools without the end user writing code when a platform provides prebuilt integrations and visual configuration, although custom APIs may still require schemas, authentication setup, or adapter logic."
+  - q: "How do you test AI agent tool calling?"
+    a: "AI agent tool calling should be tested with representative tasks, malformed inputs, permission denials, API failures, duplicate requests, prompt-injection attempts, approval cases, and end-to-end sandbox runs."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license as of October 2026."
+  - q: "Is Sim open source?"
+    a: "Sim’s core is open source under Apache 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Sim Enterprise subscription for production use as of October 2026."
+---
+
+## TL;DR
+
+AI agents use tools and APIs by choosing a model-visible operation, generating structured arguments, asking a trusted runtime to execute it, and using the returned data to decide what happens next.
+
+This tool-calling loop is what lets an agent do more than generate text. An agent can search a knowledge base, retrieve a customer record, create a support ticket, update a CRM, send a message, or invoke another workflow—but only through operations the system has explicitly made available.
+
+The key distinction is that the language model usually decides which tool to request, while application code controls whether and how the underlying API call executes. That separation makes authentication, validation, permissions, retries, approvals, and audit logs enforceable outside the model.
+
+## What is tool calling in an AI agent?
+
+Tool calling is the process by which an AI agent selects an approved function, supplies structured inputs, and receives a result it can use in its next decision.
+
+A tool is a model-facing description of an action. A useful tool definition normally contains:
+
+- A unique name, such as `get_customer` or `create_support_ticket`
+- A precise description of when the tool should be used
+- An input schema defining required and optional arguments
+- A runtime handler that executes code or calls an API
+- A structured result the agent can interpret
+
+For example, a CRM lookup tool might accept an email address and return a customer ID, account status, and assigned representative. The agent sees the tool’s purpose and input schema; the runtime retains the CRM credentials and performs the actual request.
+
+Tool calling is also called function calling because early implementations exposed tools as named software functions. The broader term “tool” is more useful because the operation might invoke an API, query a database, run code, search documents, trigger a workflow, or request human input.
+
+## What is the difference between a tool and an API?
+
+A tool is the interface presented to an AI agent, while an API is the software interface the runtime may call to perform the tool’s action.
+
+An API is designed for software clients. It may expose dozens or hundreds of endpoints, authentication requirements, query parameters, pagination rules, and response fields. A raw API specification is often too broad and technical to give directly to a model.
+
+A tool creates a narrower contract around the API. It gives the agent one clearly described capability with validated inputs and a predictable output. One API can support many tools, and one tool can coordinate several API calls.
+
+For example:
+
+- The API may expose endpoints for customers, contacts, companies, deals, notes, and tasks.
+- A `prepare_account_brief` tool may call several of those endpoints and return only the fields needed by the agent.
+- A `create_follow_up_task` tool may validate a due date, enforce an allowed owner, and then call the task endpoint.
+
+This abstraction reduces errors and limits the actions available to the model.
+
+## How does an AI agent call an API step by step?
+
+An AI agent calls an API through a controlled loop that separates model reasoning from runtime execution.
+
+1. **The user or system provides a goal.** A request might ask the agent to find an overdue invoice and notify the account owner.
+2. **The runtime provides available tool definitions.** The model receives approved tool names, descriptions, and input schemas, not unrestricted access to every connected system.
+3. **The model selects a tool.** The model may request `find_overdue_invoices` with a customer ID and date range.
+4. **The runtime validates the request.** Application code checks the tool name, argument types, required fields, permissions, and policy constraints.
+5. **The runtime authenticates to the service.** The runtime retrieves the appropriate credential without placing the secret in the prompt.
+6. **The runtime calls the API.** It handles the HTTP method, URL, headers, request body, timeout, and network response.
+7. **The runtime normalizes the result.** The full API response may be reduced to a structured result containing only relevant fields.
+8. **The model evaluates the result.** The agent can answer the user, request another tool, ask for missing information, or propose an action.
+9. **The runtime enforces approval when required.** A high-impact action can pause until an authorized person approves it.
+10. **The system records the run.** Logs should capture the requested tool, validated inputs, result status, latency, errors, and approval outcome without exposing secrets.
+
+The loop can repeat until the task is complete or a configured limit is reached. For more detail on the decision layer, read [How AI Agents Make Decisions (vs. Rule-Based Systems)](https://www.sim.ai/library/how-ai-agents-make-decisions-vs-rule-based-systems).
+
+## How does an AI agent decide which tool to use?
+
+An AI agent decides which tool to use by comparing the user’s goal and current context with the names, descriptions, and schemas of the tools it is allowed to access.
+
+Tool selection becomes more reliable when each tool has a distinct purpose. A vague tool named `manage_crm` forces the model to infer too much, while separate tools such as `find_contact`, `create_deal_note`, and `schedule_follow_up` provide clearer choices.
+
+Several controls can shape the decision:
+
+- **Tool descriptions:** State when the tool should and should not be used.
+- **Input schemas:** Restrict values by type, format, enumeration, or required field.
+- **System instructions:** Define policies such as “Never send a refund without approval.”
+- **Tool allowlists:** Offer only the tools needed for the current task or user.
+- **Deterministic routing:** Use application rules to require or prohibit a tool in known situations.
+- **Permission checks:** Confirm that the requesting user and agent may perform the action.
+- **Execution limits:** Cap tool calls, runtime, token usage, or retries.
+
+The model’s selection is probabilistic, but the execution policy does not have to be. A production system can let the model propose an action while deterministic code decides whether that action is valid and authorized.
+
+## What does a tool definition look like?
+
+A tool definition gives an AI agent a concise capability description and a machine-checkable input contract.
+
+A simplified tool might look like this:
+
+```json
+{
+  "name": "create_support_ticket",
+  "description": "Create a support ticket after the user confirms the summary and priority.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string" },
+      "priority": {
+        "type": "string",
+        "enum": ["low", "normal", "high"]
+      },
+      "customer_id": { "type": "string" }
+    },
+    "required": ["summary", "priority", "customer_id"]
+  }
+}
+```
+
+If the model requests this tool, the runtime should still validate the arguments, confirm the customer exists, check the user’s permissions, and enforce any approval policy before calling the ticketing API.
+
+The runtime can then return a compact result:
+
+```json
+{
+  "status": "created",
+  "ticket_id": "TICKET-4821",
+  "url": "https://support.example.com/tickets/TICKET-4821"
+}
+```
+
+Structured outputs are preferable to long, unfiltered API responses because they reduce ambiguity and keep unnecessary data out of the model context.
+
+## Can an AI agent use any API?
+
+An AI agent can use an API only when the system can reach it, authenticate to it, expose an appropriate tool, and enforce the required permissions and policies.
+
+Public REST and GraphQL APIs are common targets, but agents can also work with private internal APIs, databases, webhooks, software development kits, command-line tools, and existing workflows. Private systems may require deployment inside a company network, a secure gateway, service credentials, or an allowlisted outbound connection.
+
+An API also needs to be suitable for agent use. Good candidates have documented inputs, stable responses, clear error behavior, and actions that can be scoped. Risky candidates may expose broad administrative operations, return excessive sensitive data, or lack a safe way to retry requests.
+
+When an API is poorly documented, an OpenAPI specification or a manually written adapter can create a cleaner contract for the agent.
+
+## What is the difference between tool calling and MCP?
+
+Tool calling is the general mechanism for requesting an external capability, while the [Model Context Protocol](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro) standardizes how compatible clients discover and invoke tools and other resources from MCP servers.
+
+Without MCP, each agent application may define integrations using its own schemas and adapters. With MCP, an MCP server can expose named capabilities through a shared protocol, and a compatible client can discover those capabilities without a custom integration format for every pairing.
+
+MCP does not remove the need for security controls. The client and server still need authentication, authorization, input validation, network restrictions, output handling, and appropriate user approval. A server’s availability does not mean every agent or user should be allowed to call every exposed tool.
+
+Read [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server) for a focused explanation of MCP servers, hosts, clients, tools, resources, and prompts.
+
+## How do AI agents use multiple tools to complete one task?
+
+AI agents use multiple tools by turning one goal into a sequence of observations and actions, with each tool result informing the next step.
+
+Consider a request to “Find customers affected by yesterday’s outage and prepare follow-up messages.” An agent might:
+
+1. Query an incident-management tool for the outage window.
+2. Query a product database for affected accounts.
+3. Retrieve each account owner from a CRM tool.
+4. Draft a message using the incident facts and customer context.
+5. Ask a person to review the messages.
+6. Call an email or CRM tool only after approval.
+
+Some sequences are chosen dynamically by the model. Others should be encoded as a workflow when order, branching, approvals, or error handling must be consistent. The strongest production design often combines agentic decisions with deterministic workflow steps rather than asking a model to control every transition.
+
+## How should tool-using AI agents handle errors and retries?
+
+Tool-using AI agents should return structured errors, retry only recoverable failures, and avoid repeating side effects without an idempotency safeguard.
+
+A timeout, rate limit, invalid argument, expired credential, permission denial, and missing record are different failures. The runtime should classify them instead of returning one generic error string.
+
+Safe error handling includes:
+
+- Retrying transient network failures with bounded exponential backoff
+- Respecting API rate-limit responses
+- Using idempotency keys for operations such as creating tickets or charging payments
+- Preventing the model from retrying a denied or invalid action indefinitely
+- Returning actionable fields such as error type, retryability, and suggested correction
+- Escalating to a person when the system cannot resolve the failure safely
+- Stopping after a defined number of steps, retries, or elapsed time
+
+Read operations are generally safer to retry than write operations. Any retry policy should account for whether the first request may have succeeded even if its response was lost.
+
+## How do you secure an AI agent that uses tools and APIs?
+
+A secure tool-using AI agent applies least privilege at the user, agent, tool, credential, data, and network layers.
+
+Core controls include:
+
+- **Keep secrets outside model context.** The runtime should inject credentials only when executing the approved request.
+- **Use narrowly scoped credentials.** A read-only research agent should not receive a token capable of deleting records.
+- **Validate every argument.** Treat model-generated tool inputs as untrusted data.
+- **Authorize every action.** A valid schema does not prove that the requesting user may perform the operation.
+- **Minimize returned data.** Give the model only the fields needed for the task.
+- **Separate read and write tools.** Distinct tools make permissions and approval policies easier to enforce.
+- **Require confirmation for consequential actions.** Payments, deletions, external messages, account changes, and sensitive-data access may need human review.
+- **Constrain destinations.** Use domain, endpoint, query, and network allowlists where appropriate.
+- **Log decisions and executions.** Preserve enough detail to investigate failures without recording raw secrets.
+- **Sanitize tool output.** External content can contain malicious instructions intended to manipulate the agent.
+
+Prompt injection is especially important when an agent reads web pages, emails, documents, tickets, or tool results. Content retrieved from an external system is data, not trusted system policy. An instruction found inside that content should not be allowed to expand permissions, reveal credentials, or override approval requirements.
+
+## When should an AI agent require human approval before calling a tool?
+
+An AI agent should require human approval when a tool can create material financial, legal, security, privacy, operational, or reputational consequences.
+
+Common approval points include:
+
+- Sending external communications
+- Issuing refunds or initiating payments
+- Deleting or overwriting records
+- Changing production infrastructure
+- Modifying user access or permissions
+- Submitting legal, compliance, or procurement documents
+- Moving sensitive data between systems
+- Taking an action with low confidence or incomplete context
+
+The approval request should show the proposed action, relevant inputs, expected effect, and any irreversible consequence. Approval should authorize a specific action rather than grant the agent broad permission for future actions.
+
+## How should teams test AI agent tool calls?
+
+Teams should test AI agent tool calls at the schema, policy, integration, workflow, and end-to-end behavior layers.
+
+A useful test plan covers:
+
+- Correct tool selection for representative user requests
+- Refusal to select irrelevant or unauthorized tools
+- Missing, malformed, boundary, and adversarial inputs
+- Authentication and permission failures
+- Timeouts, rate limits, partial failures, and duplicate requests
+- Prompt injection inside tool results
+- Approval requirements for high-impact actions
+- Correct handling of sensitive fields
+- Maximum-step and retry limits
+- Final answers grounded in actual tool results
+
+Mock APIs make unit tests fast and repeatable, while sandbox environments reveal authentication, pagination, rate-limit, and response-shape problems. Production monitoring should then measure tool selection, success rates, latency, retry frequency, denials, approval outcomes, and recurring error types.
+
+## How do Sim and n8n fit into tool-using AI agent architecture?
+
+Sim and n8n can both sit in the execution layer around connected systems, but buyers should evaluate how each product combines model decisions, workflow control, integrations, deployment, and licensing.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. A practical Sim architecture can separate the model’s proposed tool call from deterministic validation, connected-system execution, approval, and result handling. Teams comparing connection-oriented platforms can read [Best AI Agent Platforms for Connecting Your Existing Tools](https://www.sim.ai/library/best-ai-agent-platforms-for-connecting-your-existing-tools).
+
+As of October 2026, [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), whose production use requires an active Sim Enterprise subscription.
+
+[n8n is a node-based workflow automation tool](https://docs.n8n.io/) and is frequently evaluated when teams need to connect applications and APIs. As of October 2026, [n8n uses the Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than OSI-approved open source.
+
+The central architecture question is not merely whether a platform has an integration. Buyers should determine whether it can expose a narrow, well-described operation to the agent; protect credentials; validate inputs; enforce permissions and approvals; handle failures; and record what happened.
+
+## What are the key facts about AI agent tools and APIs?
+
+AI agent tools and APIs work best when model flexibility is bounded by deterministic execution controls.
+
+- An AI agent chooses among tools explicitly exposed to it; it does not automatically gain access to every connected API.
+- A tool is a model-facing capability, while an API is an underlying software interface that may perform the action.
+- A trusted runtime—not the language model—should hold credentials, validate arguments, call the API, and enforce policy.
+- MCP can standardize tool discovery and invocation, but MCP does not replace authentication, authorization, or approval controls.
+- Read and write tools should be separated so teams can apply narrower permissions and safer retry behavior.
+- Human approval should protect consequential actions such as payments, deletions, access changes, and external communications.
+- Tool outputs should be treated as untrusted data because retrieved content can contain prompt-injection attempts.
+- Production testing should cover tool selection, malformed inputs, permission failures, retries, duplicate side effects, and adversarial results.

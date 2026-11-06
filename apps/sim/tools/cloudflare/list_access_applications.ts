@@ -1,3 +1,4 @@
+import { ACCESS_APPLICATION_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessApplicationsParams,
   CloudflareListAccessApplicationsResponse,
@@ -6,9 +7,11 @@ import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapAccessApplication,
+  mapCloudflareFields,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessApplicationsTool: ToolConfig<
   CloudflareListAccessApplicationsParams,
@@ -21,6 +24,12 @@ export const listAccessApplicationsTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    target_attributes: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Target Criteria attributes in key=value format.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -80,7 +89,7 @@ export const listAccessApplicationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'domain', params.domain)
@@ -89,6 +98,7 @@ export const listAccessApplicationsTool: ToolConfig<
       if (params.exact !== undefined) url.searchParams.append('exact', String(params.exact))
       appendParam(url, 'page', params.page)
       appendParam(url, 'per_page', params.per_page)
+      appendParam(url, 'target_attributes', params.target_attributes)
       return url.toString()
     },
     method: 'GET',
@@ -96,109 +106,38 @@ export const listAccessApplicationsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { applications: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Access applications'),
-      }
-    }
-
-    const applications = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        applications: applications.map(mapAccessApplication),
-        total_count: data.result_info?.total_count ?? applications.length,
+        applications: rows.map((row) => mapCloudflareFields(row, ACCESS_APPLICATION_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to list access applications') }
+        : {}),
     }
   },
-
   outputs: {
     applications: {
       type: 'array',
-      description: 'Access applications in the account',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Access application identifier' },
-          name: { type: 'string', description: 'Application name', optional: true },
-          domain: {
-            type: 'string',
-            description: 'Primary hostname and path secured by Access',
-            optional: true,
-          },
-          type: {
-            type: 'string',
-            description: 'Application type (e.g., self_hosted, saas, ssh, app_launcher, bookmark)',
-            optional: true,
-          },
-          aud: {
-            type: 'string',
-            description: 'Audience tag used to verify Access JWTs',
-            optional: true,
-          },
-          session_duration: {
-            type: 'string',
-            description: 'How long an Access session stays valid (e.g., 24h)',
-            optional: true,
-          },
-          allowed_idps: {
-            type: 'array',
-            description: 'Identity provider IDs users may authenticate with',
-            items: { type: 'string', description: 'Identity provider ID' },
-            optional: true,
-          },
-          app_launcher_visible: {
-            type: 'boolean',
-            description: 'Whether the app appears in the App Launcher',
-            optional: true,
-          },
-          auto_redirect_to_identity: {
-            type: 'boolean',
-            description: 'Whether users skip the identity provider picker',
-            optional: true,
-          },
-          custom_deny_message: {
-            type: 'string',
-            description: 'Message shown when access is denied',
-            optional: true,
-          },
-          custom_deny_url: {
-            type: 'string',
-            description: 'URL users are redirected to when access is denied',
-            optional: true,
-          },
-          logo_url: { type: 'string', description: 'Logo image URL', optional: true },
-          self_hosted_domains: {
-            type: 'array',
-            description:
-              'Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application',
-            items: { type: 'string', description: 'Hostname and path' },
-            optional: true,
-          },
-          destinations: {
-            type: 'json',
-            description: 'Public and private destinations secured by the application',
-            optional: true,
-          },
-          tags: {
-            type: 'array',
-            description: 'Tags categorizing the application',
-            items: { type: 'string', description: 'Tag name' },
-            optional: true,
-          },
-          policies: {
-            type: 'json',
-            description: 'Access policies attached to the application',
-            optional: true,
-          },
-        },
-      },
+      description: 'Applications',
+      items: { type: 'object', properties: ACCESS_APPLICATION_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of Access applications' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

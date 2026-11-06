@@ -21,7 +21,11 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
-import { archiveProjectWithLastEnvironment, lockWorkspaceProject } from '@/lib/projects/membership'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import {
+  archiveProjectWithLastEnvironment,
+  lockWorkspaceProjectExclusive,
+} from '@/lib/projects/membership'
 import { archiveWorkflowsInTransaction, finishWorkflowArchive } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -29,7 +33,7 @@ const logger = createLogger('WorkspaceLifecycle')
 
 /** Bounds each batched workflow archive statement's parameter list. */
 const WORKFLOW_ARCHIVE_BATCH_SIZE = 1_000
-/** Bounds concurrent post-commit notifications; each is best-effort and catches its own errors. */
+/** Bounds concurrent post-commit notifications and provider cleanup. */
 const ARCHIVE_NOTIFICATION_CONCURRENCY = 8
 
 /** What an environment archive must announce once its transaction commits. */
@@ -37,11 +41,22 @@ export interface EnvironmentArchiveEffects {
   workspaceId: string
   workflows: { id: string; serverIds: string[] }[]
   serverIds: string[]
+  /**
+   * Chat runs the archive stopped. The caller delivers their Stop with `deliverRunStops`:
+   * this module sits in page graphs that must not load that delivery.
+   */
+  stoppedRuns: StoppedRun[]
 }
 
 interface ArchiveWorkspaceOptions {
   requestId: string
   expectedOwnerId?: string
+  /**
+   * Starts delivering the Stop the archive committed for its live Chat runs, before the slower
+   * post-commit cleanup. Injected because this module sits in page graphs that must not load
+   * the delivery; without it the runs stop on run control's next read.
+   */
+  deliverStops?: (runs: StoppedRun[]) => void
 }
 
 interface ArchiveWorkspaceResult {
@@ -65,7 +80,7 @@ export async function archiveWorkspace(
   const now = workspaceRecord.archivedAt ?? new Date()
 
   const outcome = await db.transaction(async (tx) => {
-    const owningProject = await lockWorkspaceProject(tx, workspaceId)
+    const owningProject = await lockWorkspaceProjectExclusive(tx, workspaceId)
     /** Waits out in-flight workflow creation and restore, so their rows are archived too. */
     const [current] = await tx
       .select({ ownerId: workspace.ownerId })
@@ -87,6 +102,7 @@ export async function archiveWorkspace(
   if (!outcome) return { archived: false }
 
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  options.deliverStops?.(outcome.effects.stoppedRuns)
 
   await finishEnvironmentArchive(outcome.effects, options.requestId)
 
@@ -98,9 +114,9 @@ export async function archiveWorkspace(
 }
 
 /**
- * Archives an environment and its active workflows in the caller's transaction, batching
- * the workflow statements; callers own the Project lifecycle. Announce the returned
- * effects with {@link finishEnvironmentArchive} after commit.
+ * Archives an environment, its active workflows and its live Chat runs in the caller's
+ * transaction, batching the workflow statements; callers own the Project lifecycle. Announce
+ * the returned effects with {@link finishEnvironmentArchive} after commit.
  */
 export async function archiveEnvironmentInTransaction(
   tx: DbTransaction,
@@ -131,34 +147,49 @@ export async function archiveEnvironmentInTransaction(
     for (const id of batch) workflows.push({ id, serverIds: serverIdsByWorkflow.get(id) ?? [] })
   }
   const serverIds = await archiveWorkspaceRecordsInTransaction(tx, workspaceId, now)
-  return { workspaceId, workflows, serverIds }
+  const stoppedRuns = await stopLiveRunsTx(tx, { workspaceId })
+  return { workspaceId, workflows, serverIds, stoppedRuns }
 }
 
 /**
- * Announces a committed environment archive. Every step is best-effort and isolated, so
- * one failed notification never skips the rest.
+ * Announces a committed environment archive. Cleanup is best-effort by default; maintenance
+ * callers can require provider cleanup to succeed before recording completion.
  */
 export async function finishEnvironmentArchive(
   effects: EnvironmentArchiveEffects,
-  requestId: string
+  requestId: string,
+  options: { strictExternalCleanup?: boolean } = {}
 ): Promise<void> {
   const { workspaceId } = effects
-  await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
-    finishWorkflowArchive(row.id, workspaceId, row.serverIds, { requestId }).catch((error) =>
-      logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-        error,
+  try {
+    const cleanupErrors: unknown[] = []
+    await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>
+      finishWorkflowArchive(row.id, workspaceId, row.serverIds, {
+        requestId,
+        strictExternalCleanup: options.strictExternalCleanup,
+      }).catch((error: unknown) => {
+        if (options.strictExternalCleanup) {
+          cleanupErrors.push(error)
+          return
+        }
+        logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
+          error,
+        })
       })
     )
-  )
-  await mcpService.clearCache(workspaceId).catch(() => undefined)
-  if (!mcpPubSub) return
-  for (const serverId of effects.serverIds) {
-    try {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
-    } catch (error) {
-      logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
-        error,
-      })
+    if (cleanupErrors.length > 0) throw cleanupErrors[0]
+  } finally {
+    await mcpService.clearCache(workspaceId).catch(() => undefined)
+    if (mcpPubSub) {
+      for (const serverId of effects.serverIds) {
+        try {
+          mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+        } catch (error) {
+          logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
+            error,
+          })
+        }
+      }
     }
   }
 }

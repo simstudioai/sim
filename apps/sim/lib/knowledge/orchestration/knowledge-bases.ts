@@ -2,9 +2,9 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   auditActorFields,
   classifyKnowledgeFailure,

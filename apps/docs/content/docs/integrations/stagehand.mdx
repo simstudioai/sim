@@ -1,25 +1,21 @@
 ---
 title: Stagehand
 description: Web automation and data extraction
+integration:
+  type: "stagehand"
+  color: "#FFC83C"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="stagehand"
-  color="#FFC83C"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Stagehand](https://www.stagehand.dev/) runs browser automation using Browserbase and an LLM. Use **Extract** to retrieve page data matching a schema. Use **Agent** for a task that requires multiple browser interactions, such as navigating and filling out a form. Configure the Browserbase and model credentials required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.
-
-
+Extract structured data from webpages or run an autonomous agent to perform tasks.
 
 ## Actions
 
@@ -46,6 +42,8 @@ Extract structured data from a webpage using Stagehand
 ### Stagehand Agent
 
 Run an autonomous web agent to complete tasks and extract structured data
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,5 +79,7 @@ Run an autonomous web agent to complete tasks and extract structured data
 | `structuredOutput` | object | Extracted data matching the provided output schema |
 | `liveViewUrl` | string | Embeddable Browserbase live view URL \(active only while the session is running\) |
 | `sessionId` | string | Browserbase session identifier |
+
+</ReferenceDetails>
 
 

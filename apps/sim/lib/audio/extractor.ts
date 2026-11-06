@@ -10,7 +10,12 @@ import type {
 } from '@/lib/audio/types'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
-import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
+import {
+  ffmpegArgs,
+  ffprobeJsonArgs,
+  resolveExecutable,
+  runExecutable,
+} from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('AudioExtractor')
 
@@ -59,7 +64,7 @@ async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>): 
 
 async function runFfmpeg(args: string[], signal?: AbortSignal): Promise<void> {
   try {
-    await runExecutable(requireFfmpeg(), [...FFMPEG_BASE_ARGS, ...args], {
+    await runExecutable(requireFfmpeg(), ffmpegArgs(args), {
       maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
       signal,
       timeoutMs: CONVERSION_TIMEOUT_MS,
@@ -195,15 +200,11 @@ async function getAudioMetadataFromFile(
 ): Promise<AudioMetadata> {
   let stdout: string
   try {
-    ;({ stdout } = await runExecutable(
-      requireFfprobe(),
-      ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', filePath],
-      {
-        maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
-        signal,
-        timeoutMs: PROBE_TIMEOUT_MS,
-      }
-    ))
+    ;({ stdout } = await runExecutable(requireFfprobe(), ffprobeJsonArgs(filePath), {
+      maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
+      signal,
+      timeoutMs: PROBE_TIMEOUT_MS,
+    }))
   } catch (error) {
     signal?.throwIfAborted()
     const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }

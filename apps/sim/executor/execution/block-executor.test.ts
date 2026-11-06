@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { loggerMock } from '@sim/testing'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
@@ -5,6 +6,8 @@ import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import Groq from 'groq-sdk'
+import OpenAI from 'openai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -502,6 +505,41 @@ describe('BlockExecutor', () => {
     /** Logged here at error, so the engine and the run surfaces must see it as already logged. */
     expect(classifyFailure(thrown)).toBe('internal')
     expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
+  })
+
+  it('never surfaces a database failure that a wrapper interpolated into its own message', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = { canHandle: () => true, execute: vi.fn() }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    const databaseError = new DrizzleQueryError(
+      'insert into "workspace_files" ("user_id", "workspace_id") values ($1, $2)',
+      ['owner-secret-id', 'workspace-secret-id'],
+      Object.assign(new Error('violates foreign key constraint'), { code: '23503' })
+    )
+    const wrapped = new Error(`Failed to upload file: ${databaseError.message}`, {
+      cause: databaseError,
+    })
+    vi.mocked(validateBlockType).mockRejectedValueOnce(wrapped)
+    const message = 'An internal error occurred while executing the block. Please try again.'
+
+    const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
+
+    expect(thrown.message).toBe(`Function: ${message}`)
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    const surfaced = JSON.stringify([thrown.message, state.getBlockOutput(block.id), ctx.blockLogs])
+    expect(surfaced).not.toContain('Failed query')
+    expect(surfaced).not.toContain('owner-secret-id')
+    expect(surfaced).not.toContain('workspace-secret-id')
   })
 
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
@@ -1117,6 +1155,115 @@ describe('BlockExecutor streaming pump', () => {
     expect(loggerPayload).not.toContain('__sim_')
     expect(rawError.message).toContain(secret)
   })
+
+  /**
+   * A fetch that never answers and rejects only when its request is cancelled, so each SDK
+   * raises its own abort error through its real cancellation path.
+   */
+  const hangingFetch = (_input: unknown, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+    })
+
+  const vendorRequests = {
+    anthropic: (signal: AbortSignal) =>
+      new Anthropic({ apiKey: 'test', fetch: hangingFetch, maxRetries: 0 }).messages.create(
+        { model: 'claude-test', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] },
+        { signal }
+      ),
+    openai: (signal: AbortSignal) =>
+      new OpenAI({ apiKey: 'test', fetch: hangingFetch, maxRetries: 0 }).chat.completions.create(
+        { model: 'gpt-test', messages: [{ role: 'user', content: 'hi' }] },
+        { signal }
+      ),
+    groq: (signal: AbortSignal) =>
+      new Groq({ apiKey: 'test', fetch: hangingFetch, maxRetries: 0 }).chat.completions.create(
+        { model: 'groq-test', messages: [{ role: 'user', content: 'hi' }] },
+        { signal }
+      ),
+  }
+
+  /** An Agent handler that awaits a real SDK request, calling `abort` once it is in flight. */
+  function vendorAgentHandler(
+    vendor: keyof typeof vendorRequests,
+    signalFor: (ctx: ExecutionContext) => AbortSignal | undefined,
+    abort: () => void
+  ): BlockHandler {
+    return {
+      canHandle: () => true,
+      execute: async (blockContext) => {
+        const signal = signalFor(blockContext)
+        if (!signal) throw new Error('test handler needs a signal')
+        const request = vendorRequests[vendor](signal)
+        abort()
+        return request
+      },
+    }
+  }
+
+  it.each(Object.keys(vendorRequests) as (keyof typeof vendorRequests)[])(
+    'soft-completes an Agent block the user stopped mid-%s-request',
+    async (vendor) => {
+      const run = new AbortController()
+      const { executor, block, state } = createExecutor(
+        vendorAgentHandler(
+          vendor,
+          (blockContext) => blockContext.abortSignal,
+          () => run.abort(new DOMException('user', 'AbortError'))
+        )
+      )
+      const ctx = createContext(state)
+      ctx.abortSignal = run.signal
+
+      await executor.execute(ctx, createNode(block), block)
+
+      expect(state.getBlockOutput(block.id)).toEqual({ content: '' })
+      expect(ctx.blockLogs[0]).toMatchObject({ success: true })
+    }
+  )
+
+  it.each(Object.keys(vendorRequests) as (keyof typeof vendorRequests)[])(
+    'fails an Agent block the run time limit cut off mid-%s-request, attributed to the user',
+    async (vendor) => {
+      const run = new AbortController()
+      const { executor, block, state } = createExecutor(
+        vendorAgentHandler(
+          vendor,
+          (blockContext) => blockContext.abortSignal,
+          () => run.abort(new DOMException('timeout', 'AbortError'))
+        )
+      )
+      const ctx = createContext(state)
+      ctx.abortSignal = run.signal
+
+      const thrown = await executor.execute(ctx, createNode(block), block).catch((e) => e)
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(state.getBlockOutput(block.id)?.error).toBeTruthy()
+      expect(classifyFailure(thrown)).toBe('user')
+    }
+  )
+
+  it.each(Object.keys(vendorRequests) as (keyof typeof vendorRequests)[])(
+    'fails a %s request cancelled while the run is still live as an internal fault',
+    async (vendor) => {
+      const requestOnly = new AbortController()
+      const { executor, block, state } = createExecutor(
+        vendorAgentHandler(
+          vendor,
+          () => requestOnly.signal,
+          () => requestOnly.abort()
+        )
+      )
+      const ctx = createContext(state)
+      ctx.abortSignal = new AbortController().signal
+
+      const thrown = await executor.execute(ctx, createNode(block), block).catch((e) => e)
+
+      expect(state.getBlockOutput(block.id)?.error).toBeTruthy()
+      expect(classifyFailure(thrown)).toBe('internal')
+    }
+  )
 
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {
     const abortController = new AbortController()

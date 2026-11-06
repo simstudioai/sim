@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import type { SerializableExecutionState } from '@/executor/execution/types'
@@ -154,6 +154,53 @@ export async function getWorkflowExecutionLogStatus(
   return row?.status
 }
 
+/** The log's own correlation wins; older logs carried it only on the trigger data. */
+function selectCorrelation(
+  topLevel: unknown,
+  fromTrigger: unknown
+): Record<string, unknown> | undefined {
+  if (isRecordLike(topLevel)) return topLevel
+  return isRecordLike(fromTrigger) ? fromTrigger : undefined
+}
+
+/**
+ * The Copilot tool call an execution was launched for, from the server-persisted
+ * correlation on its log, or `undefined` when no Copilot tool call bound it.
+ */
+export async function getWorkflowExecutionCopilotToolCallId(
+  executionId: string,
+  workflowId: string
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({
+      correlation: sql<unknown>`${workflowExecutionLogs.executionData} -> 'correlation'`,
+      triggerCorrelation: sql<unknown>`${workflowExecutionLogs.executionData} #> '{trigger,data,correlation}'`,
+    })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  const toolCallId = selectCorrelation(row?.correlation, row?.triggerCorrelation)?.copilotToolCallId
+  return typeof toolCallId === 'string' ? toolCallId : undefined
+}
+
+/**
+ * The message an error finalization (`force_failed`) stored as the run's `finalOutput.error`.
+ * Any other run's `finalOutput.error` is the workflow's own data, not a failure message.
+ */
+function readFailureMessage(executionData: Record<string, unknown>): string | undefined {
+  if (typeof executionData.error === 'string') return executionData.error
+  if (executionData.finalizationPath !== 'force_failed') return undefined
+  const { finalOutput } = executionData
+  return isRecordLike(finalOutput) && typeof finalOutput.error === 'string'
+    ? finalOutput.error
+    : undefined
+}
+
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
 export async function getTrustedWorkflowToolExecution(
   executionId: string,
@@ -171,21 +218,13 @@ export async function getTrustedWorkflowToolExecution(
   const executionData = await materializeExecutionDataFromRow(row)
   const state = extractExecutionState(executionData)
   const provenance = state?.resolvedSecretTraceProvenance
-  const topLevelCorrelation = executionData?.correlation
-  const triggerCorrelation = isRecordLike(executionData?.trigger)
-    ? executionData.trigger.data
-    : undefined
-  const correlation = isRecordLike(topLevelCorrelation)
-    ? topLevelCorrelation
-    : isRecordLike(triggerCorrelation) && isRecordLike(triggerCorrelation.correlation)
-      ? triggerCorrelation.correlation
-      : undefined
+  const triggerData = isRecordLike(executionData?.trigger) ? executionData.trigger.data : undefined
+  const correlation = selectCorrelation(
+    executionData?.correlation,
+    isRecordLike(triggerData) ? triggerData.correlation : undefined
+  )
 
-  if (
-    !executionData ||
-    !isRecordLike(correlation) ||
-    correlation.copilotToolCallId !== copilotToolCallId
-  ) {
+  if (!executionData || correlation?.copilotToolCallId !== copilotToolCallId) {
     return null
   }
 
@@ -206,7 +245,7 @@ export async function getTrustedWorkflowToolExecution(
     ...(Object.hasOwn(executionData, 'finalOutput')
       ? { finalOutput: executionData.finalOutput }
       : {}),
-    ...(typeof executionData.error === 'string' ? { error: executionData.error } : {}),
+    ...filterUndefined({ error: readFailureMessage(executionData) }),
     blockLogs: state.blockLogs,
     provenance,
   }

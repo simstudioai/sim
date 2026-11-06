@@ -9,6 +9,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -116,7 +117,7 @@ export const attioHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing credentialId for Attio webhook creation.`, {
           webhookId: webhookRecord.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Attio account connection required. Please connect your Attio account in the trigger configuration and try again.'
         )
       }
@@ -222,6 +223,7 @@ export const attioHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId: webhookId, webhookSecret: secret || '' } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const message = toError(error).message
       logger.error(
         `[${requestId}] Exception during Attio webhook creation for webhook ${webhookRecord.id}.`,

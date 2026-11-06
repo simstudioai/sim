@@ -1,43 +1,34 @@
 ---
 title: Azure DevOps
 description: Interact with Azure DevOps pipelines, builds, and work items
+integration:
+  type: "azure_devops"
+  color: "#0078D4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="azure_devops"
-  color="#0078D4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Azure DevOps](https://azure.microsoft.com/en-us/products/devops) is Microsoft's end-to-end DevOps platform for planning, building, testing, and shipping software. It powers engineering at tens of thousands of enterprises across automotive, financial services, government, and any organization built on the Microsoft stack.
+Use [Azure DevOps](https://azure.microsoft.com/en-us/products/devops) to inspect pipelines and run history, retrieve build timelines and logs, and manage work items and comments.
 
-With the Azure DevOps integration in Sim, you can:
-
-- **Inspect pipelines and runs**: List pipelines, fetch metadata, and walk through run history with status and result
-- **Triage build failures**: Pull build timelines to see which stage, job, or task failed, then fetch the exact log for the failing step
-- **Audit changes between builds**: Surface the work items that landed between any two builds — useful for release notes and regression hunts
-- **Query work items with WIQL**: Run full WIQL queries and get hydrated work item fields back in a single call, not just IDs
-- **Manage work item lifecycle**: Create, update, and read Issues, Tasks, and Epics with structured fields — title, description, priority, assignee, area path, iteration, tags, effort, and dates
-- **Collaborate via comments**: Add internal or public comments to work items and read full comment history
-- **React in real time**: Trigger workflows when builds fail or new work items are created via Azure DevOps service hooks
-
-These capabilities let your Sim agents close the loop on the DevOps lifecycle — automatically triaging broken builds, drafting release notes between deployments, syncing work items across systems, and keeping engineering operations running while your team focuses on shipping.
+- Compare work items between builds to prepare release notes or investigate a regression.
+- Run WIQL queries to return hydrated work item fields, rather than IDs alone.
+- Create or update work items with titles, descriptions, priority, assignees, area paths, iterations, tags, effort, and dates.
+- Start workflows from service hooks when builds fail or work items are created.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.
-
-
+List and inspect pipelines and builds, query and manage work items, and add or read comments.
 
 ## Actions
 
 ### Azure DevOps List Pipelines
 
 List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder, revision, and URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +54,13 @@ List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder
 |     ↳ `revision` | number | Pipeline revision number |
 |     ↳ `url` | string | Pipeline API URL |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Pipeline
 
 Get details for a specific pipeline in an Azure DevOps project, including configuration and repository info.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,9 +93,13 @@ Get details for a specific pipeline in an Azure DevOps project, including config
 |       ↳ `self` | string | API self-link |
 |       ↳ `web` | string | Browser URL for the pipeline |
 
+</ReferenceDetails>
+
 ### Azure DevOps List Pipeline Runs
 
 List runs for a specific pipeline in an Azure DevOps project. Returns run ID, name, state, result, and timestamps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +126,13 @@ List runs for a specific pipeline in an Azure DevOps project. Returns run ID, na
 |     ↳ `url` | string | Run API URL |
 |     ↳ `webUrl` | string | Browser URL for the run |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Pipeline Run
 
 Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +165,13 @@ Get details for a specific pipeline run in an Azure DevOps project. Returns run 
 |       ↳ `revision` | number | Pipeline revision number |
 |       ↳ `url` | string | Pipeline API URL |
 
+</ReferenceDetails>
+
 ### Azure DevOps List Builds
 
 List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -200,9 +207,13 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 |       ↳ `name` | string | Definition name |
 |     ↳ `webUrl` | string | Browser URL for the build |
 
+</ReferenceDetails>
+
 ### Azure DevOps List Build Logs
 
 List all log entries for a specific build in Azure DevOps. Returns log IDs, types, and line counts — use the log ID with the Get Build Log tool to fetch actual log text.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -227,9 +238,13 @@ List all log entries for a specific build in Azure DevOps. Returns log IDs, type
 |     ↳ `createdOn` | string | ISO 8601 creation timestamp |
 |     ↳ `lastChangedOn` | string | ISO 8601 last-changed timestamp |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Build Log
 
 Fetch the text content of a specific build log in Azure DevOps. Use List Build Logs first to get the log ID. Optionally retrieve only a line range with startLine/endLine.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -250,9 +265,13 @@ Fetch the text content of a specific build log in Azure DevOps. Use List Build L
 | `metadata` | object | Log metadata |
 |   ↳ `lineCount` | number | Number of lines in the returned log text |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Build Timeline
 
 Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -291,9 +310,13 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 |     ↳ `startTime` | string | ISO 8601 start timestamp |
 |     ↳ `finishTime` | string | ISO 8601 finish timestamp |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Work Items Between Builds
 
 Get work item references associated with commits between two builds in Azure DevOps. Returns work item IDs and URLs — use Get Work Items Batch for full field details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +338,13 @@ Get work item references associated with commits between two builds in Azure Dev
 |     ↳ `id` | string | Work item ID |
 |     ↳ `url` | string | API URL for the work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Query Work Items
 
 Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -344,9 +371,13 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Work Item
 
 Fetch full details of a single work item by ID from Azure DevOps, including title, state, type, assignee, and area path.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,9 +402,13 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Work Items Batch
 
 Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +435,13 @@ Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-s
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Create Work Item
 
 Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Returns the created work item with its assigned ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -440,9 +479,13 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the created work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Update Work Item
 
 Update one or more fields on an existing work item in Azure DevOps. Provide only the fields you want to change.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -480,9 +523,13 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
 
+</ReferenceDetails>
+
 ### Azure DevOps Add Comment
 
 Add a comment to a work item in Azure DevOps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -512,9 +559,13 @@ Add a comment to a work item in Azure DevOps.
 |     ↳ `isDeleted` | boolean | Whether the comment is deleted |
 |     ↳ `url` | string | API URL for the comment |
 
+</ReferenceDetails>
+
 ### Azure DevOps Get Comments
 
 List comments for an Azure DevOps work item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -553,11 +604,13 @@ List comments for an Azure DevOps work item.
 |     ↳ `isDeleted` | boolean | Whether the comment is deleted |
 |     ↳ `url` | string | API URL for the comment |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Azure DevOps Build Failed
 

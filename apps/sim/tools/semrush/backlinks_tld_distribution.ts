@@ -20,7 +20,7 @@ export const semrushBacklinksTldDistributionTool: ToolConfig<
   id: 'semrush_backlinks_tld_distribution',
   name: 'Semrush Backlink TLD Distribution',
   description:
-    'Break a target backlink profile down by the top-level domain of its referring domains.',
+    'Break a target’s backlink profile down by the top-level domain of its referring domains.',
   version: '1.0.0',
 
   params: {

@@ -67,7 +67,7 @@ export const TemporalBlock: BlockConfig = {
   name: 'Temporal',
   description: 'Start, signal, query, and manage Temporal workflow executions',
   longDescription:
-    "Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.",
+    'Use a Temporal server’s HTTP API to start or signal executions, query or update workflow state, inspect execution history and workers, manage schedules, and cancel, terminate, or reset executions. Supply an API key when the server requires bearer authentication.',
   docsLink: 'https://docs.sim.ai/integrations/temporal',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

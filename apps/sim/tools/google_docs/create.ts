@@ -1,20 +1,19 @@
-import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('GoogleDocsCreateTool')
 
 const DOC_MIME_TYPE = 'application/vnd.google-apps.document'
 
 /**
  * Build a multipart/related body for Drive's files.create upload endpoint.
- * Used when converting Markdown to a Google Doc in a single round-trip.
+ * Creates the document and its content atomically through Drive import conversion.
  * See: https://developers.google.com/workspace/drive/api/guides/manage-uploads
  */
-function buildMarkdownMultipartBody(
+function buildContentMultipartBody(
   metadata: Record<string, unknown>,
-  markdownContent: string,
+  content: string,
+  markdown: boolean,
   boundary: string
 ): string {
   return (
@@ -22,14 +21,14 @@ function buildMarkdownMultipartBody(
     `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
     `${JSON.stringify(metadata)}\r\n` +
     `--${boundary}\r\n` +
-    `Content-Type: text/markdown\r\n\r\n` +
-    `${markdownContent}\r\n` +
+    `Content-Type: ${markdown ? 'text/markdown' : 'text/plain'}; charset=UTF-8\r\n\r\n` +
+    `${content}\r\n` +
     `--${boundary}--`
   )
 }
 
-function shouldUseMarkdownUpload(params: GoogleDocsToolParams): boolean {
-  return Boolean(params.markdown && params.content)
+function hasContent(params: GoogleDocsToolParams): boolean {
+  return Boolean(params.content)
 }
 
 export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateResponse> = {
@@ -37,6 +36,15 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   name: 'Create Google Docs Document',
   description: 'Create a new Google Docs document',
   version: '1.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'folderSelector', label: 'Folder', target: true },
+      { name: 'title', label: 'Title', editable: true },
+      { name: 'content', label: 'Content', format: 'multiline', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,
@@ -85,7 +93,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
   request: {
     url: (params) => {
-      return shouldUseMarkdownUpload(params)
+      return hasContent(params)
         ? 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true'
         : 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
     },
@@ -95,9 +103,9 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         throw new Error('Access token is required')
       }
 
-      if (shouldUseMarkdownUpload(params)) {
-        const boundary = `sim_gdocs_md_${generateShortId(24)}`
-        // Stash on params so body() uses the matching boundary string
+      if (hasContent(params)) {
+        const boundary = `sim_gdocs_${generateShortId(24)}`
+        // The request builder passes this same object to body().
         ;(params as GoogleDocsToolParams & { _boundary?: string })._boundary = boundary
         return {
           Authorization: `Bearer ${params.accessToken}`,
@@ -124,89 +132,39 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         metadata.parents = [folderId]
       }
 
-      if (shouldUseMarkdownUpload(params)) {
+      if (hasContent(params)) {
         const boundary = (params as GoogleDocsToolParams & { _boundary?: string })._boundary
         if (!boundary) {
-          // headers() runs before body() in prepareToolRequest and stashes the boundary
-          // on the same params reference. Missing _boundary means that contract was broken,
-          // which would silently produce a Content-Type / body boundary mismatch (HTTP 400).
-          // Throw loudly instead of fabricating a mismatched boundary.
           throw new Error(
-            'Multipart boundary missing on params — headers() must run before body() for markdown upload'
+            'Multipart boundary missing on params — headers() must run before body() for content upload'
           )
         }
-        return buildMarkdownMultipartBody(metadata, params.content ?? '', boundary)
+        return buildContentMultipartBody(
+          metadata,
+          params.content ?? '',
+          Boolean(params.markdown),
+          boundary
+        )
       }
 
       return metadata
     },
   },
 
-  postProcess: async (result, params, executeTool) => {
-    if (!result.success) {
-      return result
-    }
-
-    const documentId = result.output.metadata.documentId
-
-    // When the markdown upload path ran, content was already inserted via Drive's
-    // text/markdown import conversion during files.create — no follow-up write needed.
-    if (shouldUseMarkdownUpload(params)) {
-      return result
-    }
-
-    if (params.content && documentId) {
-      try {
-        const writeParams = {
-          accessToken: params.accessToken,
-          documentId: documentId,
-          content: params.content,
-        }
-
-        const writeResult = await executeTool('google_docs_write', writeParams)
-
-        if (!writeResult.success) {
-          logger.warn(
-            'Failed to add content to document, but document was created:',
-            writeResult.error
-          )
-        }
-      } catch (error) {
-        logger.warn('Error adding content to document:', { error })
-        // Don't fail the overall operation if adding content fails
-      }
-    }
-
-    return result
-  },
-
   transformResponse: async (response: Response) => {
-    try {
-      // Get the response data
-      const responseText = await response.text()
-      const data = JSON.parse(responseText)
-
-      const documentId = data.id
-      const title = data.name
-
-      const metadata = {
-        documentId,
-        title: title || 'Untitled Document',
-        mimeType: DOC_MIME_TYPE,
-        url: `https://docs.google.com/document/d/${documentId}/edit`,
-      }
-
-      return {
-        success: true,
-        output: {
-          metadata,
+    const data = toRecord(await response.json())
+    if (typeof data.id !== 'string' || !data.id)
+      throw new Error('Google Drive returned no document ID')
+    return {
+      success: true,
+      output: {
+        metadata: {
+          documentId: data.id,
+          title: typeof data.name === 'string' ? data.name : 'Untitled Document',
+          mimeType: DOC_MIME_TYPE,
+          url: `https://docs.google.com/document/d/${data.id}/edit`,
         },
-      }
-    } catch (error) {
-      logger.error('Google Docs create - Error processing response:', {
-        error,
-      })
-      throw error
+      },
     }
   },
 

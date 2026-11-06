@@ -1,4 +1,8 @@
-import { ACCESS_TOKEN_PARAM, CREDENTIAL_PARAM } from '@/tools/managed_agent/shared'
+import {
+  ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
+  CREDENTIAL_PARAM,
+} from '@/tools/managed_agent/shared'
 import type {
   ManagedAgentCreateSessionParams,
   ManagedAgentCreateSessionResponse,
@@ -26,6 +30,7 @@ export const managedAgentCreateSessionTool: InternalToolConfig<
   description:
     'Create a Claude Platform Managed Agent session and return its id without waiting for a reply.',
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

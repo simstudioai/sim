@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   connectorSynced: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgeProvenanceUserId: (_headers: Headers, principal: { subjectUserId?: string }) =>

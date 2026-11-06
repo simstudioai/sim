@@ -83,18 +83,14 @@ export const gmailPollingHandler: PollingProviderHandler = {
         requestId,
         logger
       )
+      const pollState = {
+        lastCheckedTimestamp: now.toISOString(),
+        // Omit unless this poll held a cursor, so it can't clear one an overlapping poll stored.
+        ...(config.historyId || latestHistoryId ? { historyId: latestHistoryId } : {}),
+      }
 
       if (!emails || !emails.length) {
-        await updateWebhookProviderConfig(
-          webhookId,
-          {
-            lastCheckedTimestamp: now.toISOString(),
-            ...(latestHistoryId || config.historyId
-              ? { historyId: latestHistoryId || config.historyId }
-              : {}),
-          },
-          logger
-        )
+        await updateWebhookProviderConfig(webhookId, pollState, logger)
         await markWebhookSuccess(webhookId, logger)
         logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
         return 'success'
@@ -112,16 +108,7 @@ export const gmailPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      await updateWebhookProviderConfig(
-        webhookId,
-        {
-          lastCheckedTimestamp: now.toISOString(),
-          ...(latestHistoryId || config.historyId
-            ? { historyId: latestHistoryId || config.historyId }
-            : {}),
-        },
-        logger
-      )
+      await updateWebhookProviderConfig(webhookId, pollState, logger)
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
@@ -174,8 +161,17 @@ async function fetchNewEmails(
 
         if (!historyResponse.ok) {
           const status = historyResponse.status
+
+          if (status === 404 || status === 400) {
+            await historyResponse.body?.cancel().catch(() => {})
+            logger.info(
+              `[${requestId}] Gmail rejected history cursor ${config.historyId} (${status}); resyncing through search`
+            )
+            return resyncAfterExpiredHistory(accessToken, config, requestId, logger)
+          }
+
           const errorData = await historyResponse.json().catch(() => ({}))
-          logger.error(`[${requestId}] Gmail history API error:`, {
+          logger.warn(`[${requestId}] Gmail history API error:`, {
             status,
             statusText: historyResponse.statusText,
             error: errorData,
@@ -188,17 +184,7 @@ async function fetchNewEmails(
           }
 
           logger.info(`[${requestId}] Falling back to search API after history API error ${status}`)
-          const searchResult = await searchEmails(accessToken, config, requestId, logger)
-          if (searchResult.emails.length === 0) {
-            const freshHistoryId = await getGmailProfileHistoryId(accessToken, requestId, logger)
-            if (freshHistoryId) {
-              logger.info(
-                `[${requestId}] Fetched fresh historyId ${freshHistoryId} after invalid historyId (was: ${config.historyId})`
-              )
-              return { emails: [], latestHistoryId: freshHistoryId }
-            }
-          }
-          return searchResult
+          return searchEmails(accessToken, config, requestId, logger)
         }
 
         const historyData = await historyResponse.json()
@@ -382,6 +368,29 @@ async function searchEmails(
     logger.error(`[${requestId}] Error searching emails:`, errorMessage)
     throw error
   }
+}
+
+/**
+ * Full-syncs through search after Gmail rejects the history cursor (404 once it ages out of
+ * retained history). Adopts a new cursor but never the rejected one, which a quiet mailbox's
+ * profile still reports, so the webhook polls through search until matching mail supplies one.
+ */
+async function resyncAfterExpiredHistory(
+  accessToken: string,
+  config: GmailWebhookConfig,
+  requestId: string,
+  logger: Logger
+) {
+  const searchResult = await searchEmails(accessToken, config, requestId, logger)
+  const candidate =
+    searchResult.latestHistoryId !== config.historyId
+      ? searchResult.latestHistoryId
+      : await getGmailProfileHistoryId(accessToken, requestId, logger)
+  const latestHistoryId = candidate && candidate !== config.historyId ? candidate : undefined
+  if (!latestHistoryId) {
+    logger.info(`[${requestId}] No replacement Gmail history cursor yet; polling through search`)
+  }
+  return { emails: searchResult.emails, latestHistoryId }
 }
 
 async function getGmailProfileHistoryId(

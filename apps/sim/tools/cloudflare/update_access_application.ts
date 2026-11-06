@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { ACCESS_APPLICATION_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareAccessApplicationResponse,
   CloudflareUpdateAccessApplicationParams,
@@ -5,13 +7,14 @@ import type {
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyAccessApplication,
-  mapAccessApplication,
+  mapCloudflareFields,
   parseCsvParam,
   parseJsonArrayParam,
   parseJsonObjectParam,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateAccessApplicationTool: ToolConfig<
   CloudflareUpdateAccessApplicationParams,
@@ -24,6 +27,188 @@ export const updateAccessApplicationTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    destinations: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array. List of destinations secured by Access. This supersedes `self_hosted_domains` to allow for more flexibility in defining different types of domains. If `destinations` are provided, then `self_hosted_domains` will be ignored. Fields: overrides, type, uri, cidr, hostname, l4_protocol, port_range, vnet_id, mcp_server_id, worker_id.',
+    },
+    oauth_configuration: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Required for end_user applications. **Beta:** Optional configuration for managing an OAuth authorization flow controlled by Access. When set, Access will act as the OAuth authorization server for this application. Only compatible with OAuth clients that support [RFC 8707](https://datatracker.ietf.org/doc/html/rfc8707) (Resource Indicators for OAuth 2.0). This feature is currently in beta. Fields: dynamic_client_registration, enabled, grant.',
+    },
+    self_hosted_domains: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array. List of public domains that Access will secure. This field is deprecated in favor of `destinations` and will be supported until **November 21, 2025.** If `destinations` are provided, then `self_hosted_domains` will be ignored.',
+    },
+    user_populations: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array. Required for end_user applications. The single user population associated with this application.',
+    },
+    allow_authenticate_via_warp: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When set to true, users can authenticate to this application using their WARP session. When set to false this application will always require direct IdP authentication. This setting always overrides the organization setting for WARP authentication.',
+    },
+    allow_iframe: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Enables loading application content in an iFrame.',
+    },
+    cors_headers: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. cors headers Fields: allow_all_headers, allow_all_methods, allow_all_origins, allow_credentials, allowed_headers, allowed_methods, allowed_origins, max_age.',
+    },
+    custom_non_identity_deny_url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The custom URL a user is redirected to when they are denied access to the application when failing non-identity rules.',
+    },
+    custom_pages: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array. The custom pages that will be displayed when applicable for this application',
+    },
+    eager_redirect_cookie_setting: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Preemptively sets the Access session cookie on every hostname in a multi-hostname self-hosted application during the initial redirect chain, rather than setting it lazily on first visit. Defaults to true. Set to false to disable the eager redirect cookie behavior.',
+    },
+    enable_binding_cookie: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Enables the binding cookie, which increases security against compromised authorization tokens and CSRF attacks.',
+    },
+    http_only_cookie_attribute: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Enables the HttpOnly cookie attribute, which increases security against XSS attacks.',
+    },
+    mfa_config: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Configures multi-factor authentication (MFA) settings. Fields: allowed_authenticators, mfa_disabled, session_duration.',
+    },
+    options_preflight_bypass: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Allows options preflight requests to bypass Access authentication and go directly to the origin. Cannot turn on if cors_headers is set.',
+    },
+    path_cookie_attribute: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Enables cookie paths to scope an application's JWT to the application path. If disabled, the JWT will scope to the hostname by default",
+    },
+    read_service_tokens_from_header: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Allows matching Access Service Tokens passed HTTP in a single header with this name. This works as an alternative to the (CF-Access-Client-Id, CF-Access-Client-Secret) pair of headers. The header value will be interpreted as a json object similar to: { "cf-access-client-id": "<CLIENT_ID>", "cf-access-client-secret": "<CLIENT_SECRET>" }',
+    },
+    same_site_cookie_attribute: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sets the SameSite cookie setting, which provides increased security against CSRF attacks.',
+    },
+    scim_config: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Configuration for provisioning to this application via SCIM. This is currently in closed beta. Fields: authentication, deactivate_on_delete, enabled, idp_uid, mappings, remote_uri.',
+    },
+    service_auth_401_redirect: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Returns a 401 status code when the request is blocked by a Service Auth policy.',
+    },
+    skip_interstitial: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Enables automatic authentication through cloudflared.',
+    },
+    use_clientless_isolation_app_launcher_url: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Determines if users can access this application via a clientless browser isolation URL. This allows users to access private domains without connecting to Gateway. The option requires Clientless Browser Isolation to be set up with policies that allow users of this application.',
+    },
+    app_launcher_logo_url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The image URL of the logo shown in the App Launcher header.',
+    },
+    bg_color: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The background color of the App Launcher page.',
+    },
+    footer_links: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array. The links in the App Launcher footer. Fields: name, url.',
+    },
+    header_bg_color: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The background color of the App Launcher header.',
+    },
+    landing_page_design: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. The design of the App Launcher landing page shown to users when they log in. Fields: button_color, button_text_color, image_url, message, title.',
+    },
+    skip_app_launcher_login_page: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Determines when to skip the App Launcher landing page.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -41,7 +226,7 @@ export const updateAccessApplicationTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint. dash_sso has no request variant and cannot be written through the API',
+        'Application type: self_hosted, end_user, saas, ssh, vnc, app_launcher, warp, biso, bookmark, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint. dash_sso has no request variant and cannot be written through the API',
     },
     domain: {
       type: 'string',
@@ -135,7 +320,7 @@ export const updateAccessApplicationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}`,
     method: 'PUT',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
@@ -176,88 +361,90 @@ export const updateAccessApplicationTool: ToolConfig<
       const targetCriteria = parseJsonArrayParam(params.targetCriteria, 'Target Criteria')
       if (targetCriteria) body.target_criteria = targetCriteria
 
+      if (params.destinations !== undefined && params.destinations !== '')
+        body.destinations = parseJsonArrayParam(params.destinations, 'destinations')
+      if (params.oauth_configuration !== undefined && params.oauth_configuration !== '')
+        body.oauth_configuration = parseJsonObjectParam(
+          params.oauth_configuration,
+          'oauth_configuration'
+        )
+      if (params.self_hosted_domains !== undefined && params.self_hosted_domains !== '')
+        body.self_hosted_domains = parseJsonArrayParam(
+          params.self_hosted_domains,
+          'self_hosted_domains'
+        )
+      if (params.user_populations !== undefined && params.user_populations !== '')
+        body.user_populations = parseJsonArrayParam(params.user_populations, 'user_populations')
+      if (params.allow_authenticate_via_warp !== undefined)
+        body.allow_authenticate_via_warp = params.allow_authenticate_via_warp
+      if (params.allow_iframe !== undefined) body.allow_iframe = params.allow_iframe
+      if (params.cors_headers !== undefined && params.cors_headers !== '')
+        body.cors_headers = parseJsonObjectParam(params.cors_headers, 'cors_headers')
+      if (
+        params.custom_non_identity_deny_url !== undefined &&
+        params.custom_non_identity_deny_url !== ''
+      )
+        body.custom_non_identity_deny_url = params.custom_non_identity_deny_url
+      if (params.custom_pages !== undefined && params.custom_pages !== '')
+        body.custom_pages = parseJsonArrayParam(params.custom_pages, 'custom_pages')
+      if (params.eager_redirect_cookie_setting !== undefined)
+        body.eager_redirect_cookie_setting = params.eager_redirect_cookie_setting
+      if (params.enable_binding_cookie !== undefined)
+        body.enable_binding_cookie = params.enable_binding_cookie
+      if (params.http_only_cookie_attribute !== undefined)
+        body.http_only_cookie_attribute = params.http_only_cookie_attribute
+      if (params.mfa_config !== undefined && params.mfa_config !== '')
+        body.mfa_config = parseJsonObjectParam(params.mfa_config, 'mfa_config')
+      if (params.options_preflight_bypass !== undefined)
+        body.options_preflight_bypass = params.options_preflight_bypass
+      if (params.path_cookie_attribute !== undefined)
+        body.path_cookie_attribute = params.path_cookie_attribute
+      if (
+        params.read_service_tokens_from_header !== undefined &&
+        params.read_service_tokens_from_header !== ''
+      )
+        body.read_service_tokens_from_header = params.read_service_tokens_from_header
+      if (
+        params.same_site_cookie_attribute !== undefined &&
+        params.same_site_cookie_attribute !== ''
+      )
+        body.same_site_cookie_attribute = params.same_site_cookie_attribute
+      if (params.scim_config !== undefined && params.scim_config !== '')
+        body.scim_config = parseJsonObjectParam(params.scim_config, 'scim_config')
+      if (params.service_auth_401_redirect !== undefined)
+        body.service_auth_401_redirect = params.service_auth_401_redirect
+      if (params.skip_interstitial !== undefined) body.skip_interstitial = params.skip_interstitial
+      if (params.use_clientless_isolation_app_launcher_url !== undefined)
+        body.use_clientless_isolation_app_launcher_url =
+          params.use_clientless_isolation_app_launcher_url
+      if (params.app_launcher_logo_url !== undefined && params.app_launcher_logo_url !== '')
+        body.app_launcher_logo_url = params.app_launcher_logo_url
+      if (params.bg_color !== undefined && params.bg_color !== '') body.bg_color = params.bg_color
+      if (params.footer_links !== undefined && params.footer_links !== '')
+        body.footer_links = parseJsonArrayParam(params.footer_links, 'footer_links')
+      if (params.header_bg_color !== undefined && params.header_bg_color !== '')
+        body.header_bg_color = params.header_bg_color
+      if (params.landing_page_design !== undefined && params.landing_page_design !== '')
+        body.landing_page_design = parseJsonObjectParam(
+          params.landing_page_design,
+          'landing_page_design'
+        )
+      if (params.skip_app_launcher_login_page !== undefined)
+        body.skip_app_launcher_login_page = params.skip_app_launcher_login_page
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyAccessApplication(),
-        error: cloudflareErrorMessage(data, 'Failed to update Access application'),
-      }
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
+    return {
+      success,
+      output: mapCloudflareFields(data.result, ACCESS_APPLICATION_OUTPUTS),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to update access application') }
+        : {}),
     }
-
-    return { success: true, output: mapAccessApplication(data.result) }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Access application identifier' },
-    name: { type: 'string', description: 'Application name', optional: true },
-    domain: {
-      type: 'string',
-      description: 'Primary hostname and path secured by Access',
-      optional: true,
-    },
-    type: { type: 'string', description: 'Application type', optional: true },
-    aud: { type: 'string', description: 'Audience tag used to verify Access JWTs', optional: true },
-    session_duration: {
-      type: 'string',
-      description: 'How long an Access session stays valid',
-      optional: true,
-    },
-    allowed_idps: {
-      type: 'array',
-      description: 'Identity provider IDs users may authenticate with',
-      items: { type: 'string', description: 'Identity provider ID' },
-      optional: true,
-    },
-    app_launcher_visible: {
-      type: 'boolean',
-      description: 'Whether the app appears in the App Launcher',
-      optional: true,
-    },
-    auto_redirect_to_identity: {
-      type: 'boolean',
-      description: 'Whether users skip the identity provider picker',
-      optional: true,
-    },
-    custom_deny_message: {
-      type: 'string',
-      description: 'Message shown when access is denied',
-      optional: true,
-    },
-    custom_deny_url: {
-      type: 'string',
-      description: 'URL users are redirected to when access is denied',
-      optional: true,
-    },
-    logo_url: { type: 'string', description: 'Logo image URL', optional: true },
-    self_hosted_domains: {
-      type: 'array',
-      description:
-        'Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application',
-      items: { type: 'string', description: 'Hostname and path' },
-      optional: true,
-    },
-    destinations: {
-      type: 'json',
-      description: 'Public and private destinations secured by the application',
-      optional: true,
-    },
-    tags: {
-      type: 'array',
-      description: 'Tags categorizing the application',
-      items: { type: 'string', description: 'Tag name' },
-      optional: true,
-    },
-    policies: {
-      type: 'json',
-      description: 'Access policies attached to the application',
-      optional: true,
-    },
-  },
+  outputs: ACCESS_APPLICATION_OUTPUTS,
 }

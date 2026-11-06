@@ -60,7 +60,7 @@ import {
   parseConnectionString,
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
-import { sanitizeFilenameForMetadata } from '@/lib/uploads/utils/file-utils'
+import { sanitizeFilenameForMetadata } from '@/lib/uploads/utils/file'
 
 setUploadsConfig({
   BLOB_CONFIG: {

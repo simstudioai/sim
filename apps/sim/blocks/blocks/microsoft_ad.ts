@@ -128,7 +128,7 @@ export const MicrosoftAdBlock: BlockConfig = {
   name: 'Azure AD',
   description: 'Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)',
   longDescription:
-    'Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.',
+    'Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,

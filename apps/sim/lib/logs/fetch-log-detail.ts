@@ -194,6 +194,7 @@ export async function readLogDetail({
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
+      workflowArchivedAt: workflow.archivedAt,
       deploymentVersion: workflowDeploymentVersion.version,
       deploymentVersionName: workflowDeploymentVersion.name,
       pausedStatus: pausedExecutions.status,
@@ -224,6 +225,7 @@ export async function readLogDetail({
           workspaceId: log.workflowWorkspaceId,
           createdAt: log.workflowCreatedAt?.toISOString() ?? null,
           updatedAt: log.workflowUpdatedAt?.toISOString() ?? null,
+          archivedAt: log.workflowArchivedAt?.toISOString() ?? null,
         }
       : null
 

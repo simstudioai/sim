@@ -10,7 +10,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
-import { isGemini3Model } from '@/providers/utils'
+import { isGemini3OrLaterModel } from '@/providers/utils'
 
 const logger = createLogger('VertexProvider')
 
@@ -37,11 +37,11 @@ export const vertexProvider: ProviderConfig = {
   ): Promise<ProviderResponse | StreamingExecution> => {
     const model = request.model.replace(/^vertex\//i, '')
     const vertexProject = request.vertexProject || env.VERTEX_PROJECT
-    /** Gemini 3 models use global or multi-region endpoints instead of legacy regions. */
+    /** Gemini 3 and later use global or multi-region endpoints instead of legacy regions. */
     const vertexLocation = (
       request.vertexLocation ||
       env.VERTEX_LOCATION ||
-      (isGemini3Model(model) ? 'global' : 'us-central1')
+      (isGemini3OrLaterModel(model) ? 'global' : 'us-central1')
     ).toLowerCase()
 
     if (!vertexProject) {

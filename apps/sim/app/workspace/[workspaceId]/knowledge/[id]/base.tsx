@@ -54,7 +54,7 @@ import {
 } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   FOLDERED_RESOURCE_HEADERS,

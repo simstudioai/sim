@@ -40,7 +40,7 @@ const hoisted = vi.hoisted(() => ({
   personal: vi.fn(),
   startOAuth: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   listCredentialProviderCatalog: hoisted.catalog,

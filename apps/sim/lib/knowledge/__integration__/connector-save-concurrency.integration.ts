@@ -14,6 +14,8 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,13 +105,85 @@ describe('independent connector saves in one knowledge base', () => {
     await db
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}->>'workspaceId' = ${ids.workspaceId}`)
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })
   afterAll(async () => {
     await rm(fixtureStorage.root, { recursive: true, force: true })
     await db.$client.end()
+  })
+
+  it('keeps retained chunk tags consistent during metadata-only connector refresh', async () => {
+    const item = await source('retry hash')
+    const chunkId = generateId()
+    const refreshedTags = {
+      tag1: 'current',
+      tag2: null,
+      number1: 3.5,
+      boolean1: true,
+      date1: new Date('2026-10-01T00:00:00.000Z'),
+    }
+    await db
+      .update(document)
+      .set({ tag1: 'old', tag2: 'cleared', chunkCount: 1 })
+      .where(eq(document.id, item.documentId))
+    await db.insert(embedding).values({
+      id: chunkId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      documentId: item.documentId,
+      chunkIndex: 0,
+      chunkHash: sha256Hex('retained content'),
+      content: 'retained content',
+      contentLength: 16,
+      tokenCount: 4,
+      startOffset: 0,
+      endOffset: 16,
+      embedding: Array(1536).fill(0.2),
+      tag1: 'old',
+      tag2: 'cleared',
+    })
+    await persistHashOnlyUpdates(
+      ids.knowledgeBaseId,
+      ids.connectorId,
+      [
+        {
+          existingId: item.documentId,
+          externalId: item.extDoc.externalId,
+          contentHash: 'refreshed-hash',
+          sourceMetadata: { sourceUrl: null, sourceModifiedAt: null, ...refreshedTags },
+        },
+      ],
+      { stillHeld: () => stillHoldsSyncLock(ids.connectorId, ids.lockId) }
+    )
+    expect(
+      await db
+        .select({
+          tag1: document.tag1,
+          tag2: document.tag2,
+          number1: document.number1,
+          boolean1: document.boolean1,
+          date1: document.date1,
+          count: document.chunkCount,
+          status: document.processingStatus,
+        })
+        .from(document)
+        .where(eq(document.id, item.documentId))
+    ).toEqual([{ ...refreshedTags, count: 1, status: 'completed' }])
+    expect(
+      await db
+        .select({
+          tag1: embedding.tag1,
+          tag2: embedding.tag2,
+          number1: embedding.number1,
+          boolean1: embedding.boolean1,
+          date1: embedding.date1,
+          content: embedding.content,
+          id: embedding.id,
+        })
+        .from(embedding)
+        .where(eq(embedding.documentId, item.documentId))
+    ).toEqual([{ ...refreshedTags, content: 'retained content', id: chunkId }])
   })
 
   async function source(kind: SaveKind) {

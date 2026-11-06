@@ -1,8 +1,8 @@
 {
   "title": "Workflows",
   "pages": [
-    "how-it-runs",
     "data-flow",
+    "how-it-runs",
     "connections",
     "variables",
     "deployment",

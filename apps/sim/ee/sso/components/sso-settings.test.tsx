@@ -135,7 +135,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/workspace/[workspaceId]/components/credential-detail', () => ({
   UnsavedChangesModal: () => null,

@@ -1,5 +1,5 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'
@@ -668,6 +668,20 @@ export interface ExecutionContext {
    * Starts at 0 and increments for each block. Use getNextExecutionOrder() to access.
    */
   executionOrderCounter?: { value: number }
+
+  /**
+   * Billed model spend not yet in the usage ledger, which receives a run's cost only with the
+   * run's log. Shared by every block's context copy and by child workflows billed on this log.
+   */
+  unrecordedModelCost?: UnrecordedModelCost
+}
+
+/** A run's running model spend, and when its usage limit may next be read after a read failed. */
+export interface UnrecordedModelCost {
+  total: number
+  readDeferredUntil?: number
+  /** Agent turns whose journaled spend `total` already holds. */
+  countedTurnIds?: Set<string>
 }
 
 /**

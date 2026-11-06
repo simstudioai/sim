@@ -3,7 +3,7 @@ import { customBlock, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
-import { flattenWorkflowChildren } from '@/lib/logs/execution/trace-spans/span-factory'
+import { flattenWorkflowChildren } from '@/lib/logs/execution/trace-spans/factory'
 import {
   materializeExecutionDataForDisplay,
   stripJoinedChildTraceSpend,

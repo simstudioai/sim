@@ -17,6 +17,7 @@ function prov(
     build?: (inputs: Record<string, unknown>) => Record<string, unknown> | null
     projectFailure?: EnrichmentProvider['projectFailure']
     map?: (output: Record<string, unknown>) => Record<string, unknown> | null
+    isVerified?: EnrichmentProvider['isVerified']
   } = {}
 ): EnrichmentProvider {
   return toolProvider({
@@ -26,6 +27,7 @@ function prov(
     buildParams: opts.build ?? (() => ({ q: 'x' })),
     projectFailure: opts.projectFailure,
     mapOutput: opts.map ?? ((o) => (o.email ? { email: o.email } : null)),
+    isVerified: opts.isVerified,
   })
 }
 
@@ -199,5 +201,95 @@ describe('runEnrichment cascade detail', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
     expect(outcome.detail.aborted).toBe(true)
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['not_run', 'not_run'])
+  })
+})
+
+describe('runEnrichment verified-first cascade', () => {
+  const checksVerified = (o: Record<string, unknown>) => o.verified === true
+
+  it('passes an unverified hit over for a later verified one', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'tool_a')
+        return { success: true, output: { email: 'guess@acme.com', cost: { total: 0.015 } } }
+      return {
+        success: true,
+        output: { email: 'jane@acme.com', verified: true, cost: { total: 0.02 } },
+      }
+    })
+
+    const outcome = await runEnrichment(
+      config([
+        prov('a', { isVerified: checksVerified }),
+        prov('b', { isVerified: checksVerified }),
+      ]),
+      {},
+      ctx
+    )
+
+    expect(outcome.result).toEqual({ email: 'jane@acme.com' })
+    expect(outcome.detail.matchedProvider).toBe('b')
+    expect(outcome.cost).toBeCloseTo(0.035)
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['no_match', 'matched'])
+  })
+
+  it('fills the cell with the first unverified hit when nothing verifies', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'tool_a') return { success: true, output: { email: 'first@acme.com' } }
+      if (toolId === 'tool_b') return { success: true, output: { email: 'second@acme.com' } }
+      return { success: false, output: { status: 404 } }
+    })
+
+    const outcome = await runEnrichment(
+      config([
+        prov('a', { isVerified: checksVerified }),
+        prov('b', { isVerified: checksVerified }),
+        prov('c'),
+      ]),
+      {},
+      ctx
+    )
+
+    expect(outcome.result).toEqual({ email: 'first@acme.com' })
+    expect(outcome.provider).toBe('A')
+    expect(outcome.error).toBeNull()
+    expect(outcome.detail.matchedProvider).toBe('a')
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual([
+      'matched',
+      'no_match',
+      'no_match',
+    ])
+  })
+
+  it('skips a never-verifying provider once an unverified hit is held', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'tool_a') return { success: true, output: { email: 'guess@acme.com' } }
+      throw new Error(`${toolId} should not run while a hit is held`)
+    })
+
+    const outcome = await runEnrichment(
+      config([prov('a', { isVerified: checksVerified }), prov('pdl', { isVerified: false })]),
+      {},
+      ctx
+    )
+
+    expect(outcome.result).toEqual({ email: 'guess@acme.com' })
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['matched', 'skipped'])
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts a never-verifying provider hit when nothing was held before it', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'tool_a') return { success: false, output: { status: 404 } }
+      return { success: true, output: { email: 'record@acme.com' } }
+    })
+
+    const outcome = await runEnrichment(
+      config([prov('a', { isVerified: checksVerified }), prov('pdl', { isVerified: false })]),
+      {},
+      ctx
+    )
+
+    expect(outcome.result).toEqual({ email: 'record@acme.com' })
+    expect(outcome.detail.matchedProvider).toBe('pdl')
   })
 })

@@ -47,7 +47,7 @@ vi.mock('@sim/db', async () => {
   })
   state.client = client
   const db = drizzle(client)
-  return { db, dbReplica: db }
+  return { db, dbReplica: db, dbFor: () => db }
 })
 
 /** Subscription and payment-provider fixtures; callback, ledger and replay code are real. */

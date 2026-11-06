@@ -37,19 +37,17 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
 vi.mock('@/lib/uploads/archive', () => ({
+  archiveFolderName: vi.fn(() => 'bundle'),
   decompressArchiveBufferToWorkspaceFiles: hoisted.decompress,
   MAX_ARCHIVE_BYTES: 100 * 1024 * 1024,
 }))
 
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

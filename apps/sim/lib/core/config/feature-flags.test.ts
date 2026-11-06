@@ -41,7 +41,7 @@ setEnv({
   APPCONFIG_ENVIRONMENT: 'staging',
   DASHBOARDS: undefined,
   MSHIP_MODEL_SELECTOR: undefined,
-  MSHIP_PLAN_MODE: undefined,
+  MSHIP_COMPUTER_USE: undefined,
   AGENT_MEMORY_HISTORY: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,
   SLACK_SEARCH_SHARED_APP: undefined,
@@ -64,10 +64,23 @@ const enabled = (flag: string, ctx?: FeatureFlagContext) =>
 afterAll(resetEnvFlagsMock)
 
 describe('getFeatureFlags', () => {
+  it('gates computer use globally and defaults off without AppConfig', async () => {
+    withAppConfig({ 'mothership-computer-use': { enabled: true } })
+    expect(await isFeatureEnabled('mothership-computer-use')).toBe(true)
+    withAppConfig({ 'mothership-computer-use': { enabled: false, userIds: ['user-1'] } })
+    expect(await isFeatureEnabled('mothership-computer-use')).toBe(false)
+    setEnvFlags({ isAppConfigEnabled: false })
+    expect(await isFeatureEnabled('mothership-computer-use')).toBe(false)
+    envRef.MSHIP_COMPUTER_USE = true
+    expect(await isFeatureEnabled('mothership-computer-use')).toBe(true)
+    envRef.MSHIP_COMPUTER_USE = undefined
+  })
+
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
     envRef.DASHBOARDS = undefined
+    envRef.PROJECTS = undefined
   })
 
   it('rolls dashboards out globally or by organization and defaults off locally', async () => {
@@ -83,6 +96,18 @@ describe('getFeatureFlags', () => {
     withAppConfig({ dashboards: { enabled: false } })
     expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(false)
     envRef.DASHBOARDS = undefined
+  })
+
+  it('uses the projects AppConfig flag with PROJECTS only as an off-AppConfig fallback', async () => {
+    expect(await isFeatureEnabled('projects')).toBe(false)
+    envRef.PROJECTS = true
+    expect(await isFeatureEnabled('projects')).toBe(true)
+    withAppConfig({ projects: { enabled: false } })
+    expect(await isFeatureEnabled('projects')).toBe(false)
+    envRef.PROJECTS = false
+    withAppConfig({ projects: { enabled: true } })
+    expect(await isFeatureEnabled('projects')).toBe(true)
+    envRef.PROJECTS = undefined
   })
 
   it('rolls Agent history out by workspace and retains a global capture switch', async () => {
@@ -123,7 +148,8 @@ describe('getFeatureFlags', () => {
     expect(flags.c).toBeUndefined()
     expect(mockFetch).toHaveBeenCalledWith(
       { application: 'sim-staging', environment: 'staging', profile: 'feature-flags' },
-      expect.any(Function)
+      expect.any(Function),
+      { shareWithTriggerRuns: true }
     )
   })
 
@@ -285,20 +311,16 @@ describe('isFeatureEnabled', () => {
   })
 })
 
-describe('Mothership model and Plan flags', () => {
+describe('Mothership model selector flag', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.MSHIP_MODEL_SELECTOR = undefined
-    envRef.MSHIP_PLAN_MODE = undefined
   })
 
   it('defaults off without AppConfig and accepts explicit self-hosted settings', async () => {
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(false)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(false)
     envRef.MSHIP_MODEL_SELECTOR = true
-    envRef.MSHIP_PLAN_MODE = true
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(true)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(true)
   })
 
   it.each(['sim-dev', 'sim-staging', 'sim-production'])(
@@ -310,10 +332,8 @@ describe('Mothership model and Plan flags', () => {
         for (const value of [true, false]) {
           withAppConfig({
             'mothership-model-selector': { enabled: value },
-            'mothership-plan-mode': { enabled: value },
           })
           expect(await isFeatureEnabled('mothership-model-selector')).toBe(value)
-          expect(await isFeatureEnabled('mothership-plan-mode')).toBe(value)
         }
       } finally {
         envRef.APPCONFIG_APPLICATION = previous

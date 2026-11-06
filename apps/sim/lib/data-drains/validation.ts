@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import {
+  sentinelConfigSchema,
+  sentinelCredentialsSchema,
+} from '@/lib/data-drains/destinations/sentinel-config'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 
 /** AWS S3 bucket: 3-63 chars, lowercase alnum + . / -, see s3.ts for full rules. */
@@ -341,6 +345,11 @@ const webhookCredentialsBodySchema = z.object({
  * leaves the encrypted blob in place.
  */
 export const dataDrainDestinationBodySchema = z.discriminatedUnion('destinationType', [
+  z.object({
+    destinationType: z.literal('sentinel'),
+    destinationConfig: sentinelConfigSchema,
+    destinationCredentials: sentinelCredentialsSchema.optional(),
+  }),
   z.object({
     destinationType: z.literal('s3'),
     destinationConfig: s3ConfigBodySchema,

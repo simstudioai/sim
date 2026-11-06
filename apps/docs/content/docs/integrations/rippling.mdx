@@ -1,31 +1,29 @@
 ---
 title: Rippling
 description: Manage workers, departments, custom objects, and company data in Rippling
+integration:
+  type: "rippling"
+  color: "#502D3C"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="rippling"
-  color="#502D3C"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Rippling](https://www.rippling.com/) to read workforce data, manage organizational resources and custom objects, and configure custom apps and pages. Connect with an API key. Reporting actions start a report run and retrieve its result; Create Draft Hires submits employees to the onboarding flow.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.
-
-
+Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.
 
 ## Actions
 
 ### Rippling List Workers
 
 List all workers with optional filtering and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -78,9 +76,13 @@ List all workers with optional filtering and pagination
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Worker
 
 Get a specific worker by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -128,9 +130,13 @@ Get a specific worker by ID
 | `country_fields` | json | Country-specific fields |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Users
 
 List all users with optional pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +170,13 @@ List all users with optional pagination
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get User
 
 Get a specific user by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -196,9 +206,13 @@ Get a specific user by ID
 | `photos` | json | Photos |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Companies
 
 List all companies
+
+<ReferenceDetails>
 
 #### Input
 
@@ -229,9 +243,13 @@ List all companies
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Current User
 
 Get SSO information for the current user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +269,13 @@ Get SSO information for the current user
 | `company_id` | string | Company ID |
 | `company` | json | Expanded company object |
 
+</ReferenceDetails>
+
 ### Rippling List Entitlements
 
 List all entitlements
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +295,13 @@ List all entitlements
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Departments
 
 List all departments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -304,9 +330,13 @@ List all departments
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Department
 
 Get a specific department by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +361,13 @@ Get a specific department by ID
 | `department_hierarchy` | json | Expanded department hierarchy |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Department
 
 Create a new department
+
+<ReferenceDetails>
 
 #### Input
 
@@ -358,9 +392,13 @@ Create a new department
 | `parent` | json | Expanded parent department |
 | `department_hierarchy` | json | Expanded department hierarchy |
 
+</ReferenceDetails>
+
 ### Rippling Update Department
 
 Update an existing department
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,9 +424,13 @@ Update an existing department
 | `parent` | json | Expanded parent department |
 | `department_hierarchy` | json | Expanded department hierarchy |
 
+</ReferenceDetails>
+
 ### Rippling List Teams
 
 List all teams
+
+<ReferenceDetails>
 
 #### Input
 
@@ -414,9 +456,13 @@ List all teams
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Team
 
 Get a specific team by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -438,9 +484,13 @@ Get a specific team by ID
 | `parent` | json | Expanded parent team |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Employment Types
 
 List all employment types
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +517,13 @@ List all employment types
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Employment Type
 
 Get a specific employment type by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -492,9 +546,13 @@ Get a specific employment type by ID
 | `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Titles
 
 List all titles
+
+<ReferenceDetails>
 
 #### Input
 
@@ -517,9 +575,13 @@ List all titles
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Title
 
 Get a specific title by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -538,9 +600,13 @@ Get a specific title by ID
 | `name` | string | Title name |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Title
 
 Create a new title
+
+<ReferenceDetails>
 
 #### Input
 
@@ -558,9 +624,13 @@ Create a new title
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
 
+</ReferenceDetails>
+
 ### Rippling Update Title
 
 Update an existing title
+
+<ReferenceDetails>
 
 #### Input
 
@@ -579,9 +649,13 @@ Update an existing title
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
 
+</ReferenceDetails>
+
 ### Rippling Delete Title
 
 Delete a title
+
+<ReferenceDetails>
 
 #### Input
 
@@ -596,9 +670,13 @@ Delete a title
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Custom Fields
 
 List all custom fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -624,9 +702,13 @@ List all custom fields
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Job Functions
 
 List all job functions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -649,9 +731,13 @@ List all job functions
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Job Function
 
 Get a specific job function by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -670,9 +756,13 @@ Get a specific job function by ID
 | `name` | string | Name |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Work Locations
 
 List all work locations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -696,9 +786,13 @@ List all work locations
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Work Location
 
 Get a specific work location by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -718,9 +812,13 @@ Get a specific work location by ID
 | `address` | json | Address object |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Work Location
 
 Create a new work location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -745,9 +843,13 @@ Create a new work location
 | `name` | string | Name |
 | `address` | json | Address |
 
+</ReferenceDetails>
+
 ### Rippling Update Work Location
 
 Update a work location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -773,9 +875,13 @@ Update a work location
 | `name` | string | Name |
 | `address` | json | Address |
 
+</ReferenceDetails>
+
 ### Rippling Delete Work Location
 
 Delete a work location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -790,9 +896,13 @@ Delete a work location
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Business Partners
 
 List all business partners
+
+<ReferenceDetails>
 
 #### Input
 
@@ -820,9 +930,13 @@ List all business partners
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Business Partner
 
 Get a specific business partner by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -845,9 +959,13 @@ Get a specific business partner by ID
 | `client_group_member_count` | number | Client group member count |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Business Partner
 
 Create a new business partner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -869,9 +987,13 @@ Create a new business partner
 | `client_group_id` | string | Client group ID |
 | `client_group_member_count` | number | Client group member count |
 
+</ReferenceDetails>
+
 ### Rippling Delete Business Partner
 
 Delete a business partner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -886,9 +1008,13 @@ Delete a business partner
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Business Partner Groups
 
 List all business partner groups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -914,9 +1040,13 @@ List all business partner groups
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Business Partner Group
 
 Get a specific business partner group by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -938,9 +1068,13 @@ Get a specific business partner group by ID
 | `default_business_partner_id` | string | Default partner ID |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Business Partner Group
 
 Create a new business partner group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -962,9 +1096,13 @@ Create a new business partner group
 | `domain` | string | Domain |
 | `default_business_partner_id` | string | Default partner ID |
 
+</ReferenceDetails>
+
 ### Rippling Delete Business Partner Group
 
 Delete a business partner group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -979,9 +1117,13 @@ Delete a business partner group
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Supergroups
 
 List all supergroups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1019,9 +1161,13 @@ List all supergroups
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Supergroup
 
 Get a specific supergroup by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1055,9 +1201,13 @@ Get a specific supergroup by ID
 | `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling List Supergroup Members
 
 List members of a supergroup
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1083,11 +1233,15 @@ List members of a supergroup
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
+
+</ReferenceDetails>
 
 ### Rippling List Supergroup Inclusion Members
 
 List inclusion members of a supergroup
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1112,11 +1266,15 @@ List inclusion members of a supergroup
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
+
+</ReferenceDetails>
 
 ### Rippling List Supergroup Exclusion Members
 
 List exclusion members of a supergroup
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1142,9 +1300,13 @@ List exclusion members of a supergroup
 | `nextLink` | string | Next page link |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Update Supergroup Inclusion Members
 
 Update inclusion members of a supergroup
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1159,11 +1321,15 @@ Update inclusion members of a supergroup
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
+
+</ReferenceDetails>
 
 ### Rippling Update Supergroup Exclusion Members
 
 Update exclusion members of a supergroup
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1178,9 +1344,13 @@ Update exclusion members of a supergroup
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
 
+</ReferenceDetails>
+
 ### Rippling List Custom Objects
 
 List all custom objects
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1208,9 +1378,13 @@ List all custom objects
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
+</ReferenceDetails>
+
 ### Rippling Get Custom Object
 
 Get a custom object by API name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1236,9 +1410,13 @@ Get a custom object by API name
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+</ReferenceDetails>
+
 ### Rippling Create Custom Object
 
 Create a new custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1266,9 +1444,13 @@ Create a new custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+</ReferenceDetails>
+
 ### Rippling Update Custom Object
 
 Update a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1299,9 +1481,13 @@ Update a custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+</ReferenceDetails>
+
 ### Rippling Delete Custom Object
 
 Delete a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1316,9 +1502,13 @@ Delete a custom object
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Custom Object Fields
 
 List all fields for a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1348,9 +1538,13 @@ List all fields for a custom object
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
 
+</ReferenceDetails>
+
 ### Rippling Get Custom Object Field
 
 Get a specific field of a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1378,9 +1572,13 @@ Get a specific field of a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+</ReferenceDetails>
+
 ### Rippling Create Custom Object Field
 
 Create a field on a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1418,9 +1616,13 @@ Create a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+</ReferenceDetails>
+
 ### Rippling Update Custom Object Field
 
 Update a field on a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1459,9 +1661,13 @@ Update a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+</ReferenceDetails>
+
 ### Rippling Delete Custom Object Field
 
 Delete a field from a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1477,9 +1683,13 @@ Delete a field from a custom object
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the field was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Custom Object Records
 
 List all records for a custom object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1506,9 +1716,13 @@ List all records for a custom object
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
 
+</ReferenceDetails>
+
 ### Rippling Get Custom Object Record
 
 Get a specific custom object record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1533,9 +1747,13 @@ Get a specific custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
+</ReferenceDetails>
+
 ### Rippling Get Record By External ID
 
 Get a custom object record by external ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1560,9 +1778,13 @@ Get a custom object record by external ID
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
+</ReferenceDetails>
+
 ### Rippling Query Custom Object Records
 
 Query custom object records with filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1592,9 +1814,13 @@ Query custom object records with filters
 | `totalCount` | number | Number of records returned |
 | `cursor` | string | Cursor for next page of results |
 
+</ReferenceDetails>
+
 ### Rippling Create Custom Object Record
 
 Create a custom object record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1620,9 +1846,13 @@ Create a custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
+</ReferenceDetails>
+
 ### Rippling Update Custom Object Record
 
 Update a custom object record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1649,9 +1879,13 @@ Update a custom object record
 | `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
+</ReferenceDetails>
+
 ### Rippling Delete Custom Object Record
 
 Delete a custom object record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1667,9 +1901,13 @@ Delete a custom object record
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
+</ReferenceDetails>
+
 ### Rippling Bulk Create Custom Object Records
 
 Bulk create custom object records
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1687,9 +1925,13 @@ Bulk create custom object records
 | `createdRecords` | array | Created custom object records |
 | `totalCount` | number | Number of records created |
 
+</ReferenceDetails>
+
 ### Rippling Bulk Update Custom Object Records
 
 Bulk update custom object records
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1707,9 +1949,13 @@ Bulk update custom object records
 | `updatedRecords` | array | Updated custom object records |
 | `totalCount` | number | Number of records updated |
 
+</ReferenceDetails>
+
 ### Rippling Bulk Delete Custom Object Records
 
 Bulk delete custom object records
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1726,9 +1972,13 @@ Bulk delete custom object records
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the bulk delete succeeded |
 
+</ReferenceDetails>
+
 ### Rippling List CustomApps
 
 List all custom apps
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1753,9 +2003,13 @@ List all custom apps
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get CustomApp
 
 Get a specific custom app
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1778,9 +2032,13 @@ Get a specific custom app
 | `pages` | json | Array of page summaries |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Custom App
 
 Create a new custom app
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1804,9 +2062,13 @@ Create a new custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
+</ReferenceDetails>
+
 ### Rippling Update CustomApp
 
 Update a custom app
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1831,9 +2093,13 @@ Update a custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
+</ReferenceDetails>
+
 ### Rippling Delete CustomApp
 
 Delete a custom app
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1848,9 +2114,13 @@ Delete a custom app
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List CustomPages
 
 List all custom pages
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1876,9 +2146,13 @@ List all custom pages
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get CustomPage
 
 Get a specific custom page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1902,9 +2176,13 @@ Get a specific custom page
 | `media` | json | Page media |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create CustomPage
 
 Create a new custom page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1927,9 +2205,13 @@ Create a new custom page
 | `variables` | json | Page variables |
 | `media` | json | Page media |
 
+</ReferenceDetails>
+
 ### Rippling Update CustomPage
 
 Update a custom page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1953,9 +2235,13 @@ Update a custom page
 | `variables` | json | Page variables |
 | `media` | json | Page media |
 
+</ReferenceDetails>
+
 ### Rippling Delete CustomPage
 
 Delete a custom page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1970,9 +2256,13 @@ Delete a custom page
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Custom Settings
 
 List all custom settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2001,9 +2291,13 @@ List all custom settings
 | `nextLink` | string | Link to next page of results |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Get Custom Setting
 
 Get a specific custom setting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2028,9 +2322,13 @@ Get a specific custom setting
 | `boolean_value` | boolean | Boolean value |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Create Custom Setting
 
 Create a new custom setting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2060,9 +2358,13 @@ Create a new custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
+</ReferenceDetails>
+
 ### Rippling Update Custom Setting
 
 Update a custom setting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2093,9 +2395,13 @@ Update a custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
+</ReferenceDetails>
+
 ### Rippling Delete Custom Setting
 
 Delete a custom setting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2110,9 +2416,13 @@ Delete a custom setting
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling List Object Categories
 
 List all object categories
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2133,9 +2443,13 @@ List all object categories
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
+</ReferenceDetails>
+
 ### Rippling Get ObjectCategory
 
 Get a specific object category
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2154,9 +2468,13 @@ Get a specific object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+</ReferenceDetails>
+
 ### Rippling Create ObjectCategory
 
 Create a new object category
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2176,9 +2494,13 @@ Create a new object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+</ReferenceDetails>
+
 ### Rippling Update ObjectCategory
 
 Update an object category
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2199,9 +2521,13 @@ Update an object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+</ReferenceDetails>
+
 ### Rippling Delete ObjectCategory
 
 Delete an object category
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2216,9 +2542,13 @@ Delete an object category
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+</ReferenceDetails>
+
 ### Rippling Get Report Run
 
 Get a report run by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2239,9 +2569,13 @@ Get a report run by ID
 | `output_type` | string | Output format \(JSON or CSV\) |
 | `__meta` | json | Metadata including redacted_fields |
 
+</ReferenceDetails>
+
 ### Rippling Trigger Report Run
 
 Trigger a new report run
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2266,9 +2600,13 @@ Trigger a new report run
 | `expires_at` | string | Expiration timestamp for the file URL |
 | `output_type` | string | Output format \(JSON or CSV\) |
 
+</ReferenceDetails>
+
 ### Rippling Create Draft Hires
 
 Create bulk draft hires
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2285,5 +2623,7 @@ Create bulk draft hires
 | `successfulResults` | json | Successful draft hires |
 | `totalInvalid` | number | Number of failures |
 | `totalSuccessful` | number | Number of successes |
+
+</ReferenceDetails>
 
 

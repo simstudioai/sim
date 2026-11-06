@@ -2,7 +2,7 @@ import {
   type CatalogGate,
   isBlockVisibleToCaller,
   withCatalogBlockScope,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import { getAllBlocks } from '@/blocks/registry'
 import { resolveToolId } from '@/tools/tool-ids'
 

@@ -1,3 +1,4 @@
+import type { ResolvedToolInputParamConfig } from '@/lib/workflows/search-replace/indexer'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { ParameterVisibility } from '@/tools/types'
@@ -22,7 +23,7 @@ const DEFAULT_TOOL_PARAM_VISIBILITY: ParameterVisibility = 'user-or-llm'
  * for different reasons, and a denylist would silently mis-classify any visibility added
  * later.
  */
-export function isToolParamUserRequired(
+function isToolParamUserRequired(
   config: Pick<SubBlockConfig, 'required' | 'paramVisibility'>,
   values: Record<string, unknown>
 ): boolean {
@@ -40,6 +41,27 @@ export function isToolParamUserRequired(
  */
 export function isUserSuppliedToolParam(config: Pick<SubBlockConfig, 'paramVisibility'>): boolean {
   return (config.paramVisibility ?? DEFAULT_TOOL_PARAM_VISIBILITY) === 'user-only'
+}
+
+/**
+ * Resolved visibility per `tool-input` param, keyed by sub-block id and by canonical param id,
+ * since a nested tool stores picks under either. Only authoritative configs count. A canonical
+ * id is an alias, so it never overwrites a param that owns that key as its own id.
+ */
+export function buildToolParamVisibilityMap(
+  resolvedParams: ResolvedToolInputParamConfig[]
+): Map<string, ParameterVisibility | undefined> {
+  const visibilityById = new Map<string, ParameterVisibility | undefined>()
+  for (const resolved of resolvedParams) {
+    if (!resolved.authoritative) continue
+    const visibility = resolved.config.paramVisibility
+    visibilityById.set(resolved.paramId, visibility)
+    const canonicalParamId = resolved.config.canonicalParamId
+    if (canonicalParamId && !visibilityById.has(canonicalParamId)) {
+      visibilityById.set(canonicalParamId, visibility)
+    }
+  }
+  return visibilityById
 }
 
 /**

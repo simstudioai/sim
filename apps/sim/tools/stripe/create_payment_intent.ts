@@ -35,7 +35,7 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Amount in cents (e.g., 2000 for $20.00)',
+      description: 'Amount in the currency’s smallest unit (e.g., 2000 for 20.00 USD)',
     },
     currency: {
       type: 'string',

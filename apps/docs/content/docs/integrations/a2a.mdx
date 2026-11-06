@@ -1,28 +1,16 @@
 ---
 title: A2A
 description: Interact with external A2A-compatible agents
+integration:
+  type: "a2a"
+  color: "#4151B5"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="a2a"
-  color="#4151B5"
-/>
-
 {/* MANUAL-CONTENT-START:intro */}
-The A2A (Agent-to-Agent) protocol lets Sim call external AI agents that expose an A2A-compatible endpoint. Use it to connect your workflows to remote agents — LLM-powered bots, microservices, and other AI systems — through a standardized message format.
-
-With the A2A block you can:
-
-- **Send messages to external agents**: Pass prompts, structured data, or files to a remote agent and get its response.
-- **Track and cancel tasks**: Poll the state of a long-running task or request its cancellation.
-- **Discover capabilities**: Fetch an agent's Agent Card to inspect its skills, capabilities, and supported modes.
-
-You need the external agent's endpoint URL and, if it requires authentication, an API key.
+Use the A2A (Agent-to-Agent) protocol to send messages, structured data, and files to external agents, inspect their Agent Cards, and track or cancel tasks. Provide the agent's endpoint URL and, when required, an API key. Sim sends that key in `X-API-Key` for task requests; agents that require a different authentication scheme need a compatible endpoint. Agent Card discovery runs before authentication, so the card must be reachable without that key.
 {/* MANUAL-CONTENT-END */}
 
-## Tools
+## Actions [#tools]
 
 ### A2A Send Message
 
@@ -34,7 +22,7 @@ Send a message to an external A2A agent and return its response.
 | --------- | ---- | -------- | ----------- |
 | `agentUrl` | string | Yes | The A2A agent endpoint URL |
 | `message` | string | Yes | The message text to send |
-| `data` | string | No | Optional structured JSON data to attach \(JSON string or object\) |
+| `data` | json | No | Structured JSON data to attach |
 | `files` | array | No | Files to attach, uploaded or referenced from a previous block |
 | `taskId` | string | No | Existing task ID to continue |
 | `contextId` | string | No | Conversation context ID to continue |
@@ -118,7 +106,8 @@ Fetch the Agent Card (discovery document) for an external A2A agent.
 | `defaultInputModes` | array | Default accepted input media types |
 | `defaultOutputModes` | array | Default produced output media types |
 
-## Notes
+## Task behavior and limits [#notes]
 
-- Send Message blocks until the agent reaches a terminal (`completed`, `failed`, `canceled`, `rejected`) or interrupted (`input-required`, `auth-required`) state. Use Get Task to poll a task you continue later, and branch on `state`.
+- **A2A Send Message** requests blocking execution until the agent reaches a terminal (`completed`, `failed`, `canceled`, `rejected`) or interrupted (`input-required`, `auth-required`) state. Use **A2A Get Task** to poll a task you continue later, and branch on `state`.
+- Sim limits each agent HTTP response to 10 MiB, each Agent Card discovery HTTP request to 30 seconds, and task RPC requests to 300 seconds. Discovery tries up to three candidate paths. A blocking request can time out before the remote task completes; use its task ID to check the remote state before retrying.
 - Task IDs are scoped to the external agent, not to Sim. Anyone who knows an agent URL and task ID can read or cancel that task unless the agent enforces its own authentication — set an API key for agents that require one.

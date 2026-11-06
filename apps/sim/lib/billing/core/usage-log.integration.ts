@@ -19,7 +19,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const { transaction } = vi.hoisted(() => ({ transaction: vi.fn() }))
 const databaseUrl = readTestDatabaseUrl()
 
-vi.mock('@sim/db', () => ({ db: { transaction }, dbReplica: {} }))
+vi.mock('@sim/db', () => ({ db: { transaction }, dbFor: () => ({ transaction }), dbReplica: {} }))
 vi.mock('@/lib/billing/core/plan', () => ({ getHighestPrioritySubscription: vi.fn() }))
 vi.mock('@/lib/billing/subscriptions/utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/billing/subscriptions/utils')>()),
@@ -28,9 +28,11 @@ vi.mock('@/lib/billing/subscriptions/utils', async (importOriginal) => ({
 
 import {
   CumulativeUsageContextMismatchError,
+  CumulativeUsageInFlightError,
   CumulativeUsagePeriodClosedError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
+  getBillingPeriodWorkflowRunCountWithinBudget,
   getStampedPeriodRangeUsageCostByUser,
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
@@ -89,6 +91,18 @@ function usage(cost: number, eventKey = 'update-cost:shared-request'): RecordCum
     eventKey,
     cost,
     metadata: { inputTokens: 10, outputTokens: 5 },
+  }
+}
+
+/** Resends a callback refused as in flight, the way the worker's replay does, until it is recorded. */
+async function untilRecorded(params: RecordCumulativeUsageParams) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await recordCumulativeUsage(params)
+    } catch (error) {
+      if (!(error instanceof CumulativeUsageInFlightError) || attempt >= 200) throw error
+      await sleep(50)
+    }
   }
 }
 
@@ -199,13 +213,15 @@ describe('Cumulative billing with PostgreSQL', () => {
     }
   )
 
-  it('reproduces a retry timing out behind an idle holder when only lock waits are bounded', async () => {
+  it('refuses a retry behind a holder of the same request at once, without waiting on its lock', async () => {
     const pause = pauseNextTransaction(true)
     const holder = recordCumulativeUsage(usage(0.4))
     try {
       await pause.reached.promise
+      const startedAt = performance.now()
       const failure = await recordCumulativeUsage(usage(0.8)).catch((error: unknown) => error)
-      expect(getPostgresErrorCode(failure)).toBe('55P03')
+      expect(failure).toBeInstanceOf(CumulativeUsageInFlightError)
+      expect(performance.now() - startedAt).toBeLessThan(1_000)
       expect(await ledgerRows()).toEqual([])
     } finally {
       pause.release.resolve()
@@ -223,8 +239,8 @@ describe('Cumulative billing with PostgreSQL', () => {
       try {
         await pause.reached.promise
         const failure = await recordCumulativeUsage(usage(0.8)).catch((error: unknown) => error)
-        expect(getPostgresErrorCode(failure)).toBe('55P03')
-        const recovered = await recordCumulativeUsage(usage(0.8))
+        expect(failure).toBeInstanceOf(CumulativeUsageInFlightError)
+        const recovered = await untilRecorded(usage(0.8))
         expect(recovered.billed).toBe(true)
         expect(recovered.delta).toBeCloseTo(0.8 - initial, 9)
         expect(recovered.total).toBe(0.8)
@@ -249,7 +265,7 @@ describe('Cumulative billing with PostgreSQL', () => {
 
   it('converges concurrent out-of-order callbacks and independent events to their exact totals', async () => {
     const costs = [0.4, 0.1, 0.8, 0.3, 0.8, 0.6]
-    const results = await Promise.all(costs.map((cost) => recordCumulativeUsage(usage(cost))))
+    const results = await Promise.all(costs.map((cost) => untilRecorded(usage(cost))))
     expect(results.reduce((total, result) => total + result.delta, 0)).toBeCloseTo(0.8, 9)
     await Promise.all(
       Array.from({ length: 32 }, (_, index) =>
@@ -359,6 +375,38 @@ describe('Cumulative billing with PostgreSQL', () => {
       9
     )
   })
+
+  it('reports a workflow run count as unknown once it outlasts the preview budget', async () => {
+    const entity = { type: 'organization' as const, id: 'org-runs' }
+    const period = {
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-09-01T00:00:00.000Z'),
+      source: 'reporting' as const,
+    }
+    await connection`
+      insert into usage_log (id, user_id, category, source, description, cost,
+        billing_entity_type, billing_entity_id, execution_id, created_at)
+      values ('r1', 'u1', 'model', 'workflow', 'run', 1, 'organization', 'org-runs', 'e1', '2026-08-02'),
+             ('r2', 'u1', 'tool', 'workflow', 'run', 1, 'organization', 'org-runs', 'e1', '2026-08-02'),
+             ('r3', 'u1', 'model', 'workflow', 'run', 1, 'organization', 'org-runs', 'e2', '2026-08-03')
+    `
+    expect(await getBillingPeriodWorkflowRunCountWithinBudget(entity, period)).toBe(2)
+
+    const release = deferred()
+    const locked = deferred()
+    const holder = connection.begin(async (tx) => {
+      await tx.unsafe('LOCK TABLE usage_log IN ACCESS EXCLUSIVE MODE')
+      locked.resolve()
+      await release.promise
+    })
+    try {
+      await locked.promise
+      expect(await getBillingPeriodWorkflowRunCountWithinBudget(entity, period)).toBeNull()
+    } finally {
+      release.resolve()
+      await holder
+    }
+  }, 20_000)
 
   describe('a request that outlives its billing period', () => {
     // Past periods: the old period's row is written under the subscription lock only once

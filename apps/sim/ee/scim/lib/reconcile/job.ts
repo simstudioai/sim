@@ -220,23 +220,10 @@ export async function reconcileConnection(connection: {
         return null
       }
 
-      /**
-       * Settings are read per batch rather than from the row the due query
-       * returned: an administrator may change them while a long pass runs, and
-       * projecting a later batch with the old settings would then stamp the
-       * connection as reconciled against a policy it no longer has.
-       */
-      const [fresh] = await db
-        .select({ settings: scimConnection.settings })
-        .from(scimConnection)
-        .where(eq(scimConnection.id, connection.id))
-        .limit(1)
-
       const delta = await reconcileUsersProjectionInBatches({
         connectionId: connection.id,
         organizationId: connection.organizationId,
         scimUserIds: page.map((row) => row.id),
-        settings: fresh?.settings ?? connection.settings,
       })
       report.reconciledUsers += page.length
       report.grantsAdded += delta.added.length + delta.raised.length

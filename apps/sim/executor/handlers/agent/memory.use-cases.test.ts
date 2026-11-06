@@ -51,8 +51,8 @@ describe('optional Agent memory durability failures', () => {
       data: prefix,
       secretProvenanceVersion: 1,
       provenanceContentHash: hashDurableSecretProvenanceValue(prefix),
-      provenanceStatus: 'exact',
-      provenanceEntries: [],
+      status: 'exact',
+      entries: [],
     })
     mocks.items.mockResolvedValue({ items: [] })
     mocks.append.mockResolvedValue(undefined)
@@ -69,8 +69,8 @@ describe('optional Agent memory durability failures', () => {
       data: history,
       secretProvenanceVersion: 1,
       provenanceContentHash: hashDurableSecretProvenanceValue(history),
-      provenanceStatus: 'exact',
-      provenanceEntries: [],
+      status: 'exact',
+      entries: [],
     })
     const memory = new Memory()
     await expect(

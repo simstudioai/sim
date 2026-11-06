@@ -16,7 +16,7 @@ import {
 import {
   getWorkspaceCredentialUseCase,
   updateWorkspaceCredentialUseCase,
-} from '@/lib/credentials/application/credential-crud'
+} from '@/lib/credentials/application/crud'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
 import { deleteCredentialUseCase } from '@/lib/credentials/application/service-account'

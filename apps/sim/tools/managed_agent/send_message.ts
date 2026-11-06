@@ -1,5 +1,6 @@
 import {
   ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
   CREDENTIAL_PARAM,
   SESSION_ID_PARAM,
 } from '@/tools/managed_agent/shared'
@@ -31,6 +32,7 @@ export const managedAgentSendMessageTool: InternalToolConfig<
   name: 'Managed Agent Send Message',
   description: 'Send a user message to an existing Claude Platform Managed Agent session.',
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

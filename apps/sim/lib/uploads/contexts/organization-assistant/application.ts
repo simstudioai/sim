@@ -18,7 +18,7 @@ import {
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { createUploadSession, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 const organizationAttachmentOperation = defineOrganizationOperation({
@@ -128,6 +128,7 @@ export async function finalizeOrganizationAssistantAttachment(
 
 const organizationAttachmentReadOperation = defineOrganizationOperation({
   id: 'organization.chat.attachments.read',
+  contentDelivery: 'none',
   minimumRole: 'member',
   capability: 'copilot.use',
   principalKinds: ['session', 'organization_delegated'],

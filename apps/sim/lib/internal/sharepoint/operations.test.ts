@@ -41,9 +41,9 @@ vi.mock('@/lib/internal/sharepoint/client', () => {
   return { SharePointClient, SharePointGraphError }
 })
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 

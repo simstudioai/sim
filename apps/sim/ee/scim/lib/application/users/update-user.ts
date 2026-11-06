@@ -3,13 +3,17 @@ import { db } from '@sim/db'
 import type { ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { suspendMemberTx, unsuspendMemberTx } from '@/lib/organizations/members/lifecycle'
 import {
   invalidateAfterSessionRevocation,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 import type { ScimAuditEntry } from '@/ee/scim/lib/application/audit'
 import {
   defineAuthorizedScimUseCase,
@@ -42,10 +46,16 @@ import {
  * deactivation actually does.
  */
 
-export interface UpdateOutcome {
+interface UpdateOutcome {
   emailChanged: boolean
   deactivated: boolean
   reactivated: boolean
+}
+
+/** An applied update and the runs its projection stopped, delivered once the write commits. */
+interface AppliedUserUpdate {
+  outcome: UpdateOutcome
+  stoppedRuns: StoppedRun[]
 }
 
 async function applyUserUpdate(
@@ -53,7 +63,7 @@ async function applyUserUpdate(
   context: ScimUseCaseContext,
   current: ScimUserRecord,
   next: ScimUserAttributes
-): Promise<UpdateOutcome> {
+): Promise<AppliedUserUpdate> {
   const nextEmail = primaryEmail(next)
   const nextName = accountName(next)
   const emailChanged = accountEmailDiverged(current, next)
@@ -78,26 +88,27 @@ async function applyUserUpdate(
     })
 
     /**
-     * An address change ends the sessions established under the old one. A
-     * deactivation in the same request revokes them itself, so this only runs
-     * when nothing else will.
+     * An address change ends the sessions and OAuth grants established under
+     * the old one. Sessions go first: issuance references its session, so no
+     * grant can be minted behind the sweep.
      */
-    if (!deactivated) {
-      await revokeUserSessionsTx(tx, {
-        userId: current.userId,
-        organizationId: context.organizationId,
-      })
-    }
+    await revokeUserSessionsTx(tx, {
+      userId: current.userId,
+      organizationId: context.organizationId,
+    })
+    await revokeUserOAuthGrants(current.userId, tx)
   } else if (nextName !== current.name) {
     await syncAccountIdentityTx(tx, { userId: current.userId, name: nextName })
   }
 
+  let stoppedRuns: StoppedRun[] = []
   if (deactivated) {
-    await suspendMemberTx(tx, {
+    const suspension = await suspendMemberTx(tx, {
       userId: current.userId,
       organizationId: context.organizationId,
       source: 'scim',
     })
+    stoppedRuns = suspension.stoppedRuns
   } else if (reactivated) {
     await unsuspendMemberTx(tx, { userId: current.userId, source: 'scim' })
   }
@@ -108,14 +119,20 @@ async function applyUserUpdate(
     active: next.active,
   })
 
-  await reconcileUserProjection(tx, {
+  await markScimPeopleChanged(tx, context.organizationId)
+
+  const projection = await reconcileUserProjection(tx, {
     connectionId: context.connection.id,
     organizationId: context.organizationId,
     scimUserId: current.id,
-    settings: context.connection.settings,
   })
 
-  return { emailChanged, deactivated, reactivated }
+  return {
+    outcome: { emailChanged, deactivated, reactivated },
+    stoppedRuns: [
+      ...new Map([...stoppedRuns, ...projection.stoppedRuns].map((run) => [run.id, run])).values(),
+    ],
+  }
 }
 
 export interface UpdateScimUserResult {
@@ -123,6 +140,27 @@ export interface UpdateScimUserResult {
   userId: string
   outcome: UpdateOutcome | null
   resource: ReturnType<typeof toUserResource>
+}
+
+/** Runs a user write in one transaction and delivers the runs it stopped once that commits. */
+async function writeUser(
+  context: ScimUseCaseContext,
+  scimUserId: string,
+  update: (tx: DbTransaction, current: ScimUserRecord) => Promise<AppliedUserUpdate | null>
+): Promise<UpdateScimUserResult> {
+  const { stoppedRuns, ...result } = await db.transaction(async (tx) => {
+    const current = await loadUserForUpdate(tx, context, scimUserId)
+    const applied = await update(tx, current)
+    return {
+      scimUserId: current.id,
+      userId: current.userId,
+      outcome: applied?.outcome ?? null,
+      resource: await renderUpdated(tx, context.connection.id, current.id, context.baseUrl),
+      stoppedRuns: applied?.stoppedRuns ?? [],
+    }
+  })
+  deliverRunStops(stoppedRuns)
+  return result
 }
 
 /**
@@ -229,9 +267,7 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<ReplaceScimUserInput>): Promise<UpdateScimUserResult> {
-    return db.transaction(async (tx) => {
-      const current = await loadUserForUpdate(tx, context, input.scimUserId)
-
+    return writeUser(context, input.scimUserId, async (tx, current) => {
       /**
        * A replace keeps attributes Sim does not model that the directory sent on
        * a previous write but omitted now, so a partial mapping does not erase
@@ -249,16 +285,10 @@ export const replaceScimUser = defineAuthorizedScimUseCase({
        * changes nothing must not write, audit, or re-project, or a 2,000-user
        * organization produces 2,000 spurious audit rows per sync.
        */
-      const outcome =
-        userAttributesEqual(current.attributes, next) && !accountIdentityDiverged(current, next)
-          ? null
-          : await applyUserUpdate(tx, context, current, next)
-      return {
-        scimUserId: current.id,
-        userId: current.userId,
-        outcome,
-        resource: await renderUpdated(tx, context.connection.id, current.id, context.baseUrl),
-      }
+      return userAttributesEqual(current.attributes, next) &&
+        !accountIdentityDiverged(current, next)
+        ? null
+        : applyUserUpdate(tx, context, current, next)
     })
   },
   projectAudit: ({ result }) => auditEntries(result),
@@ -277,9 +307,7 @@ export const patchScimUser = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<PatchScimUserInput>): Promise<UpdateScimUserResult> {
-    return db.transaction(async (tx) => {
-      const current = await loadUserForUpdate(tx, context, input.scimUserId)
-
+    return writeUser(context, input.scimUserId, async (tx, current) => {
       const { next, changed } = applyUserPatch(current.attributes, input.operations)
 
       /**
@@ -289,16 +317,9 @@ export const patchScimUser = defineAuthorizedScimUseCase({
        * projection pass, and a `lastModified` bump for a request that meant
        * nothing.
        */
-      const outcome =
-        changed || accountIdentityDiverged(current, next)
-          ? await applyUserUpdate(tx, context, current, next)
-          : null
-      return {
-        scimUserId: current.id,
-        userId: current.userId,
-        outcome,
-        resource: await renderUpdated(tx, context.connection.id, current.id, context.baseUrl),
-      }
+      return changed || accountIdentityDiverged(current, next)
+        ? applyUserUpdate(tx, context, current, next)
+        : null
     })
   },
   projectAudit: ({ result }) => auditEntries(result),

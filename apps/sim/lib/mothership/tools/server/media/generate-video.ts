@@ -13,9 +13,11 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/mothership/tools/server/model-input'
-import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
-import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  validateCopilotWorkspaceFileWriteTarget,
+  writeCopilotWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
@@ -65,6 +67,14 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
+      const outputFile = params.outputs?.files?.[0]
+      const outputPath = outputFile?.path || 'files/generated-video.mp4'
+      const mode = outputFile?.mode ?? 'create'
+      await validateCopilotWorkspaceFileWriteTarget(context, {
+        workspaceId,
+        target: { path: outputPath, mode },
+      })
+
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
@@ -76,7 +86,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             reference: refPath,
           }
         )
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
+
         const { content: buffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -84,6 +94,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             fileId: fileRecord.id,
             assertedWorkspaceId: workspaceId,
             maxBytes: MAX_MEDIA_BYTES,
+            contentView: 'opaque',
           },
           { fileId: fileRecord.id }
         )
@@ -107,13 +118,9 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         negativePrompt: params.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
+        signal: context.abortSignal,
+        onCost: (cost) => recordServiceCost('falai_video', cost.costDollars),
       })
-
-      await recordServiceCost('falai_video', result.cost.costDollars)
-
-      const outputFile = params.outputs?.files?.[0]
-      const outputPath = outputFile?.path || 'files/generated-video.mp4'
-      const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
       // The prompt is the only secret-bearing input; recording its provenance

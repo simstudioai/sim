@@ -18,7 +18,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
   id: 'firecrawl_extract',
   name: 'Firecrawl Extract',
   description:
-    'Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction.',
+    'Extract structured data from web pages using natural language prompts and JSON Schema.',
   version: '1.0.0',
 
   params: {

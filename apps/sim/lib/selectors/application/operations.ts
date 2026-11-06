@@ -12,5 +12,6 @@ export const selectorOperations = {
     delegatedServices: ['copilot'],
     oauthScope: 'api:read',
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const

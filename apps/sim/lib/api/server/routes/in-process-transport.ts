@@ -30,7 +30,7 @@ interface CompiledRoute {
   load: () => Promise<object>
 }
 
-interface MatchedRoute {
+export interface MatchedRoute {
   pattern: string
   params: Record<string, string>
   literals: number

@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react'
 import { Combobox } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { readFolderPath, readFolderPaths } from '@/lib/folders/selection'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -35,8 +35,7 @@ export function WorkspaceFolderSelector({
   isPreview = false,
   previewValue,
 }: WorkspaceFolderSelectorProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const resourceType = (subBlock.resourceType as FolderResourceType | undefined) ?? 'file'
 
   const [storeValue, setStoreValue] = useSubBlockValue<unknown>(blockId, subBlock.id)

@@ -18,7 +18,7 @@ import {
   MAX_WORKSPACE_FILE_SIZE,
   MAX_WORKSPACE_FORMDATA_FILE_SIZE,
 } from '@/lib/uploads/shared/types'
-import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
+import { resolveTrustedFileContext } from '@/lib/uploads/utils/file'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 

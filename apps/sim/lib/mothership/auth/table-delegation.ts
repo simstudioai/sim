@@ -1,4 +1,4 @@
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import {
   type CopilotExecutionContext,
   createCopilotChatPrincipal,

@@ -18,6 +18,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -30,7 +31,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as egress from '@/lib/core/security/input-validation.server'
@@ -95,7 +96,7 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
       await db.delete(rateLimitBucket).where(inArray(rateLimitBucket.key, capacityKeys))
     for (const ids of seeded) {
       await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }

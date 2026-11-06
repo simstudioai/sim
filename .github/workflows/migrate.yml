@@ -18,6 +18,10 @@ on:
         required: false
       STAGING_MIGRATION_DATABASE_URL:
         required: false
+      TS_OAUTH_CLIENT_ID:
+        required: false
+      TS_AUDIENCE:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -38,8 +42,57 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
     timeout-minutes: 300
+    # One migrate job per environment at a time, so a manual dispatch queues
+    # behind a CI run instead of racing it for migrate.ts's advisory lock, which
+    # gives up after 30 minutes. Job-level because a called workflow evaluates
+    # workflow-level concurrency with the caller's github context; the group
+    # must also never equal ci.yml's ci-<ref> group or the two deadlock.
+    concurrency:
+      group: migrate-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      # Tailscale workload identity federation exchanges this job's OIDC token.
+      id-token: write
 
     steps:
+      # An environment only migrates from its own branch, so a manual dispatch
+      # from a feature branch cannot apply that branch's migrations to a shared
+      # database. Under workflow_call github.ref is the caller's ref (ci.yml's
+      # push to main/staging/dev). This fails rather than skips: ci.yml's
+      # promote gates on migrate succeeding, and a skipped run must never read
+      # as a migration that happened. It runs before any secret is read.
+      - name: Require the environment's own branch
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          REF: ${{ github.ref }}
+        run: |
+          case "${ENVIRONMENT}" in
+            production) expected=refs/heads/main ;;
+            staging) expected=refs/heads/staging ;;
+            dev) expected=refs/heads/dev ;;
+            *)
+              echo "::error::Unknown migrate environment '${ENVIRONMENT}'"
+              exit 1
+              ;;
+          esac
+          if [ "${REF}" != "${expected}" ]; then
+            echo "::error::Refusing to migrate ${ENVIRONMENT} from ${REF}; ${ENVIRONMENT} migrates only from ${expected}"
+            exit 1
+          fi
+
+      # Database IP restrictions admit the tailnet's app connector, never a
+      # runner's address. The action already passes --accept-routes, which
+      # Linux nodes need to use app connector routes; repeating it in args
+      # makes `tailscale up` reject the duplicate flag.
+      - name: Join the tailnet
+        if: vars.CI_DB_TAILNET == 'true'
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -50,6 +103,14 @@ jobs:
         with:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: ''
+
+      - name: Validate Project migration database prerequisites
+        if: inputs.environment != 'dev'
+        working-directory: ./packages/db
+        env:
+          DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || '' }}
+          MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
+        run: bun --no-env-file scripts/project-contract-required.ts
 
       # The expression maps the explicit environment input to exactly one repo
       # secret, so the job never holds another environment's database URL. An

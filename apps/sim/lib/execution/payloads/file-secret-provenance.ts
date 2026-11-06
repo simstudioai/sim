@@ -5,9 +5,9 @@ import {
   ExecutionFileAccessError,
   type ExecutionMaterializationContext,
 } from '@/lib/execution/payloads/materialization.server'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 
 export interface StoredFileProvenanceSource {

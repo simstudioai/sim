@@ -120,7 +120,7 @@ export interface KalshiGetOrderV2Response {
 export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetOrderV2Response> = {
   id: 'kalshi_get_order_v2',
   name: 'Get Order from Kalshi V2',
-  description: 'Retrieve details of a specific order by ID from Kalshi (V2 with full API response)',
+  description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '2.0.0',
 
   params: {

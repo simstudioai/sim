@@ -1,0 +1,173 @@
+import {
+  SIM_LINK_HOST_PATTERN,
+  SIM_LINK_NAME_MAX_LENGTH,
+  SIM_LINK_URL_MAX_LENGTH,
+} from '@sim/browser-extension-protocol'
+import { z } from 'zod'
+
+const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
+const NAME_PUNCTUATION = /[.:@&~_-]/g
+const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
+export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
+export const SIM_LINK_SEARCH_MAX_LENGTH = 200
+
+/** List orders: alphabetical by name, or most visited first. */
+export const SIM_LINK_SORTS = ['name', 'popular'] as const
+export type SimLinkSort = (typeof SIM_LINK_SORTS)[number]
+
+/** Marks where a variable link places each value typed after its name. */
+export const SIM_LINK_VARIABLE = '{*}'
+
+/** The lookup key: case and punctuation never tell two links apart, so sim/Q4-goals is sim/q4goals. */
+export function normalizeSimLinkName(name: string): string {
+  return name.toLowerCase().replace(NAME_PUNCTUATION, '')
+}
+
+const TYPED_HOST_PREFIX = new RegExp(`^(?:${SIM_LINK_HOST_PATTERN})/`, 'i')
+
+/** Drops a leading `sim/` or `go/` from typed text. */
+export function stripSimLinkPrefix(input: string): string {
+  return input.replace(TYPED_HOST_PREFIX, '')
+}
+
+/**
+ * Shapes typed or pasted text into a name as it is entered: a leading `sim/` or `go/` is dropped, spaces
+ * and slashes become hyphens, and any other character a name can't hold is removed.
+ */
+export function toSimLinkName(input: string): string {
+  return stripSimLinkPrefix(input)
+    .replace(/[\s/]+/g, '-')
+    .replace(NAME_DISALLOWED, '')
+}
+
+/**
+ * A starting name for a link made from a page's title: its letters and digits in lower case, every
+ * other run of characters (spaces, colons, dots, dashes) turned into one hyphen, cut to the name
+ * length limit. Empty when no letter or digit survives, so the person types one instead.
+ */
+export function suggestSimLinkName(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, SIM_LINK_NAME_MAX_LENGTH)
+    .replace(/^-+|-+$/g, '')
+}
+
+/** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
+const PASTED_TRAILING_PUNCTUATION = /[.,;:!?'"’”)\]}>]+$/
+
+/**
+ * `sim/<name>/<values…>` split into the name and its values. The name loses surrounding spaces,
+ * which no name can hold, and a name typed alone also loses the punctuation it picked up from the
+ * sentence it was copied out of, so `sim/onboarding).` opens `sim/onboarding`: none of these
+ * characters can end a distinct name, since `.` and `:` are ignored when matching and the rest
+ * are not allowed. Values are kept verbatim, and a name that is only punctuation stays as typed,
+ * so it still fails validation.
+ */
+export function parseTypedSimLink(segments: readonly string[]): {
+  name: string
+  values: string[]
+} {
+  const [typedName = '', ...values] = segments
+  const name = typedName.trim()
+  if (values.length) return { name, values }
+  return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '').trimEnd() || name, values }
+}
+
+/**
+ * The normalized name prefix to suggest links from, out of what was typed after the `sim`
+ * keyword: `sim/jira/ABC-1?x` suggests from `jira`, and nothing typed browses every link. `null`
+ * when a name was typed that no link can match, such as only punctuation.
+ */
+export function typedSimLinkPrefix(query: string): string | null {
+  // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
+  const [path = ''] = query
+    .trim()
+    .replace(/^sim\//i, '')
+    .split('?')
+  const { name } = parseTypedSimLink(path.split('/'))
+  const prefix = normalizeSimLinkName(name)
+  return name && !prefix ? null : prefix
+}
+
+export function isVariableSimLinkUrl(url: string): boolean {
+  return url.includes(SIM_LINK_VARIABLE)
+}
+
+export function parseHttpUrl(value: string): URL | null {
+  if (!URL.canParse(value)) return null
+  const url = new URL(value)
+  return url.protocol === 'https:' || url.protocol === 'http:' ? url : null
+}
+
+/** A scheme and authority closed by `/`, `?`, or `#`: nothing typed later can extend the host. */
+const CLOSED_AUTHORITY = /^https?:\/\/[^/?#]+[/?#]/i
+
+/** URL parsers strip tabs and line breaks, so one inside the authority could hide where it ends. */
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
+
+/**
+ * The origin every visit to `url` must land on, or null when values could change it. Values fill
+ * only what follows the authority, so the text before the first `{*}` must already close it.
+ */
+export function simLinkOrigin(url: string): string | null {
+  if (CONTROL_CHARACTER.test(url)) return null
+  const [prefix] = url.split(SIM_LINK_VARIABLE)
+  if (isVariableSimLinkUrl(url) && !CLOSED_AUTHORITY.test(prefix)) return null
+  return parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'value'))?.origin ?? null
+}
+
+export const simLinkNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Enter a name')
+  .max(SIM_LINK_NAME_MAX_LENGTH, `Use at most ${SIM_LINK_NAME_MAX_LENGTH} characters`)
+  .regex(NAME_PATTERN, 'Use letters, numbers, and . : @ & ~ - _')
+  .refine((name) => normalizeSimLinkName(name).length > 0, 'Include a letter or number')
+
+const destinationSchema = z
+  .string()
+  .trim()
+  .min(1, 'Enter a destination URL')
+  .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
+
+const simLinkUrlSchema = destinationSchema.refine(
+  (url) => simLinkOrigin(url) !== null,
+  `Enter a full http:// or https:// URL. ${SIM_LINK_VARIABLE} can't replace the domain.`
+)
+
+const defaultUrlSchema = destinationSchema.refine(
+  (url) => !isVariableSimLinkUrl(url) && simLinkOrigin(url) !== null,
+  'Enter a full http:// or https:// URL'
+)
+
+/** The editable fields of a Sim link, shared by the API contract and the editor. */
+export const simLinkFieldsSchema = z
+  .object({
+    name: simLinkNameSchema,
+    url: simLinkUrlSchema,
+    defaultUrl: defaultUrlSchema.nullable(),
+    description: z
+      .string()
+      .trim()
+      .max(
+        SIM_LINK_DESCRIPTION_MAX_LENGTH,
+        `Use at most ${SIM_LINK_DESCRIPTION_MAX_LENGTH} characters`
+      )
+      .transform((value) => value || null)
+      .nullable(),
+    unlisted: z.boolean(),
+    restrictEdit: z.boolean(),
+  })
+  .strict()
+  .refine((fields) => !fields.defaultUrl || isVariableSimLinkUrl(fields.url), {
+    path: ['defaultUrl'],
+    message: `Only a link with ${SIM_LINK_VARIABLE} has a default destination`,
+  })
+  .refine(
+    (fields) =>
+      !fields.defaultUrl || simLinkOrigin(fields.defaultUrl) === simLinkOrigin(fields.url),
+    { path: ['defaultUrl'], message: 'Use a page on the same site as the destination URL' }
+  )
+
+export type SimLinkFields = z.output<typeof simLinkFieldsSchema>

@@ -6,7 +6,7 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 
 import { useVerification } from '@/app/(auth)/verify/use-verification'

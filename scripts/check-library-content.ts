@@ -26,6 +26,9 @@
  *   belong to `check:site-urls`.
  *   Changelog integration, model, and docs links also resolve against the generated catalogs,
  *   docs source files, and generated OpenAPI operation pages, including reference-style links.
+ * - `search-title` / `search-description`: a published post's search title (`seoTitle ?? title`
+ *   with the " | Sim" suffix) fits in 60 characters and its search description
+ *   (`seoDescription ?? description`) in 160, the lengths Google shows before truncating.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
@@ -47,12 +50,26 @@ import {
   LIBRARY_MERGED_SLUGS,
   LIBRARY_MOVED_BLOG_SLUGS,
 } from '../apps/sim/lib/library/retired-slugs'
-import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/docs-path'
+import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/path'
 
 export const SECTIONS = ['blog', 'library', 'customers', 'changelog'] as const
 export type Section = (typeof SECTIONS)[number]
 
-export type Rule = 'frontmatter' | 'slug' | 'og-image' | 'mdx' | 'media' | 'faq' | 'internal-link'
+export type Rule =
+  | 'frontmatter'
+  | 'slug'
+  | 'og-image'
+  | 'mdx'
+  | 'media'
+  | 'faq'
+  | 'internal-link'
+  | 'search-title'
+  | 'search-description'
+
+/** Appended to every post title by the root layout's `title.template`. */
+const SEARCH_TITLE_SUFFIX = ' | Sim'
+const SEARCH_TITLE_MAX_LENGTH = 60
+const SEARCH_DESCRIPTION_MAX_LENGTH = 160
 
 export interface Finding {
   file: string
@@ -404,6 +421,28 @@ export async function checkPost(
         'frontmatter',
         'A published changelog cover needs descriptive ogAlt text.',
         'Describe what the cover actually shows, rather than repeating the headline.'
+      )
+    }
+  }
+
+  if (result.success && !result.data.draft) {
+    const { seoTitle, title, seoDescription, description } = result.data
+    const searchTitle = `${seoTitle ?? title}${SEARCH_TITLE_SUFFIX}`
+    if (searchTitle.length > SEARCH_TITLE_MAX_LENGTH) {
+      report(
+        lineOfKey(frontmatterLines, seoTitle ? 'seoTitle' : 'title'),
+        'search-title',
+        `Search title "${searchTitle}" is ${searchTitle.length} characters; Google truncates past ${SEARCH_TITLE_MAX_LENGTH}.`,
+        `${seoTitle ? 'Shorten seoTitle' : 'Add a seoTitle'} to at most ${SEARCH_TITLE_MAX_LENGTH - SEARCH_TITLE_SUFFIX.length} characters, leading with the searched keyword; title stays the H1.`
+      )
+    }
+    const searchDescription = seoDescription ?? description
+    if (searchDescription.length > SEARCH_DESCRIPTION_MAX_LENGTH) {
+      report(
+        lineOfKey(frontmatterLines, seoDescription ? 'seoDescription' : 'description'),
+        'search-description',
+        `Search description is ${searchDescription.length} characters; Google truncates past ${SEARCH_DESCRIPTION_MAX_LENGTH}.`,
+        `${seoDescription ? 'Shorten seoDescription' : 'Add a seoDescription'} to at most ${SEARCH_DESCRIPTION_MAX_LENGTH} characters; description stays the on-page summary.`
       )
     }
   }

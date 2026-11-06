@@ -22,8 +22,8 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
-import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkflowImportError } from '@/lib/workflows/application/import-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { WorkspaceOperationConflict } from '@/lib/workspaces/operations/receipts'
 import {
   v2CaughtOrchestrationError,

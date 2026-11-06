@@ -3,7 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { MAX_VISION_OUTPUT_BYTES, readSandboxJpeg } from '@/lib/workspace-files/vision-output'
 
 const MAX_PAGES = 20
@@ -15,9 +15,17 @@ const pageResultSchema = z.object({
 
 function requestedPages(pages?: string): { first: number; last: number } | undefined {
   if (pages === undefined) return undefined
-  const match = /^(\d+)(?:-(\d+))?$/.exec(pages.trim())
-  if (!match)
+  const trimmed = pages.trim()
+  const match = /^(\d+)(?:-(\d+))?$/.exec(trimmed)
+  if (!match) {
+    if (/^\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)+$/.test(trimmed)) {
+      throw new OrchestrationError(
+        'validation',
+        `"${trimmed}" lists several pages; pass one page or one contiguous range per read, such as 5 or 2-5, and read the others separately`
+      )
+    }
     throw new OrchestrationError('validation', 'Pages must be a page number or range, such as 2-5')
+  }
   const first = Number(match[1])
   const last = Number(match[2] ?? match[1])
   if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || first < 1 || last < first) {

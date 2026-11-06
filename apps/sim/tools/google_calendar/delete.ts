@@ -108,7 +108,7 @@ export const deleteV2Tool: ToolConfig<GoogleCalendarDeleteParams, GoogleCalendar
   {
     id: 'google_calendar_delete_v2',
     name: 'Google Calendar Delete Event',
-    description: 'Delete an event from Google Calendar. Returns API-aligned fields only.',
+    description: 'Delete an event from Google Calendar.',
     version: '2.0.0',
     oauth: deleteTool.oauth,
     params: deleteTool.params,

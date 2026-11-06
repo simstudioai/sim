@@ -61,3 +61,17 @@ describe('chat deployment password contract', () => {
     expect(chatDeploymentPasswordSchema.safeParse('{{PW}}').success).toBe(false)
   })
 })
+
+describe('deployed chat body size bound', () => {
+  /**
+   * The public chat endpoint validates before authenticating. An oversized `files`
+   * array must fail on its count alone: walking every element first builds an issue
+   * per malformed entry, which a small body inflates into an out-of-memory process.
+   */
+  it('rejects an oversized files array without validating its entries', () => {
+    const result = deployedChatPostBodySchema.safeParse({ files: Array(10_000).fill({}) })
+
+    expect(result.error?.issues).toHaveLength(1)
+    expect(result.error?.issues[0]).toMatchObject({ code: 'too_big', path: ['files'] })
+  })
+})

@@ -219,8 +219,7 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
 > = {
   id: 'kalshi_amend_order_v2',
   name: 'Amend Order on Kalshi V2',
-  description:
-    'Modify the price or quantity of an existing order on Kalshi (V2 with full API response)',
+  description: 'Modify the price or quantity of an existing order on Kalshi',
   version: '2.0.0',
 
   params: {

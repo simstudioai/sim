@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { resolveFallbackTuning } from '@/lib/workflows/blocks/fallback-models'
-import { providerRequiresFamilyCredentials } from '@/blocks/utils'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { isRetryableBlockError } from '@/executor/execution/block-retry'
 import type { BlockRetryAttempt, ExecutionContext } from '@/executor/types'
 import {
+  assertFallbackFamilyCredentials,
   getModelFallbacks,
   PROVIDER_FAMILY_CREDENTIAL_FIELDS,
   recordModelFallbacks,
@@ -71,12 +71,7 @@ export async function executeModelRequestWithFallbacks({
       try {
         candidateProviderId = getProviderFromModel(candidate.model)
         await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
-        if (
-          candidateProviderId !== providerId &&
-          providerRequiresFamilyCredentials(candidateProviderId)
-        ) {
-          throw new Error('Fallback requires credentials from a different provider family')
-        }
+        assertFallbackFamilyCredentials(candidateProviderId, providerId)
       } catch (error) {
         logger.warn(
           'Fallback model unusable; skipping',

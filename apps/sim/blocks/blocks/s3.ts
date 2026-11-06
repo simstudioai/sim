@@ -38,7 +38,7 @@ export const S3Block: BlockConfig = {
   description: 'Upload, download, list, and manage S3 files and buckets',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.',
+    'Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/s3',
   category: 'tools',
   integrationType: IntegrationType.Documents,

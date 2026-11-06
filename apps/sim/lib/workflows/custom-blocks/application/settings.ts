@@ -20,7 +20,7 @@ import {
   type UpdateCustomBlockBody,
   updateCustomBlockBodySchema,
 } from '@/lib/workflows/custom-blocks/settings-input'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
 const base = {
@@ -36,6 +36,7 @@ export const customBlockSettingsOperations = {
     id: 'custom_blocks.list',
     minimumRole: 'read',
     capability: 'none',
+    contentDelivery: 'none',
   }),
   // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
   publish: defineWorkspaceOperation({
@@ -43,6 +44,7 @@ export const customBlockSettingsOperations = {
     id: 'custom_blocks.publish',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
   }),
   // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
   update: defineWorkspaceOperation({
@@ -50,6 +52,7 @@ export const customBlockSettingsOperations = {
     id: 'custom_blocks.update',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
   }),
   // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
   delete: defineWorkspaceOperation({
@@ -57,6 +60,7 @@ export const customBlockSettingsOperations = {
     id: 'custom_blocks.delete',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
   }),
   // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
   usages: defineWorkspaceOperation({
@@ -64,6 +68,7 @@ export const customBlockSettingsOperations = {
     id: 'custom_blocks.usages',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const
 const authorizationOptions = { delegation: { audience: 'sim:settings', isWithinScope: () => true } }

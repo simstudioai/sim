@@ -17,7 +17,7 @@ import {
   validateMcpToolMetadataForStorage,
 } from '@/lib/mcp/tool-limits'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
-import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
+import { hasValidStartBlockInState } from '@/lib/workflows/triggers/utils'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { mcpPubSub } from './pubsub'

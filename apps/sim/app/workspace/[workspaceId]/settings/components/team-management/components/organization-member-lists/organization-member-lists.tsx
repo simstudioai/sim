@@ -194,25 +194,6 @@ export function OrganizationMemberLists({
           ...(isSelf && isOwner && onTransferOwnership
             ? [{ label: 'Transfer ownership', onSelect: () => onTransferOwnership() }]
             : []),
-          ...(canManage && isSelf && !isOwner
-            ? [
-                {
-                  label: 'Leave organization',
-                  destructive: true,
-                  onSelect: () =>
-                    onRemoveMember({
-                      id: member.memberId,
-                      role: member.role,
-                      user: {
-                        id: member.userId,
-                        name: member.name,
-                        email: member.email,
-                        image: member.image,
-                      },
-                    }),
-                },
-              ]
-            : []),
         ])}
       />
     )

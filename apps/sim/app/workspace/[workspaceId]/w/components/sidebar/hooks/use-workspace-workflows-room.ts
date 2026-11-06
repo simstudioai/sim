@@ -21,9 +21,11 @@ import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workfl
  */
 export function useWorkspaceWorkflowsRoom(workspaceId: string): void {
   const queryClient = useQueryClient()
-  useWorkspaceInvalidationRoom(workspaceId, ROOM_TYPES.WORKSPACE_WORKFLOWS, () => {
-    invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
-    queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'active') })
-    queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'archived') })
-  })
+  useWorkspaceInvalidationRoom(workspaceId, ROOM_TYPES.WORKSPACE_WORKFLOWS, () =>
+    Promise.all([
+      invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived']),
+      queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'active') }),
+      queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'archived') }),
+    ])
+  )
 }

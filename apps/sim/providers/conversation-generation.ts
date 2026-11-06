@@ -21,6 +21,7 @@ import {
   isConversationHistoryNotice,
 } from '@/providers/conversation-metadata'
 import { getConversationModelLimits } from '@/providers/conversation-model'
+import { assertRunWithinUsageLimit, RunUsageLimitError } from '@/providers/run-usage-limit'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderRequest } from '@/providers/types'
 
@@ -114,9 +115,16 @@ function contextError(message: string): Error {
   return new AgentContextProtocolError(message)
 }
 
-/** Provider wrappers must preserve permanent context failures so fallback cannot restart them. */
+/**
+ * Provider wrappers must preserve the permanent failures this module raises, context faults and
+ * the run's usage-limit stop, so fallback cannot restart them and the stop keeps its billed cost.
+ */
 export function isConversationContextError(error: unknown): boolean {
-  return error instanceof AgentContextLimitError || error instanceof AgentContextProtocolError
+  return (
+    error instanceof AgentContextLimitError ||
+    error instanceof AgentContextProtocolError ||
+    error instanceof RunUsageLimitError
+  )
 }
 
 function records(value: unknown): Record<string, unknown>[] {
@@ -283,6 +291,7 @@ export async function prepareConversationGeneration<T>(
   payload: T
 ): Promise<T> {
   const runtime = getConversationRequestContext(request)
+  await assertRunWithinUsageLimit(runtime)
   if (!runtime?.agentConversation) return payload
   request.abortSignal?.throwIfAborted()
   if (!isRecordLike(payload))
@@ -401,6 +410,8 @@ export async function prepareConversationGeneration<T>(
       if (isAbortError(error) || request.abortSignal?.aborted) throw error
       logger.warn('Agent context compaction unavailable; retaining bounded history')
     }
+    // Summary calls spend too, and the compactor keeps going when one is stopped.
+    await assertRunWithinUsageLimit(runtime)
   }
   let selectedLength = 0
   for (const group of selected) {

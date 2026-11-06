@@ -13,7 +13,7 @@ const hoisted = vi.hoisted(() => ({
   query: vi.fn(),
 }))
 vi.mock('@/lib/table/service', () => tableServiceMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: hoisted.flag }))
 vi.mock('@/lib/permission-groups/capability-assertions', () => ({

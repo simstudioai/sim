@@ -13,6 +13,18 @@ export const DEFAULT_SECRET_MOUNT_POLICY: SecretMountPolicy = {
   mountedSecrets: [],
 }
 
+/** Which secrets a Copilot turn's code may mount, and whose environment they resolve from. */
+export interface TurnSecretAuthority {
+  secretMountPolicy: SecretMountPolicy
+  secretActorUserId: string | null
+}
+
+/** No secrets and no actor: the authority of a turn whose admitted authority is unknown. */
+export const NO_SECRET_AUTHORITY: TurnSecretAuthority = {
+  secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+  secretActorUserId: null,
+}
+
 interface SecretMountPolicyInput {
   secretScope?: unknown
   mountedSecrets?: unknown

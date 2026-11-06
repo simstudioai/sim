@@ -108,9 +108,22 @@ describe('workflow input schemas', () => {
     expect(z.object(generateWorkflowInputShape(fields)).parse(input)).toEqual(input)
   })
 
-  it('rejects unsupported type names instead of advertising strings', () => {
-    expect(() => generateToolInputSchema([{ name: 'files', type: 'unsupported' }])).toThrow(
-      'Unsupported workflow input type "unsupported"'
-    )
+  it('accepts the files alias as file[]', () => {
+    const shape = z.object(generateWorkflowInputShape([{ name: 'documents', type: 'files' }]))
+    expect(shape.safeParse({ documents: [file] }).success).toBe(true)
+    expect(shape.safeParse({ documents: 'text' }).success).toBe(false)
   })
+
+  it.each(['short-input', 'json'])(
+    'accepts any value for the legacy type %s and advertises no type for it',
+    (type) => {
+      const fields = [{ name: 'title', type }]
+      expect(generateToolInputSchema(fields).properties).toEqual({
+        title: { description: 'title' },
+      })
+      const shape = z.object(generateWorkflowInputShape(fields))
+      expect(shape.safeParse({ title: 'Quarterly report' }).success).toBe(true)
+      expect(shape.safeParse({ title: { text: 'Quarterly report' } }).success).toBe(true)
+    }
+  )
 })

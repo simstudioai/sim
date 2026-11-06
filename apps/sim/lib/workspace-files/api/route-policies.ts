@@ -6,12 +6,7 @@ import {
 } from '@/lib/api/server/routes'
 import { ArchiveError, statusForArchiveError } from '@/lib/uploads/archive'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { WorkspaceFileDeliveryUnobservedError } from '@/lib/workspace-files/application/file-delivery-observer'
-import {
-  v2CaughtOrchestrationError,
-  v2Error,
-  v2ErrorForOrchestration,
-} from '@/app/api/v2/lib/response'
+import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 export const internalSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
   audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
@@ -34,12 +29,6 @@ export const v2FileErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   concealResourceAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'File not found',
-    render(error) {
-      if (error instanceof WorkspaceFileDeliveryUnobservedError) {
-        return v2Error('SERVICE_UNAVAILABLE', error.message)
-      }
-      return v2CaughtOrchestrationError(error)
-    },
   }) satisfies V2ErrorPolicy,
   /**
    * Resource-ID upload controls conceal the *authorization* failure as absence,

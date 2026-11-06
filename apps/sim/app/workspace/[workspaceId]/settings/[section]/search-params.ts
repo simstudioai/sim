@@ -178,7 +178,13 @@ export const groupSearchUrlKeys = {
  */
 export const groupStatusParam = {
   key: 'group-status',
-  parser: parseAsStringLiteral(['all', 'enabled', 'disabled'] as const).withDefault('all'),
+  parser: parseAsStringLiteral([
+    'all',
+    'enabled',
+    'disabled',
+    'requestable',
+    'unavailable',
+  ] as const).withDefault('all'),
 } as const
 
 /** Filter view-state: clean URLs, no back-stack churn. */

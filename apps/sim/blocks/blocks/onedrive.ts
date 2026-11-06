@@ -33,7 +33,7 @@ export const OneDriveBlock: BlockConfig = {
   description: 'Create, upload, download, search, move, copy, share, and delete files',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.',
+    'Create text and Excel files, upload files, download files, list and search files, move or rename files, copy files, create sharing links, and delete files or folders.',
   docsLink: 'https://docs.sim.ai/integrations/onedrive',
   category: 'tools',
   integrationType: IntegrationType.Documents,

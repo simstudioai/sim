@@ -1,21 +1,56 @@
 ---
-title: Audit Logs
-description: Manage audit logs — every subcommand, argument, and flag
+title: Audit logs
+description: Read organization audit actions and filter by actor, resource, workspace, or time.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Read organization audit actions and filter by actor, resource, workspace, or time.
+
+Requires an organization Admin or owner, an OAuth login or personal API key, and enabled enterprise audit access for the deployment.
+
 `sim audit-logs` is also spelled `sim audit-log`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
+
+## List audit logs
+
+OAuth login or personal API key required.
+
+```bash
+sim audit-logs list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--action <value>` | No | Filter by exact action name. |
+| `--resource-type <value>` | No | Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor. |
+| `--resource-id <value>` | No | Filter by exact resource identifier. |
+| `--start-date <value>` | No | Include audit entries created at or after this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected. |
+| `--end-date <value>` | No | Include audit entries created at or before this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected. |
+| `--include-departed` | No | Include actions by users who have left the organization. |
+| `--no-include-departed` | No | Send --include-departed as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--organization <value>` | No | Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403. |
+| `--actor-email <value>` | No | Filter by actor email address. |
+| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
+
+</CommandTable>
+
+API request and response schemas: [listAuditLogs](/api-reference/audit-logs/listAuditLogs).
 
 ## Get audit log
+
+OAuth login or personal API key required.
 
 ```bash
 sim audit-logs get <auditLogId> [options]
 ```
-
-Get Audit Log (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -33,35 +68,13 @@ Get Audit Log (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
+| `--organization <value>` | No | Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403. |
 
 </CommandTable>
 
-## List audit logs
+API request and response schemas: [getAuditLog](/api-reference/audit-logs/getAuditLog).
 
-```bash
-sim audit-logs list [options]
-```
+## Related docs
 
-List Audit Logs (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--action <value>` | No | Filter by exact action name. |
-| `--resource-type <value>` | No | Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor. |
-| `--resource-id <value>` | No | Filter by exact resource identifier. |
-| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
-| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
-| `--include-departed` | No | Include actions by users who have left the organization. |
-| `--no-include-departed` | No | Send --include-departed as false. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required). |
-| `--actor-email <value>` | No | Filter by actor email address. |
-| `--all-workspaces` | No | Do not filter to the configured workspace (OAuth login or personal API key required for account-wide access). |
-
-</CommandTable>
+- [Organization permissions](/platform/permissions)
+- [Authentication](/cli/authentication)

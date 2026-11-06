@@ -1,14 +1,13 @@
 ---
 title: PitchBook
 description: Look up private market data on companies, deals, investors, funds, and people
+integration:
+  type: "pitchbook"
+  color: "#1D5080"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="pitchbook"
-  color="#1D5080"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [PitchBook](https://pitchbook.com/) provides private-market company, deal, investor, fund, limited-partner, and people data. Its API is a separate contracted add-on to a platform subscription, and calls spend purchased credits.
@@ -34,18 +33,17 @@ PitchBook range filters carry their operator inside the value rather than as a s
 Amounts are in millions. Codes such as industries, verticals, and deal types are not free text — use **List Lookup Tables** to find the right table, then **Get Lookup Table Codes** to read its values. Any documented filter without a dedicated field can be passed through **Additional Filters** as a JSON object.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrates the PitchBook Public API into the workflow. Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Also reports API credit usage and the lookup-table codes the search filters expect. Every call consumes PitchBook API credits.
-
-
+Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Retrieve lookup-table codes for search filters and use the usage actions to check API credit consumption.
 
 ## Actions
 
 ### PitchBook Search
 
 Search across every PitchBook entity type at once by name, PitchBook ID, website, or ticker. Use this to resolve a company, investor, or fund to its PitchBook ID before calling a profile operation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +79,13 @@ Search across every PitchBook entity type at once by name, PitchBook ID, website
 |     ↳ `type` | string | Entity type \(e.g. COMPANY, INVESTOR\) |
 |   ↳ `stockTicker` | string | Stock ticker when the entity is publicly traded |
 
+</ReferenceDetails>
+
 ### PitchBook Shared Search
 
 Extract the names and PitchBook IDs behind an Advanced Search shared from the PitchBook platform, using the search ID and hash from the shared link
+
+<ReferenceDetails>
 
 #### Input
 
@@ -112,9 +114,13 @@ Extract the names and PitchBook IDs behind an Advanced Search shared from the Pi
 |   ↳ `companyName` | string | Company name |
 |   ↳ `website` | string | Website |
 
+</ReferenceDetails>
+
 ### PitchBook Entity People
 
 Retrieve the people at an entity: primary contact, current and former team, and current and former board members
+
+<ReferenceDetails>
 
 #### Input
 
@@ -152,9 +158,13 @@ Retrieve the people at an entity: primary contact, current and former team, and 
 | `currentBoardMembersAndObservers` | array | Current board members and observers |
 | `formerBoardMembersAndObservers` | array | Former board members and observers |
 
+</ReferenceDetails>
+
 ### PitchBook Entity Locations
 
 Retrieve the headquarters and every alternate office on record for an entity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +207,13 @@ Retrieve the headquarters and every alternate office on record for an entity
 |   ↳ `globalSubRegion` | string | Global sub-region |
 | `alternateOfficesCount` | number | How many other offices are on record |
 
+</ReferenceDetails>
+
 ### PitchBook Entity Affiliates
 
 Retrieve the affiliated entities linked to an entity and how each is related
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +233,13 @@ Retrieve the affiliated entities linked to an entity and how each is related
 |   ↳ `affiliateName` | string | Name of the affiliate |
 |   ↳ `affiliateType` | string | Relationship to the affiliate |
 
+</ReferenceDetails>
+
 ### PitchBook Entity News
 
 Retrieve recent news articles PitchBook has associated with an entity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +263,13 @@ Retrieve recent news articles PitchBook has associated with an entity
 |   ↳ `publishDate` | string | Publication timestamp \(ISO 8601\) |
 |   ↳ `url` | string | Link to the article |
 
+</ReferenceDetails>
+
 ### PitchBook Entity Updates
 
 Check which entity datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +287,13 @@ Check which entity datasets changed in a window, so a sync only refetches what m
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Company Search
 
 Search PitchBook for companies by name, location, industry, funding, deal activity, and more
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +338,13 @@ Search PitchBook for companies by name, location, industry, funding, deal activi
 |   ↳ `companyName` | string | Company name |
 |   ↳ `website` | string | Company website |
 
+</ReferenceDetails>
+
 ### PitchBook Company Bio
 
 Retrieve the core profile of a company: names, description, HQ, status, headcount, total raised, and social links
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +412,13 @@ Retrieve the core profile of a company: names, description, HQ, status, headcoun
 |   ↳ `linkedInProfileUrl` | string | LinkedIn profile |
 | `pitchBookProfileLink` | string | Link to the company profile in the PitchBook platform |
 
+</ReferenceDetails>
+
 ### PitchBook Company Industries
 
 Retrieve the industry classification, verticals, keywords, and emerging spaces assigned to a company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -416,9 +450,13 @@ Retrieve the industry classification, verticals, keywords, and emerging spaces a
 | `keywords` | array | Keywords associated with the company |
 | `emergingSpaces` | array | Analyst-defined emerging spaces the company is placed in |
 
+</ReferenceDetails>
+
 ### PitchBook Company Investors
 
 Retrieve every investor in a company, current and former, with the type of investor and when they invested
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,9 +486,13 @@ Retrieve every investor in a company, current and former, with the type of inves
 |     ↳ `code` | string | Status code |
 |     ↳ `description` | string | Status label |
 
+</ReferenceDetails>
+
 ### PitchBook Company Active Investors
 
 Retrieve only the investors currently holding a position in a company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -476,9 +518,13 @@ Retrieve only the investors currently holding a position in a company
 |   ↳ `investorSince` | string | Date the investor first invested \(YYYY-MM-DD\) |
 |   ↳ `holding` | string | Current holding status |
 
+</ReferenceDetails>
+
 ### PitchBook Company Deals
 
 Retrieve every deal a company has been involved in, in chronological order with its deal type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -507,9 +553,13 @@ Retrieve every deal a company has been involved in, in chronological order with 
 |     ↳ `description` | string | Deal type label |
 |   ↳ `dealNumber` | number | Sequence of this deal in the company financing history |
 
+</ReferenceDetails>
+
 ### PitchBook Company Most Recent Financing
 
-Retrieve a company most recent financing round: date, size, type, and last known valuation
+Retrieve a company’s most recent financing round: date, size, type, and last known valuation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -563,9 +613,13 @@ Retrieve a company most recent financing round: date, size, type, and last known
 |   ↳ `code` | string | PitchBook code |
 |   ↳ `description` | string | Human-readable label for the code |
 
+</ReferenceDetails>
+
 ### PitchBook Company Most Recent Debt Financing
 
-Retrieve a company most recent debt financing, including each debt instrument raised
+Retrieve a company’s most recent debt financing, including each debt instrument raised
+
+<ReferenceDetails>
 
 #### Input
 
@@ -606,9 +660,13 @@ Retrieve a company most recent debt financing, including each debt instrument ra
 |     ↳ `rate` | json | Interest rate |
 |   ↳ `lenders` | array | Lenders on the debt |
 
+</ReferenceDetails>
+
 ### PitchBook Company Most Recent Financials
 
 Retrieve the most recent reported financials for a private company: revenue, net income, EBITDA, assets, and debt
+
+<ReferenceDetails>
 
 #### Input
 
@@ -662,9 +720,13 @@ Retrieve the most recent reported financials for a private company: revenue, net
 |   ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 
+</ReferenceDetails>
+
 ### PitchBook Company Financials
 
 Retrieve reported financials for a private company across every available fiscal period. Annual data is returned by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -719,9 +781,13 @@ Retrieve reported financials for a private company across every available fiscal
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |     ↳ `nativeAmount` | number | Value in the currency it was originally reported in |
 
+</ReferenceDetails>
+
 ### PitchBook Similar Companies
 
 Retrieve companies PitchBook scores as similar to a given company, flagging which are direct competitors
+
+<ReferenceDetails>
 
 #### Input
 
@@ -742,9 +808,13 @@ Retrieve companies PitchBook scores as similar to a given company, flagging whic
 |   ↳ `similarityScore` | number | Similarity score between 0 and 1, higher is more similar |
 |   ↳ `competitor` | boolean | Whether PitchBook classifies the company as a direct competitor |
 
+</ReferenceDetails>
+
 ### PitchBook VC Exit Predictions
 
 Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Requires at least two funding rounds in the past six years.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -769,9 +839,13 @@ Retrieve PitchBook machine-learning exit predictions for a VC-backed company. Re
 | `mergeracquisitionProbability` | number | Probability of an M&A exit, as a percentage |
 | `vcDealNumber` | number | Number of VC deals the prediction is based on |
 
+</ReferenceDetails>
+
 ### PitchBook Company Social Analytics
 
 Retrieve web and social growth and size metrics for a company, with percentile ranks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -807,9 +881,13 @@ Retrieve web and social growth and size metrics for a company, with percentile r
 | `twitterFollowersChange` | number | Change in follower count |
 | `twitterFollowersPercentChange` | number | Percent change in follower count |
 
+</ReferenceDetails>
+
 ### PitchBook Company General Service Providers
 
 Retrieve the current and former general service providers engaged by a company
+
+<ReferenceDetails>
 
 #### Input
 
@@ -847,9 +925,13 @@ Retrieve the current and former general service providers engaged by a company
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 
+</ReferenceDetails>
+
 ### PitchBook Company Deal Service Providers
 
-Retrieve the service providers that worked on a company deals, and what each was hired for
+Retrieve the service providers that worked on a company’s deals, and what each was hired for
+
+<ReferenceDetails>
 
 #### Input
 
@@ -863,7 +945,7 @@ Retrieve the service providers that worked on a company deals, and what each was
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealServiceProviders` | array | Service providers engaged on the company deals |
+| `dealServiceProviders` | array | Service providers engaged on the company’s deals |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
 |   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
@@ -876,9 +958,13 @@ Retrieve the service providers that worked on a company deals, and what each was
 |     ↳ `code` | string | PitchBook code |
 |   ↳ `dealIdServiceProvided` | string | PitchBook deal ID the service was provided on |
 
+</ReferenceDetails>
+
 ### PitchBook Company Updates
 
 Check which company datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -896,9 +982,13 @@ Check which company datasets changed in a window, so a sync only refetches what 
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Patent Search
 
 Search the patents held by a company by status, filing and publication date, authority, and CPC classification
+
+<ReferenceDetails>
 
 #### Input
 
@@ -944,9 +1034,13 @@ Search the patents held by a company by status, filing and publication date, aut
 |     ↳ `code` | string | PitchBook code |
 |     ↳ `description` | string | Human-readable label for the code |
 
+</ReferenceDetails>
+
 ### PitchBook Patent Detail
 
 Retrieve the full record for a single patent: title, status, dates, assignees, inventors, citations, and claim counts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -990,9 +1084,13 @@ Retrieve the full record for a single patent: title, status, dates, assignees, i
 | `countOfIndependentClaims` | number | Number of independent claims |
 | `patentDownloadUrl` | string | Link to download the patent document |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Search
 
 Search PitchBook for deals by company, investor, deal type, size, date, and valuation
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1032,16 +1130,20 @@ Search PitchBook for deals by company, investor, deal type, size, date, and valu
 |   ↳ `companyId` | string | PitchBook ID of the company in the deal |
 |   ↳ `companyName` | string | Name of the company in the deal |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Bio
 
 Retrieve the summary of a deal: company, date, size, status, type, and which detail datasets are available for it
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1081,16 +1183,20 @@ Retrieve the summary of a deal: company, date, size, status, type, and which det
 | `trancheInfoAvailable` | boolean | Whether tranche information exists for this deal |
 | `debtLenderInfoAvailable` | boolean | Whether debt and lender information exists for this deal |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Detailed
 
 Retrieve the full detail of a deal: synopsis, percent acquired, round, invested capital, ownership, debt, and stock split
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1192,16 +1298,20 @@ Retrieve the full detail of a deal: synopsis, percent acquired, round, invested 
 | `trancheInfoAvailable` | boolean | Whether tranche information exists for this deal |
 | `debtLenderInfoAvailable` | boolean | Whether debt and lender information exists for this deal |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Valuation
 
 Retrieve the pre-money and post-money valuation recorded for a deal
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1226,9 +1336,13 @@ Retrieve the pre-money and post-money valuation recorded for a deal
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 | `postValuationStatus` | string | Whether the post-money valuation is actual or estimated |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Multiples
 
 Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash flow, and net income
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1264,16 +1378,20 @@ Retrieve the valuation multiples for a deal against revenue, EBITDA, EBIT, cash 
 | `valuationToNetIncome` | json | Valuation to net income |
 | `valuationToRevenue` | number | Valuation to revenue |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Investors
 
 Retrieve the investors, sellers, and exiting investors on a deal, including who led it
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1305,9 +1423,13 @@ Retrieve the investors, sellers, and exiting investors on a deal, including who 
 | `sellers` | array | Parties selling in the deal |
 | `exiters` | array | Investors exiting through the deal |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Stock Info
 
 Retrieve the share terms of a deal: price per share, shares acquired, and the preference, dividend, and voting rights attached
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1345,9 +1467,13 @@ Retrieve the share terms of a deal: price per share, shares acquired, and the pr
 | `boardVotingRights` | string | Board voting rights terms |
 | `generalVotingRights` | string | General voting rights terms |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Cap Table History
 
 Retrieve the cap table as of a deal, one row per stock series with its terms and ownership
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1397,9 +1523,13 @@ Retrieve the cap table as of a deal, one row per stock series with its terms and
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `percentOwned` | number | Percentage owned |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Tranche Info
 
-Retrieve the tranches a deal was funded in, with each tranche date, size, and investors
+Retrieve the tranches a deal was funded in, with each tranche’s date, size, and investors
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1446,9 +1576,13 @@ Retrieve the tranches a deal was funded in, with each tranche date, size, and in
 |     ↳ `id` | string | PitchBook person ID |
 |     ↳ `name` | string | Name |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Debt and Lenders
 
 Retrieve the debt raised in a deal and the lenders behind it, with rate, maturity, seniority, and covenant terms
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1496,9 +1630,13 @@ Retrieve the debt raised in a deal and the lenders behind it, with rate, maturit
 |       ↳ `description` | string | Human-readable label for the code |
 |     ↳ `lenderSize` | json | Amount provided by the lender |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Service Providers
 
 Retrieve the service providers that worked on a deal and which party each represented
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1531,9 +1669,13 @@ Retrieve the service providers that worked on a deal and which party each repres
 |   ↳ `leadPartnerId` | json | PitchBook person ID of the lead partner |
 |   ↳ `leadPartnerName` | json | Name of the lead partner |
 
+</ReferenceDetails>
+
 ### PitchBook Deal Updates
 
 Check which deal datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1551,9 +1693,13 @@ Check which deal datasets changed in a window, so a sync only refetches what mov
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Search
 
 Search PitchBook for investors by type, location, assets under management, fund profile, and deal activity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1596,9 +1742,13 @@ Search PitchBook for investors by type, location, assets under management, fund 
 |   ↳ `investorName` | string | Investor name |
 |   ↳ `website` | string | Investor website |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Bio
 
 Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry powder, and headcount
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1651,9 +1801,13 @@ Retrieve the core profile of an investor: names, description, HQ, type, AUM, dry
 | `countInvestmentProfessionals` | number | Number of investment professionals on staff |
 | `tradeAssociations` | array | Trade associations the investor belongs to |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Investments
 
 Retrieve every investment an investor has made, active and exited, with the deals that opened and closed each position
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1677,9 +1831,13 @@ Retrieve every investment an investor has made, active and exited, with the deal
 |   ↳ `exitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
 |   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Active Investments
 
 Retrieve only the positions an investor still holds
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1701,9 +1859,13 @@ Retrieve only the positions an investor still holds
 |   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
 |   ↳ `investmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Funds
 
 Retrieve the funds an investor manages, with open and closed counts and the min, median, and max fund size
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1746,9 +1908,13 @@ Retrieve the funds an investor manages, with open and closed counts and the min,
 |     ↳ `code` | string | Fund type code |
 |     ↳ `description` | string | Fund type label |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Last Closed Fund
 
 Retrieve the most recently closed fund raised by an investor, with its size, type, and vintage
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1778,9 +1944,13 @@ Retrieve the most recently closed fund raised by an investor, with its size, typ
 | `fundCloseDate` | string | Date the fund closed \(YYYY-MM-DD\) |
 | `fundOpenDate` | json | Date the fund opened \(YYYY-MM-DD\) |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Preferences
 
 Retrieve what an investor targets: check size, deal size, valuation, revenue, geography, industry, and deal type preferences
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1844,9 +2014,13 @@ Retrieve what an investor targets: check size, deal size, valuation, revenue, ge
 |   ↳ `assetClass` | json | Asset class as a code and description pair |
 |   ↳ `subcategory` | json | Subcategory as a code and description pair |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Board Seats
 
 Retrieve the board seats an investor holds and previously held across its portfolio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1872,9 +2046,13 @@ Retrieve the board seats an investor holds and previously held across its portfo
 |   ↳ `role` | string | Role played |
 | `former` | array | Former team members |
 
+</ReferenceDetails>
+
 ### PitchBook Investor General Service Providers
 
 Retrieve the current and former general service providers engaged by an investor
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1902,9 +2080,13 @@ Retrieve the current and former general service providers engaged by an investor
 |     ↳ `code` | string | PitchBook code |
 | `formerGeneralServices` | array | Former general service relationships |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Deal Service Providers
 
-Retrieve the service providers that worked on an investor deals, and what each was hired for
+Retrieve the service providers that worked on an investor’s deals, and what each was hired for
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1918,7 +2100,7 @@ Retrieve the service providers that worked on an investor deals, and what each w
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealServiceProviders` | array | Service providers engaged on the investor deals |
+| `dealServiceProviders` | array | Service providers engaged on the investor’s deals |
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
@@ -1932,9 +2114,13 @@ Retrieve the service providers that worked on an investor deals, and what each w
 |     ↳ `code` | string | PitchBook code |
 |   ↳ `dealIdServiceProvided` | string | PitchBook deal ID the service was provided on |
 
+</ReferenceDetails>
+
 ### PitchBook Investor Updates
 
 Check which investor datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1952,9 +2138,13 @@ Check which investor datasets changed in a window, so a sync only refetches what
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook People Search
 
 Search PitchBook for people by name, employer, position, education, and location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1996,9 +2186,13 @@ Search PitchBook for people by name, employer, position, education, and location
 |   ↳ `personName` | string | Full name of the person |
 |   ↳ `firmId` | string | PitchBook ID of the firm the person is associated with |
 
+</ReferenceDetails>
+
 ### PitchBook Person Bio
 
 Retrieve the profile of a person: name, biography, LinkedIn, primary employer, position, and office
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2042,9 +2236,13 @@ Retrieve the profile of a person: name, biography, LinkedIn, primary employer, p
 |   ↳ `globalRegion` | string | Global region |
 |   ↳ `globalSubRegion` | string | Global sub-region |
 
+</ReferenceDetails>
+
 ### PitchBook Person Contact
 
 Retrieve the direct contact details on file for a person
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2064,9 +2262,13 @@ Retrieve the direct contact details on file for a person
 | `fax` | string | Fax number |
 | `email` | string | Email address |
 
+</ReferenceDetails>
+
 ### PitchBook Person Education and Work
 
-Retrieve a person full history: education, company roles, board seats, deal roles, and fund roles
+Retrieve a person’s full history: education, company roles, board seats, deal roles, and fund roles
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2118,9 +2320,13 @@ Retrieve a person full history: education, company roles, board seats, deal role
 |   ↳ `representingId` | string | PitchBook ID of the firm the person represented |
 |   ↳ `representingName` | string | Name of the firm the person represented |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Search
 
 Search PitchBook for funds by manager, type, size, vintage, and performance
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2162,9 +2368,13 @@ Search PitchBook for funds by manager, type, size, vintage, and performance
 |     ↳ `investorId` | string | PitchBook investor ID |
 |     ↳ `investorName` | string | Investor name |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Bio
 
 Retrieve the profile of a fund: managers, vintage, status, type, size, target, location, and team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2218,9 +2428,13 @@ Retrieve the profile of a fund: managers, vintage, status, type, size, target, l
 | `sbic` | boolean | Whether the fund is a Small Business Investment Company |
 | `returnsInfoAvailable` | array | Which returns datasets are available for the fund |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Performance
 
 Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV, and benchmark quartile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2246,9 +2460,13 @@ Retrieve the most recent reported returns for a fund: IRR, DPI, RVPI, TVPI, NAV,
 | `quartile` | number | Benchmark quartile the fund falls in, 1 being the best |
 | `numberOfFundsInBenchmark` | number | How many funds the benchmark is drawn from |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Benchmark
 
 Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the funds it is drawn from
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2283,9 +2501,13 @@ Retrieve the peer benchmark for a fund: benchmark IRR, DPI, TVPI, RVPI, and the 
 |   ↳ `fundId` | string | PitchBook fund ID |
 |   ↳ `fundName` | string | Fund name |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Cash Flows
 
 Retrieve contributed, distributed, and remaining value for a fund as of a specific quarter
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2337,9 +2559,13 @@ Retrieve contributed, distributed, and remaining value for a fund as of a specif
 |   ↳ `nativeCurrency` | string | Currency of nativeAmount |
 |   ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Investments
 
 Retrieve every investment a fund has made, active and exited, with the deals that opened and closed each position
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2364,9 +2590,13 @@ Retrieve every investment a fund has made, active and exited, with the deals tha
 |   ↳ `targetCompanyExitDate` | string | Date the position was exited \(YYYY-MM-DD\) |
 |   ↳ `exitDealId` | string | PitchBook deal ID of the exit |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Active Investments
 
 Retrieve only the portfolio positions a fund still holds
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2387,9 +2617,13 @@ Retrieve only the portfolio positions a fund still holds
 |   ↳ `targetCompanyInvestmentDate` | string | Date the position was opened \(YYYY-MM-DD\) |
 |   ↳ `investmentDealId` | string | PitchBook deal ID of the investment |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Commitments
 
 Retrieve the limited partners committed to a fund, with commitment date, size, status, and type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2412,9 +2646,13 @@ Retrieve the limited partners committed to a fund, with commitment date, size, s
 |   ↳ `commitmentStatus` | json | Status of the commitment, as a code and description pair |
 |   ↳ `commitmentType` | json | Type of the commitment, as a code and description pair |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Investment Preferences
 
 Retrieve what a fund targets: check size, valuation, geography, industry, vertical, and deal type preferences
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2467,9 +2705,13 @@ Retrieve what a fund targets: check size, valuation, geography, industry, vertic
 |   ↳ `description` | string | Human-readable label for the code |
 | `assetPreferences` | array | Asset classes and subcategories targeted |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Team
 
-Retrieve the active and former people on a fund team
+Retrieve the active and former people on a fund’s team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2497,9 +2739,13 @@ Retrieve the active and former people on a fund team
 |   ↳ `title` | string | Title |
 |   ↳ `infoAvailable` | boolean | Whether a full PitchBook profile is available |
 
+</ReferenceDetails>
+
 ### PitchBook Fund Updates
 
 Check which fund datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2517,9 +2763,13 @@ Check which fund datasets changed in a window, so a sync only refetches what mov
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Search
 
 Search PitchBook for limited partners by type, location, assets under management, and commitment activity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2557,9 +2807,13 @@ Search PitchBook for limited partners by type, location, assets under management
 |   ↳ `limitedPartnerName` | string | Limited partner name |
 |   ↳ `website` | string | Limited partner website |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Bio
 
 Retrieve the profile of a limited partner: names, description, type, assets under management, and staff
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2595,9 +2849,13 @@ Retrieve the profile of a limited partner: names, description, type, assets unde
 | `website` | string | Limited partner website |
 | `managementStaff` | number | Number of management staff |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Commitments
 
 Retrieve every fund commitment a limited partner has made, with date, size, status, and the managers behind each fund
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2632,9 +2890,13 @@ Retrieve every fund commitment a limited partner has made, with date, size, stat
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Commitment Aggregates
 
-Retrieve a limited partner commitments rolled up by fund type, both active and all-time
+Retrieve a limited partner’s commitments rolled up by fund type, both active and all-time
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2669,9 +2931,13 @@ Retrieve a limited partner commitments rolled up by fund type, both active and a
 | `totalCommitmentsInOtherFunds` | number | Number of all commitments to other funds |
 | `totalCommitments` | number | Number of commitments ever made |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Commitment Preferences
 
 Retrieve what a limited partner commits to: preferred commitment size, fund types, and geographies
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2697,9 +2963,13 @@ Retrieve what a limited partner commits to: preferred commitment size, fund type
 | `preferredDirectInvestmentSize` | json | Preferred direct investment size |
 | `otherInvestmentPreferences` | array | Other stated preferences |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Actual Allocations
 
-Retrieve a limited partner reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives
+Retrieve a limited partner’s reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2765,9 +3035,13 @@ Retrieve a limited partner reported asset allocation across cash, equities, fixe
 |     ↳ `estimated` | boolean | Whether the value is a PitchBook estimate |
 |   ↳ `cashPercent` | number | Percentage of the portfolio allocated to cash |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Target Allocations
 
-Retrieve a limited partner target allocation ranges per asset class, in both value and percentage terms
+Retrieve a limited partner’s target allocation ranges per asset class, in both value and percentage terms
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2858,9 +3132,13 @@ Retrieve a limited partner target allocation ranges per asset class, in both val
 |   ↳ `cashMax` | json | Maximum target allocation to cash |
 |   ↳ `cashPercentMax` | json | Maximum target allocation to cash, as a percentage |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Service Providers
 
 Retrieve the current and former service providers engaged by a limited partner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2898,9 +3176,13 @@ Retrieve the current and former service providers engaged by a limited partner
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 
+</ReferenceDetails>
+
 ### PitchBook Limited Partner Updates
 
 Check which limited partner datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2918,9 +3200,13 @@ Check which limited partner datasets changed in a window, so a sync only refetch
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Service Provider Search
 
 Search PitchBook for service providers by type, location, and the deals they have worked on
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2957,9 +3243,13 @@ Search PitchBook for service providers by type, location, and the deals they hav
 |   ↳ `serviceProviderName` | string | Service provider name |
 |   ↳ `website` | string | Service provider website |
 
+</ReferenceDetails>
+
 ### PitchBook Service Provider Bio
 
 Retrieve the profile of a service provider: names, types, description, and how many companies, deals, investors, funds, and limited partners it has serviced
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2993,9 +3283,13 @@ Retrieve the profile of a service provider: names, types, description, and how m
 | `servicedFunds` | number | Number of funds serviced |
 | `servicedLimitedPartners` | number | Number of limited partners serviced |
 
+</ReferenceDetails>
+
 ### PitchBook Serviced Companies
 
 Retrieve the companies a service provider currently and formerly serves
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3019,9 +3313,13 @@ Retrieve the companies a service provider currently and formerly serves
 |     ↳ `description` | string | Human-readable label for the code |
 | `formerGeneralServices` | array | Former general service relationships |
 
+</ReferenceDetails>
+
 ### PitchBook Serviced Deals
 
 Retrieve the deals a service provider worked on and what it was hired for on each
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3046,9 +3344,13 @@ Retrieve the deals a service provider worked on and what it was hired for on eac
 |   ↳ `dealNumber` | number | Sequence of the deal in the company financing history |
 |   ↳ `dealDate` | string | Date the deal closed \(YYYY-MM-DD\) |
 
+</ReferenceDetails>
+
 ### PitchBook Serviced Investors
 
 Retrieve the investors a service provider currently and formerly serves
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3072,9 +3374,13 @@ Retrieve the investors a service provider currently and formerly serves
 |     ↳ `description` | string | Human-readable label for the code |
 | `formerGeneralServices` | array | Former general service relationships |
 
+</ReferenceDetails>
+
 ### PitchBook Serviced Funds
 
 Retrieve the funds a service provider has worked with and the service provided to each
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3100,9 +3406,13 @@ Retrieve the funds a service provider has worked with and the service provided t
 |     ↳ `description` | string | Human-readable label for the code |
 |     ↳ `code` | string | PitchBook code |
 
+</ReferenceDetails>
+
 ### PitchBook Serviced Limited Partners
 
 Retrieve the limited partners a service provider currently and formerly serves
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3126,9 +3436,13 @@ Retrieve the limited partners a service provider currently and formerly serves
 |     ↳ `code` | string | PitchBook code |
 |     ↳ `description` | string | Human-readable label for the code |
 
+</ReferenceDetails>
+
 ### PitchBook Service Provider Updates
 
 Check which service provider datasets changed in a window, so a sync only refetches what moved
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3146,9 +3460,13 @@ Check which service provider datasets changed in a window, so a sync only refetc
 | --------- | ---- | ----------- |
 | `updates` | json | Map of dataset name to whether it changed in the window. Keys are PitchBook dataset names, so read it as a plain object. |
 
+</ReferenceDetails>
+
 ### PitchBook Credit News Search
 
 Search PitchBook credit analysis news by author, region, asset class, topic, issuer, lender, sponsor, and date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3195,9 +3513,13 @@ Search PitchBook credit analysis news by author, region, asset class, topic, iss
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
 
+</ReferenceDetails>
+
 ### PitchBook Most Recent Credit News
 
 Retrieve the most recently published credit analysis articles and their descriptions, without article bodies
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3236,9 +3558,13 @@ Retrieve the most recently published credit analysis articles and their descript
 |     ↳ `pbId` | string | PitchBook entity ID |
 |     ↳ `name` | string | Name |
 
+</ReferenceDetails>
+
 ### PitchBook Credit News Article
 
 Retrieve one credit analysis article in full, including its body text, authors, topics, and the issuer, lender, and sponsor it covers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3268,9 +3594,13 @@ Retrieve one credit analysis article in full, including its body text, authors, 
 | `articleBody` | string | Full text of the article |
 | `attachments` | array | Attachments on the article |
 
+</ReferenceDetails>
+
 ### PitchBook Credit News Bulk
 
 Retrieve many credit analysis articles in full in a single call, reporting which IDs were found, missing, or duplicated
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3310,9 +3640,13 @@ Retrieve many credit analysis articles in full in a single call, reporting which
 | `notFound` | array | Article IDs that were not found |
 | `duplicates` | array | Article IDs that were requested more than once |
 
+</ReferenceDetails>
+
 ### PitchBook Contracts History
 
 Retrieve the API contracts on the account with their pricing model, term, and credit balances
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3338,9 +3672,13 @@ Retrieve the API contracts on the account with their pricing model, term, and cr
 |   ↳ `creditsRemaining` | number | Credits still available |
 |   ↳ `overageUsed` | number | Overage credits consumed |
 
+</ReferenceDetails>
+
 ### PitchBook Credit History
 
 Retrieve API credit usage and remaining balance per contract, for up to the last 90 days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3365,9 +3703,13 @@ Retrieve API credit usage and remaining balance per contract, for up to the last
 |   ↳ `creditsRemaining` | number | Credits still available |
 |   ↳ `overageUsed` | number | Overage credits consumed |
 
+</ReferenceDetails>
+
 ### PitchBook Usage Report
 
 Retrieve how many API calls were made and how many credits they charged, for up to the last 90 days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3388,9 +3730,13 @@ Retrieve how many API calls were made and how many credits they charged, for up 
 |   ↳ `totalChargedCredits` | number | Total credits charged |
 | `rawData` | array | Individual call records |
 
+</ReferenceDetails>
+
 ### PitchBook Cost of Calls
 
 Retrieve the credit cost of every API endpoint under a given pricing model, for first-time and refresh calls
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3410,9 +3756,13 @@ Retrieve the credit cost of every API endpoint under a given pricing model, for 
 |   ↳ `initialCost` | number | Credit cost of a first-time call |
 |   ↳ `refreshCost` | number | Credit cost of re-requesting data already pulled |
 
+</ReferenceDetails>
+
 ### PitchBook Lookup Table Structure
 
 List the lookup tables backing the search endpoints. Use this to find which table holds the codes a search filter expects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3429,9 +3779,13 @@ List the lookup tables backing the search endpoints. Use this to find which tabl
 |   ↳ `tableName` | string | Lookup table name |
 |   ↳ `tableDescription` | string | What the lookup table contains |
 
+</ReferenceDetails>
+
 ### PitchBook Lookup Tables
 
 Retrieve the codes in one or more lookup tables. These are the codes the search filters expect, such as INDUSTRY or VERTICAL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3452,9 +3806,13 @@ Retrieve the codes in one or more lookup tables. These are the codes the search 
 |     ↳ `code` | string | PitchBook code |
 |     ↳ `description` | string | Human-readable label for the code |
 
+</ReferenceDetails>
+
 ### PitchBook Sandbox Entities
 
 List the entities a sandbox API key is allowed to query, so test workflows have real IDs to run against
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3472,5 +3830,7 @@ List the entities a sandbox API key is allowed to query, so test workflows have 
 |   ↳ `companyId` | string | PitchBook ID of the entity, keyed by its own entity type |
 |   ↳ `companyName` | string | Name of the entity, keyed by its own entity type |
 | `entityTypeCounts` | json | Count of available sandbox entities, keyed by entity type |
+
+</ReferenceDetails>
 
 

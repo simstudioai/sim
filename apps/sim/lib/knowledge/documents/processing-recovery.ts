@@ -7,11 +7,11 @@ import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
   resolveSystemOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import type { DbOrTx } from '@/lib/db/types'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   createDocumentProcessingPayload,

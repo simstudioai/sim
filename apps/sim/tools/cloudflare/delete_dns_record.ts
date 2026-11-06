@@ -3,6 +3,7 @@ import type {
   CloudflareDeleteDnsRecordResponse,
 } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteDnsRecordTool: ToolConfig<
   CloudflareDeleteDnsRecordParams,
@@ -36,7 +37,7 @@ export const deleteDnsRecordTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records/${params.recordId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_records/${safeUrlPathSegment(params.recordId, 'recordId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -56,7 +57,7 @@ export const deleteDnsRecordTool: ToolConfig<
      * body if Cloudflare ever starts sending the full envelope here.
      * https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/delete/
      */
-    if (data.success === false) {
+    if (!response.ok || data.success === false || !data.result) {
       return {
         success: false,
         output: { id: '' },

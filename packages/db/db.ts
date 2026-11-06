@@ -74,6 +74,19 @@ const postgresClient = instrumentPoolClient(
 
 export const db = drizzle(postgresClient, { schema })
 
+/** Root clients connected to the primary: `db` and every `dbFor()` sub-pool. */
+const primaryPoolClients = new WeakSet<object>([db])
+
+/**
+ * True for a root client on the primary — `db` or any `dbFor()` sub-pool — and
+ * false for a transaction handle or `dbReplica`. A process-wide cache may only
+ * serve and store reads made through such a client: a transaction can see its
+ * own uncommitted writes, and the replica can lag.
+ */
+export function isPrimaryPoolClient(executor: object): boolean {
+  return primaryPoolClients.has(executor)
+}
+
 /**
  * Opt-in read-replica client for reads that tolerate bounded staleness and have
  * no read-your-writes dependency (logs, exports, dashboard aggregations). Never
@@ -159,5 +172,6 @@ export function dbFor(role: SubProcessDbRole): typeof db {
     { schema }
   )
   subPoolClients.set(role, client)
+  primaryPoolClients.add(client)
   return client
 }

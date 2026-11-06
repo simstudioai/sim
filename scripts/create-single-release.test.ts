@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -40,7 +40,15 @@ describe('release commit lookup', () => {
   }
 
   function commit(message: string, parents = head ? [head] : []): string {
-    head = git(['commit-tree', tree, ...parents.flatMap((parent) => ['-p', parent])], message)
+    const messageFile = path.join(directory, 'commit-message')
+    writeFileSync(messageFile, message)
+    head = git([
+      'commit-tree',
+      tree,
+      '-F',
+      messageFile,
+      ...parents.flatMap((parent) => ['-p', parent]),
+    ])
     git(['update-ref', 'refs/heads/main', head])
     return head
   }
@@ -77,8 +85,8 @@ describe('release commit lookup', () => {
   })
 
   it('finds the release boundaries when older history exceeds the subprocess buffer', () => {
-    for (let index = 0; index < 40; index++) {
-      commit(`chore: historical change ${index} ${'x'.repeat(32_000)}`)
+    for (let index = 0; index < 4; index++) {
+      commit(`chore: historical change ${index} ${'x'.repeat(320_000)}`)
     }
     const previous = commit('v0.8.30: previous release')
     commit('fix(search): improve indexing (#7720)')

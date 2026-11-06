@@ -9,9 +9,11 @@ provisioning service.
 ## Requirements
 
 - Bun and the repository dependencies installed.
-- A running local app configured for Enterprise SCIM, using a dedicated local
+- A running local app configured for hosted Enterprise SCIM with billing enabled, using a dedicated local
   PostgreSQL database with all migrations applied (including `0325`). Leave
   Redis unconfigured so the app uses PostgreSQL for rate-limit storage.
+  Enable People on the app with `PEOPLE=true` to exercise SCIM profile imports.
+  For `next dev`, set `NEXT_PUBLIC_FORCE_HOSTED=true` and `BILLING_ENABLED=true`.
 - The app's local `BETTER_AUTH_SECRET`, at least 32 characters long.
 - An app URL using HTTP on `localhost`, `127.0.0.1`, or `::1`. The database must
   also use a loopback host, and its name must include `test` or `scim`.
@@ -42,6 +44,8 @@ export SCIM_E2E_REPORT_PATH=/tmp/sim-scim-e2e-report.json
 bun run test:scim:e2e
 ```
 
+Set `PEOPLE_E2E_SCREENSHOT_DIR` to run the signed-in People import flow in Chromium and save its screenshots. Install Chromium with `bunx --no-install playwright install chromium` when using that option.
+
 The first three variables are required; the report path is optional. The app and
 the harness must use the same database and authentication secret. The report
 contains check names, outcomes, timing, and HTTP request count; it excludes
@@ -53,6 +57,8 @@ timeout.
 
 - Discovery, session-authenticated configuration, credential hashing, tenant
   isolation, bearer authentication, content type, and malformed JSON errors.
+- Hosted Enterprise entitlement loss rejects both session-authenticated administration
+  and an existing bearer token; restoring the subscription restores both paths.
 - User and group creation, reads, replacement, PATCH, deletion, conflict errors,
   stable pagination, count-only queries, and group/member attribute projection.
 - Case-insensitive user lookup, external IDs, secondary/work/primary email
@@ -65,9 +71,19 @@ timeout.
 - Group membership idempotency and membership-only replacement timestamps.
 - Workspace, organization-role, and permission-group mappings, reconciliation,
   drift repair, withdrawal, and preservation of pre-existing manual workspace access.
+- Automatic group renames through PATCH and PUT, including a destination already
+  mapped manually; the old policy is withdrawn immediately.
+- Mapping status when overlapping workspace policies prevent assignment, followed
+  by conflict recovery and reconciliation.
+- A concurrent membership-lock change while a group removal waits on the
+  organization lock; withdrawal uses the committed setting.
+- Concurrent name-matching changes while POST, PUT, and PATCH wait on the
+  organization lock; mapping uses the committed setting in both toggle directions.
 - Managed-membership enforcement through the actual batch invitation and
   workspace permission APIs, including successful edits to unmanaged members.
-- Session revocation on deactivation, membership retention, directory
+- Session revocation on deactivation and permanent OAuth grant revocation on
+  directory deletion, including an actual OAuth API request after deletion.
+- Membership retention, directory
   reactivation, manual suspension protection, owner protection, and account
   relinking after deletion and rehire.
 - Credential scopes, overlapping rotation, the active credential limit,
@@ -78,10 +94,14 @@ timeout.
 
 The `e2e (scim)` job in `.github/workflows/checks.yml`
 provisions its own database through `db:migrate`, starts a local Next.js app
-with hosted Enterprise configuration, and runs the HTTP suite above. It has its
+with hosted Enterprise configuration, and runs the HTTP suite above. The production
+app's public URL uses `scim-e2e.sim.ai`, mapped to loopback on that runner; the
+tests and internal API requests still connect to `127.0.0.1`. Production ignores
+`NEXT_PUBLIC_FORCE_HOSTED`, so setting that flag alone cannot provide hosted coverage.
+It has its
 own database because the hosted app runs background usage replay against it.
-Readiness is bounded to 300 seconds, since the first request cold-compiles the
-app; the server is stopped when the step exits. A failure prints the server log
+Readiness is bounded to 600 seconds for either production or local development
+startup; the server is stopped when the step exits. A failure prints the server log
 tail and uploads the credential-free scenario report, an allowlist of HTTP
 status log lines, and the local app's server log. The CI app uses only fixture
 secrets.
@@ -107,6 +127,20 @@ both `db:push` and `db:migrate`, also run `lib/auth/sso/application/admit-sso-us
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.
+
+The real PostgreSQL/Redis suite
+`lib/mothership/request/application/removal-stops-runs.integration.ts` verifies
+that deactivation writes durable Stops for admitted Chat runs, including concurrent
+interactive and headless admission. Reactivation cannot revive those runs or a
+headless run admitted during suspension. An existing account first provisioned
+inactive is stopped, and a rolled-back suspension emits no durable or delivered Stop.
+
+## Verification dates and limits
+
+The October 28, 2026 audit exercised the current app using the local HTTP harness,
+real PostgreSQL/Redis integration suites, and the browser UI with synthetic data.
+It did not connect to a live provider tenant. The live-provider results below are
+from September 2026 and describe that run, not certification of every later change.
 
 ## Live Okta verification
 
@@ -167,3 +201,5 @@ branches that do not belong in a local HTTP scenario:
 ```sh
 bun run --cwd apps/sim test ee/scim lib/api/server/routes/scim-route.test.ts
 ```
+
+The SCIM suite exercises directory sync through its authenticated cron and admin routes. Set the same `CRON_SECRET` on the test runner and app.

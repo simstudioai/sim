@@ -9,7 +9,7 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { useQueryState } from 'nuqs'
-import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/search-params'
+import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'

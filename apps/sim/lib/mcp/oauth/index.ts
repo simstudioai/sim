@@ -18,6 +18,7 @@ export {
   clearTokens,
   clearVerifier,
   getOrCreateOauthRow,
+  hasDecryptableOauthTokens,
   loadOauthRow,
   loadOauthRowByState,
   type McpOauthRow,

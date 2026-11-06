@@ -21,7 +21,7 @@ vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 import {
   getOrganizationPlanSeatsContract,

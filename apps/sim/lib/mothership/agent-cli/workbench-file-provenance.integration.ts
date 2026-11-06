@@ -4,6 +4,7 @@ import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import { auditLog, organization, user, workspace } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
@@ -13,7 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { buildOrgScopeCondition } from '@/lib/audit-logs/query'
 import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
@@ -101,7 +102,7 @@ beforeAll(async () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: fixtureWorkspaceId,
     name: 'Receipt test workspace',
     ownerId: fixtureUserId,
@@ -143,7 +144,7 @@ afterAll(async () => {
     }
     if (historyKeys.size > 0) await redis.del(...historyKeys)
     await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
-    await db.delete(workspace).where(eq(workspace.id, fixtureWorkspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, fixtureWorkspaceId))
     await db.delete(user).where(eq(user.id, fixtureUserId))
   } finally {
     restoreAuditObservation?.()

@@ -68,7 +68,7 @@ vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 
 vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)

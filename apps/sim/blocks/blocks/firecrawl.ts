@@ -12,7 +12,7 @@ export const FirecrawlBlock: BlockConfig = {
   description: 'Scrape, search, crawl, map, and extract web data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.',
+    'Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.',
   docsLink: 'https://docs.sim.ai/integrations/firecrawl',
   category: 'tools',
   integrationType: IntegrationType.Search,

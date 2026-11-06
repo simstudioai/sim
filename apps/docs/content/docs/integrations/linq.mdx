@@ -1,48 +1,33 @@
 ---
 title: Linq
 description: Send iMessage, SMS, and RCS messages and manage conversations with Linq
+integration:
+  type: "linq"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="linq"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Linq](https://linqapp.com/) is an API-first messaging platform that lets you reach people on iMessage, SMS, and RCS through real conversations. Linq handles the messaging plumbing — Apple and carrier delivery, group chats, read receipts, typing indicators, reactions, and attachments — behind a single REST API designed for programmatic access.
+Use [Linq](https://linqapp.com/) to send and read messages over iMessage, SMS, and RCS with an API key.
 
-**Why Linq?**
-- **iMessage, SMS, and RCS in one API:** Send and receive across all three channels from the same chats and phone numbers, with automatic delivery over the best available service.
-- **Rich conversations:** Media, link previews, screen and bubble effects, tapback reactions, inline replies, voice memos, and editable messages — not just plain text.
-- **Group chat management:** Create groups, add and remove participants, rename chats, update icons, and leave conversations.
-- **Capability checks:** Verify whether an address supports iMessage or RCS before you send, so you pick the right channel every time.
-- **Real-time webhooks:** Subscribe to message, reaction, participant, and call events with HMAC-SHA256 signature verification.
+The 34 operations cover chats, messages, attachments, phone numbers, capability checks, contact cards, and webhook subscriptions. Send media, link previews, effects, tapback reactions, inline replies, voice memos, or edited messages; and manage group participants, names, and icons.
 
-**Using Linq in Sim**
-
-Sim's Linq integration connects your agentic workflows directly to Linq using an API key. With 34 operations spanning chats, messages, attachments, phone numbers, capability checks, contact cards, and webhook subscriptions, you can build conversational messaging automations without writing backend code.
-
-**Key benefits of using Linq in Sim:**
-- **Conversational agents:** Send and read messages in iMessage, SMS, or RCS chats, react with tapbacks, and reply inline to build natural two-way conversations.
-- **Reliable delivery:** Check iMessage/RCS capability and set a preferred service so each message goes out over the right channel.
-- **Files and voice:** Upload attachments up to 100MB and send media or voice memos straight from your workflow.
-- **Event-driven flows:** Manage webhook subscriptions so workflows can react to inbound messages, reactions, and participant changes.
+Check iMessage or RCS capability before selecting a preferred service. Upload attachments up to the operation's 100 MB limit. Webhook subscriptions cover message, reaction, participant, and call events, with HMAC-SHA256 signature verification.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.
-
-
 
 ## Actions
 
 ### Add Participant
 
 Add a participant to a group chat (3+ existing participants)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,9 +45,13 @@ Add a participant to a group chat (3+ existing participants)
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
+</ReferenceDetails>
+
 ### Check iMessage Capability
 
 Check whether an address (phone number or email) supports iMessage
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +68,13 @@ Check whether an address (phone number or email) supports iMessage
 | `address` | string | The address that was checked |
 | `available` | boolean | Whether the address supports iMessage |
 
+</ReferenceDetails>
+
 ### Check RCS Capability
 
 Check whether an address (phone number or email) supports RCS
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,9 +91,13 @@ Check whether an address (phone number or email) supports RCS
 | `address` | string | The address that was checked |
 | `available` | boolean | Whether the address supports RCS |
 
+</ReferenceDetails>
+
 ### Upload Attachment
 
 Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +119,13 @@ Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment
 | `sizeBytes` | number | File size in bytes |
 | `status` | string | Upload status |
 
+</ReferenceDetails>
+
 ### Create Chat
 
 Start a new iMessage, SMS, or RCS chat and send the first message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +156,13 @@ Start a new iMessage, SMS, or RCS chat and send the first message
 | `healthStatus` | json | Messaging line health status |
 | `message` | json | The sent message object with parts and delivery info |
 
+</ReferenceDetails>
+
 ### Create Contact Card
 
 Set up a contact card (Name and Photo Sharing) for a phone number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +184,13 @@ Set up a contact card (Name and Photo Sharing) for a phone number
 | `imageUrl` | string | Profile photo URL |
 | `isActive` | boolean | Whether the card is active |
 
+</ReferenceDetails>
+
 ### Create Webhook Subscription
 
 Subscribe an HTTPS endpoint to Linq webhook events
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +214,13 @@ Subscribe an HTTPS endpoint to Linq webhook events
 | `updatedAt` | string | ISO 8601 update timestamp |
 | `signingSecret` | string | HMAC-SHA256 signing secret. Store securely — it cannot be retrieved again |
 
+</ReferenceDetails>
+
 ### Delete Attachment
 
 Permanently delete an attachment owned by your account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +235,13 @@ Permanently delete an attachment owned by your account
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the attachment was deleted |
 
+</ReferenceDetails>
+
 ### Delete Message
 
 Delete a message from the Linq API only (does not unsend it; recipients still see it)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -239,9 +256,13 @@ Delete a message from the Linq API only (does not unsend it; recipients still se
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the message was deleted |
 
+</ReferenceDetails>
+
 ### Delete Webhook Subscription
 
 Delete a webhook subscription from your account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,9 +277,13 @@ Delete a webhook subscription from your account
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the subscription was deleted |
 
+</ReferenceDetails>
+
 ### Edit Message
 
 Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -286,9 +311,13 @@ Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iM
 | `parts` | json | Updated message parts with reactions |
 | `message` | json | The full updated message object |
 
+</ReferenceDetails>
+
 ### Get Attachment
 
 Retrieve metadata for an attachment, including its download URL and status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +338,13 @@ Retrieve metadata for an attachment, including its download URL and status
 | `downloadUrl` | string | URL to download the file |
 | `createdAt` | string | ISO 8601 creation timestamp |
 
+</ReferenceDetails>
+
 ### Get Chat
 
 Retrieve a chat by ID, including participants and line health
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +367,13 @@ Retrieve a chat by ID, including participants and line health
 | `handles` | json | Participant handles in the chat |
 | `healthStatus` | json | Messaging line health status |
 
+</ReferenceDetails>
+
 ### Get Contact Card
 
 Retrieve contact cards, optionally filtered by phone number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -356,9 +393,13 @@ Retrieve contact cards, optionally filtered by phone number
 |   ↳ `imageUrl` | string | Profile photo URL |
 |   ↳ `isActive` | boolean | Whether the card is active |
 
+</ReferenceDetails>
+
 ### Get Message
 
 Retrieve a single message by ID, including parts, reactions, and delivery status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +425,13 @@ Retrieve a single message by ID, including parts, reactions, and delivery status
 | `parts` | json | Message parts \(text, media, link\) with reactions |
 | `message` | json | The full message object |
 
+</ReferenceDetails>
+
 ### Get Webhook Subscription
 
 Retrieve a webhook subscription by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -407,9 +452,13 @@ Retrieve a webhook subscription by ID
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 ### Leave Chat
 
 Leave an iMessage group chat (4+ active participants; not supported for direct chats)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -426,9 +475,13 @@ Leave an iMessage group chat (4+ active participants; not supported for direct c
 | `status` | string | Queued action status \(e.g. accepted\) |
 | `traceId` | string | Trace ID for the queued action |
 
+</ReferenceDetails>
+
 ### List Chats
 
 List chats, optionally filtered by sender or participant handle
+
+<ReferenceDetails>
 
 #### Input
 
@@ -447,9 +500,13 @@ List chats, optionally filtered by sender or participant handle
 | `chats` | json | Array of chat objects |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
+</ReferenceDetails>
+
 ### List Messages
 
 List messages in a chat with pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,9 +524,13 @@ List messages in a chat with pagination
 | `messages` | json | Array of message objects with parts and reactions |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
+</ReferenceDetails>
+
 ### List Phone Numbers
 
 List all phone numbers assigned to your partner account, with line health
+
+<ReferenceDetails>
 
 #### Input
 
@@ -487,9 +548,13 @@ List all phone numbers assigned to your partner account, with line health
 |   ↳ `forwardingNumber` | string | Forwarding number in E.164 format, or null |
 |   ↳ `healthStatus` | json | Line reputation/health status \(status, doc_url\) |
 
+</ReferenceDetails>
+
 ### List Thread Messages
 
 List all messages in the thread that contains a given message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -508,9 +573,13 @@ List all messages in the thread that contains a given message
 | `messages` | json | Array of message objects in the thread |
 | `nextCursor` | string | Cursor for the next page, or null if there are no more results |
 
+</ReferenceDetails>
+
 ### List Webhook Events
 
 List all webhook event types available to subscribe to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -525,9 +594,13 @@ List all webhook event types available to subscribe to
 | `events` | json | Available webhook event type names |
 | `docUrl` | string | Documentation URL for webhook events |
 
+</ReferenceDetails>
+
 ### List Webhook Subscriptions
 
 List all webhook subscriptions on your account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -548,9 +621,13 @@ List all webhook subscriptions on your account
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 |   ↳ `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 ### Mark Chat as Read
 
 Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -565,9 +642,13 @@ Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the chat was marked as read |
 
+</ReferenceDetails>
+
 ### React to Message
 
 Add or remove a tapback reaction on a message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -588,9 +669,13 @@ Add or remove a tapback reaction on a message
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
+</ReferenceDetails>
+
 ### Remove Participant
 
 Remove a participant from a group chat (minimum 3 participants must remain)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -608,9 +693,13 @@ Remove a participant from a group chat (minimum 3 participants must remain)
 | `status` | string | Queued action status |
 | `traceId` | string | Trace ID for the queued action |
 
+</ReferenceDetails>
+
 ### Send Message
 
 Send a message to an existing chat, with optional media, link, effect, or reply
+
+<ReferenceDetails>
 
 #### Input
 
@@ -640,9 +729,13 @@ Send a message to an existing chat, with optional media, link, effect, or reply
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `message` | json | The full sent message object with parts |
 
+</ReferenceDetails>
+
 ### Send Voice Memo
 
 Send a voice memo to a chat from a URL or a pre-uploaded attachment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -664,9 +757,13 @@ Send a voice memo to a chat from a URL or a pre-uploaded attachment
 | `service` | string | Delivery service \(iMessage, SMS, RCS\) |
 | `voiceMemo` | json | Audio file metadata \(id, filename, mime_type, size_bytes, url, duration_ms\) |
 
+</ReferenceDetails>
+
 ### Share Contact Card
 
 Share your configured contact card (Name and Photo Sharing) with a chat
+
+<ReferenceDetails>
 
 #### Input
 
@@ -681,9 +778,13 @@ Share your configured contact card (Name and Photo Sharing) with a chat
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the contact card was shared |
 
+</ReferenceDetails>
+
 ### Start Typing Indicator
 
 Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -698,9 +799,13 @@ Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the typing indicator was sent |
 
+</ReferenceDetails>
+
 ### Stop Typing Indicator
 
 Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -715,9 +820,13 @@ Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the typing indicator was stopped |
 
+</ReferenceDetails>
+
 ### Update Chat
 
 Update chat properties such as group display name and icon
+
+<ReferenceDetails>
 
 #### Input
 
@@ -735,9 +844,13 @@ Update chat properties such as group display name and icon
 | `chatId` | string | ID of the updated chat |
 | `status` | string | Status of the queued update |
 
+</ReferenceDetails>
+
 ### Update Contact Card
 
 Partially update an existing active contact card for a phone number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -759,9 +872,13 @@ Partially update an existing active contact card for a phone number
 | `imageUrl` | string | Profile photo URL |
 | `isActive` | boolean | Whether the card is active |
 
+</ReferenceDetails>
+
 ### Update Webhook Subscription
 
 Update a webhook subscription (target URL, events, phone filter, or active state)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -786,11 +903,13 @@ Update a webhook subscription (target URL, events, phone filter, or active state
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Linq Message Delivered
 

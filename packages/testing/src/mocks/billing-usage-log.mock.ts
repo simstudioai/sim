@@ -39,6 +39,14 @@ export class MockCumulativeUsagePeriodClosedError extends Error {
   }
 }
 
+/** Stand-in for `CumulativeUsageInFlightError` with the real `name`, `eventKey`, and message. */
+export class MockCumulativeUsageInFlightError extends Error {
+  constructor(readonly eventKey: string) {
+    super(`Cumulative usage event "${eventKey}" is already being recorded`)
+    this.name = 'CumulativeUsageInFlightError'
+  }
+}
+
 /**
  * Stand-in for `UnknownUsageCursorError` with the real `name`, message, and `statusCode` 400.
  * It is NOT a subclass of the real `HttpError`, and its `cause` is a plain `Error` carrying
@@ -92,6 +100,7 @@ export const billingUsageLogMockFns = {
   mockDeriveBillingContext: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetBillingPeriodWorkflowRunCount: vi.fn(),
+  mockGetBillingPeriodWorkflowRunCountWithinBudget: vi.fn(),
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
   mockGetBillingPeriodUsageCostByUser: vi.fn(),
   mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
@@ -107,7 +116,8 @@ export const billingUsageLogMockFns = {
 /**
  * Static mock module for `@/lib/billing/core/usage-log`. Constants carry the real values;
  * `CumulativeUsageContextMismatchError` is {@link MockCumulativeUsageContextMismatchError},
- * `CumulativeUsagePeriodClosedError` is {@link MockCumulativeUsagePeriodClosedError}, and
+ * `CumulativeUsagePeriodClosedError` is {@link MockCumulativeUsagePeriodClosedError},
+ * `CumulativeUsageInFlightError` is {@link MockCumulativeUsageInFlightError}, and
  * `UnknownUsageCursorError` is {@link MockUnknownUsageCursorError}.
  *
  * @example
@@ -122,12 +132,15 @@ export const billingUsageLogMock = {
   UNKNOWN_CURSOR_MESSAGE,
   CumulativeUsageContextMismatchError: MockCumulativeUsageContextMismatchError,
   CumulativeUsagePeriodClosedError: MockCumulativeUsagePeriodClosedError,
+  CumulativeUsageInFlightError: MockCumulativeUsageInFlightError,
   UnknownUsageCursorError: MockUnknownUsageCursorError,
   isUnbilledUsageCategory: billingUsageLogMockFns.mockIsUnbilledUsageCategory,
   stableEventKey: billingUsageLogMockFns.mockStableEventKey,
   deriveBillingContext: billingUsageLogMockFns.mockDeriveBillingContext,
   getBillingPeriodUsageCost: billingUsageLogMockFns.mockGetBillingPeriodUsageCost,
   getBillingPeriodWorkflowRunCount: billingUsageLogMockFns.mockGetBillingPeriodWorkflowRunCount,
+  getBillingPeriodWorkflowRunCountWithinBudget:
+    billingUsageLogMockFns.mockGetBillingPeriodWorkflowRunCountWithinBudget,
   getBillingPeriodUsageCostWithSourceSubset:
     billingUsageLogMockFns.mockGetBillingPeriodUsageCostWithSourceSubset,
   getBillingPeriodUsageCostByUser: billingUsageLogMockFns.mockGetBillingPeriodUsageCostByUser,

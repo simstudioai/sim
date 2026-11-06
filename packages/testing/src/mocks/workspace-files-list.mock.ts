@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 
 /**
  * The real `fileOperations.list` operation from `@/lib/workspace-files/application/operations`,
- * which all three list use cases share.
+ * which every list use case shares.
  */
 const FILES_LIST_OPERATION = {
   id: 'files.list',
@@ -42,6 +42,16 @@ export const workspaceFilesListMockFns = {
   mockQueryWorkspaceFilePageAuthorize: vi.fn(),
   mockListWorkspaceFilesInFolderScope: vi.fn(),
   mockListWorkspaceFilesInFolderScopeAuthorize: vi.fn(),
+  mockFindActiveWorkspaceFilesByReference: vi.fn(),
+  mockFindActiveWorkspaceFilesByReferenceAuthorize: vi.fn(),
+  mockListWorkspaceFileCollection: vi.fn(),
+  mockListWorkspaceFileCollectionAuthorize: vi.fn(),
+  mockLookupWorkspaceFiles: vi.fn(),
+  mockLookupWorkspaceFilesAuthorize: vi.fn(),
+  mockGetWorkspaceFileFolderStats: vi.fn(),
+  mockGetWorkspaceFileFolderStatsAuthorize: vi.fn(),
+  mockSearchWorkspaceFiles: vi.fn(),
+  mockSearchWorkspaceFilesAuthorize: vi.fn(),
 }
 
 const fns = workspaceFilesListMockFns
@@ -73,5 +83,35 @@ export const workspaceFilesListMock = {
     delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     authorize: fns.mockListWorkspaceFilesInFolderScopeAuthorize,
     execute: fns.mockListWorkspaceFilesInFolderScope,
+  },
+  findActiveWorkspaceFilesByReference: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockFindActiveWorkspaceFilesByReferenceAuthorize,
+    execute: fns.mockFindActiveWorkspaceFilesByReference,
+  },
+  listWorkspaceFileCollection: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockListWorkspaceFileCollectionAuthorize,
+    execute: fns.mockListWorkspaceFileCollection,
+  },
+  lookupWorkspaceFiles: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockLookupWorkspaceFilesAuthorize,
+    execute: fns.mockLookupWorkspaceFiles,
+  },
+  getWorkspaceFileFolderStats: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockGetWorkspaceFileFolderStatsAuthorize,
+    execute: fns.mockGetWorkspaceFileFolderStats,
+  },
+  searchWorkspaceFiles: {
+    operation: FILES_LIST_OPERATION,
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    authorize: fns.mockSearchWorkspaceFilesAuthorize,
+    execute: fns.mockSearchWorkspaceFiles,
   },
 }

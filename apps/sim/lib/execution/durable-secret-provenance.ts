@@ -5,8 +5,10 @@ import {
   isPrivateSecretProvenanceBundleV1,
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
-import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
-import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
+import {
+  mergeDurableSecretProvenanceSources,
+  normalizeDurableSecretProvenanceBindings,
+} from '@/lib/execution/provenance-entries'
 import {
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -30,59 +32,6 @@ export function normalizeDurableSecretProvenanceEntries(
   value: unknown
 ): DurableSecretProvenanceEntry[] | undefined {
   return Array.isArray(value) ? normalizeDurableSecretProvenanceBindings(value) : undefined
-}
-
-function normalizeDurableSecretProvenanceBindings(
-  candidates: Iterable<unknown>
-): DurableSecretProvenanceEntry[] | undefined {
-  const entries = new Map<string, DurableSecretProvenanceEntry>()
-  const budget = new SecretProvenanceBudget()
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
-    const record = candidate as Record<string, unknown>
-    if (
-      typeof record.encryptedValue !== 'string' ||
-      record.encryptedValue.length === 0 ||
-      (record.name !== undefined && typeof record.name !== 'string') ||
-      (record.sourceUserId !== undefined && typeof record.sourceUserId !== 'string') ||
-      (record.sourceWorkspaceId !== undefined && typeof record.sourceWorkspaceId !== 'string') ||
-      (record.sourceValueHash !== undefined && typeof record.sourceValueHash !== 'string') ||
-      (record.sourceWorkspaceId !== undefined && record.sourceUserId === undefined)
-    ) {
-      return undefined
-    }
-    const entry: DurableSecretProvenanceEntry = {
-      encryptedValue: record.encryptedValue,
-      ...(typeof record.name === 'string' && record.name.length > 0 ? { name: record.name } : {}),
-      ...(typeof record.sourceUserId === 'string' && record.sourceUserId.length > 0
-        ? { sourceUserId: record.sourceUserId }
-        : {}),
-      ...(typeof record.sourceWorkspaceId === 'string' && record.sourceWorkspaceId.length > 0
-        ? { sourceWorkspaceId: record.sourceWorkspaceId }
-        : {}),
-      ...(typeof record.sourceValueHash === 'string' && record.sourceValueHash.length > 0
-        ? { sourceValueHash: record.sourceValueHash }
-        : {}),
-    }
-    let minimumBytes = 0
-    for (const field of Object.values(entry)) {
-      minimumBytes += Buffer.byteLength(field, 'utf8')
-      if (minimumBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
-    }
-    const key = JSON.stringify(entry)
-    if (entries.has(key)) continue
-    if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) return undefined
-    entries.set(key, entry)
-  }
-
-  return [...entries.values()].sort(
-    (left, right) =>
-      compareStrings(left.sourceUserId ?? '', right.sourceUserId ?? '') ||
-      compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '') ||
-      compareStrings(left.sourceValueHash ?? '', right.sourceValueHash ?? '') ||
-      compareStrings(left.name ?? '', right.name ?? '') ||
-      compareStrings(left.encryptedValue, right.encryptedValue)
-  )
 }
 
 /** Converts a complete transport envelope into its scope-preserving durable representation. */
@@ -155,15 +104,7 @@ export function durableSecretProvenanceFromPrivateBundle(
 export function mergeDurableSecretProvenance(
   ...values: readonly DurableSecretProvenance[]
 ): DurableSecretProvenance {
-  if (values.some((value) => value.status === 'unknown')) return { status: 'unknown' }
-  const normalized = normalizeDurableSecretProvenanceBindings(
-    (function* () {
-      for (const value of values) {
-        if (value.status === 'exact') yield* value.entries
-      }
-    })()
-  )
-  return normalized ? { status: 'exact', entries: normalized } : { status: 'unknown' }
+  return mergeDurableSecretProvenanceSources(values)
 }
 
 /** Binds exact entries to one persisted sub-value so later slicing cannot activate dropped data. */
@@ -201,10 +142,11 @@ export function filterDurableSecretProvenanceBySourceValues(
 export async function importDurableSecretProvenance(
   registry: ResolvedSecretTraceRegistry,
   provenance: DurableSecretProvenance,
-  value?: unknown
+  value?: unknown,
+  options: { atomic?: boolean } = {}
 ): Promise<boolean> {
   if (provenance.status === 'unknown') {
-    registry.markIncomplete('durable-provenance-unknown')
+    if (!options.atomic) registry.markIncomplete('durable-provenance-unknown')
     return false
   }
   const entries = normalizeDurableSecretProvenanceEntries(provenance.entries)
@@ -213,7 +155,7 @@ export async function importDurableSecretProvenance(
      * Malformed is not unrecorded: a sidecar that exists but cannot be parsed is a fault, and no
      * enforcement policy relaxes it.
      */
-    registry.markIncomplete('durable-provenance-malformed')
+    if (!options.atomic) registry.markIncomplete('durable-provenance-malformed')
     return false
   }
 
@@ -244,14 +186,25 @@ export async function importDurableSecretProvenance(
     group.entries.set(JSON.stringify(transportEntry), transportEntry)
   }
 
-  let complete = true
-  for (const group of grouped.values()) {
-    const envelope: ResolvedSecretTraceProvenanceV1 = {
-      version: 1,
-      complete: true,
-      entries: [...group.entries.values()],
-      ...(group.scope ? { scope: group.scope } : {}),
+  function* envelopes(): Generator<ResolvedSecretTraceProvenanceV1> {
+    for (const group of grouped.values()) {
+      yield {
+        version: 1,
+        complete: true,
+        entries: [...group.entries.values()],
+        ...(group.scope ? { scope: group.scope } : {}),
+      }
     }
+  }
+  if (options.atomic) {
+    return registry.tryImportProvenance(envelopes(), {
+      trusted: true,
+      origin: 'durableProvenance.admission',
+      value,
+    })
+  }
+  let complete = true
+  for (const envelope of envelopes()) {
     const imported =
       value === undefined
         ? await registry.importProvenance(envelope, {

@@ -14,7 +14,7 @@ export const createProjectTool: ToolConfig<CreateProjectParams, ProjectResponse>
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Owner Node ID (format: PVT_... or MDQ6...). Use GitHub GraphQL API to get this ID from organization or user login.',
+        'Node ID of the owning user or organization, not a project ID or login name. Retrieve the owner id through the GitHub GraphQL API.',
     },
     title: {
       type: 'string',

@@ -18,7 +18,7 @@ const { mockReadWorkspaceFileByKey } = vi.hoisted(() => ({
   mockReadWorkspaceFileByKey: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 

@@ -17,6 +17,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { admitContent } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -26,16 +27,30 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  createConcurrencyLimit,
+  mapWithConcurrency,
+  waitWithAbort,
+} from '@/lib/core/utils/concurrency'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
+import type { SearchKnowledgeInput } from '@/lib/knowledge/application/search'
+import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diagnostics'
+import {
+  annotateSearchDiagnostics,
+  measureSearchStage,
+  recordSearchProviderResult,
+  withSearchProviderDiagnostics,
+  withSearchQueryDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   type LiveAccountSession,
@@ -61,6 +76,7 @@ import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
+import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -161,6 +177,7 @@ export function decodeLiveReference(value: string): Reference {
 }
 
 interface LiveSearchOptions {
+  surface?: SearchKnowledgeInput['surface']
   query: string
   topK: number
   filters?: WorkspaceSearchFilters
@@ -268,11 +285,21 @@ function resultFor(
 }
 
 /**
- * Accounts searched at once; bounds token refresh and provider fan-out in large organizations.
- * Each account is one provider, and a search waits for every account, so a second wave adds a
- * full provider round trip; eight covers the account count most organizations search.
+ * Accounts resolving their credential and opening their session at once. That phase reads the
+ * database (credentials, source settings, provider rollout) along with the network calls those
+ * reads lead to, such as a token refresh or a Google Directory lookup and delegated token mints,
+ * so it is bounded well under the web database pool. The bound is per account, not per
+ * connection: Google delegation resolves its subjects concurrently, and concurrent subjects share
+ * one service-account key read. Provider searches are not bounded: a search waits
+ * for every account, and a second wave would add a full provider round trip.
  */
-const ACCOUNT_CONCURRENCY = 8
+const ACCOUNT_OPEN_CONCURRENCY = 6
+/** Milliseconds a whole search may take. */
+const SEARCH_DEADLINE_MS = 20_000
+/** Milliseconds one account may take once it gets a slot, within what remains of the search. */
+const ACCOUNT_DEADLINE_MS = 12_000
+/** An account reaching its turn with less than this left before its deadline is not searched. */
+const ACCOUNT_START_FLOOR_MS = 1500
 /** Candidates verified at once; each verification is one or more provider requests. */
 const VERIFY_CONCURRENCY = 5
 const MAX_ACCOUNTS = 20
@@ -285,25 +312,89 @@ const READ_WINDOW_CHARACTERS = 8000
  * Verifies candidates in rank order. A revoked grant fails the whole account; any other
  * verification failure only omits that candidate, and is reported as incomplete coverage.
  */
-async function verifyCandidates(session: LiveAccountSession, candidates: LiveCandidate[]) {
-  const outcomes = await mapWithConcurrency(
-    candidates,
-    VERIFY_CONCURRENCY,
-    async ({ document }) => {
-      try {
-        return (await session.verify(document)) ? ('permitted' as const) : ('denied' as const)
-      } catch (error) {
+async function verifyCandidates(
+  session: LiveAccountSession,
+  candidates: LiveCandidate[],
+  onVerified?: (candidate: LiveCandidate, permitted: boolean) => void
+) {
+  const outcomes = await mapWithConcurrency(candidates, VERIFY_CONCURRENCY, async (candidate) => {
+    const outcome = await session.verify(candidate.document).then(
+      (permitted) => (permitted ? ('permitted' as const) : ('denied' as const)),
+      (error: unknown) => {
         if (error instanceof NativeSearchError && error.status === 'reconnect') throw error
         return error instanceof NativeSearchError && error.status === 'rate_limited'
           ? ('rate_limited' as const)
           : ('unverified' as const)
       }
-    }
-  )
+    )
+    onVerified?.(candidate, outcome === 'permitted')
+    return outcome
+  })
   return {
     permitted: candidates.filter((_, index) => outcomes[index] === 'permitted'),
     unverified: outcomes.some((outcome) => outcome === 'unverified' || outcome === 'rate_limited'),
     rateLimited: outcomes.includes('rate_limited'),
+  }
+}
+
+/** Top results per account read for a passage when their provider returns only an excerpt. */
+const PREVIEW_READS = 3
+/** A slow preview read keeps the provider's excerpt rather than delaying the search. */
+const PREVIEW_DEADLINE_MS = 2500
+/** Text kept around the match from a preview read, so a long document stays bounded. */
+const PREVIEW_SOURCE_CHARACTERS = 100_000
+
+/**
+ * Replaces the excerpt or metadata of an account's top results with their full text, so their
+ * preview is a passage around the match like other providers' results rather than a prompt to
+ * read. A result is read only once verification permits it and it is among the top results the
+ * denials so far leave, so reads overlap the verification of other results without reading one
+ * that is denied. A session whose verification spends the budget reads draw on reads only after
+ * verification, so a preview never costs a result its check. `attach` gives text only to the verified results it is passed and cancels every
+ * other read. A read that fails or misses its deadline keeps the provider's preview.
+ */
+function streamPreviewReads(
+  session: LiveAccountSession,
+  candidates: LiveCandidate[],
+  matchingOf: (verified: LiveCandidate[]) => LiveCandidate[],
+  query: string
+) {
+  const reads = new Map<string, { text: Promise<string | undefined>; abandoned: AbortController }>()
+  const permitted = new Set<string>()
+  const rejected = new Set<string>()
+  const read = (candidate: LiveCandidate) => {
+    const started = reads.get(candidate.documentId)
+    if (started) return started.text
+    const abandoned = new AbortController()
+    const signal = AbortSignal.any([abandoned.signal, AbortSignal.timeout(PREVIEW_DEADLINE_MS)])
+    const text = waitWithAbort(session.previewText(candidate.document, signal), signal).catch(
+      () => undefined
+    )
+    reads.set(candidate.documentId, { text, abandoned })
+    return text
+  }
+  return {
+    verified(candidate: LiveCandidate, allowed: boolean) {
+      ;(allowed ? permitted : rejected).add(candidate.documentId)
+      const remaining = candidates.filter(({ documentId }) => !rejected.has(documentId))
+      for (const leading of matchingOf(remaining).slice(0, PREVIEW_READS))
+        if (permitted.has(leading.documentId)) read(leading)
+    },
+    async attach(verified: LiveCandidate[]): Promise<LiveCandidate[]> {
+      const leading = verified.slice(0, PREVIEW_READS)
+      const kept = new Set(leading.map(({ documentId }) => documentId))
+      for (const [documentId, { abandoned }] of reads) if (!kept.has(documentId)) abandoned.abort()
+      const texts = await Promise.all(leading.map(read))
+      return verified.map((candidate, index) => {
+        const text = texts[index]?.trim()
+        if (!text) return candidate
+        const content = matchPassage(text, query, PREVIEW_SOURCE_CHARACTERS).content
+        return { ...candidate, document: { ...candidate.document, content } }
+      })
+    },
+    cancel() {
+      for (const { abandoned } of reads.values()) abandoned.abort()
+    },
   }
 }
 
@@ -351,10 +442,30 @@ function compareAccounts(left: LiveAccount, right: LiveAccount): number {
   )
 }
 
-export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
+/**
+ * Why a plain search that reached no account returned nothing, and where the caller connects one;
+ * an empty result would otherwise read as a search that found nothing.
+ */
+function nothingSearchedGuidance(
+  owner: ResourceOwner,
+  source: string | undefined,
+  hasOtherAccounts: boolean
+): string {
+  const path = owner.organizationId
+    ? organizationRoutes(owner.organizationId).integrations
+    : `/workspace/${owner.workspaceId}/integrations`
+  const connect = new URL(path, getBaseUrl()).href
+  return source && hasOtherAccounts
+    ? `Nothing was searched: you have no connected ${source} account here. Connect one at ${connect}, or search without the source filter.`
+    : `Nothing was searched: you have no connected sources here. Connect your accounts at ${connect}, then search again.`
+}
+
+const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }): Promise<WorkspaceKnowledgeSearchData> {
+    /** Live provider results carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
@@ -390,9 +501,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'endDate must be after startDate')
     if (queries?.some((query) => !query.query && !query.browse) && !hasDateBounds(filters))
       throw new OrchestrationError('validation', 'Empty native queries require a date bound')
+    const searchDeadline = Date.now() + SEARCH_DEADLINE_MS
     const searchSignal = input.signal
-      ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
-      : AbortSignal.timeout(20_000)
+      ? AbortSignal.any([input.signal, AbortSignal.timeout(SEARCH_DEADLINE_MS)])
+      : AbortSignal.timeout(SEARCH_DEADLINE_MS)
     /** An account's native queries with their request index; none searches it with the plain query. */
     const nativesFor = (account: LiveAccount): NativeTarget[] =>
       queries
@@ -411,7 +523,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           nativesFor(account).length > 0
       )
       .sort(compareAccounts)
+    const nothingSearched = !queries && eligible.length === 0
     const selected = eligible.slice(0, MAX_ACCOUNTS)
+    const openingAccount = createConcurrencyLimit(ACCOUNT_OPEN_CONCURRENCY)
+    annotateSearchDiagnostics({
+      operation: 'search_workspace',
+      accountCount: eligible.length,
+      searchedAccountCount: selected.length,
+      nativeQueryCount: queries?.length ?? 0,
+    })
     const direction = dateSortDirection(filters)
     const dateSorted = Boolean(direction)
     const pool = createPinnedConnectionPool()
@@ -488,25 +608,45 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       const candidates = page.documents
         .filter((document) => document.id)
         .map((document) => candidateFor(document, account, input, userId))
+      const matchingOf = (verified: LiveCandidate[]) =>
+        firstOfEachDocument(
+          verified.filter(({ document, documentId }) =>
+            matchesLiveFilters(document, documentId, account.provider, queryFilters)
+          )
+        )
       /**
        * Local filters run first so provider verification is spent only on eligible results.
        * Undated results are verified too, so their exclusion is reported only when readable.
        */
-      const { permitted, unverified, rateLimited } = await measureSearchStage('live.verify', () =>
-        verifyCandidates(
-          session,
-          candidates.filter(
-            ({ document, documentId }) =>
-              matchesLiveFilters(document, documentId, account.provider, queryFilters) ||
-              lacksFilterDate(document, account.provider, queryFilters)
+      const eligible = candidates.filter(
+        ({ document, documentId }) =>
+          matchesLiveFilters(document, documentId, account.provider, queryFilters) ||
+          lacksFilterDate(document, account.provider, queryFilters)
+      )
+      /** A native query's operators would anchor the passage, so only plain queries preview. */
+      const previews =
+        !native && input.query.trim()
+          ? streamPreviewReads(session, eligible, matchingOf, input.query)
+          : undefined
+      let verification: Awaited<ReturnType<typeof verifyCandidates>>
+      let matching: LiveCandidate[]
+      let previewed: LiveCandidate[]
+      try {
+        verification = await measureSearchStage('live.verify', () =>
+          verifyCandidates(
+            session,
+            eligible,
+            session.verifySharesPreviewBudget ? undefined : previews?.verified
           )
         )
-      )
-      const matching = firstOfEachDocument(
-        permitted.filter(({ document, documentId }) =>
-          matchesLiveFilters(document, documentId, account.provider, queryFilters)
-        )
-      )
+        matching = matchingOf(verification.permitted)
+        previewed = previews
+          ? await measureSearchStage('live.preview', () => previews.attach(matching))
+          : matching
+      } finally {
+        previews?.cancel()
+      }
+      const { permitted, unverified, rateLimited } = verification
       const undatedExcluded = permitted.some(({ document }) =>
         lacksFilterDate(document, account.provider, queryFilters)
       )
@@ -526,7 +666,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         moreUnsorted ||
         moreUnreachable ||
         emptyContinuable
-      return {
+      const searched: SearchedQuery = {
         status: {
           ...status,
           status: degraded ? 'partial' : 'ok',
@@ -571,7 +711,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 })
               : page.nextCursor,
         },
-        results: matching.map((candidate, index) => {
+        results: previewed.map((candidate, index) => {
           const result = resultFor(
             candidate,
             account,
@@ -589,6 +729,27 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           }
         }),
       }
+      recordSearchProviderResult({
+        queryIndex: status.queryIndex,
+        status: searched.status.status,
+        resultCount: searched.results.length,
+        ...(degraded
+          ? {
+              coverage: {
+                unverified,
+                verificationRateLimited: rateLimited,
+                servicePartial: Boolean(session.servicePartial),
+                providerPartial: Boolean(page.partial),
+                undatedExcluded,
+                undatedUnsorted,
+                moreUnsorted,
+                moreUnreachable,
+                emptyContinuable,
+              },
+            }
+          : {}),
+      })
+      return searched
     }
     /** One session per account serves each of its native queries, each reported on its own. */
     const searchAccount = async (account: LiveAccount): Promise<SearchedQuery[]> => {
@@ -601,7 +762,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       })
       /** Cancels requests still in flight once the account settles, including after a failure. */
       const settled = new AbortController()
-      const signal = AbortSignal.any([searchSignal, AbortSignal.timeout(12_000), settled.signal])
+      /** Aborts at the account's own deadline, which starts once it gets a slot to open. */
+      const deadline = new AbortController()
+      const signal = AbortSignal.any([searchSignal, deadline.signal, settled.signal])
       const failed = (error: unknown, target: NativeTarget): SearchedQuery => {
         input.signal?.throwIfAborted()
         const failure =
@@ -616,6 +779,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                   'unavailable',
                   'This account could not be searched. Check the connection and try again.'
                 )
+        recordSearchProviderResult(
+          { queryIndex: target.queryIndex, status: failure.status, resultCount: 0 },
+          error
+        )
         return {
           status: {
             ...statusFor(target),
@@ -628,12 +795,21 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       }
       let session: LiveAccountSession | undefined
       try {
-        signal.throwIfAborted()
-        const resolved = await measureSearchStage('live.resolve', () =>
-          resolveListedLiveAccount(input, userId, account)
-        )
-        session = await measureSearchStage('live.session', () =>
-          openLiveAccountSession({
+        const opened = await openingAccount(async () => {
+          const now = Date.now()
+          const remaining = Math.min(searchDeadline, now + ACCOUNT_DEADLINE_MS) - now
+          if (remaining < ACCOUNT_START_FLOOR_MS) return undefined
+          const expiry = AbortSignal.timeout(remaining)
+          expiry.addEventListener('abort', () => deadline.abort(expiry.reason), {
+            once: true,
+            signal: settled.signal,
+          })
+          signal.throwIfAborted()
+          /** Bounds every resolution path, including those that take no signal (admin GitLab, managed OAuth). */
+          const resolved = await measureSearchStage('live.resolve', () =>
+            waitWithAbort(resolveListedLiveAccount(input, userId, account, signal), signal)
+          )
+          const opening = openLiveAccountSession({
             owner: input,
             userId,
             resolved,
@@ -642,13 +818,34 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             pool,
             searches: natives.length,
           })
-        )
-        const currentSession = session
+          /** Opening reads the database, which takes no signal; a session that opens late is closed. */
+          session = await measureSearchStage('live.session', () =>
+            waitWithAbort(opening, signal)
+          ).catch((error: unknown) => {
+            opening.then((late) => late.close()).catch(() => {})
+            throw error
+          })
+          return { resolved, session }
+        })
+        if (!opened)
+          return natives.map((target) =>
+            failed(
+              new NativeSearchError(
+                'timeout',
+                'Not searched before the search deadline. Search this account alone or narrow the query.',
+                undefined,
+                undefined,
+                'not_started'
+              ),
+              target
+            )
+          )
+        const { resolved, session: currentSession } = opened
         return await Promise.all(
           natives.map((target) =>
-            searchQuery(account, resolved, currentSession, target.native, statusFor(target)).catch(
-              (error) => failed(error, target)
-            )
+            withSearchQueryDiagnostics(target.queryIndex, () =>
+              searchQuery(account, resolved, currentSession, target.native, statusFor(target))
+            ).catch((error) => failed(error, target))
           )
         )
       } catch (error) {
@@ -660,7 +857,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     }
     let searched: SearchedQuery[]
     try {
-      searched = (await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, searchAccount)).flat()
+      searched = (
+        await Promise.all(
+          selected.map((account, accountIndex) =>
+            withSearchProviderDiagnostics({ provider: account.provider, accountIndex }, () =>
+              searchAccount(account)
+            )
+          )
+        )
+      ).flat()
     } finally {
       pool.destroy()
     }
@@ -683,14 +888,30 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         }
       }
     }
-    const ranked = [...fused.values()].sort(({ result: a }, { result: b }) => {
-      if (!dateSorted) return b.similarity - a.similarity
-      const left = Date.parse(a.sourceDate ?? '')
-      const right = Date.parse(b.sourceDate ?? '')
-      if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
-      if (!Number.isFinite(right)) return -1
-      return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
-    })
+    /**
+     * Similarity only ranks a result within its own account, so every account's first result would
+     * tie; a plain query's terms compare results across accounts, and similarity breaks their ties.
+     * Native queries carry provider operators and keep fusion order.
+     */
+    const relevanceOf =
+      dateSorted || queries || !input.query.trim() ? undefined : queryRelevance(input.query)
+    const ranked = [...fused.values()]
+      .map((entry) => ({
+        ...entry,
+        relevance: relevanceOf?.(entry.result.documentName ?? '', entry.result.content) ?? [
+          0, 0, 0,
+        ],
+      }))
+      .sort(({ relevance: x, result: a }, { relevance: y, result: b }) => {
+        if (!dateSorted) {
+          return y[0] - x[0] || y[1] - x[1] || y[2] - x[2] || b.similarity - a.similarity
+        }
+        const left = Date.parse(a.sourceDate ?? '')
+        const right = Date.parse(b.sourceDate ?? '')
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+        if (!Number.isFinite(right)) return -1
+        return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
+      })
     /**
      * A query's cursor continues after its own page, so it would skip that query's results cut
      * from this merge, including a fused result it shares with another query. Those queries drop
@@ -708,8 +929,28 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         ]),
       }
     })
+    /** Live coverage guides the providers this call searched or tried to search. */
+    const guidance = [
+      ...(nothingSearched
+        ? [nothingSearchedGuidance(input, filters?.source, allAccounts.length > 0)]
+        : []),
+      liveSearchGuidance(
+        accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)
+      ),
+    ].join('\n')
+    for (const account of eligible.slice(MAX_ACCOUNTS)) {
+      for (const { queryIndex } of nativesFor(account))
+        accounts.push({
+          accountId: account.id,
+          provider: account.provider,
+          displayName: account.displayName,
+          ...(queryIndex === undefined ? {} : { queryIndex }),
+          status: 'unavailable',
+          message: `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`,
+        })
+    }
     for (const [queryIndex, query] of (queries ?? []).entries()) {
-      if (!selected.some((account) => targetsAccount(query, account)))
+      if (!eligible.some((account) => targetsAccount(query, account)))
         accounts.push({
           accountId: query.accountId ?? '',
           provider: query.provider,
@@ -719,28 +960,33 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           message: 'No connection with this provider is configured and approved in this scope.',
         })
     }
+    const retrievalStatus =
+      nothingSearched || accounts.some((account) => account.status !== 'ok')
+        ? 'partial'
+        : 'complete'
+    annotateSearchDiagnostics({
+      resultCount: Math.min(ranked.length, input.topK),
+      retrievalStatus,
+    })
     return {
       query: input.query,
       results: ranked.slice(0, input.topK).map(({ result }) => result),
       retrieval: {
-        status:
-          accounts.some((account) => account.status !== 'ok') || eligible.length > selected.length
-            ? 'partial'
-            : 'complete',
+        status: retrievalStatus,
         timedOutLegs: [],
       },
       live: {
         backend: 'live',
         accounts,
-        guidance: liveSearchGuidance(
-          accounts
-            .filter((account) => account.status !== 'reconnect')
-            .map(({ provider }) => provider)
-        ),
+        guidance,
       },
     }
   },
 })
+export const searchLiveKnowledge = instrumentSearchUseCase(
+  'knowledge_application',
+  liveKnowledgeSearch
+)
 
 export type LiveReadInput = ResourceOwner & {
   documentId: string
@@ -752,7 +998,7 @@ export type LiveReadInput = ResourceOwner & {
   signal?: AbortSignal
 }
 
-/** Milliseconds one document read may spend on provider calls, after account resolution. */
+/** Milliseconds one document read may spend resolving its account and calling the provider. */
 const READ_DEADLINE_MS = 15_000
 
 function liveProviderName(provider: string): string {
@@ -808,6 +1054,8 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
+    /** Live provider documents carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
@@ -826,16 +1074,16 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     /** Cancellation by the caller passes through unclassified. */
     const readFailure = (error: unknown, deadline?: AbortSignal) =>
       input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
+    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
+    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const [resolved, policies] = await Promise.all([
-      resolveLiveAccount(input, userId, reference.account),
+      waitWithAbort(resolveLiveAccount(input, userId, reference.account, signal), signal),
       loadLiveSearchPolicies(input),
     ]).catch((error: unknown) => {
-      throw readFailure(error)
+      throw readFailure(error, deadline)
     })
     if (resolved.account.provider !== reference.provider)
       throw new OrchestrationError('not_found', 'Document account changed')
-    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
-    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
     let session: LiveAccountSession | undefined

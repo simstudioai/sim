@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
@@ -14,6 +15,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -435,30 +437,30 @@ export const airtableHandler: WebhookProviderHandler = {
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
       const config = getProviderConfig(webhookRecord)
-      const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = config as {
-        baseId?: string
-        tableId?: string
+      const { includeCellValuesInFieldIds, credentialId } = config as {
         includeCellValuesInFieldIds?: string
         credentialId?: string
       }
+      const baseId = toStringOrNull(config.baseId)
+      const tableId = toStringOrNull(config.tableId)
 
       if (!baseId || !tableId) {
         logger.warn(`[${requestId}] Missing baseId or tableId for Airtable webhook creation.`, {
           webhookId: webhookRecord.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Base ID and Table ID are required to create Airtable webhook. Please provide valid Airtable base and table IDs.'
         )
       }
 
       const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
       if (!baseIdValidation.isValid) {
-        throw new Error(baseIdValidation.error)
+        throw new WebhookDeploymentConfigurationError(baseIdValidation.error)
       }
 
       const tableIdValidation = validateAirtableId(tableId, 'tbl', 'tableId')
       if (!tableIdValidation.isValid) {
-        throw new Error(tableIdValidation.error)
+        throw new WebhookDeploymentConfigurationError(tableIdValidation.error)
       }
 
       const accessToken = credentialId
@@ -535,6 +537,7 @@ export const airtableHandler: WebhookProviderHandler = {
       )
       return { providerConfigUpdates: { externalId: responseBody.id } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
       logger.error(
         `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookRecord.id}.`,

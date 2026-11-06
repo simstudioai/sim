@@ -21,7 +21,11 @@ export function ProjectIssueRestrictions({
   onChange,
 }: ProjectIssueRestrictionsProps) {
   const projects = useProjects(organizationId)
-  if (projects.isPending || (isApiClientError(projects.error) && projects.error.status === 503)) {
+  if (
+    !projects.isEnabled ||
+    projects.isPending ||
+    (isApiClientError(projects.error) && projects.error.status === 503)
+  ) {
     return null
   }
   const choices = projects.data?.pages.flatMap((page) => page.projects) ?? []

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import {
   appendSlackAgentStream,

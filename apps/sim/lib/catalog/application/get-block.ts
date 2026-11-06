@@ -4,7 +4,7 @@ import {
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
   withCatalogBlockScope,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { type CatalogBlockDetail, projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { getContainerBlockDetail } from '@/lib/catalog/projection/container-blocks'

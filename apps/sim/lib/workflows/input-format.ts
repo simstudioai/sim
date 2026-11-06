@@ -1,6 +1,9 @@
 import { generateId } from '@sim/utils/id'
-import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
-import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
+import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file'
+import {
+  canonicalInputFormatFieldType,
+  type InputFormatFieldState,
+} from '@/lib/workflows/input-format-schema'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -48,7 +51,7 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
 
 /** Whether a field is a canonical file array or its legacy MCP alias. */
 export function isFileFieldType(type: string | null | undefined): boolean {
-  return type === 'file[]' || type === 'files'
+  return typeof type === 'string' && canonicalInputFormatFieldType(type) === 'file[]'
 }
 
 /**

@@ -3,7 +3,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase, requireCurrentHumanRole } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
 
 /** permission-group-exempt: members may leave; workspace administrators may remove existing collaborators. */
@@ -12,6 +12,7 @@ export const removeWorkspaceMemberOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'none',
+  contentDelivery: 'none',
   principalKinds: ['session', 'delegated'],
   delegatedServices: ['copilot'],
 })

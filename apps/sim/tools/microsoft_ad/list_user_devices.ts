@@ -3,8 +3,8 @@ import type {
   MicrosoftAdListUserDevicesParams,
 } from '@/tools/microsoft_ad/types'
 import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrlForCollection, mapDevice } from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { mapDevice } from '@/tools/microsoft_ad/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const RELATIONSHIP_PATHS: Record<string, string> = {

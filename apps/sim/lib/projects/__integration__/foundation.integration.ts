@@ -1,14 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   member,
   organization,
   permissionGroup,
   permissions,
   project,
-  projectMembershipRollout,
-  projectWorkspace,
   user,
   userStats,
   workflow,
@@ -27,17 +27,18 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   removeUserFromOrganization,
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
-import {
-  getProjectAccountDeletionBlockers,
-  prepareProjectsForAccountDeletion,
-} from '@/lib/projects/account-deletion'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
+import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
+import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
   archiveProject,
   createProject,
@@ -47,17 +48,12 @@ import {
   listProjects,
   renameProject,
 } from '@/lib/projects/application'
-import {
-  getProjectEnvironmentSource,
-  getProjectMembershipPhase,
-} from '@/lib/projects/environment-source'
-import { ProjectConflictError } from '@/lib/projects/errors'
 import { archiveProjectInTransaction } from '@/lib/projects/lifecycle'
 import {
   createProjectRecord,
   lockProject,
   lockWorkspaceProject,
-  projectBackfillLockKey,
+  requireForkProject,
   splitForkProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
@@ -116,20 +112,33 @@ function setProjectsEnabled(enabled: boolean) {
 }
 
 beforeEach(async () => {
-  await db
-    .update(projectMembershipRollout)
-    .set({ phase: 'column' })
-    .where(eq(projectMembershipRollout.id, 'membership'))
   setProjectsEnabled(true)
+  const rows =
+    await db.execute(sql`SELECT conname, condeferrable, condeferred, convalidated FROM pg_constraint
+    WHERE conrelid = 'workspace'::regclass
+      AND conname IN ('workspace_project_organization_fk', 'workspace_fork_project_fk')
+    ORDER BY conname`)
+  expect(rows).toEqual([
+    {
+      conname: 'workspace_fork_project_fk',
+      condeferrable: true,
+      condeferred: true,
+      convalidated: true,
+    },
+    {
+      conname: 'workspace_project_organization_fk',
+      condeferrable: true,
+      condeferred: true,
+      convalidated: true,
+    },
+  ])
 })
 
-const users: string[] = []
-const organizations: string[] = []
 const request = { requestId: 'project-foundation-integration', headers: new Headers() }
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 
-/** Registers a test and records its status and duration in the suite report. */
+/** Exercises durable auth and lifecycle invariants against real Postgres, including concurrent writers. */
 function check(name: string, run: () => Promise<void>) {
   it(name, async () => {
     const started = performance.now()
@@ -148,13 +157,30 @@ function check(name: string, run: () => Promise<void>) {
   })
 }
 
+/** Failure modes: foreign workspace discovery, expired/wrong-audience authority, and CRUD escalation. */
+function discoveryPrincipal(
+  userId: string,
+  workspaceId: string
+): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+  return {
+    kind: 'resource_delegated',
+    serviceId: 'copilot',
+    subjectUserId: userId,
+    delegationId: generateId(),
+    audience: 'sim:projects:discovery',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 30_000),
+    invocation: { kind: 'workspace', workspaceId },
+    scope: { kind: 'project_discovery' },
+  }
+}
+
 async function fixture(org = true, count = 2) {
   const ownerId = generateId()
   const teammateId = generateId()
   const outsiderId = generateId()
   const now = new Date()
   for (const id of [ownerId, teammateId, outsiderId]) {
-    users.push(id)
     await db.insert(user).values({
       id,
       email: `${id}@projects.invalid`,
@@ -164,10 +190,11 @@ async function fixture(org = true, count = 2) {
       updatedAt: now,
     })
   }
-  await db.insert(userStats).values({ id: generateId(), userId: ownerId })
+  await db
+    .insert(userStats)
+    .values([ownerId, teammateId, outsiderId].map((userId) => ({ id: generateId(), userId })))
   const organizationId = org ? generateId() : null
   if (organizationId) {
-    organizations.push(organizationId)
     await db
       .insert(organization)
       .values({ id: organizationId, name: 'Project fixture', slug: organizationId, createdAt: now })
@@ -218,17 +245,15 @@ async function fixture(org = true, count = 2) {
 /**
  * Waits until the operation under test is blocked behind `blockerPid`: a session whose
  * current statement contains `waitingIn` (an advisory lock tag or row-lock clause).
- * When the caller owns the transaction, `waitingPid` identifies that exact backend.
  */
-async function waitUntilBlockedBy(blockerPid: number, waitingIn: string, waitingPid?: number) {
+async function waitUntilBlockedBy(blockerPid: number, waitingIn: string) {
   await expect
     .poll(
       async () =>
         (
           await db.execute(sql`
             SELECT 1 FROM pg_stat_activity
-            WHERE ${waitingPid === undefined ? sql`true` : sql`pid = ${waitingPid}`}
-              AND ${blockerPid} = ANY(pg_blocking_pids(pid))
+            WHERE ${blockerPid} = ANY(pg_blocking_pids(pid))
               AND position(${waitingIn.toLowerCase()} in lower(query)) > 0
           `)
         ).length,
@@ -259,13 +284,6 @@ async function addOrganizationProject(organizationId: string, ownerId: string) {
   return { workspaceId, projectId }
 }
 
-async function useLegacyMemberships(ids: string[], projectId: string) {
-  await db.transaction(async (tx) => {
-    await tx.update(workspace).set({ projectId: null }).where(inArray(workspace.id, ids))
-    await tx.insert(projectWorkspace).values(ids.map((workspaceId) => ({ projectId, workspaceId })))
-  })
-}
-
 async function addWorkflow(workspaceId: string, userId: string) {
   const id = generateId()
   const now = new Date()
@@ -281,19 +299,6 @@ async function addWorkflow(workspaceId: string, userId: string) {
     isPublicApi: true,
   })
   return id
-}
-
-async function clearFixtures() {
-  await db.transaction(async (tx) => {
-    if (users.length)
-      await tx
-        .delete(workspace)
-        .where(or(inArray(workspace.ownerId, users), inArray(workspace.billedAccountUserId, users)))
-    if (users.length) await tx.delete(project).where(inArray(project.ownerId, users))
-    if (organizations.length)
-      await tx.delete(organization).where(inArray(organization.id, organizations))
-    if (users.length) await tx.delete(user).where(inArray(user.id, users))
-  })
 }
 
 afterAll(async () => {
@@ -315,71 +320,81 @@ afterAll(async () => {
 
 describe('Project foundation at the database and application boundary', () => {
   check(
-    'completed contraction needs no rollout marker, but incomplete schemas fail closed',
+    'application creation, disconnect, organization deletion and archive commit with SQL enforcement',
     async () => {
-      const f = await fixture(false, 1)
-      const rollback = new Error('Restore expansion schema after contraction proof')
-      await expect(
-        db.transaction(async (tx) => {
-          await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
-          await tx.execute(sql`DROP TABLE project_membership_rollout`)
-          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
-          await tx.execute(sql`DROP TABLE project_workspace`)
-          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
-          await tx.execute(sql`ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL`)
-          await expect(getProjectMembershipPhase(tx)).rejects.toThrow('authority is missing')
-          await tx.execute(sql`ALTER TABLE project ADD COLUMN organization_scope_key text
-        GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED`)
-          await tx.execute(sql`ALTER TABLE workspace ADD COLUMN organization_scope_key text
-        GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED`)
-          await tx.execute(
-            sql`ALTER TABLE project ADD CONSTRAINT project_id_organization_scope_unique UNIQUE (id, organization_scope_key)`
-          )
-          await tx.execute(
-            sql`ALTER TABLE workspace ADD CONSTRAINT workspace_id_project_unique UNIQUE (id, project_id)`
-          )
-          await tx.execute(sql`ALTER TABLE workspace ADD CONSTRAINT workspace_project_organization_fk
-        FOREIGN KEY (project_id, organization_scope_key) REFERENCES project(id, organization_scope_key) DEFERRABLE INITIALLY DEFERRED`)
-          await tx.execute(sql`ALTER TABLE workspace ADD CONSTRAINT workspace_fork_project_fk
-        FOREIGN KEY (forked_from_workspace_id, project_id) REFERENCES workspace(id, project_id) DEFERRABLE INITIALLY DEFERRED`)
-          await tx.execute(
-            sql`ALTER TABLE workspace VALIDATE CONSTRAINT workspace_project_id_project_id_fk`
-          )
-          expect(await getProjectMembershipPhase(tx)).toBe('column')
-          const created = await createWorkspaceInTransaction(tx, {
-            userId: f.ownerId,
-            name: 'After contraction',
-            organizationId: null,
-            observedOrganizationId: null,
-            governingPermissionGroupOrganizationId: null,
-            workspaceMode: 'personal',
-            billedAccountUserId: f.ownerId,
-            skipDefaultWorkflow: true,
-          })
-          const environments = await getProjectEnvironmentSource(tx)
-          const [row] = await tx
-            .select({ projectId: environments.projectId })
-            .from(environments)
-            .where(eq(environments.id, created.id))
-          expect(row.projectId).toEqual(expect.any(String))
-          throw rollback
+      const f = await fixture(true, 1)
+      const organizationId = f.organizationId
+      if (!organizationId) throw new Error('Missing organization fixture')
+      const created = await createProject.execute({
+        principal: f.owner,
+        input: {
+          organizationId: f.organizationId,
+          name: 'Enforced',
+          initialEnvironment: { name: 'Production' },
+        },
+        request,
+      })
+
+      const source = await getWorkspaceWithOwner(created.initialEnvironment.id)
+      if (!source) throw new Error('Missing source environment')
+      const resolved = await getWorkspaceProject.execute({
+        principal: f.owner,
+        input: { workspaceId: source.id },
+        request,
+      })
+      expect(resolved.project.id).toBe(created.project.id)
+      expect(resolved.project).not.toHaveProperty('organizationScopeKey')
+      const fork = await createFork({
+        source,
+        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+        userId: f.ownerId,
+        name: 'Staging',
+      })
+      const [forkEnvironment] = await db
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, fork.workspace.id))
+      expect(forkEnvironment.projectId).toBe(created.project.id)
+
+      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+      const [detached] = await db
+        .select({
+          projectId: workspace.projectId,
+          workspaceId: workspace.id,
         })
-      ).rejects.toBe(rollback)
+        .from(workspace)
+        .where(eq(workspace.id, fork.workspace.id))
+      expect(detached.projectId).not.toBe(created.project.id)
+      await db.transaction(async (tx) => {
+        await detachOrganizationWorkspacesTx(tx, organizationId)
+        await tx.delete(organization).where(eq(organization.id, organizationId))
+      })
+      await archiveProject.execute({
+        principal: f.owner,
+        input: { projectId: created.project.id },
+        request,
+      })
+      const [archived] = await db.select().from(project).where(eq(project.id, created.project.id))
+      expect(archived.organizationId).toBeNull()
+      expect(archived.archivedAt).not.toBeNull()
+      expect(
+        await db
+          .select()
+          .from(workflow)
+          .where(and(eq(workflow.workspaceId, source.id), sql`${workflow.archivedAt} IS NULL`))
+      ).toHaveLength(0)
     }
   )
 
-  for (const phase of ['connector', 'column'] as const) {
-    check(`workspace creation and fork/disconnect use only ${phase} authority`, async () => {
+  check(
+    'workspace creation and fork/disconnect assign column membership while APIs remain disabled',
+    async () => {
       setProjectsEnabled(false)
       const f = await fixture(false, 1)
-      await db
-        .update(projectMembershipRollout)
-        .set({ phase })
-        .where(eq(projectMembershipRollout.id, 'membership'))
       const source = await db.transaction((tx) =>
         createWorkspaceInTransaction(tx, {
           userId: f.ownerId,
-          name: 'Source',
+          name: 'Legacy source',
           organizationId: null,
           observedOrganizationId: null,
           governingPermissionGroupOrganizationId: null,
@@ -388,204 +403,28 @@ describe('Project foundation at the database and application boundary', () => {
           skipDefaultWorkflow: true,
         })
       )
+      const [sourceMembership] = await db
+        .select({ projectId: workspace.projectId })
+        .from(workspace)
+        .where(eq(workspace.id, source.id))
       const parent = await getWorkspaceWithOwner(source.id)
       if (!parent) throw new Error('Missing source fixture')
       const fork = await createFork({
         source: parent,
         policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
         userId: f.ownerId,
-        name: 'Child',
+        name: 'Legacy child',
       })
-      async function membership(id: string) {
-        return db.transaction(async (tx) => {
-          const environments = await getProjectEnvironmentSource(tx)
-          const [row] = await tx
-            .select({ projectId: environments.projectId })
-            .from(environments)
-            .where(eq(environments.id, id))
-          return row?.projectId
-        })
-      }
-      const sourceProject = await membership(source.id)
-      expect(sourceProject).toEqual(expect.any(String))
-      expect(await membership(fork.workspace.id)).toBe(sourceProject)
-      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
-      const childProject = await membership(fork.workspace.id)
-      expect(childProject).toEqual(expect.any(String))
-      expect(childProject).not.toBe(sourceProject)
-      if (!childProject) throw new Error('Detached environment is missing its Project')
-      const rows = await db
-        .select({ projectId: workspace.projectId, parent: workspace.forkedFromWorkspaceId })
+      const [forkMembership] = await db
+        .select({ projectId: workspace.projectId })
         .from(workspace)
-        .where(inArray(workspace.id, [source.id, fork.workspace.id]))
-      expect(rows.every((row) => row.parent === null)).toBe(true)
-      const connectors = await db
-        .select({ id: projectWorkspace.workspaceId })
-        .from(projectWorkspace)
-        .where(inArray(projectWorkspace.workspaceId, [source.id, fork.workspace.id]))
-      expect(connectors).toHaveLength(phase === 'connector' ? 2 : 0)
-      expect(
-        rows.every((row) =>
-          phase === 'connector' ? row.projectId === null : row.projectId !== null
-        )
-      ).toBe(true)
-      if (phase === 'connector') {
-        /** The old Project-first teardown must remove a newly created private environment. */
-        await db.transaction(async (tx) => {
-          await tx.delete(projectWorkspace).where(eq(projectWorkspace.projectId, childProject))
-          await tx.delete(project).where(eq(project.id, childProject))
-          await tx.delete(workspace).where(eq(workspace.id, fork.workspace.id))
-        })
-        expect(await membership(fork.workspace.id)).toBeUndefined()
-      }
-    })
-  }
-
-  check(
-    'authority contention is bounded and maps to a Project conflict for reads and writers',
-    async () => {
-      const f = await fixture(false, 1)
-      const entered = createDeferred<void>()
-      const release = createDeferred<void>()
-      const holder = db.transaction(async (tx) => {
-        await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
-        entered.resolve()
-        await release.promise
-      })
-      try {
-        await entered.promise
-        await Promise.all(
-          [
-            db.transaction(
-              async (tx) => {
-                await tx.execute(sql`SET LOCAL statement_timeout = '7s'`)
-                await getProjectMembershipPhase(tx)
-              },
-              { isolationLevel: 'repeatable read', accessMode: 'read only' }
-            ),
-            db.transaction(async (tx) => {
-              await tx.execute(sql`SET LOCAL statement_timeout = '7s'`)
-              await lockProject(tx, f.projectId)
-            }),
-          ].map((operation) => expect(operation).rejects.toBeInstanceOf(ProjectConflictError))
-        )
-      } finally {
-        release.resolve()
-        await holder
-      }
-      await db.transaction(async (tx) => {
-        await tx.execute(sql`SET LOCAL lock_timeout = '1234ms'`)
-        expect(await getProjectMembershipPhase(tx)).toBe('column')
-        const [setting] = await tx.execute<{ lock_timeout: string }>(sql`SHOW lock_timeout`)
-        expect(setting.lock_timeout).toBe('1234ms')
-      })
-    }
-  )
-
-  check('authority barrier excludes cutover until a connector transaction commits', async () => {
-    await db
-      .update(projectMembershipRollout)
-      .set({ phase: 'connector' })
-      .where(eq(projectMembershipRollout.id, 'membership'))
-    const entered = createDeferred<void>()
-    const release = createDeferred<void>()
-    const reader = db.transaction(async (tx) => {
-      expect(await getProjectMembershipPhase(tx)).toBe('connector')
-      entered.resolve()
-      await release.promise
-      expect(await getProjectMembershipPhase(tx)).toBe('connector')
-    })
-    try {
-      await entered.promise
-      await expect(
-        db.transaction(async (tx) => {
-          await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
-          await tx.update(projectMembershipRollout).set({ phase: 'column' })
-        })
-      ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
-    } finally {
-      release.resolve()
-      await reader
-    }
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
-      await tx.update(projectMembershipRollout).set({ phase: 'column' })
-    })
-    expect(await db.transaction((tx) => getProjectMembershipPhase(tx))).toBe('column')
-  })
-
-  check(
-    'Project snapshot waits before its first SELECT and observes committed cutover',
-    async () => {
-      const f = await fixture(false, 1)
-      await useLegacyMemberships(f.ids, f.projectId)
-      await db.update(projectMembershipRollout).set({ phase: 'connector' })
-      const entered = createDeferred<number>()
-      const release = createDeferred<void>()
-      const cutover = db.transaction(async (tx) => {
-        await tx.execute(sql`LOCK TABLE workspace IN ACCESS EXCLUSIVE MODE NOWAIT`)
-        const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-        await tx.update(projectMembershipRollout).set({ phase: 'column' })
-        await tx
-          .update(workspace)
-          .set({ projectId: f.projectId, name: 'Committed after cutover' })
-          .where(eq(workspace.id, f.ids[0]))
-        await tx.delete(projectWorkspace).where(eq(projectWorkspace.workspaceId, f.ids[0]))
-        entered.resolve(backend.pid)
-        await release.promise
-      })
-      let read: ReturnType<typeof getProject.execute> | undefined
-      try {
-        const pid = await entered.promise
-        read = getProject.execute({
-          principal: f.owner,
-          input: { projectId: f.projectId },
-          request,
-        })
-        await waitUntilBlockedBy(pid, 'LOCK TABLE')
-      } finally {
-        release.resolve()
-        await cutover
-      }
-      if (!read) throw new Error('Project snapshot read was not started')
-      const result = await read
-      expect(result.project.environments.map((row) => row.id)).toEqual(f.ids)
-      expect(result.project.environments[0].name).toBe('Committed after cutover')
-    }
-  )
-
-  check(
-    'missing authority refuses membership reads and creation without partial writes',
-    async () => {
-      const f = await fixture(false, 1)
-      await db.delete(projectMembershipRollout)
-      try {
-        await expect(
-          getProject.execute({ principal: f.owner, input: { projectId: f.projectId }, request })
-        ).rejects.toThrow('Project membership authority is missing')
-        await expect(
-          db.transaction((tx) =>
-            createWorkspaceInTransaction(tx, {
-              userId: f.ownerId,
-              name: 'Refused',
-              organizationId: null,
-              observedOrganizationId: null,
-              governingPermissionGroupOrganizationId: null,
-              workspaceMode: 'personal',
-              billedAccountUserId: f.ownerId,
-              skipDefaultWorkflow: true,
-            })
-          )
-        ).rejects.toThrow('Project membership authority is missing')
-        expect(
-          await db
-            .select({ id: workspace.id })
-            .from(workspace)
-            .where(eq(workspace.ownerId, f.ownerId))
-        ).toHaveLength(1)
-      } finally {
-        await db.insert(projectMembershipRollout).values({ id: 'membership', phase: 'column' })
-      }
+        .where(eq(workspace.id, fork.workspace.id))
+      expect(forkMembership.projectId).toBe(sourceMembership.projectId)
+      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+      const [child] = await db.select().from(workspace).where(eq(workspace.id, fork.workspace.id))
+      expect(child.forkedFromWorkspaceId).toBeNull()
+      expect(child.projectId).not.toBe(sourceMembership.projectId)
+      expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(3)
     }
   )
 
@@ -653,7 +492,6 @@ describe('Project foundation at the database and application boundary', () => {
       .from(workspace)
       .where(eq(workspace.id, fork.workspace.id))
     expect(detached.projectId).not.toBe(f.projectId)
-    if (!detached.projectId) throw new Error('Missing detached Project assignment')
     await expect(
       archiveWorkspace(fork.workspace.id, { requestId: 'detached-fork-archive' })
     ).resolves.toMatchObject({ archived: true })
@@ -663,174 +501,6 @@ describe('Project foundation at the database and application boundary', () => {
       .where(eq(project.id, detached.projectId))
     expect(detachedProject.archivedAt).not.toBeNull()
   })
-
-  check('legacy unassigned forks and disconnects preserve the unassigned lineage', async () => {
-    const f = await fixture(false, 1)
-    await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
-    await db.delete(project).where(eq(project.id, f.projectId))
-    const parent = await getWorkspaceWithOwner(f.ids[0])
-    if (!parent) throw new Error('Missing legacy source fixture')
-    const fork = await createFork({
-      source: parent,
-      policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
-      userId: f.ownerId,
-      name: 'Legacy unassigned child',
-    })
-    await expect(
-      getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: fork.workspace.id },
-        request,
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    await unlinkForkEdge({ parentWorkspaceId: parent.id, childWorkspaceId: fork.workspace.id })
-    const [child] = await db
-      .select({ projectId: workspace.projectId, parentId: workspace.forkedFromWorkspaceId })
-      .from(workspace)
-      .where(eq(workspace.id, fork.workspace.id))
-    expect(child).toEqual({ projectId: null, parentId: null })
-    expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toEqual([])
-  })
-
-  check('fork refuses a partially assigned lineage', async () => {
-    const f = await fixture(false, 3)
-    await db
-      .update(workspace)
-      .set({ projectId: null })
-      .where(inArray(workspace.id, f.ids.slice(0, 2)))
-    const parent = await getWorkspaceWithOwner(f.ids[1])
-    if (!parent) throw new Error('Missing source fixture')
-    await expect(
-      createFork({
-        source: parent,
-        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
-        userId: f.ownerId,
-        name: 'Invalid child',
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    const [child] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
-    expect(child.forkedFromWorkspaceId).toBe(f.ids[0])
-    expect(await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))).toHaveLength(
-      3
-    )
-  })
-
-  check(
-    'legacy membership decisions exclude backfill until the writing transaction commits',
-    async () => {
-      const f = await fixture(false, 1)
-      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
-      await db.delete(project).where(eq(project.id, f.projectId))
-      const [legacyWorkspace] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
-      expect(legacyWorkspace.projectId).toBeNull()
-      const read = createDeferred<void>()
-      const release = createDeferred<void>()
-      const writer = db.transaction(async (tx) => {
-        expect(await lockWorkspaceProject(tx, f.ids[0])).toBeNull()
-        read.resolve()
-        await release.promise
-        await tx
-          .update(workspace)
-          .set({ name: 'Concurrent legacy edit' })
-          .where(eq(workspace.id, f.ids[0]))
-      })
-      try {
-        await Promise.race([read.promise, writer])
-        await db.transaction(async (tx) => {
-          const [lock] = await tx.execute<{ acquired: boolean }>(sql`
-            SELECT pg_try_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0)) AS acquired
-          `)
-          expect(lock.acquired).toBe(false)
-        })
-      } finally {
-        release.resolve()
-        await writer
-      }
-      await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0))`
-        )
-        const projectId = await createProjectRecord(tx, {
-          name: 'Concurrent legacy edit',
-          organizationId: null,
-          ownerId: f.ownerId,
-        })
-        await tx.update(workspace).set({ projectId }).where(eq(workspace.id, f.ids[0]))
-      })
-      expect(
-        await db
-          .select({
-            projectId: workspace.projectId,
-            workspaceId: workspace.id,
-          })
-          .from(workspace)
-          .where(eq(workspace.id, f.ids[0]))
-      ).toHaveLength(1)
-    }
-  )
-
-  check(
-    'a fork waiting for a legacy assignment inherits it without copying the parent column',
-    async () => {
-      const f = await fixture(false, 1)
-      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[0]))
-      await db.delete(project).where(eq(project.id, f.projectId))
-      const parent = await getWorkspaceWithOwner(f.ids[0])
-      if (!parent) throw new Error('Missing source fixture')
-      const policy = await getWorkspaceCreationPolicy({ userId: f.ownerId })
-      const locked = createDeferred<number>()
-      const release = createDeferred<void>()
-      const backfill = db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${projectBackfillLockKey(f.ids[0])}, 0))`
-        )
-        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-        locked.resolve(connection.pid)
-        await release.promise
-        const projectId = await createProjectRecord(tx, {
-          name: 'Backfilled source',
-          organizationId: null,
-          ownerId: f.ownerId,
-        })
-        await tx.insert(projectWorkspace).values({ projectId, workspaceId: f.ids[0] })
-        return projectId
-      })
-      await Promise.race([locked.promise, backfill])
-      const fork = createFork({
-        source: parent,
-        policy,
-        userId: f.ownerId,
-        name: 'Concurrent child',
-      })
-      try {
-        await waitUntilBlockedBy(await locked.promise, "lock='project_backfill'")
-      } finally {
-        release.resolve()
-      }
-      const [projectId, result] = await Promise.all([backfill, fork])
-      const [membership] = await db
-        .select({
-          projectId: workspace.projectId,
-          workspaceId: workspace.id,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, result.workspace.id))
-      expect(membership.projectId).toBe(projectId)
-      const [persistedFork] = await db
-        .select()
-        .from(workspace)
-        .where(eq(workspace.id, result.workspace.id))
-      expect(persistedFork.projectId).toBe(projectId)
-      const [legacyParent] = await db.select().from(workspace).where(eq(workspace.id, f.ids[0]))
-      expect(legacyParent.projectId).toBeNull()
-      const resolved = await getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: f.ids[0] },
-        request,
-      })
-      expect(resolved.project.id).toBe(projectId)
-    }
-  )
 
   check(
     'Project creation commits its named first environment and starter workflow in the requested scope',
@@ -1161,6 +831,13 @@ describe('Project foundation at the database and application boundary', () => {
     expect(rows.map((row) => row.archivedAt)).not.toContain(null)
     const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
     expect(record.archivedAt).not.toBeNull()
+    expect(
+      results.flatMap((result) =>
+        result.status === 'fulfilled' && result.value.archivedProject
+          ? [result.value.archivedProject]
+          : []
+      )
+    ).toEqual([{ id: record.id, name: record.name }])
   })
 
   check('removing one of several environments keeps the Project active', async () => {
@@ -1368,12 +1045,6 @@ describe('Project foundation at the database and application boundary', () => {
           .from(workspace)
           .where(inArray(workspace.id, f.ids))
       ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
-      expect(
-        await db
-          .select({ projectId: workspace.projectId })
-          .from(workspace)
-          .where(inArray(workspace.id, f.ids))
-      ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
       expect(await db.select().from(project).where(eq(project.ownerId, f.ownerId))).toHaveLength(1)
       expect(await unlinkForkEdge(edge)).toEqual({ unlinked: true })
       for (const table of [
@@ -1402,17 +1073,6 @@ describe('Project foundation at the database and application boundary', () => {
       expect(root.projectId).toBe(f.projectId)
       expect(child.projectId).not.toBe(f.projectId)
       expect(grandchild.projectId).toBe(child.projectId)
-      const environments = await db
-        .select({ id: workspace.id, projectId: workspace.projectId })
-        .from(workspace)
-        .where(inArray(workspace.id, f.ids))
-      expect(environments).toEqual(
-        expect.arrayContaining([
-          { id: f.ids[0], projectId: f.projectId },
-          { id: f.ids[1], projectId: child.projectId },
-          { id: f.ids[2], projectId: child.projectId },
-        ])
-      )
       expect(await unlinkForkEdge(edge)).toEqual({ unlinked: false })
       const [group] = await db.select().from(permissionGroup).where(eq(permissionGroup.id, groupId))
       expect(group.config).toEqual({
@@ -1426,27 +1086,6 @@ describe('Project foundation at the database and application boundary', () => {
         .from(workspace)
         .where(eq(workspace.id, f.ids[1]))
       expect(second[0].projectId).toBe(child.projectId)
-    }
-  )
-
-  check(
-    'disconnect refuses a partially assigned subtree without moving any environments',
-    async () => {
-      const f = await fixture(true, 3)
-      await db.update(workspace).set({ projectId: null }).where(eq(workspace.id, f.ids[2]))
-      await expect(
-        unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
-      ).rejects.toMatchObject({ code: 'conflict' })
-      const [child] = await db
-        .select({
-          projectId: workspace.projectId,
-          workspaceId: workspace.id,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, f.ids[1]))
-      expect(child.projectId).toBe(f.projectId)
-      const [edge] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
-      expect(edge.forkedFromWorkspaceId).toBe(f.ids[0])
     }
   )
 
@@ -1595,62 +1234,6 @@ describe('Project foundation at the database and application boundary', () => {
   )
 
   check(
-    'column reassignment waits for a legacy membership writer before locking workspace rows',
-    async () => {
-      const f = await fixture(false)
-      await useLegacyMemberships(f.ids, f.projectId)
-      const held = createDeferred<number>()
-      const release = createDeferred<void>()
-      let replacementId = ''
-      const legacy = db.transaction(async (tx) => {
-        await lockProject(tx, f.projectId)
-        replacementId = await createProjectRecord(tx, {
-          name: 'Legacy disconnect',
-          ownerId: f.ownerId,
-          organizationId: null,
-        })
-        await tx.execute(
-          sql`SELECT workspace_id FROM project_workspace WHERE workspace_id = ${f.ids[1]} FOR UPDATE`
-        )
-        const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-        held.resolve(backend.pid)
-        await release.promise
-        await tx.execute(
-          sql`UPDATE project_workspace SET project_id = ${replacementId} WHERE workspace_id = ${f.ids[1]}`
-        )
-      })
-      const blocker = await held.promise
-      const detachPid = createDeferred<number>()
-      const detach = db
-        .transaction(async (tx) => {
-          const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-          detachPid.resolve(backend.pid)
-          return splitForkProject(tx, f.ids[1])
-        })
-        .then(
-          () => null,
-          (error: unknown) => {
-            detachPid.reject(error)
-            return error
-          }
-        )
-      try {
-        await waitUntilBlockedBy(blocker, "lock='project'", await detachPid.promise)
-      } finally {
-        release.resolve()
-        await legacy
-      }
-      expect(await detach).toMatchObject({
-        message: 'Project membership changed; retry the operation',
-      })
-      expect(
-        await db.execute(sql`SELECT w.project_id, pw.project_id AS connector_id
-      FROM workspace w JOIN project_workspace pw ON pw.workspace_id = w.id WHERE w.id = ${f.ids[1]}`)
-      ).toEqual([{ project_id: null, connector_id: replacementId }])
-    }
-  )
-
-  check(
     'account teardown re-reads Projects created by an unlink while waiting for the old Project',
     async () => {
       const f = await fixture(false)
@@ -1721,6 +1304,40 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
+  for (const [holder, holdProject] of [
+    ['file writers', lockWorkspaceProject],
+    ['fork creation', requireForkProject],
+  ] as const) {
+    check(
+      `${holder} share the Project lock with sibling environments and still fence a lifecycle holder`,
+      async () => {
+        const f = await fixture(false)
+        const held = createDeferred<number>()
+        const release = createDeferred<void>()
+        const writer = db.transaction(async (tx) => {
+          await holdProject(tx, f.ids[0])
+          const [connection] = await tx.execute<{ pid: number }>(
+            sql`SELECT pg_backend_pid() AS pid`
+          )
+          held.resolve(connection.pid)
+          await release.promise
+        })
+        const blocker = await held.promise
+        let lifecycle: Promise<void> | undefined
+        try {
+          const sibling = await db.transaction((tx) => lockWorkspaceProject(tx, f.ids[1]))
+          expect(sibling?.id).toBe(f.projectId)
+          lifecycle = db.transaction((tx) => lockProject(tx, f.projectId))
+          await waitUntilBlockedBy(blocker, "lock='project'")
+        } finally {
+          release.resolve()
+          await writer
+        }
+        await lifecycle
+      }
+    )
+  }
+
   check(
     'account teardown transfers surviving Projects and atomically removes wholly private Projects',
     async () => {
@@ -1780,319 +1397,284 @@ describe('Project foundation at the database and application boundary', () => {
       ).toEqual([])
     }
   )
+})
 
-  for (const phase of ['connector', 'column'] as const) {
-    check(
-      `legacy Project account preview and teardown preserve surviving environments in ${phase} mode`,
-      async () => {
-        const f = await fixture()
-        await useLegacyMemberships(f.ids, f.projectId)
-        await db.update(projectMembershipRollout).set({ phase })
-        if (!f.organizationId) throw new Error('Missing organization fixture')
-        await db.insert(member).values({
-          id: generateId(),
-          organizationId: f.organizationId,
-          userId: f.teammateId,
-          role: 'admin',
-          createdAt: new Date(),
-        })
-        expect(await getProjectAccountDeletionBlockers(f.ownerId, [])).toEqual([])
-        await db.transaction(async (tx) => {
-          expect(await prepareProjectsForAccountDeletion(tx, f.ownerId, [])).toEqual([])
-        })
-        const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
-        expect(record.ownerId).toBe(f.teammateId)
-        expect(
-          await db.select({ id: workspace.id }).from(workspace).where(inArray(workspace.id, f.ids))
-        ).toHaveLength(2)
-      }
-    )
+describe('Project discovery delegation', () => {
+  beforeEach(() => {
+    vi.stubEnv('PROJECTS', 'true')
+  })
+  const cliRequest = {
+    invocation: { kind: 'service', name: 'list_user_projects', input: { limit: 100 } },
   }
 
   check(
-    'legacy detach assigns the whole subtree and stale connector rows cannot restore membership',
+    'explicit Project CLI ownership reaches the authorized file collection without workspace fallback',
     async () => {
-      const f = await fixture(false, 3)
-      await useLegacyMemberships(f.ids, f.projectId)
-      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
-      const rows = await db.select().from(workspace).where(inArray(workspace.id, f.ids))
-      const child = rows.find((row) => row.id === f.ids[1])
-      const grandchild = rows.find((row) => row.id === f.ids[2])
-      expect(child?.projectId).toEqual(expect.any(String))
-      expect(child?.projectId).not.toBe(f.projectId)
-      expect(grandchild?.projectId).toBe(child?.projectId)
-      expect(
-        await db
-          .select({ projectId: projectWorkspace.projectId })
-          .from(projectWorkspace)
-          .where(inArray(projectWorkspace.workspaceId, f.ids))
-      ).toEqual(f.ids.map(() => ({ projectId: f.projectId })))
-      const current = await getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: f.ids[1] },
-        request,
-      })
-      expect(current.project.id).toBe(child?.projectId)
-      await archiveWorkspace(f.ids[0], request)
-      const [original] = await db.select().from(project).where(eq(project.id, f.projectId))
-      expect(original.archivedAt).not.toBeNull()
-      const detached = await getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: f.ids[2] },
-        request,
-      })
-      expect(detached.project.archivedAt).toBeNull()
-    }
-  )
-
-  check(
-    'legacy organization deletion transfers Projects without filling their columns',
-    async () => {
-      const f = await fixture()
-      await useLegacyMemberships(f.ids, f.projectId)
-      const organizationId = f.organizationId
-      if (!organizationId) throw new Error('Missing organization fixture')
-      await db.transaction(async (tx) => {
-        await detachOrganizationWorkspacesTx(tx, organizationId)
-        await tx.delete(organization).where(eq(organization.id, organizationId))
-      })
-      const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
-      expect(record).toMatchObject({ organizationId: null, ownerId: f.ownerId })
-      expect(
-        await db
-          .select({ projectId: workspace.projectId })
-          .from(workspace)
-          .where(inArray(workspace.id, f.ids))
-      ).toEqual(f.ids.map(() => ({ projectId: null })))
-    }
-  )
-
-  check(
-    'Project administration includes legacy environments during partial column assignment',
-    async () => {
-      const f = await fixture(false)
-      await useLegacyMemberships([f.ids[1]], f.projectId)
-      await expect(
-        renameProject.execute({
-          principal: f.teammate,
-          input: { projectId: f.projectId, name: 'Forbidden rename' },
-          request,
-        })
-      ).rejects.toMatchObject({ code: 'forbidden' })
-      const visible = await getProject.execute({
-        principal: f.owner,
-        input: { projectId: f.projectId },
-        request,
-      })
-      expect(visible.project.environments).toHaveLength(2)
-    }
-  )
-
-  check(
-    'connector retirement refuses busy workspace or Project readers without retaining locks',
-    async () => {
-      const f = await fixture(false)
-      await useLegacyMemberships(f.ids, f.projectId)
-      for (const held of ['workspace', 'project']) {
-        await db.transaction(async (tx) => {
-          if (held === 'workspace')
-            expect((await lockWorkspaceProject(tx, f.ids[0]))?.id).toBe(f.projectId)
-          else await tx.select().from(project).where(eq(project.id, f.projectId))
-          await expect(
-            isolated.client.begin(async (ddl) => {
-              await ddl`LOCK TABLE workspace, project, project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT`
-              await ddl`DROP TABLE project_workspace`
-            })
-          ).rejects.toSatisfy((error: unknown) => getPostgresErrorCode(error) === '55P03')
-          await isolated.client.begin(async (writer) => {
-            await writer`SET LOCAL lock_timeout = '100ms'`
-            await writer`UPDATE workspace SET name = 'Still writable' WHERE id = ${f.ids[0]}`
-          })
-        })
+      const state = await fixture(false)
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        workspaceId: state.ids[0],
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'workspace', workspaceId: state.ids[0] },
+        }),
       }
+      const request = {
+        fileOwner: { entityType: 'project', entityId: state.projectId },
+        invocation: {
+          kind: 'cli',
+          argv: ['projects', 'files', 'list', state.projectId, '--output', 'json'],
+        },
+      }
+      const result = await executeSimCli({ request }, context)
+      expect(result.success, result.error).toBe(true)
+      const output = AgentCliRawResult.parse(result.output)
+      expect(output.exitCode, output.stderr).toBe(0)
+      expect(JSON.parse(output.stdout)).toMatchObject({ data: [], nextCursor: null })
+      const workspaceAttempt = await executeSimCli(
+        {
+          request: {
+            ...request,
+            invocation: { kind: 'cli', argv: ['files', 'list', '--output', 'json'] },
+          },
+        },
+        context
+      )
+      expect(workspaceAttempt.success).toBe(false)
+      expect(AgentCliRawResult.parse(workspaceAttempt.output).exitCode).not.toBe(0)
+      const foreign = await fixture(false)
+      const mismatch = await executeSimCli(
+        {
+          request: {
+            ...request,
+            invocation: {
+              kind: 'cli',
+              argv: ['projects', 'files', 'list', foreign.projectId, '--output', 'json'],
+            },
+          },
+        },
+        context
+      )
+      expect(mismatch.success).toBe(false)
+      expect(AgentCliRawResult.parse(mismatch.output).exitCode).not.toBe(0)
     }
   )
 
   check(
-    'account teardown after a legacy detach removes only obsolete connector references',
+    'CLI Project discovery carries admitted workspace identity to the real application boundary',
     async () => {
-      const f = await fixture(false)
-      await useLegacyMemberships(f.ids, f.projectId)
+      const state = await fixture(false)
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        workspaceId: state.ids[0],
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'workspace', workspaceId: state.ids[0] },
+        }),
+      }
+      const result = await executeSimCli({ request: cliRequest }, context)
+      expect(result.success, result.error).toBe(true)
+      const output = AgentCliRawResult.parse(result.output)
+      expect(JSON.parse(output.stdout)).toMatchObject({
+        success: true,
+        projects: [{ id: state.projectId }],
+      })
+      for (const patch of [
+        { copilotResourceAdmission: undefined },
+        { copilotResourceAdmission: structuredClone(context.copilotResourceAdmission) },
+        { userId: state.outsiderId },
+        { workspaceId: state.ids[1] },
+        { mcpBlockId: generateId() },
+        { boundWorkflowExecutionId: generateId() },
+        { executorDelegationOrigin: { workflowId: generateId(), subjectUserId: state.ownerId } },
+      ]) {
+        const rejected = await executeSimCli(
+          { request: cliRequest, copilotResourceAdmission: context.copilotResourceAdmission },
+          { ...context, ...patch }
+        )
+        expect(rejected.success).toBe(false)
+      }
+      expect(
+        (await executeSimCli({ request: { ...cliRequest, workspaceId: state.ids[1] } }, context))
+          .success
+      ).toBe(false)
+    }
+  )
+
+  check(
+    'CLI Project discovery without an environment binds the owned organization chat and rechecks revocation',
+    async () => {
+      const state = await fixture()
+      const other = await fixture()
+      const chatId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: state.ownerId,
+        organizationId: state.organizationId,
+        type: 'mothership',
+        config: { conversationMode: 'agent' },
+      })
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        organizationId: state.organizationId ?? undefined,
+        chatOrganizationId: state.organizationId ?? undefined,
+        chatId,
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'chat', chatId },
+        }),
+      }
+      const result = await executeSimCli({ request: cliRequest }, context)
+      expect(result.success, result.error).toBe(true)
+      expect(JSON.parse(AgentCliRawResult.parse(result.output).stdout)).toMatchObject({
+        success: true,
+        projects: [{ id: state.projectId }],
+      })
+      expect(
+        (
+          await executeSimCli(
+            { request: cliRequest },
+            {
+              ...context,
+              organizationId: other.organizationId ?? undefined,
+              chatOrganizationId: other.organizationId ?? undefined,
+            }
+          )
+        ).success
+      ).toBe(false)
       await db
-        .delete(permissions)
-        .where(and(eq(permissions.entityId, f.ids[0]), eq(permissions.userId, f.teammateId)))
+        .update(copilotChats)
+        .set({ userId: state.outsiderId })
+        .where(eq(copilotChats.id, chatId))
+      expect((await executeSimCli({ request: cliRequest }, context)).success).toBe(false)
+    }
+  )
+
+  check(
+    'binds organization discovery to the current owned chat and rechecks membership',
+    async () => {
+      const first = await fixture()
+      const second = await fixture()
+      const chatId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: first.ownerId,
+        organizationId: first.organizationId,
+        type: 'mothership',
+        config: { conversationMode: 'agent' },
+      })
       await db.insert(permissions).values({
         id: generateId(),
-        userId: f.teammateId,
-        entityId: f.ids[1],
         entityType: 'workspace',
+        entityId: second.ids[0],
+        userId: first.ownerId,
         permissionType: 'admin',
       })
-      await unlinkForkEdge({ parentWorkspaceId: f.ids[0], childWorkspaceId: f.ids[1] })
-      const [detached] = await db.select().from(workspace).where(eq(workspace.id, f.ids[1]))
-      if (!detached.projectId) throw new Error('Missing detached Project')
-      await db.update(workspace).set({ projectId: f.projectId }).where(eq(workspace.id, f.ids[0]))
+      const principal: ResourceDelegatedPrincipal = {
+        ...discoveryPrincipal(first.ownerId, first.ids[0]),
+        serviceId: 'copilot',
+        invocation: { kind: 'chat', chatId },
+      }
+      const result = await listProjects.execute({ principal, input: { limit: 100 } })
+      expect(result.projects.map((entry) => entry.id)).toEqual([first.projectId])
       await expect(
-        db.transaction(async (tx) => {
-          await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[0]])
-          throw new Error('Cancel account deletion')
+        listProjects.execute({
+          principal,
+          input: { limit: 100, organizationId: second.organizationId ?? undefined },
         })
-      ).rejects.toThrow('Cancel account deletion')
-      expect(
+      ).rejects.toThrow()
+      await expect(
+        listProjects.execute({
+          principal: { ...principal, subjectUserId: first.outsiderId },
+          input: { limit: 100 },
+        })
+      ).rejects.toThrow()
+      await db
+        .update(copilotChats)
+        .set({ config: { conversationMode: 'assistant' } })
+        .where(eq(copilotChats.id, chatId))
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
+      await db
+        .update(copilotChats)
+        .set({ config: { conversationMode: 'agent' } })
+        .where(eq(copilotChats.id, chatId))
+      if (first.organizationId)
         await db
-          .select({ workspaceId: projectWorkspace.workspaceId })
-          .from(projectWorkspace)
-          .where(eq(projectWorkspace.projectId, f.projectId))
-      ).toHaveLength(2)
-      await db.transaction(async (tx) => {
-        const ids = await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[0]])
-        expect(ids).toEqual([f.projectId])
-        expect(
-          await tx
-            .select({ workspaceId: projectWorkspace.workspaceId })
-            .from(projectWorkspace)
-            .where(eq(projectWorkspace.projectId, f.projectId))
-        ).toEqual([{ workspaceId: f.ids[0] }])
-        await tx.delete(workspace).where(eq(workspace.id, f.ids[0]))
-        await tx.delete(project).where(inArray(project.id, ids))
-      })
-      expect(
-        await db.select({ id: project.id }).from(project).where(eq(project.id, f.projectId))
-      ).toEqual([])
-      const [surviving] = await db.select().from(project).where(eq(project.id, detached.projectId))
-      expect(surviving.ownerId).toBe(f.teammateId)
-      expect(
-        await db.select({ id: workspace.id }).from(workspace).where(eq(workspace.id, f.ids[1]))
-      ).toEqual([{ id: f.ids[1] }])
+          .delete(member)
+          .where(
+            and(eq(member.organizationId, first.organizationId), eq(member.userId, first.ownerId))
+          )
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
     }
   )
 
   check(
-    'column-only application operations remain valid after the connector is removed',
+    'keeps discovery inside the origin organization without granting lifecycle access',
     async () => {
-      await clearFixtures()
-      const f = await fixture(true, 1)
-      const locked = createDeferred<number>()
-      const release = createDeferred<void>()
-      const retirement = isolated.client.begin(async (tx) => {
-        await tx`LOCK TABLE workspace, project, project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT`
-        const [connection] = await tx`SELECT pg_backend_pid() AS pid`
-        locked.resolve(connection.pid)
-        await release.promise
-        await tx`DROP TABLE project_workspace`
-        await tx`ALTER TABLE workspace ALTER COLUMN project_id SET NOT NULL`
-        await tx`ALTER TABLE workspace VALIDATE CONSTRAINT workspace_project_id_project_id_fk`
+      const first = await fixture()
+      const second = await fixture()
+      await db.insert(permissions).values({
+        id: generateId(),
+        entityType: 'workspace',
+        entityId: second.ids[0],
+        userId: first.ownerId,
+        permissionType: 'admin',
       })
-      await Promise.race([locked.promise, retirement])
-      const overlappingRead = getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: f.ids[0] },
-        request,
-      })
-      try {
-        await waitUntilBlockedBy(await locked.promise, 'workspace')
-      } finally {
-        release.resolve()
-      }
-      const [, overlappingResult] = await Promise.all([retirement, overlappingRead])
-      expect(overlappingResult.project.environments.map((row) => row.id)).toEqual(f.ids)
-      const organizationId = f.organizationId
-      if (!organizationId) throw new Error('Missing organization fixture')
-      const created = await createProject.execute({
-        principal: f.owner,
-        input: {
-          organizationId,
-          name: 'Column-only Project',
-          initialEnvironment: { name: 'Production' },
-        },
-        request,
-      })
-      const source = await getWorkspaceWithOwner(created.initialEnvironment.id)
-      if (!source) throw new Error('Missing source environment')
-      const resolved = await getWorkspaceProject.execute({
-        principal: f.owner,
-        input: { workspaceId: source.id },
-        request,
-      })
-      expect(resolved.project.id).toBe(created.project.id)
+      const principal = discoveryPrincipal(first.ownerId, first.ids[0])
+      const result = await listProjects.execute({ principal, input: { limit: 100 } })
+      expect(result.projects.map((entry) => entry.id)).toEqual([first.projectId])
       await expect(
-        getProject.execute({
-          principal: createSessionPrincipal({ userId: f.outsiderId }),
-          input: { projectId: created.project.id },
-          request,
-        })
-      ).rejects.toMatchObject({ code: 'not_found' })
-      const listed = await listProjects.execute({
-        principal: f.owner,
-        input: { limit: 10 },
-        request,
-      })
-      expect(listed.projects.map((row) => row.id)).toEqual(
-        expect.arrayContaining([f.projectId, created.project.id])
-      )
-      await renameProject.execute({
-        principal: f.owner,
-        input: { projectId: created.project.id, name: 'Renamed without connector' },
-        request,
-      })
-      const fork = await createFork({
-        source,
-        policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
-        userId: f.ownerId,
-        name: 'Staging',
-      })
-      const [forkEnvironment] = await db
-        .select({ projectId: workspace.projectId })
-        .from(workspace)
-        .where(eq(workspace.id, fork.workspace.id))
-      expect(forkEnvironment.projectId).toBe(created.project.id)
-      await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
-      const [detached] = await db
-        .select({ projectId: workspace.projectId, parentId: workspace.forkedFromWorkspaceId })
-        .from(workspace)
-        .where(eq(workspace.id, fork.workspace.id))
-      if (!detached.projectId) throw new Error('Disconnected environment has no Project')
-      expect(detached.projectId).not.toBe(created.project.id)
-      expect(detached.parentId).toBeNull()
-      await archiveWorkspace(fork.workspace.id, request)
-      const [detachedProject] = await db
-        .select({ archivedAt: project.archivedAt })
-        .from(project)
-        .where(eq(project.id, detached.projectId))
-      expect(detachedProject.archivedAt).not.toBeNull()
-      await db.transaction(async (tx) => {
-        await detachOrganizationWorkspacesTx(tx, organizationId)
-        await tx.delete(organization).where(eq(organization.id, organizationId))
-      })
-      await archiveProject.execute({
-        principal: f.owner,
-        input: { projectId: created.project.id },
-        request,
-      })
-      const [archived] = await db.select().from(project).where(eq(project.id, created.project.id))
-      expect(archived.name).toBe('Renamed without connector')
-      expect(archived.organizationId).toBeNull()
-      expect(archived.archivedAt).not.toBeNull()
-      expect(
+        renameProject.execute({ principal, input: { projectId: first.projectId, name: 'Denied' } })
+      ).rejects.toThrow()
+      await expect(
+        archiveProject.execute({ principal, input: { projectId: first.projectId } })
+      ).rejects.toThrow()
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, first.ownerId), inArray(permissions.entityId, first.ids)))
+      if (first.organizationId)
         await db
-          .select({ id: workflow.id })
-          .from(workflow)
-          .where(and(eq(workflow.workspaceId, source.id), sql`${workflow.archivedAt} IS NULL`))
-      ).toEqual([])
-      const privateProject = await fixture(false, 1)
-      await db.transaction(async (tx) => {
-        const projectIds = await prepareProjectsForAccountDeletion(
-          tx,
-          privateProject.ownerId,
-          privateProject.ids
-        )
-        expect(projectIds).toEqual([privateProject.projectId])
-        await tx.delete(workspace).where(inArray(workspace.id, privateProject.ids))
-        await tx.delete(project).where(inArray(project.id, projectIds))
-      })
-      expect(
-        await db.select().from(project).where(eq(project.id, privateProject.projectId))
-      ).toEqual([])
+          .delete(member)
+          .where(
+            and(eq(member.organizationId, first.organizationId), eq(member.userId, first.ownerId))
+          )
+      await expect(listProjects.execute({ principal, input: { limit: 100 } })).rejects.toThrow()
+    }
+  )
+
+  check(
+    'rejects expired, malformed, wrong-audience and entity-scoped discovery delegation',
+    async () => {
+      const state = await fixture()
+      const principal = discoveryPrincipal(state.ownerId, state.ids[0])
+      for (const patch of [
+        { expiresAt: new Date(0) },
+        { issuedAt: new Date('invalid') },
+        { audience: 'sim:workspace-files' },
+        {
+          scope: {
+            kind: 'entity' as const,
+            entityType: 'project' as const,
+            entityId: state.projectId,
+          },
+        },
+      ]) {
+        await expect(
+          listProjects.execute({ principal: { ...principal, ...patch }, input: { limit: 10 } })
+        ).rejects.toThrow()
+      }
     }
   )
 })

@@ -7,7 +7,7 @@ export const BrowserUseBlock: BlockConfig = {
   description: 'Run browser automation tasks',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
+    'Run a browser task from natural-language instructions to navigate pages, interact with controls, and extract information.',
   docsLink: 'https://docs.sim.ai/integrations/browser_use',
   category: 'tools',
   integrationType: IntegrationType.AI,

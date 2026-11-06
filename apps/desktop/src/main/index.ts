@@ -1,3 +1,4 @@
+import { release } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -7,6 +8,7 @@ import {
   BrowserWindow,
   crashReporter,
   dialog,
+  globalShortcut,
   Notification,
   net,
   powerSaveBlocker,
@@ -35,6 +37,7 @@ import {
   executeTool as executeAgentBrowserTool,
   hasBrowserScopeSession,
   initDriver as initBrowserAgentDriver,
+  isBrowserToolRunning,
   restoreBrowserScope as restoreAgentBrowserScope,
 } from '@/main/browser-agent/driver'
 import {
@@ -44,6 +47,7 @@ import {
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
+  countProgressingBrowserDownloads,
   handleFocusedShortcut as handleFocusedBrowserShortcut,
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
@@ -51,7 +55,10 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { clearSignIns } from '@/main/browser-import'
 import { attachClientInfo } from '@/main/client-info'
+import { NativeComputerUseClient } from '@/main/computer-use/native-client'
+import { ComputerUseService } from '@/main/computer-use/service'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -68,12 +75,13 @@ import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
 import { createDesktopExecutorService } from '@/main/desktop-executor/service'
 import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
-import { attachDownloadHandling } from '@/main/downloads'
+import { attachDownloadHandling, countProgressingAppDownloads } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
 import {
   installDocumentationHelpSearch,
   uninstallDocumentationHelpSearch,
 } from '@/main/help-search'
+import { countWindowsWithUnsavedChanges, describeInFlightWork } from '@/main/in-flight-work'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilePermissions } from '@/main/local-file-permissions'
@@ -87,7 +95,7 @@ import {
   registerLocalPageScheme,
 } from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
-import { openExternalSafe } from '@/main/navigation'
+import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
@@ -123,6 +131,9 @@ const logger = createLogger('DesktopMain')
 function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
+
+/** Bounds what a hand-edited settings file can make an update relaunch open. */
+const MAX_RELAUNCH_WINDOWS = 16
 
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
@@ -169,6 +180,61 @@ function main(): void {
     grantStore: createEncryptedLocalFilesystemGrantStore(
       join(userDataPath, 'local-filesystem-grants.json')
     ),
+  })
+  const computerNative = new NativeComputerUseClient(
+    join(
+      app.isPackaged ? process.resourcesPath : join(__dirname, 'native'),
+      'Sim Computer Use.app',
+      'Contents',
+      'MacOS',
+      'SimComputerUse'
+    ),
+    () => computerUse.invalidateSnapshots()
+  )
+  let computerStopShortcutRegistered = false
+  const computerStopShortcut = 'CommandOrControl+Shift+Escape'
+  const computerUse = new ComputerUseService({
+    config,
+    supported: process.platform === 'darwin' && Number.parseInt(release(), 10) >= 23,
+    native: computerNative,
+    openPermissionSettings: (permission) =>
+      shell.openExternal(
+        permission === 'accessibility'
+          ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+          : 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+      ),
+    setStopShortcutActive: (active) => {
+      if (active && !computerStopShortcutRegistered) {
+        computerStopShortcutRegistered = globalShortcut.register(computerStopShortcut, () =>
+          computerUse.cancel()
+        )
+      } else if (!active && computerStopShortcutRegistered) {
+        globalShortcut.unregister(computerStopShortcut)
+        computerStopShortcutRegistered = false
+      }
+      return computerStopShortcutRegistered
+    },
+    approveApp: async (target, signal) => {
+      const result = await dialog.showMessageBox({
+        type: 'question',
+        title: 'Computer Use',
+        message: `Allow Mothership to use ${target.displayName}?`,
+        detail: `Mothership can read and operate this app, including taking screenshots. App: ${target.bundleId}`,
+        buttons: ['Allow for This Task', 'Always Allow', 'Cancel'],
+        defaultId: 2,
+        cancelId: 2,
+        noLink: true,
+        signal,
+      })
+      return result.response === 0 ? 'once' : result.response === 1 ? 'always' : 'deny'
+    },
+    onActivity: (activity) => {
+      for (const win of getWindows()) {
+        if (isAppOrigin(win.webContents.getURL(), appOrigin())) {
+          win.webContents.send('computer-use:activity', activity)
+        }
+      }
+    },
   })
   const localFilePermissions = new LocalFilePermissions(
     localFilesystem,
@@ -327,9 +393,11 @@ function main(): void {
       origin: appOrigin,
       events,
       getWindows,
+      stopLocalActions: () => computerUse.cancel(),
       clearHandoffState: async () => {
         const stores = [
           { label: 'sign-in handoff state', clear: () => handoff.clear() },
+          { label: 'browser sign-in handoffs', clear: clearSignIns },
           { label: 'recent tasks', clear: () => tray?.clearRecentChats() },
           {
             label: 'renderer session state',
@@ -366,6 +434,7 @@ function main(): void {
           },
           { label: 'task resource state', clear: clearDesktopChatSessions },
           { label: 'local filesystem grants', clear: clearLocalFileAccess },
+          { label: 'computer use', clear: () => computerUse.reset() },
         ]
         const outcomes = await Promise.allSettled(
           stores.map(({ clear }) => Promise.resolve().then(clear))
@@ -470,6 +539,12 @@ function main(): void {
     win.on('focus', () => {
       lastActiveWindow = win
     })
+    // Windows and Linux report a mouse's back and forward buttons as app
+    // commands. They move the Browser tab the user is in, never the Sim shell.
+    win.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') handleFocusedBrowserShortcut('back', win)
+      else if (command === 'browser-forward') handleFocusedBrowserShortcut('forward', win)
+    })
     // A fresh document (reload, origin change, crash recovery) has no browser
     // panel mounted yet — hide the embedded agent-browser view immediately
     // rather than letting it linger over the loading page.
@@ -506,6 +581,42 @@ function main(): void {
     // failure).
     void win.loadURL(`${origin}${route}`).catch(() => {})
     return win
+  }
+
+  /**
+   * An update relaunch reopens every app window where it was: the active one
+   * through `lastRoute` like any launch, the rest from this list. Written only
+   * once the relaunch is committed, and withdrawn if it fails.
+   */
+  function rememberWindowsForRelaunch(committed: boolean): void {
+    if (!committed) {
+      if (config.get('updateRelaunchRoutes') === undefined) return
+      config.set('updateRelaunchRoutes', undefined)
+      config.flush()
+      return
+    }
+    const active = getMainWindow()
+    const activeRoute = active ? routeFromAppUrl(active.webContents.getURL()) : null
+    if (activeRoute) config.set('lastRoute', activeRoute)
+    const otherRoutes = getWindows()
+      .filter((win) => win !== active)
+      .flatMap((win) => routeFromAppUrl(win.webContents.getURL()) ?? [])
+    config.set('updateRelaunchRoutes', otherRoutes.length > 0 ? otherRoutes : undefined)
+    config.flush()
+  }
+
+  /** Reopens the windows an update relaunch remembered, once the active window is up. */
+  function restoreWindowsAfterRelaunch(): void {
+    const routes: unknown = config.get('updateRelaunchRoutes')
+    if (routes === undefined) return
+    config.set('updateRelaunchRoutes', undefined)
+    config.flush()
+    if (!Array.isArray(routes)) return
+    for (const route of routes.slice(0, MAX_RELAUNCH_WINDOWS)) {
+      if (typeof route === 'string' && decideStartRoute(route) === route) {
+        void createAndLoadAppWindow({ route })
+      }
+    }
   }
 
   /** Opens the Sim app's settings page in the active window. */
@@ -618,6 +729,7 @@ function main(): void {
       Notification.isSupported() ? new Notification(options) : null,
   })
 
+  let agentWorkRunning = false
   const desktopExecutor = createDesktopExecutorService({
     userDataPath,
     origin: appOrigin,
@@ -625,7 +737,10 @@ function main(): void {
     preferences: () => desktopSettings.getPreferences(),
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
-    onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    onBusyChange: (busy) => {
+      agentWorkRunning = busy
+      sleepBlocker.setBusy(busy)
+    },
     // A result the model has makes a tmux run it handed back as still going collectable across a
     // restart.
     onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
@@ -684,7 +799,10 @@ function main(): void {
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
-    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
+    prepareDeploymentScopedStateChange: () => {
+      computerUse.cancel()
+      return beginAccountDataTeardown('deployment', appOrigin())
+    },
     clearDeploymentScopedState: async () => {
       await waitForAccountDataMutations()
       // allSettled, not sequential awaits: these are independent stores, and a
@@ -693,6 +811,7 @@ function main(): void {
       // access. Each failure is named so the picker can say what survived.
       const stores = [
         { label: 'local file access', clear: clearLocalFileAccess },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'built-in browser sessions',
           clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
@@ -774,6 +893,8 @@ function main(): void {
     // now be released without leaving a cancelled quit in a degraded state.
     tray?.destroy()
     tray = null
+    computerUse.cancel()
+    if (computerStopShortcutRegistered) globalShortcut.unregister(computerStopShortcut)
     localFilesystem.close()
     quiesceBrowserSessions()
     terminal.dispose()
@@ -811,6 +932,7 @@ function main(): void {
       const stores = [
         { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
         { label: 'local filesystem grants', clear: clearLocalFileAccess },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'browser site history',
           clear: () => {
@@ -821,6 +943,7 @@ function main(): void {
         ...(kind === 'account' && origin
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
+              { label: 'browser sign-in handoffs', clear: clearSignIns },
               { label: 'background executor', clear: () => desktopExecutor.signOut() },
               {
                 label: 'terminal sessions',
@@ -919,6 +1042,7 @@ function main(): void {
         scopeEvents.sendTerminal(scopeId, 'terminal:command', { ...event, scopeId }),
     })
     registerIpcHandlers({
+      computerUse,
       appOrigin,
       allowHttpLocalhost,
       accountDataAvailable,
@@ -995,7 +1119,7 @@ function main(): void {
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),
-        install: () => updater?.install(),
+        install: (options) => updater?.install(options),
       },
       server: {
         open: () => serverWindow.open(),
@@ -1044,6 +1168,24 @@ function main(): void {
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
       setRelaunchPending: (pending) => {
         committedRelaunchPending = pending
+        rememberWindowsForRelaunch(pending)
+      },
+      describeInFlightWork: async () => {
+        // Native activity is read after the window probes so work started meanwhile still counts.
+        const windows = await countWindowsWithUnsavedChanges(
+          getWindows().map((win) => win.webContents)
+        )
+        const terminalWork = await terminal.runningWork()
+        const computerUseActivity = computerUse.getActivity()
+        return describeInFlightWork({
+          terminalCommands: terminalWork.commands,
+          uncheckedTerminalCount: terminalWork.uncheckedCount,
+          computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
+          browserToolRunning: isBrowserToolRunning(),
+          agentWorkRunning,
+          downloadCount: countProgressingBrowserDownloads() + countProgressingAppDownloads(),
+          ...windows,
+        })
       },
       beforeInstall: async () => {
         if (!prepareAccountDataTeardownForQuit()) {
@@ -1060,6 +1202,7 @@ function main(): void {
       },
     })
     desktopSettings.applySystemPreferences()
+    restoreWindowsAfterRelaunch()
   })
 }
 

@@ -9,7 +9,7 @@ export const ImapBlock: BlockConfig = {
   name: 'IMAP Email',
   description: 'Trigger workflows when new emails arrive via IMAP (works with any email provider)',
   longDescription:
-    'Connect to any email server via IMAP protocol to trigger workflows when new emails are received. Supports Gmail, Outlook, Yahoo, and any other IMAP-compatible email provider.',
+    'Start workflows from mail in an IMAP-enabled mailbox. Configure the server connection, folder, and message filters required by your provider.',
   category: 'triggers',
   integrationType: IntegrationType.Email,
   bgColor: '#6366F1',

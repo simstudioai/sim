@@ -19,7 +19,7 @@ const { updateLastUsed } = vi.hoisted(() => ({ updateLastUsed: vi.fn() }))
 vi.mock('@/lib/api-key/crypto', () => ({ hashApiKey: (value: string) => `hash:${value}` }))
 vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `oauth-hash:${value}` }))
 vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: updateLastUsed }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import {

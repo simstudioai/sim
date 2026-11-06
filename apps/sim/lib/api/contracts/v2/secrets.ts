@@ -51,7 +51,7 @@ export const v2SecretSchema = z
   .meta({
     id: 'V2Secret',
     title: 'Secret metadata',
-    description: 'Public secret metadata without the stored secret value.',
+    description: 'Secret metadata without the stored value.',
   })
 export type V2Secret = z.output<typeof v2SecretSchema>
 
@@ -133,7 +133,7 @@ export const v2SetSecretBodySchema = z
       .max(65_536, 'value is too long')
       .optional()
       .describe(
-        'Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.'
+        'Secret value, omitted from the Set secret response. For an existing workspace secret, omit it to change only `description` or `unredacted`. Personal secrets always require a value and accept no writable metadata.'
       )
       .meta({ writeOnly: true }),
     description: z

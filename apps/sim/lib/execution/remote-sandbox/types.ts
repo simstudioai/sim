@@ -2,7 +2,8 @@ import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeho
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
-import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import type { SandboxPhaseTimings } from '@/lib/execution/remote-sandbox/phase-timing'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 
 /**
  * Which vetted image a sandbox runs in. Every kind fails closed when its
@@ -187,6 +188,8 @@ export interface SandboxExecutionResult {
    * is gone.
    */
   sandboxSession?: 'created' | 'reused'
+  /** Wall time per execution phase, for the caller's log line; never part of a response. */
+  phaseMs?: SandboxPhaseTimings
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -233,6 +236,12 @@ export interface SandboxCodeResult {
   providerFailure?: 'provider_limit'
 }
 
+/** Expected digests of a session's deployment CLI artifacts, keyed by sandbox path. */
+export interface SessionCliVerification {
+  path: string
+  artifacts: Record<string, string>
+}
+
 export interface RunCommandOptions {
   envs?: Record<string, string>
   timeoutMs: number
@@ -244,6 +253,11 @@ export interface RunCommandOptions {
   rootUser?: boolean
   /** Never relaunch this command when provider acknowledgement is ambiguous. */
   atMostOnce?: boolean
+  /**
+   * Session commands only: start the command only if these artifacts still match. A mismatch
+   * rejects with `SessionCliStaleError` and runs nothing.
+   */
+  verifyCli?: SessionCliVerification
   onStdout?: (chunk: string) => void
   onStderr?: (chunk: string) => void
 }
@@ -254,6 +268,11 @@ export interface RunCommandOptions {
  */
 export interface SandboxHandle {
   readonly sandboxId: string
+  /**
+   * Every command this session handle launches honors `verifyCli` inside its own owned process,
+   * so a reused session needs no separate verification command.
+   */
+  readonly verifiesCliAtLaunch?: boolean
   /**
    * Runs code in the language fixed at {@link SandboxProvider.create} time.
    * Language is bound at creation rather than per call because Daytona applies it
@@ -270,6 +289,7 @@ export interface SandboxHandle {
       javascriptPreload?: string
       maxOutputBytes?: number
       signal?: AbortSignal
+      verifyCli?: SessionCliVerification
     }
   ): Promise<SandboxCodeResult>
   runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult>
@@ -488,4 +508,17 @@ export interface SandboxProvider {
     key: string,
     options: { language?: CodeLanguage; lifetimeMs?: number }
   ): Promise<SandboxHandle | null>
+  /** Session sandboxes the provider paused when their lease ran out, for the retention sweep. */
+  listPausedSessionSandboxes?(): Promise<PausedSessionSandbox[]>
+  /**
+   * Kills the sandbox only if it is still paused and paused at or before `pausedBeforeMs`,
+   * resolving false when a resume got there first. Callers hold the session's lock.
+   */
+  killPausedSessionSandbox?(sandbox: PausedSessionSandbox, pausedBeforeMs: number): Promise<boolean>
+}
+
+export interface PausedSessionSandbox {
+  sandboxId: string
+  sessionKey: string
+  pausedAtMs: number
 }

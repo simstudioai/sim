@@ -189,7 +189,7 @@ export const PitchBookBlock: BlockConfig = {
   description: 'Look up private market data on companies, deals, investors, funds, and people',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates the PitchBook Public API into the workflow. Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Also reports API credit usage and the lookup-table codes the search filters expect. Every call consumes PitchBook API credits.',
+    'Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Retrieve lookup-table codes for search filters and use the usage actions to check API credit consumption.',
   docsLink: 'https://docs.sim.ai/integrations/pitchbook',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

@@ -308,7 +308,10 @@ describe('copilot orchestrator persistence', () => {
       })
       await vi.advanceTimersByTimeAsync(5_000)
       expect(await waiting).toMatchObject({ status: 'error', message: 'Outcome unknown' })
-      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledWith(scope)
+      expect(revokeExpiredSimToolExecutions).toHaveBeenCalledWith({
+        ...scope,
+        toolCallId: 'tool-1',
+      })
     } finally {
       vi.useRealTimers()
     }

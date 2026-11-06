@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
+import {
+  buildEffectiveChatTranscript,
+  buildLiveAssistantMessage,
+} from '@/lib/mothership/chat/effective-transcript'
 import {
   getLiveAssistantMessageId,
   isLiveAssistantMessageId,
@@ -16,6 +19,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 
 function toBatchEvent(eventId: number, event: StreamBatchEvent['event']): StreamBatchEvent {
   return {
@@ -98,6 +102,46 @@ describe('buildEffectiveChatTranscript', () => {
       ])
     }
   )
+
+  it("keeps a resolved operation's own grouping-shaped activity argument beside the gateway's grouping", () => {
+    const ownActivity = { id: 'case-42', completedTitle: 'Closed the case' }
+    const grouping = { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' }
+    const call = (seq: number, toolName: string, args: Record<string, unknown>) =>
+      toBatchEvent(seq, {
+        v: 1,
+        seq,
+        ts: new Date(seq).toISOString(),
+        type: MothershipStreamV1EventType.tool,
+        stream: { streamId: 'stream-1' },
+        payload: {
+          phase: 'call',
+          executor: 'sim',
+          mode: 'async',
+          toolCallId: 'gateway-call',
+          toolName,
+          arguments: args,
+        },
+      })
+    const operationArgs = { title: 'Ship it', activity: ownActivity }
+    const message = buildLiveAssistantMessage({
+      streamId: 'stream-1',
+      events: [
+        call(1, 'call_integration_tool', {
+          toolId: 'azure_devops_create_work_item',
+          description: 'Filing the task',
+          activity: grouping,
+          arguments: operationArgs,
+        }),
+        call(2, 'azure_devops_create_work_item', operationArgs),
+        call(3, 'azure_devops_create_work_item', operationArgs),
+      ],
+      status: 'cancelled',
+    })
+    const toolCall = message?.contentBlocks?.find((block) => block.toolCall)?.toolCall
+
+    expect(toolCall?.params).toEqual(operationArgs)
+    expect(readCallActivity(toolCall)).toEqual(grouping)
+  })
 
   it('returns the existing transcript when the stream owner is no longer the trailing user', () => {
     const messages = [

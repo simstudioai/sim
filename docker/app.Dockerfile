@@ -1,24 +1,43 @@
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.4.2-slim AS base
+FROM oven/bun:1.4.4-slim AS base
 
 # Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
 # Node runs the isolated-vm sandbox worker and the Oracle Database worker (the
 # app itself runs under Bun); the version is kept in lockstep with the
 # `isolated-vm` pin in apps/sim/package.json — Node 24 (ABI 137) requires
-# isolated-vm 6.x.
+# isolated-vm 6.x — and with NODE_VERSION in apps/sim/trigger.config.ts, which
+# copies the same Node into the Bun-based Trigger.dev task image.
+#
+# NODE_VERSION pins the exact NodeSource build: this layer is cached, so an
+# unpinned `nodejs` changed only when an unrelated edit forced a rebuild. The
+# `-1nodesource1` suffix selects the `nodejs` package, never `nsolid`, which
+# Provides `nodejs` at the same version numbers. build-base and deps inherit
+# this stage, so isolated-vm's node-gyp build targets the same Node (and ABI)
+# the runner executes it with.
+ARG NODE_VERSION=24.22.1
 #
 # Only what the running container needs belongs here. ffmpeg backs the media
 # subprocess adapter; python3 is the node-gyp interpreter and is kept because
 # build-base inherits from this stage. The compiler toolchain lives in build-base
 # so the runner does not ship it.
+#
+# The OS trust store then drops the two roots that chain to the compromised
+# eMudhra intermediates (https://emudhra.we-have-a-problem.com), both already
+# out of Mozilla's store; Bun's fetch, curl, and python3 read it. The final
+# grep matches a signature line of each root (AAA, then emSign ECC G3), so the
+# build fails if the edit ever stops removing them.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 curl ca-certificates bash ffmpeg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y --no-install-recommends "nodejs=${NODE_VERSION}-1nodesource1" \
+    && [ "$(node --version)" = "v${NODE_VERSION}" ] \
+    && sed -i -E 's#^mozilla/(emSign_ECC_Root_CA_-_G3|Comodo_AAA_Services_root)\.crt$#!&#' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && ! grep -qF -e 'l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3' -e 'CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD' /etc/ssl/certs/ca-certificates.crt
 
 # ========================================
 # Build Base: adds the native toolchain the isolated-vm rebuild needs
@@ -204,6 +223,18 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@napi-rs ./node_modules
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
+# The same image runs as the dedicated worker host with
+# `node apps/sim/lib/execution/isolated-vm-host.cjs`. The host requires `ws`
+# directly, so copy the complete package rather than relying on the tracer.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-host.cjs ./apps/sim/lib/execution/isolated-vm-host.cjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/ws ./node_modules/ws
+
+# Spreadsheet parse worker bundle (build:xlsx-worker, run by `bun run build`;
+# under the build task's declared `dist/**` output so a Turbo cache hit restores it).
+# Without it parsing falls back in-process, so a missing file fails the image
+# build here instead of silently putting XLSX parsing back on the event loop.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/xlsx-worker.mjs ./apps/sim/dist/xlsx-worker.mjs
+
 # Copy the pre-built sandbox library bundles (pptxgenjs, docx, pdf-lib) that
 # run inside the V8 isolate. Committed into the repo; see
 # apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
@@ -213,9 +244,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bu
 # anonymizer, docker/pii.Dockerfile), reached over the network via PII_URL —
 # no Python/Presidio in this image.
 
-# Create .next/cache directory with correct ownership
+# Writable paths for a read-only root filesystem. Declaring them as volumes
+# keeps writes working when the root is mounted read-only: ECS copies the
+# image's contents and ownership into a bind volume mounted at a VOLUME path.
+# - /tmp (mode 1777): os.tmpdir() scratch for ffmpeg and audio processing,
+#   knowledge base imports, the Pi agent, and libvips (sharp) spill files.
+# - apps/sim/.next/cache: the Next image optimizer's disk cache
+#   (.next/cache/images) and the data cache for `fetch` calls with
+#   `next.revalidate`.
+# Keep the VOLUME line after every step that writes to these paths: the
+# classic builder discards later build-time changes to a declared volume.
 RUN mkdir -p apps/sim/.next/cache && \
-    chown -R nextjs:nodejs apps/sim/.next/cache
+    chown -R nextjs:nodejs apps/sim/.next/cache && \
+    chmod 1777 /tmp
+VOLUME ["/tmp", "/app/apps/sim/.next/cache"]
 
 # Switch to non-root user
 USER nextjs

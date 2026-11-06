@@ -4,13 +4,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { V2TableExport, V2TableExportStatus } from '@/lib/api/contracts/v2/tables'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { runDetached } from '@/lib/core/utils/background'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
 import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import type { TableDefinition, TableExportJobPayload } from '@/lib/table/types'
+import type { tableExportTask } from '@/background/table-export'
 
 export type TableExportRecord = typeof tableJobs.$inferSelect
 
@@ -42,19 +42,10 @@ export async function createTableExportResource(params: {
     await runTableExport(runnerPayload)
   } else {
     try {
-      if (isTriggerDevEnabled) {
-        const [{ tableExportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-          import('@/background/table-export'),
-          import('@trigger.dev/sdk'),
-          import('@/lib/core/async-jobs/region'),
-        ])
-        await tasks.trigger<typeof tableExportTask>('table-export', runnerPayload, {
-          tags: [`tableId:${params.table.id}`, `jobId:${exportId}`],
-          region: await resolveTriggerRegion(),
-        })
-      } else {
-        runDetached('table-export', () => runTableExport(runnerPayload))
-      }
+      await dispatchBackgroundTask<typeof tableExportTask>('table-export', runnerPayload, {
+        runInProcess: runTableExport,
+        trigger: { tags: [`tableId:${params.table.id}`, `jobId:${exportId}`] },
+      })
     } catch (error) {
       await markExportFailed({
         tableId: params.table.id,

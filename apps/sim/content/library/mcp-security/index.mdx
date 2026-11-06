@@ -2,6 +2,7 @@
 slug: mcp-security
 title: 'MCP Security: A Practical Guide to Secure MCP Server Development'
 description: 'MCP security covers the risks, auth flaws, and prompt-injection threats in Model Context Protocol servers; here''s how to build and deploy MCP servers securely.'
+seoTitle: 'MCP Security: How to Build Secure MCP Servers'
 date: 2026-07-22
 updated: 2026-10-06
 authors:
@@ -19,9 +20,9 @@ faq:
   - q: "What are the biggest MCP security risks?"
     a: "MCP's three risks to prioritize are prompt and tool injection (especially tool poisoning, where malicious instructions hide in tool metadata), over-scoped tokens and confused-deputy problems in OAuth, and untrusted third-party servers that ship hidden behavior. Tool poisoning is the most prevalent and impactful client-side vulnerability."
   - q: "How do you prevent prompt injection in MCP servers?"
-    a: "MCP servers should validate and sanitize the inputs and outputs the model can act on, review and version tool definitions to catch silent changes, and require human approval for destructive actions like deletes, writes, and payments. Treating tool metadata as a security boundary is important, since the model reads descriptions as instructions."
+    a: "MCP servers should isolate untrusted content, validate and sanitize the inputs and outputs the model can act on, constrain which follow-up tools are available, limit permissions, review and version tool definitions to catch silent changes, and require human approval for destructive actions like deletes, writes, and payments. Treating tool metadata as a security boundary is important, since the model reads descriptions as instructions; prompt filtering alone is not a sufficient boundary."
   - q: "Are local or remote MCP servers safer?"
-    a: "MCP local and remote servers have different trade-offs, so neither is definitively safer. Local servers give you control but execute code on infrastructure you host, so a flaw can mean local code execution. Remote servers can live on localhost, a private URL, or a public URL and reduce local execution risk, but they share your data with a third party you must vet and trust."
+    a: "MCP local and remote servers have different trade-offs, so neither is definitively safer. Local servers give you control but execute code on infrastructure you host, so a flaw can mean local code execution, and they need package, process, filesystem, and network isolation. Remote servers can live on localhost, a private URL, or a public URL and reduce local execution risk, but they share your data with a third party you must vet and trust, and they need strong transport, authorization, tenant isolation, and session security."
   - q: "How does Sim help secure MCP deployments?"
     a: "Sim provides self-hosted deployment for full data control, bring-your-own-keys, workspace and group access permissions, and approval flows. It also captures full run logs with trace spans for every execution, so MCP activity stays observable and governed as usage grows across a team."
   - q: "Is MCP secure?"
@@ -36,16 +37,12 @@ faq:
     a: "MCP tool poisoning is the use of malicious or misleading tool names, descriptions, schemas, or definition changes to manipulate a model’s behavior. MCP clients should review, record, monitor, and reapprove security-relevant tool metadata."
   - q: "Can MCP tools cause prompt injection?"
     a: "MCP tools can carry prompt injection through documents, web pages, database records, API responses, and other untrusted results. MCP clients should treat those results as data and prevent them from authorizing follow-up actions."
-  - q: "How do you prevent prompt injection in MCP?"
-    a: "MCP prompt-injection defenses should isolate untrusted content, constrain available follow-up tools, validate structured output, limit permissions, and require approval for sensitive actions. Prompt filtering alone is not a sufficient security boundary."
   - q: "How should MCP permissions be scoped?"
     a: "MCP permissions should be limited by identity, tenant, resource, operation, duration, and environment. MCP servers and downstream systems should enforce those limits on every request rather than relying on model instructions."
   - q: "Should MCP servers receive API keys in tool arguments?"
     a: "MCP servers should not receive reusable secrets through model-generated tool arguments. MCP servers should resolve protected credential references at execution time and keep secret values outside prompts, logs, and tool results."
   - q: "Is it safe to run a local MCP server?"
     a: "MCP local servers are safe only to the extent that their code, dependencies, process permissions, filesystem access, credentials, and network access are trustworthy and constrained. A local MCP server should be reviewed like any other locally executing application."
-  - q: "Is a remote MCP server safer than a local MCP server?"
-    a: "MCP remote servers are not inherently safer than local MCP servers because the two deployments have different risks. Remote servers need strong transport, authorization, tenant isolation, and session security, while local servers need package, process, filesystem, and network isolation."
   - q: "Should MCP tools require human approval?"
     a: "MCP tools should require human approval before destructive, financial, external, privilege-changing, or otherwise consequential actions. MCP approval should display the final action and parameters immediately before execution."
   - q: "What should be logged for MCP tool calls?"

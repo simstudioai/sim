@@ -56,7 +56,7 @@ const v2IncludeEmptySegmentsSchema = z
   .describe(
     'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
   )
-  .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] })
+  .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES], default: 'false' })
 
 const v2LogSegmentSchema = z
   .object({

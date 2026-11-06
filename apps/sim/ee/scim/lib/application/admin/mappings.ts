@@ -2,14 +2,15 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   permissionGroup,
-  type ScimConnectionSettings,
+  permissionGroupMember,
   scimConnection,
   scimGroup,
   scimGroupMapping,
   scimGroupMember,
+  scimUser,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import type { ScimGroupMappingView } from '@/lib/api/contracts/organization-scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -43,18 +44,23 @@ const MAPPING_COLUMNS = {
   workspaceId: scimGroupMapping.workspaceId,
   permissionType: scimGroupMapping.permissionType,
   role: scimGroupMapping.role,
+  source: scimGroupMapping.source,
 } as const
 
-function toMappingView(row: {
-  id: string
-  groupId: string
-  groupDisplayName: string
-  targetKind: string
-  permissionGroupId: string | null
-  workspaceId: string | null
-  permissionType: 'admin' | 'write' | 'read' | null
-  role: string | null
-}): ScimGroupMappingView {
+function toMappingView(
+  row: {
+    id: string
+    groupId: string
+    groupDisplayName: string
+    targetKind: string
+    permissionGroupId: string | null
+    workspaceId: string | null
+    permissionType: 'admin' | 'write' | 'read' | null
+    role: string | null
+    source: string
+  },
+  unassignedMemberCount: number | null
+): ScimGroupMappingView {
   return {
     id: row.id,
     groupId: row.groupId,
@@ -64,7 +70,47 @@ function toMappingView(row: {
     workspaceId: row.workspaceId,
     permissionType: row.permissionType,
     role: row.role,
+    source: row.source as ScimGroupMappingView['source'],
+    unassignedMemberCount,
   }
+}
+
+/** Reads actual membership so skipped or subsequently removed assignments stay visible. */
+async function unassignedPermissionGroupMemberCounts(params: {
+  connectionId: string
+  organizationId: string
+  groupId?: string
+}): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ mappingId: scimGroupMapping.id, value: count() })
+    .from(scimGroupMapping)
+    .innerJoin(scimGroup, eq(scimGroup.id, scimGroupMapping.groupId))
+    .innerJoin(scimGroupMember, eq(scimGroupMember.groupId, scimGroup.id))
+    .innerJoin(
+      scimUser,
+      and(
+        eq(scimUser.id, scimGroupMember.scimUserId),
+        eq(scimUser.connectionId, scimGroup.connectionId)
+      )
+    )
+    .leftJoin(
+      permissionGroupMember,
+      and(
+        eq(permissionGroupMember.permissionGroupId, scimGroupMapping.permissionGroupId),
+        eq(permissionGroupMember.organizationId, params.organizationId),
+        eq(permissionGroupMember.userId, scimUser.userId)
+      )
+    )
+    .where(
+      and(
+        eq(scimGroup.connectionId, params.connectionId),
+        eq(scimGroupMapping.targetKind, 'permission_group'),
+        isNull(permissionGroupMember.id),
+        params.groupId ? eq(scimGroup.id, params.groupId) : undefined
+      )
+    )
+    .groupBy(scimGroupMapping.id)
+  return new Map(rows.map((row) => [row.mappingId, Number(row.value)]))
 }
 
 export const listScimGroupMappings = defineAuthorizedScimAdminUseCase({
@@ -77,7 +123,7 @@ export const listScimGroupMappings = defineAuthorizedScimAdminUseCase({
       .limit(1)
     if (!connection) return { groups: [] }
 
-    const [groups, mappings, counts] = await Promise.all([
+    const [groups, mappings, counts, unassignedCounts] = await Promise.all([
       db
         .select({ id: scimGroup.id, displayName: scimGroup.displayName })
         .from(scimGroup)
@@ -94,13 +140,22 @@ export const listScimGroupMappings = defineAuthorizedScimAdminUseCase({
         .innerJoin(scimGroup, eq(scimGroup.id, scimGroupMember.groupId))
         .where(eq(scimGroup.connectionId, connection.id))
         .groupBy(scimGroupMember.groupId),
+      unassignedPermissionGroupMemberCounts({
+        connectionId: connection.id,
+        organizationId: input.organizationId,
+      }),
     ])
 
     const memberCounts = new Map(counts.map((row) => [row.groupId, Number(row.value)]))
     const mappingsByGroup = new Map<string, ScimGroupMappingView[]>()
     for (const row of mappings) {
       const list = mappingsByGroup.get(row.groupId) ?? []
-      list.push(toMappingView(row))
+      list.push(
+        toMappingView(
+          row,
+          row.targetKind === 'permission_group' ? (unassignedCounts.get(row.id) ?? 0) : null
+        )
+      )
       mappingsByGroup.set(row.groupId, list)
     }
 
@@ -120,7 +175,6 @@ async function reconcileGroupMembers(params: {
   connectionId: string
   organizationId: string
   groupId: string
-  settings: ScimConnectionSettings
 }): Promise<number> {
   const members = await db
     .select({ scimUserId: scimGroupMember.scimUserId })
@@ -131,7 +185,6 @@ async function reconcileGroupMembers(params: {
     connectionId: params.connectionId,
     organizationId: params.organizationId,
     scimUserIds: members.map((row) => row.scimUserId),
-    settings: params.settings,
   })
   return members.length
 }
@@ -269,11 +322,22 @@ export const upsertScimGroupMapping = defineAuthorizedScimAdminUseCase({
       connectionId: connection.id,
       organizationId: context.organizationId,
       groupId: group.id,
-      settings: connection.settings,
     })
 
+    const unassignedCounts =
+      input.targetKind === 'permission_group'
+        ? await unassignedPermissionGroupMemberCounts({
+            connectionId: connection.id,
+            organizationId: context.organizationId,
+            groupId: group.id,
+          })
+        : null
+
     return {
-      mapping: toMappingView({ ...mapping, groupDisplayName: group.displayName }),
+      mapping: toMappingView(
+        { ...mapping, groupDisplayName: group.displayName },
+        unassignedCounts ? (unassignedCounts.get(mapping.id) ?? 0) : null
+      ),
       reconciledUsers,
     }
   },
@@ -310,7 +374,6 @@ export const deleteScimGroupMapping = defineAuthorizedScimAdminUseCase({
       connectionId: connection.id,
       organizationId: context.organizationId,
       groupId: mapping.groupId,
-      settings: connection.settings,
     })
 
     return { success: true as const, reconciledUsers, mapping }

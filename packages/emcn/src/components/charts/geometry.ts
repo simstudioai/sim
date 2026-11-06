@@ -39,6 +39,22 @@ export function resolveChartPadding(yAxisLabels: readonly string[]): ChartPaddin
   }
 }
 
+/** Round a nonnegative bar scale to readable intervals, leaving headroom above its peak. */
+export function resolveBarTickValues(peak: number): number[] {
+  if (!Number.isFinite(peak) || peak <= 0) return [0, 1, 2, 3, 4]
+  const ceiling = peak * 1.08
+  const roughStep = ceiling / 4
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep))
+  const multiple = [1, 2, 5, 10].find((candidate) => candidate * magnitude >= roughStep) ?? 10
+  const step = Math.max(peak >= 1 ? 1 : 0, multiple * magnitude)
+  if (!Number.isFinite(ceiling) || !Number.isFinite(step) || step <= 0) return [0, peak]
+  const intervals = Math.ceil(ceiling / step)
+  const ticks = Array.from({ length: intervals + 1 }, (_, index) =>
+    Number((index * step).toPrecision(12))
+  )
+  return ticks.every(Number.isFinite) ? ticks : [0, peak]
+}
+
 /** Vertical clamp for plotted geometry, keeping strokes off the axis rules. */
 export function chartPlotBand(height: number): { yMin: number; yMax: number } {
   const chartHeight = height - CHART_PADDING.top - CHART_PADDING.bottom

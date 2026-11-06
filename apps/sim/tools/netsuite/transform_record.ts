@@ -1,5 +1,5 @@
 import type { NetSuiteResponse, NetSuiteTransformRecordParams } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteTransformRecordTool: InternalToolConfig<
   name: 'NetSuite Transform Record',
   description: 'Transform a supported source record into another NetSuite record type.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

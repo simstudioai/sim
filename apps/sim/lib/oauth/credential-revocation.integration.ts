@@ -2,9 +2,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { db } from '@sim/db'
 import { account, credential, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred, type Deferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl } = await vi.hoisted(async () => {
@@ -35,6 +36,7 @@ import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { completeOAuthCredentialToken } from '@/lib/oauth/token-resolution'
 
 const originalFetch = globalThis.fetch
+const fixtureEncryptionKey = process.env.ENCRYPTION_KEY
 const userId = generateId()
 const workspaceId = generateId()
 const accountId = generateId()
@@ -80,6 +82,19 @@ async function storedRow(rowId: string) {
   return row
 }
 
+async function rawTokens() {
+  const [row] = await db.execute<{ access_token: string | null; refresh_token: string | null }>(
+    sql`SELECT access_token, refresh_token FROM account WHERE id = ${accountId}`
+  )
+  return row
+}
+
+/** Sealing is the default with the fixture's hex key; `false` is the operator opt-out. */
+function sealWrites(enabled: boolean) {
+  if (enabled) Reflect.deleteProperty(process.env, 'ENCRYPT_ACCOUNT_TOKENS')
+  else process.env.ENCRYPT_ACCOUNT_TOKENS = 'false'
+}
+
 async function resolveToken(rowId = accountId) {
   return refreshTokenIfNeeded('revocation-integration', await storedRow(rowId), rowId)
 }
@@ -121,7 +136,7 @@ beforeAll(async () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   })
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Revocation fixture',
     ownerId: userId,
@@ -176,6 +191,8 @@ beforeEach(async () => {
 })
 
 afterEach((context) => {
+  sealWrites(false)
+  process.env.ENCRYPTION_KEY = fixtureEncryptionKey
   pausedProvider?.release.resolve()
   checks.push({
     name: context.task.name,
@@ -187,7 +204,7 @@ afterEach((context) => {
 afterAll(async () => {
   globalThis.fetch = originalFetch
   await expireRedisFlags()
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, userId))
   await closeRedisConnection()
   const reportPath =
@@ -450,5 +467,92 @@ describe('OAuth refresh-token revocation against PostgreSQL and Redis', () => {
       accessToken: 'fresh-access',
       refreshed: true,
     })
+  })
+})
+
+describe('OAuth refresh chains with sealed account tokens', () => {
+  async function sealStoredChain() {
+    sealWrites(true)
+    await db
+      .update(account)
+      .set({ accessToken: 'expired-access', refreshToken: 'issued-refresh' })
+      .where(eq(account.id, accountId))
+  }
+
+  it('stores tokens sealed and reads them back as plaintext', async () => {
+    await sealStoredChain()
+
+    const raw = await rawTokens()
+    expect(raw.access_token).toMatch(/^enc:v1:/)
+    expect(raw.refresh_token).toMatch(/^enc:v1:/)
+    expect(JSON.stringify(raw)).not.toContain('issued-refresh')
+    expect(await storedAccount()).toMatchObject({
+      accessToken: 'expired-access',
+      refreshToken: 'issued-refresh',
+    })
+  })
+
+  it('keeps writing readable tokens when ENCRYPTION_KEY cannot seal them', async () => {
+    sealWrites(true)
+    process.env.ENCRYPTION_KEY = 'not-hex'.repeat(6)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({ access_token: 'fresh-access' })
+  })
+
+  it('writes plaintext tokens when the operator opts out of sealing', async () => {
+    sealWrites(false)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: 'fresh-access',
+      refresh_token: 'issued-refresh',
+    })
+  })
+
+  it('rotates a chain stored before sealing was enabled', async () => {
+    sealWrites(true)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: expect.stringMatching(/^enc:v1:/),
+      refresh_token: 'issued-refresh',
+    })
+    expect((await storedAccount()).accessToken).toBe('fresh-access')
+  })
+
+  it('rotates a sealed chain on a process that does not seal writes', async () => {
+    await sealStoredChain()
+    sealWrites(false)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: 'fresh-access',
+      refresh_token: expect.stringMatching(/^enc:v1:/),
+    })
+  })
+
+  it('records a revocation against a sealed chain on a process that does not seal writes', async () => {
+    await sealStoredChain()
+    sealWrites(false)
+
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    await expect(getCredentialTerminalRefreshError(credentialId)).resolves.toEqual({
+      errorCode: 'invalid_grant',
+      providerId: PROVIDER_ID,
+    })
+  })
+
+  it('keeps a revocation recorded before the chain was sealed', async () => {
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    await expireRedisFlags()
+    await sealStoredChain()
+
+    await expect(resolveToken()).rejects.toBeInstanceOf(CredentialRevokedError)
+    expect(providerRequests).toBe(1)
   })
 })

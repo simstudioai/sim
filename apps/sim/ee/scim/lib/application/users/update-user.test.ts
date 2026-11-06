@@ -133,7 +133,8 @@ describe('user updates', () => {
   beforeEach(() => {
     resetDbChainMock()
     mocks.loadGroups.mockResolvedValue(new Map())
-    mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [] })
+    mocks.suspend.mockResolvedValue({ suspended: true, sessionsRevoked: 0, stoppedRuns: [] })
+    mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [], stoppedRuns: [] })
   })
 
   it('serializes on the organization and user locks before computing the update', async () => {

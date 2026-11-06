@@ -19,6 +19,7 @@ import {
   type v2ApiKeyAuth,
   v2HeadAuthorizationResponse,
 } from '@/lib/api/server/routes/v2-json-route'
+import type { ParseRequestOptions } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -33,6 +34,7 @@ interface V2BinaryRouteOptions<
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  parseOptions?: Pick<ParseRequestOptions, 'maxBodyBytes'>
   /**
    * As on {@link defineV2JsonRoute}, whose `headSafe` option carries the
    * rationale; the bodiless answer is {@link v2HeadNoEffect}. A binary `GET` is
@@ -74,6 +76,7 @@ export function defineV2BinaryRoute<
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,
+        ...options.parseOptions,
       })
       if (!parsed.success) return parsed.response
 

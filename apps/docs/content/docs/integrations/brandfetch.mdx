@@ -1,31 +1,29 @@
 ---
 title: Brandfetch
 description: Look up brand assets, logos, colors, and company info
+integration:
+  type: "brandfetch"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="brandfetch"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Brandfetch](https://brandfetch.com/) retrieves brand logos, colors, fonts, and company details. Look up a brand using its domain or supported identifier, or search by company name before retrieving its assets.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.
-
-
+Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.
 
 ## Actions
 
 ### Brandfetch Get Brand
 
 Retrieve brand assets including logos, colors, fonts, and company info by domain, ticker, ISIN, or crypto symbol
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,6 +60,8 @@ Retrieve brand assets including logos, colors, fonts, and company info by domain
 | `company` | json | Company firmographic data including employees, location, and industries |
 | `qualityScore` | number | Data quality score from 0 to 1 |
 | `isNsfw` | boolean | Whether the brand contains adult content |
+
+</ReferenceDetails>
 
 ### Brandfetch Search
 

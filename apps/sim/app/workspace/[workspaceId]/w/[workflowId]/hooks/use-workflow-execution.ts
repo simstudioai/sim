@@ -6,7 +6,6 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type AgentStreamToolCall,
@@ -16,13 +15,8 @@ import {
   toolCallKey,
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  cancelWorkflowExecutionContract,
-  workflowLogContract,
-  workflowStateSchema,
-} from '@/lib/api/contracts/workflows'
+import { cancelWorkflowExecutionContract, workflowStateSchema } from '@/lib/api/contracts/workflows'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   isRunToolActiveForWorkflow,
   subscribeToRunToolRelease,
@@ -35,16 +29,13 @@ import type {
   StreamToolData,
 } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
-import {
-  extractTriggerMockPayload,
-  selectBestTrigger,
-  triggerNeedsMockPayload,
-} from '@/lib/workflows/triggers/trigger-utils'
+import { resolveManualRunEntry } from '@/lib/workflows/triggers/manual-run'
 import {
   resolveStartCandidates,
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
+import { extractTriggerMockPayload, triggerNeedsMockPayload } from '@/lib/workflows/triggers/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
@@ -60,7 +51,7 @@ import {
   addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -400,7 +391,6 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
 }
 
 export function useWorkflowExecution() {
-  const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>()
   const hydrationWorkspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
@@ -607,7 +597,7 @@ export function useWorkflowExecution() {
    * Handles debug session completion
    */
   const handleDebugSessionComplete = useCallback(
-    async (
+    (
       result: ExecutionResult,
       workflowId: string,
       persistenceExecution: ConsolePersistenceExecution | undefined
@@ -615,9 +605,6 @@ export function useWorkflowExecution() {
       if (!ownsScopedPersistenceExecution(workflowId, persistenceExecution)) return
       logger.info('Debug session complete')
       setExecutionResult(result)
-
-      await persistLogs(workflowId, generateId(), result)
-
       resetOwnedDebugState(workflowId, persistenceExecution)
     },
     [resetOwnedDebugState]
@@ -651,7 +638,7 @@ export function useWorkflowExecution() {
    * Handles debug execution errors
    */
   const handleDebugExecutionError = useCallback(
-    async (
+    (
       error: any,
       operation: string,
       workflowId: string,
@@ -669,67 +656,16 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
-
-      await persistLogs(workflowId, generateId(), errorResult)
-
       resetOwnedDebugState(workflowId, persistenceExecution)
     },
     [debugContext, resetOwnedDebugState]
   )
 
-  const persistLogs = async (
-    workflowId: string,
-    executionId: string,
-    result: ExecutionResult,
-    streamContent?: string
-  ) => {
-    try {
-      const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-      const enrichedResult = {
-        ...result,
-        traceSpans,
-        totalDuration,
-      }
-
-      if (streamContent && result.output && typeof streamContent === 'string') {
-        enrichedResult.output.content = streamContent
-
-        if (enrichedResult.logs) {
-          const streamingBlockId = (result.metadata as any)?.streamingBlockId || null
-
-          for (const log of enrichedResult.logs) {
-            const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
-            if (
-              isStreamingBlock &&
-              (log.blockType === 'agent' || log.blockType === 'router') &&
-              log.output
-            )
-              log.output.content = streamContent
-          }
-        }
-      }
-
-      await requestJson(workflowLogContract, {
-        params: { id: workflowId },
-        body: {
-          executionId,
-          result: enrichedResult,
-        },
-      })
-
-      return executionId
-    } catch (error) {
-      logger.error('Error persisting logs:', error)
-      return executionId
-    }
-  }
-
   const handleRunWorkflow = useCallback(
     async (workflowInput?: unknown, enableDebug = false) => {
       if (!activeWorkflowId) return
 
-      const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
+      const scopedWorkspaceId = hydrationWorkspaceId ?? undefined
       const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
 
@@ -1140,7 +1076,7 @@ export function useWorkflowExecution() {
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
-    let startBlockId: string | undefined
+    let startBlockId: string
     let finalWorkflowInput = workflowInput
 
     if (isExecutingFromChat) {
@@ -1157,62 +1093,25 @@ export function useWorkflowExecution() {
 
       startBlockId = startBlock.blockId
     } else {
-      const candidates = resolveStartCandidates(enabledStates, {
-        execution: 'manual',
-      })
-
-      if (candidates.length === 0) {
-        const error = new WorkflowValidationError(
-          'Workflow requires at least one trigger block to execute',
-          'validation',
-          'validation',
-          'Workflow Validation'
-        )
-        logger.error('No trigger blocks found for manual run', {
+      const entry = resolveManualRunEntry(enabledStates, workflowEdges)
+      if (!entry.ok) {
+        logger.error('Manual run has no valid entry', {
+          reason: entry.issue.reason,
+          startBlockId: entry.issue.blockId,
           allBlockTypes: Object.values(enabledStates).map((b) => b.type),
         })
         if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-        throw error
-      }
-
-      // Check for multiple API triggers (still not allowed)
-      const apiCandidates = candidates.filter(
-        (candidate) => candidate.path === StartBlockPath.SPLIT_API
-      )
-      if (apiCandidates.length > 1) {
-        const error = new WorkflowValidationError(
-          'Multiple API Trigger blocks found. Keep only one.',
+        throw new WorkflowValidationError(
+          entry.issue.message,
           'validation',
           'validation',
           'Workflow Validation'
         )
-        logger.error('Multiple API triggers found')
-        if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-        throw error
       }
 
-      // Priority: Start Block > Schedules > External Triggers > Legacy
-      const selectedTriggers = selectBestTrigger(candidates, workflowEdges)
-
-      const selectedCandidate = selectedTriggers[0]
+      const selectedCandidate = entry.candidate
       startBlockId = selectedCandidate.blockId
       const selectedTrigger = selectedCandidate.block
-
-      if (selectedCandidate.path !== StartBlockPath.LEGACY_STARTER) {
-        const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
-        if (outgoingConnections.length === 0) {
-          const triggerName = selectedTrigger.name || selectedTrigger.type
-          const error = new WorkflowValidationError(
-            `${triggerName} must be connected to other blocks to execute`,
-            'validation',
-            'validation',
-            'Workflow Validation'
-          )
-          logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
-          if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-          throw error
-        }
-      }
 
       if (triggerNeedsMockPayload(selectedCandidate)) {
         const mockPayload = extractTriggerMockPayload(selectedCandidate)
@@ -1227,18 +1126,6 @@ export function useWorkflowExecution() {
           finalWorkflowInput = builtInput
         }
       }
-    }
-
-    if (!startBlockId) {
-      const error = new WorkflowValidationError(
-        'No valid trigger block found to start execution',
-        'validation',
-        'validation',
-        'Workflow Validation'
-      )
-      logger.error('No startBlockId found after trigger search')
-      if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-      throw error
     }
 
     logger.info('Final execution setup:', {
@@ -1417,7 +1304,7 @@ export function useWorkflowExecution() {
               }
 
               // Add trigger block to executed blocks so downstream blocks can use run-from-block
-              if (data.success && startBlockId) {
+              if (data.success) {
                 executedBlockIds.add(startBlockId)
               }
 
@@ -1744,12 +1631,12 @@ export function useWorkflowExecution() {
       logger.info('Debug step execution result:', result)
 
       if (isDebugSessionComplete(result)) {
-        await handleDebugSessionComplete(result, activeWorkflowId, persistenceExecution)
+        handleDebugSessionComplete(result, activeWorkflowId, persistenceExecution)
       } else {
         handleDebugSessionContinuation(result, activeWorkflowId, persistenceExecution)
       }
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'step', activeWorkflowId, persistenceExecution)
+      handleDebugExecutionError(error, 'step', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,
@@ -1845,9 +1732,9 @@ export function useWorkflowExecution() {
         success: currentResult.success,
       })
 
-      await handleDebugSessionComplete(currentResult, activeWorkflowId, persistenceExecution)
+      handleDebugSessionComplete(currentResult, activeWorkflowId, persistenceExecution)
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'resume', activeWorkflowId, persistenceExecution)
+      handleDebugExecutionError(error, 'resume', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,

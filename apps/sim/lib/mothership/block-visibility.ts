@@ -46,15 +46,3 @@ export function getBlockVisibilityForCopilot(
   }
   return promise
 }
-
-/**
- * Stable signature of a visibility state, for keying caches whose contents
- * depend on the gated projection (e.g. the integration tool-schema LRU).
- */
-export function visibilitySignature(vis: BlockVisibilityState): string {
-  return JSON.stringify([
-    [...vis.revealed].sort(),
-    [...vis.disabled].sort(),
-    [...vis.previewTagged].sort(),
-  ])
-}

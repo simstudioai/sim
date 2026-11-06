@@ -490,25 +490,6 @@ export const workflowDeploymentVersionParamSchema = z.union([
 ])
 export type WorkflowDeploymentVersionParam = z.output<typeof workflowDeploymentVersionParamSchema>
 
-export const workflowLogResultSchema = z.object({
-  success: z.boolean(),
-  error: z.string().optional(),
-  output: z.any(),
-  metadata: z
-    .object({
-      source: z.string().optional(),
-      duration: z.number().optional(),
-    })
-    .optional(),
-})
-
-export const workflowLogBodySchema = z.object({
-  logs: z.array(z.any()).optional(),
-  executionId: requiredFieldSchema('Execution ID is required').optional(),
-  result: workflowLogResultSchema.optional(),
-})
-export type WorkflowLogBody = z.input<typeof workflowLogBodySchema>
-
 export const importWorkflowAsSuperuserBodySchema = z.object({
   workflowId: workflowIdSchema,
   targetWorkspaceId: requiredFieldSchema('Target workspace ID is required'),
@@ -545,10 +526,6 @@ const workflowAutoLayoutResponseSchema = z.object({
     elapsed: z.string(),
     layoutedBlocks: z.record(z.string(), workflowBlockStateSchema),
   }),
-})
-
-const workflowLogResponseSchema = z.object({
-  message: z.string(),
 })
 
 const workflowVariablesResponseSchema = z.object({
@@ -619,7 +596,7 @@ export const workflowExecutionPausedDetailSchema = z.object({
     .string()
     .nullable()
     .describe(
-      'Why automatic resume is waiting, or null when it is not — on a paused run, null means it is waiting on human input. Recorded whenever a resume attempt fails and cleared once one succeeds. A non-retryable or exhausted failure is prefixed `Automatic resume requires manual intervention: `.'
+      'Recorded automatic-resume failure, or null when no failure is recorded. Inspect `pauseKind` and `resumeAt` to distinguish a scheduled time pause from human input. Cleared after a successful resume. A non-retryable or exhausted failure starts with `Automatic resume requires manual intervention: `.'
     ),
   pausedExecutionId: z.string().describe('Persistent paused-execution record identifier.'),
   pausePointCount: z.number().describe('Number of pause points tracked for the execution.'),
@@ -895,17 +872,6 @@ export const workflowAutoLayoutContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: workflowAutoLayoutResponseSchema,
-  },
-})
-
-export const workflowLogContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workflows/[id]/log',
-  params: workflowIdParamsSchema,
-  body: workflowLogBodySchema,
-  response: {
-    mode: 'json',
-    schema: workflowLogResponseSchema,
   },
 })
 

@@ -229,8 +229,10 @@ async function seed() {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Stop-after fixture', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, 'Stop-after fixture', ${ownerId}, ${ownerId})`
+    await tx`insert into project (id, name, owner_id)
+      values (${workspaceId}, 'Stop-after project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Stop-after fixture', ${ownerId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into api_key (id, user_id, name, key, key_hash, type)
@@ -600,16 +602,26 @@ try {
     )
     assert(siblingContext)
     const completion = resume(siblingPauses, paused)
+    /**
+     * The claim is held for as long as the resume runs, so the wait ends with the request rather
+     * than a fixed window: under `next dev` a request can sit seconds before reaching the route.
+     */
+    let resumeSettled = false
+    completion.then(
+      () => {
+        resumeSettled = true
+      },
+      () => {
+        resumeSettled = true
+      }
+    )
     try {
       let claimed = false
-      for (let attempt = 0; attempt < 100; attempt++) {
+      while (!claimed && !resumeSettled) {
         const [{ count }] =
           await sql`select count(*)::int as count from resume_queue where parent_execution_id = ${paused.runId} and status = 'claimed'`
-        if (count === 1) {
-          claimed = true
-          break
-        }
-        await sleep(20)
+        claimed = count === 1
+        if (!claimed) await sleep(20)
       }
       assert(claimed, 'The first resume must own the run before its sibling is queued')
       await execute(
@@ -837,6 +849,7 @@ try {
         try {
           await sql.begin(async (tx) => {
             await tx`delete from workspace where id = ${workspaceId}`
+            await tx`delete from project where id = ${workspaceId}`
             await tx`delete from "user" where id = ${ownerId}`
           })
           break

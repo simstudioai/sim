@@ -7,8 +7,7 @@ export const MongoDBBlock: BlockConfig = {
   type: 'mongodb',
   name: 'MongoDB',
   description: 'Connect to MongoDB database',
-  longDescription:
-    'Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.',
+  longDescription: 'Find, insert, update, delete, and aggregate data.',
   docsLink: 'https://docs.sim.ai/integrations/mongodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,

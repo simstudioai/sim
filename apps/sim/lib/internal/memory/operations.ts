@@ -5,7 +5,7 @@ import type {
   deleteMemoryByQueryContract,
   listMemoriesContract,
 } from '@/lib/api/contracts/memory'
-import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
+import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/attribution'
 import {
   memoryToolRequestsProvenance,
   memoryToolSuppliesWriteProvenance,

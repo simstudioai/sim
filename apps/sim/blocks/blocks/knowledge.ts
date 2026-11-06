@@ -15,9 +15,9 @@ const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
-  description: 'Use vector search',
+  description: 'Search knowledge bases and manage documents and chunks',
   longDescription:
-    'Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.',
+    'Search knowledge bases and list, retrieve, create, upsert, or delete documents. Upload, list, update, or delete chunks, list tag definitions, and set document tags during creation or upsert. Inspect connectors and trigger syncs.',
   bestPractices: `
   - Clarify which tags are available for the knowledge base to understand whether to use tag filters on a search.
   - Use List Documents to enumerate documents before operating on them.

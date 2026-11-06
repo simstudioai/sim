@@ -1,31 +1,29 @@
 ---
 title: Datadog
 description: Monitor infrastructure, applications, and logs with Datadog
+integration:
+  type: "datadog"
+  color: "#632CA6"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="datadog"
-  color="#632CA6"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Datadog](https://datadoghq.com/) to send or query telemetry, manage monitors and incidents, and inspect observability data from a workflow. The actions below also cover dashboards, SLOs, synthetic tests, and security signals.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.
-
-
+Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.
 
 ## Actions
 
 ### Datadog Submit Metrics
 
 Submit custom metrics to Datadog. Use for tracking application performance, business metrics, or custom monitoring data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +40,13 @@ Submit custom metrics to Datadog. Use for tracking application performance, busi
 | `success` | boolean | Whether the metrics were submitted successfully |
 | `errors` | array | Any errors that occurred during submission |
 
+</ReferenceDetails>
+
 ### Datadog Query Timeseries
 
 Query metric timeseries data from Datadog. Use for analyzing trends, creating reports, or retrieving metric values.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -69,9 +71,13 @@ Query metric timeseries data from Datadog. Use for analyzing trends, creating re
 |     ↳ `value` | number | Point value |
 | `status` | string | Query status |
 
+</ReferenceDetails>
+
 ### Datadog Create Event
 
 Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +110,13 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 |   ↳ `tags` | array | Event tags |
 |   ↳ `url` | string | URL to view the event in Datadog |
 
+</ReferenceDetails>
+
 ### Datadog Create Monitor
 
 Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +151,13 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 |   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
 |   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
+</ReferenceDetails>
+
 ### Datadog Get Monitor
 
 Retrieve details of a specific monitor by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -174,9 +188,13 @@ Retrieve details of a specific monitor by ID.
 |   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
 |   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
+</ReferenceDetails>
+
 ### Datadog List Monitors
 
 List all monitors in Datadog with optional filtering by name, tags, or state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +229,13 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 |   ↳ `modified` | string | Last modification timestamp |
 |   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
+</ReferenceDetails>
+
 ### Datadog Mute Monitor
 
 Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -235,9 +257,13 @@ Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to 
 | `name` | string | Name of the muted monitor |
 | `overallState` | string | Monitor state after muting |
 
+</ReferenceDetails>
+
 ### Datadog Unmute Monitor
 
 Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -259,9 +285,13 @@ Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, eit
 | `name` | string | Name of the unmuted monitor |
 | `overallState` | string | Monitor state after unmuting |
 
+</ReferenceDetails>
+
 ### Datadog Query Logs
 
 Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -294,9 +324,13 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 |     ↳ `tags` | array | Log tags |
 | `nextLogId` | string | Cursor for pagination |
 
+</ReferenceDetails>
+
 ### Datadog Send Logs
 
 Send log entries to Datadog for centralized logging and analysis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +346,13 @@ Send log entries to Datadog for centralized logging and analysis.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the logs were sent successfully |
 
+</ReferenceDetails>
+
 ### Datadog Create Downtime
 
 Schedule a downtime to suppress monitor notifications during maintenance windows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +385,13 @@ Schedule a downtime to suppress monitor notifications during maintenance windows
 |   ↳ `created` | number | Creation time \(Unix timestamp\) |
 |   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
 
+</ReferenceDetails>
+
 ### Datadog List Downtimes
 
 List all scheduled downtimes in Datadog.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,9 +420,13 @@ List all scheduled downtimes in Datadog.
 |   ↳ `created` | number | Creation time \(Unix timestamp\) |
 |   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
 
+</ReferenceDetails>
+
 ### Datadog Cancel Downtime
 
 Cancel a scheduled downtime.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -397,9 +443,13 @@ Cancel a scheduled downtime.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the downtime was successfully canceled |
 
+</ReferenceDetails>
+
 ### Datadog List Incidents
 
 List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -430,9 +480,13 @@ List incidents for the organization. Requires the Incident Management `incident_
 |     ↳ `resolved` | string | Resolution timestamp |
 | `nextOffset` | number | Offset to use for the next page of results |
 
+</ReferenceDetails>
+
 ### Datadog Get Incident
 
 Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +517,13 @@ Get the details of a single incident by ID. Requires the Incident Management `in
 |     ↳ `resolved` | string | Resolution timestamp |
 |     ↳ `time_to_resolve` | number | Seconds from creation to resolution |
 
+</ReferenceDetails>
+
 ### Datadog Create Incident
 
 Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -497,9 +555,13 @@ Declare a new incident. Requires the Incident Management `incident_write` permis
 |     ↳ `created` | string | Creation timestamp |
 |     ↳ `modified` | string | Last modification timestamp |
 
+</ReferenceDetails>
+
 ### Datadog Update Incident
 
 Partially update an existing incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -533,9 +595,13 @@ Partially update an existing incident. Requires the Incident Management `inciden
 |     ↳ `modified` | string | Last modification timestamp |
 |     ↳ `resolved` | string | Resolution timestamp |
 
+</ReferenceDetails>
+
 ### Datadog Add Incident Todo
 
 Add a follow-up task (todo) to an incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -563,9 +629,13 @@ Add a follow-up task (todo) to an incident. Requires the Incident Management `in
 |     ↳ `completed` | string | Completion timestamp |
 |     ↳ `incident_id` | string | UUID of the parent incident |
 
+</ReferenceDetails>
+
 ### Datadog List SLOs
 
 List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -600,9 +670,13 @@ List service level objectives, optionally filtered by IDs, name, tags, or underl
 |   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
 |   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
 
+</ReferenceDetails>
+
 ### Datadog Get SLO
 
 Get the configuration of a single service level objective by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -634,9 +708,13 @@ Get the configuration of a single service level objective by ID.
 |   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
 |   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
 
+</ReferenceDetails>
+
 ### Datadog Create SLO
 
 Create a service level objective from a metric query, monitors, or a time-slice condition.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -671,9 +749,13 @@ Create a service level objective from a metric query, monitors, or a time-slice 
 |   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
 |   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
 
+</ReferenceDetails>
+
 ### Datadog Update SLO
 
 Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -708,9 +790,13 @@ Update a service level objective. Reads the current SLO first and applies only t
 |   ↳ `thresholds` | array | Timeframe targets and warnings |
 |   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
 
+</ReferenceDetails>
+
 ### Datadog Delete SLO
 
 Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -729,9 +815,13 @@ Permanently delete a service level objective. Datadog returns a conflict when th
 | `success` | boolean | Whether the SLO was deleted |
 | `deletedIds` | array | IDs of the deleted service level objectives |
 
+</ReferenceDetails>
+
 ### Datadog Get SLO History
 
 Get an SLO’s history over a time window, including the overall SLI value and remaining error budget.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -763,9 +853,13 @@ Get an SLO’s history over a time window, including the overall SLI value and r
 |   ↳ `thresholds` | object | Thresholds keyed by timeframe |
 | `sliValue` | number | Overall SLI value over the window |
 
+</ReferenceDetails>
+
 ### Datadog List Dashboards
 
 List custom created or cloned dashboards. Datadog preset dashboards are not returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -794,9 +888,13 @@ List custom created or cloned dashboards. Datadog preset dashboards are not retu
 |   ↳ `modified_at` | string | Modification timestamp |
 |   ↳ `is_read_only` | boolean | Whether the dashboard is read-only |
 
+</ReferenceDetails>
+
 ### Datadog Get Dashboard
 
 Get the full definition of a dashboard, including its widgets.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -826,9 +924,13 @@ Get the full definition of a dashboard, including its widgets.
 |   ↳ `template_variables` | array | Template variable definitions |
 |   ↳ `widgets` | array | Widget definitions |
 
+</ReferenceDetails>
+
 ### Datadog Create Dashboard
 
 Create a dashboard from a title, layout type, and widget definitions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -860,9 +962,13 @@ Create a dashboard from a title, layout type, and widget definitions.
 |   ↳ `modified_at` | string | Modification timestamp |
 |   ↳ `widgets` | array | Widget definitions |
 
+</ReferenceDetails>
+
 ### Datadog Delete Dashboard
 
 Delete a dashboard by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -880,9 +986,13 @@ Delete a dashboard by ID.
 | `success` | boolean | Whether the dashboard was deleted |
 | `deletedDashboardId` | string | ID of the deleted dashboard |
 
+</ReferenceDetails>
+
 ### Datadog List Synthetic Tests
 
 List all Synthetic tests (API, browser, and mobile) with their current status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -909,9 +1019,13 @@ List all Synthetic tests (API, browser, and mobile) with their current status.
 |   ↳ `tags` | array | Tags attached to the test |
 |   ↳ `locations` | array | Locations the test runs from |
 
+</ReferenceDetails>
+
 ### Datadog Get Synthetic Test
 
 Get the configuration of a Synthetic test by public ID. Browser test steps are not included by this type-agnostic endpoint.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -940,9 +1054,13 @@ Get the configuration of a Synthetic test by public ID. Browser test steps are n
 |   ↳ `options` | object | Scheduling, retry, and monitor options |
 |   ↳ `creator` | object | User who created the test |
 
+</ReferenceDetails>
+
 ### Datadog Get Synthetic Test Results
 
 Get the latest result summaries (up to the last 150 runs) for a Synthetic API test.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -970,9 +1088,13 @@ Get the latest result summaries (up to the last 150 runs) for a Synthetic API te
 |     ↳ `timings` | object | Request timing breakdown |
 | `lastTimestampFetched` | number | Timestamp of the latest test run |
 
+</ReferenceDetails>
+
 ### Datadog Get Browser Synthetic Test Results
 
 Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1003,9 +1125,13 @@ Get the latest result summaries (up to the last 150 runs) for a Synthetic browse
 |     ↳ `device` | object | Device the run was performed on |
 | `lastTimestampFetched` | number | Timestamp of the latest browser test run |
 
+</ReferenceDetails>
+
 ### Datadog Trigger Synthetic Tests
 
 Trigger an immediate run of one or more Synthetic tests by public ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1031,9 +1157,13 @@ Trigger an immediate run of one or more Synthetic tests by public ID.
 |   ↳ `id` | number | Location ID |
 |   ↳ `name` | string | Location name |
 
+</ReferenceDetails>
+
 ### Datadog Pause Or Start Synthetic Test
 
 Pause or resume a Synthetic test by setting its status to "paused" or "live".
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1052,9 +1182,13 @@ Pause or resume a Synthetic test by setting its status to "paused" or "live".
 | `success` | boolean | Whether Datadog reported the status update as successful |
 | `status` | string | The status that was requested: live or paused |
 
+</ReferenceDetails>
+
 ### Datadog List Security Signals
 
 Search Cloud SIEM security signals by query and time range. Requires the `security_monitoring_signals_read` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1084,9 +1218,13 @@ Search Cloud SIEM security signals by query and time range. Requires the `securi
 |     ↳ `custom` | object | Signal-specific attributes |
 | `nextCursor` | string | Cursor for the next page of signals |
 
+</ReferenceDetails>
+
 ### Datadog Get Security Signal
 
 Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1110,9 +1248,13 @@ Get the details of a single Cloud SIEM security signal. Requires the `security_m
 |     ↳ `tags` | array | Tags on the signal |
 |     ↳ `custom` | object | Signal-specific attributes |
 
+</ReferenceDetails>
+
 ### Datadog Update Security Signal State
 
 Change the triage state of a Cloud SIEM security signal to open, under_review, or archived. Requires the `security_monitoring_signals_write` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1140,9 +1282,13 @@ Change the triage state of a Cloud SIEM security signal to open, under_review, o
 |   ↳ `archiveComment` | string | Archive comment, when archived |
 |   ↳ `stateUpdateTimestamp` | number | Timestamp of the last state update |
 
+</ReferenceDetails>
+
 ### Datadog Assign Security Signal
 
 Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `security_monitoring_signals_write` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1168,9 +1314,13 @@ Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `sec
 |   ↳ `archiveComment` | string | Archive comment, when archived |
 |   ↳ `stateUpdateTimestamp` | number | Timestamp of the last state update |
 
+</ReferenceDetails>
+
 ### Datadog List Security Rules
 
 List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1199,9 +1349,13 @@ List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` p
 |   ↳ `createdAt` | number | Creation timestamp in milliseconds |
 |   ↳ `version` | number | Rule version |
 
+</ReferenceDetails>
+
 ### Datadog Search Spans
 
 Search indexed APM spans using the span query syntax, with cursor pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1240,9 +1394,13 @@ Search indexed APM spans using the span query syntax, with cursor pagination.
 | `nextCursor` | string | Cursor for the next page of spans |
 | `elapsed` | number | Query time in milliseconds |
 
+</ReferenceDetails>
+
 ### Datadog List Services
 
 List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1264,5 +1422,7 @@ List service definitions from the Datadog Service Catalog. Requires the `apm_ser
 |   ↳ `type` | string | Resource type \(service_definitions\) |
 |   ↳ `schema` | object | The service definition schema. Its shape depends on the requested schema version |
 |   ↳ `meta` | object | Ingestion metadata such as origin and last modified time |
+
+</ReferenceDetails>
 
 

@@ -6,9 +6,9 @@ const MAX_ID_LENGTH = 1024
 const MAX_FILTER_LENGTH = 20_000
 const MAX_QUERY_LENGTH = 100_000
 const MAX_METADATA_ENTRIES = 100
-const STANDARD_LIMIT_MAX = 250
-const SEARCH_LIMIT_MAX = 10_000
-const ROLE_LIMIT_MAX = 50
+export const STANDARD_LIMIT_MAX = 250
+export const SEARCH_LIMIT_MAX = 10_000
+export const ROLE_LIMIT_MAX = 50
 
 function parseJson(value: unknown): unknown {
   if (typeof value !== 'string') return value

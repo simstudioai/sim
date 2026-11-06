@@ -127,6 +127,7 @@ describe('useMothershipQueueStore', () => {
         id: 'm1',
         content: 'original',
         hold: 'user',
+        hasUnavailableContexts: true,
         resumeUserMessageId: 'prior-request',
         /** Its Stop never settled, so it was never sent: the server cannot hold it. */
         admissionUnknown: false,
@@ -151,6 +152,7 @@ describe('useMothershipQueueStore', () => {
       })
       expect(edited?.resumeUserMessageId).toBeUndefined()
       expect(edited?.hold).toBeUndefined()
+      expect(edited?.hasUnavailableContexts).toBeUndefined()
     })
 
     it('strips queuedSendHandoff on edit so a fresh handoff is minted at send time', () => {

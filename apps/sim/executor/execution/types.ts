@@ -1,6 +1,6 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { Edge } from '@xyflow/react'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import type { NodeMetadata } from '@/executor/dag/types'
@@ -11,6 +11,7 @@ import type {
   NormalizedBlockOutput,
   StartBlockRunMetadata,
   StreamingExecution,
+  UnrecordedModelCost,
 } from '@/executor/types'
 import type {
   ResolvedSecretTraceProvenanceV1,
@@ -329,6 +330,8 @@ export interface ContextExtensions {
    * Takes precedence over `metadata.billingAttribution` when both are set.
    */
   billingAttribution?: BillingAttributionSnapshot
+  /** The invoking run's {@link ExecutionContext.unrecordedModelCost}, for a child billed on its log. */
+  unrecordedModelCost?: UnrecordedModelCost
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>

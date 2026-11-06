@@ -11,7 +11,7 @@ import {
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
-import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,

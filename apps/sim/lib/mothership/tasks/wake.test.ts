@@ -31,7 +31,7 @@ const { mockAcquirePendingChatStream, mockReleasePendingChatStream, mockAuthoriz
 vi.mock('@/lib/mothership/tasks/application/prepare-wake', () => ({
   authorizeTaskWake: mockAuthorizeTaskWake,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)

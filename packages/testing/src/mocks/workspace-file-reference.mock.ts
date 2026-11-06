@@ -15,6 +15,7 @@ import { vi } from 'vitest'
 export const workspaceFileReferenceMockFns = {
   mockResolveReferencedWorkspaceFileContext: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockResolveWorkspaceFileStorageKey: vi.fn(),
 }
 
 /**
@@ -32,4 +33,5 @@ export const workspaceFileReferenceMock = {
   resolveReferencedWorkspaceFileContext:
     workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
   resolveWorkspaceFileReference: workspaceFileReferenceMockFns.mockResolveWorkspaceFileReference,
+  resolveWorkspaceFileStorageKey: workspaceFileReferenceMockFns.mockResolveWorkspaceFileStorageKey,
 }

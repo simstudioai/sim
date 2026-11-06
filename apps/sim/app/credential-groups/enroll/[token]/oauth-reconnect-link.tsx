@@ -1,16 +1,14 @@
 'use client'
+import { AuthLinkButton, type AuthLinkButtonProps } from '@sim/auth-ui'
 
-import { type ChipLinkProps, chipVariants } from '@sim/emcn'
-
-interface OAuthConnectLinkProps extends Pick<ChipLinkProps, 'variant'> {
+interface OAuthConnectLinkProps extends Pick<AuthLinkButtonProps, 'variant'> {
   href: string
   reconnect?: boolean
 }
-
 export function OAuthConnectLink({ href, reconnect = false, variant }: OAuthConnectLinkProps) {
   return (
-    <a href={href} className={chipVariants({ variant })}>
+    <AuthLinkButton href={href} variant={variant}>
       {reconnect ? 'Reconnect' : 'Connect'}
-    </a>
+    </AuthLinkButton>
   )
 }

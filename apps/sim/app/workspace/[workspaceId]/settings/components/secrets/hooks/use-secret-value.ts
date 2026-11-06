@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,

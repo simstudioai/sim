@@ -6,7 +6,7 @@ import {
   getNativeConversationMessage,
   retainConversationMessageSource,
 } from '@/providers/conversation-metadata'
-import type { ModelUsage } from '@/providers/cost-policy'
+import type { ModelUsage } from '@/providers/pricing'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
 

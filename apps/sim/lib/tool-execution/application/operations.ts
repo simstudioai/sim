@@ -37,5 +37,6 @@ export const toolExecutionOperations = {
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
     capability: 'none',
+    contentDelivery: 'sourced',
   }),
 } as const

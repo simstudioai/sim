@@ -4,7 +4,7 @@ import { parseRequest } from '@/lib/api/server'
 import {
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'

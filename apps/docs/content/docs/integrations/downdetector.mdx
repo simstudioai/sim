@@ -1,40 +1,31 @@
 ---
 title: Downdetector
 description: Monitor outages and service status with Downdetector
+integration:
+  type: "downdetector"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="downdetector"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Downdetector](https://downdetector.com/) is an outage-tracking service that aggregates user-submitted reports to detect and visualize real-time service disruptions for thousands of companies. The Downdetector Enterprise API exposes this data programmatically for monitoring and alerting.
+Use [Downdetector](https://downdetector.com/) to inspect service disruptions with its Enterprise API. The integration requires a Downdetector Enterprise API plan.
 
-With Downdetector, you can:
-
-- **Search and identify companies**: Look up monitored companies by name, slug, country, or category to get their ids and status page URLs
-- **Check current status and trends**: Read a company's cached status, 24h report statistics, and baseline to judge whether current activity is abnormal
-- **Inspect problem indicators**: See which specific issues (e.g. "Login", "App crashing") are being reported and in what proportion
-- **Track incidents and events**: Pull incident timelines, published events, and attribution data (internal vs. external cause, user impact) for outages
-
-In Sim, the Downdetector integration allows your agents to search for monitored companies, check their current status and baseline reports, retrieve near-real-time report counts and problem indicators, and pull incident, event, and attribution data — all programmatically through API calls. This enables your agents to power outage alerts, monitoring dashboards, and automated incident summaries that stay current with service disruptions across the companies and regions Downdetector tracks.
+Search companies by name, slug, country, or category to find their IDs and status-page URLs. Read cached status, 24-hour report statistics, and baselines; inspect reported problem indicators; and retrieve incident timelines, events, cause attribution, and user impact for outage alerts or summaries.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Track real-time service outages with the Downdetector Enterprise API. Search monitored companies, read their current status and report trends, inspect problem indicators, and pull incident timelines to power outage alerts and dashboards. Requires a Downdetector Enterprise API plan.
-
-
 
 ## Actions
 
 ### Downdetector Search Companies
 
 Search Downdetector for monitored companies by name, slug, country, or category. Returns matching companies with their ids and slugs, which you can use with the other Downdetector operations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,9 +51,13 @@ Search Downdetector for monitored companies by name, slug, country, or category.
 |   ↳ `countryIso` | string | ISO-2 country code |
 |   ↳ `categoryId` | number | Category id |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company
 
 Get details for a Downdetector company by id, including its current status, 24h report statistics, baseline, and available problem indicators.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +86,13 @@ Get details for a Downdetector company by id, including its current status, 24h 
 |   ↳ `indicators` | array | List of available problem indicators |
 |   ↳ `description` | string | Company description |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Status
 
 Get the current detected status for a Downdetector company. Returns "success" (no problems), "warning", or "danger" (likely outage).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +108,13 @@ Get the current detected status for a Downdetector company. Returns "success" (n
 | --------- | ---- | ----------- |
 | `status` | string | Current status: "success", "warning", or "danger" |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Baseline
 
 Get the current baseline report value for a Downdetector company. This is the expected average number of reports for the current period, used to judge whether current reports are abnormal.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +129,13 @@ Get the current baseline report value for a Downdetector company. This is the ex
 | --------- | ---- | ----------- |
 | `baseline` | number | The current baseline \(expected average reports\) for this period |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Last 15 Minutes
 
-Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting.
+Get the number of outage reports for a Downdetector company over the last 15 minutes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +150,13 @@ Get the number of outage reports for a Downdetector company over the last 15 min
 | --------- | ---- | ----------- |
 | `count` | number | Number of reports over the last 15 minutes |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Indicators
 
 Get the problem indicators (e.g. "App crashing", "Login", "Server connection") reported for a Downdetector company over a time period, with the report counts and percentages for each.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +178,13 @@ Get the problem indicators (e.g. "App crashing", "Login", "Server connection") r
 |   ↳ `amount` | number | Number of reports for this indicator |
 |   ↳ `percentage` | number | Share of total reports \(percentage\) |
 
+</ReferenceDetails>
+
 ### Downdetector Get Reports
 
 Get the number of outage reports over time for one or more company slugs, bucketed by interval. Useful for plotting report trends or detecting spikes. Defaults to the last 24 hours.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -191,9 +206,13 @@ Get the number of outage reports over time for one or more company slugs, bucket
 |   ↳ `indicators` | number | Number of indicator reports |
 |   ↳ `other` | number | Number of reports from other sources |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Incidents
 
 Get the list of incidents (outages) for a Downdetector company. Defaults to the last 24 hours unless a date range is provided.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +232,13 @@ Get the list of incidents (outages) for a Downdetector company. Defaults to the 
 | --------- | ---- | ----------- |
 | `incidents` | array | List of incidents for the company |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Attribution
 
 Get the incident attribution for a Downdetector company while it is in an outage state — whether the issue is internal (isolated) or external (a dependency), the estimated user impact, and the related incident. Requires Incident Attribution access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -238,9 +261,13 @@ Get the incident attribution for a Downdetector company while it is in an outage
 |   ↳ `incidentId` | number | Id of the related incident \(null when attribution is N/A\) |
 |   ↳ `incidentCreatedAt` | string | ISO 8601 timestamp when the related incident was created |
 
+</ReferenceDetails>
+
 ### Downdetector Get Company Events
 
 Get the published events (such as detected outages) for a Downdetector company, including the measured vs expected report volume for each event.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -271,9 +298,13 @@ Get the published events (such as detected outages) for a Downdetector company, 
 |     ↳ `expected` | number | Expected reports based on historic data |
 |     ↳ `actual` | number | Actual reports in the window |
 
+</ReferenceDetails>
+
 ### Downdetector Get Site Companies
 
 List the companies monitored on a Downdetector site, including each company’s current status. Useful for discovering the companies available on a regional status page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -298,9 +329,13 @@ List the companies monitored on a Downdetector site, including each company’s 
 |   ↳ `countryIso` | string | ISO-2 country code |
 |   ↳ `categoryId` | number | Category id |
 
+</ReferenceDetails>
+
 ### Downdetector Get Provider
 
 Get details for a Downdetector provider (ISP or network operator) by id, such as its name and Downdetector id.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +353,13 @@ Get details for a Downdetector provider (ISP or network operator) by id, such as
 |   ↳ `name` | string | Provider name |
 |   ↳ `downdetectorId` | number | Downdetector internal provider id |
 
+</ReferenceDetails>
+
 ### Downdetector List Incidents
 
 List all incidents (outages) across every company that were active in the chosen time period, or in the last 24 hours if no date range is provided.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +378,13 @@ List all incidents (outages) across every company that were active in the chosen
 | --------- | ---- | ----------- |
 | `incidents` | array | List of incidents across all companies |
 
+</ReferenceDetails>
+
 ### Downdetector List Categories
 
 List all Downdetector categories (e.g. "Telecom", "Gaming", "Social Media"). Use the returned category id to filter company searches.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -358,9 +401,13 @@ List all Downdetector categories (e.g. "Telecom", "Gaming", "Social Media"). Use
 |   ↳ `name` | string | Category name |
 |   ↳ `slug` | string | Category slug |
 
+</ReferenceDetails>
+
 ### Downdetector List Sites
 
 List all available Downdetector sites (regional status-page domains). Each site groups the companies monitored for a given country/region.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -377,5 +424,7 @@ List all available Downdetector sites (regional status-page domains). Each site 
 |   ↳ `name` | string | Site name |
 |   ↳ `domain` | string | Site domain |
 |   ↳ `countryId` | number | Country id for the site |
+
+</ReferenceDetails>
 
 

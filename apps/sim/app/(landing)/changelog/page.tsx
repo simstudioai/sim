@@ -8,6 +8,7 @@ export const metadata = buildLandingMetadata({
   title: 'Changelog | Sim, the AI Workspace',
   description: CHANGELOG_SECTION.description,
   path: '/changelog',
+  feedPath: '/changelog.xml',
 })
 
 export default function Page() {

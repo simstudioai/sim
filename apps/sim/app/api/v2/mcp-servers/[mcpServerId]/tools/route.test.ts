@@ -19,6 +19,8 @@ vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { McpDnsResolutionError } from '@/lib/mcp/domain-check'
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -148,6 +150,19 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(JSON.stringify(body)).not.toContain('ECONNREFUSED')
   })
 
+  it('reports a server whose hostname no longer resolves as a retryable 503', async () => {
+    mockDiscoverMcpServerToolsUseCase.mockRejectedValueOnce(
+      new McpDnsResolutionError('expired.example.com')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
+    expect(JSON.stringify(body)).not.toContain('expired.example.com')
+  })
+
   it('reports a stale OAuth grant as a 409 a client can branch on, never as a Sim credential failure', async () => {
     mockDiscoverMcpServerToolsUseCase.mockRejectedValueOnce(
       new McpOauthAuthorizationRequiredError(SERVER_ID, 'Docs server')
@@ -159,6 +174,19 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(response.status).toBe(409)
     expect(body.error.code).toBe('CONFLICT')
     expect(body.error.details).toEqual({ code: 'MCP_SERVER_REAUTHORIZATION_REQUIRED' })
+  })
+
+  it('reports a grant that needs a fresh authorization redirect as the same 409', async () => {
+    mockDiscoverMcpServerToolsUseCase.mockRejectedValueOnce(
+      new McpOauthRedirectRequired('https://auth.example.com/authorize?state=secret-state')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.error.details).toEqual({ code: 'MCP_SERVER_REAUTHORIZATION_REQUIRED' })
+    expect(JSON.stringify(body)).not.toContain('secret-state')
   })
 
   it('does not blame the caller for an upstream protocol fault', async () => {
@@ -202,6 +230,34 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
       description: null,
       properties: {},
     })
+  })
+
+  /**
+   * The v2 tool shape is strict, so a discovered field the contract does not
+   * declare turns discovery into a 500 rather than being dropped. A declared
+   * `outputSchema` is server-authored below its `object` wrapper, like
+   * `inputSchema`, and passes through untouched.
+   */
+  it('publishes the output schema a tool declares', async () => {
+    const outputSchema = {
+      type: 'object' as const,
+      description: null,
+      properties: { hits: { type: 'array', items: { type: 'string' } } },
+      required: ['hits'],
+    }
+    mockDiscoverMcpServerToolsUseCase.mockResolvedValueOnce({
+      tools: [
+        { ...TOOL, outputSchema },
+        { ...TOOL, name: 'ping' },
+      ],
+    })
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].outputSchema).toEqual(outputSchema)
+    expect(body.data[1]).not.toHaveProperty('outputSchema')
   })
 
   /**

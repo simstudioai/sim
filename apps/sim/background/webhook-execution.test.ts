@@ -24,7 +24,16 @@ import {
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import type { Mock } from 'vitest'
-import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import { getBlock } from '@/blocks'
 
 const {
@@ -119,6 +128,7 @@ vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
 vi.mock('@/triggers', () => triggersMock)
 
 import * as usageReservation from '@/lib/billing/calculations/usage-reservation'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { executeWebhookJob, type WebhookExecutionPayload } from '@/background/webhook-execution'
 
@@ -239,6 +249,7 @@ describe('executeWebhookJob fault vs error handling', () => {
         safeComplete: loggingSessionMockFns.mockSafeComplete,
         safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
         waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
+        getDeletedScope: loggingSessionMockFns.mockGetDeletedScope,
         markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
         setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
         setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
@@ -499,6 +510,55 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggerPayload).not.toContain('__var_')
     expect(loggerPayload).not.toContain('__sim_')
     expect(rawError.message).toContain(secret)
+  })
+
+  describe('a run whose workspace was deleted', () => {
+    afterEach(() => {
+      loggingSessionMockFns.mockGetDeletedScope.mockReset()
+    })
+
+    it('completes without alerting when core finds the workspace gone at start', async () => {
+      mockExecuteWorkflowCore.mockRejectedValue(
+        new ExecutionScopeDeletedError('execution-1', 'workspace')
+      )
+      mockWasExecutionFinalizedByCore.mockReturnValue(false)
+
+      await expect(executeWebhookJob(payload)).resolves.toMatchObject({
+        success: false,
+        executionId: 'execution-1',
+        provider: 'gmail',
+      })
+      expect(loggingSessionMockFns.mockSafeStart).toHaveBeenCalledTimes(0)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('completes without alerting when a block fails after the workspace is deleted mid-run', async () => {
+      mockExecuteWorkflowCore.mockRejectedValue(new Error('violates foreign key constraint'))
+      mockWasExecutionFinalizedByCore.mockReturnValue(false)
+      let deletedScope: 'workspace' | null = null
+      loggingSessionMockFns.mockGetDeletedScope.mockImplementation(() => deletedScope)
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        deletedScope = 'workspace'
+      })
+
+      await expect(executeWebhookJob(payload)).resolves.toMatchObject({
+        success: false,
+        executionId: 'execution-1',
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    })
+
+    it('completes without alerting when its own failure log finds the workspace gone', async () => {
+      mockExecuteWorkflowCore.mockRejectedValue(new Error('Workflow state not found'))
+      mockWasExecutionFinalizedByCore.mockReturnValue(false)
+      loggingSessionMockFns.mockSafeStart.mockImplementationOnce(async () => {
+        loggingSessionMockFns.mockGetDeletedScope.mockReturnValue('workspace')
+        return false
+      })
+
+      await expect(executeWebhookJob(payload)).resolves.toMatchObject({ success: false })
+    })
   })
 
   it('executes against the deployment version admitted by webhook ingress', async () => {

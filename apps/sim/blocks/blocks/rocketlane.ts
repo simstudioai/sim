@@ -810,7 +810,7 @@ export const RocketlaneBlock: BlockConfig = {
   name: 'Rocketlane',
   description: 'Manage client onboarding projects, tasks, time tracking, and invoices',
   longDescription:
-    'Integrate Rocketlane into your workflow. Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.',
+    'Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.',
   docsLink: 'https://docs.sim.ai/integrations/rocketlane',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

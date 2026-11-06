@@ -6,16 +6,17 @@ import {
   type ActiveWorkspaceFileContext,
   renameWorkspaceFile as renameStoredWorkspaceFile,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  resolveActiveWorkspaceFileContext,
+  type WorkspaceFileTargetInput,
+} from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('RenameWorkspaceFile')
 
-export interface RenameWorkspaceFileInput {
-  fileId: string
-  assertedWorkspaceId?: string
+export interface RenameWorkspaceFileInput extends WorkspaceFileTargetInput {
   name: string
 }
 

@@ -1,4 +1,9 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+} from '@/tools/microsoft_excel/shared'
 import type {
   MicrosoftExcelDeleteWorksheetParams,
   MicrosoftExcelDeleteWorksheetResponse,
@@ -8,7 +13,7 @@ import {
   getItemBasePath,
   getSpreadsheetWebUrl,
 } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Deletes a worksheet from a workbook.
@@ -30,6 +35,7 @@ export const deleteWorksheetTool: ToolConfig<
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -47,7 +53,7 @@ export const deleteWorksheetTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     worksheetName: {
       type: 'string',
@@ -71,17 +77,15 @@ export const deleteWorksheetTool: ToolConfig<
       return `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(worksheetName))}')`
     },
     method: 'DELETE',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: excelHeaders,
   },
 
-  transformResponse: async (_response: Response, params?: MicrosoftExcelDeleteWorksheetParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelDeleteWorksheetParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
     const driveId = params?.driveId
 
@@ -89,7 +93,7 @@ export const deleteWorksheetTool: ToolConfig<
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     return {
       success: true,

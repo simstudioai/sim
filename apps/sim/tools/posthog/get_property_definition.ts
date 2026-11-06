@@ -39,7 +39,7 @@ export const getPropertyDefinitionTool: ToolConfig<
   id: 'posthog_get_property_definition',
   name: 'PostHog Get Property Definition',
   description:
-    'Get details of a specific property definition in PostHog. Returns comprehensive information about the property including metadata, type, usage statistics, and verification status.',
+    'Get a PostHog property definition, including its metadata, type, and verification status.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 

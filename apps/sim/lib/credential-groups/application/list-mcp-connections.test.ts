@@ -47,7 +47,7 @@ vi.mock('@/lib/credential-groups/mcp-connections', () => ({
   MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE: 100,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

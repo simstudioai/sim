@@ -37,7 +37,7 @@ import {
   type SystemPackageIssue,
   validateDependencies,
   validateSystemPackages,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/types'
 
 /**

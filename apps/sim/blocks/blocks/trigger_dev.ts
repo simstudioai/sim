@@ -77,7 +77,7 @@ export const TriggerDevBlock: BlockConfig = {
   description: 'Trigger tasks and manage runs and schedules',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.',
+    'Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.',
   docsLink: 'https://docs.sim.ai/integrations/trigger_dev',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

@@ -100,7 +100,7 @@ export const deleteCalendarV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_delete_calendar_v2',
   name: 'Google Calendar Delete Calendar',
-  description: 'Permanently delete a secondary calendar. Returns API-aligned fields only.',
+  description: 'Permanently delete a secondary calendar.',
   version: '2.0.0',
   oauth: deleteCalendarTool.oauth,
   params: deleteCalendarTool.params,

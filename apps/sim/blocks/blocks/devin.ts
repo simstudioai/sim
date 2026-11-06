@@ -15,7 +15,7 @@ export const DevinBlock: BlockConfig = {
   name: 'Devin',
   description: 'Autonomous AI software engineer',
   longDescription:
-    'Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.',
+    'Create coding sessions, list or inspect their status and results, and send messages to guide active or suspended work. Use playbooks and ACU limits for repeatable tasks and spending control.',
   bestPractices: `
   - Write clear, specific prompts describing the task, expected outcome, and any constraints.
   - Use playbook IDs to standardize recurring task patterns across sessions.

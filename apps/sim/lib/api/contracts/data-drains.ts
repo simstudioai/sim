@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { sentinelConfigSchema } from '@/lib/data-drains/destinations/sentinel-config'
 import {
   azureBlobConfigBodySchema,
   bigqueryConfigBodySchema,
@@ -32,6 +33,10 @@ export {
 } from '@/lib/data-drains/validation'
 
 const drainDestinationResponseSchema = z.discriminatedUnion('destinationType', [
+  z.object({
+    destinationType: z.literal('sentinel'),
+    destinationConfig: sentinelConfigSchema,
+  }),
   z.object({
     destinationType: z.literal('s3'),
     destinationConfig: s3ConfigBodySchema,

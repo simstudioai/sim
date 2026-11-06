@@ -29,7 +29,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 vi.mock('@/lib/invitations/mutation-manager', () => ({
   resendInvitationRecord: hoisted.resend,

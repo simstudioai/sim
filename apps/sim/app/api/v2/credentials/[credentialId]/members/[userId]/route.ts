@@ -5,7 +5,7 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { removeCredentialMemberUseCase } from '@/lib/credentials/application/credential-members'
+import { removeCredentialMemberUseCase } from '@/lib/credentials/application/members'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
 export const DELETE = defineV2JsonRoute({

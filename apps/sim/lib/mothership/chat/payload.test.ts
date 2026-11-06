@@ -1,3 +1,4 @@
+import { organization } from '@sim/db/schema'
 import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { billingPlanHelpersMock } from '@sim/testing/mocks/billing-plan-helpers.mock'
@@ -5,6 +6,12 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -21,16 +28,32 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
-import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import {
+  ChatPayloadSchema,
+  TOOL_DEADLINE_CAPABILITY,
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+  WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames } = vi.hoisted(() => ({
+const {
+  mockCreateUserToolSchema,
+  mockDashboardAvailability,
+  mockSecretNames,
+  mockComputerUseAvailable,
+} = vi.hoisted(() => ({
   mockDashboardAvailability: vi.fn(async () => false),
+  mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
+}))
+
+vi.mock('@/lib/computer-use/application/availability', () => ({
+  isComputerUseAvailableFor: mockComputerUseAvailable,
 }))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
@@ -51,6 +74,8 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     truncated: [],
   })),
 }))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/dashboards/application/availability', () => ({
   readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
@@ -73,26 +98,23 @@ const mockSearchApprovals =
   knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals
 mockSearchApprovals.mockResolvedValue(new Map<string, boolean>())
 vi.mocked(getToolMetadata).mockImplementation((id) =>
-  id === 'github_search_issues_v2'
-    ? searchIssuesV2Tool
-    : id === 'gmail_send'
-      ? {
-          id,
-          params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
-          oauth: { required: true, provider: 'google-email' },
-        }
-      : undefined
+  id === gmailListLabelsV2Tool.id
+    ? gmailListLabelsV2Tool
+    : id === 'github_search_users_v2'
+      ? searchUsersV2Tool
+      : id === 'gmail_send'
+        ? {
+            id,
+            params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+            oauth: { required: true, provider: 'google-email' },
+          }
+        : undefined
 )
 permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockImplementation(
   (...args) => mockGetUserPermissionConfig(...args)
 )
 
 vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
-
-vi.mock('@/lib/mothership/mcp-tools', () => ({
-  buildTaggedMcpToolSchemas: vi.fn(async () => []),
-  buildOrganizationTaggedMcpToolSchemas: vi.fn(async () => []),
-}))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -110,7 +132,6 @@ vi.mock('@/lib/mothership/block-visibility', () => ({
     disabled: new Set<string>(),
     previewTagged: new Set<string>(),
   })),
-  visibilitySignature: vi.fn(() => 'vis:none'),
 }))
 
 vi.mock('@/lib/integrations/tool-catalog', () => ({
@@ -165,7 +186,7 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
@@ -255,36 +276,83 @@ describe('buildIntegrationToolSchemas', () => {
     expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
   })
 
-  it('briefly reuses built schemas for the same user and surface', async () => {
+  it('builds each tool schema once per process, not once per viewer', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValueOnce({ allowedIntegrations: ['gmail'] })
 
-    const first = await buildIntegrationToolSchemas('user-cache')
-    first[0].input_schema.mutated = true
-    if (first[0].outputs) first[0].outputs.mutated = true
-    const second = await buildIntegrationToolSchemas('user-cache')
+    await buildIntegrationToolSchemas('user-a', { schemaSurface: 'copilot' }, 'workspace-a')
+    await buildIntegrationToolSchemas('user-b', { schemaSurface: 'copilot' }, 'workspace-b')
+    await buildIntegrationToolSchemas('user-b', { schemaSurface: 'copilot' }, 'workspace-b')
 
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
     expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
-    expect(second[0].input_schema).not.toHaveProperty('mutated')
-    expect(second[0].outputs).not.toHaveProperty('mutated')
   })
 
-  it('isolates nested schemas and required fields between requests', async () => {
-    mockCreateUserToolSchema.mockReturnValueOnce({
+  it('keeps one caller from changing what any other viewer receives', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockCreateUserToolSchema.mockReturnValue({
       type: 'object',
       properties: { recipients: { type: 'array', items: { type: 'string' } } },
       required: ['recipients'],
     })
-    const first = await buildIntegrationToolSchemas('user-nested-schema')
-    const properties = first[0].input_schema.properties as Record<string, unknown>
-    properties.recipients = { type: 'number' }
-    ;(first[0].input_schema.required as string[]).push('forged')
+    const first = await buildIntegrationToolSchemas('user-mutating')
+    first.push({ name: 'mcp-private-tool', description: '', input_schema: {} })
+    expect(() => {
+      ;(first[0].input_schema.properties as Record<string, unknown>).recipients = { type: 'number' }
+    }).toThrow(TypeError)
+    expect(() => (first[0].input_schema.required as string[]).push('forged')).toThrow(TypeError)
+    expect(() => {
+      first[0].description = 'forged'
+    }).toThrow(TypeError)
 
-    const second = await buildIntegrationToolSchemas('user-nested-schema')
+    const second = await buildIntegrationToolSchemas('user-reading')
+    expect(second.map((tool) => tool.name)).toEqual([
+      'gmail_send',
+      'brandfetch_search',
+      'run_workflow',
+    ])
+    expect(second[0].description).not.toBe('forged')
     expect(second[0].input_schema.properties).toEqual({
       recipients: { type: 'array', items: { type: 'string' } },
     })
     expect(second[0].input_schema.required).toEqual(['recipients'])
+  })
+
+  it('appends the free-plan email tagline only for the viewer whose plan earns it', async () => {
+    mockGetHighestPrioritySubscription
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ plan: 'pro', status: 'active' })
+    const tagline = 'sent with sim ai'
+    const describeGmail = (tools: Array<{ name: string; description: string }>) =>
+      tools.find((tool) => tool.name === 'gmail_send')?.description ?? ''
+
+    const free = await buildIntegrationToolSchemas('free-user')
+    const paid = await buildIntegrationToolSchemas('paid-user')
+    const freeAgain = await buildIntegrationToolSchemas('free-user')
+
+    expect(describeGmail(free)).toContain(tagline)
+    expect(describeGmail(paid)).not.toContain(tagline)
+    expect(describeGmail(freeAgain)).toContain(tagline)
+  })
+
+  it("gates the shared schemas by each viewer's own permission policy", async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig
+      .mockResolvedValueOnce({ allowedIntegrations: null, deniedTools: ['gmail_send'] })
+      .mockResolvedValueOnce(null)
+
+    const restricted = await buildIntegrationToolSchemas(
+      'restricted-user',
+      { schemaSurface: 'copilot' },
+      'workspace-shared'
+    )
+    const unrestricted = await buildIntegrationToolSchemas(
+      'open-user',
+      { schemaSurface: 'copilot' },
+      'workspace-shared'
+    )
+
+    expect(restricted.map((tool) => tool.name)).not.toContain('gmail_send')
+    expect(unrestricted.map((tool) => tool.name)).toContain('gmail_send')
   })
 
   it('coalesces simultaneous catalog builds', async () => {
@@ -305,7 +373,6 @@ describe('buildIntegrationToolSchemas', () => {
     )
     const recovered = await buildIntegrationToolSchemas('schema-failure')
     expect(recovered).toHaveLength(3)
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(2)
   })
 
   it('propagates subscription failures without caching a guessed catalog', async () => {
@@ -315,18 +382,6 @@ describe('buildIntegrationToolSchemas', () => {
     )
     expect(mockCreateUserToolSchema).not.toHaveBeenCalled()
     expect(await buildIntegrationToolSchemas('subscription-failure')).toHaveLength(3)
-  })
-
-  it('evicts catalogs by their byte size before reaching the entry cap', async () => {
-    mockCreateUserToolSchema.mockImplementation(() => ({
-      type: 'object',
-      properties: { large: { type: 'string', description: 'x'.repeat(1024 * 1024) } },
-    }))
-    for (let i = 0; i < 12; i++) await buildIntegrationToolSchemas(`sized-user-${i}`)
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(12)
-    await buildIntegrationToolSchemas('sized-user-0')
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(13)
-    mockCreateUserToolSchema.mockImplementation(() => ({ type: 'object', properties: {} }))
   })
 
   it('rebuilds instead of serving a cache entry from the previous policy', async () => {
@@ -372,22 +427,43 @@ describe('buildCopilotRequestPayload', () => {
         model: '',
       })
       expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
+      expect(payload.clientCapabilities).toEqual([
+        'workflow-tool-pickup',
+        TOOL_DEADLINE_CAPABILITY,
+        WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+        WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+      ])
     }
   )
 
-  it('never grants the workspace-only dashboards entitlement to an organization chat', async () => {
-    mockDashboardAvailability.mockResolvedValue(true)
-    const payload = await buildCopilotRequestPayload({
-      message: 'Show my dashboard',
-      userId: 'actor',
-      userMessageId: 'message-1',
-      organizationId: 'org-1',
-      principal: { kind: 'session' as const, userId: 'actor' },
-      mode: 'agent',
-      model: '',
-    })
-    expect(payload.entitlements).toEqual([])
-  })
+  it.each([
+    ['dashboards', 'dashboards', true],
+    ['dashboards', 'dashboards', false],
+    ['tests', 'workflow-tests', true],
+    ['tests', 'workflow-tests', false],
+    ['changelog', 'changelog', true],
+    ['changelog', 'changelog', false],
+  ] as const)(
+    'grants an organization Build chat the %s entitlement from the %s rollout: %s',
+    async (entitlement, rolloutFlag, enabled) => {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+        async (flag) => enabled && flag === rolloutFlag
+      )
+      const payload = await buildCopilotRequestPayload({
+        message: 'Build it',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        organizationId: 'org-1',
+        principal: { kind: 'session' as const, userId: 'actor' },
+        mode: 'agent',
+        model: '',
+      })
+      expect(payload.entitlements).toEqual(enabled ? [entitlement] : [])
+      expect(featureFlagsMockFns.mockIsFeatureEnabled).toHaveBeenCalledWith(rolloutFlag, {
+        orgId: 'org-1',
+      })
+    }
+  )
 
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
@@ -411,13 +487,17 @@ describe('buildCopilotRequestPayload', () => {
         workflowName: 'ignored-name',
         provider: 'legacy-provider',
         workspaceContext: '{"credentials":[]}',
-        contexts: [{ type: 'workflow', content: 'ignored-context' }],
+        contexts: [
+          { type: 'workflow', content: 'ignored-context' },
+          { type: 'browser_page', tag: '@Page', content: 'Quoted page snapshot' },
+        ],
         browser: true,
         terminalCapable: true,
         mcpServerIds: ['mcp-1'],
       })
       expect(ChatPayloadSchema.safeParse(payload).success).toBe(true)
       expect(payload.context).toEqual([
+        { type: 'browser_page', tag: '@Page', content: 'Quoted page snapshot' },
         {
           type: owner === 'organization' ? 'search_integrations' : 'connected_accounts',
           content: '{"credentials":[]}',
@@ -433,7 +513,11 @@ describe('buildCopilotRequestPayload', () => {
         'mothershipTools',
       ])
         expect(payload).not.toHaveProperty(key)
-      expect(payload.clientCapabilities).toEqual([])
+      expect(payload.clientCapabilities).toEqual([
+        TOOL_DEADLINE_CAPABILITY,
+        WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+        WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+      ])
       if (owner === 'organization') expect(payload).not.toHaveProperty('integrationTools')
     }
   )
@@ -626,7 +710,17 @@ describe('buildCopilotRequestPayload', () => {
 })
 
 describe('Assistant payload', () => {
+  afterEach(() => vi.mocked(getExposedIntegrationTools).mockReset())
   beforeEach(() => {
+    resetDbChainMock()
+    for (let i = 0; i < 4; i++) queueTableRows(organization, [{ metadata: {} }])
+    credentialGroupsServiceMockFns.mockGetOrganizationAccountsGroup.mockResolvedValue({
+      status: 'active',
+      options: [
+        { provider: 'github-repositories', status: 'active' },
+        { provider: 'gmail', status: 'active' },
+      ],
+    })
     resetEnvFlagsMock()
     mockGetUserPermissionConfig.mockResolvedValue(null)
     mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
@@ -634,15 +728,15 @@ describe('Assistant payload', () => {
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockSearchApprovals.mockResolvedValue(new Map())
   })
-  it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
+  it('discovers the existing GitHub user lookup tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
-    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+    vi.mocked(getExposedIntegrationTools).mockReturnValue([
       {
-        toolId: searchIssuesV2Tool.id,
-        config: searchIssuesV2Tool,
+        toolId: searchUsersV2Tool.id,
+        config: searchUsersV2Tool,
         service: 'github',
-        operation: 'search_issues',
+        operation: 'search_users',
         blockType: 'github_v2',
         owners: [{ service: 'github', blockType: 'github_v2' }],
       },
@@ -656,7 +750,7 @@ describe('Assistant payload', () => {
     })
     expect(tools).toHaveLength(1)
     expect(tools[0]).toMatchObject({
-      name: 'github_search_issues_v2',
+      name: 'github_search_users_v2',
       oauth: { provider: 'github-repositories' },
       input_schema: { required: expect.arrayContaining(['q', 'credentialId']) },
     })
@@ -671,6 +765,17 @@ describe('Assistant payload', () => {
     ).toEqual([])
   })
   it('advertises approved personal organization integrations and rechecks revocation', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    vi.mocked(getExposedIntegrationTools).mockReturnValue([
+      {
+        toolId: gmailListLabelsV2Tool.id,
+        config: gmailListLabelsV2Tool,
+        service: 'gmail',
+        operation: 'list_labels',
+        blockType: 'gmail',
+        owners: [{ service: 'gmail', blockType: 'gmail' }],
+      },
+    ])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
     const options = {
       schemaSurface: 'copilot' as const,
@@ -678,7 +783,7 @@ describe('Assistant payload', () => {
       organizationId: 'org',
     }
     const approved = await buildIntegrationToolSchemas('person', options)
-    expect(approved.map((tool) => tool.name)).toContain('gmail_send')
+    expect(approved.map((tool) => tool.name)).toEqual(['gmail_list_labels_v2'])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', false]]))
     expect(await buildIntegrationToolSchemas('person', options)).toEqual([])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
@@ -723,13 +828,13 @@ describe('Assistant payload', () => {
       desktopLocalFiles: true,
     })
     expect(payload.organizationId).toBe('org-1')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
     expect(payload).not.toHaveProperty('workspaceId')
     expect(payload).not.toHaveProperty('desktopCapabilities')
     expect(payload).not.toHaveProperty('integrationTools')
   })
 
-  it('keeps the shared search scope without an integration gateway catalog', async () => {
+  it('keeps the shared search scope with native discovery and no MCP servers', async () => {
     clearIntegrationToolSchemaCacheForTests()
     const payload = await buildCopilotRequestPayload({
       message: 'Find it and update it',
@@ -749,18 +854,40 @@ describe('Assistant payload', () => {
       terminalCapable: true,
     })
     expect(payload).not.toHaveProperty('desktop')
-    expect(payload.clientCapabilities).toEqual([])
+    expect(payload.clientCapabilities).toEqual([
+      TOOL_DEADLINE_CAPABILITY,
+      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+      WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+    ])
     expect(payload.mode).toBe('assistant')
     expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
     for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {
       expect(payload).not.toHaveProperty(field)
     }
     expect(payload).not.toHaveProperty('integrationTools')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
   })
 })
 
 describe('desktop request capabilities', () => {
+  it.each([false, true])(
+    'rechecks the server rollout for a forged computer capability (enabled=%s)',
+    async (enabled) => {
+      mockComputerUseAvailable.mockResolvedValueOnce(enabled)
+      const payload = await buildCopilotRequestPayload({
+        message: 'Use Notes',
+        workspaceId: 'workspace',
+        userId: 'user',
+        principal: { kind: 'session', userId: 'user', sessionId: 'session' },
+        userMessageId: 'message',
+        mode: 'agent',
+        model: 'gpt-6-astra',
+        computerUse: true,
+      })
+      expect(payload.desktop?.computerUse ?? false).toBe(enabled)
+    }
+  )
+
   it('preserves desktop capabilities and current session hints on the worker wire', async () => {
     const payload = await buildCopilotRequestPayload({
       message: 'Inspect my local page',
@@ -777,6 +904,7 @@ describe('desktop request capabilities', () => {
       ],
     })
     expect(payload.desktop).toEqual({
+      computerUse: false,
       browser: true,
       terminal: true,
       terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
@@ -797,6 +925,7 @@ describe('desktop request capabilities', () => {
       desktopLocalFiles: true,
     })
     expect(payload.desktop).toEqual({
+      computerUse: false,
       localFiles: true,
       browser: false,
       terminal: false,
@@ -819,29 +948,32 @@ describe('desktop request capabilities', () => {
   })
 })
 
-it('carries only enabled MCP IDs without eager catalog discovery while preserving desktop capabilities', async () => {
-  const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
-  const { buildOrganizationTaggedMcpToolSchemas } = await import('@/lib/mothership/mcp-tools')
-  vi.mocked(getBlockVisibilityForCopilot).mockClear()
-  vi.mocked(buildOrganizationTaggedMcpToolSchemas).mockClear()
-  const principal = createSessionPrincipal({ userId: 'user-org' })
-  const payload = await buildCopilotRequestPayload({
-    message: 'Use my tools',
-    userId: 'user-org',
-    userMessageId: 'message-org',
-    organizationId: 'org-catalog',
-    chatId: 'chat-org',
-    principal,
-    mode: 'agent',
-    model: '',
-    mcpServerIds: ['server-a', 'server-b'],
-    browser: true,
-    terminalCapable: true,
-  })
-  expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
-  expect(buildOrganizationTaggedMcpToolSchemas).not.toHaveBeenCalled()
-  expect(payload.integrationCatalog).toEqual({ mcpServerIds: ['server-a', 'server-b'] })
-  expect(payload).not.toHaveProperty('integrationTools')
-  expect(payload).not.toHaveProperty('mothershipTools')
-  expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
-})
+it.each(['assistant', 'agent', 'plan'] as const)(
+  'advertises the integration gateway while isolating MCP and desktop capabilities in %s mode',
+  async (mode) => {
+    const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
+    vi.mocked(getBlockVisibilityForCopilot).mockClear()
+    const principal = createSessionPrincipal({ userId: 'user-org' })
+    const payload = await buildCopilotRequestPayload({
+      message: 'Use my tools',
+      userId: 'user-org',
+      userMessageId: 'message-org',
+      organizationId: 'org-catalog',
+      chatId: 'chat-org',
+      principal,
+      mode,
+      model: '',
+      mcpServerIds: ['server-a', 'server-b'],
+      browser: true,
+      terminalCapable: true,
+    })
+    expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
+    expect(payload.integrationCatalog).toEqual({
+      mcpServerIds: mode === 'assistant' ? [] : ['server-a', 'server-b'],
+    })
+    expect(payload).not.toHaveProperty('integrationTools')
+    expect(payload).not.toHaveProperty('mothershipTools')
+    if (mode === 'assistant') expect(payload.desktop).toBeUndefined()
+    else expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
+  }
+)

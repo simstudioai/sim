@@ -1,11 +1,15 @@
 ---
-title: Connector Types
-description: Manage connector types — every subcommand, argument, and flag
+title: Connector types
+description: Discover knowledge connectors and their authentication and source-configuration schemas.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+Discover knowledge connectors and their authentication and source-configuration schemas.
+
+Use `--detail full` to inspect a connector’s configuration before creating it.
+
+These commands accept the [global options](/cli/commands#global-options).
 
 ## List connector types
 
@@ -25,3 +29,9 @@ sim connector-types list [options]
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
+
+API request and response schemas: [listConnectorTypes](/api-reference/catalog/listConnectorTypes).
+
+## Related docs
+
+- [Create and sync knowledge connectors](/cli/knowledge#connectors)

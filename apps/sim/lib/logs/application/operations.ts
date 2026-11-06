@@ -24,6 +24,7 @@ export const logOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...LOG_READER_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: aggregate run counts carry no execution payload, so there is nothing here for a group to withhold
@@ -33,6 +34,7 @@ export const logOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [...PUBLIC_API_PRINCIPAL_KINDS, 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -43,6 +45,7 @@ export const logOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...LOG_READER_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the executor reading its own run's snapshot mid-flight; refusing it would fail runs the group permits

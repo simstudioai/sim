@@ -11,7 +11,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { KnowledgeSearchBody } from '@/lib/api/contracts/knowledge/search'
 import { AuthType } from '@/lib/auth/hybrid'
-import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
+import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   internalKnowledgeAnalytics,

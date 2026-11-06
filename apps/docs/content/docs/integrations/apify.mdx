@@ -1,25 +1,20 @@
 ---
 title: Apify
 description: Run Apify actors and retrieve results
+integration:
+  type: "apify"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="apify"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Apify](https://apify.com/) runs Actors for web scraping and browser automation. Run an Actor synchronously when you need its result in the same call, or start an asynchronous run and check its status before retrieving the dataset. You can also run saved Actor tasks and retrieve dataset items.
+[Apify](https://apify.com/) runs Actors for web scraping and browser automation. Run an Actor synchronously when it can finish within the synchronous endpoint’s five-minute limit. **Run Actor (Async)** starts a provider run and polls it within the same Sim step; it does not return immediately for detached processing. Its polling budget follows Sim’s default synchronous execution timeout. If that wait ends before the Actor finishes, use the returned run ID with **Get Run**, then retrieve dataset items after success. You can also run saved Actor tasks and fetch dataset items directly.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.
-
-
+Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.
 
 ## Actions
 
@@ -49,7 +44,7 @@ Run an APIFY actor synchronously and get results (max 5 minutes)
 
 ### APIFY Run Actor (Async)
 
-Run an APIFY actor asynchronously with polling for long-running tasks
+Start an APIFY Actor run and poll it within the same workflow step until completion or the polling deadline
 
 #### Input
 

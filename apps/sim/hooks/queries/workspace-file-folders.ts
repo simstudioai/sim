@@ -16,7 +16,9 @@ import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
 } from '@/lib/workspace-files/folder-display-path'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
+import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 export type { WorkspaceFileFolderApi }
@@ -46,13 +48,22 @@ async function fetchWorkspaceFileFolders(
   return data.folders
 }
 
+/**
+ * Invalidates everything a file browser shows for the workspace — its folder tree and every file
+ * read (list walks, searches, folder rollups, lookups, records) — and storage usage. Settles once
+ * the mounted ones have refetched.
+ */
 export function invalidateWorkspaceFileBrowsers(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string
 ) {
-  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId),
+    }),
+    invalidateWorkspaceFileReads(queryClient, workspaceId),
+    queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() }),
+  ])
 }
 
 export function useWorkspaceFileFolders(
@@ -249,6 +260,7 @@ export function useRestoreWorkspaceFileFolder() {
       toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },
   })

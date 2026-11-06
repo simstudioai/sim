@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const workflow = readFileSync(new URL('../.github/workflows/migrate.yml', import.meta.url), 'utf8')
-const step = workflow.match(/^ {8}run: \|\r?\n((?: {10}.*(?:\r?\n|$)|\r?\n)+)/m)?.[1]
+const step = workflow.match(
+  /^ {6}- name: Apply database schema changes\r?\n(?: {8}.*\r?\n)*? {8}run: \|\r?\n((?: {10}.*(?:\r?\n|$)|\r?\n)+)/m
+)?.[1]
 if (!step) throw new Error('Migration workflow must contain its schema application shell step')
 const script = step.replace(/^ {10}/gm, '')
 

@@ -45,6 +45,7 @@ export const auditLogOperations = {
   // permission-group-exempt: the organization audit trail is authorized by organization admin or owner role, a scope no workspace-shaped permission group can name
   list: defineAuditLogOperation({
     id: 'audit_logs.list',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     authority: 'organization_admin',
@@ -55,6 +56,7 @@ export const auditLogOperations = {
   // permission-group-exempt: same organization-admin authority as the list it expands; no group key names the audit trail
   readDetail: defineAuditLogOperation({
     id: 'audit_logs.read_detail',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     authority: 'organization_admin',
@@ -71,6 +73,7 @@ export const copilotAuditLogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -79,6 +82,7 @@ export const copilotAuditLogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),

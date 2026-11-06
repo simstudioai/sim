@@ -1049,6 +1049,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     GITHUB_APP_CLIENT_ID: { input: 'text' },
     GITHUB_APP_CLIENT_SECRET: { input: 'secret' },
   },
+  greenhouse: {
+    GREENHOUSE_CLIENT_ID: { input: 'text' },
+    GREENHOUSE_CLIENT_SECRET: { input: 'secret' },
+  },
   notion: {
     NOTION_CLIENT_ID: { input: 'text' },
     NOTION_CLIENT_SECRET: { input: 'secret' },
@@ -1092,6 +1096,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
   ramp: {
     RAMP_CLIENT_ID: { input: 'text' },
     RAMP_CLIENT_SECRET: { input: 'secret' },
+  },
+  helpscout: {
+    HELPSCOUT_CLIENT_ID: { input: 'text' },
+    HELPSCOUT_CLIENT_SECRET: { input: 'secret' },
   },
   wealthbox: {
     WEALTHBOX_CLIENT_ID: { input: 'text' },

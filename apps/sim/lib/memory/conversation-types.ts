@@ -91,6 +91,7 @@ export interface AgentConversationSession {
   getFinalResponse(): AgentTurnState['final']
   getFinalAssistantContent(): string | undefined
   readonly memoryId?: string
+  readonly turnId?: string
   getUsage(): ConversationUsageTotal
   recordContextUsage?(usage: ConversationUsageTotal): Promise<void>
   captureStep(step: CapturedConversationStep): Promise<void>

@@ -3,8 +3,8 @@ import { Type } from 'typebox'
 import type { PiSandboxRunner } from '@/lib/execution/remote-sandbox'
 import { REVIEW_TOOLS_SCRIPT } from '@/executor/handlers/pi/cloud/review/tools-script'
 import { raceAbort } from '@/executor/handlers/pi/cloud/shared'
-import type { PiSdk } from '@/executor/handlers/pi/core/pi-sdk'
 import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
+import type { PiSdk } from '@/executor/handlers/pi/core/sdk'
 import {
   parseReviewFindings,
   type ReviewFindings,

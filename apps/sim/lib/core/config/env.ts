@@ -121,6 +121,8 @@ export const env = createEnv({
     DATABASE_URL_REALTIME:                 z.string().url().optional(),            // Per-role primary URL override (realtime)
     DATABASE_URL_CLEANUP:                  z.string().url().optional(),            // Sub-process pool URL override (cleanup jobs, via dbFor)
     DATABASE_URL_EXEC:                     z.string().url().optional(),            // Sub-process pool URL override (inline execution writes, via dbFor)
+    DATABASE_URL_BILLING:                  z.string().url().optional(),            // Sub-process pool URL override (usage-ledger writes, via dbFor)
+    DATABASE_URL_AUTH:                     z.string().url().optional(),            // Sub-process pool URL override (session and API-key lookups, via dbFor)
     DATABASE_REPLICA_URL_WEB:              z.string().url().optional(),            // Per-role replica URL override; falls back to DATABASE_REPLICA_URL
     DATABASE_REPLICA_URL_TRIGGER:          z.string().url().optional(),            // Per-role replica URL override (trigger)
     DATABASE_REPLICA_URL_REALTIME:         z.string().url().optional(),            // Per-role replica URL override (realtime)
@@ -139,9 +141,11 @@ export const env = createEnv({
     SIGNUP_MX_VALIDATION_ENABLED:          z.boolean().optional(),                 // Opt-in: validate the email's MX backend at signup (blocks no-MX domains and denylisted shared spam backends). Off by default; enable on hosted/abuse-targeted deployments.
     BLOCKED_EMAIL_MX_HOSTS:                z.string().optional(),                  // Comma-separated MX-host substrings blocked from signing up; matched against the domain's resolved MX backend to catch throwaway domains that share a mail backend. No defaults — operators supply their own list. Only used when SIGNUP_MX_VALIDATION_ENABLED is set.
     TRUSTED_ORIGINS:                       z.string().optional(),                  // Comma-separated additional origins to trust for auth (e.g., "https://app.example.com,https://www.example.com"). Merged into Better Auth trustedOrigins.
+    BROWSER_EXTENSION_IDS:                 z.string().optional(),
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
+    ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
 
@@ -149,6 +153,9 @@ export const env = createEnv({
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
+    /** Enables the organization benchmark UI and its authenticated endpoints. */
+    MOTHERSHIP_BENCHMARK_ENABLED:          z.boolean().optional(),
+    MOTHERSHIP_BENCHMARK_URL:              z.string().url().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
@@ -296,6 +303,8 @@ export const env = createEnv({
     AZURE_ANTHROPIC_API_VERSION:           z.string().min(1).optional(),           // Azure Anthropic API version (e.g. 2023-06-01)
     KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set).
     KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids, or `ollama/<model>` for a model on OLLAMA_URL; defaults to text-embedding-3-small.
+    KB_IMAGE_EXTRACTION_MODEL:             z.string().optional(),                  // Vision model that extracts text from knowledge-base images on sources using semantic image extraction (Confluence). Must be a Gemini 3 model in the catalog; anything else falls back to gemini-3.8-flash.
+    KB_IMAGE_EXTRACTIONS_PER_SYNC:         z.number().optional(),                  // New or changed images one connector sync run may send for vision extraction (each member-accounts continuation run can read up to this many); the rest wait for the next sync. Defaults to 500.
     EMBEDDING_OUTPUT_DIMS:                 z.coerce.number().int().positive().optional(), // Vector width new knowledge bases are stored at. One of 384, 768, 1024, 1536, 3072, and the configured KB_EMBEDDING_MODEL must emit it; anything else falls back to 1536.
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
@@ -332,11 +341,13 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling
     TRIGGER_PROJECT_ID:                    z.string().optional(),                  // Trigger.dev project ID
     TRIGGER_SECRET_KEY:                    z.string().min(1).optional(),           // Trigger.dev secret key for background jobs
     TRIGGER_DEV_ENABLED:                   z.boolean().optional(),                 // Toggle to enable/disable Trigger.dev for async jobs
+    TRIGGER_ENV_SYNC_TARGETS:              z.string().optional(),                  // Deploy-time only: comma-separated Trigger.dev environments (prod,staging,preview) synced from the app's env-vars secret
     CRON_SECRET:                           z.string().optional(),                  // Secret for authenticating cron job requests
     SCHEDULE_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('30'),
     WORKFLOW_EXECUTION_CONCURRENCY_LIMIT:  z.string().optional().default('75'),
@@ -355,6 +366,7 @@ export const env = createEnv({
     AWS_REGION:                            z.string().optional(),                  // AWS region for S3 buckets
     AWS_ACCESS_KEY_ID:                     z.string().optional(),                  // AWS access key ID
     AWS_SECRET_ACCESS_KEY:                 z.string().optional(),                  // AWS secret access key
+    TRIGGER_AWS_ROLE_ARN:                  z.string().optional(),                  // Role Trigger.dev runs assume through workload identity, instead of static keys
     S3_BUCKET_NAME:                        z.string().optional(),                  // S3 bucket for general file storage
     S3_KB_BUCKET_NAME:                     z.string().optional(),                  // S3 bucket for knowledge base files
     S3_EXECUTION_FILES_BUCKET_NAME:        z.string().optional(),                  // S3 bucket for workflow execution files
@@ -449,6 +461,9 @@ export const env = createEnv({
     IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
     IVM_MAX_BROKER_RESULT_JSON_CHARS:      z.string().optional().default('16777216'),// Max JSON payload size for sandbox task broker results (host→isolate)
     IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
+    IVM_REMOTE_WORKER_URL:                 z.string().optional(),                    // ws(s)://<host>/v1/worker of a dedicated worker host; workers run there unless the isolated-vm-local-workers kill switch is on
+    IVM_REMOTE_WORKER_TOKEN:               z.string().optional(),                    // Token the worker host expects (its IVM_HOST_TOKEN, >= 32 chars); required with IVM_REMOTE_WORKER_URL
+    IVM_REMOTE_WORKER_MAX_AGE_MS:          z.coerce.number().int().positive().optional(), // (default 120000) Age at which a worker host connection stops taking executions, so host deploys drain; keep below the host's deregistration delay
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)
@@ -464,6 +479,7 @@ export const env = createEnv({
     KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
     KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
     KB_CONFIG_OCR_REQUESTS_PER_MINUTE:       z.number().positive().optional().default(60),
+    KB_CONFIG_VISION_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(300),
     /** Mistral operating budgets, shared across indexing workers and interactive OCR. */
     KB_CONFIG_MISTRAL_OCR_PAGES_PER_MINUTE:  z.number().positive().optional().default(1000),
     KB_CONFIG_MISTRAL_OCR_PAGES_PER_REQUEST: z.number().int().positive().max(1000).optional().default(30),
@@ -498,6 +514,8 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     GITHUB_APP_CLIENT_ID: z.string().optional(),
     GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+    GREENHOUSE_CLIENT_ID: z.string().optional(),
+    GREENHOUSE_CLIENT_SECRET: z.string().optional(),
     GITHUB_APP_ID: z.string().optional(),
     GITHUB_APP_PRIVATE_KEY: z.string().optional(),
     GITHUB_APP_SLUG: z.string().optional(),
@@ -562,6 +580,8 @@ export const env = createEnv({
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     RAMP_CLIENT_ID:                        z.string().optional(),
     RAMP_CLIENT_SECRET:                    z.string().optional(),
+    HELPSCOUT_CLIENT_ID:                   z.string().optional(),                  // Help Scout OAuth app ID
+    HELPSCOUT_CLIENT_SECRET:               z.string().optional(),                  // Help Scout OAuth app secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
@@ -587,11 +607,13 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
-    MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
-    PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
+    SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
+    PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)

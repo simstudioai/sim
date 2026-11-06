@@ -10,7 +10,7 @@ export const OtterBlock: BlockConfig = {
   name: 'Otter.ai',
   description: 'Read Otter.ai meeting conversations, transcripts, and summaries',
   longDescription:
-    'Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.',
+    'List and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.',
   docsLink: 'https://docs.sim.ai/integrations/otter',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

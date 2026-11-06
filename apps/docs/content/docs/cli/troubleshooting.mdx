@@ -1,147 +1,160 @@
 ---
 title: Troubleshooting
-description: The failures whose cause is not obvious from the error message
+description: Diagnose profile, connection, input, output, and update failures.
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-
-Most command errors print to stderr and exit `1`. `sim whoami` and
-`sim workflows runs wait` use additional codes to distinguish outcomes; see
-[Exit codes](/cli/scripting#exit-codes). The cases below explain failures whose
-cause may not be obvious from the message.
-
-Start with `sim whoami`. It prints the resolved endpoint, workspace, and output
-format, **and where each came from** — which explains most surprises on its own —
-then checks the resolved key against the API. Add `--no-verify` to skip the check
-and stay offline.
-
-## A command targets the wrong workspace or deployment
-
-Each setting resolves independently, and a flag beats the environment, which
-beats the profile. A stale `SIM_WORKSPACE` in your shell silently outranks the
-workspace you configured.
+Start by checking the version and resolved settings:
 
 ```bash
+sim --version
+sim whoami --no-verify
 sim whoami
 ```
 
-API-key pairing sets the default workspace selected on its approval page.
-After OAuth login, set one with `sim configure --set-workspace <id>`.
-The default target does not restrict your credential: use `--workspace` to reach
-another workspace that credential can access.
+`--no-verify` stays offline. Normal `whoami` checks authentication and access to the selected workspace. Inspect its `verification` result before changing credentials.
+
+Most command failures exit 1. Verification, run waiting, and workspace-operation waiting have additional outcomes; see [Exit codes](/cli/scripting#exit-codes).
+
+## A command targets the wrong workspace or deployment
+
+Flags override the environment, which overrides profile defaults. A stale `SIM_WORKSPACE` can outrank the workspace saved in your profile. `whoami` shows each winning value and source:
+
+```bash
+sim whoami --no-verify --profile <name>
+```
+
+After OAuth login, set a default with `sim configure --set-workspace <id>`. Pairing sets the default chosen on its approval page. A default target does not restrict credential scope; `--workspace` can select another accessible workspace.
+
+See [Configuration](/cli/configuration#where-settings-come-from) for the full precedence rules.
 
 ## An error ends in `— run: sim login --profile <name>`
 
-The API rejected the key with a `401`. Either it was revoked, or it belongs to a
-different deployment than the endpoint you are pointed at — a key minted against
-a local stack will not authenticate against production. Check the endpoint before
-re-authenticating:
+A 401 means the API rejected authentication. The credential may be revoked, expired, or issued by another deployment. Check the endpoint before signing in again:
 
 ```bash
-sim whoami --profile <name>
+sim whoami --no-verify --profile <name>
 ```
+
+For a stored OAuth login, logout is required before a new login:
+
+```bash
+sim logout --profile <name>
+sim login --profile <name>
+```
+
+`whoami` exit 1 can also mean a valid credential cannot access the selected workspace, or the workspace does not exist. A 403/404 workspace refusal needs an access or target correction rather than repeated login.
+
+### OAuth refresh or endpoint mismatch
+
+An OAuth login cannot move to another deployment. Restore its original endpoint, or log out before configuring a new one. Workspace profiles share their authentication profile's endpoint.
+
+Sign in separately on each machine. Copied credential files can reuse one single-use refresh family and cause revocation. If a refresh response was lost, the CLI will not retry the consumed token; log out and sign in again. See [Stored logins](/cli/authentication#where-the-login-is-stored).
 
 ## `Could not reach https://www.sim.ai: <reason>`
 
-The request never got a response: DNS, TLS, a proxy, or a self-hosted stack that
-is not running. Confirm the endpoint the CLI actually used with `sim whoami`, and
-that it has the right scheme and port:
+DNS, TLS, a proxy, or an unavailable self-hosted service can prevent a response. Check the resolved endpoint's scheme and port:
 
 ```bash
+sim whoami --no-verify
 sim configure --set-endpoint http://localhost:3000 --profile local
 ```
 
+Loopback development endpoints can use HTTP. Remote browser sign-in requires HTTPS for OAuth and pairing.
+
+### Endpoint redirects
+
+The CLI does not follow API redirects: they can change a write's method/body or forward a credential to another origin. Configure the actual API endpoint shown by the error. The hosted default is `https://www.sim.ai`.
+
+### Proxy settings
+
+Node must opt in before `fetch` uses `HTTP(S)_PROXY`. Set `NODE_USE_ENV_PROXY=1` before launching the CLI, using Node 22.21+ or 24.0+. The equivalent `--use-env-proxy` Node flag requires 22.21+ or 24.5+. Older runtimes need an upgrade. See [Registry and proxy behavior](/cli/configuration#registry-and-proxy-behavior).
+
 ## A JSON flag rejects a value that looks like valid JSON
 
-Your shell consumed the quotes. Wrap the whole value in single quotes, or read it
-from a file:
+A shell may consume unquoted JSON quotes. Quote the whole value or read JSON from a file:
 
 ```bash
 sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter '{"all":[{"field":"status","op":"eq","value":"open"}]}'
 sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
 ```
 
+Workflow imports require JSON, even if an export was saved as YAML. File-aware flags interpret `@value` as a path; write `@@value` for a literal leading `@`. See [Scripting](/cli/scripting).
+
 ## A value looks truncated
 
-`table` clips long cells to keep rows on one line. The data is not truncated —
-switch to a machine format to see it in full:
+Table display clips long cells. Select JSON/YAML to inspect the returned values:
 
 ```bash
 sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json
 ```
 
+Changing format does not remove server-side caps. Check any reported truncation flag/notice, filters, and pagination before assuming the response contains everything.
+
 ## In an interactive terminal, `sim files get` refuses to print to the terminal
 
-Writing arbitrary binary to an interactive terminal can corrupt it, so non-text
-content has to go to a file or a pipe:
+Binary content must go to a file or a pipe:
 
 ```bash
 sim files get wf_8Kd2NpVrY6zTfQa3XwBmS -o ./image.png
 sim files get wf_8Kd2NpVrY6zTfQa3XwBmS | shasum
 ```
 
+An existing output file requires `--force`. With `--output-file`, file content is saved and stdout contains a save receipt. See [File commands](/cli/files).
+
 ## A stored output format is invalid
 
-A higher-priority source still wins, so you can repair the profile without
-editing the file by hand:
+Use an environment override to repair the saved default:
 
 ```bash
-sim --output table configure --set-output json
+SIM_OUTPUT=json sim configure --set-output json
+SIM_OUTPUT=json sim configure --profile <name> --set-output json
 ```
+
+`configure` rejects global `--output`, `--endpoint`, and `--workspace`; persistence uses `--set-*`. If an invalid environment variable caused the error, correct or unset it as well.
 
 ## A command is missing that the documentation describes
 
-The docs track the current release, so a command that exists here and not in
-`sim --help` usually means the installed CLI is older than the feature. Compare
-`sim --version` against the published version and upgrade:
+Compare the installed version and command help. These docs describe the current source; an older installed CLI or self-hosted server can lack an operation:
 
 ```bash
 sim --version
+sim --help
+sim update
 ```
 
-Run `sim update` to update the active global installation. If this older release
-does not yet have the `update` command, upgrade with the package manager you installed it with — using a different
-one installs a second copy instead of replacing the executable on your `PATH`:
+`sim update` verifies the active global installation and preserves its stable/staging/dev channel. If an older Bun installation has no update command, update the package through Bun:
 
-<Tabs items={['npm', 'pnpm', 'bun', 'Yarn Classic']}>
-  <Tab value="npm">
-    ```bash
-    npm install -g sim@latest
-    ```
-  </Tab>
-  <Tab value="pnpm">
-    ```bash
-    pnpm add -g sim@latest
-    ```
-  </Tab>
-  <Tab value="bun">
-    ```bash
-    bun add -g sim@latest
-    ```
-  </Tab>
-  <Tab value="Yarn Classic">
-    ```bash
-    yarn global add sim@latest
-    ```
-  </Tab>
-</Tabs>
+```bash
+bun add -g sim@latest
+```
 
-The CLI also shows an optional update notice through a cached daily check on
-eligible interactive invocations. Your command continues, and you choose when to
-run `sim update`. Checks stay quiet when stderr is redirected, in CI, and under
-`npm exec` or `npx`.
+Use the corresponding staging/dev tag for an intentional prerelease installation. Installations made with npm, pnpm, or Yarn Classic should be upgraded through their original manager; a different manager can create another executable on `PATH`. Project-local and temporary package-runner copies must be updated through their package manager too.
+
+See [Updates](/cli/configuration#updates) for supported managers and copy-detection behavior.
 
 ## An update notice appears in output I am parsing
 
-It should not: the notice is written to stderr, never stdout, so `--output json`
-piped to `jq` is unaffected. If something merges the two streams, silence it:
+Notices go to stderr, so a JSON stdout pipe is unaffected. If your runner combines streams, separate stdout/stderr or suppress automatic checks:
 
 ```bash
 export SIM_NO_UPDATE_CHECK=1
 ```
 
+Checks are already quiet in CI and when stderr is redirected. Manual `sim update` remains available when notices are disabled.
+
+## A sync apply or wait did not return a clear outcome
+
+Retain the original request/operation IDs and exact input. An operation may have committed even when its response was lost or its follow-up copying/deployment failed. Query it in the receipt workspace or retry only identical input with the original request ID. See [Reconcile completion and retries](/cli/workflow-sync#reconcile-completion-and-retries).
+
+A workflow wait timeout also leaves its run active. Inspect that run ID; do not assume another execution is a retry of the same work.
+
 ## Anything else
 
-An unexpected error prints a stack trace. That is a bug in the CLI — please
-[open an issue](https://github.com/simstudioai/sim/issues) with the command you
-ran, the trace, and the output of `sim --version`.
+For an unexpected stack trace, [open an issue](https://github.com/simstudioai/sim/issues) with the CLI version, command, sanitized trace, and relevant resolved settings. Remove credentials, sensitive inputs, and private file contents before posting. Debug output can contain request selectors.
+
+## Related docs
+
+- [Authentication](/cli/authentication)
+- [Configuration](/cli/configuration)
+- [Output formats](/cli/output)
+- [Scripting](/cli/scripting)

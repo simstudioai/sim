@@ -102,6 +102,7 @@ const AuditAction = {
   KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
   KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
   KNOWLEDGE_BASE_EXPORTED: 'knowledge_base.exported',
+  KNOWLEDGE_BASE_IMPORT_STARTED: 'knowledge_base.import_started',
   MCP_SERVER_ADDED: 'mcp_server.added',
   MCP_SERVER_UPDATED: 'mcp_server.updated',
   MCP_SERVER_REMOVED: 'mcp_server.removed',
@@ -139,6 +140,11 @@ const AuditAction = {
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
   ORG_MEMBER_USAGE_LIMIT_CHANGED: 'org_member.usage_limit_changed',
+  ORG_MEMBER_PROFILE_UPDATED: 'org_member.profile_updated',
+  ORG_PEOPLE_IMPORTED: 'org_people.imported',
+  ORG_PEOPLE_SYNC_CONFIGURED: 'org_people.sync_configured',
+  ORG_PEOPLE_SYNC_REQUESTED: 'org_people.sync_requested',
+  ORG_PEOPLE_SYNC_DISCONNECTED: 'org_people.sync_disconnected',
   ORG_INVITATION_CREATED: 'org_invitation.created',
   ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
@@ -175,6 +181,9 @@ const AuditAction = {
   SCHEDULE_CREATED: 'schedule.created',
   SCHEDULE_UPDATED: 'schedule.updated',
   SCHEDULE_DELETED: 'schedule.deleted',
+  SIM_LINK_CREATED: 'sim_link.created',
+  SIM_LINK_UPDATED: 'sim_link.updated',
+  SIM_LINK_DELETED: 'sim_link.deleted',
   TABLE_CREATED: 'table.created',
   TABLE_UPDATED: 'table.updated',
   TABLE_DELETED: 'table.deleted',
@@ -259,6 +268,7 @@ const AuditResourceType = {
   SCIM_CONNECTION: 'scim_connection',
   SCIM_GROUP: 'scim_group',
   SECRET_PROVENANCE: 'secret_provenance',
+  SIM_LINK: 'sim_link',
   SKILL: 'skill',
   SUBSCRIPTION: 'subscription',
   TABLE: 'table',
@@ -272,6 +282,7 @@ const AuditResourceType = {
  * Controllable mock functions for `@sim/audit`.
  *
  * `mockRecordAuditOnce` resolves `undefined` by default, like the real awaited insert.
+ * `mockWithAuditRollupScope` runs the work it is given, like the real scope.
  *
  * @example
  * ```ts
@@ -289,6 +300,8 @@ export const auditMockFns = {
   mockRecordAudit: vi.fn(),
   mockRecordAuditBatch: vi.fn(),
   mockRecordAuditOnce: vi.fn(async (_id: string, _params: unknown): Promise<void> => undefined),
+  mockRecordAuditRollup: vi.fn(),
+  mockWithAuditRollupScope: vi.fn(<T>(work: () => Promise<T>): Promise<T> => work()),
 }
 
 /**
@@ -304,6 +317,8 @@ export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
   recordAuditBatch: auditMockFns.mockRecordAuditBatch,
   recordAuditOnce: auditMockFns.mockRecordAuditOnce,
+  recordAuditRollup: auditMockFns.mockRecordAuditRollup,
+  withAuditRollupScope: auditMockFns.mockWithAuditRollupScope,
   /**
    * Real implementation, not a stub: callers under test derive their audit
    * metadata through it, so stubbing it would erase what the test asserts.

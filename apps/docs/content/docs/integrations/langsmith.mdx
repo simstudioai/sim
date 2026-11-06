@@ -1,31 +1,29 @@
 ---
 title: LangSmith
 description: Forward workflow runs to LangSmith for observability
+integration:
+  type: "langsmith"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="langsmith"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [LangSmith](https://www.langchain.com/langsmith) to record workflow, tool, or model runs with inputs, outputs, tags, metadata, and parent-child relationships. Create or update runs, retrieve a run, and attach feedback using the actions below.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.
-
-
 
 ## Actions
 
 ### LangSmith Create Run
 
 Forward a single run to LangSmith for ingestion.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -57,6 +55,8 @@ Forward a single run to LangSmith for ingestion.
 | `accepted` | boolean | Whether the run was accepted for ingestion |
 | `runId` | string | Run identifier provided in the request |
 | `message` | string | Response message from LangSmith |
+
+</ReferenceDetails>
 
 ### LangSmith Create Runs Batch
 
@@ -100,7 +100,7 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 
 #### Output
 
-This tool does not produce any outputs.
+No output fields are documented for this action.
 
 ### LangSmith Get Run
 

@@ -1,11 +1,11 @@
 import { GranolaIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildGranolaExtraFields,
   buildGranolaOutputs,
   granolaSetupInstructions,
   granolaTriggerOptions,
 } from '@/triggers/granola/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

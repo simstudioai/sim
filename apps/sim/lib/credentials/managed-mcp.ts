@@ -30,7 +30,7 @@ import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scope
 import { loadPreregisteredClient } from '@/lib/mcp/oauth/provider'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const MANAGED_MCP_TOKEN_SET_TYPE = 'managed-mcp-oauth-token-set' as const
 const MANAGED_MCP_TOKEN_SET_VERSION = 1 as const
@@ -323,7 +323,7 @@ export async function persistManagedMcpCredential(params: {
   mcpServerId: string
   mcpServerName: string
   tokens: OAuthTokens
-  tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }>
+  tools: ManagedMcpToolSnapshot[]
 }): Promise<{
   connectionId: string
   created: boolean

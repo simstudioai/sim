@@ -9,12 +9,12 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { presentFileAttachment } from '@/lib/uploads/server/delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +26,7 @@ export const revalidate = 0
  * The response carries no JSON envelope, so rate-limit state is surfaced via
  * `X-RateLimit-*` headers. Errors still render the canonical v2 JSON error body.
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
+ * `[fileId]` also takes the `files/<folder>/<name>` VFS path listings print.
  *
  * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
  *
@@ -41,15 +42,12 @@ export const GET = defineV2BinaryRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: downloadWorkspaceFileStream,
-  present: ({ file, stream, contentType, contentLength }) => ({
-    body: stream,
-    contentType,
-    contentDisposition: `attachment; ${encodeFilenameForHeader(file.name)}`,
-    contentLength,
-  }),
+  present: ({ file, stream, contentType, contentLength }) =>
+    presentFileAttachment({ body: stream, filename: file.name, contentType, contentLength }),
 })
 
 /**
@@ -67,6 +65,7 @@ export const PATCH = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: body.workspaceId,
     name: body.name,
   }),
@@ -89,6 +88,7 @@ export const DELETE = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
+    acceptVfsPath: true,
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: deleteWorkspaceFileOperation,

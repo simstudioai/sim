@@ -1,0 +1,162 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v2/files/[fileId]",
+    "operation": "files.download"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/files/[fileId]/content",
+    "operation": "files.update_content"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/files/[fileId]/content",
+    "operation": "files.update_content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/[fileId]/share",
+    "operation": "files.share.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/files/[fileId]/share",
+    "operation": "files.share.update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/[fileId]/text",
+    "operation": "files.read_content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/[fileId]/versions/[version]/text",
+    "operation": "files.versions.read_content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/bulk-download",
+    "operation": "files.download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/files/search",
+    "operation": "files.search_content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents",
+    "operation": "knowledge.connectors.documents.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents",
+    "operation": "knowledge.documents.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]",
+    "operation": "knowledge.documents.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]",
+    "operation": "knowledge.documents.update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks",
+    "operation": "knowledge.chunks.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks",
+    "operation": "knowledge.chunks.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]",
+    "operation": "knowledge.chunks.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]",
+    "operation": "knowledge.chunks.update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/export",
+    "operation": "knowledge.export"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/knowledge/search",
+    "operation": "knowledge.search"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/tables/[tableId]/query",
+    "operation": "tables.rows.query"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/tables/[tableId]/query/count",
+    "operation": "tables.rows.query"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/tables/[tableId]/rows",
+    "operation": "tables.rows.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/tables/[tableId]/rows",
+    "operation": "tables.rows.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/tables/[tableId]/rows/[rowId]",
+    "operation": "tables.rows.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/tables/[tableId]/rows/[rowId]",
+    "operation": "tables.rows.update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]",
+    "operation": "tables.rows.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/tables/[tableId]/rows/upsert",
+    "operation": "tables.rows.upsert"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/tools/[toolId]/execute",
+    "operation": "tools.execute"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workflows/[workflowId]/execute",
+    "operation": "workflows.execute"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workflows/[workflowId]/runs/[runId]",
+    "operation": "workflows.runs.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]",
+    "operation": "workflows.download_run_file"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workflows/[workflowId]/runs/[runId]/resume",
+    "operation": "workflows.runs.resume"
+  }
+]

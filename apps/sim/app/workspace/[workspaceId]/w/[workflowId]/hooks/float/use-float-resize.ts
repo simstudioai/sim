@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getTerminalHeight } from '@/lib/workflows/layout'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import {
   MAX_CHAT_HEIGHT,
   MAX_CHAT_WIDTH,
@@ -196,9 +196,7 @@ export function useFloatResize({
       const sidebarWidth = Number.parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
       )
-      const panelWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-      )
+      const panelWidth = getPanelWidth()
       const terminalHeight = getTerminalHeight()
 
       if (direction === 'top' || direction === 'top-left' || direction === 'top-right') {

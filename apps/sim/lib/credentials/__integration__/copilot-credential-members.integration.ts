@@ -15,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -105,7 +106,8 @@ describe('chat-delegated credential sharing', () => {
         createdAt: now,
       }))
     )
-    await db.insert(workspace).values(
+    await insertWorkspaceFixture(
+      db,
       [workspaceId, otherWorkspaceId].map((id) => ({
         id,
         name: 'Credential sharing fixture',
@@ -185,7 +187,7 @@ describe('chat-delegated credential sharing', () => {
 
   afterAll(async () => {
     await db.delete(auditLog).where(eq(auditLog.workspaceId, workspaceId))
-    await db.delete(workspace).where(inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, userIds))
   })

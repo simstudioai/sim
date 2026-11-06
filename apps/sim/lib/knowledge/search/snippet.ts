@@ -16,6 +16,12 @@ const HEADER_LINE = /^[A-Z][A-Za-z-]{1,15}: .*$/
  */
 const WORD_CHARACTER =
   /(?![\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Thai}])[\p{L}\p{N}_]/u
+const WORD_RUN = new RegExp(`(?:${WORD_CHARACTER.source})+`, 'gu')
+
+/** The words of a text, split where a run of `WORD_CHARACTER`s ends. */
+export function textWords(text: string): string[] {
+  return text.match(WORD_RUN) ?? []
+}
 
 /**
  * The document text without the header block some connectors prefix (the
@@ -38,13 +44,13 @@ export function stripLeadingHeaders(content: string): string {
  * The query's terms worth matching, longest first so the most specific one
  * wins: quotes and other search syntax around a term are not part of it.
  */
-export function queryTerms(query: string | undefined): string[] {
+export function queryTerms(query: string | undefined, minLength = MIN_TERM_LENGTH): string[] {
   return [
     ...new Set(
       (query ?? '')
         .split(/\s+/)
         .map((term) => term.replace(/^["'“”‘’(]+|["'“”‘’),.;:!?]+$/g, '').trim())
-        .filter((term) => term.length >= MIN_TERM_LENGTH)
+        .filter((term) => term.length >= minLength)
     ),
   ].sort((a, b) => b.length - a.length)
 }

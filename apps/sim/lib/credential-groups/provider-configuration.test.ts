@@ -79,13 +79,9 @@ describe('organization Slack app references', () => {
       clientSecret: 'current-secret',
     })
   })
-  it.each([
-    [true, true],
-    [false, true],
-    [true, false],
-  ])(
-    'resolves shared credentials only for an active installation and enabled organization (active=%s, enabled=%s)',
-    async (active, enabled) => {
+  it.each([true, false])(
+    'resolves shared credentials without a Search bot only for an enabled organization (enabled=%s)',
+    async (enabled) => {
       setEnv({ SLACK_SEARCH_APP_ID: 'A1' })
       shared.flag.mockImplementation(
         async (_flag, context) => enabled && context?.orgId === 'org-1'
@@ -107,20 +103,19 @@ describe('organization Slack app references', () => {
             encryptedSigningSecret: null,
           },
         ])
-        .mockResolvedValueOnce(active ? [{ id: 'installation' }] : [])
       const result = getSlackCredentialGroupConfiguration({
         organizationId: 'org-1',
         credentialGroupId: 'group-1',
       })
-      if (!enabled) await expect(result).rejects.toThrow('unavailable')
-      else if (active)
+      if (enabled)
         await expect(result).resolves.toMatchObject({
           clientId: 'environment-client',
           clientSecret: 'environment-secret',
           appId: 'A1',
           teamId: 'T1',
         })
-      else await expect(result).rejects.toThrow('disabled or removed')
+      else await expect(result).rejects.toThrow('unavailable')
+      expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
       expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
     }
   )

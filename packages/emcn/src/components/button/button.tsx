@@ -1,6 +1,10 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
+import {
+  MobileTouchTarget,
+  mobileTouchTargetClass,
+} from '../mobile-touch-target/mobile-touch-target'
 
 /**
  * `size='icon'` is the square 20px icon-only button — a chip field's trailing
@@ -75,6 +79,8 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
+  /** Reserves a 44px mobile hit target while preserving the button's visible size. */
+  mobileCompact?: boolean
   /**
    * Symmetric padding for icon actions whose content or layout determines their size.
    * Preserves the selected size's typography, corner radius and icon stroke.
@@ -85,13 +91,19 @@ export interface ButtonProps
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, iconPadding, ...props }, ref) => {
+  ({ className, variant, size, iconPadding, mobileCompact, ...props }, ref) => {
     return (
-      <button
-        ref={ref}
-        className={cn(buttonVariants({ variant, size, iconPadding }), className)}
-        {...props}
-      />
+      <MobileTouchTarget enabled={Boolean(mobileCompact)}>
+        <button
+          ref={ref}
+          className={cn(
+            buttonVariants({ variant, size, iconPadding }),
+            mobileCompact && mobileTouchTargetClass,
+            className
+          )}
+          {...props}
+        />
+      </MobileTouchTarget>
     )
   }
 )

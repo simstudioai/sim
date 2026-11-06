@@ -17,6 +17,24 @@ function lockTag(tag: string): SQL {
 }
 
 /**
+ * Bounds lock waits in `acquire` by `timeoutMs` (SQLSTATE 55P03 past it), then restores the
+ * caller's own `lock_timeout` so the bound never reaches the work done under the locks.
+ */
+export async function withLockTimeout<T>(
+  tx: DbTransaction,
+  timeoutMs: number,
+  acquire: () => Promise<T>
+): Promise<T> {
+  const [setting] = await tx.execute<{ previous: string }>(
+    sql`SELECT current_setting('lock_timeout') AS previous`
+  )
+  await tx.execute(sql`SELECT set_config('lock_timeout', ${`${timeoutMs}ms`}, true)`)
+  const result = await acquire()
+  await tx.execute(sql`SELECT set_config('lock_timeout', ${setting?.previous ?? '0'}, true)`)
+  return result
+}
+
+/**
  * Blocks until the transaction-scoped advisory lock for `key` is held. The lock
  * releases on commit or rollback. It takes a transaction, never the pool: on a
  * pooled connection the statement autocommits, releasing the lock before the

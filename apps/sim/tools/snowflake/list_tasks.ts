@@ -3,6 +3,7 @@ import type { SnowflakeListTasksParams, SnowflakeStatementResponse } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const listTasksTool: ToolConfig<SnowflakeListTasksParams, SnowflakeStatementResponse> = {
   id: 'snowflake_list_tasks',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Tasks',
   description: 'List tasks in a Snowflake schema.',
   params: {

@@ -5,7 +5,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
-import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
+import {
+  ffmpegArgs,
+  ffprobeJsonArgs,
+  resolveExecutable,
+  runExecutable,
+} from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('MediaFfmpeg')
 
@@ -289,7 +294,8 @@ async function runCommand(
 
   ensureFfmpeg()
   try {
-    await runExecutable(ffmpegPath as string, [...FFMPEG_BASE_ARGS, ...args, outputPath], {
+    const commandArgs = [...ffmpegArgs(args), outputPath]
+    await runExecutable(ffmpegPath as string, commandArgs, {
       cwd,
       maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
       signal: ctx.signal,
@@ -330,15 +336,11 @@ async function probeFile(ctx: FfmpegRunContext, filePath: string): Promise<Media
 
   let stdout: string
   try {
-    ;({ stdout } = await runExecutable(
-      binary,
-      ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', filePath],
-      {
-        timeoutMs: timeout,
-        maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
-        signal: ctx.signal,
-      }
-    ))
+    ;({ stdout } = await runExecutable(binary, ffprobeJsonArgs(filePath), {
+      timeoutMs: timeout,
+      maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
+      signal: ctx.signal,
+    }))
   } catch (error) {
     const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }
     if (failure.name === 'AbortError') throw new Error(CANCELLED_MESSAGE)

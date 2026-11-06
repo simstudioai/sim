@@ -1,59 +1,57 @@
 ---
 title: Wiza
 description: Find, enrich, and verify B2B contact data with Wiza
+integration:
+  type: "wiza"
+  color: "#9284BC"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="wiza"
-  color="#9284BC"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Wiza](https://wiza.co/) to search prospects, enrich companies, reveal contact details, and check credits. Individual Reveal starts enrichment and polls for completion within one block operation; a separate polling block is not required.
+Use [Wiza](https://wiza.co/) to search prospects, enrich companies, reveal contact details, and check credits. Individual Reveal starts enrichment and polls within one block operation; it fails if the polling window ends before completion.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 {/* MANUAL-CONTENT-START:usage */}
-## Wiza API Key Setup
+## Set up the Wiza API key [#wiza-api-key-setup]
 
-Wiza authenticates via API key. To get yours:
+1. Sign in to your [Wiza account](https://app.wiza.co/).
+2. Open **Settings → API** and create a key, or copy an existing one.
+3. Paste it into the block's **Wiza API Key** field.
 
-1. Log in to your [Wiza account](https://app.wiza.co/).
-2. Open **Settings → API** and generate a new API key (or copy an existing one).
-3. In Sim, open the Wiza block and paste the key into the **Wiza API Key** field.
-
-The same key is used for every Wiza operation. Wiza enforces a rate limit of 30 requests per minute (43,200 per day) per key.
+The key is used for each operation. Wiza's [rate-limit guide](https://help.wiza.co/en/articles/12325950-wiza-api-rate-limits) currently lists Individual Reveal at 15 requests per second. Limits vary by endpoint; reduce request frequency after a `429` response.
 
 ## Individual Reveal
 
-Select **Individual Reveal** and provide a LinkedIn URL, a name plus company/domain, or an email. The operation starts the reveal and polls until it resolves, returning the contact data with `status` and `is_complete`. You do not need separate start and get operations or a callback URL.
+Select **Individual Reveal** and supply a LinkedIn URL, a name plus company/domain, or an email. The operation starts enrichment and polls at two-second intervals for up to 60 attempts. It returns contact data, `status`, and `is_complete` when a terminal result arrives. No separate polling block or callback URL is required.
 
-## Enrichment Levels and Credits
+An incomplete reveal after that polling window fails the block. Three consecutive failed HTTP polling responses also fail it. Wiza may continue processing an already-started reveal; inspect the reveal in Wiza before submitting it again.
 
-When starting an individual reveal, choose the enrichment level that matches the data you need:
+## Enrichment levels and credits [#enrichment-levels-and-credits]
 
-- **`none`** — Identity only, no contact info (no credit spend)
-- **`partial`** — Verified work email (email credits)
-- **`phone`** — Mobile phone (phone credits)
-- **`full`** — Email + phone (email + phone credits)
+| Level | Requested data | Provider credit use |
+| --- | --- | --- |
+| `none` | Profile and company data; no contact details | 1 credit for a matched LinkedIn profile |
+| `partial` | Emails, with work/personal acceptance controls | 2 credits when a valid email is returned |
+| `phone` | Phone numbers | 5 credits when a phone is returned |
+| `full` | Emails and phones | Applicable email and phone charges |
 
-Use `wiza_get_credits` to monitor remaining email, phone, export, and API credits before running large batches.
+Check `wiza_get_credits` before large batches and inspect the response's `credits` object. Wiza documents deductions when data is found; see its [API guide](https://help.wiza.co/en/articles/14115896-wiza-api-everything-you-need-to-know) for current credit rules. Sim-provided API keys have their own metering; distinguish that charge from the provider balance on a key you supply.
 {/* MANUAL-CONTENT-END */}
 
 
-Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.
-
-
+Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.
 
 ## Actions
 
 ### Wiza Prospect Search
 
 Search Wiza's database of prospects using person, company, and financial filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -87,9 +85,13 @@ Search Wiza's database of prospects using person, company, and financial filters
 | `total` | number | Total number of matching prospects |
 | `profiles` | array | Sample profiles matching the filter criteria |
 
+</ReferenceDetails>
+
 ### Wiza Company Enrichment
 
 Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +134,13 @@ Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed fi
 | `company_country` | string | Country |
 | `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
 
+</ReferenceDetails>
+
 ### Wiza Individual Reveal
 
-Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.
+Reveal a contact by LinkedIn URL, name plus company/domain, or email. Starts the reveal and polls at two-second intervals for up to 60 attempts, failing if it remains incomplete. Wiza charges 2 credits for a valid email, 5 for a phone, or 1 for a matched profile-only reveal.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,6 +195,8 @@ Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the r
 | `company_location` | string | Full company location |
 | `company_description` | string | Company description |
 | `credits` | json | Credits consumed by the reveal |
+
+</ReferenceDetails>
 
 ### Wiza Get Credits
 

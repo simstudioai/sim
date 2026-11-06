@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { STILL_RUNNING_EXIT_CODE } from 'sim/embed'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type {
   ToolExecutionContext,
@@ -15,6 +16,9 @@ const logger = createLogger('MothershipSimCli')
  * (`request`) beside the model's raw argv (`args`, kept for display and the log); only
  * the request is executed — this side never re-parses tokens. The worker folds
  * exitCode/stdout/stderr into the model window and applies its own output budget.
+ * A wait whose `--wait-timeout` elapsed with the work still going settles the call as
+ * done: the worker continues it in further calls, so the chat, the tool record and the
+ * tool metrics must not read it as a failure.
  */
 export async function executeSimCli(
   params: Record<string, unknown>,
@@ -40,6 +44,11 @@ export async function executeSimCli(
       signal: context.abortSignal,
       toolCallId: context.toolCallId,
       copilotToolExecution: context.copilotToolExecution,
+      copilotResourceAdmission: context.copilotResourceAdmission,
+      copilotInteractionMode: context.copilotInteractionMode,
+      executorDelegationOrigin: context.executorDelegationOrigin,
+      mcpBlockId: context.mcpBlockId,
+      boundWorkflowExecutionId: context.boundWorkflowExecutionId,
       requestMode: context.requestMode,
       searchSurface: context.searchSurface,
       assistantSearch: context.assistantSearch,
@@ -48,7 +57,9 @@ export async function executeSimCli(
       messageId: context.messageId,
       parentToolCallId: context.parentToolCallId,
       userPermission: context.userPermission,
+      secretActorUserId: context.secretActorUserId,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      readOnly: context.benchmark === 'distill',
     })
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,
@@ -56,12 +67,12 @@ export async function executeSimCli(
       sink: parsed.data.sink?.kind ?? 'none',
       stdoutBytes: result.stdout.length,
     })
+    if (result.exitCode === 0 || result.exitCode === STILL_RUNNING_EXIT_CODE)
+      return { success: true, output: result }
     return {
-      success: result.exitCode === 0,
+      success: false,
       output: result,
-      ...(result.exitCode === 0
-        ? {}
-        : { error: result.stderr.split('\n')[0] || `sim CLI exited with code ${result.exitCode}` }),
+      error: result.stderr.split('\n')[0] || `sim CLI exited with code ${result.exitCode}`,
     }
   } catch (error) {
     return {

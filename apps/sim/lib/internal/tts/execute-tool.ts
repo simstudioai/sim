@@ -1,6 +1,6 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { getValidationErrorMessage } from '@/lib/api/server'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type {
   InternalToolOperationCall,
@@ -175,7 +175,10 @@ async function executeOperation<I>(
     if (error instanceof TtsOperationError) {
       return Response.json(error.body, { status: error.status })
     }
-    const message = getErrorMessage(error, legacy ? 'Unknown error' : 'TTS synthesis failed')
+    const message = getUserFacingErrorMessage(
+      error,
+      legacy ? 'Unknown error' : 'TTS synthesis failed'
+    )
     return Response.json(
       { error: legacy ? `Internal Server Error: ${message}` : message },
       { status: isPayloadSizeLimitError(error) ? 413 : 500 }

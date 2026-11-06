@@ -13,13 +13,13 @@ export const metadata: Metadata = {
 }
 
 /**
- * File detail entry. `Files` resolves the open file out of the workspace file LIST, so this route
- * needs the same prefetch its sibling list page does — without it the server can only ever render
- * the "resolving the record" spinner, and the real header (breadcrumbs, actions) has to pop in a
- * frame later on the client.
+ * File detail entry. `Files` resolves the open file from its record, so this route prefetches it
+ * with the browser's chrome — without it the server can only ever render the "resolving the
+ * record" spinner, and the real header (breadcrumbs, actions) has to pop in a frame later on the
+ * client.
  *
  * It also removes a whole class of hydration mismatch: which branch `Files` renders is decided by
- * whether that list is in the cache, so a server render without it and a client render with it
+ * whether that record is in the cache, so a server render without it and a client render with it
  * disagree on the header's markup (a static `…` crumb vs. the file's dropdown crumb). Prefetching
  * here makes both sides read the same cache and pick the same branch by construction.
  *
@@ -31,11 +31,11 @@ export default async function FilesFilePage({
 }: {
   params: Promise<{ workspaceId: string; fileId: string }>
 }) {
-  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
+  const [{ workspaceId, fileId }, session] = await Promise.all([params, getSession()])
 
   const queryClient = getQueryClient()
   if (session?.user?.id) {
-    await prefetchFilesBrowser(queryClient, workspaceId, session.user.id)
+    await prefetchFilesBrowser(queryClient, workspaceId, session.user.id, { fileId })
   }
 
   return (

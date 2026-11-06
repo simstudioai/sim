@@ -1,59 +1,78 @@
 ---
 title: Tables
-description: Create, query, and manage workspace tables from Chat.
+description: Create tables, query or update rows, and export data from Chat.
 ---
 
-import { Image } from '@/components/ui/image'
-import { FAQ } from '@/components/ui/faq'
+Ask Sim to create a workspace table, inspect its data, or change rows. Reference the table by name or with an `@`-mention. Tables can open in Chat's resource panel for review.
 
-<Image src="/static/mothership/table-example.png" alt="Chat resource panel showing the pipeline_deals table with company, deal_owner, stage, and amount columns, alongside a chat summary of total pipeline value and breakdown by stage" width={900} height={487} />
+Table reads, writes, creation, and exports follow your workspace access and organization policy. Storage and row limits depend on the plan and deployment configuration.
 
-Create a table from a description or a CSV, query it in plain language, add or update rows, and export the results — all through conversation. Tables open in the resource panel as soon as they're created or referenced.
+## Create or import a table [#creating-tables]
 
-## Creating Tables
+Describe the columns and types, or attach a CSV for Sim to import:
 
-Describe the schema and Sim creates the table:
+- "Create a leads table with name, email, company, status, and created date columns."
+- "Create a table matching this CSV." Attach the file.
+- "Create an errors table with message and workflow text columns, a timestamp date column, and a resolved boolean."
 
-- "Create a leads table with columns for name, email, company, status, and created date"
-- "Create a table that matches the structure of this CSV [attach file]"
-- "Set up an errors table with: id (text), message (text), workflow (text), timestamp (date), resolved (boolean)"
-- "Create a prospect table for outbound — company, domain, employee count, industry, ICP score, and last contacted date"
-- "Set up an enrichment results table to store output from the lead enrichment workflow: email, company, title, LinkedIn URL, fit score"
+Inspect the schema and imported rows before using the table in an agent. Specify unique or required columns when the data needs those constraints.
 
-## Querying Data
+## Query data [#querying-data]
 
-Ask questions about table contents in plain language:
+Name the table, fields, filters, and time range:
 
-- "How many rows in the leads table have status 'qualified'?"
-- "Show me all records from the past 7 days where score is above 0.8"
-- "What are the top 5 most common error messages in the failures table?"
-- "Are there any duplicate emails in the contacts table?"
-- "How many prospects have an ICP score above 0.75 and haven't been contacted in the past 30 days?"
-- "What's the conversion rate from 'contacted' to 'meeting booked' in the pipeline table this month?"
+- "How many leads have status 'qualified'?"
+- "Show leads from the past seven days with score above 0.8."
+- "Find duplicate emails in the contacts table."
+- "Calculate conversion from 'contacted' to 'meeting booked' in this month's pipeline data."
 
-Sim translates the question into a structured query and returns the results.
+Sim can query the matching rows and compute summaries. It can also read multiple tables and combine their results: describe the relationship, such as matching `company_id` between contacts and companies. This does not create a persistent join between the tables.
 
-## Adding and Updating Rows
+Chat can mask tracked secret values or omit rows and selected cells it cannot safely check. Matching-row totals and pagination cursors still describe the database query; a shorter response does not prove that every match was shown. Summaries based on returned rows can be incomplete.
 
-Add individual rows, bulk-update based on a condition, or delete records — all in plain language:
+Large reads may need pagination or an export. Name the subset you need instead of requesting every row when a filter can answer the question.
 
-- "Add a row to the leads table: Acme Corp, jane@acme.com, status pending"
-- "Mark all rows in the queue table as processed where created_at is before today"
-- "Update the price column for all rows where tier is 'pro' to 49"
-- "Delete all rows in the test_events table"
+## Add or update rows [#adding-and-updating-rows]
 
-## Exporting
+Provide values by column name. For bulk changes, state the condition:
 
-Export a full table or a filtered subset as a CSV. The file is saved to your workspace and can be downloaded or referenced in other workflows:
+- "Add a leads row with company=Acme Corp, email=jane@acme.com, and status=pending."
+- "Mark queue rows as processed where createdAt is before today."
+- "Set price to 49 for rows where tier is 'pro'."
 
-- "Export the leads table to a CSV"
-- "Export all rows where status is 'closed' and save as a file"
+`createdAt` is the built-in creation timestamp. Use the actual custom column name when you mean a separate date field.
 
-## Using Tables in Workflows
+Review the affected records and ask Sim to verify the updated values. Table writes can also trigger configured workflow automation.
 
-Tables created in Chat are immediately available in workflows via the [Table tool](/integrations/table). Reference a table by name — no additional configuration needed.
+A write can be saved even when its returned row is withheld from Chat. Inspect the table before repeating a change whose result could not be shown.
 
-<FAQ items={[
-  { question: "Can Sim join or combine data from multiple tables?", answer: "Yes. Describe the relationship and what you want — Sim will query both tables and combine the results." },
-  { question: "Is there a row limit?", answer: "Row limits depend on the workspace plan and deployment configuration. Use pagination for large reads; see Tables for storage and query limits." },
-]} />
+### Delete rows
+
+Deleting rows removes their stored data. Identify the table and condition before asking for a destructive action:
+
+- "Delete all rows in the test_events table."
+- "Delete contacts with status 'test' from the contacts table."
+
+Removing rows does not undo external actions previously performed by workflows using them.
+
+## Export data [#exporting]
+
+Export the whole table or a filtered subset as CSV:
+
+- "Export the leads table as leads.csv in workspace Files."
+- "Export pipeline rows where status is 'closed' and save them as closed-deals.csv."
+
+Wait for the export to complete, then inspect its row count and download the file. A CSV created from rows returned to Chat can omit rows unavailable to Chat. Use the table's own export control when you need an authorized export of the stored data. A saved workspace CSV can be referenced by other workflows.
+
+## Use a table in a workflow [#using-tables-in-workflows]
+
+Ask Sim to configure a Table block or tool with the intended table and operation, or select the table in the workflow builder. The table must be available to the workflow's execution context; naming it in Chat does not replace the block's configuration.
+
+For per-row enrichment, ask Sim to connect a deployed workflow to table columns so its outputs populate each row. See [workflow columns](/tables/workflow-columns) for dependencies and execution behavior.
+
+## Related docs
+
+- [Tables](/tables)
+- [Using tables in workflows](/tables/using-in-workflows)
+- [Table integration](/integrations/table)
+- [Files and documents in Chat](/chat/files)

@@ -1,19 +1,13 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+import { AuthAccountMenu, AuthIcon, AuthButton as Chip } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   OAUTH_SCOPE_DESCRIPTIONS,
   SIM_CLI_CLIENT_ID,
   visibleOAuthScopes,
 } from '@/lib/auth/oauth-provider'
-import {
-  AuthFormMessage,
-  AuthHeader,
-  AuthSubmitButton,
-  AuthTextLink,
-} from '@/app/(auth)/components'
+import { AuthFormMessage, AuthHeader, AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
 import {
@@ -113,6 +107,7 @@ export function OAuthConsentView({
     consent.isPending || consent.isSuccess || switchAccount.isPending || switchAccount.isSuccess
 
   const decide = (accept: boolean) => {
+    if (isPending) return
     switchAccount.reset()
     consent.mutate(accept, {
       onSuccess: (url) => {
@@ -122,6 +117,7 @@ export function OAuthConsentView({
   }
 
   const changeAccount = () => {
+    if (isPending) return
     consent.reset()
     switchAccount.mutate(undefined, {
       onSuccess: () => {
@@ -133,49 +129,60 @@ export function OAuthConsentView({
   }
 
   return (
-    <div className='space-y-6'>
+    <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader
         title={`Authorize ${appName}`}
         description={isCli ? undefined : 'Only continue if you started this yourself.'}
       />
-      <div className='space-y-4'>
+      <AuthAccountMenu
+        email={email}
+        disabled={isPending}
+        pending={switchAccount.isPending}
+        onSwitch={changeAccount}
+      />
+      <div className='au:space-y-[var(--auth-group-gap)]'>
         {scopes.length > 0 && (
-          <ul className='space-y-2 px-2'>
+          <ul className='au:space-y-2 au:px-2'>
             {scopes.map((item) => (
-              <li key={item} className='flex items-start gap-2 text-[var(--text-body)] text-sm'>
-                <Check
-                  aria-hidden='true'
-                  className='mt-[3px] size-[14px] shrink-0 text-[var(--text-icon)]'
+              <li
+                key={item}
+                className='au:flex au:items-start au:gap-2 au:text-[var(--auth-primary)] au:text-body'
+              >
+                <AuthIcon
+                  name='check'
+                  className='au:mt-[3px] au:size-4 au:shrink-0 au:text-[var(--auth-secondary)]'
                 />
                 <span>{OAUTH_SCOPE_DESCRIPTIONS[item]}</span>
               </li>
             ))}
           </ul>
         )}
-        <AuthSubmitButton
-          type='button'
-          loading={consent.isPending && consent.variables === true}
-          disabled={isPending}
-          loadingLabel='Authorizing'
-          onClick={() => decide(true)}
-        >
-          Allow
-        </AuthSubmitButton>
-        <Chip
-          type='button'
-          variant='border'
-          fullWidth
-          disabled={isPending}
-          className={AUTH_BUTTON_CLASS}
-          onClick={() => decide(false)}
-        >
-          {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}
-        </Chip>
         {!isCli && destination && (
-          <p className='break-words text-center text-[var(--text-muted)] text-caption'>
+          <p className='au:break-words au:text-[var(--auth-secondary)] au:text-caption'>
             Returns to {destination}.
           </p>
         )}
+        <div className='au:space-y-2'>
+          <AuthSubmitButton
+            type='button'
+            loading={consent.isPending && consent.variables === true}
+            disabled={isPending}
+            loadingLabel='Authorizing'
+            onClick={() => decide(true)}
+          >
+            Allow
+          </AuthSubmitButton>
+          <Chip
+            type='button'
+            variant='border'
+            fullWidth
+            disabled={isPending}
+            className={AUTH_BUTTON_CLASS}
+            onClick={() => decide(false)}
+          >
+            {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}
+          </Chip>
+        </div>
         {(consent.isError || switchAccount.isError) && (
           <div role='alert'>
             <AuthFormMessage type='error' align='center'>
@@ -186,12 +193,6 @@ export function OAuthConsentView({
             </AuthFormMessage>
           </div>
         )}
-        <p className='break-words text-center text-[var(--text-muted)] text-caption'>
-          Continuing as {email}.{' '}
-          <AuthTextLink onClick={changeAccount} disabled={isPending}>
-            {switchAccount.isPending ? 'Signing out…' : 'Use another account'}
-          </AuthTextLink>
-        </p>
       </div>
     </div>
   )

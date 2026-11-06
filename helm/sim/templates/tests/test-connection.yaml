@@ -40,15 +40,25 @@ spec:
         - -c
         - |
           set -eu
-          APP_URL="http://{{ include "sim.fullname" . }}-app:{{ .Values.app.service.port }}/"
-          echo "Probing $APP_URL"
-          wget -q -T {{ .Values.tests.timeoutSeconds }} --tries=1 --spider "$APP_URL"
+          # A pod turns Ready before every node routes its Service to it, so a
+          # probe sent the moment `helm install --wait` returns can be refused.
+          # Each URL is retried until a minute has passed, then the test fails.
+          probe() {
+            deadline=$(($(date +%s) + 60))
+            while ! wget -q -T {{ .Values.tests.timeoutSeconds }} --spider "$1"; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "FAILED: $1 did not answer within 60s"
+                return 1
+              fi
+              echo "$1 did not answer; retrying in 5s"
+              sleep 5
+            done
+            echo "OK: $1"
+          }
+          probe "http://{{ include "sim.fullname" . }}-app:{{ .Values.app.service.port }}/"
           {{- if .Values.realtime.enabled }}
-          RT_URL="http://{{ include "sim.fullname" . }}-realtime:{{ .Values.realtime.service.port }}/health"
-          echo "Probing $RT_URL"
-          wget -q -T {{ .Values.tests.timeoutSeconds }} --tries=1 --spider "$RT_URL"
+          probe "http://{{ include "sim.fullname" . }}-realtime:{{ .Values.realtime.service.port }}/health"
           {{- end }}
-          echo "OK"
       resources:
         {{- toYaml .Values.tests.resources | nindent 8 }}
 {{- end }}

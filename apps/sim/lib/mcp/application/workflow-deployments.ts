@@ -30,7 +30,7 @@ import {
   generateToolInputSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const MAX_LISTED_WORKFLOW_MCP_SERVERS = 100
 const MAX_LISTED_WORKFLOW_MCP_TOOLS = 2000
@@ -211,6 +211,8 @@ export const createWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
   async execute({ principal, input, context }) {
     const result = await performCreateWorkflowMcpServer({
       ...input,
+      // Safe only because the operation's `minimumRole` is `admin`.
+      allowVisibilityChange: true,
       workspaceId: context.workspaceId,
       userId: attribution(principal, context.billedAccountUserId),
       projectLegacyAudit: false,
@@ -259,6 +261,8 @@ export const updateWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
   async execute({ principal, input, context }) {
     const result = await performUpdateWorkflowMcpServer({
       ...input,
+      // Safe only because the operation's `minimumRole` is `admin`.
+      allowVisibilityChange: true,
       workspaceId: context.workspaceId,
       userId: attribution(principal, context.billedAccountUserId),
       projectLegacyAudit: false,

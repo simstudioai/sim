@@ -15,6 +15,7 @@ import {
 } from '@/lib/mcp/oauth'
 import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
 import { mcpService } from '@/lib/mcp/service'
+import { toManagedMcpToolSnapshots } from '@/lib/mcp/tool-snapshot'
 
 export async function startCredentialGroupMcpOAuth(
   context: CredentialGroupMcpOAuthContext,
@@ -118,11 +119,7 @@ export async function completeCredentialGroupMcpOAuth(
     mcpServerId: context.server.id,
     mcpServerName: context.server.name,
     tokens: grantedTokens,
-    tools: tools.map((tool) => ({
-      name: tool.name,
-      ...(tool.description ? { description: tool.description } : {}),
-      inputSchema: tool.inputSchema,
-    })),
+    tools: toManagedMcpToolSnapshots(tools),
   })
   return { ...completion, mcpServerId: context.server.id }
 }

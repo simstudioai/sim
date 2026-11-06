@@ -1,11 +1,10 @@
-import type { InferPageType } from 'fumadocs-core/source'
-import type { PageData, source } from '@/lib/source'
+import type { DocsPage } from '@/lib/content/types'
 
-export async function getLLMText(page: InferPageType<typeof source>) {
-  const data = page.data as unknown as PageData
-  if (typeof data.getText !== 'function') return ''
-  const processed = await data.getText('processed')
-  return `# ${data.title} (${page.url})
+/** All public representations use the catalog's complete processed Markdown. */
+export function getLLMText(page: DocsPage): string {
+  return page.markdown
+}
 
-${processed}`
+export function isApiOperationPage(page: DocsPage): boolean {
+  return page.operation !== undefined
 }

@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/mcp/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/queries')>()),
   getWorkflowMcpServerById: mocks.getServer,

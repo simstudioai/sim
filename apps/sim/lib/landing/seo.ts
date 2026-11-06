@@ -21,6 +21,14 @@ interface LandingMetadataInput {
   imageAlt?: string
   /** Twitter card image alt text. Defaults to {@link imageAlt}. */
   twitterImageAlt?: string
+  /** RSS feed path advertised through `<link rel="alternate">`, e.g. "/changelog.xml". */
+  feedPath?: string
+  /**
+   * The route renders its own card from a sibling `opengraph-image`. The shared
+   * image is then left out, because an explicit `images` entry would replace the
+   * route's card on X and Slack, where `twitter:image` falls back to it.
+   */
+  routeImage?: boolean
 }
 
 /**
@@ -29,9 +37,10 @@ interface LandingMetadataInput {
  * landing family, so per-page files declare only what actually varies (title,
  * description, keywords, path, and any non-default image alt).
  *
- * Note: dynamic and image-bearing routes that resolve their card from a sibling
- * `opengraph-image` (integrations, models) and the blog family (`buildPostMetadata`
- * in `lib/blog/seo`) intentionally do not use this helper.
+ * Note: the integration and model routes, which resolve their card from a sibling
+ * `opengraph-image`, and the blog family (`buildPostMetadata` in `lib/blog/seo`)
+ * intentionally do not use this helper. A route that otherwise fits it but has its
+ * own card passes `routeImage`.
  */
 export function buildLandingMetadata({
   title,
@@ -40,6 +49,8 @@ export function buildLandingMetadata({
   keywords,
   imageAlt,
   twitterImageAlt,
+  feedPath,
+  routeImage = false,
 }: LandingMetadataInput): Metadata {
   const url = `${SITE_URL}${path}`
   const ogAlt = imageAlt ?? title
@@ -60,12 +71,7 @@ export function buildLandingMetadata({
       url,
       siteName: 'Sim',
       locale: 'en_US',
-      images: [
-        {
-          ...LANDING_SOCIAL_IMAGE,
-          alt: ogAlt,
-        },
-      ],
+      ...(routeImage ? {} : { images: [{ ...LANDING_SOCIAL_IMAGE, alt: ogAlt }] }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -73,11 +79,12 @@ export function buildLandingMetadata({
       creator: '@simdotai',
       title,
       description,
-      images: { url: LANDING_SOCIAL_IMAGE.url, alt: twitterAlt },
+      ...(routeImage ? {} : { images: { url: LANDING_SOCIAL_IMAGE.url, alt: twitterAlt } }),
     },
     alternates: {
       canonical: url,
       languages: { 'en-US': url, 'x-default': url },
+      ...(feedPath ? { types: { 'application/rss+xml': `${SITE_URL}${feedPath}` } } : {}),
     },
     robots: {
       index: true,

@@ -208,4 +208,8 @@ export const v2KnowledgeErrorPolicies = {
     notFoundMessage: 'Knowledge base not found',
     render: v2KnowledgeDocumentUploadErrorPolicy.render,
   }),
+  concealImportAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base import not found',
+    render: v2KnowledgeUsageErrorPolicy.render,
+  }),
 } as const

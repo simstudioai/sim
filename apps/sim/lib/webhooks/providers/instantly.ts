@@ -5,6 +5,7 @@ import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -127,11 +128,11 @@ export const instantlyHandler: WebhookProviderHandler = {
     const campaignId = optionalId(providerConfig.triggerCampaignId)
 
     if (!apiKey?.trim()) {
-      throw new Error('Instantly API Key is required.')
+      throw new WebhookDeploymentConfigurationError('Instantly API Key is required.')
     }
 
     if (!triggerId) {
-      throw new Error('Instantly trigger ID is required.')
+      throw new WebhookDeploymentConfigurationError('Instantly trigger ID is required.')
     }
 
     const { getInstantlySubscriptionEventTypeForTrigger } = await import(

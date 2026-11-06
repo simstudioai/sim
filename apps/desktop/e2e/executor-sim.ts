@@ -12,6 +12,7 @@ import {
   expect,
   type Page,
 } from '@playwright/test'
+import { getErrorMessage } from '@sim/utils/errors'
 
 /**
  * A fixture Sim that speaks the background executor's device protocol (register, inbox,
@@ -495,6 +496,25 @@ export async function settled(
     .poll(() => sim.requireCall(toolCallId).completions.length, { timeout })
     .toBeGreaterThan(0)
   return sim.requireCall(toolCallId).completions[0] as Completion
+}
+
+/**
+ * Answers a shell dialog with one of its buttons. The dialog destroys its window as soon as the
+ * answer reaches the main process, which can happen before Chromium acknowledges the click to
+ * Playwright; the click then rejects with a closed target although the answer went through. The
+ * window closing is the proof the answer landed, so that is what this waits for.
+ */
+export async function answerShellDialog(dialog: Page, button: string): Promise<void> {
+  const closed = dialog.waitForEvent('close')
+  await dialog
+    .getByRole('button', { name: button, exact: true })
+    .click()
+    .catch((error: unknown) => {
+      if (!getErrorMessage(error).includes('Target page, context or browser has been closed')) {
+        throw error
+      }
+    })
+  await closed
 }
 
 export function refFor(outline: string, name: string): number {

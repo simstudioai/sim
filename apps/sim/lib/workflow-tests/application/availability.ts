@@ -1,6 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** permission-group-exempt: reports rollout availability only; test operations enforce files.use. */
 const availabilityOperation = defineWorkspaceOperation({
@@ -9,6 +9,7 @@ const availabilityOperation = defineWorkspaceOperation({
   oauthScope: 'api:read',
   workspaceApiKey: 'allow',
   capability: 'none',
+  contentDelivery: 'none',
   principalKinds: [
     'session',
     'personal_api_key',

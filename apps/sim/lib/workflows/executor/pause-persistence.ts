@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -21,6 +22,9 @@ interface HandlePostExecutionPauseStateArgs {
  * Every caller of `executeWorkflowCore` must call this after execution completes
  * to ensure HITL pause state is persisted to the database and queued resumes are drained.
  *
+ * - If the paused completion itself found the workspace or workflow deleted: nothing is left
+ *   to persist. A deletion landing after the paused log was written still fails
+ *   `persistPauseResult` and is force-failed below.
  * - If execution is paused but its log was never finalized: marks execution as failed
  * - If execution is paused without a snapshot: marks execution as failed
  * - If execution is paused with a valid snapshot: persists to `paused_executions` table
@@ -41,6 +45,14 @@ export async function handlePostExecutionPauseState({
   if (result.status === 'paused') {
     await loggingSession.waitForPostExecution()
     if (!loggingSession.hasCompleted()) {
+      const deletedScope = loggingSession.getDeletedScope()
+      if (deletedScope) {
+        logger.info('Skipped persisting pause state: its scope was deleted', {
+          executionId,
+          deletedScope,
+        })
+        return
+      }
       logger.error('Paused execution log was not finalized', { executionId })
       await loggingSession.markAsFailed('Failed to record paused execution')
     } else if (!result.snapshotSeed) {
@@ -64,7 +76,7 @@ export async function handlePostExecutionPauseState({
           retryable: isRetryableInfrastructureError(pauseError),
         })
         await loggingSession.markAsFailed(
-          `Failed to persist pause state: ${toError(pauseError).message}`
+          `Failed to persist pause state: ${getUserFacingErrorMessage(pauseError)}`
         )
       }
     }

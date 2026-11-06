@@ -1,5 +1,10 @@
+import type {
+  TailscaleSetDeviceRoutesParams,
+  TailscaleSetDeviceRoutesResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse, parseTailscaleList } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { TailscaleSetDeviceRoutesParams, TailscaleSetDeviceRoutesResponse } from './types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleSetDeviceRoutesTool: ToolConfig<
   TailscaleSetDeviceRoutesParams,
@@ -7,64 +12,42 @@ export const tailscaleSetDeviceRoutesTool: ToolConfig<
 > = {
   id: 'tailscale_set_device_routes',
   name: 'Tailscale Set Device Routes',
-  description: 'Set the enabled subnet routes for a device',
+  description: 'Replace the enabled subnet routes for a device',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
-    },
-    tailnet: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     deviceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Device ID',
+      description: 'Device nodeId (preferred) or legacy device ID',
     },
     routes: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Comma-separated list of subnet routes to enable (e.g., "10.0.0.0/24,192.168.1.0/24")',
+      description: 'Comma-separated enabled CIDR routes; use [] to disable all routes',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/routes`,
+      `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}/routes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      routes: params.routes
-        .split(',')
-        .map((r) => r.trim())
-        .filter(Boolean),
-    }),
+    body: (params) => ({ routes: parseTailscaleList(params.routes) }),
   },
-
   transformResponse: async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { advertisedRoutes: [], enabledRoutes: [] },
-        error: (data as Record<string, string>).message ?? 'Failed to set device routes',
-      }
-    }
-
-    const data = await response.json()
+    await assertTailscaleResponse(response)
+    const data: { advertisedRoutes: string[]; enabledRoutes: string[] } = await response.json()
     return {
       success: true,
       output: {
@@ -73,9 +56,20 @@ export const tailscaleSetDeviceRoutesTool: ToolConfig<
       },
     }
   },
-
   outputs: {
-    advertisedRoutes: { type: 'array', description: 'Subnet routes the device is advertising' },
-    enabledRoutes: { type: 'array', description: 'Subnet routes that are now enabled' },
+    advertisedRoutes: {
+      type: 'array',
+      description: 'Subnet CIDR routes advertised by the device',
+      items: {
+        type: 'string',
+      },
+    },
+    enabledRoutes: {
+      type: 'array',
+      description: 'Approved subnet CIDR routes',
+      items: {
+        type: 'string',
+      },
+    },
   },
 }

@@ -9,11 +9,10 @@ import { SettingsPanel } from '@/components/settings/settings-panel'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
-import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
 import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/search-source-setup'
 import { OrganizationSlackAccountRemoval } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-removal'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
@@ -21,6 +20,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsListPagination } from '@/app/workspace/[workspaceId]/settings/components/settings-list-pagination'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -249,7 +249,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
                       : labels.empty}
               </SettingsEmptyState>
             )}
-          <SearchSourcePagination {...sources} />
+          <SettingsListPagination {...sources} fallback='Could not load more connections' />
         </div>
       )}
     </SettingsPanel>

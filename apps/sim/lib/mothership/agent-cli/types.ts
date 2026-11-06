@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import type { CopilotChatDelegationContext } from '@/lib/mothership/auth/application-delegation'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 /**
  * Sim's half of the mothership↔CLI translation layer: generic execution PRIMITIVES.
  * The worker owns the grammar (what commands exist, how argv parses, pipes, help, the
@@ -36,6 +37,11 @@ export interface AgentCliRuntime {
   /** The human the command acts as — reference resolution and grants scope to them. */
   userId: string
   chatId?: string
+  /**
+   * The invocation's secret provenance, which model egress redacts the result with. Egress
+   * matches whole secrets, so an engine that clips or splits text it read redacts it here first.
+   */
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   signal?: AbortSignal
 }
 

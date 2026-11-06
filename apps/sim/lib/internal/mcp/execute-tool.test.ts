@@ -11,7 +11,7 @@ import {
   executorPrincipalMockFns,
 } from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { listMcpOperations } from '@/lib/internal/mcp/list-operations'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { McpBlock } from '@/blocks/blocks/mcp'

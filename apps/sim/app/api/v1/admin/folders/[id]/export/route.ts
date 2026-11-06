@@ -24,10 +24,11 @@ import { NextResponse } from 'next/server'
 import { adminV1ExportFolderContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceFolder } from '@/lib/folders/scope'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { exportFolderToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInternalErrorResponse,
@@ -114,12 +115,13 @@ export const GET = withRouteHandler(
           id: folderTable.id,
           name: folderTable.name,
           workspaceId: folderTable.workspaceId,
+          projectId: folderTable.projectId,
         })
         .from(folderTable)
         .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
         .limit(1)
 
-      if (!folderData) {
+      if (!folderData || !isWorkspaceFolder(folderData)) {
         return adminNotFoundResponse('Folder')
       }
 

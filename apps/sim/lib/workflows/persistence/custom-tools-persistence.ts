@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
-import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { upsertCustomToolsSkippingTakenTitles } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')
 
@@ -116,6 +116,12 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
 /**
  * Persist custom tools to the database using the upsert function
  * Creates new tools or updates existing ones
+ *
+ * @remarks
+ * An inline tool carries no `toolId` until the block is re-saved with one, so
+ * every save of the same graph re-offers it under a title its first save
+ * already inserted. A title conflict therefore skips that tool, leaving the
+ * existing row untouched, instead of rolling back the rest of the batch.
  */
 export async function persistCustomToolsToDatabase(
   customToolsList: CustomTool[],
@@ -158,7 +164,7 @@ export async function persistCustomToolsToDatabase(
   }
 
   try {
-    await upsertCustomTools({
+    const { skippedTitles } = await upsertCustomToolsSkippingTakenTitles({
       tools: validTools.map((tool) => ({
         id: tool.toolId,
         title: tool.title,
@@ -169,8 +175,8 @@ export async function persistCustomToolsToDatabase(
       userId,
     })
 
-    saved = validTools.length
-    logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId })
+    saved = validTools.length - skippedTitles.length
+    logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId, skippedTitles })
   } catch (error) {
     const errorMsg = `Failed to persist custom tools: ${toError(error).message}`
     logger.error(errorMsg, { error })

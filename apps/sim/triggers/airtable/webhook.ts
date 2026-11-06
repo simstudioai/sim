@@ -141,7 +141,8 @@ export const airtableWebhookTrigger: TriggerConfig = {
     },
     airtableChanges: {
       type: 'array',
-      description: 'Changes made to the Airtable table',
+      description:
+        'Consolidated record creations and updates. Deleted record IDs remain in raw payloads.',
       items: {
         type: 'object',
         properties: {
@@ -149,7 +150,7 @@ export const airtableWebhookTrigger: TriggerConfig = {
           recordId: { type: 'string', description: 'Record ID' },
           changeType: {
             type: 'string',
-            description: 'Type of change (created, changed, destroyed)',
+            description: 'Type of consolidated change: created or updated',
           },
           cellValuesByFieldId: { type: 'object', description: 'Cell values by field ID' },
         },

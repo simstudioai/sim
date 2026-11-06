@@ -15,7 +15,7 @@ import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestrati
 import { mothershipChatOperations } from '@/lib/mothership/chat/application/operations'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const chatDelegationPolicy = {
   audience: 'sim:settings',

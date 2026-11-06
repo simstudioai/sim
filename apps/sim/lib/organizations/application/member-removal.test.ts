@@ -31,7 +31,10 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: vi.fn() }))
 
-import { removeOrganizationMember } from '@/lib/organizations/application/members'
+import {
+  previewOrganizationMemberRemoval,
+  removeOrganizationMember,
+} from '@/lib/organizations/application/members'
 import { DELETE } from '@/app/api/organizations/[id]/members/[memberId]/route'
 
 const mocks = {
@@ -40,6 +43,7 @@ const mocks = {
   remove: organizationMembershipMockFns.mockRemoveUserFromOrganization,
   external: organizationMembershipMockFns.mockRemoveExternalUserFromOrganizationWorkspaces,
   audit: auditMockFns.mockRecordAudit,
+  impact: organizationMembershipMockFns.mockGetOrganizationTransferCredentialDependencies,
 }
 
 const principal = {
@@ -56,7 +60,7 @@ const principal = {
 const input = { organizationId: 'org', userId: 'target' }
 beforeEach(() => {
   resetDbChainMock()
-  mocks.remove.mockResolvedValue({ success: true, billingActions: {} })
+  mocks.remove.mockResolvedValue({ success: true, billingActions: {}, stoppedRuns: [] })
   mocks.seats.mockResolvedValue({ changed: false })
   mocks.external.mockResolvedValue({
     success: true,
@@ -64,6 +68,7 @@ beforeEach(() => {
     permissionGroupsRevoked: 1,
     credentialMembershipsRevoked: 1,
     pendingInvitationsCancelled: 1,
+    stoppedRuns: [],
   })
 })
 function target(role = 'admin') {
@@ -138,11 +143,32 @@ describe('organization member removal', () => {
     'Cannot remove the workspace billing account. Please reassign billing first.',
   ])('preserves lifecycle refusal %s', async (error) => {
     target()
-    mocks.remove.mockResolvedValueOnce({ success: false, error })
+    mocks.remove.mockResolvedValueOnce({ success: false, error, stoppedRuns: [] })
     await expect(removeOrganizationMember.execute({ principal, input })).rejects.toMatchObject({
       code: 'validation',
     })
     expect(mocks.seats).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
+  })
+})
+describe('organization member removal preview', () => {
+  const credential = { id: 'cred', displayName: 'GitHub', type: 'oauth', workspaceId: 'ws' }
+  beforeEach(() => mocks.impact.mockReset().mockResolvedValue([credential]))
+  it("refuses a delegated member previewing somebody else's removal before reading credentials", async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      previewOrganizationMemberRemoval.execute({ principal, input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.impact).not.toHaveBeenCalled()
+  })
+  it('lets a delegated member preview leaving', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      previewOrganizationMemberRemoval.execute({
+        principal,
+        input: { organizationId: 'org', userId: 'actor' },
+      })
+    ).resolves.toEqual({ credentials: [credential] })
+    expect(mocks.impact).toHaveBeenCalledExactlyOnceWith('actor', 'org')
   })
 })

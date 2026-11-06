@@ -18,9 +18,10 @@ import {
 
 interface OrganizationSecretsEditorProps {
   mode: SecretSourceMode
+  backHref?: string
 }
 
-export function OrganizationSecretsEditor({ mode }: OrganizationSecretsEditorProps) {
+export function OrganizationSecretsEditor({ mode, backHref }: OrganizationSecretsEditorProps) {
   const { organization, viewer } = useOrganizationContext()
   const router = useRouter()
   const secrets = useOrganizationSecrets(organization.id, mode, mode === 'member' || viewer.isAdmin)
@@ -29,7 +30,7 @@ export function OrganizationSecretsEditor({ mode }: OrganizationSecretsEditorPro
   const back =
     mode === 'organization'
       ? { text: 'Sources', href: routes.settingsSection('integrations') }
-      : { text: 'Integrations', href: routes.integrations }
+      : { text: 'Integrations', href: backHref ?? routes.integrations }
   if (!secrets.data || secrets.error)
     return (
       <SettingsPanel

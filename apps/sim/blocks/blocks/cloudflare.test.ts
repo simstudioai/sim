@@ -62,7 +62,7 @@ function modernBlockState(overrides: Record<string, unknown>, advancedMode = fal
 
 /**
  * Mirror the executor merge — `finalInputs = { ...inputs, ...transformedParams }`
- * in `executor/handlers/generic/generic-handler.ts` — so a key the mapper omits
+ * in `executor/handlers/generic/handler.ts` — so a key the mapper omits
  * keeps its raw block value and only an explicit `undefined` erases it.
  */
 function mapParams(params: Record<string, unknown>): Record<string, unknown> {

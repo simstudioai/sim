@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AccountBillingDecision,
   BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   authorizeCopilotChatCallback,
@@ -25,14 +25,14 @@ import {
 const hoisted = vi.hoisted(() => ({
   capability: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
   assertWorkspaceCapability: hoisted.capability,
 }))
 vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 const mockCheckAccountBillingBlocks = billingAttributionMockFns.mockCheckAccountBillingBlocks
 const mockCheckAttributedBillingBlocks = billingAttributionMockFns.mockCheckAttributedBillingBlocks
 const mocks = {

@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -10,29 +10,48 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
-import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/file-manager'
+import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
+import { downloadFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
+import { resolveServableDocBytes } from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
+import {
+  FILE_CACHE_CONTROL,
+  storedObjectEtag,
+  workspaceFileCacheControl,
+} from '@/lib/uploads/server/delivery'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
+import { getFileMetadataByKey, resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  inferContextFromKey,
+  isRenderableDocumentName,
+  resolveEffectiveMimeType,
+  tryInferContextFromKey,
+} from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
-import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
+import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-record-by-key'
+import { streamAuthorizedWorkspaceFile } from '@/lib/workspace-files/application/stream-authorized-workspace-file'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import { servesStoredBytes } from '@/lib/workspace-files/stored-bytes'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createConditionalFileResponse,
   createFileErrorResponse,
   createFileResponse,
+  createStoredFileStreamResponse,
   FileNotFoundError,
   type FileResponse,
   findLocalFile,
@@ -54,7 +73,11 @@ const logger = createLogger('FilesServeAPI')
  * its way out of, not something on call needs to look at.
  */
 function logServeFailure(message: string, error: unknown): void {
-  if (error instanceof FileNotFoundError || isPayloadSizeLimitError(error)) {
+  if (
+    error instanceof FileNotFoundError ||
+    hasObjectNotFoundCause(error) ||
+    isPayloadSizeLimitError(error)
+  ) {
     logger.info(message, { reason: getErrorMessage(error) })
     return
   }
@@ -110,9 +133,6 @@ async function resolveServableBytes(params: {
   workspaceId: string | undefined
   options: ServeOptions
   ownerKey: string | undefined
-  filePrincipal?: Principal
-  /** The stored record's content type, where the caller has the record. */
-  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<ServableBytes> {
   // `raw` is the stored source, already bounded by the read that produced it, but it
@@ -140,29 +160,16 @@ async function resolveTransformedBytes(params: {
   workspaceId: string | undefined
   options: ServeOptions
   ownerKey: string | undefined
-  filePrincipal?: Principal
-  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<ServableBytes> {
-  const {
-    buffer,
-    filename,
-    storageKey,
-    workspaceId,
-    options,
-    ownerKey,
-    filePrincipal,
-    fileType,
-    signal,
-  } = params
+  const { buffer, filename, storageKey, workspaceId, options, ownerKey, signal } = params
 
   // The pdf model for pages: a page file stores its SOURCE (frontmatter +
   // markdown + sim: fences) and serving compiles it to the rendered document,
   // the same way a .pdf key stores its script and serves the binary. Raw
   // requests above still return the source; bespoke/legacy HTML falls through
-  // untouched. Sim pages store an EXTENSIONLESS name — the record type marks
-  // them; legacy pages still carry .html.
-  if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
+  // untouched.
+  if (filename.toLowerCase().endsWith('.html')) {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       const rendered = Buffer.from(
@@ -190,7 +197,6 @@ async function resolveTransformedBytes(params: {
     rawBuffer: buffer,
     fileName: filename,
     workspaceId,
-    filePrincipal,
     ownerKey,
     signal,
   })
@@ -199,6 +205,86 @@ async function resolveTransformedBytes(params: {
     contentType: doc.contentType,
     dependsOnReferencedFiles: doc.dependsOnReferencedFiles,
   }
+}
+
+/**
+ * Whether a request is answered with the stored object byte-for-byte, so its bytes can stream from
+ * storage instead of being read whole and capped at the transfer ceiling.
+ *
+ * Every other answer is produced from the bytes and stays buffered: see {@link servesStoredBytes},
+ * plus a `preview`, which may be a HEIC transcode — sniffed from the content, so no name or type
+ * rules it out. What streams is exactly what {@link resolveServableBytes} and the workspace
+ * resolver would have passed through unchanged.
+ */
+function servesStoredObject(
+  filename: string,
+  recordedType: string | undefined,
+  options: ServeOptions
+): boolean {
+  if (options.raw) return true
+  if (options.preview) return false
+  return servesStoredBytes(recordedType, filename)
+}
+
+/**
+ * The type a stored object streams under: what the buffered path names the same bytes — the
+ * extension's type for a served file, the route's own table for `raw`.
+ */
+function storedObjectContentType(filename: string, options: ServeOptions): string {
+  return options.raw ? getContentType(filename) : resolveEffectiveMimeType(undefined, filename)
+}
+
+/**
+ * The type recorded for an object outside the workspace-file model, read only where it decides the
+ * answer: a document name may be a finished upload or a generation source, and the object's file
+ * record, where it has one, says which. An object with no record is judged by its name.
+ */
+async function recordedDocumentType(
+  key: string,
+  context: StorageContext,
+  filename: string,
+  options: ServeOptions
+): Promise<string | undefined> {
+  if (options.raw || options.preview || !isRenderableDocumentName(filename)) return undefined
+  return (await getFileMetadataByKey(key, context))?.contentType
+}
+
+/**
+ * Streams a stored object outside the workspace-file model (execution outputs, chat and copilot
+ * attachments, knowledge documents) when the request is answered with it as-is, or returns null
+ * for the buffered path. Storage is asked for the object's length and version, and the version is
+ * what proves a revalidation still holds.
+ */
+async function streamStoredObject(params: {
+  key: string
+  context: StorageContext
+  filename: string
+  options: ServeOptions
+  request: NextRequest
+}): Promise<NextResponse | null> {
+  const { key, context, filename, options } = params
+  const recordedType = await recordedDocumentType(key, context, filename, options)
+  if (!servesStoredObject(filename, recordedType, options)) return null
+  const stored = await headObject(key, context)
+  if (!stored) throw new FileNotFoundError(`File not found: ${key}`)
+
+  logger.info('Streaming stored file', { key, context, size: stored.size })
+  return createStoredFileStreamResponse(
+    {
+      filename,
+      contentType: storedObjectContentType(filename, options),
+      cacheControl:
+        resolveServeCacheControl(options.versioned, context, false) ?? FILE_CACHE_CONTROL.private,
+      size: stored.size,
+      etag:
+        stored.version === undefined
+          ? undefined
+          : storedObjectEtag([context, key, stored.size, stored.version]),
+      open: async (range) =>
+        nodeReadableToWebStream(await downloadFileStream({ key, context, range })),
+    },
+    params.request.headers
+  )
 }
 
 const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
@@ -211,11 +297,11 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
 }
 
-const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
-const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+const IMMUTABLE_CACHE_CONTROL = FILE_CACHE_CONTROL.immutable
+const WORKSPACE_REVALIDATE_CACHE_CONTROL = FILE_CACHE_CONTROL.revalidate
 /** For the genuinely-public, pre-auth asset routes (avatars, OG images, workspace logos) — these are
  *  intentionally shared-cacheable. Passed EXPLICITLY so the default response cache stays `private`. */
-const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
+const PUBLIC_ASSET_CACHE_CONTROL = FILE_CACHE_CONTROL.publicAsset
 
 /**
  * Cache-Control for a served file.
@@ -237,10 +323,21 @@ function resolveServeCacheControl(
   context: string | undefined,
   dependsOnReferencedFiles: boolean
 ): string | undefined {
+  if (context === 'workspace') return workspaceFileCacheControl(versioned, dependsOnReferencedFiles)
   if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' || dependsOnReferencedFiles
-    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
-    : undefined
+  return dependsOnReferencedFiles ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+}
+
+/**
+ * The type a rendered workspace file is served under. A rendered Sim page is HTML; every other
+ * representation is named by the file's extension, as {@link resolveServableDocBytes} names it for
+ * local and cloud files, rather than by the stored record's type, so a `.csv` recorded as
+ * `application/vnd.ms-excel` still opens inline.
+ */
+function renderedWorkspaceContentType(file: WorkspaceFileRecord, renderedType: string): string {
+  return file.type === SIM_PAGE_CONTENT_TYPE && renderedType === 'text/html'
+    ? renderedType
+    : resolveEffectiveMimeType(undefined, file.name)
 }
 
 /**
@@ -267,6 +364,8 @@ export const GET = withRouteHandler(
       if (!path || path.length === 0) {
         throw new FileNotFoundError('No file path provided')
       }
+
+      if (path[0] === 'project') throw new FileNotFoundError('File not found')
 
       logger.info('File serve request:', { path })
 
@@ -295,6 +394,9 @@ export const GET = withRouteHandler(
           cacheControl: 'private, no-store',
         })
       }
+
+      /** No storage context owns a key without a known prefix, so no file can live there. */
+      if (!tryInferContextFromKey(cloudKey)) throw new FileNotFoundError('File not found')
 
       const isPublicByKeyPrefix =
         cloudKey.startsWith('profile-pictures/') ||
@@ -330,7 +432,16 @@ export const GET = withRouteHandler(
           path,
           error: legacyAuthResult.error || 'Missing userId',
         })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          {
+            status: 401,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       const query = fileServeQuerySchema.parse({
@@ -360,7 +471,7 @@ export const GET = withRouteHandler(
           cloudKey,
           userId,
           options,
-          request.signal,
+          request,
           storageContext,
           knowledgeAccess
         )
@@ -370,14 +481,24 @@ export const GET = withRouteHandler(
         cloudKey,
         userId,
         options,
-        request.signal,
+        request,
         storageContext,
         knowledgeAccess
       )
     } catch (error) {
+      if (request.signal.aborted) throw error
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          {
+            status: 401,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       // An in-progress/incomplete doc source fails to compile — this is expected
@@ -388,7 +509,16 @@ export const GET = withRouteHandler(
         logger.info('Serve: document still compiling, returning 409', {
           message: error.message,
         })
-        return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
+        return NextResponse.json(
+          { error: 'Document is still being generated' },
+          {
+            status: 409,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       const orchestrationError = asOrchestrationError(
@@ -400,10 +530,23 @@ export const GET = withRouteHandler(
         return createFileErrorResponse(notFound)
       }
 
+      if (orchestrationError) {
+        if (orchestrationError.code === 'internal')
+          logServeFailure('Error serving file:', orchestrationError)
+        return createFileErrorResponse(
+          orchestrationError,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
+
       logServeFailure('Error serving file:', error)
 
       if (error instanceof FileNotFoundError) {
         return createFileErrorResponse(error)
+      }
+
+      if (hasObjectNotFoundCause(error)) {
+        return createFileErrorResponse(new FileNotFoundError('File not found'))
       }
 
       return createFileErrorResponse(
@@ -422,23 +565,53 @@ async function handleWorkspaceFile(
   const workspaceId = getWorkspaceIdForCompile(key)
   if (!workspaceId) throw new FileNotFoundError(`File not found: ${key}`)
 
-  const { file, content } = await readWorkspaceFileContentByKey.execute({
-    principal,
-    input: { key, assertedWorkspaceId: workspaceId },
-    request,
-  })
-  const ownerKey = `user:${requirePrincipalSubjectUserId(principal)}`
-  const resolved = await resolveServableBytes({
-    buffer: content,
-    filename: file.name,
-    storageKey: key,
-    workspaceId,
-    options,
-    ownerKey,
-    filePrincipal: principal,
-    fileType: file.type,
+  const input = { key, assertedWorkspaceId: workspaceId }
+  if (request.method === 'HEAD') {
+    await readWorkspaceFileRecordByKey.execute({ principal, input, request })
+    return new NextResponse(null, {
+      headers: { 'Cache-Control': FILE_CACHE_CONTROL.noStore, 'X-Content-Type-Options': 'nosniff' },
+    })
+  }
+  const { file } = await readWorkspaceFileRecordByKey.execute({ principal, input, request })
+  const authorize = () => readWorkspaceFileRecordByKey.authorize({ principal, input, request })
+
+  if (servesStoredObject(file.name, file.type, options)) {
+    logger.info('Streaming workspace file', { fileId: file.id, workspaceId, size: file.size })
+    return createStoredFileStreamResponse(
+      {
+        filename: file.name,
+        contentType: storedObjectContentType(file.name, options),
+        cacheControl: workspaceFileCacheControl(options.versioned),
+        size: file.size,
+        // A content write uploads under a fresh key and stamps `contentUpdatedAt`, so the pair
+        // changes whenever the bytes do.
+        etag: storedObjectEtag([
+          file.key,
+          file.size,
+          (file.contentUpdatedAt ?? file.updatedAt).getTime(),
+        ]),
+        open: (range) => streamAuthorizedWorkspaceFile({ file, principal, authorize, range }),
+      },
+      request.headers
+    )
+  }
+
+  const rendered = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     signal: request.signal,
   })
+  const preview = options.preview ? await resolveServableImageBytes(rendered.buffer, key) : null
+  const resolved: ServableBytes = {
+    buffer: preview?.buffer ?? rendered.buffer,
+    contentType: preview?.contentType ?? renderedWorkspaceContentType(file, rendered.contentType),
+    dependsOnReferencedFiles: rendered.dependsOnReferencedFiles,
+  }
+  assertKnownSizeWithinLimit(
+    resolved.buffer.length,
+    MAX_BUFFERED_TRANSFER_BYTES,
+    'served file response'
+  )
+  await finishFileDelivery({ principal, authorize, receipt: rendered.receipt })
 
   logger.info('Workspace file served', {
     fileId: file.id,
@@ -464,11 +637,12 @@ async function handleLocalFile(
   filename: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined,
+  request: NextRequest,
   context: StorageContext,
   knowledgeAccess: KnowledgeFileAccess | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
+  const { signal } = request
   try {
     const hasAccess = await verifyFileAccess(
       filename,
@@ -483,19 +657,35 @@ async function handleLocalFile(
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
+    if (request.method === 'HEAD')
+      return new NextResponse(null, {
+        headers: {
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
     const filePath = await findLocalFile(filename)
 
     if (!filePath) {
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
+    const segment = filename.split('/').pop() || filename
+    const displayName = stripStorageKeyPrefix(segment)
+    const streamed = await streamStoredObject({
+      key: filename,
+      context,
+      filename: displayName,
+      options,
+      request,
+    })
+    if (streamed) return streamed
+
     const rawBuffer = await readLocalFileWithinLimit(
       filePath,
       MAX_BUFFERED_TRANSFER_BYTES,
       'served file'
     )
-    const segment = filename.split('/').pop() || filename
-    const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
     const {
       buffer: fileBuffer,
@@ -527,6 +717,7 @@ async function handleLocalFile(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error reading local file:', error)
     throw error
   }
@@ -536,11 +727,12 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined,
+  request: NextRequest,
   context: StorageContext,
   knowledgeAccess: KnowledgeFileAccess | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
+  const { signal } = request
   try {
     logger.info(`Resolved context: ${context} for key: ${cloudKey}`)
 
@@ -557,6 +749,24 @@ async function handleCloudProxy(
       throw new FileNotFoundError(`File not found: ${cloudKey}`)
     }
 
+    if (request.method === 'HEAD')
+      return new NextResponse(null, {
+        headers: {
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    const segment = cloudKey.split('/').pop() || 'download'
+    const displayName = stripStorageKeyPrefix(segment)
+    const streamed = await streamStoredObject({
+      key: cloudKey,
+      context,
+      filename: displayName,
+      options,
+      request,
+    })
+    if (streamed) return streamed
+
     let rawBuffer: Buffer
 
     if (context === 'copilot') {
@@ -570,9 +780,6 @@ async function handleCloudProxy(
         maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       })
     }
-
-    const segment = cloudKey.split('/').pop() || 'download'
-    const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
     const {
       buffer: fileBuffer,
@@ -609,6 +816,7 @@ async function handleCloudProxy(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error downloading from cloud storage:', error)
     throw error
   }

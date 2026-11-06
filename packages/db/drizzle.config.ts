@@ -15,9 +15,15 @@ export default {
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  /** Runner-owned journals and resumable cleanup cursors must survive a development schema push. */
+  /**
+   * Runner-owned journals, resumable cleanup cursors, and a Project bootstrap's connector and
+   * rollout marker (until its migration retires them) must survive a development schema push.
+   */
   tablesFilter: [
     '!script_migrations',
+    '!project_workspace',
+    '!project_membership_rollout',
+    '!project_backfill_archive_repairs',
     '!search_embedding_cleanup_progress',
     '!search_embedding_cleanup_targets',
     '!search_retirement_*',

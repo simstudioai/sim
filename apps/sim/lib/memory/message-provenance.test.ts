@@ -10,12 +10,13 @@ import {
   workspaceContextMock,
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toArray, toRecord } from '@sim/utils/object'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import {
   hashDurableSecretProvenanceValue,
@@ -72,8 +73,8 @@ function queueStoredMemory(data: Message[], entries: readonly DurableSecretProve
       data,
       secretProvenanceVersion: 1,
       provenanceContentHash: hashDurableSecretProvenanceValue(data),
-      provenanceStatus: 'exact',
-      provenanceEntries: entries,
+      status: 'exact',
+      entries,
     },
   ])
 }
@@ -160,7 +161,7 @@ describe('memory message provenance', () => {
     })
 
     const sidecar = dbChainMockFns.values.mock.calls
-      .map(([value]) => value)
+      .map(([value]) => toRecord(value))
       .find((value) => value.memoryId === 'memory-1')
     expect(sidecar).toMatchObject({
       status: 'exact',
@@ -169,7 +170,8 @@ describe('memory message provenance', () => {
     expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.select.mock.invocationCallOrder[0]
     )
-    queueStoredMemory(data, sidecar.entries)
+    assert.isDefined(sidecar)
+    queueStoredMemory(data, toArray<DurableSecretProvenanceEntry>(sidecar.entries))
     const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
     expect(result[0].content).toBe('{{TOKEN}}')
     expect(loggedErrors()).toEqual([])

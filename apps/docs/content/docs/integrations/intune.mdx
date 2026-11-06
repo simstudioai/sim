@@ -1,44 +1,52 @@
 ---
 title: Microsoft Intune
 description: Manage devices, application inventory, and compliance with Microsoft Intune
+integration:
+  type: "intune"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="intune"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) helps organizations manage devices, applications, and compliance policies.
+Use [Microsoft Intune](https://www.microsoft.com/en-us/security/business/microsoft-intune) to inspect managed devices, detected applications, compliance policy statuses, and device configuration metadata. Request device sync, restart, remote lock, or retirement; restart, lock, and retirement require explicit confirmation.
 
-With the Microsoft Intune block, you can:
+Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. Self-hosted deployments require `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the matching `/api/auth/oauth2/callback/microsoft-intune` callback.
 
-- **Review device inventory**: Read managed devices, their owners, operating systems, and compliance states.
-- **Inspect installed apps**: List detected applications and the devices where they were found.
-- **Review policies**: Read compliance and configuration metadata, and inspect compliance policy device statuses.
-- **Request device actions**: Sync, restart, remotely lock, or retire a selected device. Restart, lock, and retirement require explicit confirmation.
-
-Connect a Microsoft work or school account with an appropriate Intune role. The tenant needs an active Intune license and administrator consent for the delegated permissions below. Self-hosted deployments use `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` with a matching callback at `/api/auth/oauth2/callback/microsoft-intune`.
-
-List operations return one page at a time. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata; platform-specific settings are excluded. An accepted device action means Intune received the request, not that the device completed it.
-
-In Sim, the Microsoft Intune block lets your agents prepare compliance reports, review software inventory, and coordinate approved help desk actions.
+List operations return one page. Pass `nextLink` to the same operation and resource to continue. Policy and configuration outputs contain common metadata and exclude platform-specific settings. An accepted device action confirms that Intune received the request; it does not confirm completion on the device.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Intune account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-intune` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `DeviceManagementManagedDevices.Read.All` | View Intune managed devices and detected apps |
+| `DeviceManagementConfiguration.Read.All` | View Intune compliance policies, device configurations, and their device statuses |
+| `DeviceManagementManagedDevices.PrivilegedOperations.All` | Perform remote Intune device actions, including syncing, rebooting, locking, and retiring devices |
+| `offline_access` | Access account when not using the application |
+
+## Use the block [#usage-instructions]
 
 Read managed device and detected application inventories, inspect compliance policy status and device configuration metadata, and request device sync, restart, remote lock, or retirement. Uses Microsoft Graph v1.0 with a work or school account and an active Intune tenant license. Remote actions depend on device platform and the connected administrator’s Intune permissions.
-
-
 
 ## Actions
 
 ### Microsoft Intune List Devices
 
 Read one page of devices from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +83,13 @@ Read one page of devices from Microsoft Intune
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Device
 
 Read device details from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,9 +123,13 @@ Read device details from Microsoft Intune
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Detected Apps
 
 Read one page of detected apps from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +152,13 @@ Read one page of detected apps from Microsoft Intune
 |   ↳ `publisher` | string | Application publisher |
 |   ↳ `platform` | string | Application platform |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Detected App
 
 Read detected app details from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +179,13 @@ Read detected app details from Microsoft Intune
 |   ↳ `publisher` | string | Application publisher |
 |   ↳ `platform` | string | Application platform |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List App Devices
 
 Read one page of managed devices that have a detected application installed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +222,13 @@ Read one page of managed devices that have a detected application installed
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Compliance Policies
 
 Read one page of compliance policies from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +250,13 @@ Read one page of compliance policies from Microsoft Intune
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Compliance Policy
 
 Read common metadata for an Intune compliance policy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -244,9 +276,13 @@ Read common metadata for an Intune compliance policy
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Compliance Policy Device Statuses
 
 Read one page of compliance policy device statuses from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -271,9 +307,13 @@ Read one page of compliance policy device statuses from Microsoft Intune
 |   ↳ `userPrincipalName` | string | User principal name |
 |   ↳ `complianceGracePeriodExpirationDateTime` | string | Compliance grace period expiration |
 
+</ReferenceDetails>
+
 ### Microsoft Intune List Device Configurations
 
 Read one page of device configurations from Microsoft Intune
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +335,13 @@ Read one page of device configurations from Microsoft Intune
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Get Device Configuration
 
 Read common metadata for an Intune device configuration
+
+<ReferenceDetails>
 
 #### Input
 
@@ -317,9 +361,13 @@ Read common metadata for an Intune device configuration
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
 
+</ReferenceDetails>
+
 ### Microsoft Intune Sync Device
 
 Request a device check-in to receive pending Intune policies and actions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,11 +380,15 @@ Request a device check-in to receive pending Intune policies and actions
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Reboot Device
 
 Request a device restart after explicit confirmation; may interrupt the signed-in user
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -349,11 +401,15 @@ Request a device restart after explicit confirmation; may interrupt the signed-i
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Remote Lock Device
 
 Request a remote device lock after explicit confirmation on supported platforms
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -366,11 +422,15 @@ Request a remote device lock after explicit confirmation on supported platforms
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
+
+</ReferenceDetails>
 
 ### Microsoft Intune Retire Device
 
 Retire a device after explicit confirmation, removing company data and management
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -384,23 +444,6 @@ Retire a device after explicit confirmation, removing company data and managemen
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Microsoft Intune accepted the request; device completion is asynchronous |
 
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Microsoft Intune account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-intune` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `DeviceManagementManagedDevices.Read.All` | View Intune managed devices and detected apps |
-| `DeviceManagementConfiguration.Read.All` | View Intune compliance policies, device configurations, and their device statuses |
-| `DeviceManagementManagedDevices.PrivilegedOperations.All` | Perform remote Intune device actions, including syncing, rebooting, locking, and retiring devices |
-| `offline_access` | Access account when not using the application |
+</ReferenceDetails>
 
 

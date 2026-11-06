@@ -19,8 +19,14 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
+import {
+  compileDoc,
+  DOCXJS_SOURCE_MIME,
+  getE2BDocFormat,
+  PPTXGENJS_SOURCE_MIME,
+} from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
@@ -31,16 +37,10 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import { parseOwnedFileReference } from '@/lib/workspace-files/owned-files'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import {
-  compileDoc,
-  DOCXJS_SOURCE_MIME,
-  getE2BDocFormat,
-  PPTXGENJS_SOURCE_MIME,
-} from './doc-compile'
+import type { SandboxTaskId } from '@/sandboxes/registry'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { ensureCopilotFileFolderPath } from './file-folder-application'
-import { storeFileIntent } from './file-intent-store'
+import { ensureCopilotFileFolderPath } from './folder-application'
+import { storeFileIntent } from './intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
 
@@ -248,7 +248,11 @@ export async function compileDocForWrite(args: {
 
   if (docInfo.isDoc) {
     try {
-      await runSandboxTask(docInfo.taskId!, { code: source, workspaceId }, { ownerKey, signal })
+      await runSandboxTask(
+        docInfo.taskId!,
+        { code: source, workspaceId },
+        { ownerKey, signal, filePrincipal: principal }
+      )
     } catch (err) {
       return {
         ok: false,

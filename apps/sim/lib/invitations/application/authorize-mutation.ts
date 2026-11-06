@@ -17,7 +17,7 @@ import {
   invitationOperations,
 } from '@/lib/invitations/application/operations'
 import { getInvitationById } from '@/lib/invitations/core'
-import { loadWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface InvitationMutationInput {
   invitationId: string

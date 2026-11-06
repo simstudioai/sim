@@ -47,7 +47,7 @@ export const SSMBlock: BlockConfig = {
   name: 'AWS Systems Manager',
   description: 'Run commands, manage parameters, and audit managed nodes',
   longDescription:
-    'Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.',
+    'Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.',
   docsLink: 'https://docs.sim.ai/integrations/ssm',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

@@ -1,4 +1,4 @@
-import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**

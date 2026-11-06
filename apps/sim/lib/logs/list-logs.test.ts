@@ -32,6 +32,7 @@ function workflowRow(overrides: Record<string, unknown> = {}) {
     workflowWorkspaceId: 'ws-1',
     workflowCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
     workflowUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    workflowArchivedAt: null,
     pausedStatus: null,
     pausedTotalPauseCount: 0,
     pausedResumedCount: 0,

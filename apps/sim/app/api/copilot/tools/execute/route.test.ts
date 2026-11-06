@@ -1,5 +1,9 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
   mothershipEnvironmentContextMock,
   mothershipEnvironmentContextMockFns,
 } from '@sim/testing/mocks/mothership-environment-context.mock'
@@ -15,6 +19,8 @@ const { mockHandler, mockToolRequiresApprovalLane } = vi.hoisted(() => ({
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
+
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
@@ -41,6 +47,7 @@ const { mockCheckInternalApiKey } = copilotHttpMockFns
 
 const mockPrepareEnvironmentContext =
   mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext
+const { mockGetRunSecretAuthority } = mothershipAsyncRunsMockFns
 
 function makeRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/api/copilot/tools/execute', {
@@ -81,7 +88,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     mockPrepareEnvironmentContext.mockRejectedValue(new Error('Workspace ws-gone does not exist'))
     mockHandler.mockResolvedValue({ success: true, output: { content: 'sensitive' } })
 
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-no-registry' }) as never)
+    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-no-registry' }) as never, {})
     const body = await res.json()
 
     expect(mockHandler).not.toHaveBeenCalled()
@@ -112,7 +119,8 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
         toolName: 'generate_api_key',
         params: { name: 'demo' },
         messageId: 'msg-api-key',
-      }) as never
+      }) as never,
+      {}
     )
     const body = await res.json()
 
@@ -142,7 +150,8 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
           toolName: 'run_function',
           params: { code: 'return 1' },
           messageId: 'msg-gated',
-        }) as never
+        }) as never,
+        {}
       )
       const body = await res.json()
 
@@ -151,6 +160,38 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
       expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
       expect(body.error).toContain('requires user approval')
       expect(body.error).toContain('checkpoint lane')
+    })
+  })
+  /**
+   * Go's body cannot carry the turn's secret authority — the turn payload never did — so a
+   * context rebuilt from it alone read as "every secret, as the body's user" for a turn that
+   * was admitted with less.
+   */
+  describe('secret authority', () => {
+    it("hands the tool the turn's re-derived authority, not the permissive default", async () => {
+      const admitted = {
+        secretMountPolicy: { secretScope: 'selected' as const, mountedSecrets: ['STRIPE_KEY'] },
+        secretActorUserId: null,
+      }
+      mockGetRunSecretAuthority.mockResolvedValueOnce(admitted)
+      mockHandler.mockResolvedValue({ success: true, output: { ran: true } })
+
+      await POST(
+        makeRequest({
+          ...BASE_BODY,
+          toolName: 'run_function',
+          params: { code: 'return 1', secrets: ['STRIPE_KEY'] },
+          messageId: 'msg-admitted-authority',
+        }) as never,
+        {}
+      )
+
+      expect(mockGetRunSecretAuthority).toHaveBeenCalledWith({
+        streamId: 'msg-admitted-authority',
+        userId: BASE_BODY.userId,
+        chatId: BASE_BODY.chatId,
+      })
+      expect(mockHandler.mock.calls[0][1]).toMatchObject(admitted)
     })
   })
 })

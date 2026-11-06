@@ -3,6 +3,7 @@ import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
+import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeOrganizationOperation,
@@ -52,6 +53,7 @@ import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availab
 export const organizationAccountOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -60,6 +62,7 @@ export const organizationAccountOperations = {
   }),
   ensure: defineOrganizationOperation({
     id: 'organization_accounts.ensure',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -68,6 +71,7 @@ export const organizationAccountOperations = {
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -76,6 +80,7 @@ export const organizationAccountOperations = {
   }),
   connect: defineOrganizationOperation({
     id: 'organization_accounts.connect',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -182,6 +187,7 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
           })
         : [],
       availableProviders: listConfiguredCredentialGroupProviders(),
+      assistantProviders: (await loadAssistantIntegrationTools(context)).providers,
       availableMcpConnectors: await listConfiguredManagedMcpConnectors(credentialGroup?.id, {
         kind: 'organization',
         organizationId: context.organizationId,

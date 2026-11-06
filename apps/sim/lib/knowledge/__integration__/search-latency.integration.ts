@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -711,7 +712,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     for (const fixture of process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
       ? []
       : [ids, unrelated, fullWidthFixture]) {
-      await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
       await db.delete(user).where(eq(user.id, fixture.bobId))

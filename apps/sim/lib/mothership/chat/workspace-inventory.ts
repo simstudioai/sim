@@ -20,7 +20,8 @@ const FILE_LIMIT = 150
 
 /**
  * What exists in the workspace, by name and id, packed with every chat request so the
- * agent orients without a round of listings per world. Same use cases, same principal,
+ * agent orients without a round of listings per world. Skills also carry their description:
+ * the agent picks one from that catalog and loads its body with `skills get <id>`. Same use cases, same principal,
  * same authorization as the v2 listings the agent would otherwise call one by one.
  *
  * Each world is read independently: a world that fails to list is left empty and
@@ -118,7 +119,11 @@ export async function buildWorkspaceInventory(
         input: { workspaceId, sortBy: 'name', sortOrder: 'asc', limit: WORLD_LIMIT, offset: 0 },
       })
       cut('skills', page.hasMore)
-      return page.skills.map((s) => ({ name: s.name }))
+      return page.skills.map((s) => ({
+        id: s.id,
+        name: s.name,
+        ...(s.description ? { description: s.description } : {}),
+      }))
     }, []),
     world('customTools', async () => {
       const page = await listWorkspaceCustomToolsUseCase.execute({

@@ -20,17 +20,21 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed } = vi.hoisted(() => ({
-  mockAuthorizeRoom: vi.fn(),
-  mockFetchFileDocSeed: vi.fn(),
-}))
+const { mockFetchFileDocAccess, mockFetchFileDocSeed, mockFetchFileDocPersist } = vi.hoisted(
+  () => ({
+    mockFetchFileDocAccess: vi.fn(),
+    mockFetchFileDocSeed: vi.fn(),
+    mockFetchFileDocPersist: vi.fn(),
+  })
+)
 
-vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: mockAuthorizeRoom }))
+vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
 
 vi.mock('@/handlers/file-doc-app', () => ({
+  fetchFileDocAccess: mockFetchFileDocAccess,
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: vi.fn(),
-  fetchFileDocPersist: vi.fn().mockResolvedValue({ status: 'persisted', version: 1 }),
+  fetchFileDocPersist: mockFetchFileDocPersist,
 }))
 
 /** One in-memory Redis backing per test — only the stream/lock ops the store actually uses. */
@@ -134,22 +138,33 @@ interface FakeSocket {
  * Recording the emits without routing them would hide the very thing these tests are about.
  */
 function createIo(sockets: FakeSocket[]) {
-  const emitTo = (target: string, except: string | null, event: string, payload: unknown) => {
+  const emitTo = (target: string, except: string[], event: string, payload: unknown) => {
     for (const socket of sockets) {
-      if (socket.id === except || !socket.rooms.has(target)) continue
+      if (
+        except.some((room) => room === socket.id || socket.rooms.has(room)) ||
+        !socket.rooms.has(target)
+      )
+        continue
       socket.emit(event, payload)
     }
   }
-  const to = vi.fn((target: string) => ({
-    except: (exclude: string) => ({
-      emit: (event: string, payload: unknown) => emitTo(target, exclude, event, payload),
-    }),
-    emit: (event: string, payload: unknown) => emitTo(target, null, event, payload),
-  }))
+  const channel = (target: string, excluded: string[] = []) => ({
+    except: (exclude: string) => channel(target, [...excluded, exclude]),
+    emit: (event: string, payload: unknown) => emitTo(target, excluded, event, payload),
+    fetchSockets: async () =>
+      sockets.filter(
+        (socket) =>
+          socket.rooms.has(target) &&
+          !excluded.some((room) => room === socket.id || socket.rooms.has(room))
+      ),
+  })
+  const to = vi.fn((target: string) => channel(target))
   return {
     to,
     in: vi.fn(() => ({ socketsLeave: () => {} })),
     local: { to },
+    sockets: { sockets: { get: (id: string) => sockets.find((socket) => socket.id === id) } },
+    serverSideEmit: vi.fn(),
   } as unknown as IRoomManager['io']
 }
 
@@ -158,6 +173,7 @@ function setup(id: string, sockets: FakeSocket[]) {
   const rooms = new Set<string>()
   const socket = {
     id,
+    data: {},
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',
@@ -250,13 +266,14 @@ describe('file-doc join readiness (shared store enabled)', () => {
     backing.kv.clear()
     backing.seq = 0
     backing.readDelayTicks = 0
-    mockAuthorizeRoom.mockResolvedValue({
+    mockFetchFileDocAccess.mockResolvedValue({
       allowed: true,
       status: 200,
       workspaceId: 'ws-1',
       workspacePermission: 'write',
     })
     mockFetchFileDocSeed.mockResolvedValue(null)
+    mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 2 })
   })
 
   afterEach(() => {
@@ -313,5 +330,50 @@ describe('file-doc join readiness (shared store enabled)', () => {
 
     expect(mockFetchFileDocSeed).not.toHaveBeenCalled()
     expect(statesDeliveredTo(socket)).toEqual(['seeded by the writer that held the lock'])
+  })
+
+  it('persists unattributed stream state under the local editor when the last collaborator leaves', async () => {
+    backing.kv.set(`filedoc:generation:${ROOM_NAME}`, 'doc-1')
+    backing.kv.set(`filedoc:syncver:${ROOM_NAME}`, '1')
+    const doc = new Y.Doc()
+    doc.getText(FIELD).insert(0, 'AAA')
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    backing.streams.set(STREAM_KEY, [
+      {
+        id: `${++backing.seq}-0`,
+        message: { u: Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64'), g: 'doc-1' },
+      },
+    ])
+    const afterSeed = Y.encodeStateVector(doc)
+    doc.getText(FIELD).insert(0, 'BBB')
+    const edit = Y.encodeStateAsUpdate(doc, afterSeed)
+    doc.destroy()
+
+    const { handlers } = setup('socket-1', sockets)
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: FILE_ID,
+      clientId: 1,
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
+    })
+    const acknowledge = vi.fn()
+    await (handlers[FILE_DOC_EVENTS.UPDATE] as (...args: unknown[]) => Promise<void>)(
+      { fileId: FILE_ID, docId: 'doc-1', updateId: 'update-1', update: edit },
+      acknowledge
+    )
+    await vi.waitFor(() =>
+      expect(acknowledge).toHaveBeenCalledWith({ status: 'accepted', updateId: 'update-1' })
+    )
+
+    cleanupFileDocForSocket('socket-1', createIo(sockets), true)
+    await vi.waitFor(() =>
+      expect(mockFetchFileDocPersist).toHaveBeenCalledWith(
+        'ws-1',
+        FILE_ID,
+        'user-1',
+        expect.any(Uint8Array),
+        1
+      )
+    )
   })
 })

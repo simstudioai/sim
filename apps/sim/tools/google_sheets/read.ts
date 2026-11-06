@@ -120,6 +120,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
 
 export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2ReadResponse> = {
   id: 'google_sheets_read_v2',
+  assistant: { effect: 'read', version: 1 },
   name: 'Read from Google Sheets V2',
   description: 'Read data from a specific sheet in a Google Sheets spreadsheet',
   version: '2.0.0',

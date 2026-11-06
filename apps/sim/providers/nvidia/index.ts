@@ -26,7 +26,11 @@ import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -601,7 +605,10 @@ export const nvidiaProvider: ProviderConfig = {
           }
         }
       } catch (error) {
-        logger.error('Error in NVIDIA NIM request:', { error })
+        logger[providerFailureLogLevel(error, request.abortSignal)](
+          'Error in NVIDIA NIM request:',
+          { error }
+        )
         throw error
       }
 
@@ -731,7 +738,7 @@ export const nvidiaProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in NVIDIA NIM request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in NVIDIA NIM request:', {
         error,
         duration: totalDuration,
       })

@@ -24,7 +24,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
@@ -57,6 +57,14 @@ const AuthorizedApps = dynamic(
     import(
       '@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps'
     ).then((module) => module.AuthorizedApps),
+  { loading: () => null }
+)
+
+const OrganizationAccounts = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/organization-accounts/organization-accounts'
+    ).then((module) => module.OrganizationAccounts),
   { loading: () => null }
 )
 
@@ -273,6 +281,10 @@ export function General() {
 
   if (view === 'authorized-apps' && !isAuthDisabled) {
     return <AuthorizedApps onBack={() => setView(null, { history: 'replace' })} />
+  }
+
+  if (view === 'organization-accounts' && !isAuthDisabled) {
+    return <OrganizationAccounts onBack={() => setView(null, { history: 'replace' })} />
   }
 
   const actions: SettingsAction[] = [
@@ -599,6 +611,10 @@ export function General() {
               <div className='flex items-center justify-between'>
                 <Label>Authorized apps</Label>
                 <Chip onClick={() => setView('authorized-apps')}>Manage</Chip>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label>Connected organization accounts</Label>
+                <Chip onClick={() => setView('organization-accounts')}>Manage</Chip>
               </div>
               <div className='flex items-center justify-between'>
                 <Label>Delete account</Label>

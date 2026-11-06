@@ -1,17 +1,27 @@
+import {
+  INTEGRATION_ACTION_COUNT_LABEL,
+  INTEGRATION_COUNT_LABEL,
+  INTEGRATION_TRIGGER_COUNT_LABEL,
+} from '@sim/deployment-config/integration-claims'
 import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
 import { toSiteUrl } from '@/lib/core/utils/urls'
 import { getAllCustomerStoryMeta } from '@/lib/customers/registry'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
+import { MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 import {
+  DOCS_LINE,
+  GITHUB_LINE,
   LLMS_HEADER,
   linkLine,
   markdownResponse,
   navMenuLines,
+  PRICING_LINE,
+  SITEMAP_LINE,
   SOLUTION_LINES,
   section,
 } from '@/app/llms.txt/llms'
@@ -40,7 +50,7 @@ export async function GET() {
       section('Platform', [
         linkLine('Home', '/', 'Product overview and primary entry point'),
         ...navMenuLines(PLATFORM_MENU),
-        linkLine('Pricing', '/pricing', 'Free, Pro, Max, and Enterprise plans'),
+        PRICING_LINE,
       ]),
       section('Solutions', SOLUTION_LINES),
       section(
@@ -69,6 +79,8 @@ export async function GET() {
         ),
       ]),
       section('Library', [
+        'Each article is also served as Markdown at its URL with `.md` appended.',
+        '',
         linkLine('Library', '/library', 'Comparisons, how-tos, and roundups on building AI agents'),
         ...libraryPosts.map((p) => linkLine(p.title, p.canonical, p.description)),
       ]),
@@ -76,17 +88,35 @@ export async function GET() {
         linkLine(
           'Integrations',
           '/integrations',
-          `${INTEGRATION_COUNT_LABEL} integrations, triggers, and tools agents can use`
+          `${INTEGRATION_COUNT_LABEL} integrations with ${INTEGRATION_ACTION_COUNT_LABEL} actions and ${INTEGRATION_TRIGGER_COUNT_LABEL} triggers agents can use`
         ),
         linkLine(
           'Models',
           '/models',
           'Every supported model with pricing, context window, and capabilities'
         ),
+        ...Object.values(MODEL_TOOLS).map((tool) =>
+          linkLine(tool.name, tool.href, tool.description)
+        ),
+        linkLine(
+          'LLM context window comparison',
+          '/models/context-windows',
+          'Context windows, max output tokens, and API prices for every tracked model'
+        ),
         ...MODEL_PROVIDERS_WITH_CATALOGS.map((provider) =>
           linkLine(`${provider.name} models`, provider.href, provider.description)
         ),
       ]),
+      section(
+        'Model comparisons',
+        MODEL_COMPARISONS.map((comparison) =>
+          linkLine(
+            comparison.title,
+            comparison.href,
+            'API pricing, context window, max output, and capabilities side by side'
+          )
+        )
+      ),
       section('Docs', [
         linkLine('Docs index', `${DOCS_URL}/llms.txt`, 'llms.txt index of the Sim documentation'),
         linkLine(
@@ -94,7 +124,7 @@ export async function GET() {
           `${DOCS_URL}/llms-full.txt`,
           'Full text of the Sim documentation'
         ),
-        linkLine('Documentation', DOCS_URL, 'Guides, SDKs, and API reference'),
+        DOCS_LINE,
       ]),
       section('Blog', [
         linkLine('Blog', '/blog', 'Announcements, engineering deep dives, and product context'),
@@ -102,16 +132,12 @@ export async function GET() {
       ]),
       section('Optional', [
         linkLine('Changelog', '/changelog', 'Product updates and release notes'),
-        linkLine('GitHub', 'https://github.com/simstudioai/sim', 'Open-source codebase'),
+        GITHUB_LINE,
         linkLine('Community Slack', SLACK_COMMUNITY_URL, 'Community workspace'),
         linkLine('Terms of Service', '/terms'),
         linkLine('Privacy Policy', '/privacy'),
         linkLine('Cookie Policy', '/cookie-policy'),
-        linkLine(
-          'Sitemap',
-          '/sitemap.xml',
-          'Every public URL, including each integration and model'
-        ),
+        SITEMAP_LINE,
       ]),
     ],
     revalidate

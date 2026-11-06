@@ -5,7 +5,7 @@ export function toolError(message: string): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: message }] }
 }
 
-/** A tool result carrying a JSON value as text. */
-export function jsonToolResult(value: unknown): CallToolResult {
-  return { content: [{ type: 'text', text: JSON.stringify(value) }] }
+/** A JSON object as text and as `structuredContent`, for a tool that declares an output schema. */
+export function structuredToolResult(value: Record<string, unknown>): CallToolResult {
+  return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value }
 }

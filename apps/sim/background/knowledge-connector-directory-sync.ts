@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   assertDirectorySyncPayload,
   DIRECTORY_SYNC_CONCURRENCY,
@@ -8,6 +7,7 @@ import {
   DIRECTORY_SYNC_TASK_ID,
   type DirectorySyncPayload,
 } from '@/lib/knowledge/connectors/directory-queue'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-group-sync'
 
 const logger = createLogger('TriggerKnowledgeConnectorDirectorySync')

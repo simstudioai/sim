@@ -7,6 +7,7 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { migrateGreenhouseAgentInputs } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
@@ -238,7 +239,7 @@ export class Serializer {
       }
     }
 
-    block = migrateMcpOperationControls(block)
+    block = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
     const blockConfig = getBlock(block.type)
     if (!blockConfig) {
       throw new Error(`Invalid block type: ${block.type}`)
@@ -520,7 +521,7 @@ export function selectToolId(blockConfig: any, params: Record<string, any>): str
  * params exactly the way execution (serializeBlock) does.
  */
 export function extractBlockParams(block: BlockState): Record<string, any> {
-  block = migrateMcpOperationControls(block)
+  block = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
   if (block.type === 'loop' || block.type === 'parallel') {
     return {}
   }

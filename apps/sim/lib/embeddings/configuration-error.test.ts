@@ -7,7 +7,7 @@ vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: mocks.rotation }))
 
 import { resolveProviderKey } from '@/lib/embeddings/keys'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 
 setEnv({ OPENAI_API_KEY: undefined })
 

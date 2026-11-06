@@ -17,7 +17,7 @@ vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/cell-write', () => ({
   writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/core/async-jobs/config', () => ({
   getJobQueue: async () => ({ batchEnqueueAndWait: hoisted.batchEnqueueAndWait }),
 }))

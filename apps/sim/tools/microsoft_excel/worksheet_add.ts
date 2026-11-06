@@ -1,10 +1,15 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+} from '@/tools/microsoft_excel/shared'
 import type {
   MicrosoftExcelWorksheetAddResponse,
   MicrosoftExcelWorksheetToolParams,
 } from '@/tools/microsoft_excel/types'
 import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Tool for adding a new worksheet to a Microsoft Excel workbook
@@ -26,6 +31,7 @@ export const worksheetAddTool: ToolConfig<
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -43,14 +49,14 @@ export const worksheetAddTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     worksheetName: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'The name of the new worksheet (e.g., "Sales Q1", "Data"). Must be unique within the workbook and cannot exceed 31 characters',
+        'The name of the new worksheet (e.g., "Sales Q1", "Data"). Omit for an automatic name. Supplied names must be unique within the workbook and cannot exceed 31 characters',
     },
   },
 
@@ -64,29 +70,16 @@ export const worksheetAddTool: ToolConfig<
       return `${basePath}/workbook/worksheets/add`
     },
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: excelHeaders,
     body: (params) => {
       const worksheetName = params.worksheetName?.trim()
 
-      if (!worksheetName) {
-        throw new Error('Worksheet name is required')
-      }
+      if (!worksheetName) return {}
 
-      // Validate worksheet name length (Excel limitation)
       if (worksheetName.length > 31) {
         throw new Error('Worksheet name cannot exceed 31 characters. Please provide a shorter name')
       }
 
-      // Validate worksheet name doesn't contain invalid characters
       const invalidChars = ['\\', '/', '?', '*', '[', ']', ':']
       for (const char of invalidChars) {
         if (worksheetName.includes(char)) {
@@ -100,7 +93,12 @@ export const worksheetAddTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelWorksheetToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelWorksheetToolParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
@@ -110,7 +108,7 @@ export const worksheetAddTool: ToolConfig<
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     const result: MicrosoftExcelWorksheetAddResponse = {
       success: true,

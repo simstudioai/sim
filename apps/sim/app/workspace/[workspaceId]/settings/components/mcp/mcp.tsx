@@ -664,6 +664,7 @@ export function MCP() {
             allowedMcpDomains={allowedMcpDomains}
             domainPolicyUnavailable={domainPolicyUnavailable}
             domainPolicyError={domainPolicyError}
+            canChangeDestination={workspacePermissions.canAdmin}
           />
         )}
         {deleteConfirmModal}

@@ -21,7 +21,7 @@ import {
   type ReferenceDocument,
 } from '#sim-cli/contract/reference'
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
-import { buildProgram } from '#sim-cli/program'
+import { buildProgram, UNPUBLISHED_GROUPS } from '#sim-cli/program'
 import { calledOperations, operationOf } from '#sim-cli/runtime/called-operations'
 import { camel } from '#sim-cli/runtime/derive'
 import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
@@ -58,28 +58,76 @@ interface InventoryCommand extends CommandReference {
    * Absent when every call is admitted or the command calls no known operation.
    */
   mothershipUnavailable?: true
+  /** In a group hidden from `--help` until launch; the worker exposes it only when Sim enables it. */
+  unpublished?: true
+  /**
+   * The commander aliases of each `path` segment, aligned with `path` (`kb` for `knowledge`,
+   * `ls` for `list`), so the worker reads `sim kb folders ls` as the command it runs. Absent
+   * when no segment has one.
+   */
+  pathAliases?: string[][]
+  /**
+   * Paths this command used to have (`tables count create` for `tables rows count`). The CLI
+   * still runs each as this command, hidden from help, so the worker reads it as this one.
+   */
+  renamedFrom?: string[][]
 }
 
 function isHiddenCommand(command: Command): boolean {
   return (command as Command & { _hidden?: boolean })._hidden === true
 }
 
-function subcommands(command: Command): Command[] {
+/** Hidden commands stay out, except a whole top-level group that is only unpublished until launch. */
+function subcommands(command: Command, atRoot: boolean): Command[] {
   return command.commands.filter(
-    (child) => child.name() !== HELP_COMMAND && !isHiddenCommand(child)
+    (child) =>
+      child.name() !== HELP_COMMAND &&
+      (!isHiddenCommand(child) || (atRoot && UNPUBLISHED_GROUPS.has(child.name())))
   )
 }
 
-function collectLeaves(command: Command, prefix: string[]): { path: string[]; command: Command }[] {
-  const children = subcommands(command)
-  if (children.length === 0) return [{ path: prefix, command }]
-  return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
+interface Leaf {
+  path: string[]
+  /** The commands `path` names, outermost first. */
+  chain: Command[]
+  command: Command
 }
 
-const OPENAPI_DOCS: ReferenceDocument[] = fs
-  .readdirSync(path.join(ROOT, 'apps/docs'))
-  .filter((name) => /^openapi-v2-.*\.json$/.test(name))
-  .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8')))
+function collectLeaves(command: Command, chain: Command[]): Leaf[] {
+  const children = subcommands(command, chain.length === 0)
+  if (children.length === 0) return [{ path: chain.map((node) => node.name()), chain, command }]
+  return children.flatMap((child) => collectLeaves(child, [...chain, child]))
+}
+
+/**
+ * Unpublished groups are documented in launch-ready definitions kept out of the public reference,
+ * so their response shapes come from those definitions, as the CLI's own `--help` text does.
+ */
+async function unpublishedOpenApiDocuments(): Promise<ReferenceDocument[]> {
+  const [
+    { generateOpenApiDocument },
+    { filesAuditOpenApiDocument },
+    { unpublishedProjectFileDocumentation },
+  ] = await Promise.all([
+    import(path.join(ROOT, 'scripts/openapi/generator.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/files-audit.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/unpublished-project-files.ts')),
+  ])
+  return [
+    generateOpenApiDocument({
+      ...filesAuditOpenApiDocument,
+      routes: unpublishedProjectFileDocumentation.routes,
+    }),
+  ]
+}
+
+const OPENAPI_DOCS: ReferenceDocument[] = [
+  ...fs
+    .readdirSync(path.join(ROOT, 'apps/docs'))
+    .filter((name) => /^openapi-v2-.*\.json$/.test(name))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8'))),
+  ...(await unpublishedOpenApiDocuments()),
+]
 
 /**
  * `METHOD path` of every route Sim refuses a Mothership caller, as the route inventory
@@ -105,7 +153,7 @@ function mothershipRefuses(operations: readonly V2OperationName[]): boolean {
 
 const program = buildProgram()
 const inventory: InventoryCommand[] = collectLeaves(program, []).map(
-  ({ path: cmdPath, command }) => {
+  ({ path: cmdPath, chain, command }) => {
     const args: InventoryArgument[] = command.registeredArguments.map((argument) => ({
       name: argument.name(),
       required: argument.required,
@@ -143,6 +191,13 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
     const called = calledOperations(command) ?? []
+    const pathAliases = chain.map((node) => node.aliases())
+    const contract = operation ? CLI_CONTRACT[operation] : undefined
+    const renamedFrom =
+      contract?.renamedFrom &&
+      (contract.command === undefined || contract.command === cmdPath.join(' '))
+        ? contract.renamedFrom.map((from) => from.split(' '))
+        : []
     return {
       path: cmdPath,
       description: command.description(),
@@ -150,6 +205,9 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       options,
       ...reference,
       ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
+      ...(UNPUBLISHED_GROUPS.has(cmdPath[0] ?? '') ? { unpublished: true as const } : {}),
+      ...(pathAliases.some((aliases) => aliases.length > 0) ? { pathAliases } : {}),
+      ...(renamedFrom.length > 0 ? { renamedFrom } : {}),
     }
   }
 )

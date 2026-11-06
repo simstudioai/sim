@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sim/utils/errors'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { LatexOperationError } from '@/lib/internal/latex/errors'
 import { compileLatexDocument } from '@/lib/internal/latex/operations'
@@ -36,6 +36,9 @@ export const executeLatexTool: InternalToolOperationHandler = async (request) =>
       : error instanceof LatexOperationError
         ? error.status
         : 500
-    return Response.json({ error: getErrorMessage(error, 'LaTeX compilation failed') }, { status })
+    return Response.json(
+      { error: getUserFacingErrorMessage(error, 'LaTeX compilation failed') },
+      { status }
+    )
   }
 }

@@ -17,7 +17,8 @@ export const mailchimpDeleteMemberTool: ToolConfig<
 > = {
   id: 'mailchimp_delete_member',
   name: 'Delete Member from Mailchimp Audience',
-  description: 'Delete a member from a Mailchimp audience',
+  description:
+    'Archive a member from a Mailchimp audience without permanently deleting their data.',
   version: '1.0.0',
 
   params: {
@@ -63,6 +64,6 @@ export const mailchimpDeleteMemberTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the member was successfully deleted' },
+    success: { type: 'boolean', description: 'Whether the archive request succeeded' },
   },
 }

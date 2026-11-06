@@ -34,7 +34,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         position: { x: 0, y: 0 },
         rows: [
           { title: 'Messages', value: '-' },
-          { title: 'Model', value: 'claude-sonnet-4-6' },
+          { title: 'Model', value: 'claude-sonnet-5-5' },
           { title: 'Files', value: '-' },
           { title: 'Tools', value: '-' },
           { title: 'Skills', value: '-' },
@@ -135,7 +135,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         rows: [
           { title: 'Evaluation Metrics', value: '-' },
           { title: 'Content', value: '-' },
-          { title: 'Model', value: 'claude-sonnet-4-6' },
+          { title: 'Model', value: 'claude-sonnet-5-5' },
         ],
       },
     ],
@@ -219,7 +219,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         position: { x: 0, y: 0 },
         rows: [
           { title: 'Context', value: '-' },
-          { title: 'Model', value: 'claude-sonnet-4-6' },
+          { title: 'Model', value: 'claude-sonnet-5-5' },
         ],
         branches: [{ id: 'route 1', label: 'route 1' }],
       },
@@ -302,14 +302,14 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
       {
         id: 'workflow',
         name: 'Workflow',
-        type: 'workflow',
+        type: 'workflow_input',
         typeLabel: 'Workflow',
         sentence: ['Run', { subBlockId: 'Select Workflow', noun: 'workflow' }],
         bgColor: '#6366F1',
         position: { x: 0, y: 0 },
         rows: [
           { title: 'Select Workflow', value: '-' },
-          { title: 'Input Variable', value: '-' },
+          { title: 'Inputs', value: '-' },
         ],
       },
     ],
@@ -317,12 +317,12 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
   },
   human_in_the_loop: {
     id: 'human_in_the_loop',
-    name: 'Human in the Loop',
+    name: 'Human',
     blocks: [
       {
         id: 'human_in_the_loop',
-        name: 'Human in the Loop',
-        type: 'human_in_the_loop',
+        name: 'Human',
+        type: 'human_in_the_loop_v2',
         typeLabel: 'Human',
         sentence: ['Pause execution until a human responds'],
         bgColor: '#10B981',
@@ -331,6 +331,51 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
           { title: 'Display Data', value: '-' },
           { title: 'Notification (Send URL)', value: '-' },
           { title: 'Resume Form', value: '-' },
+        ],
+      },
+    ],
+    edges: [],
+  },
+  pi: {
+    id: 'pi',
+    name: 'Pi Coding Agent',
+    blocks: [
+      {
+        id: 'pi',
+        name: 'Pi coding agent',
+        type: 'pi',
+        typeLabel: 'Pi Coding Agent',
+        bgColor: '#000000',
+        position: {
+          x: 0,
+          y: 0,
+        },
+        rows: [
+          {
+            title: 'Mode',
+            value: 'Plan',
+          },
+          {
+            title: 'Task',
+            value: 'Plan a repository change',
+          },
+          {
+            title: 'Repository Name',
+            value: 'my-repo',
+          },
+          {
+            title: 'Model',
+            value: 'claude-sonnet-4-6',
+          },
+        ],
+        sentence: [
+          'Run',
+          { subBlockId: 'Task', noun: 'task' },
+          'on',
+          { subBlockId: 'Repository Name' },
+          ', in',
+          { subBlockId: 'Mode' },
+          'mode',
         ],
       },
     ],
@@ -415,7 +460,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         typeLabel: 'Table',
         sentence: [
           'Run on',
-          { subBlockId: 'Event type', noun: 'event' },
+          { subBlockId: 'Event', noun: 'event' },
           'in',
           { subBlockId: 'Table', noun: 'table' },
         ],
@@ -424,8 +469,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         hideTargetHandle: true,
         rows: [
           { title: 'Table', value: '-' },
-          { title: 'Event type', value: 'Row updated' },
-          { title: 'Watch columns', value: '-' },
+          { title: 'Event', value: 'Row Updated' },
+          { title: 'Watch Columns', value: '-' },
         ],
       },
     ],

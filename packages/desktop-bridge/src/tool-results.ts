@@ -167,7 +167,7 @@ export function browserToolCompletion(
   toolName: BrowserToolName,
   result: unknown
 ): DesktopToolCompletion {
-  const record = isRecordLike(result) ? result : null
+  const record = toRecordOrNull(result)
   const outcomeUnknown = record?.outcomeUnknown === true
   const stoppedMessage =
     toolName === 'browser_fill_form' && record?.completed === false

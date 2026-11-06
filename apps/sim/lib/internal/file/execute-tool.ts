@@ -1,4 +1,8 @@
-import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalAttribution,
+  resolvePrincipalSubject,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
@@ -25,6 +29,7 @@ import {
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
 import {
   FILE_SEARCH_DEFAULT_MAX_RESULTS,
@@ -79,6 +84,34 @@ const fileSearchInputSchema = z
   })
   .strict()
 
+/**
+ * A delegated caller arrives with its calling use case's audience (`sim:tool-execution`),
+ * but workspace-file use cases admit only `sim:workspace-files`; they still check the
+ * subject's access. A delegation for another workspace is left for them to refuse.
+ */
+function bindWorkspaceFilePrincipal(
+  principal: Principal,
+  workspaceId: string,
+  requestId: string
+): Principal {
+  if (
+    principal.kind !== 'delegated' ||
+    principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE ||
+    principal.workspaceId !== workspaceId
+  ) {
+    return principal
+  }
+  const scope = principal.resourceScope
+  return rebindWorkspaceFileDelegatedPrincipal({
+    principal,
+    workspaceId,
+    delegationId: `file-tool:${requestId}`,
+    fileId: scope?.fileId,
+    chatId: scope?.chatId,
+    executionId: scope?.executionId,
+  })
+}
+
 export const executeFileTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
   if (!FILE_MANAGE_TOOL_IDS.has(request.toolId)) {
@@ -117,7 +150,11 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   try {
     const principal =
       request.context.callerPrincipal && !request.context.executorDelegationOrigin
-        ? request.context.callerPrincipal
+        ? bindWorkspaceFilePrincipal(
+            request.context.callerPrincipal,
+            workspaceId,
+            request.requestId
+          )
         : await createExecutorPrincipalFromExecutionContext({
             context: request.context,
             audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,

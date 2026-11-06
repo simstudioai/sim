@@ -156,6 +156,10 @@ function focusChipModalDefaultAction(event: Event): void {
   focusChipModalContent(event.currentTarget as HTMLElement | null)
 }
 
+function keepFocusOnOpen(event: Event): void {
+  event.preventDefault()
+}
+
 /**
  * Supplies implicit submission for single-line custom inputs that are not a
  * {@link ChipModalField}. Canonical fields handle Enter at the control so they
@@ -216,6 +220,13 @@ interface ChipModalProps {
    * @default false
    */
   dismissDisabled?: boolean
+  /**
+   * Whether opening moves focus into the modal. Set `false` for a modal the
+   * user did not ask for, such as a prompt a web page raised: typing meant for
+   * whatever had focus never lands in it, and the user clicks into it instead.
+   * @default true
+   */
+  focusOnOpen?: boolean
   children?: React.ReactNode
 }
 
@@ -276,6 +287,7 @@ function ChipModal({
   size = 'md',
   className,
   dismissDisabled = false,
+  focusOnOpen = true,
   children,
   'aria-describedby': ariaDescribedBy,
 }: ChipModalProps) {
@@ -287,7 +299,7 @@ function ChipModal({
         srTitle={srTitle}
         size={size}
         dismissDisabled={dismissDisabled}
-        onOpenAutoFocus={focusChipModalDefaultAction}
+        onOpenAutoFocus={focusOnOpen ? focusChipModalDefaultAction : keepFocusOnOpen}
         aria-describedby={ariaDescribedBy}
       >
         <ChipModalSurface className={className}>{children}</ChipModalSurface>

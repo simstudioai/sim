@@ -28,7 +28,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('OrganizationBYOKKeys')

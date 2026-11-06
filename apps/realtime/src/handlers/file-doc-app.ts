@@ -1,4 +1,7 @@
-import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { isPermissionType } from '@sim/platform-authz/predicates'
+import type { RoomAuthorizationResult } from '@sim/platform-authz/rooms'
+import { FILE_DOC_INTERNAL_HEADERS, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { toRecord } from '@sim/utils/object'
 import { env, getBaseUrl } from '@/env'
 
 /**
@@ -8,13 +11,62 @@ import { env, getBaseUrl } from '@/env'
  * timeouts (and their ordering vs. the app-side bounds) live in the shared `FILE_DOC_TIMEOUTS`.
  */
 
-function postToApp(path: string, payload: unknown, timeoutMs: number): Promise<Response> {
+function postToApp(
+  path: string,
+  payload: unknown,
+  timeoutMs: number,
+  actor?: { userId: string; connectionId: string }
+): Promise<Response> {
   return fetch(`${getBaseUrl()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.INTERNAL_API_SECRET,
+      ...(actor
+        ? {
+            [FILE_DOC_INTERNAL_HEADERS.userId]: actor.userId,
+            [FILE_DOC_INTERNAL_HEADERS.connectionId]: actor.connectionId,
+          }
+        : {}),
+    },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(timeoutMs),
   })
+}
+
+/**
+ * Resolve a user's access to a workspace file's document room through the app. Only a decision in
+ * the body denies; any other answer throws, so an outage is never read as a revocation.
+ */
+export async function fetchFileDocAccess(
+  fileId: string,
+  userId: string
+): Promise<RoomAuthorizationResult> {
+  const response = await postToApp(
+    '/api/internal/file-doc/access',
+    { fileId, userId },
+    FILE_DOC_TIMEOUTS.seedRequestMs
+  )
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error(`Document authorization failed: ${response.status}`)
+  }
+  const body = toRecord(await response.json())
+  if (body.allowed === false && (body.status === 403 || body.status === 404))
+    return { allowed: false, status: body.status, workspaceId: null, workspacePermission: null }
+  if (
+    body.allowed !== true ||
+    typeof body.workspaceId !== 'string' ||
+    !body.workspaceId ||
+    !isPermissionType(body.workspacePermission)
+  )
+    throw new Error('Malformed document authorization')
+  return {
+    allowed: true,
+    status: 200,
+    workspaceId: body.workspaceId,
+    workspacePermission: body.workspacePermission,
+  }
 }
 
 /**
@@ -121,5 +173,95 @@ export async function fetchFileDocPersist(
   ) {
     throw new Error(`Persist for file ${fileId} returned a malformed body`)
   }
+  return body
+}
+
+interface ProjectDocumentRequest {
+  projectId: string
+  fileId: string
+  userId: string
+  connectionId: string
+}
+
+function projectDocumentPath(
+  target: ProjectDocumentRequest,
+  action: 'access' | 'seed' | 'persist'
+) {
+  return `/api/internal/project-file-doc/${encodeURIComponent(target.projectId)}/${encodeURIComponent(target.fileId)}/${action}`
+}
+
+/** Resolve current Project membership without manufacturing a workspace permission or identity. */
+export async function fetchProjectFileDocAccess(
+  target: ProjectDocumentRequest
+): Promise<RoomAuthorizationResult & { docId?: string | null }> {
+  const response = await postToApp(
+    projectDocumentPath(target, 'access'),
+    {},
+    FILE_DOC_TIMEOUTS.seedRequestMs,
+    target
+  )
+  if (response.status === 403 || response.status === 404) {
+    return { allowed: false, status: response.status, workspaceId: null, workspacePermission: null }
+  }
+  if (!response.ok) throw new Error(`Project document authorization failed: ${response.status}`)
+  const body = (await response.json()) as {
+    projectId?: unknown
+    fileId?: unknown
+    canRead?: unknown
+    canWrite?: unknown
+    docId?: unknown
+  }
+  if (
+    body.projectId !== target.projectId ||
+    body.fileId !== target.fileId ||
+    body.canRead !== true ||
+    typeof body.canWrite !== 'boolean' ||
+    (body.docId !== null &&
+      (typeof body.docId !== 'string' || !body.docId || body.docId.length > 128))
+  )
+    throw new Error('Malformed Project document authorization')
+  return {
+    allowed: true,
+    status: 200,
+    workspaceId: null,
+    workspacePermission: body.canWrite ? 'write' : 'read',
+    docId: body.docId,
+  }
+}
+
+/** Fetch a seed under the joining socket's current Project read access. */
+export async function fetchProjectFileDocSeed(
+  target: ProjectDocumentRequest
+): Promise<{ update: Uint8Array; version: number } | null> {
+  const response = await postToApp(
+    projectDocumentPath(target, 'seed'),
+    {},
+    FILE_DOC_TIMEOUTS.seedRequestMs,
+    target
+  )
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`Project document seed failed: ${response.status}`)
+  const body = (await response.json()) as { update?: unknown; version?: unknown }
+  if (typeof body.update !== 'string' || typeof body.version !== 'number')
+    throw new Error('Malformed Project document seed')
+  return { update: new Uint8Array(Buffer.from(body.update, 'base64')), version: body.version }
+}
+
+/** Persist as the authenticated author captured with the accepted stream snapshot. */
+export async function fetchProjectFileDocPersist(
+  target: ProjectDocumentRequest,
+  docState: Uint8Array,
+  expectedVersion?: number
+): Promise<PersistResult> {
+  const response = await postToApp(
+    projectDocumentPath(target, 'persist'),
+    { docState: Buffer.from(docState).toString('base64'), expectedVersion },
+    FILE_DOC_TIMEOUTS.persistRequestMs,
+    target
+  )
+  if (!response.ok) throw new Error(`Project document persist failed: ${response.status}`)
+  const body = (await response.json()) as PersistResult
+  if (!['persisted', 'missing', 'conflict', 'deferred'].includes(body?.status))
+    throw new Error('Malformed Project document persist')
   return body
 }

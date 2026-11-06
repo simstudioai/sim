@@ -4,14 +4,13 @@ import type {
 } from '@/tools/microsoft_ad/types'
 import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import {
-  assertGraphNextPageUrlForCollection,
   buildGraphCollectionUrl,
   DEVICE_SELECT,
   graphCollectionHeaders,
   mapDevice,
   usesGraphAdvancedQuery,
 } from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDevicesTool: ToolConfig<

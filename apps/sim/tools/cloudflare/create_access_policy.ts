@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { ACCESS_POLICY_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareAccessPolicyResponse,
   CloudflareCreateAccessPolicyParams,
@@ -5,11 +7,13 @@ import type {
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyAccessPolicy,
-  mapAccessPolicy,
+  mapCloudflareFields,
   parseJsonArrayParam,
+  parseJsonObjectParam,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createAccessPolicyTool: ToolConfig<
   CloudflareCreateAccessPolicyParams,
@@ -22,6 +26,27 @@ export const createAccessPolicyTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    approval_groups: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array. Administrators who can approve a temporary authentication request. Fields: approvals_needed, email_addresses, email_list_uuid.',
+    },
+    connection_rules: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. The rules that define how users may connect to the targets secured by your application. Fields: rdp, ssh.',
+    },
+    mfa_config: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Configures multi-factor authentication (MFA) settings for infrastructure applications. Fields: allowed_authenticators, mfa_disabled, session_duration.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -114,7 +139,7 @@ export const createAccessPolicyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}/policies`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
@@ -146,70 +171,26 @@ export const createAccessPolicyTool: ToolConfig<
         body.purpose_justification_prompt = params.purposeJustificationPrompt
       }
 
+      if (params.approval_groups !== undefined && params.approval_groups !== '')
+        body.approval_groups = parseJsonArrayParam(params.approval_groups, 'approval_groups')
+      if (params.connection_rules !== undefined && params.connection_rules !== '')
+        body.connection_rules = parseJsonObjectParam(params.connection_rules, 'connection_rules')
+      if (params.mfa_config !== undefined && params.mfa_config !== '')
+        body.mfa_config = parseJsonObjectParam(params.mfa_config, 'mfa_config')
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyAccessPolicy(),
-        error: cloudflareErrorMessage(data, 'Failed to create Access policy'),
-      }
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
+    return {
+      success,
+      output: mapCloudflareFields(data.result, ACCESS_POLICY_OUTPUTS),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to create access policy') }
+        : {}),
     }
-
-    return { success: true, output: mapAccessPolicy(data.result) }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Created policy identifier' },
-    name: { type: 'string', description: 'Policy name', optional: true },
-    decision: {
-      type: 'string',
-      description: 'Decision the policy applies: allow, deny, non_identity, or bypass',
-      optional: true,
-    },
-    precedence: {
-      type: 'number',
-      description: 'Evaluation order of the policy within the application',
-      optional: true,
-    },
-    include: {
-      type: 'json',
-      description: 'Rules evaluated with OR logic',
-      optional: true,
-    },
-    exclude: { type: 'json', description: 'Rules evaluated with NOT logic', optional: true },
-    require: { type: 'json', description: 'Rules evaluated with AND logic', optional: true },
-    session_duration: {
-      type: 'string',
-      description: 'How long a session granted by this policy stays valid',
-      optional: true,
-    },
-    approval_required: {
-      type: 'boolean',
-      description: 'Whether an approver must grant each access request',
-      optional: true,
-    },
-    isolation_required: {
-      type: 'boolean',
-      description: 'Whether the session must run in a remote browser',
-      optional: true,
-    },
-    purpose_justification_required: {
-      type: 'boolean',
-      description: 'Whether users must state a reason for access',
-      optional: true,
-    },
-    purpose_justification_prompt: {
-      type: 'string',
-      description: 'Prompt shown when a justification is required',
-      optional: true,
-    },
-    created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-    updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
-  },
+  outputs: ACCESS_POLICY_OUTPUTS,
 }

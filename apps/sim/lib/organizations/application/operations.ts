@@ -46,6 +46,7 @@ export const organizationOperations = {
    */
   updateMember: defineOrganizationOperation({
     id: 'organizations.members.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -58,12 +59,25 @@ export const organizationOperations = {
    */
   removeMember: defineOrganizationOperation({
     id: 'organizations.members.remove',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
     delegationAudience: 'sim:settings',
     delegatedServices: ['copilot'],
     oauthScope: 'api:write',
+  }),
+  /**
+   * permission-group-exempt: the application allows administrators to preview any member's removal and members to preview leaving.
+   */
+  previewMemberRemoval: defineOrganizationOperation({
+    id: 'organizations.members.removal_impact.read',
+    contentDelivery: 'none',
+    minimumRole: 'member',
+    capability: 'none',
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
   }),
   /**
    * permission-group-exempt: administrators can inspect existing invitations even when new invitations are disabled.
@@ -97,6 +111,7 @@ export const organizationOperations = {
   }),
   createInvitation: defineOrganizationOperation({
     id: 'organizations.invitations.create',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'invitations.send',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -110,6 +125,7 @@ export const organizationSettingsOperations = {
   /** permission-group-exempt: organization members may read their organization's identity. */
   read: defineOrganizationOperation({
     id: 'organization.settings.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -119,6 +135,7 @@ export const organizationSettingsOperations = {
   /** permission-group-exempt: organization administrators manage its identity. */
   update: defineOrganizationOperation({
     id: 'organization.settings.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -139,6 +156,7 @@ export const organizationSecurityOperations = {
   listDomains: defineOrganizationOperation({
     oauthScope: 'api:read',
     id: 'organizations.domains.list',
+    contentDelivery: 'none',
     minimumRole: 'member',
     ...securityPolicy,
     capability: 'none',
@@ -147,6 +165,7 @@ export const organizationSecurityOperations = {
   addDomain: defineOrganizationOperation({
     oauthScope: 'api:write',
     id: 'organizations.domains.add',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     ...securityPolicy,
     capability: 'none',
@@ -155,6 +174,7 @@ export const organizationSecurityOperations = {
   verifyDomain: defineOrganizationOperation({
     oauthScope: 'api:write',
     id: 'organizations.domains.verify',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     ...securityPolicy,
     capability: 'none',
@@ -163,6 +183,7 @@ export const organizationSecurityOperations = {
   removeDomain: defineOrganizationOperation({
     oauthScope: 'api:write',
     id: 'organizations.domains.remove',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     ...securityPolicy,
     capability: 'none',

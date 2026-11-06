@@ -27,6 +27,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',
@@ -43,6 +44,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',
@@ -59,6 +61,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',
@@ -75,6 +78,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',
@@ -95,6 +99,7 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',

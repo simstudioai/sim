@@ -20,6 +20,7 @@ import {
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -603,14 +604,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId for Teams chat subscription ${webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Microsoft Teams credentials are required. Please connect your Microsoft account in the trigger configuration.'
       )
     }
 
     if (!chatId) {
       logger.warn(`[${requestId}] Missing chatId for Teams chat subscription ${webhook.id}`)
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Chat ID is required to create a Teams subscription. Please provide a valid chat ID.'
       )
     }

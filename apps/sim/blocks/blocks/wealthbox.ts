@@ -11,7 +11,7 @@ export const WealthboxBlock: BlockConfig = {
   description: 'Interact with Wealthbox',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
+    'Read or write Wealthbox notes, contacts, and tasks with OAuth or a supported API access token.',
   docsLink: 'https://docs.sim.ai/integrations/wealthbox',
   category: 'tools',
   integrationType: IntegrationType.Sales,

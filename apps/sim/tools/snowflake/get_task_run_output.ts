@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -18,6 +19,7 @@ export const getTaskRunOutputTool: ToolConfig<
 > = {
   id: 'snowflake_get_task_run_output',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Task Run Output',
   description:
     'Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role.',

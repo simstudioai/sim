@@ -6,7 +6,7 @@ import {
 } from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
 const mocks = vi.hoisted(() => ({
   executeManage: vi.fn(),

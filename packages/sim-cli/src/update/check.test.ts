@@ -193,13 +193,6 @@ describe('across processes', () => {
   let entrypoint: string
   let temporaryDir: string
 
-  const [NODE_MAJOR, NODE_MINOR] = process.versions.node.split('.').map(Number)
-  const _SUPPORTS_ENV_PROXY = NODE_MAJOR >= 24 || (NODE_MAJOR === 22 && NODE_MINOR >= 21)
-  const _SUPPORTS_PROXY_FLAG =
-    NODE_MAJOR > 24 ||
-    (NODE_MAJOR === 24 && NODE_MINOR >= 5) ||
-    (NODE_MAJOR === 22 && NODE_MINOR >= 21)
-
   function buildUpdateCheck(temporaryDir: string): string {
     const entrypoint = join(temporaryDir, 'dist', 'check.mjs')
     const sourcePath = fileURLToPath(new URL('./check.ts', import.meta.url))

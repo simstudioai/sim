@@ -73,7 +73,7 @@ async function lockKnowledgeBaseForTagMutation(
     .from(knowledgeBase)
     .where(eq(knowledgeBase.id, knowledgeBaseId))
     .limit(1)
-    .for('update')
+    .for('no key update')
 }
 
 /** Prevents tag cleanup from demoting nonempty or unverifiable provenance to legacy state. */
@@ -111,6 +111,15 @@ async function clearTagSlotsInTx(
 
   const clearedTagValues: ClearedTagValues = {}
   for (const tagSlot of tagSlots) clearedTagValues[tagSlot] = null
+
+  await tx.execute(sql`
+    SELECT count(*) FROM (
+      SELECT ${document.id} FROM ${document}
+      WHERE ${document.knowledgeBaseId} = ${knowledgeBaseId}
+      ORDER BY ${document.id}
+      FOR UPDATE
+    ) AS locked_documents
+  `)
 
   await assertKnowledgeBaseTagsCanBeClearedInTx(tx, knowledgeBaseId)
 

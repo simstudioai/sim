@@ -1,5 +1,5 @@
-import type { DocsSearchResult } from '@/lib/mothership/docs/docs-search'
-import { searchDocs } from '@/lib/mothership/docs/docs-search'
+import type { DocsSearchResult } from '@/lib/mothership/docs/search'
+import { searchDocs } from '@/lib/mothership/docs/search'
 import { SearchDocs } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { ServerToolModelInputError } from '@/lib/mothership/tools/server/model-input'
@@ -54,7 +54,7 @@ function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string 
  * Vector search over Sim's product documentation, scoped to the same pages the
  * agent can `read` from the `docs/` VFS tree. Normal delegation exposes it to
  * the platform agent; the `@Docs` compatibility path also invokes it directly.
- * Corpus logic lives in `@/lib/mothership/docs/docs-search`.
+ * Corpus logic lives in `@/lib/mothership/docs/search`.
  */
 export const searchDocsServerTool: BaseServerTool<SearchDocsParams, SearchDocsOutput> = {
   name: SearchDocs.id,

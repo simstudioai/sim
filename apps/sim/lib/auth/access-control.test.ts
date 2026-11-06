@@ -93,7 +93,8 @@ describe('getAccessControlConfig', () => {
       expect(result.blockedEmailMxHosts).toEqual([])
       expect(mockFetch).toHaveBeenCalledWith(
         { application: 'sim-staging', environment: 'staging', profile: 'access-control' },
-        expect.any(Function)
+        expect.any(Function),
+        { shareWithTriggerRuns: true }
       )
     })
 

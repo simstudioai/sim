@@ -5,7 +5,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   id: 'clay_populate',
   name: 'Clay Populate',
   description:
-    'Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation.',
+    'Send structured JSON data to a Clay table webhook and return its response and HTTP metadata.',
   version: '1.0.0',
 
   params: {
@@ -94,7 +94,10 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
         status: { type: 'number', description: 'HTTP status code' },
         statusText: { type: 'string', description: 'HTTP status text' },
         headers: { type: 'object', description: 'Response headers from Clay' },
-        timestamp: { type: 'string', description: 'ISO timestamp when webhook was received' },
+        timestamp: {
+          type: 'string',
+          description: 'ISO timestamp recorded when the webhook response was processed',
+        },
         contentType: { type: 'string', description: 'Content type of the response' },
       },
     },

@@ -28,6 +28,7 @@ import {
   type InviteOrganizationAccountPeopleBody,
   inviteOrganizationAccountPeopleContract,
   listOrganizationAccountPeopleContract,
+  listPersonalOrganizationAccountsContract,
   type OrganizationAccountPeopleQuery,
   type RemoveOrganizationAccountMcpProviderParams,
   type ResendOrganizationAccountInvitationQuery,
@@ -45,6 +46,7 @@ import {
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
+import { assistantActionKeys } from '@/hooks/queries/assistant-actions'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
@@ -108,16 +110,39 @@ export function useReconnectPersonalOrganizationAccount() {
   }))
 }
 
-/** Disconnects an owned grant; indexing and source setup do not gate this operation. */
-export function useDisconnectPersonalOrganizationAccount(organizationId: string) {
+/**
+ * The accounts the viewer connected for any organization, including ones they
+ * have since left — the only place a former member can still see their grants.
+ */
+export function usePersonalOrganizationAccounts() {
+  return useInfiniteQuery({
+    queryKey: organizationAccountsKeys.personal(),
+    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) =>
+      requestJson(listPersonalOrganizationAccountsContract, {
+        query: { cursor: pageParam },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+  })
+}
+
+interface DisconnectPersonalOrganizationAccountVariables {
+  credentialId: string
+  organizationId: string
+}
+
+/** Disconnects an owned grant; indexing, source setup, and membership do not gate this operation. */
+export function useDisconnectPersonalOrganizationAccount() {
   const queryClient = useQueryClient()
   const router = useRouter()
   return useMutation({
-    mutationFn: (credentialId: string) =>
+    mutationFn: ({ credentialId }: DisconnectPersonalOrganizationAccountVariables) =>
       requestJson(disconnectPersonalOrganizationAccountContract, {
         params: { credentialId },
       }),
-    onSuccess: async () => {
+    onSuccess: async (_data, { organizationId }) => {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
@@ -126,6 +151,7 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
         queryClient.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
+        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
       ])
       router.refresh()
     },
@@ -135,6 +161,7 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
 export const organizationAccountsKeys = {
   all: ['organization-accounts'] as const,
   connection: () => [...organizationAccountsKeys.all, 'connection'] as const,
+  personal: () => [...organizationAccountsKeys.all, 'personal'] as const,
   workspaces: () => [...organizationAccountsKeys.all, 'workspace'] as const,
   workspace: (workspaceId?: string) =>
     [...organizationAccountsKeys.workspaces(), workspaceId ?? ''] as const,
@@ -241,6 +268,7 @@ export function useUpdateOrganizationAccounts() {
         queryClient.invalidateQueries({
           queryKey: slackSearchKeys.organizationManifests(organizationId),
         }),
+        queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
       ]),
   })
 }
@@ -248,6 +276,7 @@ export function useUpdateOrganizationAccounts() {
 async function refreshAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     client.invalidateQueries({ queryKey: organizationAccountsKeys.all }),
+    client.invalidateQueries({ queryKey: assistantActionKeys.permissions() }),
     client.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
     client.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
     invalidateSelectorQueries(client),

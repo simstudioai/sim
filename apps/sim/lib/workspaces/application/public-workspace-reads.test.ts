@@ -15,7 +15,7 @@ const hoisted = vi.hoisted(() => ({
   listMembers: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

@@ -1,0 +1,14 @@
+{
+  "name": "sim",
+  "description": "Plugins for Sim, the open-source AI workspace.",
+  "owner": {
+    "name": "Sim",
+    "url": "https://www.sim.ai"
+  },
+  "plugins": [
+    {
+      "name": "sim",
+      "source": "./plugins/sim"
+    }
+  ]
+}

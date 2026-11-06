@@ -16,7 +16,7 @@ export const CalComBlock: BlockConfig = {
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
-    'Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.',
+    'Create, list, confirm, decline, reschedule, or cancel bookings; manage event types and schedules; and retrieve available slots. Booking and meeting webhooks can start workflows. Connect with OAuth or a supported Cal.com API key.',
   docsLink: 'https://docs.sim.ai/integrations/calcom',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

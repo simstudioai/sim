@@ -1,4 +1,4 @@
-import type Anthropic from '@anthropic-ai/sdk'
+import Anthropic from '@anthropic-ai/sdk'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
@@ -979,5 +979,67 @@ describe('unsupported thinking level logging', () => {
     const secret = 'sk-proj-abcdef0123456789'
     expect(describeModelLevel(secret)).toBe(`[redacted ${secret.length} chars]`)
     expect(describeModelLevel('high')).toBe('high')
+  })
+})
+
+describe('executeAnthropicProviderRequest failure log severity', () => {
+  /** Never answers; rejects only when the SDK cancels it, so the SDK raises its own abort. */
+  const hangingFetch = (_input: unknown, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+    })
+
+  function runRequest(fetch: typeof hangingFetch, abortSignal: AbortSignal) {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    const settled = executeAnthropicProviderRequest(
+      {
+        model: 'claude-sonnet-4-5',
+        apiKey: 'test-key',
+        maxTokens: 16,
+        messages: [{ role: 'user', content: 'hi' }],
+        abortSignal,
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: (apiKey) => new Anthropic({ apiKey, fetch, maxRetries: 0 }),
+        logger: logger as never,
+      }
+    ).catch((error: unknown) => error)
+    const failureLevels = () =>
+      (['info', 'warn', 'error'] as const).filter((level) =>
+        logger[level].mock.calls.some(([message]) => message === 'Error in Anthropic request:')
+      )
+    return { settled, failureLevels }
+  }
+
+  it('logs a request the user stopped at info', async () => {
+    const run = new AbortController()
+    const { settled, failureLevels } = runRequest(hangingFetch, run.signal)
+    run.abort(new DOMException('user', 'AbortError'))
+    await settled
+    expect(failureLevels()).toEqual(['info'])
+  })
+
+  it('logs a request the run time limit cut off at warn', async () => {
+    const run = new AbortController()
+    const { settled, failureLevels } = runRequest(hangingFetch, run.signal)
+    run.abort(new DOMException('timeout', 'AbortError'))
+    await settled
+    expect(failureLevels()).toEqual(['warn'])
+  })
+
+  it('logs a genuine provider failure on a live run at error', async () => {
+    const failingFetch = async () =>
+      new Response(
+        JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'boom' } }),
+        {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }
+      )
+    const { settled, failureLevels } = runRequest(failingFetch, new AbortController().signal)
+    await settled
+    expect(failureLevels()).toEqual(['error'])
   })
 })

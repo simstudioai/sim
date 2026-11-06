@@ -1,5 +1,6 @@
 import {
   ACCESS_TOKEN_PARAM,
+  CLAUDE_PLATFORM_OAUTH,
   CREDENTIAL_PARAM,
   SESSION_ID_PARAM,
 } from '@/tools/managed_agent/shared'
@@ -28,6 +29,7 @@ export const managedAgentDeleteSessionTool: InternalToolConfig<
   description:
     'Permanently delete a Managed Agent session, its events, and its sandbox. Not reversible.',
   version: '1.0.0',
+  oauth: CLAUDE_PLATFORM_OAUTH,
 
   params: {
     credential: CREDENTIAL_PARAM,

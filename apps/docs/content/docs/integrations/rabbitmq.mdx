@@ -1,14 +1,13 @@
 ---
 title: RabbitMQ
 description: Publish and read messages and manage queues in RabbitMQ
+integration:
+  type: "rabbitmq"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="rabbitmq"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [RabbitMQ](https://www.rabbitmq.com/)'s Management HTTP API to publish and inspect messages, manage queue topology, and check broker health. Messages are published to exchanges and routed through bindings into queues.
@@ -25,18 +24,17 @@ The default acknowledgement mode requeues messages after reading them, so an ins
 - Reading messages is **bounded per call** so one retrieval cannot exceed Sim's response limit. A batch is capped at 50 messages, payloads are truncated (each message reports whether it was), and a large batch shortens payloads further. AMQP properties and headers are returned in full — the broker offers no way to truncate them — so retrieving several messages carrying very large headers may still hit the limit; lower the count if that happens.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect agents to a RabbitMQ broker through its Management HTTP API. Publish messages to exchanges, read messages off queues, declare queues, exchanges, bindings, and policies, and inspect broker health, queue depth, consumers, connections, and cluster nodes. Works with self-hosted brokers and managed offerings such as CloudAMQP as long as the management plugin is reachable.
-
-
 
 ## Actions
 
 ### RabbitMQ Publish Message
 
 Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +59,13 @@ Publish a message to a RabbitMQ exchange with a routing key. Reports whether the
 | `exchange` | string | Exchange the message was published to |
 | `routingKey` | string | Routing key the message was published with |
 
+</ReferenceDetails>
+
 ### RabbitMQ Get Messages
 
 Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -87,9 +89,13 @@ Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so 
 | `count` | number | Number of messages retrieved |
 | `messages` | array | Retrieved messages, empty when the queue holds nothing |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Queues
 
 List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +120,13 @@ List queues in a RabbitMQ virtual host with their depth, consumer count, and con
 | `page` | number | Page number returned |
 | `pageCount` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### RabbitMQ Get Queue
 
 Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +144,13 @@ Read a single RabbitMQ queue, including its depth, consumer count, and declarati
 | --------- | ---- | ----------- |
 | `queue` | object | The requested queue |
 
+</ReferenceDetails>
+
 ### RabbitMQ Create Queue
 
 Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +173,13 @@ Declare a RabbitMQ queue. Declaring a queue that already exists with the same se
 | `vhost` | string | Virtual host the queue was declared in |
 | `created` | boolean | Whether the declaration succeeded |
 
+</ReferenceDetails>
+
 ### RabbitMQ Delete Queue
 
 Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +201,13 @@ Delete a RabbitMQ queue and every message still in it. Can be guarded so the del
 | `vhost` | string | Virtual host the queue was deleted from |
 | `deleted` | boolean | Whether the queue was deleted |
 
+</ReferenceDetails>
+
 ### RabbitMQ Purge Queue
 
 Discard every ready message in a RabbitMQ queue while leaving the queue itself in place.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +227,13 @@ Discard every ready message in a RabbitMQ queue while leaving the queue itself i
 | `vhost` | string | Virtual host the queue belongs to |
 | `purged` | boolean | Whether the queue was purged |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Exchanges
 
 List exchanges in a RabbitMQ virtual host with their type and declaration settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +258,13 @@ List exchanges in a RabbitMQ virtual host with their type and declaration settin
 | `page` | number | Page number returned |
 | `pageCount` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### RabbitMQ Get Exchange
 
 Read a single RabbitMQ exchange and the settings it was declared with.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -252,9 +282,13 @@ Read a single RabbitMQ exchange and the settings it was declared with.
 | --------- | ---- | ----------- |
 | `exchange` | object | The requested exchange |
 
+</ReferenceDetails>
+
 ### RabbitMQ Create Exchange
 
 Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +313,13 @@ Declare a RabbitMQ exchange. Declaring an exchange that already exists with the 
 | `vhost` | string | Virtual host the exchange was declared in |
 | `created` | boolean | Whether the declaration succeeded |
 
+</ReferenceDetails>
+
 ### RabbitMQ Delete Exchange
 
 Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +340,13 @@ Delete a RabbitMQ exchange and every binding attached to it. Publishers targetin
 | `vhost` | string | Virtual host the exchange was deleted from |
 | `deleted` | boolean | Whether the exchange was deleted |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Bindings
 
 List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -324,9 +366,13 @@ List the bindings that route messages into a RabbitMQ queue, including the impli
 | `bindings` | array | Bindings targeting the queue. The entry with an empty source is the implicit default-exchange binding |
 | `count` | number | Number of bindings returned |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Exchange Bindings
 
 List everything an exchange routes to, so you can see which routing keys reach which queues.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +392,13 @@ List everything an exchange routes to, so you can see which routing keys reach w
 | `bindings` | array | Bindings routing out of the exchange. An empty list means nothing it publishes can be delivered |
 | `count` | number | Number of bindings returned |
 
+</ReferenceDetails>
+
 ### RabbitMQ Create Binding
 
 Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,9 +424,13 @@ Bind a queue or another exchange to a RabbitMQ exchange so messages matching a r
 | `propertiesKey` | string | Broker identifier addressing the new binding |
 | `created` | boolean | Whether the binding was created |
 
+</ReferenceDetails>
+
 ### RabbitMQ Delete Binding
 
 Remove a binding so an exchange stops routing its matching messages to that destination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +454,13 @@ Remove a binding so an exchange stops routing its matching messages to that dest
 | `propertiesKey` | string | Broker identifier of the deleted binding |
 | `deleted` | boolean | Whether the binding was deleted |
 
+</ReferenceDetails>
+
 ### RabbitMQ Get Overview
 
 Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +493,13 @@ Read broker-wide RabbitMQ status: version, cluster name, object totals, queue de
 |   ↳ `messages_unacknowledged` | number | Delivered but unacknowledged messages |
 | `messageStats` | json | Broker-wide message counters and rates, e.g. publish and confirm totals |
 
+</ReferenceDetails>
+
 ### RabbitMQ Health Check
 
 Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +525,13 @@ Run one of the broker health checks and report whether it passed. A failing chec
 | `reason` | string | Explanation the broker gave, present on failures and on some passes |
 | `details` | json | Full check body, including check-specific fields such as the ports or protocols found |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Nodes
 
 List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -483,9 +549,13 @@ List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fi
 | `nodes` | array | Cluster nodes and their resource headroom |
 | `count` | number | Number of nodes in the cluster |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Virtual Hosts
 
 List the virtual hosts on the broker with their message totals, so you can discover which scopes exist.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -503,9 +573,13 @@ List the virtual hosts on the broker with their message totals, so you can disco
 | `vhosts` | array | Virtual hosts the authenticated user can see |
 | `count` | number | Number of virtual hosts returned |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Connections
 
 List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -530,9 +604,13 @@ List client connections to the broker with their user, state, and channel count.
 | `page` | number | Page number returned |
 | `pageCount` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Channels
 
 List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -557,9 +635,13 @@ List open channels with their prefetch limit and unacknowledged message count, w
 | `page` | number | Page number returned |
 | `pageCount` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Consumers
 
 List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -577,9 +659,13 @@ List the consumers subscribed in a virtual host. An empty result for a queue wit
 | `consumers` | array | Consumers currently subscribed in the virtual host |
 | `count` | number | Number of consumers returned |
 
+</ReferenceDetails>
+
 ### RabbitMQ List Policies
 
 List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -597,9 +683,13 @@ List the policies in a virtual host. Policies are how dead-lettering, TTLs, and 
 | `policies` | array | Policies defined in the virtual host |
 | `count` | number | Number of policies returned |
 
+</ReferenceDetails>
+
 ### RabbitMQ Create Policy
 
 Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -623,9 +713,13 @@ Create or replace a RabbitMQ policy, applying settings such as dead-lettering, T
 | `vhost` | string | Virtual host the policy applies in |
 | `created` | boolean | Whether the policy was created or replaced |
 
+</ReferenceDetails>
+
 ### RabbitMQ Delete Policy
 
 Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -644,5 +738,7 @@ Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses 
 | `policyName` | string | Name of the deleted policy |
 | `vhost` | string | Virtual host the policy applied in |
 | `deleted` | boolean | Whether the policy was deleted |
+
+</ReferenceDetails>
 
 

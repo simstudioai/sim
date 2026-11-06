@@ -44,6 +44,20 @@ export interface FlagSpec {
    */
   renamedFrom?: readonly string[]
   /**
+   * Other names this flag answers to because callers reach for them: the request field's own
+   * name behind a shortened flag (`--row-ids` for `--row`), or the noun a sibling command uses
+   * (`--ids`, `--paths` for `--file-ids`). Only for a spelling that can mean nothing but this
+   * field on this command. Hidden like a {@link renamedFrom} spelling, but silent.
+   */
+  hiddenAliases?: readonly string[]
+  /**
+   * The list holds workspace file ids or `files/…` paths, so an inline value written as a JSON
+   * array (`["wf_a","wf_b"]`) or joined with commas (`wf_a,wf_b`) is read as its entries.
+   * Unambiguous because an id is `[A-Za-z0-9_-]` and a path starts with `files/`: neither starts
+   * with `[`, and a comma splits only a value with no `/`, so a path keeps a comma in its name.
+   */
+  fileReferences?: true
+  /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.
    *
@@ -69,6 +83,11 @@ export interface FlagSpec {
    * error, and a literal `#` value can still be passed.
    */
   manifest?: true
+  /**
+   * The list's values may also follow the command as arguments, so `files batch-delete <id>...`
+   * reads like `rm`. Passing both forms is refused. At most one field per command.
+   */
+  trailing?: true
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
   /** Read a scalar string verbatim from `@path` / `@-`; `@@` escapes a literal leading `@`. */
@@ -250,6 +269,11 @@ export interface CommandSpec {
   command?: string
   /** Run this operation when its top-level group is invoked without a subcommand. */
   groupDefault?: boolean
+  /**
+   * Run this leaf when its group is named without a subcommand, as the group's default. The group
+   * keeps no options of its own, so the leaf parses its options in either spelling.
+   */
+  defaultSubcommand?: true
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
   /**

@@ -1,0 +1,496 @@
+import type { OAuthConfig, OutputProperty, ToolConfig } from '@/tools/types'
+
+export const oracleFusionFinancialsPageOutputProperties = {
+  count: { type: 'number', description: 'Number of records in this page' },
+  hasMore: { type: 'boolean', description: 'Whether Oracle has another page' },
+  limit: { type: 'number', description: 'Page size returned by Oracle' },
+  offset: { type: 'number', description: 'Offset returned by Oracle' },
+  totalResults: {
+    type: 'number',
+    description: 'Estimated total matching records when requested',
+    optional: true,
+  },
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesInvoiceLineCreateItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [],
+  properties: {
+    LineNumber: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Description: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    ItemNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    MemoLine: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    LineAmount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Quantity: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    UnitSellingPrice: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    UnitOfMeasure: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountingRule: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountingRuleDuration: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'Exact decimal integer supplied as a string',
+    },
+    RuleStartDate: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    RuleEndDate: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    TaxClassificationCode: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    SalesOrder: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+} as const
+
+export const oracleFusionReceivablesInvoiceDistributionCreateItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [],
+  properties: {
+    AccountClass: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountCombination: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountedAmount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Amount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    InvoiceLineNumber: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    DetailedTaxLineNumber: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Percent: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Comments: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+} as const
+
+export const oracleFusionReceivablesCreditMemoLineCreateItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['LineNumber'],
+  properties: {
+    LineNumber: { type: 'number' },
+    LineDescription: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    ItemNumber: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    MemoLine: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    LineAmountCredit: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    LineQuantityCredit: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    UnitSellingPrice: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    UnitOfMeasure: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    LineCreditReason: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    LineFreightCreditAmount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    TaxClassificationCode: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+} as const
+
+export const oracleFusionReceivablesCreditMemoDistributionCreateItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [],
+  properties: {
+    AccountClass: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountCombination: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    AccountedAmount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Amount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    CreditMemoLineNumber: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    DetailedTaxLineNumber: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Percent: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    Comments: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+} as const
+
+export const ORACLE_FUSION_FINANCIALS_OAUTH_CONFIG = {
+  required: true,
+  provider: 'oracle-fusion',
+  credentialKind: 'service-account',
+  authoritativeParams: ['instanceUrl'],
+} as const satisfies OAuthConfig
+
+export const oracleFusionFinancialsAuthParamFields = {
+  oauthCredential: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only',
+    description: 'Oracle Fusion Cloud Financials service-account credential',
+  },
+  accessToken: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Basic-auth credential injected from the selected service account',
+  },
+  instanceUrl: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Canonical Fusion Applications origin injected from the selected credential',
+  },
+} satisfies ToolConfig['params']
+
+export const oracleFusionFinancialsListParamFields = {
+  q: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description: 'Oracle REST Framework q filter expression',
+  },
+  finder: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description: 'Oracle predefined finder expression',
+  },
+  orderBy: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description: 'Comma-separated Oracle attributes with optional :asc or :desc direction',
+  },
+  limit: {
+    type: 'number',
+    required: false,
+    visibility: 'user-or-llm',
+    default: 50,
+    description: 'Records in this page (integer from 1 to 100; default 50)',
+  },
+  offset: {
+    type: 'number',
+    required: false,
+    visibility: 'user-or-llm',
+    default: 0,
+    description: 'Zero-based record offset (non-negative integer; default 0)',
+  },
+  totalResults: {
+    type: 'boolean',
+    required: false,
+    visibility: 'user-or-llm',
+    default: false,
+    description: 'Ask Oracle to include its estimated total matching row count',
+  },
+} satisfies ToolConfig['params']
+
+export const oracleFusionInvoiceParamField = {
+  type: 'string',
+  required: true,
+  visibility: 'user-or-llm',
+  description: 'Opaque invoice key returned by an Oracle Fusion invoice list',
+} as const
+
+export const oracleFusionCheckIdParamField = {
+  type: 'string',
+  required: true,
+  visibility: 'user-or-llm',
+  description: 'Oracle payment CheckId as a decimal string',
+} as const
+
+export const oracleFusionInvoiceLineParamField = {
+  type: 'string',
+  required: true,
+  visibility: 'user-or-llm',
+  description: 'Opaque invoice-line key returned by Oracle Fusion',
+} as const
+
+const scalar = (description: string, type: OutputProperty['type'] = 'string'): OutputProperty => ({
+  type,
+  description,
+  optional: true,
+  nullable: true,
+})
+
+const nonNullableScalar = (
+  description: string,
+  type: OutputProperty['type'] = 'string'
+): OutputProperty => ({
+  type,
+  description,
+  optional: true,
+  nullable: false,
+})
+
+export const oracleFusionInvoiceOutputProperties = {
+  invoiceUniqId: { type: 'string', description: 'Opaque Oracle invoice resource key' },
+  InvoiceId: nonNullableScalar('Oracle invoice identifier as a decimal string'),
+  InvoiceNumber: nonNullableScalar('Supplier invoice number'),
+  Supplier: scalar('Supplier name'),
+  SupplierNumber: nonNullableScalar('Supplier number'),
+  SupplierSite: scalar('Supplier site'),
+  BusinessUnit: nonNullableScalar('Invoice business unit'),
+  InvoiceAmount: nonNullableScalar('Invoice amount in transaction currency', 'number'),
+  InvoiceCurrency: nonNullableScalar('Invoice currency code'),
+  InvoiceDate: nonNullableScalar('Date on the supplier invoice'),
+  AccountingDate: nonNullableScalar('Invoice accounting date'),
+  AmountPaid: scalar('Amount paid', 'number'),
+  PaidStatus: nonNullableScalar('Invoice paid status'),
+  ApprovalStatus: nonNullableScalar('Invoice approval status'),
+  ValidationStatus: scalar('Invoice validation status'),
+  PaymentTerms: nonNullableScalar('Invoice payment terms'),
+  PaymentMethod: nonNullableScalar('Invoice payment method'),
+  PurchaseOrderNumber: scalar('Matched purchase order number'),
+  Description: scalar('Invoice description'),
+  CreationDate: nonNullableScalar('Record creation timestamp'),
+  LastUpdateDate: nonNullableScalar('Record last-update timestamp'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionInvoiceLineOutputProperties = {
+  invoiceLineUniqId: { type: 'string', description: 'Opaque Oracle invoice-line resource key' },
+  LineNumber: nonNullableScalar('Invoice line number as an exact decimal string'),
+  LineType: scalar('Invoice line type'),
+  LineAmount: scalar('Line amount in invoice currency', 'number'),
+  BaseAmount: scalar('Line amount in ledger currency', 'number'),
+  Description: scalar('Invoice line description'),
+  Quantity: scalar('Quantity invoiced', 'number'),
+  UOM: scalar('Unit of measure'),
+  UnitPrice: scalar('Unit price', 'number'),
+  AccountingDate: nonNullableScalar('Line accounting date'),
+  ApprovalStatus: nonNullableScalar('Invoice line approval status'),
+  DiscardedFlag: scalar('Whether the line is discarded', 'boolean'),
+  CanceledFlag: scalar('Whether the line is canceled', 'boolean'),
+  TrackAsAssetFlag: scalar('Whether the line is tracked as an asset', 'boolean'),
+  PurchaseOrderNumber: scalar('Matched purchase order number'),
+  PurchaseOrderLineNumber: scalar('Matched purchase order line number', 'number'),
+  ReceiptNumber: scalar('Matched receipt number'),
+  ReceiptLineNumber: scalar('Matched receipt line number as an exact decimal string'),
+  Item: scalar('Inventory item name'),
+  ItemDescription: scalar('Inventory item description'),
+  TaxClassification: scalar('Tax classification code'),
+  TaxRateCode: scalar('Tax rate code'),
+  ShipToLocation: scalar('Ship-to location'),
+  CreationDate: nonNullableScalar('Record creation timestamp'),
+  LastUpdateDate: nonNullableScalar('Record last-update timestamp'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionPaymentOutputProperties = {
+  CheckId: nonNullableScalar('Unique Oracle payment identifier as a decimal string'),
+  PaymentId: scalar('Payments application identifier as a decimal string'),
+  PaymentReference: scalar('User- and bank-facing payment reference as a decimal string'),
+  PaymentNumber: nonNullableScalar('Payment or printed check number as a decimal string'),
+  PaymentAmount: nonNullableScalar('Payment amount', 'number'),
+  PaymentCurrency: nonNullableScalar('Payment currency code'),
+  PaymentDate: nonNullableScalar('Payment date'),
+  AccountingDate: scalar('Payment accounting date'),
+  Payee: scalar('Payee name'),
+  PayeeSite: scalar('Payee supplier site'),
+  SupplierNumber: nonNullableScalar('Supplier number'),
+  PaymentMethod: nonNullableScalar('Payment method'),
+  PaymentStatus: nonNullableScalar('Payment status'),
+  PaymentType: scalar('Payment type'),
+  BusinessUnit: nonNullableScalar('Payment business unit'),
+  LegalEntity: nonNullableScalar('Payment legal entity'),
+  ReconciledFlag: scalar('Whether the payment is reconciled', 'boolean'),
+  CreationDate: nonNullableScalar('Record creation timestamp'),
+  LastUpdateDate: nonNullableScalar('Record last-update timestamp'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesInvoiceOutputProperties = {
+  CustomerTransactionId: nonNullableScalar('Customer Transaction Id as an exact decimal string'),
+  TransactionNumber: scalar('Transaction Number'),
+  BillToCustomerName: scalar('Bill To Customer Name'),
+  BillToCustomerNumber: scalar('Bill To Customer Number'),
+  BillToSite: scalar('Bill To Site'),
+  BusinessUnit: scalar('Business Unit'),
+  TransactionDate: scalar('Transaction Date'),
+  AccountingDate: scalar('Accounting Date'),
+  DueDate: scalar('Due Date'),
+  InvoiceCurrencyCode: scalar('Invoice Currency Code'),
+  EnteredAmount: scalar('Entered Amount', 'number'),
+  InvoiceBalanceAmount: scalar('Invoice Balance Amount', 'number'),
+  InvoiceStatus: scalar('Invoice Status'),
+  PaymentTerms: scalar('Payment Terms'),
+  TransactionSource: scalar('Transaction Source'),
+  TransactionType: scalar('Transaction Type'),
+  Comments: scalar('Comments'),
+  CreationDate: nonNullableScalar('Creation Date'),
+  LastUpdateDate: nonNullableScalar('Last Update Date'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesInvoiceLineOutputProperties = {
+  CustomerTransactionLineId: nonNullableScalar(
+    'Customer Transaction Line Id as an exact decimal string'
+  ),
+  LineNumber: scalar('Line Number', 'number'),
+  Description: scalar('Description'),
+  ItemNumber: scalar('Item Number'),
+  MemoLine: scalar('Memo Line'),
+  LineAmount: scalar('Line Amount', 'number'),
+  Quantity: scalar('Quantity', 'number'),
+  UnitSellingPrice: scalar('Unit Selling Price', 'number'),
+  UnitOfMeasure: scalar('Unit Of Measure'),
+  AccountingRule: scalar('Accounting Rule'),
+  AccountingRuleDuration: scalar('Accounting Rule Duration as an exact decimal string'),
+  RuleStartDate: scalar('Rule Start Date'),
+  RuleEndDate: scalar('Rule End Date'),
+  TaxClassificationCode: scalar('Tax Classification Code'),
+  CreationDate: nonNullableScalar('Creation Date'),
+  LastUpdateDate: nonNullableScalar('Last Update Date'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesInvoiceInstallmentOutputProperties = {
+  InstallmentId: nonNullableScalar('Installment Id as an exact decimal string'),
+  InstallmentSequenceNumber: scalar('Installment Sequence Number as an exact decimal string'),
+  InstallmentDueDate: nonNullableScalar('Installment Due Date'),
+  OriginalAmount: nonNullableScalar('Original Amount', 'number'),
+  InstallmentBalanceDue: nonNullableScalar('Installment Balance Due', 'number'),
+  AccountedBalanceDue: nonNullableScalar('Accounted Balance Due', 'number'),
+  AmountPaid: scalar('Amount Paid', 'number'),
+  InstallmentAmountAdjusted: scalar('Installment Amount Adjusted', 'number'),
+  InstallmentAmountCredited: scalar('Installment Amount Credited', 'number'),
+  InstallmentStatus: scalar('Installment Status'),
+  DisputeAmount: scalar('Dispute Amount', 'number'),
+  DisputeDate: scalar('Dispute Date'),
+  PaymentDaysLate: scalar('Payment Days Late', 'number'),
+  CreationDate: nonNullableScalar('Creation Date'),
+  LastUpdateDate: nonNullableScalar('Last Update Date'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesCreditMemoOutputProperties = {
+  CustomerTransactionId: nonNullableScalar('Customer Transaction Id as an exact decimal string'),
+  TransactionNumber: nonNullableScalar('Transaction Number'),
+  BusinessUnit: nonNullableScalar('Business Unit'),
+  BillToCustomerName: scalar('Bill To Customer Name'),
+  BillToCustomerNumber: scalar('Bill To Customer Number'),
+  BillToSite: scalar('Bill To Site'),
+  TransactionDate: nonNullableScalar('Transaction Date'),
+  AccountingDate: scalar('Accounting Date'),
+  CreditMemoCurrency: scalar('Credit Memo Currency'),
+  CreditMemoStatus: scalar('Credit Memo Status'),
+  CreditReason: scalar('Credit Reason'),
+  EnteredAmount: scalar('Entered Amount', 'number'),
+  TransactionBalanceDue: scalar('Transaction Balance Due', 'number'),
+  FreightCreditAmount: scalar('Freight Credit Amount'),
+  TransactionSource: scalar('Transaction Source'),
+  TransactionType: scalar('Transaction Type'),
+  CreditMemoComments: scalar('Credit Memo Comments'),
+  CreationDate: nonNullableScalar('Creation Date'),
+  LastUpdateDate: nonNullableScalar('Last Update Date'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionReceivablesReceiptOutputProperties = {
+  StandardReceiptId: nonNullableScalar('Standard Receipt Id as an exact decimal string'),
+  ReceiptNumber: scalar('Receipt Number'),
+  Amount: nonNullableScalar('Amount', 'number'),
+  AccountedAmount: nonNullableScalar('Accounted Amount', 'number'),
+  UnappliedAmount: scalar('Unapplied Amount', 'number'),
+  Currency: nonNullableScalar('Currency'),
+  BusinessUnit: nonNullableScalar('Business Unit'),
+  ReceiptDate: nonNullableScalar('Receipt Date'),
+  AccountingDate: scalar('Accounting Date'),
+  ReceiptMethod: nonNullableScalar('Receipt Method'),
+  CustomerName: scalar('Customer Name'),
+  CustomerAccountNumber: scalar('Customer Account Number'),
+  CustomerSite: scalar('Customer Site'),
+  State: scalar('State'),
+  Status: scalar('Status'),
+  Comments: scalar('Comments'),
+  CreationDate: nonNullableScalar('Creation Date'),
+  LastUpdateDate: nonNullableScalar('Last Update Date'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionExpenseReportOutputProperties = {
+  expenseReportUniqId: { type: 'string', description: 'Oracle-derived opaque resource key' },
+  ExpenseReportId: nonNullableScalar('Expense Report Id', 'string'),
+  ExpenseReportNumber: scalar('Expense Report Number', 'string'),
+  ExpenseReportStatus: nonNullableScalar('Expense Report Status', 'string'),
+  ExpenseStatusCode: scalar('Expense Status Code', 'string'),
+  ExpenseReportTotal: scalar('Expense Report Total', 'number'),
+  BusinessUnit: scalar('Business Unit', 'string'),
+  OrgId: nonNullableScalar('Org Id', 'string'),
+  AssignmentId: scalar('Assignment Id', 'string'),
+  PersonId: scalar('Person Id', 'string'),
+  PersonName: scalar('Person Name', 'string'),
+  Purpose: scalar('Purpose', 'string'),
+  ExpenseReportDate: scalar('Expense Report Date', 'string'),
+  ReportSubmitDate: scalar('Report Submit Date', 'string'),
+  ReimbursementCurrencyCode: scalar('Reimbursement Currency Code', 'string'),
+  PaymentMethodCode: scalar('Payment Method Code', 'string'),
+  SubmitErrors: scalar('Submit Errors', 'string'),
+  CreationDate: nonNullableScalar('Creation Date', 'string'),
+  LastUpdateDate: nonNullableScalar('Last Update Date', 'string'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionExpenseLineOutputProperties = {
+  expenseLineUniqId: { type: 'string', description: 'Oracle-derived opaque resource key' },
+  ExpenseId: nonNullableScalar('Expense Id', 'string'),
+  ExpenseReportId: scalar('Expense Report Id', 'string'),
+  ExpenseReference: nonNullableScalar('Expense Reference', 'number'),
+  ExpenseType: scalar('Expense Type', 'string'),
+  ExpenseTypeId: scalar('Expense Type Id', 'string'),
+  ExpenseTemplate: scalar('Expense Template', 'string'),
+  ExpenseTemplateId: scalar('Expense Template Id', 'string'),
+  BusinessUnit: scalar('Business Unit', 'string'),
+  OrgId: nonNullableScalar('Org Id', 'string'),
+  AssignmentId: nonNullableScalar('Assignment Id', 'string'),
+  PersonId: nonNullableScalar('Person Id', 'string'),
+  PersonName: scalar('Person Name', 'string'),
+  Description: scalar('Description', 'string'),
+  Justification: scalar('Justification', 'string'),
+  ReceiptAmount: scalar('Receipt Amount', 'number'),
+  ReceiptCurrencyCode: scalar('Receipt Currency Code', 'string'),
+  ReceiptDate: scalar('Receipt Date', 'string'),
+  ReimbursableAmount: scalar('Reimbursable Amount', 'number'),
+  ReimbursementCurrencyCode: scalar('Reimbursement Currency Code', 'string'),
+  MerchantName: scalar('Merchant Name', 'string'),
+  StartDate: scalar('Start Date', 'string'),
+  EndDate: scalar('End Date', 'string'),
+  ItemizationParentExpenseId: scalar('Itemization Parent Expense Id', 'string'),
+  ReceiptMissingFlag: scalar('Receipt Missing Flag', 'boolean'),
+  ImageReceiptRequiredFlag: scalar('Image Receipt Required Flag', 'boolean'),
+  ValidationErrorFlag: scalar('Validation Error Flag', 'boolean'),
+  ValidationErrorMessages: scalar('Validation Error Messages', 'string'),
+  ValidationWarningMessages: scalar('Validation Warning Messages', 'string'),
+  CreationDate: nonNullableScalar('Creation Date', 'string'),
+  LastUpdateDate: nonNullableScalar('Last Update Date', 'string'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionGlLedgerOutputProperties = {
+  LedgerId: scalar('Ledger Id', 'string'),
+  Name: nonNullableScalar('Name', 'string'),
+  Description: scalar('Description', 'string'),
+  CurrencyCode: nonNullableScalar('Currency Code', 'string'),
+  ChartOfAccountsId: nonNullableScalar('Chart Of Accounts Id', 'string'),
+  AccountedPeriodType: nonNullableScalar('Accounted Period Type', 'string'),
+  PeriodSetName: nonNullableScalar('Period Set Name', 'string'),
+  LedgerCategoryCode: nonNullableScalar('Ledger Category Code', 'string'),
+  LedgerTypeCode: nonNullableScalar('Ledger Type Code', 'string'),
+  EnableBudgetaryControlFlag: nonNullableScalar('Enable Budgetary Control Flag', 'boolean'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionGlJournalBatchOutputProperties = {
+  JeBatchId: nonNullableScalar('Je Batch Id', 'string'),
+  BatchName: nonNullableScalar('Batch Name', 'string'),
+  BatchDescription: scalar('Batch Description', 'string'),
+  DefaultPeriodName: scalar('Default Period Name', 'string'),
+  Status: nonNullableScalar('Status', 'string'),
+  StatusMeaning: scalar('Status Meaning', 'string'),
+  CompletionStatusMeaning: scalar('Completion Status Meaning', 'string'),
+  ApprovalStatusMeaning: nonNullableScalar('Approval Status Meaning', 'string'),
+  FundsStatusMeaning: nonNullableScalar('Funds Status Meaning', 'string'),
+  UserJeSourceName: nonNullableScalar('User Je Source Name', 'string'),
+  ChartOfAccountsName: nonNullableScalar('Chart Of Accounts Name', 'string'),
+  UserPeriodSetName: nonNullableScalar('User Period Set Name', 'string'),
+  AccountedPeriodType: nonNullableScalar('Accounted Period Type', 'string'),
+  ActualFlagMeaning: nonNullableScalar('Actual Flag Meaning', 'string'),
+  RunningTotalCr: scalar('Running Total Cr', 'number'),
+  RunningTotalDr: scalar('Running Total Dr', 'number'),
+  RunningTotalAccountedCr: scalar('Running Total Accounted Cr', 'number'),
+  RunningTotalAccountedDr: scalar('Running Total Accounted Dr', 'number'),
+  ControlTotal: scalar('Control Total', 'number'),
+  PostedDate: scalar('Posted Date', 'string'),
+  ReversalFlag: scalar('Reversal Flag', 'boolean'),
+  ReversalDate: scalar('Reversal Date', 'string'),
+  ReversalMethodMeaning: scalar('Reversal Method Meaning', 'string'),
+  ReversalPeriod: scalar('Reversal Period', 'string'),
+  ErrorMessage: scalar('Error Message', 'string'),
+  CreationDate: nonNullableScalar('Creation Date', 'string'),
+  LastUpdateDate: nonNullableScalar('Last Update Date', 'string'),
+} satisfies Record<string, OutputProperty>
+
+export const oracleFusionGlBalanceOutputProperties = {
+  AccountCombination: scalar('Account Combination', 'string'),
+  AccountGroupName: scalar('Account Group Name', 'string'),
+  AccountName: scalar('Account Name', 'string'),
+  ActualBalance: scalar('Actual Balance', 'string'),
+  AmountType: scalar('Amount Type', 'string'),
+  BeginningBalance: scalar('Beginning Balance', 'string'),
+  BudgetBalance: scalar('Budget Balance', 'string'),
+  Currency: scalar('Currency', 'string'),
+  CurrencyType: scalar('Currency Type', 'string'),
+  CurrentAccountingPeriod: scalar('Current Accounting Period', 'string'),
+  CurrentPeriodBalance: scalar('Current Period Balance', 'string'),
+  DetailAccountCombination: scalar('Detail Account Combination', 'string'),
+  EndingBalance: scalar('Ending Balance', 'string'),
+  ErrorDetail: scalar('Error Detail', 'string'),
+  LedgerName: scalar('Ledger Name', 'string'),
+  LedgerSetName: scalar('Ledger Set Name', 'string'),
+  PeriodActivity: scalar('Period Activity', 'string'),
+  PeriodName: scalar('Period Name', 'string'),
+  Scenario: scalar('Scenario', 'string'),
+} satisfies Record<string, OutputProperty>

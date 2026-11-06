@@ -7,6 +7,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -15,7 +16,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
+import { getAwsCredentials } from '@/lib/core/config/aws'
 import {
   assertKnownSizeWithinLimit,
   readNodeStreamToBufferWithLimit,
@@ -29,14 +30,12 @@ import type {
   S3PartUploadUrl,
 } from '@/lib/uploads/providers/s3/types'
 import type {
+  ByteRange,
   FileInfo,
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import {
-  sanitizeFilenameForMetadata,
-  sanitizeStorageMetadata,
-} from '@/lib/uploads/utils/file-utils'
+import { sanitizeFilenameForMetadata, sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 let _s3Client: S3Client | null = null
@@ -63,7 +62,7 @@ export function getS3Client(): S3Client {
     region,
     endpoint: S3_CONFIG.endpoint,
     forcePathStyle: S3_CONFIG.forcePathStyle,
-    credentials: getAwsCredentialsFromEnv(),
+    credentials: getAwsCredentials(),
   })
 
   return _s3Client
@@ -278,10 +277,15 @@ export async function downloadFromS3(
  */
 export async function downloadFromS3Stream(
   key: string,
-  customConfig?: S3Config
+  customConfig?: S3Config,
+  range?: ByteRange
 ): Promise<Readable> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
-  const command = new GetObjectCommand({ Bucket: config.bucket, Key: key })
+  const command = new GetObjectCommand({
+    Bucket: config.bucket,
+    Key: key,
+    ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+  })
   const response = await getS3Client().send(command)
   if (!response.Body) {
     throw new Error(`S3 object has no body: ${key}`)
@@ -414,6 +418,32 @@ export async function deleteManyFromS3(
   }
 
   return { failed }
+}
+
+/**
+ * Lists one page of object keys under `prefix` in `bucket`, resuming from `continuationToken`
+ * when given; `nextContinuationToken` is set while the listing has more.
+ */
+export async function listS3ObjectKeyPage(params: {
+  bucket: string
+  prefix: string
+  maxKeys: number
+  continuationToken?: string
+  signal: AbortSignal
+}): Promise<{ keys: string[]; nextContinuationToken?: string }> {
+  const page = await getS3Client().send(
+    new ListObjectsV2Command({
+      Bucket: params.bucket,
+      Prefix: params.prefix,
+      MaxKeys: params.maxKeys,
+      ...(params.continuationToken ? { ContinuationToken: params.continuationToken } : {}),
+    }),
+    { abortSignal: params.signal }
+  )
+  const keys = (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : []))
+  return page.IsTruncated && page.NextContinuationToken
+    ? { keys, nextContinuationToken: page.NextContinuationToken }
+    : { keys }
 }
 
 /**

@@ -29,7 +29,7 @@ export const SharepointBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'sharepoint_v2' },
   longDescription:
-    'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
+    'Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
   docsLink: 'https://docs.sim.ai/integrations/sharepoint',
   category: 'tools',
   integrationType: IntegrationType.Documents,

@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+import { parseZohoDeskJson, readZohoDeskResponse } from '@/tools/zoho_desk/request'
 import type { ZohoDeskAddCommentParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_COMMENT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
-  getZohoDeskErrorMessage,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -61,14 +61,22 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
       visibility: 'user-or-llm',
       description: 'Whether the comment is public',
     },
+    attachmentIds: {
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of previously uploaded attachment IDs',
+    },
   },
 
   request: {
     url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments`,
+      `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}/comments`,
     method: 'POST',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => ({
+      attachmentIds: parseZohoDeskJson(params.attachmentIds, 'attachmentIds', 'array'),
       content: params.content,
       contentType: params.contentType || 'plainText',
       isPublic: params.isPublic ?? false,
@@ -76,12 +84,7 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to add comment (HTTP ${response.status})`)
-      )
-    }
+    const data = await readZohoDeskResponse(response)
     return {
       success: true,
       output: { comment: withDerivedContentText(data) },

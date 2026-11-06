@@ -1,0 +1,100 @@
+---
+description: "How stored content (workspace files, run files, knowledge, table rows) reaches Chat's model, and the per-path policy. Read before changing a use case, route or Chat surface that returns such content."
+globs: ["apps/sim/lib/core/application/**","apps/sim/lib/mothership/content-delivery/**","apps/sim/lib/workspace-files/application/**","apps/sim/lib/knowledge/application/**","apps/sim/lib/table/application/**","apps/sim/lib/workflows/application/**","apps/sim/lib/mothership/chat/application/**","apps/sim/lib/**/application/operations.ts","apps/sim/lib/mothership/agent-cli/**","apps/sim/lib/mothership/tools/**","apps/sim/app/api/v2/**"]
+---
+
+<!-- Generated from .claude/rules/sim-content-delivery.md by `bun run skills:sync`. Edit the source, not this file. -->
+
+# Sim Content Delivery to Chat
+
+Content derived from a provenance-bearing store reaches Chat's model only after **each item** it
+came from is admitted by the gate of the surface it leaves through. The stores are workspace files
+(and their versions), run files, knowledge documents and chunks, and table rows. "Derived" covers
+bytes, text, excerpts, chunks, cells, previews, base64, archives, rendered or compiled output,
+error text that quotes content, and public links. Counts, ordering, and match locations are ordinary
+metadata; this boundary protects supported literal secret values, not arbitrary inference. Intentional
+human uploads remain ordinary input and are not scanned.
+
+Only Copilot principals (`delegated` / `organization_delegated` with `serviceId: 'copilot'`) are
+classified. Every other caller is admitted without a provenance read, so the UI, API keys, MCP and
+the workflow executor see byte-identical results.
+
+A run Chat starts executes as Chat's principal, so `executeWorkflowCore` runs every execution under
+`runWorkflowOutsideContentDelivery`, where that principal reads like any other. What the run returns
+is gated where Chat started it: run execute/resume keep inline file bytes only for admitted files
+(`withholdUnadmittedInlineFiles`), and Chat's in-app run tools strip `base64` from their result.
+
+## The pieces
+
+- `lib/core/application/content-delivery.ts`: the primitive.
+  - `admitContent(principal, sources)` returns per-item verdicts. `requireAdmittedContent` is the
+    single-item form and throws `ContentRefusedError` (403).
+  - `admitWrittenContent` is for a committed write that returns content. A refusal or gate failure
+    does not undo the write: audit and effects run, then the operation answers with the refusal.
+    Settled tool results use the same deferral, but do not claim that a mutation was saved.
+  - A source is `{ kind, id, provenance, view }`. `view` is `'complete'` (text whose every entry
+    may appear), `{ derived: value }` (only entries occurring in `value`), `'opaque'` (bytes no
+    redaction reaches: binary, base64, archives, images, public links), or `'excerpt'` (text already
+    cut before admission, where a secret fragment cannot be redacted). Both gates withhold an
+    excerpt with known secret entries; raw opaque bytes may still enter the workbench with history.
+  - `redactBeforeCutting` projects complete text before selecting a line window. The session gate
+    creates the existing redactor from the operation's bounded evidence only when a cut needs it;
+    ordinary byte reads do not decrypt a second time or reload history.
+- Gates, installed by the surface: the **registry gate** (Chat tools, CLI, mounts) imports entries
+  into the registry egress projects with; the **session gate** (run_code sandbox proxy) records
+  them into the workbench history. Neither admits `unknown`, with one exception: the CLI's direct
+  single-file download (`files get`) admits it under `unknown: 'taint'`, which latches the call's
+  registry so the whole output is withheld and the workbench copy stays unknown. It needs a
+  registry to latch; without one it refuses. One refused item never latches the shared registry.
+- `observeContentOutsideModel` reads for Chat without classifying, for content that never reaches
+  the model (the user's own edit preview; a derived file that carries its sources' provenance).
+  Name why at each use.
+
+## Rules
+
+1. **Every operation that admits Copilot declares `contentDelivery`**: `'sourced'` when its result
+   can carry content from a store, `'none'` otherwise. Definition throws
+   without it, and `copilot-route-inventory.test.ts` lists every Chat-reachable route without one.
+2. **A `sourced` use case accounts for what it returns**, before it loads content: call
+   `admitContent` (with `[]` when this call returns none). Otherwise Chat gets
+   `ContentDeliveryUnaccountedError`, and the transports turn the response into a 403.
+3. **Classify before loading bytes**, and exclude refused items per item. Withhold a whole result
+   only when its items cannot be separated (one file, one render, one compile).
+4. **A new `sourced` route needs a case in `lib/mothership/__integration__/content-delivery.integration.ts`.**
+   `copilot-content-routes.json` lists them; the suite fails for a listed route it does not drive.
+   Refresh the list with `vitest run lib/api/server/routes/copilot-route-inventory.test.ts --update=all`.
+5. **Do not reach a store's bytes around a use case for Chat.** A helper that reads content for
+   Chat goes through the gated use case, or names `observeContentOutsideModel` and why.
+
+## Policy
+
+U = `unknown`, E = exact with secret entries, R/C = unrecorded or clean. Each item is decided on its
+own unless noted.
+
+| Path | U | E | R / C |
+|---|---|---|---|
+| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Opaque: into a chat workbench with entries imported, so output is redacted; refused without one | Delivered |
+| File download (run_code proxy) | Refused before bytes enter workbench history | Recorded in workbench history | Delivered |
+| Requested mounts | Refused before code executes, listed in `excludedInputs`; later calls remain usable | Recorded in workbench history | Delivered |
+| File text, version text, `files read`, grep | 403 | Redacted (grep redacts before clipping) | Delivered |
+| Bulk download zip | Left out, reported in the archive manifest | Left out (opaque), reported in the archive manifest | Included |
+| `files search` | Match location kept; clipped preview withheld | Same; read/grep provides safely redacted text | Returned |
+| File edit (`PATCH` content) | 403 before reading | Diagnostics redacted | Unchanged |
+| Chat public share activation, and seeing an existing link (any surface, run_code included) | 403 | 403 (a link leaves every gate) | Shares |
+| Rendered view, streamed image, inline attachments | Refused | Refused (opaque) | Delivered |
+| Doc compile | Actual file read refused | Evidence imported before broker bytes/errors return | Compiles, including dynamic file references |
+| Run file download | 403 | Redacted | Delivered |
+| Run read / execute / resume `base64` | `base64` removed, descriptor kept | Same | Inlined (sync runs only) |
+| KB chunks, search, documents, tags | Item dropped (single read: 403) | Redacted | Delivered |
+| KB export | Stream fails before refused source bytes; no successful archive receipt | Refused (opaque) | Streams originals/chunks with admission at each source |
+| Table export download | Existing unsupported Chat operation | | |
+| Table rows, query, read, `table_selection` | Row dropped (single read: 403) | Redacted | Delivered |
+| Row search | Locations returned without cell values | Same | Returned |
+| Table import from a file | Rows stored unknown | Per-cell entries; a row whose coercion rewrote a secret, or whose raw cells cannot be checked, is stored unknown | Exact-empty, as before |
+| `tools execute` | Settled result withheld, with no automatic retry | Named masking through the existing registry | Returned, subject to existing tool authorization |
+
+Search pagination and aggregate totals retain their database meaning even when an item or preview is
+withheld. Do not scan unrelated table rows or whole document collections to conceal counts.
+A refused requested mount stops code before it runs, avoiding an older file at the same sandbox path.
+Registry admission commits only when the complete item fits the existing capacity; a refused item
+must not consume capacity or permanently disable the parent registry.

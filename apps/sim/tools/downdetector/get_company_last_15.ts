@@ -17,7 +17,7 @@ export const getCompanyLast15Tool: ToolConfig<
   id: 'downdetector_get_company_last_15',
   name: 'Downdetector Get Company Last 15 Minutes',
   description:
-    'Get the number of outage reports for a Downdetector company over the last 15 minutes. A convenient near-real-time signal for threshold-based alerting.',
+    'Get the number of outage reports for a Downdetector company over the last 15 minutes.',
   version: '1.0.0',
 
   params: {

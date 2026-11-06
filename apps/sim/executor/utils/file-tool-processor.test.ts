@@ -12,13 +12,15 @@ import {
   uploadsMetadataMock,
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolDefinition } from '@/tools/types'
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
@@ -192,6 +194,26 @@ describe('FileToolProcessor', () => {
     )
 
     expect(mockUploadExecutionFile.mock.calls[0]?.[1]).toEqual(Buffer.from('Hello, world!'))
+  })
+
+  it('redacts a database failure from its message but keeps it as the cause', async () => {
+    const queryError = new DrizzleQueryError(
+      'select "key" from "workspace_files" where "user_id" = $1',
+      ['owner-secret-id'],
+      Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    )
+    mockDownloadFileFromUrl.mockRejectedValueOnce(queryError)
+
+    const thrown = await FileToolProcessor.processToolOutputs(
+      { file: { name: 'report.txt', mimeType: 'text/plain', url: 'https://example.com/report' } },
+      toolConfig,
+      executionContext
+    ).catch((error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/^Failed to process file output 'file': /)
+    expect((thrown as Error).message).not.toContain('owner-secret-id')
+    expect(findDatabaseQueryError(thrown)).toBe(queryError)
   })
 
   it.each([

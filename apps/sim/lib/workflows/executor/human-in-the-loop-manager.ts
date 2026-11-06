@@ -7,7 +7,8 @@ import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -15,6 +16,7 @@ import {
   getTimeoutErrorMessage,
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
@@ -38,13 +40,14 @@ import {
   terminalExecutionLogFields,
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
+import { isTerminalWorkflowExecutionStatus } from '@/lib/logs/types'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
   type ExecutionEvent,
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
+import { getWorkflowExecutionCopilotToolCallId } from '@/lib/workflows/executor/execution-state'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -89,19 +92,6 @@ const execDb = dbFor('exec')
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
-/**
- * Statuses of a finished execution's log, the same set the attempt-failure
- * `CASE` preserves; a resume can never claim a log in one of them.
- */
-const TERMINAL_EXECUTION_LOG_STATUSES = [
-  'cancelled',
-  'failed',
-  'completed',
-] as const satisfies readonly PersistedWorkflowExecutionStatus[]
-
-function isTerminalExecutionLogStatus(status: string): boolean {
-  return (TERMINAL_EXECUTION_LOG_STATUSES as readonly string[]).includes(status)
-}
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
 const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
@@ -121,6 +111,31 @@ async function releaseCancelledResumeReservations(
       }
     })
   )
+}
+
+/**
+ * Reports the Copilot workflow tool bound to a paused execution that has now
+ * settled; a paused run has no browser left to report it. Best effort.
+ */
+async function reportCopilotToolForSettledPause(
+  executionId: string,
+  workflowId: string
+): Promise<void> {
+  try {
+    const toolCallId = await getWorkflowExecutionCopilotToolCallId(executionId, workflowId)
+    if (!toolCallId) return
+    // Loaded only for a Copilot-bound run: its confirmation channel opens Redis connections at import.
+    const { reportSettledClientWorkflowTool } = await import(
+      '@/lib/mothership/request/tools/workflow-client-settlement'
+    )
+    await reportSettledClientWorkflowTool({ toolCallId, executionId, workflowId })
+  } catch (error) {
+    logger.warn('Failed to report a settled paused Copilot workflow tool', {
+      executionId,
+      workflowId,
+      error: toError(error).message,
+    })
+  }
 }
 
 /**
@@ -382,6 +397,19 @@ interface PausedExecutionSummary {
   triggerIds: string[]
   pausePoints: PausePointWithQueue[]
 }
+
+/** The `paused_executions` columns a summary is built from, with the snapshot's trigger ids. */
+type PausedExecutionSummaryRow = Pick<
+  typeof pausedExecutions.$inferSelect,
+  | 'id'
+  | 'workflowId'
+  | 'executionId'
+  | 'status'
+  | 'metadata'
+  | 'pausedAt'
+  | 'updatedAt'
+  | 'expiresAt'
+> & { triggerIds: string[] | null | undefined }
 
 interface PausedExecutionDetail extends PausedExecutionSummary {
   executionSnapshot: SerializedSnapshot
@@ -904,6 +932,7 @@ export class PauseResumeManager {
     )
 
     let attemptTimeoutController: TimeoutAbortController | undefined
+    let unsubscribeCancellation: (() => void) | undefined
     try {
       attemptTimeoutController = createResumeAttemptTimeoutController(
         pausedExecution.executionSnapshot as SerializedSnapshot,
@@ -911,6 +940,13 @@ export class PauseResumeManager {
         pausedExecution.metadata
       )
       registerManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
+      /** Stop signals the attempt id, while the engine subscribes under the durable run id. */
+      unsubscribeCancellation = await subscribeToExecutionCancellation(
+        resumeExecutionId,
+        attemptTimeoutController.abort
+      ).catch((cause: unknown) => {
+        throw new Error(RUN_BUFFER_UNAVAILABLE_ERROR, { cause })
+      })
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,
@@ -996,6 +1032,10 @@ export class PauseResumeManager {
             stopAfterBlockReached: result.metadata?.stopAfterBlockReached === true,
           })
         }
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
       }
 
       if (result.status === 'paused') {
@@ -1054,15 +1094,21 @@ export class PauseResumeManager {
           )
         })
       }
-      logger.error(
-        'Resume execution failed',
-        projectResolvedSecretDiagnosticError(error, undefined, {
-          parentExecutionId: pausedExecution.executionId,
-          resumeExecutionId,
-          contextId,
-        })
-      )
+      /** Keyed by the durable run id the resumed engine and execution core log under. */
+      logFailureOnce(logger, 'Resume execution failed', error, {
+        executionId: pausedExecution.executionId,
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(error, undefined, {
+            parentExecutionId: pausedExecution.executionId,
+            resumeExecutionId,
+            contextId,
+          }),
+      })
       if (!(error instanceof ResumeAdmissionError)) {
+        await reportCopilotToolForSettledPause(
+          pausedExecution.executionId,
+          pausedExecution.workflowId
+        )
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
           pausedExecution.workflowId
@@ -1070,6 +1116,7 @@ export class PauseResumeManager {
       }
       throw error
     } finally {
+      unsubscribeCancellation?.()
       if (attemptTimeoutController) {
         unregisterManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
       }
@@ -1098,8 +1145,12 @@ export class PauseResumeManager {
         deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
       })
 
+    /** Another attempt or a cancel settled the run first: a lost race, not a Sim fault. */
     if (!claimedExecution) {
-      throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
+      throw markFailureKind(
+        new ResumeAdmissionError('Execution can no longer be resumed', 409, false),
+        'user'
+      )
     }
     return { deploymentVersionId: claimedExecution.deploymentVersionId }
   }
@@ -1537,18 +1588,25 @@ export class PauseResumeManager {
     if (!preprocessingResult.success) {
       const errorMessage =
         preprocessingResult.error?.message || 'Preprocessing check failed for resume execution'
-      logger.error('Resume preprocessing failed', {
+      const refusal = new ResumeAdmissionError(
+        errorMessage,
+        preprocessingResult.error?.statusCode ?? 500,
+        preprocessingResult.error?.retryable ?? false
+      )
+      /**
+       * A final 4xx is a verdict on the run (usage limit, rate limit, archived workflow). A
+       * retryable one, such as an unreadable usage ledger, is no verdict on the caller and stays
+       * a Sim failure.
+       */
+      const refusedByRunState =
+        refusal.statusCode >= 400 && refusal.statusCode < 500 && !refusal.retryable
+      logger[refusedByRunState ? 'info' : 'error']('Resume preprocessing failed', {
         resumeExecutionId,
         workflowId: pausedExecution.workflowId,
         userId: effectiveUserId,
         error: errorMessage,
       })
-
-      throw new ResumeAdmissionError(
-        errorMessage,
-        preprocessingResult.error?.statusCode ?? 500,
-        preprocessingResult.error?.retryable ?? false
-      )
+      throw refusedByRunState ? markFailureKind(refusal, 'user') : refusal
     }
 
     logger.info('Preprocessing checks passed for resume', {
@@ -2465,7 +2523,7 @@ export class PauseResumeManager {
         pausedExecution !== undefined &&
         isResumablePausedStatus(pausedExecution.status) &&
         executionLog !== undefined &&
-        !isTerminalExecutionLogStatus(executionLog.status)
+        !isTerminalWorkflowExecutionStatus(executionLog.status)
       )
     })
   }
@@ -2831,6 +2889,9 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    if (transition.cancelled) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.cancelled
   }
 
@@ -2934,6 +2995,11 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    // The terminal writer may never report it (the stale-execution sweep, a resume worker killed
+    // after its log write), which would leave the Copilot tool waiting.
+    if (transition.finalized) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.finalized
   }
 
@@ -3422,8 +3488,24 @@ export class PauseResumeManager {
       }
     }
 
+    /**
+     * The summary reads only `triggerIds` from the execution snapshot, whose
+     * serialized `snapshot` string can run to megabytes per row, so that one key
+     * is projected instead of shipping and parsing the whole document.
+     */
     const rows = await execDb
-      .select()
+      .select({
+        id: pausedExecutions.id,
+        workflowId: pausedExecutions.workflowId,
+        executionId: pausedExecutions.executionId,
+        status: pausedExecutions.status,
+        pausePoints: pausedExecutions.pausePoints,
+        metadata: pausedExecutions.metadata,
+        pausedAt: pausedExecutions.pausedAt,
+        updatedAt: pausedExecutions.updatedAt,
+        expiresAt: pausedExecutions.expiresAt,
+        triggerIds: sql<string[] | null>`${pausedExecutions.executionSnapshot}->'triggerIds'`,
+      })
       .from(pausedExecutions)
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
@@ -3492,7 +3574,10 @@ export class PauseResumeManager {
       return null
     }
 
-    const executionSummary = PauseResumeManager.normalizePausedExecution(row, pausePoints)
+    const executionSummary = PauseResumeManager.normalizePausedExecution(
+      { ...row, triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds },
+      pausePoints
+    )
 
     return {
       ...executionSummary,
@@ -3687,7 +3772,7 @@ export class PauseResumeManager {
   }
 
   private static normalizePausedExecution(
-    row: typeof pausedExecutions.$inferSelect,
+    row: PausedExecutionSummaryRow,
     pausePoints: PausePointWithQueue[]
   ): PausedExecutionSummary {
     return {
@@ -3701,7 +3786,7 @@ export class PauseResumeManager {
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
       expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
       metadata: row.metadata as Record<string, any>,
-      triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds || [],
+      triggerIds: row.triggerIds || [],
       pausePoints,
     }
   }

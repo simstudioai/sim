@@ -5,9 +5,9 @@ import { ActivityTextColumn } from '@/components/ui/activity-status'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
   collectGroupTools,
@@ -28,6 +28,8 @@ import {
   getActivityStatusTool,
   getCompletedActivityLabel,
   getInProgressActivityLabel,
+  isAwaitingTitle,
+  THINKING_LABEL,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
@@ -96,6 +98,8 @@ function hasNestedBrowserTakeover(items: AgentGroupItem[]): boolean {
 }
 
 interface AgentGroupViewProps extends AgentGroupProps {
+  standaloneToolIds?: ReadonlySet<string>
+  reviewedToolIds?: ReadonlySet<string>
   /** Supplies tool behavior without coupling the group layout to the block registry. */
   ToolCallComponent: ComponentType<ToolCallItemProps>
   renderBrowserTakeover?: (reason: string) => ReactNode
@@ -115,6 +119,8 @@ export function AgentGroupView({
   ToolCallComponent,
   renderBrowserTakeover,
   liveIndicator,
+  standaloneToolIds,
+  reviewedToolIds,
 }: AgentGroupViewProps) {
   const AgentIcon = getAgentIcon(agentName)
   const isMainAgent = agentName === 'mothership'
@@ -133,7 +139,7 @@ export function AgentGroupView({
   const activityDescriptor =
     groupActivity ??
     tools
-      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .map(readCallActivity)
       .reverse()
       .find((entry) => entry?.title || entry?.completedTitle)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -146,7 +152,7 @@ export function AgentGroupView({
 
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
-  const pendingInteraction = hasPendingInteraction(items)
+  const pendingInteraction = hasPendingInteraction(items, false, reviewedToolIds)
   /** Blocking interactions override manual collapse so the user can resume the turn. */
   const expanded =
     pendingInteraction ||
@@ -159,12 +165,16 @@ export function AgentGroupView({
       : getLaneLiveIndicator(
           isMainAgent
             ? {
+                standaloneToolIds,
+                reviewedToolIds,
                 kind: 'main',
                 parts: [items],
                 isActive: isStreaming,
                 isOpen: isStreaming && isLaneOpen,
               }
             : {
+                standaloneToolIds,
+                reviewedToolIds,
                 kind: 'subagent',
                 parts: [items],
                 isActive: isStreaming && isWorking,
@@ -244,6 +254,8 @@ export function AgentGroupView({
       return (
         <ActivityTextColumn key={item.group.id}>
           <AgentGroupView
+            standaloneToolIds={standaloneToolIds}
+            reviewedToolIds={reviewedToolIds}
             ToolCallComponent={ToolCallComponent}
             renderBrowserTakeover={renderBrowserTakeover}
             agentName={item.group.agentName}
@@ -272,6 +284,7 @@ export function AgentGroupView({
 
   const activity = isMainAgent ? (
     <MainAgentActivity
+      standaloneToolIds={standaloneToolIds}
       activity={groupActivity}
       items={items}
       ToolCallComponent={ToolCallComponent}
@@ -294,7 +307,7 @@ export function AgentGroupView({
             tools,
             activityDescriptor?.title
           )
-        : 'Thinking'
+        : THINKING_LABEL
       : tools.length > 0
         ? getCompletedActivityLabel(tools, activityDescriptor)
         : agentLabel
@@ -317,6 +330,7 @@ export function AgentGroupView({
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
           activityKey={headerTool?.id}
+          placeholder={inProgress && !error && (!headerTool || isAwaitingTitle(headerTool))}
           expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}

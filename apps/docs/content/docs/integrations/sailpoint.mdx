@@ -1,43 +1,51 @@
 ---
 title: SailPoint
 description: Govern identities and access in SailPoint Identity Security Cloud
+integration:
+  type: "sailpoint"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sailpoint"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 The SailPoint integration connects Sim workflows to SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT). Enter the tenant name from your ISC URL—or the full `*.api.identitynow.com` / `*.api.identitynowgov.com` host—plus the PAT client ID and client secret. Sim exchanges those credentials at the tenant's `/oauth/token` endpoint and calls SailPoint's current service-versioned endpoints, such as `/identities/v1`, `/access-requests/v1`, and `/certifications/v1`. There is no global API-version setting.
 
-Create the PAT with the least-privileged scopes required by the actions in your workflow. Common read scopes include `sp:search:read`, `idn:identity:read`, `idn:accounts:read`, `idn:entitlement:read`, `idn:role-unchecked:read` or `idn:role-checked:read`, `idn:access-profile:read`, `idn:sources:read`, `idn:campaign:read`, `idn:access-request-status:read`, `idn:access-request-config:read`, `idn:task-management:read`, and `idn:access-request-approvals:read`. SailPoint lists `idn:access-request:manage` and `idn:access-request-self:manage` for access-request submission, `idn:access-request:create` for account-selection discovery, `idn:access-request:manage` for cancellation, `idn:campaign:manage` for certification decisions and sign-off, `idn:access-request-approvals:manage` for approval actions, `idn:sources:manage` for account import, and `idn:entitlement:manage` for entitlement import and entitlement request configuration. Some identity-governance endpoints require a user-context PAT and an appropriate SailPoint user authority in addition to an OAuth scope; scopes never grant authority beyond the PAT owner's ISC permissions.
+## Permissions
+
+Create the PAT with the [scopes and user authority](https://developer.sailpoint.com/docs/api/authorization/) required by the actions in your workflow. Common read scopes include `sp:search:read`, `idn:identity:read`, `idn:accounts:read`, `idn:entitlement:read`, `idn:role-unchecked:read` or `idn:role-checked:read`, `idn:access-profile:read`, `idn:sources:read`, `idn:campaign:read`, `idn:access-request-status:read`, `idn:access-request-config:read`, `idn:task-management:read`, and `idn:access-request-approvals:read`. SailPoint lists `idn:access-request:manage` and `idn:access-request-self:manage` for access-request submission, `idn:access-request:create` for account-selection discovery, `idn:access-request:manage` for cancellation, `idn:campaign:manage` for certification decisions and sign-off, `idn:access-request-approvals:manage` for approval actions, `idn:sources:manage` for account import, and `idn:entitlement:manage` for entitlement import and entitlement request configuration. Some identity-governance endpoints require a user-context PAT and an appropriate SailPoint user authority in addition to an OAuth scope; scopes never grant authority beyond the PAT owner's ISC permissions.
+
+## Pagination
 
 List actions return one bounded page. Standard collections accept up to 250 records per call; role collections accept up to 50; Search accepts up to 10,000. Use `offset`, `sorters`, or Search's `searchAfter` cursor to continue. Enable `count` only when you need the provider's `X-Total-Count` header. Omitting Search `indices` searches every index allowed by SailPoint; complex Search request fields are available as structured JSON inputs.
+
+## Access requests
 
 Access requests are asynchronous. A successful submission returns SailPoint's `newRequests` and `existingRequests` tracking records, including the access-request IDs needed by the status tools. The standard request form applies the same requested items to every identity; use `requestedForWithRequestedItems` when identities need different items, dates, forms, or account selections. Use **Get Account Selections** before a machine grant/modify or a human multi-account request, then copy the returned source/account selection into **Request Access**. Account-selection discovery accepts at most 25 flat requested items. An entitlement revoke is limited to one entitlement per request, while entitlement grants are limited to 25 entitlements and 10 identities. Sim also caps other request recipient/item arrays at 250 to keep execution payloads bounded.
 
 Use **Get Access Request Config** to inspect the tenant's request-on-behalf-of and machine-identity settings. Use **Get Entitlement Request Config** to inspect one entitlement's grant, revocation, duration, approval, and form requirements before constructing a request. These configuration reads help a workflow avoid offering a request shape the tenant or entitlement does not permit.
 
+## Imports
+
 Account and entitlement imports upload a CSV to a source and return a task that can be followed with **Get Task Status**. Sim caps each uploaded CSV at 25 MiB and does not automatically poll the task. The file must be available to the workflow owner, and the source must support the corresponding import operation.
+
+## Supported workflows
 
 The 40 actions cover six connected workflows: search and entity lookup; account, entitlement, role, access-profile, and source inventory; access-request configuration and account-selection discovery; access request submission, cancellation, approval, rejection, and status; campaign and certification review, decision, and sign-off; and CSV import plus task monitoring. Provider-defined objects such as account attributes and Search documents remain JSON because their fields depend on the tenant, source, index, and field projection.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect SailPoint Identity Security Cloud with a Personal Access Token to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.
-
-
 
 ## Actions
 
 ### SailPoint Approve Access Request
 
 Approve one pending access-request approval.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,9 +64,13 @@ Approve one pending access-request approval.
 | `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
 | `status` | number | Provider response status \(normally 202\) |
 
+</ReferenceDetails>
+
 ### SailPoint Cancel Access Request
 
 Cancel an access request that has not passed approval.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -77,9 +89,13 @@ Cancel an access request that has not passed approval.
 | `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
 | `status` | number | Provider response status \(normally 202\) |
 
+</ReferenceDetails>
+
 ### SailPoint Decide Certification Review Items
 
 Approve or revoke 1-250 review items in an identity certification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +130,13 @@ Approve or revoke 1-250 review items in an identity certification.
 |   ↳ `errorMessage` | string | Certification error message |
 |   ↳ `phase` | string | Certification phase |
 
+</ReferenceDetails>
+
 ### SailPoint Get Access Profile
 
 Get an access profile by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -149,9 +169,13 @@ Get an access profile by ID.
 |   ↳ `provisioningCriteria` | json | Multi-account provisioning criteria |
 |   ↳ `additionalOwners` | array | Additional owner references |
 
+</ReferenceDetails>
+
 ### SailPoint Get Access Profile Entitlements
 
 List entitlements in one access profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -217,9 +241,13 @@ List entitlements in one access profile.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Get Access Request Config
 
 Get tenant access-request, request-on-behalf-of, and machine-identity configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +289,13 @@ Get tenant access-request, request-on-behalf-of, and machine-identity configurat
 |   ↳ `govGroupVisibilityEnabled` | boolean | Whether governance group visibility is enabled |
 |   ↳ `machineIdentityAccessRequestEnabled` | boolean | Whether machine identity access requests are enabled |
 
+</ReferenceDetails>
+
 ### SailPoint Get Access Request Status
 
 List requested-item status records for access requests.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,9 +354,13 @@ List requested-item status records for access requests.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Get Account
 
 Get an account from the current /accounts/v1 service by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +405,13 @@ Get an account from the current /accounts/v1 service by ID.
 |   ↳ `origin` | string | Account origin |
 |   ↳ `ownerIdentity` | json | Owner identity reference |
 
+</ReferenceDetails>
+
 ### SailPoint Get Account Activity
 
 Get an account activity by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -402,9 +442,13 @@ Get an account activity by ID.
 |   ↳ `executionStatus` | string | Execution status |
 |   ↳ `clientMetadata` | json | Caller-provided string metadata |
 
+</ReferenceDetails>
+
 ### SailPoint Get Account Entitlements
 
 List entitlements granted to one account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -468,9 +512,13 @@ List entitlements granted to one account.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Get Account Selections
 
 Resolve eligible source accounts before submitting a machine or multi-account access request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -513,9 +561,13 @@ Resolve eligible source accounts before submitting a machine or multi-account ac
 |     ↳ `id` | string | Identity ID |
 |     ↳ `name` | string | Identity name |
 
+</ReferenceDetails>
+
 ### SailPoint Get Campaign
 
 Get a certification campaign by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +608,13 @@ Get a certification campaign by ID.
 |   ↳ `machineAccountCampaignInfo` | json | Machine-account campaign configuration |
 |   ↳ `sourcesWithOrphanEntitlements` | array | Sources containing orphan entitlements |
 
+</ReferenceDetails>
+
 ### SailPoint Get Certification
 
 Get an identity certification by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -592,9 +648,13 @@ Get an identity certification by ID.
 |   ↳ `errorMessage` | string | Certification error message |
 |   ↳ `phase` | string | Certification phase |
 
+</ReferenceDetails>
+
 ### SailPoint Get Entitlement
 
 Get an entitlement by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -655,9 +715,13 @@ Get an entitlement by ID.
 |     ↳ `rights` | array | Rights granted on the target |
 |     ↳ `target` | string | Permission target |
 
+</ReferenceDetails>
+
 ### SailPoint Get Entitlement Request Config
 
 Get grant, revocation, duration, approval, and form settings for an entitlement.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -690,9 +754,13 @@ Get grant, revocation, duration, approval, and form settings for an entitlement.
 |       ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
 |       ↳ `approverId` | string | Governance group or workflow approver ID |
 
+</ReferenceDetails>
+
 ### SailPoint Get Identity
 
 Get an identity from the current /identities/v1 service by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -722,9 +790,13 @@ Get an identity from the current /identities/v1 service by ID.
 |   ↳ `attributes` | json | Tenant-defined identity attributes |
 |   ↳ `lifecycleState` | json | Lifecycle-state reference |
 
+</ReferenceDetails>
+
 ### SailPoint Get Role
 
 Get a role by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -761,9 +833,13 @@ Get a role by ID.
 |   ↳ `accessModelMetadata` | json | Access-model metadata |
 |   ↳ `privilegeLevel` | string | Role privilege level |
 
+</ReferenceDetails>
+
 ### SailPoint Get Role Entitlements
 
 List entitlements in one role using the current non-experimental roles service.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -829,9 +905,13 @@ List entitlements in one role using the current non-experimental roles service.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Get Source
 
 Get an identity source by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -879,9 +959,13 @@ Get an identity source by ID.
 |   ↳ `credentialProviderEnabled` | boolean | Whether a credential provider is enabled |
 |   ↳ `category` | string | Source category |
 
+</ReferenceDetails>
+
 ### SailPoint Get Task Status
 
 Get the current status of a SailPoint background task by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -933,9 +1017,13 @@ Get the current status of a SailPoint background task by ID.
 |     ↳ `executor` | string | Task-definition executor |
 |     ↳ `arguments` | json | Task-definition arguments |
 
+</ReferenceDetails>
+
 ### SailPoint List Access Profiles
 
 List access profiles with current visibility and segmentation controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -977,9 +1065,13 @@ List access profiles with current visibility and segmentation controls.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Account Activities
 
 List provisioning activities with identity, filter, sort, and page controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1019,9 +1111,13 @@ List provisioning activities with identity, filter, sort, and page controls.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Accounts
 
 List accounts with documented filtering, sorting, detail, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1073,9 +1169,13 @@ List accounts with documented filtering, sorting, detail, and pagination.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Campaigns
 
 List certification campaigns with detail, filtering, sorting, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1122,9 +1222,13 @@ List certification campaigns with detail, filtering, sorting, and pagination.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Certification Review Items
 
 List access-review items in one identity certification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1158,9 +1262,13 @@ List access-review items in one identity certification.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Certifications
 
 List identity certifications assigned to a reviewer.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1201,9 +1309,13 @@ List identity certifications assigned to a reviewer.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Entitlements
 
 List entitlements with current segmentation, cursor, filter, and page controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1274,9 +1386,13 @@ List entitlements with current segmentation, cursor, filter, and page controls.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Identities
 
 List identities with documented filtering, sorting, and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1313,9 +1429,13 @@ List identities with documented filtering, sorting, and pagination.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Identity Entitlements
 
 List tagged entitlement references held by one identity.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1339,9 +1459,13 @@ List tagged entitlement references held by one identity.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Pending Access Request Approvals
 
 List pending access-request approvals visible to the caller.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1395,9 +1519,13 @@ List pending access-request approvals visible to the caller.
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Roles
 
 List roles with current visibility, segmentation, filtering, and pagination controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1443,9 +1571,13 @@ List roles with current visibility, segmentation, filtering, and pagination cont
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint List Sources
 
 List identity sources with visibility, filtering, sorting, and pagination controls.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1501,9 +1633,13 @@ List identity sources with visibility, filtering, sorting, and pagination contro
 | `count` | number | Number of records returned in this page |
 | `totalCount` | number | Total matching records when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Load Accounts
 
 Start account aggregation for a source, optionally using a CSV file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1544,9 +1680,13 @@ Start account aggregation for a source, optionally using a CSV file.
 |     ↳ `displayLabel` | string | Return value display label |
 |     ↳ `attributeName` | string | Task attribute name |
 
+</ReferenceDetails>
+
 ### SailPoint Load Entitlements
 
 Start entitlement aggregation for a source, optionally using a CSV file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1573,9 +1713,13 @@ Start entitlement aggregation for a source, optionally using a CSV file.
 |     ↳ `displayLabel` | string | Return value display label |
 |     ↳ `attributeName` | string | Task attribute name |
 
+</ReferenceDetails>
+
 ### SailPoint Reject Access Request
 
 Reject one pending access-request approval with a reviewer comment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1594,9 +1738,13 @@ Reject one pending access-request approval with a reviewer comment.
 | `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
 | `status` | number | Provider response status \(normally 202\) |
 
+</ReferenceDetails>
+
 ### SailPoint Request Access
 
 Submit a current human or machine identity access request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1632,9 +1780,13 @@ Submit a current human or machine identity access request.
 |   ↳ `attributesHash` | number | Stable request attributes hash |
 |   ↳ `accessRequestIds` | array | Access request tracking IDs |
 
+</ReferenceDetails>
+
 ### SailPoint Search
 
 Search current SailPoint indices with every documented search query mode.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1671,9 +1823,13 @@ Search current SailPoint indices with every documented search query mode.
 | `count` | number | Documents returned in this page |
 | `totalCount` | number | Total matching documents when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Search Aggregate
 
 Run an Elasticsearch DSL or SailPoint aggregation over current search indices.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1710,9 +1866,13 @@ Run an Elasticsearch DSL or SailPoint aggregation over current search indices.
 | `hits` | array | Index-dependent aggregation hits |
 | `totalCount` | number | Total matching documents when count=true |
 
+</ReferenceDetails>
+
 ### SailPoint Search Count
 
 Count documents matching a complete SailPoint search body.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1744,9 +1904,13 @@ Count documents matching a complete SailPoint search body.
 | --------- | ---- | ----------- |
 | `total` | number | Number of matching documents |
 
+</ReferenceDetails>
+
 ### SailPoint Sign Off Certification
 
 Sign off a completed identity certification.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1779,5 +1943,7 @@ Sign off a completed identity certification.
 |   ↳ `hasErrors` | boolean | Whether the certification has errors |
 |   ↳ `errorMessage` | string | Certification error message |
 |   ↳ `phase` | string | Certification phase |
+
+</ReferenceDetails>
 
 

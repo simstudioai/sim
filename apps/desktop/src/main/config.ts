@@ -92,6 +92,8 @@ export interface DesktopSettings {
   windowBounds?: WindowBounds
   zoomLevel?: number
   lastRoute?: string
+  /** Routes of the other app windows open when an update relaunch was committed. */
+  updateRelaunchRoutes?: string[]
   themeBackground?: 'dark' | 'light'
   blockThirdPartyAnalytics?: boolean
   trayEnabled?: boolean
@@ -107,6 +109,9 @@ export interface DesktopSettings {
   fullFileAccess?: boolean
   /** Keep the machine awake while a chat is running desktop work in the background. */
   preventSleepWhileRunning?: boolean
+  /** Native app access is opt-in and cleared when the signed-in account changes. */
+  computerUseEnabled?: boolean
+  computerUseAllowedApps?: Array<{ bundleId: string; displayName: string }>
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
   /** Device-wide default zoom for built-in browser pages. */

@@ -951,6 +951,11 @@ async function executeTask(request, executionId) {
         // Capture the bridge reference in a closure so hardening can unset the
         // global without breaking already-installed brokers.
         const __ref = globalThis.__brokerRef;
+        const __brokerErrors = new WeakMap();
+        const __rememberBrokerError = __brokerErrors.set.bind(__brokerErrors);
+        Object.defineProperty(globalThis, '__readBrokerErrorId', {
+          value: __brokerErrors.get.bind(__brokerErrors), writable: false, configurable: false
+        });
         globalThis.__brokers = globalThis.__brokers || {};
         for (const name of ${brokerNamesJson}) {
           globalThis.__brokers[name] = async (args) => {
@@ -963,7 +968,9 @@ async function executeTask(request, executionId) {
             let response;
             try { response = JSON.parse(responseJson); } catch { throw new Error('Invalid broker response'); }
             if (typeof response.error === 'string') {
-              throw new Error(response.error || 'Broker call failed');
+              const error = new Error(response.error || 'Broker call failed');
+              __rememberBrokerError(error, response.brokerErrorId);
+              throw error;
             }
             return response.resultJson === undefined || response.resultJson === null
               ? null
@@ -1016,7 +1023,7 @@ async function executeTask(request, executionId) {
       userResult = { success: true }
     } else {
       const wrappedUserCode = `
-      (async () => {
+      (async () => { const __readBrokerErrorId = globalThis.__readBrokerErrorId;
         try {
           await (async () => {
             ${code}
@@ -1029,6 +1036,7 @@ async function executeTask(request, executionId) {
               message: error && error.message ? error.message : String(error),
               name: error && error.name ? error.name : 'Error',
               stack: error && error.stack ? error.stack : '',
+              brokerErrorId: __readBrokerErrorId(error),
             },
           });
         }
@@ -1056,7 +1064,12 @@ async function executeTask(request, executionId) {
       return {
         result: null,
         stdout: stdoutChunks.join(''),
-        error: convertToCompatibleError(userResult.errorInfo, code),
+        error: {
+          ...convertToCompatibleError(userResult.errorInfo, code),
+          ...(Number.isSafeInteger(userResult.errorInfo.brokerErrorId)
+            ? { brokerErrorId: userResult.errorInfo.brokerErrorId }
+            : {}),
+        },
         timings,
       }
     }
@@ -1233,7 +1246,13 @@ process.on('message', async (msg) => {
       if (pending) {
         clearTimeout(pending.timeout)
         pendingBrokerCalls.delete(msg.brokerId)
-        pending.resolve(JSON.stringify({ error: msg.error, resultJson: msg.resultJson }))
+        pending.resolve(
+          JSON.stringify({
+            error: msg.error,
+            resultJson: msg.resultJson,
+            ...(typeof msg.error === 'string' ? { brokerErrorId: msg.brokerId } : {}),
+          })
+        )
       }
     }
   } catch (err) {

@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { Rss } from '@sim/emcn/icons'
-import { EmptyState } from '@/components/empty-state/empty-state'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import {
   ReleaseDetailsModal,
   ReleaseEntry,
 } from '@/app/workspace/[workspaceId]/changelog/components'
 import ChangelogLoading from '@/app/workspace/[workspaceId]/changelog/loading'
+import { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
@@ -47,10 +47,7 @@ function ChangelogContent({ workspaceId }: ChangelogProps) {
           <Chip onClick={() => query.refetch()}>Retry</Chip>
         </div>
       ) : releases.length === 0 ? (
-        <EmptyState
-          title='Changelog'
-          description='Sim publishes a release here when it ships changes to this workspace.'
-        />
+        <ChangelogEmptyState />
       ) : (
         <div
           ref={setScrollElement}

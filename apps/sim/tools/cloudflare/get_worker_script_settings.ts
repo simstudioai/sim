@@ -1,9 +1,17 @@
+import { isRecordLike } from '@sim/utils/object'
+import { WORKER_SETTINGS_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareGetWorkerScriptSettingsParams,
   CloudflareGetWorkerScriptSettingsResponse,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  mapCloudflareFields,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getWorkerScriptSettingsTool: ToolConfig<
   CloudflareGetWorkerScriptSettingsParams,
@@ -38,94 +46,21 @@ export const getWorkerScriptSettingsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/workers/scripts/${encodeURIComponent(params.scriptName)}/settings`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/workers/scripts/${safeUrlPathSegment(params.scriptName, 'scriptName')}/settings`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: {
-          bindings: null,
-          compatibility_date: null,
-          compatibility_flags: null,
-          limits: null,
-          logpush: null,
-          migrations: null,
-          observability: null,
-          placement: null,
-          tags: null,
-          tail_consumers: null,
-          usage_model: null,
-        },
-        error: cloudflareErrorMessage(data, 'Failed to get Worker script settings'),
-      }
-    }
-
-    const settings = data.result
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
-      success: true,
-      output: {
-        bindings: settings?.bindings ?? null,
-        compatibility_date: settings?.compatibility_date ?? null,
-        compatibility_flags: settings?.compatibility_flags ?? null,
-        limits: settings?.limits ?? null,
-        logpush: settings?.logpush ?? null,
-        migrations: settings?.migrations ?? null,
-        observability: settings?.observability ?? null,
-        placement: settings?.placement ?? null,
-        tags: settings?.tags ?? null,
-        tail_consumers: settings?.tail_consumers ?? null,
-        usage_model: settings?.usage_model ?? null,
-      },
+      success,
+      output: mapCloudflareFields(data.result, WORKER_SETTINGS_OUTPUTS),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to get worker script settings') }
+        : {}),
     }
   },
-
-  outputs: {
-    bindings: {
-      type: 'json',
-      description: 'Resource bindings available to the script (KV, R2, D1, secrets, and more)',
-      optional: true,
-    },
-    compatibility_date: {
-      type: 'string',
-      description: 'Workers runtime compatibility date',
-      optional: true,
-    },
-    compatibility_flags: {
-      type: 'array',
-      description: 'Workers runtime compatibility flags',
-      items: { type: 'string', description: 'Compatibility flag' },
-      optional: true,
-    },
-    limits: { type: 'json', description: 'CPU and other execution limits', optional: true },
-    logpush: { type: 'boolean', description: 'Whether Workers Logpush is enabled', optional: true },
-    migrations: { type: 'json', description: 'Durable Object migrations', optional: true },
-    observability: {
-      type: 'json',
-      description: 'Observability and log-sampling configuration',
-      optional: true,
-    },
-    placement: { type: 'json', description: 'Smart placement configuration', optional: true },
-    tags: {
-      type: 'array',
-      description: 'Tags attached to the script',
-      items: { type: 'string', description: 'Tag name' },
-      optional: true,
-    },
-    tail_consumers: {
-      type: 'json',
-      description: "Workers that consume this script's tail events",
-      optional: true,
-    },
-    usage_model: {
-      type: 'string',
-      description: 'Billing usage model',
-      optional: true,
-    },
-  },
+  outputs: WORKER_SETTINGS_OUTPUTS,
 }

@@ -1,3 +1,8 @@
+import type {
+  ComputerUseInput,
+  ComputerUseNativeError,
+  ComputerUseResult,
+} from './computer-use.generated'
 import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
 
 export type {
@@ -34,6 +39,64 @@ import type {
 } from '@sim/terminal-protocol'
 
 const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
+
+/** Renderer budget for native authorization, app approval, queueing, and execution. */
+export const COMPUTER_USE_TOOL_TIMEOUT_MS = 90_000
+
+/** Native work is bound to the server-authorized chat and tool call. */
+export interface ComputerUseActivity {
+  toolCallId: string
+  scopeId: string
+  bundleId?: string
+  appName?: string
+  action: string
+  startedAt: number
+  stopShortcutAvailable?: boolean
+}
+
+/** Device permissions are independent of the server rollout flag. */
+export interface ComputerUseStatus {
+  supported: boolean
+  enabled: boolean
+  permissions: { accessibility: boolean; screenCapture: boolean }
+  activeAction: ComputerUseActivity | null
+}
+
+export interface ComputerUseAppPermission {
+  bundleId: string
+  displayName: string
+}
+
+/** Preserve native dispatch certainty as data across Electron's error serialization boundary. */
+export interface ComputerUseToolFailure {
+  kind: 'error'
+  error: ComputerUseNativeError
+}
+
+/** Only validated helper replies may carry a confirmed pre-dispatch failure. */
+export class ComputerUseError extends Error {
+  constructor(readonly details: ComputerUseNativeError) {
+    super(details.message)
+    this.name = 'ComputerUseError'
+  }
+}
+
+/** Optional so a new web deployment remains compatible with older desktop shells. */
+interface SimDesktopComputerUseApi {
+  /** Current activity without starting the helper; absent in older shells. */
+  getActivity?(): Promise<ComputerUseActivity | null>
+  getStatus(): Promise<ComputerUseStatus>
+  setEnabled(enabled: boolean): Promise<ComputerUseStatus>
+  requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
+  listAppPermissions(): Promise<ComputerUseAppPermission[]>
+  revokeApp(bundleId: string): Promise<void>
+  executeTool(
+    toolCallId: string,
+    params: ComputerUseInput
+  ): Promise<ComputerUseResult | ComputerUseToolFailure>
+  cancel(toolCallId?: string): Promise<void>
+  onActivity(callback: (activity: ComputerUseActivity | null) => void): () => void
+}
 
 /** Boolean results preserve compatibility with older installed desktop shells. */
 export type TerminalPasteResult = boolean | 'too-large'
@@ -438,6 +501,50 @@ interface SimDesktopBrowserImportApi {
     profileId?: string,
     policy?: BrowserCredentialConflictPolicy
   ): Promise<BrowserChromeImportResult>
+  /**
+   * Continue a sign-in in the user's own browser.
+   *
+   * Electron cannot complete some sign-ins that sites now prefer: iCloud
+   * Keychain and Google Password Manager passkeys, the phone (hybrid/QR)
+   * passkey flow, and PIN-protected security keys are Chrome-only, so the site
+   * offers a passkey and then hangs. The user finishes there instead and brings
+   * the session back. `continueSignIn` opens the active tab's page in the named
+   * profile (the shell reads the address from the tab, never from the caller);
+   * `bringSignInBack` imports only that page's registrable-domain cookies from
+   * the same profile and reopens it. Both need a live user gesture; no browser
+   * tool maps to any of these. Absent on older shells, which hide the feature.
+   */
+  continueSignIn?(profileId: string, scopeId: string): Promise<BrowserContinueSignInResult>
+  /** Imports the chat's pending sign-in back. @see continueSignIn */
+  bringSignInBack?(scopeId: string): Promise<BrowserImportResult>
+  /** Drops the chat's pending sign-in. @see continueSignIn */
+  cancelSignIn?(scopeId: string): Promise<void>
+  /** The chat's pending sign-in, so a remounted panel can keep offering to bring it back. */
+  getPendingSignIn?(scopeId: string): Promise<BrowserPendingSignIn | null>
+}
+
+/** Why a page could not be continued in another browser. */
+export type BrowserContinueSignInError =
+  | 'chrome-not-found'
+  | 'unsupported-page'
+  | 'launch-failed'
+  | 'unknown'
+
+/** A sign-in waiting in another browser to be brought back. */
+export interface BrowserPendingSignIn {
+  /** The registrable domain a bring-back imports, e.g. `amazon.com`. */
+  site: string
+  /** The browser it was continued in, e.g. `Chrome`. */
+  browserLabel: string
+}
+
+/**
+ * A page handed to another browser, or why it could not be. Neither is set when
+ * a cancel or a newer continue retired the handoff while the browser launched.
+ */
+export interface BrowserContinueSignInResult {
+  pending?: BrowserPendingSignIn
+  error?: BrowserContinueSignInError
 }
 
 /** Both halves of a combined Chrome import, each with its own outcome. */
@@ -1037,8 +1144,12 @@ interface SimDesktopUpdatesApi {
    * self-update, or opens an available manual installer.
    */
   check(): void
-  /** Installs a ready update or opens the installer for an available manual update. */
-  install(): void
+  /**
+   * Installs a ready update or opens the installer for an available manual
+   * update. A `mandatory` install never offers to wait, even for running work.
+   * Shells that predate the option ignore it.
+   */
+  install(options?: { mandatory?: boolean }): void
   /** Subscribe to pipeline state changes. Returns an unsubscribe function. */
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
@@ -1109,6 +1220,7 @@ interface SimDesktopExecutorApi {
 }
 
 export interface SimDesktopApi {
+  computerUse?: SimDesktopComputerUseApi
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>

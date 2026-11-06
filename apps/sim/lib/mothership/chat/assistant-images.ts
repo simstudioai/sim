@@ -10,7 +10,7 @@ import {
   ASSISTANT_IMAGE_MAX_COUNT,
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
 } from '@/lib/uploads/shared/assistant-images'
-import { createFileContent } from '@/lib/uploads/utils/file-utils'
+import { createFileContent } from '@/lib/uploads/utils/file'
 
 export type AssistantImageContent = AssistantImage
 

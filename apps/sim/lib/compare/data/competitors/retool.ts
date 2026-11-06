@@ -23,6 +23,31 @@ export const retoolProfile: CompetitorProfile = {
   },
   oneLiner:
     'Retool is a low-code platform for building, deploying, and managing internal software (apps, workflows, and AI agents) that connect to databases, APIs, and LLMs.',
+  leadAnswer: [
+    'Retool is a proprietary low-code platform for building internal software: React-based apps, workflows, and a separate Agents product connected to databases, APIs, and LLMs, on Retool Cloud or self-hosted on any plan with a Retool-issued license key. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Retool when the deliverable is an internal app with a user interface on top of production data, such as an admin panel or dashboard. Choose Sim when the deliverable is the agent or automation itself, built in one workflow builder and deployed as a REST API, chat interface, or MCP tool, with built-in evaluation and guardrail blocks.',
+  ],
+  faqs: [
+    {
+      question: 'Sim vs Retool for building internal AI tools: which should I use?',
+      answer:
+        "Use Retool when the internal tool needs a full app interface, and Sim when the tool is an AI agent or automation. Retool builds internal business applications with a React frontend and TypeScript backend, and its AppGen generates the UI, data queries, and bindings from a plain-English prompt while inheriting the org's existing authentication and access controls. Retool Agents is a separate product that combines deterministic code, LLM decisions, and human-in-the-loop steps. Sim combines agent, function, and human approval blocks in a single workflow builder, builds and edits workflows from natural language through Chat and Copilot, and deploys them as a REST API, a public chat interface, or an MCP tool.",
+    },
+    {
+      question: 'What is a Retool alternative for building AI agents rather than internal apps?',
+      answer:
+        "Sim is built for AI agents first, while Retool's agent capabilities sit beside an internal app builder. Retool Agents usage is billed by the hour, separately from the monthly AI-credit allocation, and Retool documents no dedicated evaluation or guardrail framework for agent output, nor a way to publish an individual app or workflow as its own MCP tool. Sim includes an Evaluator block that scores outputs against named metrics, a Guardrails block for JSON validation, regex, hallucination scoring, and PII masking, reusable Agent Skills, and publishing of any deployed workflow as an MCP tool.",
+    },
+    {
+      question: 'Is Retool open source, and can it be self-hosted?',
+      answer:
+        "Retool is proprietary and closed-source, while Sim's core is licensed under Apache 2.0. Retool's pricing lists self-host plans on every tier, with Enterprise required for unlimited users, SSO, and air-gapped deployment. Every self-hosted deployment needs a Retool-issued license key, and its Docker Compose setup is for non-production testing only, so production self-hosting runs on Kubernetes with Helm. Sim can be self-hosted with Docker Compose or Kubernetes (Helm), and its enterprise features, such as SSO and audit logs, require a Sim Enterprise license.",
+    },
+    {
+      question: 'How do Sim and Retool compare for knowledge bases and RAG?',
+      answer:
+        "Sim's knowledge base combines vector and full-text search and keeps sources in sync, while Retool Vectors is a managed vector store for uploaded content. Retool Vectors indexes text, PDFs, and web pages, and it generates embeddings with an OpenAI embedding model (text-embedding-ada-002 by default) that cannot be changed after a vector is created. Sim stores embeddings in pgvector alongside a full-text index, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and shows chunk-level detail with a dedicated chunk editor.",
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Full internal business applications, not just agent workflows',
@@ -108,7 +133,7 @@ export const retoolProfile: CompetitorProfile = {
       description:
         'Retool Agents usage is metered and billed hourly, separate from the monthly AI-credit allocation used for app-building and AI actions. This adds a second, less predictable usage-based cost on top of seat pricing.',
       shortDescription: 'Agents usage is billed hourly, separate from the AI-credit pool.',
-      source: { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+      source: { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
     },
   ],
   facts: {
@@ -138,16 +163,21 @@ export const retoolProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment is available on Free, Team, and Business plans at the same pricing as cloud; Enterprise is required for unlimited users and advanced capabilities. A Retool-issued license key is required even when self-hosted.',
+          'Yes, on every plan: self-host plans cover Free (up to 5 users), Team and Business (up to 100 users), and Enterprise (unlimited users, SSO, and air-gapped deployment). A Retool-issued license key is required even when self-hosted.',
         detail:
           'Self-hosted Retool is deployable via Docker (non-production/testing only) or Kubernetes/Helm (production).',
-        shortValue: 'Yes, on Free/Team/Business; license key required',
+        shortValue: 'Yes, every plan; license key required',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://retool.com/self-hosted',
+            url: 'https://retool.com/md/pricing',
+            label: 'Retool Pricing (self-host plans)',
+            asOf: '2026-10-20',
+          },
+          {
+            url: 'https://retool.com/govern-enterprise-apps/self-hosted',
             label: 'Retool Self Hosted',
-            asOf: '2026-07-02',
+            asOf: '2026-10-19',
           },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
@@ -158,10 +188,20 @@ export const retoolProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Retool Cloud (multi-tenant SaaS), or self-hosted via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production).',
-        shortValue: 'Cloud, or self-hosted via Docker/Kubernetes',
+          'Retool Cloud (multi-tenant SaaS), or self-hosted on any plan via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production); air-gapped deployment requires Enterprise.',
+        shortValue: 'Cloud, or self-hosted on any plan',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://retool.com/md/pricing',
+            label: 'Retool Pricing (self-host plans)',
+            asOf: '2026-10-20',
+          },
+          {
+            url: 'https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm',
+            label: 'Deploy Retool on Kubernetes with Helm | Retool Docs',
+            asOf: '2026-10-20',
+          },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
             label: 'Deploy Self-hosted Retool with Docker | Retool Docs',
@@ -623,16 +663,16 @@ export const retoolProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '90+ listed integrations/connectors on the public integrations page, plus generic REST API, GraphQL, and gRPC connectivity for anything without a native connector.',
+          '74 listed integrations/connectors on the public integrations page, plus generic REST API, GraphQL, and gRPC connectivity for anything without a native connector.',
         detail:
           'Categories include databases, cloud platforms, CRMs, messaging, and AI services (OpenAI, Anthropic, Google Gemini, etc.).',
-        shortValue: '90+ connectors plus REST/GraphQL/gRPC',
+        shortValue: '74 connectors plus REST/GraphQL/gRPC',
         confidence: 'verified',
         sources: [
           {
             url: 'https://retool.com/integrations',
             label: 'Retool Integrations',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -750,7 +790,7 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: 'Seat-based plus AI credits and hourly Agents billing',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       entryPaidPlan: {
@@ -759,30 +799,31 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: '$10/builder + $5/user per month (Team plan)',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       freeTier: {
         value:
-          'Yes: Free plan: unlimited web/mobile apps, 500 workflow runs/month, 5GB database capacity, 5GB file storage, up to 5 users, 20 hours/month of Agents, 250 AI credits/month.',
+          'Yes: Free plan: unlimited web/mobile apps, 500 workflow runs/month, 5GB database capacity, up to 5 users, 20 hours/month of Agents, 250 AI credits/month.',
         shortValue: 'Yes, up to 5 users with limited usage',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       byok: {
         value:
-          'Partial: Retool AI supports "bring your own" model connections for chat/completion models (OpenAI, Anthropic, Google, AWS, Azure, or custom), but Retool Vectors\' embedding calls always go through OpenAI\'s API regardless of the chosen chat model.',
-        shortValue: 'BYO chat model, but embeddings always use OpenAI',
+          'Partial: Retool AI supports "bring your own" model connections for chat/completion models (OpenAI, Anthropic, Google, AWS, Azure, or custom), but Retool Vectors\' embedding calls always go through OpenAI\'s API regardless of the chosen chat model. The pricing page lists bringing your own AI provider key as an Enterprise-only feature.',
+        shortValue: 'BYO chat model on Enterprise only; embeddings always use OpenAI',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-07-02' },
+          { url: 'https://retool.com/ai', label: 'Retool AI', asOf: '2026-11-02' },
           {
             url: 'https://docs.retool.com/data-sources/guides/vectors/embeddings',
             label: 'Manage embeddings in Retool-managed Vectors | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
     },
@@ -826,7 +867,7 @@ export const retoolProfile: CompetitorProfile = {
             label: 'Configure role-based access control | Retool Docs',
             asOf: '2026-07-02',
           },
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
         ],
       },
       auditLogging: {
@@ -837,7 +878,7 @@ export const retoolProfile: CompetitorProfile = {
         shortValue: 'From Business plan up; continuous export limited to Datadog/stdout',
         confidence: 'verified',
         sources: [
-          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
+          { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-11-02' },
           {
             url: 'https://docs.retool.com/changelog/audit-logs-in-datadog',
             label: 'Send audit log events to Datadog',
@@ -909,7 +950,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/pricing',
             label: 'Retool Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.retool.com/apps/mobile/guides/whitelabel',
@@ -967,7 +1008,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/pricing',
             label: 'Retool Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -999,7 +1040,7 @@ export const retoolProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 90+ databases, APIs, AI services, and cloud tools built and maintained by Retool, not an open marketplace of third-party-submitted connectors. Custom Component Libraries let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default, not a shared registry of code from unrelated third parties.",
+          "Yes: Retool's built-in integrations (Resources) are a first-party catalog of roughly 70+ databases, APIs, AI services, and cloud tools built and maintained by Retool, not an open marketplace of third-party-submitted connectors. Custom Component Libraries let a customer's own developers pull in npm packages to build custom UI components, but these are private to the authoring organization by default, not a shared registry of code from unrelated third parties.",
         detail:
           "A custom component loads into a sandboxed iframe, and Retool's custom-component-guide plus a community forum thread ('Custom Component Vulnerabilities') flag that developers should run npm audit on dependencies pulled into their own component libraries. This is a supply-chain caution for self-authored code, not an incident involving a shared marketplace, since no public component marketplace exists.",
         shortValue: 'Yes, first-party integration catalog, no public component marketplace',
@@ -1008,7 +1049,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/integrations',
             label: 'Retool Integrations',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://docs.retool.com/apps/guides/custom/custom-component-libraries/',

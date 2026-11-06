@@ -1,11 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildIssueUpdatedOutputs,
   buildJiraExtraFields,
   jiraSetupInstructions,
   jiraTriggerOptions,
 } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

@@ -18,7 +18,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
   resolveWorkspaceFolderScope: hoisted.resolveFolderScope,

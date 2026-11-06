@@ -121,6 +121,28 @@ describe('resolveOAuthCallbackError', () => {
       text: 'The "New Gmail" connection didn’t finish. Try again.',
     })
   })
+
+  it('names the credential that already uses the account a reconnect chose', () => {
+    const reason = 'That Google account is already connected in this workspace as "Personal".'
+    const url = new URL('https://sim.ai/workspace/workspace-1/integrations')
+    url.searchParams.set('error', 'credential_account_conflict')
+    url.searchParams.set('error_description', reason)
+
+    expect(resolveOAuthCallbackError(url.toString(), context)).toEqual({
+      kind: 'error',
+      text: reason,
+    })
+  })
+
+  it('keeps a provider-supplied error description out of the message', () => {
+    const url = new URL('https://sim.ai/workspace/workspace-1/integrations')
+    url.searchParams.set('error', 'access_denied')
+    url.searchParams.set('error_description', 'Visit example.test to restore access')
+
+    expect(resolveOAuthCallbackError(url.toString(), context)?.text).toBe(
+      'The "New Gmail" connection didn’t finish. Try again.'
+    )
+  })
 })
 
 describe('buildKnowledgeBaseOAuthReturnUrl', () => {

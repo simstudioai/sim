@@ -1,6 +1,7 @@
 import { copyFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { SQLInputValue } from 'node:sqlite'
 import { ImportFailure } from '@/main/browser-import/types'
 
 /**
@@ -17,7 +18,11 @@ import { ImportFailure } from '@/main/browser-import/types'
 /** SQLite keeps recent writes beside the main file; sidecars are needed for a faithful copy. */
 const SQLITE_SIDECAR_SUFFIXES = ['-wal', '-shm', '-journal']
 
-async function queryCopy(databasePath: string, query: string): Promise<Record<string, unknown>[]> {
+async function queryCopy(
+  databasePath: string,
+  query: string,
+  params: readonly SQLInputValue[]
+): Promise<Record<string, unknown>[]> {
   // Imported lazily: `node:sqlite` is only needed on the import path, and this
   // keeps module load working on runtimes that lack it.
   const { DatabaseSync } = await import('node:sqlite')
@@ -40,7 +45,7 @@ async function queryCopy(databasePath: string, query: string): Promise<Record<st
     // Chrome's microsecond timestamps overflow a JS number's safe integer
     // range, which this API rejects unless BigInt reads are enabled.
     statement.setReadBigInts(true)
-    return statement.all() as Record<string, unknown>[]
+    return statement.all(...params) as Record<string, unknown>[]
   } catch {
     throw new ImportFailure('unsupported-schema', 'The Chrome table is not in a recognised shape.')
   } finally {
@@ -50,12 +55,14 @@ async function queryCopy(databasePath: string, query: string): Promise<Record<st
 
 /**
  * Copies `sourcePath` (plus any SQLite sidecars) to private temporary storage
- * and runs `query` against the copy. The copy is always deleted.
+ * and runs `query` with its bound `params` against the copy. The copy is
+ * always deleted.
  */
 export async function queryBrowserDatabase(
   sourcePath: string,
   fileName: string,
-  query: string
+  query: string,
+  params: readonly SQLInputValue[] = []
 ): Promise<Record<string, unknown>[]> {
   const staging = await mkdtemp(join(tmpdir(), 'sim-chrome-import-'))
   try {
@@ -69,7 +76,7 @@ export async function queryBrowserDatabase(
       // Absent sidecars are normal: they only exist while a transaction is live.
       await copyFile(`${sourcePath}${suffix}`, `${workingCopy}${suffix}`).catch(() => {})
     }
-    return await queryCopy(workingCopy, query)
+    return await queryCopy(workingCopy, query, params)
   } finally {
     await rm(staging, { recursive: true, force: true }).catch(() => {})
   }

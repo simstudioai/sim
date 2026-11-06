@@ -585,8 +585,8 @@ export function createAnthropicStreamingToolLoopStream(
           aborted: loopAbortController.signal.aborted,
           consumerCancelled,
           error,
-          onUnexpectedError: (cause) =>
-            logger.error('Anthropic streaming tool loop failed', {
+          onUnexpectedError: (cause, level) =>
+            logger[level]('Anthropic streaming tool loop failed', {
               error: toError(cause).message,
             }),
         })

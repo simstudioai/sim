@@ -1,6 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
@@ -11,52 +9,9 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Incidentio')
-
-const INCIDENTIO_WEBHOOK_TIMESTAMP_SKEW_SECONDS = 5 * 60
-
-/**
- * Verify an incident.io webhook signature using the Svix signing scheme.
- * incident.io webhooks are powered by Svix: HMAC-SHA256 of
- * `${webhook-id}.${webhook-timestamp}.${body}` signed with the base64-decoded
- * `whsec_...` secret, compared against the `webhook-signature` header which may
- * carry one or more space-separated `v1,<base64sig>` entries.
- * @see https://docs.incident.io/integrations/webhooks
- */
-function verifyIncidentioSignature(
-  secret: string,
-  msgId: string,
-  timestamp: string,
-  signatures: string,
-  rawBody: string
-): boolean {
-  try {
-    const ts = Number.parseInt(timestamp, 10)
-    const now = Math.floor(Date.now() / 1000)
-    if (Number.isNaN(ts) || Math.abs(now - ts) > INCIDENTIO_WEBHOOK_TIMESTAMP_SKEW_SECONDS) {
-      return false
-    }
-
-    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
-    const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
-
-    const providedSignatures = signatures.split(' ')
-    for (const versionedSig of providedSignatures) {
-      const parts = versionedSig.split(',')
-      if (parts.length !== 2) continue
-      const sig = parts[1]
-      if (safeCompare(sig, expectedSignature)) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Error verifying incident.io Svix signature:', error)
-    return false
-  }
-}
 
 /**
  * Locate a named entity (incident/alert) within an incident.io webhook body.
@@ -97,29 +52,14 @@ export const incidentioHandler: WebhookProviderHandler = {
       })
     }
 
-    const webhookId = request.headers.get('webhook-id')
-    const webhookTimestamp = request.headers.get('webhook-timestamp')
-    const webhookSignature = request.headers.get('webhook-signature')
-
-    if (!webhookId || !webhookTimestamp || !webhookSignature) {
-      logger.warn(`[${requestId}] incident.io webhook missing Svix signature headers`)
-      return new NextResponse('Unauthorized - Missing incident.io signature headers', {
-        status: 401,
-      })
-    }
-
-    if (
-      !verifyIncidentioSignature(
-        signingSecret,
-        webhookId,
-        webhookTimestamp,
-        webhookSignature,
-        rawBody
-      )
-    ) {
-      logger.warn(`[${requestId}] incident.io Svix signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid incident.io signature', { status: 401 })
-    }
+    const failure = verifyStandardWebhookRequest({
+      request,
+      rawBody,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'incident.io',
+    })
+    if (failure) return failure
 
     return null
   },

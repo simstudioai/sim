@@ -7,7 +7,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { updateWorkspaceFileDimensionsOperation } from '@/lib/workspace-files/application/update-workspace-file-dimensions'
 
@@ -43,7 +43,11 @@ describe('updateWorkspaceFileDimensionsOperation', () => {
     })
 
     expect(result).toEqual({ success: false })
-    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
+      includeDeleted: undefined,
+      includeChatUploads: undefined,
+      includeOwnedFiles: false,
+    })
     expect(mocks.updateDimensions).toHaveBeenCalledWith('workspace-1', 'file-1', {
       key: 'workspace/workspace-1/current-key',
       width: 800,

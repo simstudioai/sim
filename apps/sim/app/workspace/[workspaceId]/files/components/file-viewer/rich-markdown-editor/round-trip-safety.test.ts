@@ -167,7 +167,13 @@ describe('isRoundTripSafe', () => {
   })
 
   it('rejects non-idempotent churn', () => {
-    expect(isRoundTripSafe('render `` a`b `` inline')).toBe(false)
+    expect(isRoundTripSafe('10. ten\n    ```\n    code\n    ```')).toBe(false)
+  })
+
+  it('keeps fenced code inside a numbered item editable and byte-stable', () => {
+    const source = '1. step\n  ```\n  code\n  ```\n2. next\n'
+    expect(serializeMarkdownDocument(source)).toBe(source)
+    expect(isRoundTripSafe(source)).toBe(true)
   })
 
   it('keeps HTML images with unsupported attributes in source mode', () => {

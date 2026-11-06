@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import {
+  clearInheritedDatabaseUrls,
+  readTestDatabaseUrl,
+  readTestRedisUrl,
+} from '@sim/db/testing/test-infrastructure'
 import { afterAll } from 'vitest'
 
 /**
@@ -20,15 +24,7 @@ const environmentSource = readFileSync(new URL('./lib/core/config/env.ts', impor
 for (const entry of environmentSource.matchAll(/^\s+([A-Z][A-Z0-9_]*)\s*:/gm)) {
   delete process.env[entry[1]]
 }
-for (const key of Object.keys(process.env)) {
-  if (
-    key.startsWith('DATABASE_URL') ||
-    key.startsWith('DATABASE_REPLICA_URL') ||
-    key === 'MIGRATION_DATABASE_URL'
-  ) {
-    delete process.env[key]
-  }
-}
+clearInheritedDatabaseUrls()
 Object.assign(process.env, {
   NODE_ENV: 'test',
   DATABASE_URL: databaseUrl,

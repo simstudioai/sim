@@ -1,53 +1,47 @@
 ---
 title: Buffer
 description: Schedule and publish social media posts across connected channels
+integration:
+  type: "buffer"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="buffer"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Buffer](https://buffer.com/) is a social media management platform that lets teams draft, schedule, and publish content across their connected social channels from a single queue. Each channel — Instagram, LinkedIn, X, Facebook, TikTok, and more — is connected once in Buffer, and posts are published on the schedule you define.
+Use [Buffer](https://buffer.com/) to draft, queue, schedule, publish, edit, and delete posts on connected social channels. Attach images, videos, or documents; inspect channel settings, daily limits, and published-post metrics; and manage ideas and idea groups.
 
-With the Buffer integration in Sim, you can:
+## Authentication
 
-- **Publish and schedule posts**: Create a post for a channel and add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft
-- **Attach media**: Include images, videos, or documents and configure network-specific metadata
-- **Manage existing posts**: Edit, retrieve, list, and delete posts
-- **Browse channels**: List connected channels or retrieve a channel's complete settings and posting schedule
-- **Check publishing limits and performance**: Read daily posting limits and aggregate published-post metrics
-- **Capture ideas**: Create ideas and list ideas and idea groups from the Buffer content pipeline
-- **Read account details**: Retrieve the authenticated Buffer account
+Create an API key under Buffer **Settings → API** and enter it in **API Key**. Sim sends it as a Bearer token to Buffer's GraphQL API. The key can reach the organizations and channels available to its account, subject to its permissions.
 
-To connect, create an API key in Buffer under **Settings → API**, then enter it in the block's **API Key** field. Sim sends the key as a Bearer token to Buffer's GraphQL API. The key can access all organizations and channels available to your Buffer account.
+Enable the permissions your workflow needs: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. The block includes 13 operations; preview operations are excluded.
 
-Enable the permissions needed by your workflow: `account:read`, `posts:read`, `posts:write`, `ideas:read`, `ideas:write`, and `insights:read`. This integration includes 13 operations for posts, channels, ideas, account details, and reporting. Preview operations are excluded.
+## Inputs and pagination
 
-Advanced JSON inputs expose the full nested contracts for assets, network metadata, idea content, filters, and sorting. Choose either the single-file media controls or the assets array. Each asset contains exactly one image, video, or document. Listing operations return one page with complete cursor information; use `after` to continue. Sim limits each page to 100 items and structured input arrays to 1,000 items.
+Advanced JSON inputs expose nested assets, network metadata, idea content, filters, and sorting. Choose either the single-file media controls or the assets array. Each asset contains exactly one image, video, or document. Link attachments belong in network metadata.
 
-When editing a post, select **Keep current schedule** in **Share Mode** and **Keep current publishing method** in **Scheduling Type** to update content without rescheduling. Existing workflows retain their configured share mode; select **Keep current schedule** when their edits should preserve the post's schedule.
+Listing operations return one page with cursor information; pass `after` to continue. Sim limits each page to 100 items and structured input arrays to 1,000 items.
 
-Use **Clear Caption** to remove an existing caption, or an empty assets/tag ID array to clear those values. Omitting them preserves the existing values. The live API accepts date comparators and tag comparators for post filters; the older documented `startDate`, `endDate`, and `tagIds` filter fields are unavailable. Link attachments belong in network metadata.
+## Edit without rescheduling
 
-In Sim, the Buffer integration enables your agents to turn generated content into scheduled social posts without manual copy-paste. An agent can draft copy, look up the right channel, attach a generated image, and queue the post — or review the existing queue and clean up posts that are no longer relevant.
+Select **Keep current schedule** in **Share Mode** and **Keep current publishing method** in **Scheduling Type** to change content without rescheduling. Existing workflows retain their configured share mode; select **Keep current schedule** when their edits should preserve the schedule.
+
+Use **Clear Caption** to remove a caption, or an empty assets or tag-ID array to clear those values. Omitted fields preserve existing values. Use the supported date and tag comparators for post filters; the older `startDate`, `endDate`, and `tagIds` filter fields are unavailable.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.
-
-
+Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.
 
 ## Actions
 
 ### Buffer Create Post
 
 Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -373,9 +367,13 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Edit Post
 
 Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -701,9 +699,13 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Posts
 
 List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1022,7 +1024,7 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 |   ↳ `updatedAt` | string | Post updatedAt |
 | `edges` | array | Edges with cursor and full post node |
 |   ↳ `cursor` | string | Cursor for this node |
-|   ↳ `node` | object | node output from the tool |
+|   ↳ `node` | object |  |
 |     ↳ `id` | string | Post id |
 |     ↳ `allowedActions` | array | Post allowedActions |
 |     ↳ `assets` | array | Post assets |
@@ -1324,9 +1326,13 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 |   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
 |   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
+</ReferenceDetails>
+
 ### Buffer Get Post
 
 Get a single Buffer post by ID, including its status, schedule, and media
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1636,9 +1642,13 @@ Get a single Buffer post by ID, including its status, schedule, and media
 |   ↳ `createdAt` | string | Post createdAt |
 |   ↳ `updatedAt` | string | Post updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Delete Post
 
 Delete a Buffer post by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1654,9 +1664,13 @@ Delete a Buffer post by ID
 | `deleted` | boolean | Whether the post was deleted |
 | `id` | string | ID of the deleted post |
 
+</ReferenceDetails>
+
 ### Buffer Get Channels
 
 List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1736,9 +1750,13 @@ List the social media channels connected to a Buffer organization, including the
 |   ↳ `createdAt` | string | Channel createdAt |
 |   ↳ `updatedAt` | string | Channel updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Channel
 
 Get one connected channel, including its posting schedule, limits and network settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1817,9 +1835,13 @@ Get one connected channel, including its posting schedule, limits and network se
 |   ↳ `createdAt` | string | Channel createdAt |
 |   ↳ `updatedAt` | string | Channel updatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Aggregated Post Metrics
 
 Aggregate published post metrics across an organization or selected channels over a date range of up to 365 days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1845,9 +1867,13 @@ Aggregate published post metrics across an organization or selected channels ove
 |     ↳ `value` | number | PostMetric value |
 |   ↳ `metricsUpdatedAt` | string | AggregatedPostMetrics metricsUpdatedAt |
 
+</ReferenceDetails>
+
 ### Buffer Get Daily Posting Limits
 
 Check sent and scheduled post counts against each channel’s daily limit for a date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1868,9 +1894,13 @@ Check sent and scheduled post counts against each channel’s daily limit for a 
 |   ↳ `scheduled` | number | DailyPostingLimitStatus scheduled |
 |   ↳ `sent` | number | DailyPostingLimitStatus sent |
 
+</ReferenceDetails>
+
 ### Buffer Create Idea
 
 Save a content idea to a Buffer organization for later drafting and scheduling
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1923,9 +1953,13 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 |   ↳ `title` | string | Idea content title |
 |   ↳ `text` | string | Idea content text |
 
+</ReferenceDetails>
+
 ### Buffer Get Ideas
 
 List content ideas saved in a Buffer organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1976,7 +2010,7 @@ List content ideas saved in a Buffer organization
 |   ↳ `text` | string | Idea content text |
 | `edges` | array | Edges with cursor and full idea node |
 |   ↳ `cursor` | string | Cursor for this node |
-|   ↳ `node` | object | node output from the tool |
+|   ↳ `node` | object |  |
 |     ↳ `id` | string | Idea id |
 |     ↳ `content` | object | Idea content |
 |       ↳ `aiAssisted` | boolean | IdeaContent aiAssisted |
@@ -2014,9 +2048,13 @@ List content ideas saved in a Buffer organization
 |   ↳ `hasPreviousPage` | boolean | PaginationPageInfo hasPreviousPage |
 |   ↳ `startCursor` | string | PaginationPageInfo startCursor |
 
+</ReferenceDetails>
+
 ### Buffer Get Idea Groups
 
 List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2034,9 +2072,13 @@ List idea groups (board columns) in a Buffer organization, including the group I
 |   ↳ `isLocked` | boolean | IdeaGroup isLocked |
 |   ↳ `name` | string | IdeaGroup name |
 
+</ReferenceDetails>
+
 ### Buffer Get Account
 
 Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2091,7 +2133,9 @@ Get the authenticated Buffer account, including its organizations and their IDs 
 |     ↳ `website` | string | ConnectedApp website |
 |     ↳ `createdAt` | string | ConnectedApp createdAt |
 
-## JSON Input Schemas
+</ReferenceDetails>
+
+## JSON input schemas [#json-input-schemas]
 
 These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.
 

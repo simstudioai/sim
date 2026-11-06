@@ -3,7 +3,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { createOwnedWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { createOwnedWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { workflowTestOperations } from '@/lib/workflow-tests/application/operations'
 import { starterTestSource, testSourceHash } from '@/lib/workflow-tests/definition'
 import { requireWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
@@ -28,7 +28,7 @@ import {
   type WorkflowTestRunRow,
 } from '@/lib/workflow-tests/repository'
 import type { WorkflowTestVersion } from '@/lib/workflows/application/run-workflow-for-test'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const authorizationOptions = {
   delegation: { audience: 'sim:workspaces', isWithinScope: () => true },

@@ -1,0 +1,17 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/sim/{app,components,blocks,lib,ee,content}/**",
+        "$TURBO_ROOT$/packages/emcn/src/**",
+        "$TURBO_ROOT$/packages/workflow-renderer/src/**",
+        "$TURBO_ROOT$/apps/sim/public/favicon/**",
+        "$TURBO_ROOT$/apps/sim/postcss.config.mjs"
+      ],
+      "env": ["SIM_EXTENSION_ORIGIN", "SIM_EXTENSION_DEV", "SIM_EXTENSION_KEY"],
+      "outputs": ["dist/**"]
+    }
+  }
+}

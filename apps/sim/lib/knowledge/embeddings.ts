@@ -1,9 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env, envNumber } from '@/lib/core/config/env'
@@ -17,7 +14,7 @@ import {
   OllamaEmbeddingWidthUnknownError,
 } from '@/lib/embeddings/ollama-model-catalog.server'
 import type { EmbeddingBatchCheckpoints } from '@/lib/embeddings/types'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,

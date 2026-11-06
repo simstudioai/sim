@@ -5,6 +5,7 @@
  */
 import { db } from '@sim/db'
 import { user, webhook, workflow, workflowDeploymentVersion, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -35,9 +36,12 @@ beforeAll(async () => {
     createdAt: now,
     updatedAt: now,
   })
-  await db
-    .insert(workspace)
-    .values({ id: workspaceId, name: 'Trigger Block', ownerId: owner, billedAccountUserId: owner })
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Trigger Block',
+    ownerId: owner,
+    billedAccountUserId: owner,
+  })
   await db.insert(workflow).values(
     [deployedWorkflow, undeployedWorkflow].map((id) => ({
       id,
@@ -100,7 +104,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, owner))
 })
 

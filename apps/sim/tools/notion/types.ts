@@ -161,7 +161,11 @@ export const FILE_UPLOAD_OUTPUT_PROPERTIES = {
  * @see https://developers.notion.com/reference/file-object
  */
 export const EXTERNAL_FILE_OUTPUT_PROPERTIES = {
-  url: { type: 'string', description: 'External file URL (never expires)' },
+  url: {
+    type: 'string',
+    description:
+      'External file URL, returned as supplied; availability depends on the external host',
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**

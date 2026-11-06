@@ -24,7 +24,7 @@ export const DaytonaBlock: BlockConfig = {
   name: 'Daytona',
   description: 'Run code and commands in secure cloud sandboxes',
   longDescription:
-    'Integrate Daytona into your workflow to run AI-generated code in secure, isolated sandboxes. Create and manage sandboxes, execute shell commands, run Python, JavaScript, or TypeScript code, transfer files, and clone Git repositories.',
+    'Run AI-generated code in isolated sandboxes. Create and manage sandboxes, execute shell commands, run Python, JavaScript, or TypeScript code, transfer files, and clone Git repositories.',
   docsLink: 'https://docs.sim.ai/integrations/daytona',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

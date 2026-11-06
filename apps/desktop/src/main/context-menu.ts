@@ -9,12 +9,35 @@ export interface ContextMenuDeps {
   allowHttpLocalhost: boolean
 }
 
-interface TemplateHandlers {
+interface SpellingHandlers {
   replaceMisspelling(word: string): void
   addToDictionary(word: string): void
+}
+
+interface TemplateHandlers extends SpellingHandlers {
   openLink(url: string): void
   copyLink(url: string): void
   inspect(x: number, y: number): void
+}
+
+/** Corrections for the misspelled word under the cursor, then Add to Dictionary; empty when none. */
+export function spellingItems(
+  params: Pick<ContextMenuParams, 'misspelledWord' | 'dictionarySuggestions'>,
+  handlers: SpellingHandlers
+): MenuItemConstructorOptions[] {
+  if (!params.misspelledWord) return []
+  const suggestions = params.dictionarySuggestions.slice(0, MAX_SUGGESTIONS)
+  return [
+    ...(suggestions.length > 0
+      ? suggestions.map(
+          (suggestion): MenuItemConstructorOptions => ({
+            label: suggestion,
+            click: () => handlers.replaceMisspelling(suggestion),
+          })
+        )
+      : [{ label: 'No Guesses Found', enabled: false }]),
+    { label: 'Add to Dictionary', click: () => handlers.addToDictionary(params.misspelledWord) },
+  ]
 }
 
 /**
@@ -38,18 +61,8 @@ export function buildContextMenuTemplate(
 ): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = []
 
-  if (params.misspelledWord) {
-    for (const suggestion of params.dictionarySuggestions.slice(0, MAX_SUGGESTIONS)) {
-      template.push({ label: suggestion, click: () => handlers.replaceMisspelling(suggestion) })
-    }
-    if (params.dictionarySuggestions.length === 0) {
-      template.push({ label: 'No Guesses Found', enabled: false })
-    }
-    template.push(
-      { label: 'Add to Dictionary', click: () => handlers.addToDictionary(params.misspelledWord) },
-      { type: 'separator' }
-    )
-  }
+  const spelling = spellingItems(params, handlers)
+  if (spelling.length > 0) template.push(...spelling, { type: 'separator' })
 
   if (params.isEditable) {
     template.push(

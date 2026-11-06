@@ -15,12 +15,12 @@ import {
   isBYOKEmbeddingCredentialRejection,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
+} from '@/lib/knowledge/documents/processing-error'
 import {
   BACKFILL_PROCESSING_QUEUE_NAME,
   INTERACTIVE_PROCESSING_QUEUE_NAME,

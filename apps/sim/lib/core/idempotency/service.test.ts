@@ -14,7 +14,6 @@ vi.mock('@/lib/core/storage', () => ({
   isRedisStorage: () => true,
   isDatabaseStorage: () => false,
   requireRedis: () => ({ del: redisDelMock, eval: redisEvalMock }),
-  resetStorageMethod: () => {},
 }))
 
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'

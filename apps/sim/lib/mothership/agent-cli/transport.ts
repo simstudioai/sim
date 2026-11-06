@@ -2,19 +2,24 @@ import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-tr
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
-import { createTableReadTransport } from '@/lib/mothership/agent-cli/table-read-transport'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
 import type { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type { CopilotChatDelegationContext } from '@/lib/mothership/auth/application-delegation'
+import {
+  createRegistryContentGate,
+  deliveredFileProvenance,
+  dispatchUnderContentGate,
+} from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * The transport every Chat CLI invocation and augmentation engine reaches Sim through.
  *
- * Order is load-bearing: the file read layer sits outside in-process admission so every file
- * read and every other `GET` runs under a delivery observer that records the secret provenance
- * of the bytes, and resource effects observe what the composed stack returns.
+ * Every request, whatever its method, runs under a gate bound to the invocation's registry: each
+ * stored item a use case returns is admitted on its own, its secrets imported for redaction, and a
+ * `sourced` route that classified nothing is refused. Resource effects observe the gated result,
+ * and a workbench copy of delivered bytes keeps the classification of what was admitted.
  */
 export function createAgentCliTransport(context: {
   endpoint: string
@@ -25,19 +30,25 @@ export function createAgentCliTransport(context: {
   observeReads: boolean
 }): typeof fetch {
   const { endpoint, invocation, registry, files } = context
-  const reads = createFileReadTransport({
+  const gate = createRegistryContentGate({
+    registry,
+    workspaceId: invocation.workspaceId,
+    actorUserId: invocation.userId,
+  })
+  const routes = createFileReadTransport({
     endpoint,
-    transport: createTableReadTransport({
-      endpoint,
-      transport: createTracedCliTransport(endpoint, createScopedCliTransport(endpoint, invocation)),
-      registry,
-    }),
-    userId: invocation.userId,
+    transport: createTracedCliTransport(endpoint, createScopedCliTransport(endpoint, invocation)),
     invocation,
     registry,
-    ...(invocation.chatId !== undefined ? { chatId: invocation.chatId } : {}),
-    ...(files ? { trackDownload: files.trackDownload } : {}),
+    tracksWorkbenchDownloads: Boolean(files),
   })
+  const reads: typeof fetch = async (input, init) => {
+    const { response, admitted } = await dispatchUnderContentGate(gate, () => routes(input, init))
+    if (files && admitted.length > 0 && response.body) {
+      files.trackDownload(response.body, deliveredFileProvenance(admitted))
+    }
+    return response
+  }
   return createResourceEffectTransport(
     endpoint,
     files

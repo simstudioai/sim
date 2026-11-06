@@ -52,7 +52,7 @@ vi.mock('@/enrichments/run', () => ({
   runEnrichment: hoisted.runEnrichment,
   skippedEnrichmentDetail: () => ({}),
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)

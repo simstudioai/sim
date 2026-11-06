@@ -11,6 +11,7 @@ import {
 import {
   createOrganizationContract,
   getMemberRemovalImpactContract,
+  getOrganizationContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
   type OrganizationBillingSummary,
@@ -22,11 +23,12 @@ import {
   type RosterWorkspaceAccess,
   removeOrganizationMemberContract,
   transferOwnershipContract,
+  updateOrganizationContract,
   updateOrganizationMemberRoleContract,
   updateOrganizationMemberUsageLimitContract,
   updateOrganizationUsageLimitContract,
 } from '@/lib/api/contracts/organization'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
@@ -46,6 +48,27 @@ export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 
 export { organizationKeys }
+
+/** Revalidates organization membership and chat policy through the shared authorized read. */
+export function useOrganizationSummary(
+  organizationId: string,
+  options?: { enabled?: boolean; refetchOnMount?: 'always' }
+) {
+  return useQuery({
+    enabled: options?.enabled ?? true,
+    refetchOnMount: options?.refetchOnMount ?? true,
+    queryKey: organizationKeys.summary(organizationId),
+    queryFn: ({ signal }) =>
+      requestJson(getOrganizationContract, {
+        params: { id: organizationId },
+        query: { include: 'chat-access' },
+        signal,
+      }),
+    staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+    refetchInterval: ORGANIZATION_DETAIL_STALE_TIME,
+    refetchOnWindowFocus: true,
+  })
+}
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
 
@@ -147,6 +170,30 @@ export function useOrganization(orgId: string) {
   return useQuery({
     ...organizationDetailQueryOptions(orgId),
     enabled: !!orgId,
+  })
+}
+
+interface RenameOrganizationParams {
+  orgId: string
+  name: string
+}
+
+/**
+ * Renames an organization. The organization surface reads its identity from the
+ * server layout, so a successful rename also refreshes the route.
+ */
+export function useRenameOrganization() {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: ({ orgId, name }: RenameOrganizationParams) =>
+      requestJson(updateOrganizationContract, { params: { id: orgId }, body: { name } }),
+    onSuccess: () => router.refresh(),
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+    },
   })
 }
 

@@ -185,13 +185,15 @@ export async function listExportableDocuments(
 export async function* iterateDocumentChunks(
   knowledgeBaseId: string,
   documentId: string,
-  dimensions: KbEmbeddingDimensions | null
+  dimensions: KbEmbeddingDimensions | null,
+  admitPage?: (chunks: readonly (ExportableChunk & { id: string })[]) => Promise<void>
 ): AsyncGenerator<ExportableChunk> {
   const pageSize = dimensions ? CHUNK_PAGE_SIZE.vectors : CHUNK_PAGE_SIZE.text
   let after: number | null = null
   for (;;) {
     const page = await db
       .select({
+        id: embedding.id,
         index: embedding.chunkIndex,
         content: embedding.content,
         tokenCount: embedding.tokenCount,
@@ -211,7 +213,8 @@ export async function* iterateDocumentChunks(
       .orderBy(asc(embedding.chunkIndex))
       .limit(pageSize)
 
-    yield* page
+    await admitPage?.(page)
+    for (const { id: _id, ...chunk } of page) yield chunk
     if (page.length < pageSize) break
     after = page[page.length - 1].index
   }

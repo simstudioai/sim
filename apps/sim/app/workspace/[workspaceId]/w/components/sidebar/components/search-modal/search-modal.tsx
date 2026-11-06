@@ -47,7 +47,7 @@ import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
@@ -92,7 +92,7 @@ import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/componen
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -166,7 +166,7 @@ function SearchModalContent({
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const accessRequests = useWorkspaceAccessRequestFeatures()
-  const accessRequestsEnabled = accessRequests.data?.enabled === true
+  const requestableFeatureKeys = accessRequests.requestableFeatureKeys
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -188,9 +188,6 @@ function SearchModalContent({
    */
   const { data: fetchedTables = [] } = useTablesList(workspaceId, 'active', {
     enabled: !permissionConfig.hideTablesTab,
-  })
-  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId, 'active', {
-    enabled: !permissionConfig.hideFilesTab,
   })
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: !permissionConfig.hideKnowledgeBaseTab,
@@ -223,21 +220,6 @@ function SearchModalContent({
     [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
   )
 
-  const files = useMemo(
-    () =>
-      permissionConfig.hideFilesTab
-        ? []
-        : fetchedFiles.map((f) => ({
-            id: f.id,
-            name: f.name,
-            href: `/workspace/${workspaceId}/files/${f.id}`,
-            folderPath: f.folderPath
-              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
-              : undefined,
-          })),
-    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
-  )
-
   const knowledgeBases = useMemo(
     () =>
       permissionConfig.hideKnowledgeBaseTab
@@ -268,7 +250,9 @@ function SearchModalContent({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideIntegrationsTab &&
+            !requestableFeatureKeys.has('hideIntegrationsTab'),
         },
         {
           id: 'skills',
@@ -282,21 +266,23 @@ function SearchModalContent({
           name: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideTablesTab && !requestableFeatureKeys.has('hideTablesTab'),
         },
         {
           id: 'files',
           name: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
+          hidden: permissionConfig.hideFilesTab && !requestableFeatureKeys.has('hideFilesTab'),
         },
         {
           id: 'knowledge-base',
           name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
+          hidden:
+            permissionConfig.hideKnowledgeBaseTab &&
+            !requestableFeatureKeys.has('hideKnowledgeBaseTab'),
         },
         {
           id: 'logs',
@@ -332,7 +318,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
-      accessRequestsEnabled,
+      requestableFeatureKeys,
     ]
   )
 
@@ -692,6 +678,30 @@ function SearchModalContent({
   const [askMode, setAskMode] = useState(false)
   const searchRef = useRef(search)
   searchRef.current = search
+
+  /**
+   * Files are not listed whole — a workspace can hold far more than the palette ranks. Browsing
+   * offers the most recently updated; a query, once typing settles, asks the server for the
+   * best matches by name and folder path, which the palette then ranks as it ranks everything.
+   */
+  const { files: fetchedFiles } = useWorkspaceFilePickerOptions(workspaceId, search, {
+    limit: MAX_SEARCH_RESULTS,
+    enabled: !permissionConfig.hideFilesTab,
+  })
+  const files = useMemo(
+    () =>
+      permissionConfig.hideFilesTab
+        ? []
+        : (fetchedFiles ?? []).map((f) => ({
+            id: f.id,
+            name: f.name,
+            href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath
+              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
+              : undefined,
+          })),
+    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
+  )
 
   /**
    * Focus once the dialog is actually visible: under atomic browser-panel

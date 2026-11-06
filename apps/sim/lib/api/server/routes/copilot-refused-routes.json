@@ -231,6 +231,36 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/projects/[projectId]/files/[fileId]/versions",
+    "operation": "project_files.versions.list"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/projects/[projectId]/files/[fileId]/versions/[version]",
+    "operation": "project_files.versions.read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/projects/[projectId]/files/[fileId]/versions/[version]",
+    "operation": "project_files.versions.delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/content",
+    "operation": "project_files.versions.read_content"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/revert",
+    "operation": "project_files.versions.revert"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/tables/[tableId]/exports/[exportId]/download",
+    "operation": "tables.exports.download"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
   }

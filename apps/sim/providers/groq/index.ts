@@ -26,7 +26,11 @@ import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-co
 import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -586,7 +590,9 @@ export const groqProvider: ProviderConfig = {
           )
         }
       } catch (error) {
-        logger.error('Error in Groq request:', { error })
+        logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Groq request:', {
+          error,
+        })
         throw error
       }
 
@@ -616,7 +622,7 @@ export const groqProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Groq request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Groq request:', {
         error,
         duration: totalDuration,
       })

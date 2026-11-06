@@ -10,7 +10,7 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {

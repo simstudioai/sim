@@ -2283,7 +2283,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
        * or `'false'` is not mistaken for an unset field; only nullish and empty
        * defer to the tool's own default.
        *
-       * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+       * `generic/handler.ts` merges `{ ...inputs, ...params(inputs) }` and
        * `providers/utils.ts` installs this as the provider `paramsTransform`,
        * spreading over the model's tool-call arguments — so emitting a key the
        * block did not supply would clobber a model-supplied value on the agent
@@ -2443,7 +2443,10 @@ export const GitHubV2Block: BlockConfig = {
   integrationType: IntegrationType.DevOps,
   tools: {
     ...GitHubBlock.tools,
-    access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
+    access: [
+      ...(GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
+      'github_list_review_threads',
+    ],
     config: {
       ...GitHubBlock.tools?.config,
       tool: createVersionedToolSelector({

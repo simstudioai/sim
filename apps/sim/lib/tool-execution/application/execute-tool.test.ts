@@ -44,7 +44,7 @@ const hoisted = vi.hoisted(() => ({
   executeFileManage: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
@@ -90,7 +90,7 @@ vi.mock('@/lib/internal/file/operations', () => ({
   fileContentJsonResponse: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 

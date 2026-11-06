@@ -1,31 +1,29 @@
 ---
 title: Prospeo
 description: Enrich and search B2B contacts and companies
+integration:
+  type: "prospeo"
+  color: "#FF1A26"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="prospeo"
-  color="#FF1A26"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Prospeo](https://prospeo.io/) to search and enrich people and companies, including bulk enrichment. Search Suggestions supplies filter values such as locations and job titles; Account Information reports credit usage and plan status.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.
-
-
 
 ## Actions
 
 ### Prospeo Account Information
 
 Retrieve the current plan, remaining credits, and renewal date of your Prospeo account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +42,13 @@ Retrieve the current plan, remaining credits, and renewal date of your Prospeo a
 | `next_quota_renewal_days` | number | Days until the next quota renewal |
 | `next_quota_renewal_date` | string | Date and time of the next quota renewal |
 
+</ReferenceDetails>
+
 ### Prospeo Enrich Person
 
 Enrich a person with complete B2B profile data, email address and mobile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +76,13 @@ Enrich a person with complete B2B profile data, email address and mobile.
 | `person` | json | The matched person object including person_id, name, linkedin_url, current_job_title, job_history, mobile, email, location, and skills |
 | `company` | json | The current company of the matched person including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
 
+</ReferenceDetails>
+
 ### Prospeo Enrich Company
 
 Enrich a company with complete B2B data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +101,13 @@ Enrich a company with complete B2B data.
 | `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
 | `company` | json | The matched company object including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
 
+</ReferenceDetails>
+
 ### Prospeo Bulk Enrich Person
 
 Enrich up to 50 person records at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +131,13 @@ Enrich up to 50 person records at once.
 | `not_matched` | array | Identifiers of records we could not match given the filters |
 | `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
 
+</ReferenceDetails>
+
 ### Prospeo Bulk Enrich Company
 
 Enrich up to 50 company records at once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +157,13 @@ Enrich up to 50 company records at once.
 | `not_matched` | array | Identifiers of records we could not match |
 | `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
 
+</ReferenceDetails>
+
 ### Prospeo Search Person
 
 Search for leads using 20+ filters to build targeted contact lists.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -169,9 +187,13 @@ Search for leads using 20+ filters to build targeted contact lists.
 |   ↳ `person` | json | Matched person \(no email/mobile in search response\) |
 |   ↳ `company` | json | Current company of the person |
 
+</ReferenceDetails>
+
 ### Prospeo Search Company
 
 Search for companies using 20+ filters to build account lists.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +216,13 @@ Search for companies using 20+ filters to build account lists.
 | `results` | array | Up to 25 matching companies |
 |   ↳ `company` | json | Matched company object |
 
+</ReferenceDetails>
+
 ### Prospeo Search Suggestions
 
 Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,5 +240,7 @@ Free endpoint to retrieve valid location or job title values for use in Search f
 |   ↳ `name` | string | Formatted location name to use in filters |
 |   ↳ `type` | string | Location type \(COUNTRY, STATE, CITY, or ZONE\) |
 | `job_title_suggestions` | array | Up to 25 job title suggestions ordered by popularity when using job_title_search \(empty when searching locations\) |
+
+</ReferenceDetails>
 
 

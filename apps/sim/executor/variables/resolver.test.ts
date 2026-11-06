@@ -258,7 +258,7 @@ function runResolvedCondition(expression: string): { matched: boolean; injected:
 
 /**
  * Completes the round trip a condition actually takes: resolver, then the execution-boundary
- * compiler, then evaluation of the same `Boolean(...)` wrapper `condition-handler.ts` builds.
+ * compiler, then evaluation of the same `Boolean(...)` wrapper `condition/handler.ts` builds.
  */
 async function evaluateResolvedCondition(
   value: string,

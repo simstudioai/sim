@@ -1,0 +1,281 @@
+---
+slug: crewai-vs-langgraph-vs-autogen
+title: 'CrewAI vs LangGraph vs AutoGen: Which Multi-Agent Framework Should You Choose?'
+description: 'Compare CrewAI, LangGraph, and AutoGen on orchestration, state, human review, deployment, licensing, and fit for production multi-agent systems.'
+seoTitle: 'CrewAI vs LangGraph vs AutoGen: 2026 Comparison'
+date: 2026-10-22
+updated: 2026-10-22
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Multi-Agent Systems, Agent Frameworks, Sim]
+ogImage: /library/crewai-vs-langgraph-vs-autogen/cover.jpg
+draft: false
+faq:
+  - q: "Is CrewAI better than LangGraph?"
+    a: "CrewAI is better than LangGraph for quickly modeling role-based teams, while LangGraph is better than CrewAI for explicit state, branching, checkpoints, and durable execution. CrewAI usually requires less orchestration code for a straightforward researcher-and-writer crew. LangGraph usually provides more control when runs can pause, loop, fail, or resume."
+  - q: "Is LangGraph better than CrewAI for production?"
+    a: "LangGraph is usually the stronger production choice when an application requires explicit state transitions, durable checkpoints, human approval, or replayable execution. CrewAI can also run production systems, particularly when its crew-and-task abstraction fits the application, but teams should test recovery, observability, and task-state behavior under failure."
+  - q: "Is CrewAI better than AutoGen?"
+    a: "CrewAI is better than AutoGen when work can be divided into named roles and concrete tasks with a predictable process. AutoGen is better when agents need to converse, critique one another, or dynamically decide whose turn comes next. CrewAI tends to be more structured, while AutoGen permits more emergent interaction."
+  - q: "Is LangGraph better than AutoGen?"
+    a: "LangGraph is better than AutoGen when developers need explicit control over state, routing, interruption, and resumption. AutoGen is better when multi-agent conversation is the application's primary coordination mechanism. LangGraph makes execution topology visible, whereas AutoGen makes message exchange central."
+  - q: "Did AutoGen merge into Microsoft Agent Framework?"
+    a: "Not exactly. Microsoft describes Microsoft Agent Framework as AutoGen's direct successor, created by the same teams, combining AutoGen's abstractions with Semantic Kernel's enterprise features. AutoGen's README now says the project is archived and no longer actively maintained by Microsoft. Its code and packages remain relevant to existing applications, but teams starting new long-lived projects should compare Agent Framework before choosing AutoGen."
+  - q: "Is AutoGen still maintained?"
+    a: "No. Microsoft has archived AutoGen and no longer provides bug fixes, security fixes, new features, or support. Teams maintaining AutoGen applications should pin dependencies, assess the security risk, and plan a migration to Microsoft Agent Framework."
+  - q: "Is CrewAI easier to learn than LangGraph?"
+    a: "CrewAI is usually easier to learn than LangGraph for developers who understand agents as workers with roles, goals, and tasks. LangGraph requires developers to reason about shared state, nodes, edges, and routing, but that additional structure becomes valuable when execution is complex or must be audited."
+  - q: "Does LangGraph support multi-agent systems?"
+    a: "LangGraph supports multi-agent systems by representing individual agents or subgraphs as nodes connected through shared state and routing logic. Developers can implement supervisors, handoffs, hierarchical teams, parallel branches, and loops without relying on an implicit group-chat model."
+  - q: "Which framework has the best human-in-the-loop support?"
+    a: "LangGraph has the clearest human-in-the-loop model of the three because interrupts and checkpoints support durable pause-and-resume execution. CrewAI can request human input in tasks and flows, while AutoGen can represent a person through a proxy agent or callback, but both approaches require careful application-level handling."
+  - q: "Can CrewAI, LangGraph, and AutoGen be self-hosted?"
+    a: "CrewAI, LangGraph, and AutoGen can all run in infrastructure controlled by the developer because their framework code uses permissive MIT licenses. Self-hosting still requires teams to operate model access, compute, storage, credentials, monitoring, upgrades, and security controls."
+  - q: "Are CrewAI, LangGraph, and AutoGen open source?"
+    a: "CrewAI, LangGraph, and AutoGen publish their framework code under the OSI-approved MIT License as of October 2026. Separate vendor-hosted products, deployment services, and enterprise capabilities can have different commercial terms, so teams should review those terms independently from the framework license."
+  - q: "Which is best for multi-agent workflows: CrewAI, LangGraph, or AutoGen?"
+    a: "CrewAI is best for structured role-and-task workflows, LangGraph is best for stateful and tightly controlled workflows, and AutoGen is best for conversation-driven collaboration in an existing AutoGen application. For a new long-lived system, compare Microsoft Agent Framework instead of adopting archived AutoGen. The final choice should be based on a failure-and-recovery prototype using the team's real approval, persistence, and cost constraints."
+---
+
+## TL;DR
+
+**Best overall: LangGraph** for new production systems that need explicit state, recovery, and human review. CrewAI is the faster choice for role-based multi-agent teams, while AutoGen is now most relevant to existing conversation-driven agent systems because [Microsoft has archived it and recommends Microsoft Agent Framework for new work](https://github.com/microsoft/autogen/blob/main/README.md). This guide is published by Sim, the open-source AI workspace for building, deploying, and managing AI agents.
+
+The three Python-first frameworks overlap, but they start from different abstractions. CrewAI organizes agents into crews, roles, and tasks. LangGraph models execution as a stateful graph. AutoGen coordinates agents through messages and conversations. The right choice depends less on headline feature lists than on how your team wants to represent control, state, and human intervention.
+
+## What is the difference between CrewAI, LangGraph, and AutoGen?
+
+CrewAI, LangGraph, and AutoGen differ primarily in their orchestration model: CrewAI is role-and-task oriented, LangGraph is graph-and-state oriented, and AutoGen is conversation oriented.
+
+CrewAI is designed around agents with roles, goals, tools, and assigned tasks. A [CrewAI crew](https://docs.crewai.com/edge/en/concepts/crews) can run tasks sequentially or through a hierarchical process, making the framework approachable when the application naturally resembles a team of specialists.
+
+[LangGraph's Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) represents an agent system as nodes, edges, shared state, and routing conditions. It gives developers direct control over loops, branches, checkpoints, interrupts, and recovery behavior, making it a strong fit for long-running or operationally sensitive systems.
+
+[AutoGen teams](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html) coordinate through exchanges among agents. This works for systems where agents critique, debate, delegate, or iteratively refine one another's output. However, Microsoft has [archived AutoGen](https://github.com/microsoft/autogen/blob/main/README.md), provides no further fixes or support, and directs new projects to Microsoft Agent Framework.
+
+### What are the key facts about CrewAI, LangGraph, and AutoGen?
+
+CrewAI, LangGraph, and AutoGen are code-first frameworks that can run in developer-controlled infrastructure, but their managed deployment paths and long-term product directions differ.
+
+- **CrewAI:** CrewAI's framework code uses the [MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), and the vendor offers a separate hosted product with plan and usage limits on its [pricing page](https://crewai.com/pricing).
+- **LangGraph:** LangGraph's library uses the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE), while LangSmith Deployment (formerly LangGraph Platform) documents [Cloud, BYOC, and Self-hosted deployment options](https://docs.langchain.com/langsmith/platform-setup), with BYOC and Self-hosted on the Enterprise plan.
+- **AutoGen:** AutoGen's code uses the [MIT License](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), but the project is archived and its repository recommends [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) for new work.
+
+These license and commercial-service details are current as of October 2026. A permissive framework license does not automatically grant rights to a vendor's separate hosted control plane, deployment service, or enterprise features.
+
+## How do CrewAI, LangGraph, and AutoGen compare?
+
+CrewAI is the easiest of the three for role-based collaboration, LangGraph offers the most explicit control over state and execution, and AutoGen is the most naturally conversation-driven. AutoGen's archived status makes CrewAI or LangGraph the more defensible choice for a new production system.
+
+| Criterion | CrewAI | LangGraph | AutoGen |
+|---|---|---|---|
+| Core abstraction | [Agents, crews, and tasks](https://docs.crewai.com/edge/en/concepts/crews) | [Nodes, edges, and shared state](https://docs.langchain.com/oss/python/langgraph/graph-api) | [Agents and group-chat teams](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html) |
+| Best fit | Role-based teams of specialist agents | Stateful, branching, long-running workflows | Maintaining conversation-driven agent systems |
+| Orchestration | [Sequential or hierarchical processes](https://docs.crewai.com/edge/en/concepts/processes) | [Explicit branches and loops](https://docs.langchain.com/oss/python/langgraph/use-graph-api) | [Group chat and turn-taking](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html) |
+| State and memory | [Crew, agent, and flow memory](https://docs.crewai.com/edge/en/concepts/memory) | [Graph state, checkpoints, and stores](https://docs.langchain.com/oss/python/langgraph/persistence) | [Saveable agent and team state](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html) |
+| Human-in-the-loop | [Human feedback in flows](https://docs.crewai.com/edge/en/learn/human-feedback-in-flows) | [Interrupts with persisted graph state](https://docs.langchain.com/oss/python/langgraph/interrupts) | [User proxy agent or feedback between runs](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/human-in-the-loop.html) |
+| Deployment | Framework or CrewAI hosted product | Library or LangSmith Deployment (formerly LangGraph Platform) | Self-operated archived framework; Microsoft Agent Framework is the successor |
+| Framework code license | [MIT](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) | [MIT](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) | [MIT](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE) |
+| Learning curve | Lower for familiar team-and-task metaphors | Higher because state and routing are explicit | Moderate for prototypes; complexity rises with conversation control |
+| Main trade-off | Fast abstractions can hide execution details | More control requires more graph design | Flexible conversations are harder to constrain, and the project is archived |
+
+CrewAI's opinionated vocabulary can reduce setup work, but teams may need to inspect framework behavior when a crew becomes complex. LangGraph asks developers to define more structure up front, but that structure makes execution paths easier to reason about. AutoGen can produce flexible collaboration patterns, but unconstrained agent conversations require careful termination, budgeting, and evaluation, and archived dependencies create additional security and maintenance risk.
+
+For a broader view beyond these three options, see [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026) and [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained).
+
+### How do CrewAI, LangGraph, and AutoGen handle state and memory?
+
+LangGraph provides the most explicit state model, while CrewAI and AutoGen expose higher-level memory and conversation patterns that may require additional application architecture for durable state.
+
+[LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) passes shared state between nodes and can save checkpoints. That design is useful when an application must pause, resume, replay, or inspect a run at a known point.
+
+[CrewAI provides memory](https://docs.crewai.com/edge/en/concepts/memory) around crews, agents, and flows. It is convenient for agents that need to share findings, but production teams should still decide which records are authoritative, how long memory persists, and where sensitive data is stored.
+
+AutoGen keeps conversation history central to agent interaction and documents how to [save and load agent and team state](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html). Conversation history is useful context, but it is not automatically equivalent to durable business state. Applications may still need a database, event log, or explicit state object outside the chat transcript.
+
+### How do CrewAI, LangGraph, and AutoGen support human-in-the-loop approval?
+
+LangGraph provides the clearest native pause-and-resume model, while CrewAI and AutoGen can solicit human input through their own flow or proxy-agent patterns.
+
+[LangGraph interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts) can stop execution during a node, persist graph state, and resume after external input. This model maps cleanly to approval queues, edits, exception handling, and durable review processes.
+
+[CrewAI's human-feedback decorator](https://docs.crewai.com/edge/en/learn/human-feedback-in-flows) can pause flow execution, collect feedback, and route according to the result. Teams should make the approval result explicit and test what happens after rejection, timeout, or malformed input.
+
+[AutoGen commonly represents a person through a user proxy agent](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/human-in-the-loop.html) or feedback between team runs. That approach is flexible, but the application remains responsible for authentication, deadlines, escalation, and durable resumption.
+
+## What does CrewAI, LangGraph, and AutoGen code look like?
+
+CrewAI produces the shortest role-based example, LangGraph makes routing and state visible in code, and AutoGen expresses collaboration through a team conversation.
+
+The following minimal examples show each framework's organizing idea rather than complete production applications. Production systems also need secrets management, retries, tracing, evaluation, access controls, and spend limits.
+
+### How do you create a multi-agent crew with CrewAI?
+
+CrewAI creates a multi-agent team by assigning tasks to role-defined agents and executing those tasks through a [crew process](https://docs.crewai.com/edge/en/concepts/crews).
+
+```python
+from crewai import Agent, Crew, Process, Task
+
+researcher = Agent(
+    role="Researcher",
+    goal="Collect reliable evidence about the requested market",
+    backstory="You prioritize primary sources and record citations.",
+)
+
+analyst = Agent(
+    role="Analyst",
+    goal="Turn the evidence into a concise recommendation",
+    backstory="You identify trade-offs and avoid unsupported claims.",
+)
+
+research = Task(
+    description="Research the market and return cited findings.",
+    expected_output="A list of findings with primary-source citations.",
+    agent=researcher,
+)
+
+recommend = Task(
+    description="Use the research to recommend an option.",
+    expected_output="A recommendation with explicit trade-offs.",
+    agent=analyst,
+    context=[research],
+)
+
+crew = Crew(
+    agents=[researcher, analyst],
+    tasks=[research, recommend],
+    process=Process.sequential,
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+This structure is readable because the agent, task, and process abstractions correspond directly to a team metaphor.
+
+### How do you create a multi-agent graph with LangGraph?
+
+LangGraph creates a multi-agent system by connecting agent functions through [explicit state transitions](https://docs.langchain.com/oss/python/langgraph/graph-api). In this conceptual example, `run_research_agent` and `run_writer_agent` are placeholders for model-backed agent functions that readers must implement.
+
+```python
+from typing import TypedDict
+from langgraph.graph import END, StateGraph
+
+class State(TypedDict):
+    request: str
+    research: str
+    report: str
+
+def researcher(state: State):
+    findings = run_research_agent(state["request"])
+    return {"research": findings}
+
+def writer(state: State):
+    report = run_writer_agent(state["request"], state["research"])
+    return {"report": report}
+
+builder = StateGraph(State)
+builder.add_node("researcher", researcher)
+builder.add_node("writer", writer)
+builder.set_entry_point("researcher")
+builder.add_edge("researcher", "writer")
+builder.add_edge("writer", END)
+
+graph = builder.compile()
+result = graph.invoke({"request": "Compare three support tools"})
+print(result["report"])
+```
+
+The graph contains more orchestration code, but the execution path and the state exchanged between agents are explicit.
+
+### How do you create a multi-agent team with AutoGen?
+
+AutoGen creates a multi-agent team by placing agents in a managed conversation with a [termination rule](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/termination.html).
+
+```python
+import asyncio
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+async def main():
+    model = OpenAIChatCompletionClient(model="gpt-4.1-mini")
+
+    researcher = AssistantAgent(
+        "researcher",
+        model_client=model,
+        system_message="Find evidence and cite primary sources.",
+    )
+    reviewer = AssistantAgent(
+        "reviewer",
+        model_client=model,
+        system_message="Check the evidence. Say APPROVED when it is sufficient.",
+    )
+
+    team = RoundRobinGroupChat(
+        [researcher, reviewer],
+        termination_condition=TextMentionTermination("APPROVED"),
+    )
+
+    result = await team.run(task="Compare three support tools.")
+    print(result)
+    await model.close()
+
+asyncio.run(main())
+```
+
+The conversation is concise, but production teams should set hard termination conditions and limits on turns, tokens, tools, and elapsed time. This example is most useful for understanding or maintaining an existing AutoGen system; Microsoft warns that the archived project receives no security fixes or support.
+
+## How do CrewAI, LangGraph, and AutoGen compare on deployment, pricing, and licensing?
+
+CrewAI has a first-party hosted product, LangGraph pairs its open-source library with deployment services, and AutoGen has been superseded by Microsoft Agent Framework.
+
+As of October 2026, the CrewAI framework code is available under the [MIT License](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), while CrewAI also provides a vendor-managed path for deploying and operating crews. CrewAI's [pricing page](https://crewai.com/pricing) distinguishes free access from custom enterprise purchasing and lists hosted execution limits separately from the framework license. Teams should compare expected executions, concurrency, retention, support, and governance rather than treating the framework's free license as the total production cost.
+
+As of October 2026, LangGraph is available under the [MIT License](https://github.com/langchain-ai/langgraph/blob/main/LICENSE). Teams can operate the library themselves or choose [LangSmith Deployment (formerly LangGraph Platform)](https://docs.langchain.com/langsmith/platform-setup) with Cloud, BYOC, or Self-hosted options; BYOC and Self-hosted are available on the Enterprise plan. The practical cost therefore depends on model calls, infrastructure, graph executions, retention, and any commercial services selected.
+
+As of October 2026, AutoGen's framework code remains available under the [MIT License](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), but Microsoft has [archived the project](https://github.com/microsoft/autogen/blob/main/README.md) and recommends Microsoft Agent Framework. Existing AutoGen applications do not automatically become Agent Framework applications, so teams should evaluate migration work and security exposure rather than adopting AutoGen for a new long-lived system.
+
+Self-hosting any of the three frameworks still leaves teams responsible for model charges, compute, storage, secrets, logs, identity, network controls, upgrades, and incident response. A permissive license lowers software restrictions but does not eliminate operating costs.
+
+CrewAI, LangGraph, and AutoGen are also not direct equivalents to n8n. [n8n describes itself as a fair-code workflow automation tool](https://docs.n8n.io/) with AI capabilities, while these three are Python-first frameworks for agent orchestration. As of October 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license), a fair-code license rather than an OSI-approved open-source license. Teams comparing code-first agents with broader automation products can review the [n8n alternatives comparison](https://www.sim.ai/library/n8n-alternatives).
+
+## Which should you choose: CrewAI, LangGraph, or AutoGen?
+
+Teams should choose CrewAI for fast role-based development and LangGraph for controlled stateful systems. Existing AutoGen teams can continue evaluating conversation-driven patterns while planning a migration, but new projects should not take a dependency on an archived framework.
+
+Choose **CrewAI** when:
+
+- Stakeholders naturally describe the system as a crew of specialists.
+- The team wants to prototype delegation and task handoffs quickly.
+- A first-party hosted operating environment is preferable.
+- The application can fit CrewAI's task and process abstractions without excessive customization.
+
+Choose **LangGraph** when:
+
+- Durable state, checkpoints, replay, or pause-and-resume behavior is essential.
+- The workflow contains loops, conditional branches, or strict control points.
+- Engineers want execution paths represented explicitly in code.
+- The team expects to debug and test each transition independently.
+
+Maintain or evaluate migration from **AutoGen** when:
+
+- An existing system already relies on agents debating, critiquing, or iteratively refining one another's work.
+- Conversation is a useful representation of the coordination process.
+- The team accepts responsibility for controlling turn count and termination.
+- The team has a plan to move to Microsoft Agent Framework or another maintained option.
+
+Choose none of these frameworks without further evaluation when the primary requirement is visual construction by technical and semi-technical collaborators. Sim, the open-source AI workspace for building, deploying, and managing AI agents, fits teams that want a visual builder and 270+ integrations when a code-first framework would exclude important operators or reviewers.
+
+A proof of concept should test the hardest production behavior rather than the easiest demo. For CrewAI, test task recovery and observability. For LangGraph, test checkpoint persistence and state migration. For an existing AutoGen system, test termination, cost limits, migration, and recovery from an unproductive conversation.
+
+### What other multi-agent framework comparisons should you read?
+
+The closest related guides cover broader framework selection and deeper alternatives to CrewAI and LangGraph.
+
+- [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026) compares the wider market.
+- [6 Best CrewAI Alternatives in 2026 for Visual and Flexible Agent Building](https://www.sim.ai/library/best-crewai-alternatives-2026) covers alternatives for teams that find CrewAI too opinionated or code-heavy.
+- [Best LangChain and LangGraph Alternatives for Production AI Agent Workflows](https://www.sim.ai/library/langgraph-alternatives) covers alternatives for teams that do not want LangChain ecosystem dependencies.
+- [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) explains the underlying orchestration patterns.

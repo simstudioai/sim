@@ -1,15 +1,17 @@
+import { RESULT_INFO_OUTPUTS, TUNNEL_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListTunnelsParams,
   CloudflareListTunnelsResponse,
-  CloudflareRawTunnel,
 } from '@/tools/cloudflare/types'
 import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listTunnelsTool: ToolConfig<
   CloudflareListTunnelsParams,
@@ -105,7 +107,7 @@ export const listTunnelsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/cfd_tunnel`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'status', params.status)
@@ -127,100 +129,36 @@ export const listTunnelsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawTunnel[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { tunnels: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list tunnels'),
-      }
-    }
-
-    const tunnels = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        tunnels: tunnels.map((tunnel) => ({
-          id: tunnel.id ?? '',
-          name: tunnel.name ?? null,
-          account_tag: tunnel.account_tag ?? null,
-          config_src: tunnel.config_src ?? null,
-          status: tunnel.status ?? null,
-          tun_type: tunnel.tun_type ?? null,
-          remote_config: tunnel.remote_config ?? null,
-          metadata: tunnel.metadata ?? null,
-          created_at: tunnel.created_at ?? null,
-          deleted_at: tunnel.deleted_at ?? null,
-          conns_active_at: tunnel.conns_active_at ?? null,
-          conns_inactive_at: tunnel.conns_inactive_at ?? null,
-          connections: tunnel.connections ?? null,
-        })),
-        total_count: data.result_info?.total_count ?? tunnels.length,
+        tunnels: rows.map((row) => mapCloudflareFields(row, TUNNEL_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list tunnels') } : {}),
     }
   },
-
   outputs: {
     tunnels: {
       type: 'array',
-      description: 'Cloudflare Tunnels in the account',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Tunnel identifier' },
-          name: { type: 'string', description: 'Tunnel name', optional: true },
-          account_tag: {
-            type: 'string',
-            description: 'Account the tunnel belongs to',
-            optional: true,
-          },
-          config_src: {
-            type: 'string',
-            description: 'Where the tunnel configuration lives: local or cloudflare',
-            optional: true,
-          },
-          status: {
-            type: 'string',
-            description: 'Tunnel health: inactive, degraded, healthy, or down',
-            optional: true,
-          },
-          tun_type: {
-            type: 'string',
-            description: 'Tunnel type, e.g. cfd_tunnel, warp_connector, or warp',
-            optional: true,
-          },
-          remote_config: {
-            type: 'boolean',
-            description: 'Whether the tunnel is remotely managed',
-            optional: true,
-          },
-          metadata: {
-            type: 'json',
-            description: 'Metadata associated with the tunnel',
-            optional: true,
-          },
-          created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-          deleted_at: { type: 'string', description: 'Deletion timestamp', optional: true },
-          conns_active_at: {
-            type: 'string',
-            description: 'When the tunnel last had active connections',
-            optional: true,
-          },
-          conns_inactive_at: {
-            type: 'string',
-            description: 'When the tunnel last lost all connections',
-            optional: true,
-          },
-          connections: {
-            type: 'json',
-            description: 'Active connector connections for the tunnel',
-            optional: true,
-          },
-        },
-      },
+      description: 'Tunnels',
+      items: { type: 'object', properties: TUNNEL_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of tunnels' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

@@ -1,10 +1,8 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatResourceAddress } from '@/lib/mothership/resources/types'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Resource-management operations for the Mothership resource panel. Provided
@@ -18,11 +16,7 @@ interface MothershipResourcesContextValue {
   /** Adds a resource to the panel and activates it. */
   addResource: (resource: MothershipResource) => void
   /** Removes a resource from the panel. */
-  removeResource: (
-    resourceType: MothershipResourceType,
-    resourceId: string,
-    workspaceId?: string
-  ) => void
+  removeResource: (resource: ChatResourceAddress) => void
   /** Replaces the resource list with a new ordering. */
   reorderResources: (resources: MothershipResource[]) => void
   /** Collapses the resource panel. */

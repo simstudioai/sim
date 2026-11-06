@@ -1,20 +1,27 @@
+import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { ComparisonLinks } from '@/app/(landing)/models/components/comparison-links'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
 import {
   FeaturedModelCard,
   FeaturedProviderCard,
 } from '@/app/(landing)/models/components/model-primitives'
+import { ModelToolLink } from '@/app/(landing)/models/components/model-tool-link'
 import { modelsSearchParamsCache } from '@/app/(landing)/models/search-params'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import {
   ALL_CATALOG_MODELS,
   getPricingBounds,
   MODEL_PROVIDERS_WITH_CATALOGS,
+  MODEL_RESELLER_PROVIDERS,
   TOP_MODEL_PROVIDERS,
   TOTAL_MODEL_PROVIDERS,
   TOTAL_MODELS,
@@ -223,9 +230,80 @@ export default async function ModelsPage({
               </>
             )}
 
+            <nav aria-label='Free tools' className='flex max-sm:flex-col'>
+              {Object.values(MODEL_TOOLS).map((tool) => (
+                <ModelToolLink
+                  key={tool.href}
+                  href={tool.href}
+                  title={tool.name}
+                  description={tool.description}
+                />
+              ))}
+            </nav>
+            <div className='h-px w-full bg-[var(--border)]' />
+
             <ModelComparisonCharts models={ALL_CATALOG_MODELS} />
 
             <div className='h-px w-full bg-[var(--border)]' />
+
+            <section
+              id='head-to-head'
+              aria-labelledby='head-to-head-heading'
+              className='px-6 py-10'
+            >
+              <h2
+                id='head-to-head-heading'
+                className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
+              >
+                Head-to-head comparisons
+              </h2>
+              <p className='mb-6 text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+                API pricing, context window, max output, and capabilities for two models side by
+                side. For every model at once, see the{' '}
+                <Link
+                  href='/models/context-windows'
+                  className='text-[var(--text-primary)] underline underline-offset-2'
+                >
+                  LLM context window comparison
+                </Link>
+                .
+              </p>
+              <nav aria-label='Model comparisons'>
+                <ComparisonLinks comparisons={MODEL_COMPARISONS} />
+              </nav>
+            </section>
+
+            <div className='h-px w-full bg-[var(--border)]' />
+
+            {MODEL_RESELLER_PROVIDERS.length > 0 && (
+              <>
+                <section
+                  id='cloud-providers'
+                  aria-labelledby='cloud-providers-heading'
+                  className='px-6 py-10'
+                >
+                  <h2
+                    id='cloud-providers-heading'
+                    className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
+                  >
+                    Cloud and inference providers
+                  </h2>
+                  <p className='mb-6 text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+                    The same models served through cloud platforms and inference hosts, each with
+                    its own pricing and model IDs.
+                  </p>
+                  <nav aria-label='Cloud and inference providers' className='flex flex-wrap gap-2'>
+                    {MODEL_RESELLER_PROVIDERS.map((provider) => (
+                      <ChipLink key={provider.id} href={provider.href} variant='outline'>
+                        {provider.name}
+                      </ChipLink>
+                    ))}
+                  </nav>
+                </section>
+
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            )}
 
             <section aria-labelledby='all-models-heading'>
               <div className='px-6 pt-10 pb-4'>

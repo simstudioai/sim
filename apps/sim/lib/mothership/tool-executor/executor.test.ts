@@ -32,7 +32,6 @@ vi.mock('./router', () => ({
 }))
 
 vi.mock('@/tools', () => toolsMock)
-
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 
 import { clearHandlers, executeTool, registerHandler } from './executor'
@@ -42,9 +41,47 @@ const targets = {
   resolve: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
   environment: mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext,
 }
-targets.environment.mockResolvedValue(undefined)
+targets.environment.mockResolvedValue({ resolvedSecretTraceRegistry: undefined })
 
 const toolExecutorLogger = getMockLogger('ToolExecutor')
+
+describe('benchmark tool isolation', () => {
+  it.each([
+    ['plan', 'sim_cli'],
+    ['plan', 'list_workspaces'],
+    ['tool-free', 'search_workspace'],
+    ['tool-free', 'read_document'],
+  ] as const)('refuses %s access to %s before dispatch', async (benchmark, toolId) => {
+    clearHandlers()
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    getToolEntry.mockReturnValue({ requiredPermission: 'read' })
+    let dispatched = false
+    registerHandler(toolId, async () => {
+      dispatched = true
+      return { success: true, output: 'private workspace content' }
+    })
+    const result = await executeTool(
+      toolId,
+      {},
+      {
+        userId: 'person',
+        organizationId: 'org',
+        chatId: 'chat',
+        workflowId: '',
+        requestMode: 'plan',
+        userPermission: 'admin',
+        benchmark,
+      }
+    )
+    expect(result).toEqual({
+      success: false,
+      error: 'This tool is unavailable in this benchmark stage.',
+    })
+    expect(dispatched).toBe(false)
+  })
+})
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
@@ -117,7 +154,7 @@ describe('copilot tool executor fallback', () => {
     )
     expect(result).toEqual({
       success: false,
-      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+      error: 'This operation is not available in Search Assistant.',
     })
     expect(handler).not.toHaveBeenCalled()
     expect(executeAppTool).not.toHaveBeenCalled()

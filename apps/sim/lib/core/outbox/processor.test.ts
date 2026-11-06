@@ -14,7 +14,7 @@ vi.mock('@/lib/knowledge/documents/processing-recovery', () => ({
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   reapStaleBackgroundWork: mocks.reap,
 }))
-vi.mock('@/lib/knowledge/connectors/connector-error', () => ({
+vi.mock('@/lib/knowledge/connectors/error', () => ({
   getConnectorFailureDiagnostic: () => undefined,
 }))
 vi.mock('@/lib/core/outbox/handlers', () => ({ OUTBOX_HANDLER_GROUPS: [] }))

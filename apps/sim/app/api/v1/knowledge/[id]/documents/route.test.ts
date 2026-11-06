@@ -55,7 +55,7 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 

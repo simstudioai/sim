@@ -35,7 +35,7 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle: mocks.lifecycle,
 }))
@@ -276,7 +276,7 @@ describe('Search Assistant citations', () => {
   it.each([
     tool({ data: citation }, { status: 'error' }),
     tool({ success: false, data: citation }),
-    tool({ data: citation }, { name: 'web_search' }),
+    tool({ data: citation }, { name: 'call_integration_tool' }),
     tool({ data: { ...citation, citationUrl: 'javascript:alert(1)' } }),
     tool({ data: { ...citation, citationUrl: 'https://user:password@docs.example' } }),
   ])('does not cite failed, unrelated, or unsafe evidence', (result) => {

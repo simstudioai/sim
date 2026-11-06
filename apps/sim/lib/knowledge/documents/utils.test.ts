@@ -398,12 +398,15 @@ describe('fetchWithRetry rate-limit handling', () => {
   })
 
   it('does not retry GitHub before a reset beyond the operation budget', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-14T12:00:00.000Z'))
+    const nowSeconds = Date.now() / 1000
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         response(403, {
           'x-ratelimit-remaining': '0',
-          'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 900),
+          'x-ratelimit-reset': String(nowSeconds + 900),
         })
       )
       .mockResolvedValueOnce(response(200))
@@ -415,8 +418,7 @@ describe('fetchWithRetry rate-limit handling', () => {
     )
 
     expect(error?.message).toBe('HTTP 403 - upstream rate limit exceeded')
-    expect(getRetryAfterMs(error)).toBeGreaterThan(899_000)
-    expect(getRetryAfterMs(error)).toBeLessThanOrEqual(900_000)
+    expect(getRetryAfterMs(error)).toBe(900_000)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

@@ -10,7 +10,7 @@ export const PolymarketBlock: BlockConfig = {
   name: 'Polymarket',
   description: 'Access prediction markets data from Polymarket',
   longDescription:
-    'Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.',
+    'Get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.',
   docsLink: 'https://docs.sim.ai/integrations/polymarket',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

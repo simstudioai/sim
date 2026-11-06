@@ -14,7 +14,7 @@ const { mockUseMothershipChatEvents } = vi.hoisted(() => ({
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))

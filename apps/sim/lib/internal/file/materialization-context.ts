@@ -1,6 +1,6 @@
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
-import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 

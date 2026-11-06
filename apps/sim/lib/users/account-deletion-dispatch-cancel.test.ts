@@ -38,7 +38,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
    * row unreachable.
    */
   it('cancels the account’s still-queued dispatches before deleting the user row', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.tableRunDispatches)
     const cancelled = dbChainMockFns.set.mock.calls.find(
@@ -56,7 +56,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
    * account's own actorless-looking rows alive.
    */
   it('cancels on the governed subject and only the still-active statuses', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     const filter = dbChainMockFns.where.mock.calls
       .map(([condition]) => condition)
@@ -84,7 +84,7 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
 
   /** The cancel must precede the delete, or the FK has already nulled the subject. */
   it('orders the cancel ahead of the user delete', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     const cancelOrder = dbChainMockFns.update.mock.invocationCallOrder.at(-1)
     const deleteOrder = dbChainMockFns.delete.mock.invocationCallOrder.at(-1)

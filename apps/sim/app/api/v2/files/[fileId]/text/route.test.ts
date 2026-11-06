@@ -23,7 +23,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { GET } from '@/app/api/v2/files/[fileId]/text/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'

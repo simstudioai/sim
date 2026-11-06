@@ -32,7 +32,7 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAva
 vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

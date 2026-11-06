@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, isPrimaryPoolClient } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
@@ -43,7 +43,7 @@ export async function isSsoRequiredForOrganization(
   if (!organizationId) return false
 
   /** Uncommitted reads must neither consume nor populate the shared cache. */
-  const cached = executor === db ? requirementCache.get(organizationId) : undefined
+  const cached = isPrimaryPoolClient(executor) ? requirementCache.get(organizationId) : undefined
   if (cached !== undefined) return cached
 
   const [row] = await executor
@@ -64,7 +64,7 @@ export async function isSsoRequiredForOrganization(
       onError: 'throw',
     })) &&
     (await hasSignInCapableSsoProvider(organizationId, executor))
-  if (executor === db) requirementCache.set(organizationId, required)
+  if (isPrimaryPoolClient(executor)) requirementCache.set(organizationId, required)
   return required
 }
 

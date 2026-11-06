@@ -1,16 +1,13 @@
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
-  loadCatalogWorkspaceContext,
-  resolveCatalogGate,
-} from '@/lib/catalog/application/catalog-context'
-import {
   type CatalogPage,
   matchesCatalogSearch,
   normalizeCatalogSearch,
   sortCatalogEntries,
   takeCatalogPage,
 } from '@/lib/catalog/application/catalog-page'
+import { loadCatalogWorkspaceContext, resolveCatalogGate } from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { resolveVisibleToolIds } from '@/lib/catalog/application/tool-scope'
 import { type CatalogToolSummary, projectToolSummaryById } from '@/lib/catalog/projection/tool'

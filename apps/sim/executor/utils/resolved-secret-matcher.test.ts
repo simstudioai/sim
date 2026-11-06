@@ -11,6 +11,31 @@ import {
 const PRESERVE_NAMED_PROVENANCE = { preserveNamedProvenanceLabels: true } as const
 
 describe('resolved secret matcher', () => {
+  it.each([
+    ['first-line\nsecond-line', '{{TOKEN}}\n{{TOKEN}}'],
+    ['first-line\r\nsecond-line', '{{TOKEN}}\r\n{{TOKEN}}'],
+    ['first-line\nsecond-line\n', '{{TOKEN}}\n{{TOKEN}}\n'],
+    ['first-line\n\nsecond-line', '{{TOKEN}}\n{{TOKEN}}\n{{TOKEN}}'],
+    ['\n'.repeat(8), '{{TOKEN}}\n'.repeat(8)],
+  ])(
+    'preserves line boundaries for a complete literal %j when selecting file lines',
+    (plaintext, expected) => {
+      const matcher = createResolvedSecretMatcher([{ plaintext, replacement: '{{TOKEN}}' }])
+      if (!matcher) throw new Error('Fixture literal did not produce a matcher')
+      expect(
+        sanitizeResolvedSecretString(plaintext, matcher, undefined, undefined, {
+          preserveLineBreaks: true,
+        })
+      ).toBe(expected)
+      expect(sanitizeResolvedSecretString(plaintext, matcher)).toBe('{{TOKEN}}')
+      expect(
+        sanitizeResolvedSecretString(`before ${plaintext} after`, matcher, undefined, undefined, {
+          preserveLineBreaks: true,
+        })
+      ).toBe(`before ${expected} after`)
+    }
+  )
+
   it('reports each matched literal once across large repeated content', () => {
     const matcher = createResolvedSecretMatcher([
       { plaintext: 'xxxxxxxx', replacement: '{{SHORT}}' },

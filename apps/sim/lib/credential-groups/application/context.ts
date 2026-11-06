@@ -3,7 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialGroupApplicationContext } from '@/lib/credential-groups/application/authorization'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export async function requireCredentialGroupSettingsAvailable(workspaceId: string): Promise<void> {
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)

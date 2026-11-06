@@ -77,6 +77,7 @@ describe('replaceScimGroup', () => {
     queueTableRows(scimConnection, [
       { id: 'conn-1', organizationId: 'org-1', status: 'active', settings: {} },
     ])
+    queueTableRows(scimConnection, [{ status: 'active', settings: {} }])
     let group = { ...initialGroup }
     const memberIds = new Set(['user-1'])
     mocks.findGroup.mockImplementation(async () => group)
@@ -94,6 +95,7 @@ describe('replaceScimGroup', () => {
       memberIds.delete(scimUserId)
     )
     mocks.countMembers.mockImplementation(async () => memberIds.size)
+    mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [], stoppedRuns: [] })
     mocks.touch.mockImplementation(async () => {
       group = { ...group, updatedAt: new Date('2026-01-02T00:00:00.000Z') }
     })

@@ -23,8 +23,8 @@ Sitemap: ${baseUrl}/sitemap.xml
 # See https://github.com/AnswerDotAI/llms-txt for more info
 # LLM-friendly content:
 #   Manifest: ${baseUrl}/llms.txt
-#   Full content: ${baseUrl}/llms-full.txt
-#   Individual pages: ${baseUrl}/llms.mdx/[page-path]`
+#   Full content (excluding API reference operations): ${baseUrl}/llms-full.txt
+#   Individual pages: ${baseUrl}/[page-path].md`
 
   return new Response(robotsTxt, {
     headers: {

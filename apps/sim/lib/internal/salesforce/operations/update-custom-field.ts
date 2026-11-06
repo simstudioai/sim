@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SalesforceUpdateCustomFieldParams,
@@ -28,8 +33,22 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
     Authorization: `Bearer ${params.accessToken}`,
     'Content-Type': 'application/json',
   }
+  const validation = await validateUrlWithDNS(url, 'instanceUrl', 'configuredEndpoint', { signal })
+  signal?.throwIfAborted()
+  if (!validation.isValid) {
+    throw new Error(validation.error || 'Invalid Salesforce instance URL')
+  }
+  const fetchOptions = {
+    profile: 'configuredEndpoint',
+    headers,
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+    signal,
+  } as const
 
-  const readResponse = await fetch(url, { headers, signal })
+  const readResponse = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    ...fetchOptions,
+    method: 'GET',
+  })
   let existing: unknown
   try {
     existing = await readResponse.json()
@@ -56,11 +75,10 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
 
   const metadata = mergeCustomFieldMetadata(existing.Metadata, params)
 
-  const patchResponse = await fetch(url, {
+  const patchResponse = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    ...fetchOptions,
     method: 'PATCH',
-    headers,
     body: JSON.stringify({ Metadata: metadata }),
-    signal,
   })
   if (!patchResponse.ok) {
     const errorData = await patchResponse.json().catch(() => {

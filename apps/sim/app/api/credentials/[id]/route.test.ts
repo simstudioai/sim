@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
 }))
 
-vi.mock('@/lib/credentials/application/credential-crud', () => ({
+vi.mock('@/lib/credentials/application/crud', () => ({
   CredentialProviderOperationError: class CredentialProviderOperationError extends Error {},
   getWorkspaceCredentialUseCase: {
     operation: { id: 'credentials.read' },

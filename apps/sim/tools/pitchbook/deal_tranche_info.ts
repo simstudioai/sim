@@ -7,7 +7,7 @@ export const pitchbookDealTrancheInfoTool: ToolConfig<PitchbookProfileParams, Pi
   id: 'pitchbook_deal_tranche_info',
   name: 'PitchBook Deal Tranche Info',
   description:
-    'Retrieve the tranches a deal was funded in, with each tranche date, size, and investors',
+    'Retrieve the tranches a deal was funded in, with each tranche’s date, size, and investors',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 

@@ -100,6 +100,8 @@ export async function finalizeUploadPurpose({
   authorizeBeforeRegistration,
 }: FinalizeUploadPurposeParams): Promise<FinalizedUploadPurpose> {
   switch (session.purpose) {
+    case 'project_file':
+      throw new UploadSessionError('forbidden', 'Project uploads require their Project application')
     case 'workspace_file':
       return finalizeInternalWorkspaceFile(
         session,
@@ -122,6 +124,7 @@ export async function finalizeUploadPurpose({
     case 'execution_attachment':
       return finalizeExecutionAttachment(session)
     case 'table_import':
+    case 'knowledge_import':
     case 'knowledge_document':
       throw new UploadSessionError(
         'validation',
@@ -141,6 +144,8 @@ export async function loadCompletedUploadPurpose(
   session: UploadSessionRecord
 ): Promise<UploadPurposeResult> {
   switch (session.purpose) {
+    case 'project_file':
+      throw new UploadSessionError('forbidden', 'Project uploads require their Project application')
     case 'workspace_file':
       return toV2File(await loadCompletedWorkspaceFileUpload(session))
     case 'organization_logo':
@@ -150,6 +155,7 @@ export async function loadCompletedUploadPurpose(
     case 'mothership_attachment':
     case 'execution_attachment':
     case 'table_import':
+    case 'knowledge_import':
     case 'knowledge_document':
       throw new UploadSessionError(
         'internal',

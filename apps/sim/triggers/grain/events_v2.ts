@@ -1,5 +1,4 @@
 import { GrainIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildGenericOutputs,
   buildGrainV2ExtraFields,
@@ -9,6 +8,7 @@ import {
   grainV2EventSetupInstructions,
   grainV2TriggerOptions,
 } from '@/triggers/grain/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const grainRecordingAddedV2Trigger: TriggerConfig = {

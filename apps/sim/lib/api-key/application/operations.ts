@@ -33,6 +33,7 @@ export const apiKeyOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'api_keys.manage',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -45,6 +46,7 @@ export const byokKeyOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -54,12 +56,14 @@ export const byokKeyOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   listOrganization: defineOrganizationByokOperation({
     id: 'byok_keys.organization.list',
+    contentDelivery: 'none',
     capability: 'none',
     authority: 'organization_admin',
     minimumRole: 'admin',
@@ -84,6 +88,7 @@ export const byokKeyOperations = {
   // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   deleteOrganization: defineOrganizationByokOperation({
     id: 'byok_keys.organization.delete',
+    contentDelivery: 'none',
     capability: 'none',
     authority: 'organization_admin',
     minimumRole: 'admin',
@@ -100,6 +105,7 @@ export const byokKeyOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
   }),

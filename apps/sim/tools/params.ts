@@ -35,7 +35,8 @@ type ToolParamDefinition = ToolConfig['params'][string]
 type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 interface SchemaProperty {
-  type: string
+  /** Absent for a `json` or `any` param, which accepts any JSON value. */
+  type?: string
   description?: string
   items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
@@ -162,13 +163,13 @@ function buildParameterSchema(
       : buildFileReferenceParameterSchema(param)
   }
 
-  let schemaType = param.type
-  if (schemaType === 'json' || schemaType === 'any') {
-    schemaType = 'object'
-  }
+  // `json` and `any` params take arrays as often as objects, so they carry no
+  // `type`: an `object` claim would contradict their descriptions and make a
+  // validating runtime reject a correct array argument.
+  const isUntyped = param.type === 'json' || param.type === 'any'
 
   const propertySchema: SchemaProperty = {
-    type: schemaType,
+    ...(isUntyped ? {} : { type: param.type }),
     description: param.description || '',
     ...(param.minItems !== undefined ? { minItems: param.minItems } : {}),
     ...(param.maxItems !== undefined ? { maxItems: param.maxItems } : {}),
@@ -900,7 +901,11 @@ export function getSubBlocksForToolInput(
 
     return {
       toolConfig,
-      subBlocks: filtered,
+      subBlocks: filtered.map((subBlock) =>
+        typeof subBlock.options === 'function'
+          ? { ...subBlock, options: subBlock.options({ values: valuesWithOperation }) }
+          : subBlock
+      ),
       oauthConfig: toolConfig.oauth,
     }
   } catch (error) {

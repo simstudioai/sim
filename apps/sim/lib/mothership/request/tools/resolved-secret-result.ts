@@ -61,6 +61,7 @@ const RESERVED_DISCLOSURE_KEYS = new Set(['resultWithheld', 'withheldReason', 'e
 const UNKNOWN_INPUT_PROVENANCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'mounted-file-provenance-unavailable',
   'workspace-file-provenance-unknown',
+  'project-file-provenance-unavailable',
   'file-source-unidentified',
   'table-snapshot-unsafe-for-mount',
   'table-result-provenance-unavailable',

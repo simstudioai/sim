@@ -1,0 +1,68 @@
+name: Docs content cache
+description: Reuse validated incremental documentation compilation without sharing concurrent writer snapshots.
+inputs:
+  provider:
+    description: The CI_PROVIDER repo variable.
+    required: false
+    default: ''
+  namespace:
+    description: A distinct name for each concurrently writing job.
+    required: true
+  generate:
+    description: Generate and validate content after restoring it. Set false only when the following build already runs content:generate.
+    required: false
+    default: 'true'
+  next-cache:
+    description: Also restore the incremental Next build cache.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Identify the compiler runtime
+      id: runtime
+      shell: bash
+      env:
+        CACHE_NAMESPACE: ${{ inputs.namespace }}
+        GENERATE: ${{ inputs.generate }}
+        NEXT_CACHE: ${{ inputs.next-cache }}
+      run: |
+        [[ "$CACHE_NAMESPACE" =~ ^[a-z0-9][a-z0-9-]*$ ]]
+        [[ "$GENERATE" == true || "$GENERATE" == false ]]
+        [[ "$NEXT_CACHE" == true || "$NEXT_CACHE" == false ]]
+        toolchain=$(node --version)
+        toolchain="$toolchain-$(bun --version)"
+        echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+        compiler=$(git ls-files -s -- bun.lock package.json patches apps/docs/package.json apps/docs/scripts/compile-content.ts apps/docs/lib apps/docs/components/workflow-preview packages | sha256sum | awk '{ print $1 }')
+        echo "compiler=$compiler" >> "$GITHUB_OUTPUT"
+    - name: Restore incremental content
+      continue-on-error: true
+      uses: ./.github/actions/cache
+      with:
+        provider: ${{ inputs.provider }}
+        key: ${{ github.repository }}-docs-content-v1-${{ inputs.namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.toolchain }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && format('-fork-{0}', github.event.pull_request.number) || '' }}-${{ steps.runtime.outputs.compiler }}
+        path: ./apps/docs/.content
+    - name: Bound restored content
+      shell: bash
+      run: bash .github/actions/docs-content-cache/prune.sh content
+    - name: Restore incremental Next build
+      if: inputs.next-cache == 'true'
+      continue-on-error: true
+      uses: ./.github/actions/cache
+      with:
+        provider: ${{ inputs.provider }}
+        key: ${{ github.repository }}-docs-next-v1-${{ inputs.namespace }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.toolchain }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && format('-fork-{0}', github.event.pull_request.number) || '' }}-${{ hashFiles('bun.lock') }}
+        path: ./apps/docs/.next/cache
+    - name: Bound the incremental build cache
+      if: inputs.next-cache == 'true'
+      shell: bash
+      run: bash .github/actions/docs-content-cache/prune.sh next
+    - name: Generate and validate documentation modules
+      id: generate
+      if: inputs.generate == 'true'
+      shell: bash
+      run: bun run --cwd apps/docs content:generate --prune
+    - name: Bound content after an unsuccessful generation
+      if: always() && inputs.generate == 'true' && steps.generate.outcome != 'success'
+      shell: bash
+      run: bash .github/actions/docs-content-cache/prune.sh content

@@ -1,19 +1,18 @@
 ---
 title: CloudTrail
 description: Audit who did what in AWS with CloudTrail event history and Lake queries
+integration:
+  type: "cloudtrail"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudtrail"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS CloudTrail](https://aws.amazon.com/cloudtrail/) records who did what in your AWS accounts. An API call — from the console, the CLI, an SDK, or another AWS service — is captured as an event with the calling identity, source IP, parameters, and result. It is the system of record for security investigation, compliance evidence, and answering "what changed?"
+[AWS CloudTrail](https://aws.amazon.com/cloudtrail/) records API activity in AWS accounts. Use it to look up events, inspect trail configuration and logging status, or run CloudTrail Lake queries.
 
-What lands in that record is set by configuration, not assumed. Trails and event data stores log management events by default; data events, network activity events, and Insights events are captured only where you configure selectors for them. Read a trail's selectors before you treat its history as complete.
+Captured event types depend on configuration. Trails and event data stores log management events by default; data events, network activity events, and Insights events are captured only where you configure selectors for them. Read a trail's selectors before you treat its history as complete.
 
 With AWS CloudTrail, you can:
 
@@ -22,7 +21,7 @@ With AWS CloudTrail, you can:
 - **Query history with SQL**: Run CloudTrail Lake queries across event data stores for analysis that reaches further back than event lookup
 - **Confirm coverage**: Verify that logging is actually enabled and that multi-region and organization trails are delivering
 
-The block reads event history and trail configuration. `Start Query` runs a billable CloudTrail Lake query; `Cancel Query` stops one. The block does not alter trails or logging configuration. The following policy covers the listed operations:
+The block reads event history and trail configuration. `Start Query` runs a billable CloudTrail Lake query; `Cancel Query` stops one. The block does not alter trails or logging configuration. The following example grants the actions used by this block. Narrow resources where your AWS policy supports it:
 
 ```json
 {
@@ -52,23 +51,24 @@ The block reads event history and trail configuration. `Start Query` runs a bill
 }
 ```
 
-`cloudtrail:CancelQuery` is the action `Cancel Query` needs, and it is not implied by `Describe*`, `Get*`, or `List*` — omit it and that one operation fails with an access-denied error. Note that `Start Query` is billed per GB scanned and consumes your account's concurrent-query quota of 10.
+`cloudtrail:CancelQuery` is the action `Cancel Query` needs, and it is not implied by `Describe*`, `Get*`, or `List*` — omit it and that one operation fails with an access-denied error. Note that `Start Query` is billed per GB scanned and consumes your account's concurrent-query [quota of 10 queued or running queries](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/WhatIsCloudTrail-Limits.html).
 
-`Lookup Events` is limited by AWS to two requests per second per account per Region. Each call uses AWS adaptive retry mode and allows up to six attempts, so a throttled request backs off exponentially with jitter and usually succeeds instead of surfacing an error. That is a retry budget, not a guarantee: sustained throttling past six attempts fails the call with a `ThrottlingException`, and because a fresh SDK client is built per invocation, adaptive mode's client-side rate limiter carries no pacing state between calls. `Lookup Events` also returns one page per call — feed `nextToken` back in to walk a broad search, and expect to handle a throttling error on a long paging loop.
+[`Lookup Events`](https://docs.aws.amazon.com/cli/latest/reference/cloudtrail/lookup-events.html) is limited by AWS to two requests per second per account per Region. Each call uses AWS adaptive retry mode and allows up to six attempts, so a throttled request backs off exponentially with jitter within the retry budget. That is a retry budget, not a guarantee: sustained throttling past six attempts fails the call with a `ThrottlingException`, and because a fresh SDK client is built per invocation, adaptive mode's client-side rate limiter carries no pacing state between calls. `Lookup Events` also returns one page per call — feed `nextToken` back in to walk a broad search, and expect to handle a throttling error on a long paging loop.
+
+CloudTrail Lake closed to new customers on May 31, 2026. Existing customers can continue using it; see [AWS’s availability notice](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-lake.html). This restriction applies to Lake queries, not ordinary event lookup or trail inspection.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.
-
-
 
 ## Actions
 
 ### CloudTrail Look Up Events
 
 Look up AWS CloudTrail management or Insights events from the last 90 days in a Region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -102,9 +102,13 @@ Look up AWS CloudTrail management or Insights events from the last 90 days in a 
 |   ↳ `cloudTrailEventRaw` | string | Raw CloudTrail event JSON string, populated only when it could not be parsed |
 | `nextToken` | string | Pagination token for the next page of events |
 
+</ReferenceDetails>
+
 ### CloudTrail Describe Trails
 
 Retrieve the full configuration of one or more CloudTrail trails in the current Region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +142,13 @@ Retrieve the full configuration of one or more CloudTrail trails in the current 
 |   ↳ `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
 |   ↳ `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Trail
 
 Retrieve the settings of a single CloudTrail trail by name or ARN
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +180,13 @@ Retrieve the settings of a single CloudTrail trail by name or ARN
 | `hasInsightSelectors` | boolean | Whether the trail has Insights event selectors |
 | `isOrganizationTrail` | boolean | Whether the trail is an organization trail |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Trail Status
 
 Check whether a CloudTrail trail is logging and surface its most recent delivery errors
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +213,13 @@ Check whether a CloudTrail trail is logging and surface its most recent delivery
 | `startLoggingTime` | string | When logging was most recently started \(ISO 8601\) |
 | `stopLoggingTime` | string | When logging was most recently stopped \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### CloudTrail List Trails
 
 List the ARN, name, and home Region of every CloudTrail trail visible to the account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +240,13 @@ List the ARN, name, and home Region of every CloudTrail trail visible to the acc
 |   ↳ `homeRegion` | string | Region in which the trail was created |
 | `nextToken` | string | Pagination token for the next page of trails, or null on the last page |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Event Selectors
 
 Read which management, data, and network activity events a CloudTrail trail is configured to log
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +271,13 @@ Read which management, data, and network activity events a CloudTrail trail is c
 |   ↳ `name` | string | Name of the advanced event selector |
 |   ↳ `fieldSelectors` | array | Field selectors, each with field plus its equals, startsWith, endsWith, notEquals, notStartsWith, and notEndsWith values |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Insight Selectors
 
 Read which CloudTrail Insights types are enabled on a trail or event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +300,13 @@ Read which CloudTrail Insights types are enabled on a trail or event data store
 |   ↳ `insightType` | string | ApiCallRateInsight or ApiErrorRateInsight |
 |   ↳ `eventCategories` | array | Event categories the Insights type applies to: Management, Data, or both |
 
+</ReferenceDetails>
+
 ### CloudTrail Start Query
 
 Start a CloudTrail Lake SQL query over an event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +328,13 @@ Start a CloudTrail Lake SQL query over an event data store
 | `queryId` | string | ID of the started query. Pass it to Describe Query to poll status, or to Get Query Results to page through rows |
 | `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner |
 
+</ReferenceDetails>
+
 ### CloudTrail Describe Query
 
 Check the status, run time, and scan statistics of a CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -334,9 +366,13 @@ Check the status, run time, and scan statistics of a CloudTrail Lake query
 | `executionTimeInMillis` | number | Query run time in milliseconds |
 | `creationTime` | string | When the query was created \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Query Results
 
 Fetch a page of result rows from a finished CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +398,13 @@ Fetch a page of result rows from a finished CloudTrail Lake query
 | `errorMessage` | string | Error message returned if the query failed |
 | `nextToken` | string | Pagination token for the next page of rows |
 
+</ReferenceDetails>
+
 ### CloudTrail Cancel Query
 
 Cancel a running CloudTrail Lake query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +424,13 @@ Cancel a running CloudTrail Lake query
 | `queryStatus` | string | Status AWS reported for the query after the cancellation request. Cancellation is asynchronous, so this is typically RUNNING or CANCELLED — poll Describe Lake Query for the terminal status |
 | `eventDataStoreOwnerAccountId` | string | Account ID of the event data store owner, when the query was cross-account |
 
+</ReferenceDetails>
+
 ### CloudTrail List Event Data Stores
 
 List the CloudTrail Lake event data stores in the account for the current Region
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +459,13 @@ List the CloudTrail Lake event data stores in the account for the current Region
 |   ↳ `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
 | `nextToken` | string | Pagination token for the next page of event data stores |
 
+</ReferenceDetails>
+
 ### CloudTrail Get Event Data Store
 
 Retrieve the configuration of a single CloudTrail Lake event data store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,9 +500,13 @@ Retrieve the configuration of a single CloudTrail Lake event data store
 |   ↳ `name` | string | Partition key name |
 |   ↳ `type` | string | Partition key data type |
 
+</ReferenceDetails>
+
 ### CloudTrail List Tags
 
 List the tags on CloudTrail trails, event data stores, dashboards, or channels
+
+<ReferenceDetails>
 
 #### Input
 
@@ -474,5 +526,7 @@ List the tags on CloudTrail trails, event data stores, dashboards, or channels
 |   ↳ `resourceId` | string | ARN of the tagged resource |
 |   ↳ `tags` | array | Tags on the resource, as key and value |
 | `nextToken` | string | Reserved for future use by AWS |
+
+</ReferenceDetails>
 
 

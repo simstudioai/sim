@@ -22,11 +22,8 @@ import {
   type InternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import {
-  getExtensionFromMimeType,
-  processSingleFileToUserFile,
-} from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { getExtensionFromMimeType, processSingleFileToUserFile } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { OneDriveToolParams } from '@/tools/onedrive/types'

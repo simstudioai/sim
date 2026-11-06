@@ -1,3 +1,5 @@
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+
 export type OrchestrationErrorCode =
   | 'validation'
   /**
@@ -104,6 +106,8 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
   let current: unknown = error
   while (current instanceof Error) {
     if (current instanceof OrchestrationError) return current
+    if (isPayloadSizeLimitError(current))
+      return new OrchestrationError('payload_too_large', current.message)
     current = current.cause
   }
   return null
@@ -112,5 +116,7 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
 /** Transport metadata available to an application operation for audit capture. */
 export interface OrchestrationRequestContext {
   headers: { get(name: string): string | null }
+  /** The URL the request was addressed to. */
+  url?: string
   signal?: AbortSignal
 }

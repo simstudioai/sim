@@ -94,4 +94,25 @@ describe('post-action observation', () => {
       })
     }
   )
+
+  it.each([
+    'browser_click_at',
+    'browser_insert_text',
+    'browser_select_option',
+    'browser_set_checked',
+    'browser_drag',
+  ] as const)('observes after %s instead of refusing the call', async (tool) => {
+    await expect(
+      withPostActionObservation(
+        tool,
+        { observe: {} },
+        async () => ({ dispatched: true }),
+        async () => ({ outline: 'After' }),
+        () => {}
+      )
+    ).resolves.toMatchObject({
+      dispatched: true,
+      observation: { ok: true, result: { outline: 'After' } },
+    })
+  })
 })

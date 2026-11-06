@@ -3,7 +3,7 @@ import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { and, count, inArray, like, lt, max, min, notLike, sql } from 'drizzle-orm'
+import { and, asc, gte, inArray, like, lt, notLike, sql } from 'drizzle-orm'
 
 const logger = createLogger('IdempotencyCleanup')
 
@@ -27,12 +27,22 @@ export interface CleanupOptions {
   namespace?: string
 }
 
+/** The namespace a key was claimed under: everything before its first `:`. */
+function keyNamespace(key: string): string {
+  const separator = key.indexOf(':')
+  return separator > 0 ? key.slice(0, separator) : 'unknown'
+}
+
 /**
- * Clean up expired idempotency keys from the database
+ * Clean up expired idempotency keys from the database, oldest first.
+ *
+ * Each batch resumes at the creation time the previous one ended on. The global sweep keeps the
+ * permanent namespaces, whose expired rows stay at the front of the creation-time order forever,
+ * so a batch that started from the beginning again would re-read all of them every time.
  */
 export async function cleanupExpiredIdempotencyKeys(
   options: CleanupOptions = {}
-): Promise<{ deleted: number; errors: string[] }> {
+): Promise<{ deleted: number; deletedByNamespace: Record<string, number>; errors: string[] }> {
   const {
     maxAgeSeconds = 7 * 24 * 60 * 60, // 7 days
     batchSize = 1000,
@@ -40,6 +50,7 @@ export async function cleanupExpiredIdempotencyKeys(
   } = options
 
   const errors: string[] = []
+  const deletedByNamespace: Record<string, number> = {}
   let totalDeleted = 0
 
   try {
@@ -53,33 +64,32 @@ export async function cleanupExpiredIdempotencyKeys(
 
     let hasMore = true
     let batchCount = 0
+    let resumeAt: Date | undefined
 
     while (hasMore) {
       try {
-        // Build where condition - filter by cutoff date and optionally by namespace prefix
+        const expired = and(
+          lt(idempotencyKey.createdAt, cutoffDate),
+          resumeAt ? gte(idempotencyKey.createdAt, resumeAt) : undefined
+        )
         const whereCondition = namespace
-          ? and(
-              lt(idempotencyKey.createdAt, cutoffDate),
-              like(idempotencyKey.key, `${namespace}:%`)
-            )
+          ? and(expired, like(idempotencyKey.key, `${namespace}:%`))
           : and(
-              lt(idempotencyKey.createdAt, cutoffDate),
+              expired,
               notLike(idempotencyKey.key, 'admin-credit-grant:%'),
               notLike(idempotencyKey.key, 'workflow-execution-id:%')
             )
 
-        // Find keys to delete with limit
         const toDelete = await db
-          .select({ key: idempotencyKey.key })
+          .select({ key: idempotencyKey.key, createdAt: idempotencyKey.createdAt })
           .from(idempotencyKey)
           .where(whereCondition)
+          .orderBy(asc(idempotencyKey.createdAt))
           .limit(batchSize)
 
         if (toDelete.length === 0) {
           break
         }
-
-        // Delete the found records by key
         const deleteResult = await db
           .delete(idempotencyKey)
           .where(
@@ -90,8 +100,13 @@ export async function cleanupExpiredIdempotencyKeys(
           )
           .returning({ key: idempotencyKey.key })
 
+        resumeAt = toDelete[toDelete.length - 1].createdAt
         const deletedCount = deleteResult.length
         totalDeleted += deletedCount
+        for (const { key } of deleteResult) {
+          const keyPrefix = keyNamespace(key)
+          deletedByNamespace[keyPrefix] = (deletedByNamespace[keyPrefix] ?? 0) + 1
+        }
         batchCount++
 
         if (deletedCount === 0) {
@@ -121,6 +136,7 @@ export async function cleanupExpiredIdempotencyKeys(
 
     logger.info('Idempotency key cleanup completed', {
       totalDeleted,
+      deletedByNamespace,
       batchCount,
       errors: errors.length,
     })
@@ -130,57 +146,23 @@ export async function cleanupExpiredIdempotencyKeys(
     errors.push(`General error: ${errorMessage}`)
   }
 
-  return { deleted: totalDeleted, errors }
+  return { deleted: totalDeleted, deletedByNamespace, errors }
 }
 
 /**
- * Get statistics about idempotency key usage
- * Uses SQL aggregations to avoid loading all keys into memory
+ * The planner's row estimate for `idempotency_key`, refreshed by autovacuum and ANALYZE: one
+ * catalog read, where an exact count is a scan of the whole table. Null when the table has never
+ * been analyzed or the read fails.
  */
-export async function getIdempotencyKeyStats(): Promise<{
-  totalKeys: number
-  keysByNamespace: Record<string, number>
-  oldestKey: Date | null
-  newestKey: Date | null
-}> {
+export async function estimateIdempotencyKeyCount(): Promise<number | null> {
   try {
-    // Get total count and date range in a single query
-    const [statsResult] = await db
-      .select({
-        totalKeys: count(),
-        oldestKey: min(idempotencyKey.createdAt),
-        newestKey: max(idempotencyKey.createdAt),
-      })
-      .from(idempotencyKey)
-
-    // Get counts by namespace prefix using SQL substring
-    // Extracts everything before the first ':' as the namespace
-    const namespaceStats = await db
-      .select({
-        namespace: sql<string>`split_part(${idempotencyKey.key}, ':', 1)`.as('namespace'),
-        count: count(),
-      })
-      .from(idempotencyKey)
-      .groupBy(sql`split_part(${idempotencyKey.key}, ':', 1)`)
-
-    const keysByNamespace: Record<string, number> = {}
-    for (const row of namespaceStats) {
-      keysByNamespace[row.namespace || 'unknown'] = row.count
-    }
-
-    return {
-      totalKeys: statsResult?.totalKeys ?? 0,
-      keysByNamespace,
-      oldestKey: statsResult?.oldestKey ?? null,
-      newestKey: statsResult?.newestKey ?? null,
-    }
+    const [row] = await db.execute<{ estimate: number | string | null }>(
+      sql`SELECT reltuples::bigint AS estimate FROM pg_class WHERE oid = to_regclass('idempotency_key')`
+    )
+    const estimate = Number(row?.estimate)
+    return Number.isFinite(estimate) && estimate >= 0 ? estimate : null
   } catch (error) {
-    logger.error('Failed to get idempotency key stats:', error)
-    return {
-      totalKeys: 0,
-      keysByNamespace: {},
-      oldestKey: null,
-      newestKey: null,
-    }
+    logger.error('Failed to estimate idempotency key count:', error)
+    return null
   }
 }

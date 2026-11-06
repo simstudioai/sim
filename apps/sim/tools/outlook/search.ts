@@ -13,6 +13,7 @@ export const outlookSearchTool: ToolConfig<OutlookSearchParams, OutlookSearchRes
   name: 'Outlook Search',
   description: 'Search Outlook messages using a free-text query (Microsoft Graph $search)',
   version: '1.0.0',
+  assistant: { effect: 'read', version: 1 },
 
   oauth: {
     required: true,

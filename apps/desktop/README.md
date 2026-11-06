@@ -108,7 +108,8 @@ The build also derives the app icon from `SIM_DESKTOP_DEFAULT_ORIGIN`. Every cha
 
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
 - Stable builds run only after `release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. Stable assets remain on `simstudioai/sim`; dev/staging assets publish to the public `simstudioai/sim-desktop-releases` repository so source-repository followers are not notified for internal shell builds. The job builds `--publish never`; reruns verify the size and SHA-256 digest of existing release assets instead of overwriting them.
-- **Secrets gate**: `desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "desktop-release" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
+- **Secrets gate**: `desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "desktop-release" → Run workflow, select the `vX.Y.Z` tag under "Use workflow from", and enter the same version (`publish: false` uploads artifacts to the run instead of the release). Any other ref is refused, so a run only executes the tag's own code and workflow, and its caches stay scoped to that tag.
+- **Cache trust**: the signed `build` job restores no caches, so nothing it signs can come from a cache another run wrote. Only the unsigned smoke jobs use caches.
 - The product semver is **injected** from the release tag into `apps/desktop/package.json` at build time (repo package versions are placeholders). A mismatch guard fails the build.
 - Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, and cookie encryption on. The packaged smoke test asserts every fuse byte so Electron upgrades fail until new fuses receive an explicit policy.
 - **Cookie-encryption go/no-go**: on every Electron bump, verify a packaged build keeps its session across relaunch (there are historical cookie-persistence bugs with the `EnableCookieEncryption` fuse). If it reproduces, set `enableCookieEncryption: false` and record it here.
@@ -171,6 +172,11 @@ tabs and popups select their session from the destination origin. Sign-out and a
 or server changes use the existing browser teardown. Browser views retain their own
 permission/download policy, SSRF guards, and minimal preload with no `simDesktop` API.
 
+**Continue in Chrome** (browser menu, plus a hint on known sign-in hosts) opens the active
+https tab in a chosen Chromium-family profile and **Bring session back** imports only that
+page's registrable-domain cookies from it; the rationale and gating live on
+`SimDesktopBrowserImportApi.continueSignIn` in `@sim/desktop-bridge`.
+
 Generated HTML remains inside its `allow-scripts` sandbox. The driver can inspect and
 interact with inline frames through isolated Chromium worlds, including out-of-process
 frames; it does not grant those pages access to the parent app. These shell changes
@@ -224,3 +230,56 @@ Approved native reads can return bounded text, directory listings, images, or PD
 ## Electron upgrades
 
 Cadence: Electron ships a major every ~8 weeks and supports the latest 3 — budget a bump every ~4–6 months and adopt security patches within ~2 weeks. Follow `docs/electron-upgrade-checklist.md`; the `desktop-e2e.yml` canary leg (electron@latest) is the early-warning signal.
+
+
+## Native Mac computer use
+
+Mothership's `computer` tool is available on macOS 14+ when the global runtime flag
+`mothership-computer-use` is enabled and the user opts in under **Settings → Desktop → Computer Use**.
+The flag defaults off; local/self-hosted deployments use `MSHIP_COMPUTER_USE=true`, while hosted
+rollout uses the existing AppConfig feature-flags document. Older desktop builds omit this optional
+bridge and continue to work.
+
+The user grants Accessibility and Screen Recording through macOS, then approves each app for the
+current task or persistently. Persistent app approvals are listed in Settings and can be revoked.
+Sign-out and deployment changes clear computer-use approval and opt-in. The conversation shows the
+active app/action and a Stop button; **⌘⇧Esc** also stops active work when the shortcut is available.
+Stop cancels queued actions, in-flight authorization, approval prompts and the native helper.
+Already completed input cannot be undone.
+
+The tool lists installed/running apps, reads window accessibility trees, captures selected-window
+screenshots, activates apps explicitly, and performs clicks, text input, keyboard shortcuts,
+scrolling, dragging, value changes and accessibility actions. Semantic actions can run in the
+background. Coordinate mouse actions require explicit foreground activation and a fresh observation;
+they validate the target app/window before dispatch. Each mutation consumes its snapshot and the
+model observes again to verify results. Secure accessibility values are suppressed. See
+[`native/computer-use/README.md`](native/computer-use/README.md) for native bounds and compatibility
+limits; screenshots can still contain sensitive content visibly rendered by the approved app.
+
+Every execution is authorized and claimed once by `/api/desktop/computer/authorize` using the
+stored tool arguments, current chat access, run/Stop state and current flag. Renderer-supplied
+arguments are not execution authority. The main process serializes native work and binds snapshots
+to the authorized chat. The Swift helper communicates over private stdio and is packaged outside
+ASAR as `Contents/Resources/Sim Computer Use.app`.
+
+Distribution signing must cover the nested helper with the same stable Developer ID identity.
+Development ad-hoc builds can lose macOS grants when rebuilt. macOS can attribute permission
+requests to the responsible parent app (Sim, Electron, or the terminal/IDE that launched a test),
+so confirm the name in the system permission dialog. Test a Finder/LaunchServices-launched signed
+build for release acceptance; terminal-launched helper tests do not establish that app's TCC grants.
+
+Validation includes desktop lifecycle/transport unit tests, the Electron authorization/Stop test
+in `e2e/computer-use.spec.ts`, the native protocol and live fixture tests, Sim authorization/stream
+regressions, and Mothership's opt-in `apps/server/scripts/computer-use-live.ts` real-model trial.
+The live trial uses only the disposable fixture and verifies mutations by fresh state; visual mode
+also asks the model to identify a drawn shape unavailable in accessibility text.
+
+
+September 24 acceptance: 1,909 desktop regression tests, the Electron canonical-authorization/
+replay/Stop test, native pure/protocol tests, and the live fixture GUI suite passed. A real native
+Calculator background test verified `2 + 3 = 5` without changing the foreground app. The signed
+arm64 test bundle and nested universal helper passed strict code-signature verification. Its
+LaunchServices-launched acceptance remained blocked on that app identity's Accessibility and
+Screen Recording grants; the separately granted development helper's tests do not satisfy this
+last release-onboarding check. The disposable packaged test follows the existing packaged-smoke
+suite's mock-keychain convention; native TCC permissions remain real.

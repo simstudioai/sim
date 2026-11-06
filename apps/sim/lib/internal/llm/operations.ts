@@ -7,7 +7,7 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,

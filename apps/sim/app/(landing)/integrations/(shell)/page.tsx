@@ -1,3 +1,4 @@
+import { INTEGRATION_TOTALS } from '@sim/deployment-config/integration-totals'
 import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
@@ -21,10 +22,10 @@ import { integrationsSearchParamsCache } from '@/app/(landing)/integrations/sear
 
 const allIntegrations = INTEGRATIONS
 const integrationSummaries = allIntegrations.map(toIntegrationSummary)
-const INTEGRATION_COUNT = allIntegrations.length
+const INTEGRATION_COUNT = INTEGRATION_TOTALS.integrations
 const OAUTH_COUNT = allIntegrations.filter((i) => i.authType === 'oauth').length
-const TRIGGER_INTEGRATION_COUNT = allIntegrations.filter((i) => i.triggerCount > 0).length
-const TOTAL_TOOL_COUNT = allIntegrations.reduce((sum, i) => sum + i.operationCount, 0)
+const TRIGGER_INTEGRATION_COUNT = INTEGRATION_TOTALS.integrationsWithTriggers
+const TOTAL_TOOL_COUNT = INTEGRATION_TOTALS.actions
 
 /**
  * Catalog-level FAQ. Questions that read the same for every integration live

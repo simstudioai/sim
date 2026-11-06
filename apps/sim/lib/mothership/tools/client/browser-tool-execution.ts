@@ -38,6 +38,7 @@ import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
 } from '@/lib/mothership/tools/client/completion'
+import { compactCompletionForPageExit } from '@/lib/mothership/tools/client/page-exit-completion'
 import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const logger = createLogger('CopilotBrowserToolExecution')
@@ -56,7 +57,6 @@ const EXECUTED_STORAGE_PREFIX = 'sim:copilot:browser-tool-executed:'
 const EXECUTED_LEDGER_STORAGE_KEY = 'sim:copilot:browser-tool-executed-ledger:v1'
 const EXECUTED_LEDGER_MAX_ENTRIES = 2_048
 const EXECUTED_LEDGER_TTL_MS = 5 * 60_000
-const PAGE_EXIT_COMPLETION_MAX_BYTES = 48 * 1024
 const RETAINED_COMPLETION_MAX_BYTES = 8 * 1024
 const TERMINAL_COMPLETION_MAX_ACTIVE = 4
 const TERMINAL_COMPLETION_MAX_QUEUED = 64
@@ -95,27 +95,6 @@ interface RetainedTerminalCompletion {
   failureLog: string
   onPendingChange?: (completion: PendingTerminalCompletion | null) => void
   onRelease?: () => void
-}
-
-function compactCompletionForPageExit(
-  toolCallId: string,
-  completion: PendingTerminalCompletion
-): PendingTerminalCompletion {
-  const serialized = JSON.stringify({ toolCallId, ...completion })
-  if (new Blob([serialized]).size <= PAGE_EXIT_COMPLETION_MAX_BYTES) return completion
-
-  const data = toRecord(completion.data)
-  return {
-    status: completion.status,
-    message: truncate(completion.message, 1024),
-    data: {
-      ...(data.outcomeUnknown === true ? { outcomeUnknown: true } : {}),
-      ...(data.doNotRetry === true ? { doNotRetry: true } : {}),
-      ...(data.sessionClosed === true ? { sessionClosed: true } : {}),
-      resultOmittedDuringPageExit: true,
-      note: 'The browser action reached a known terminal state, but its full result was too large for unload-safe delivery. Do not repeat a side-effecting action. Take a fresh browser snapshot to recover current page state.',
-    },
-  }
 }
 
 function compactCompletionForRetry(

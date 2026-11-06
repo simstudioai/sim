@@ -91,7 +91,7 @@ const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
   'antialiased break-words tracking-[0]',
   'prose-headings:font-semibold prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
-  'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
+  'prose-headings:mb-3 prose-headings:mt-6 prose-headings:first:mt-0',
   'prose-p:text-base prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
   'prose-li:text-base prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
@@ -783,13 +783,10 @@ function ChatContentInner({
             {groups.map((group, i) => {
               if (group.kind === 'inline') {
                 return (
-                  <div
-                    key={`inline-${i}`}
-                    data-chat-find-content
-                    className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-                  >
+                  <div key={`inline-${i}`} data-chat-find-content className={PROSE_CLASSES}>
                     <Streamdown
                       key={streamingTree ? 'stream' : 'settled'}
+                      className='[&>p+ol]:mt-2 [&>p+ul]:mt-2 [&>p:has(+ul,+ol)]:mb-2'
                       mode={parserTree ? undefined : 'static'}
                       animated={fadeActive ? STREAM_ANIMATION : false}
                       isAnimating={streamingTree}

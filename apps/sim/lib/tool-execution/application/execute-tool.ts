@@ -1,27 +1,33 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import {
   resolveVisibleToolId,
   resolveVisibleToolOwners,
 } from '@/lib/catalog/application/tool-scope'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import {
+  admitWrittenContent,
+  defineAuthorizedWorkspaceUseCase,
+  mustClassifyContent,
+} from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { durableSecretProvenanceFromRegistry } from '@/lib/execution/durable-secret-provenance'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { isEnvVarReference } from '@/executor/constants'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -344,6 +350,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('forbidden', 'Tool execution requires an acting user')
     }
 
+    const registry = mustClassifyContent(principal)
+      ? new ResolvedSecretTraceRegistry([], { userId, workspaceId: context.workspaceId })
+      : undefined
+
     const billingAttribution = await resolveBillingAttribution({
       actorUserId: userId,
       workspaceId: context.workspaceId,
@@ -395,6 +405,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     const callId = generateId()
 
     const result = await executeRegistryTool(toolId, params, {
+      resolvedSecretTraceRegistry: registry,
       signal: AbortSignal.timeout((input.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000),
       operationContext: {
         /**
@@ -405,6 +416,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
          */
         workflowId: '',
         callerPrincipal: principal,
+        resolvedSecretTraceRegistry: registry,
         userId,
         workspaceId: context.workspaceId,
         billingAttribution,
@@ -441,6 +453,20 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
         output: result.output,
       })
     }
+
+    await admitWrittenContent(
+      principal,
+      registry
+        ? [
+            {
+              kind: 'tool-result',
+              id: callId,
+              provenance: durableSecretProvenanceFromRegistry(registry, result),
+              view: 'complete',
+            },
+          ]
+        : []
+    )
 
     return {
       toolId,

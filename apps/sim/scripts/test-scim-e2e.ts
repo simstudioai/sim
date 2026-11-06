@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
@@ -170,8 +172,10 @@ async function seedFixture(): Promise<Fixture> {
       values (${fixture.orgId}, 'SCIM E2E', ${`scim-e2e-${suffix}`}, now())`
     await tx`insert into member (id, user_id, organization_id, role)
       values (${generateId()}, ${fixture.ownerId}, ${fixture.orgId}, 'owner')`
-    await tx`insert into workspace (id, name, owner_id, billed_account_user_id, organization_id)
-      values (${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
+    await tx`insert into project (id, name, owner_id, organization_id)
+      values (${fixture.workspaceId}, 'SCIM E2E Project', ${fixture.ownerId}, ${fixture.orgId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id, organization_id)
+      values (${fixture.workspaceId}, ${fixture.workspaceId}, 'SCIM E2E Workspace', ${fixture.ownerId}, ${fixture.ownerId}, ${fixture.orgId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${fixture.ownerId}, 'workspace', ${fixture.workspaceId}, 'admin')`
     await tx`insert into subscription (id, plan, reference_id, status, seats, metadata, period_start, period_end)
@@ -222,6 +226,8 @@ async function cleanup() {
       await tx`delete from rate_limit_bucket where key in (
         select 'route:scim:connection:' || id from scim_connection where organization_id = ${fixture.orgId}
       )`
+      if (userIds.length) await tx`delete from project where owner_id in ${tx(userIds)}`
+      await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
       if (userIds.length) await tx`delete from "user" where id in ${tx(userIds)}`
     })
@@ -276,6 +282,31 @@ async function run() {
         'List responses must not reveal bearer secrets'
       )
       await admin(primary, '', { fixture: other, expected: 403 })
+    }
+  )
+
+  await check(
+    'Hosted SCIM rejects administration and bearer access after Enterprise entitlement ends',
+    async () => {
+      await admin(primary)
+      await scim(token, '/Users')
+      await sql`update subscription set status = 'canceled' where reference_id = ${primary.orgId}`
+      try {
+        const denied = await admin(primary, '', { expected: 403 })
+        assert.match(string(denied.body.error), /active enterprise subscription/)
+        await request(`/api/organizations/${primary.orgId}/people/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply: false },
+          expected: 403,
+        })
+        await scim(token, '/Users', { expected: 401 })
+      } finally {
+        await sql`update subscription set status = 'active' where reference_id = ${primary.orgId}`
+      }
+      await admin(primary)
+      await scim(token, '/Users')
     }
   )
 
@@ -341,6 +372,374 @@ async function run() {
         body: { schemas: [USER_SCHEMA], userName: aliceEmail },
       })
       assert.equal(duplicate.body.scimType, 'uniqueness')
+    }
+  )
+
+  await check(
+    'People previews then imports mapped profiles and same-directory reporting lines',
+    async () => {
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const people = `/api/organizations/${primary.orgId}/people`
+      const pull = (apply: boolean, previewDigest?: string, expected = 200) =>
+        request(`${people}/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply, previewDigest },
+          expected,
+        })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Engineer' },
+        { op: 'replace', path: `${enterprise}:department`, value: 'Engineering' },
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const before = await pull(false)
+      assert.equal(before.body.updated, 1)
+      const alice =
+        await sql`select id from member where organization_id = ${primary.orgId} and user_id = ${aliceUserId}`
+      const focusPath = `${people}/chart?memberId=${string(alice[0]?.id)}`
+      assert.deepEqual((await request(focusPath, { fixture: primary })).body.chain, [])
+      const digest = string(before.body.previewDigest)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Director' }])
+      await pull(true, digest, 409)
+      assert.equal(record((await request(focusPath, { fixture: primary })).body.person).title, null)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Engineer' }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href, {
+            waitUntil: 'domcontentloaded',
+            timeout: 180_000,
+          })
+          await page.getByRole('button', { name: 'Import people', exact: true }).click()
+          const picker = page.getByRole('dialog', { name: 'Import people data' })
+          await picker.getByRole('button', { name: 'SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Import from SCIM provisioning' })
+            .getByRole('button', { name: 'Preview import' })
+            .click()
+          const modal = page.getByRole('dialog', { name: 'Review import' })
+          await expect(modal.getByText(/1 profile will be updated/)).toBeVisible()
+          await mkdir(screenshotDir, { recursive: true })
+          await page.screenshot({ path: join(screenshotDir, 'provisioned-import.png') })
+          await modal.getByRole('button', { name: 'Import', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+        } finally {
+          await browser.close()
+        }
+      } else {
+        assert.equal((await pull(true, digest)).body.updated, 1)
+      }
+      const focus = (await request(focusPath, { fixture: primary })).body
+      assert.equal(record(focus.person).title, 'Engineer')
+      assert.equal(record(focus.person).department, 'Engineering')
+      assert.equal(record(record(focus.person).manager).email, bobEmail)
+      assert.equal((await pull(true, digest)).body.updated, 0)
+      const foreign = await scim(otherToken, '/Users', {
+        method: 'POST',
+        expected: 201,
+        body: { schemas: [USER_SCHEMA], userName: `manager@${other.domain}`, active: true },
+      })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: string(foreign.body.id) },
+        { op: 'remove', path: `${enterprise}:department` },
+      ])
+      const nextPreview = await pull(false)
+      const unresolved = await pull(true, string(nextPreview.body.previewDigest))
+      assert.equal(unresolved.body.warnings, 1)
+      const retained = record((await request(focusPath, { fixture: primary })).body.person)
+      assert.equal(record(retained.manager).email, bobEmail)
+      assert.equal(retained.department, 'Engineering')
+      await scim(otherToken, `/Users/${string(foreign.body.id)}`, {
+        method: 'DELETE',
+        expected: 204,
+      })
+    }
+  )
+
+  await check(
+    'SCIM changes refresh the chart through the cron, retain the last good tree on failure, and recover',
+    async () => {
+      const syncPath = `/api/organizations/${primary.orgId}/people/sync`
+      const cronPath = '/api/cron/people-directory-sync'
+      const connection = (options: RequestOptions = {}) =>
+        request(syncPath, { fixture: primary, contentType: 'application/json', ...options })
+      const tick = () => request(cronPath, { token: requiredEnvironment('CRON_SECRET') })
+      const chart = async () => {
+        const result = await request(
+          `/api/organizations/${primary.orgId}/people/chart?memberId=${aliceMemberId}`,
+          { fixture: primary }
+        )
+        return record(result.body.person)
+      }
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const [membership] =
+        await sql`select id from member where user_id = ${aliceUserId} and organization_id = ${primary.orgId}`
+      const aliceMemberId = string(membership.id)
+      await request(cronPath, { expected: 401 })
+      await request(syncPath, { expected: 401 })
+      assert.equal((await connection()).body.sync, null)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const initial = record(
+        (await connection({ method: 'PUT', body: { source: 'scim' } })).body.sync
+      )
+      assert.equal(initial.state, 'scheduled')
+      assert(initial.lastSuccessAt)
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Principal Engineer' },
+        { op: 'remove', path: `${enterprise}:manager` },
+      ])
+      assert.equal(record((await connection()).body.sync).state, 'queued')
+      await tick()
+      assert.equal((await chart()).manager, null)
+      assert.equal((await chart()).title, 'Principal Engineer')
+      const success = record((await connection()).body.sync).lastSuccessAt
+
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      await patch(token, `/Users/${bobId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: aliceId },
+      ])
+      await tick()
+      const failed = record((await connection()).body.sync)
+      assert.equal(failed.state, 'failed')
+      assert.equal(failed.lastSuccessAt, success)
+      assert.equal(failed.retryAt, failed.nextSyncAt)
+      assert.equal(failed.retryBlocked, false)
+      assert.match(string(failed.lastError), /reporting loop/i)
+      assert(failed.lastFailedAt)
+      assert.equal((await chart()).manager, null)
+      await patch(token, `/Users/${bobId}`, [{ op: 'remove', path: `${enterprise}:manager` }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(
+            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
+          )
+          const statusUrl = new URL(syncPath, baseUrl).href
+          await page.route(statusUrl, (route) =>
+            route.fulfill({ status: 503, json: { error: 'Unavailable' } })
+          )
+          await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
+          const modal = page.getByRole('dialog', { name: 'Directory sync', exact: true })
+          await modal.getByRole('button', { name: 'Retry connection' }).waitFor()
+          await page.unroute(statusUrl)
+          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible({
+            timeout: 60_000,
+          })
+          await expect(modal.getByText(/reporting loop/)).toBeVisible()
+          await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
+          await modal.getByRole('button', { name: 'Retry sync' }).click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(modal.getByText('Last successful sync')).toBeVisible()
+          await page.setViewportSize({ width: 390, height: 844 })
+          await page.screenshot({ path: join(screenshotDir, 'sync-recovered-mobile.png') })
+          const dialogBox = await modal.boundingBox()
+          assert(dialogBox && dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 391)
+          assert.equal(record((await chart()).manager).email, bobEmail)
+          await expect(page.getByText('Principal Engineer', { exact: true })).toBeAttached()
+          await patch(token, `/Users/${aliceId}`, [
+            { op: 'replace', path: 'title', value: 'Staff Platform Engineer' },
+          ])
+          await tick()
+          await expect(page.getByText('Staff Platform Engineer', { exact: true })).toBeAttached({
+            timeout: 60_000,
+          })
+          await modal.getByRole('button', { name: 'Disconnect', exact: true }).click()
+          await page
+            .getByRole('dialog', { name: 'Disconnect directory' })
+            .getByRole('button', { name: 'Disconnect', exact: true })
+            .click()
+          await expect(
+            modal.getByRole('button', { name: 'Connect SCIM provisioning' })
+          ).toBeVisible()
+          await modal.getByRole('button', { name: 'Connect SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Connect SCIM provisioning' })
+            .getByRole('button', { name: 'Connect and sync' })
+            .click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+        } finally {
+          await browser.close()
+        }
+      } else {
+        const recovered = record(
+          (await request(`${syncPath}/run`, { method: 'POST', fixture: primary })).body.sync
+        )
+        assert.equal(recovered.state, 'scheduled')
+        assert.equal(recovered.lastError, null)
+        assert.equal(recovered.lastFailedAt, failed.lastFailedAt)
+      }
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await connection({ method: 'DELETE' })
+      assert.equal((await connection()).body.sync, null)
+      assert.equal((await chart()).title, 'Engineer')
+    }
+  )
+
+  await check(
+    'a SCIM directory beyond 10,000 users publishes its full chart over HTTP',
+    async () => {
+      const fixture = await seedFixture()
+      await configure(fixture)
+      const [source] =
+        await sql`select id from scim_connection where organization_id = ${fixture.orgId}`
+      const prefix = `${generateId()}-scim-`
+      const size = 10_004
+      const longPrefix = `Team 49 ${'界'.repeat(2039)}`
+      const longA = `${longPrefix}A`
+      const longB = `${longPrefix}B`
+      const legacy = `Team 60 ${'x'.repeat(220)}`
+      const longName = `Person 00050 ${'界'.repeat(450)}`
+      const managerEmail = `person${size}@${fixture.domain}`
+      const directoryPath = `/api/organizations/${fixture.orgId}/people`
+      try {
+        await sql.begin(async (tx) => {
+          await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at)
+          select ${prefix}::text || n, case when n=50 then ${longName} else 'Person ' || lpad(n::text, 5, '0') end, 'person' || n || '@' || ${fixture.domain}::text, true, now(), now()
+          from generate_series(1, ${size}::integer) n`
+          await tx`insert into scim_user (id, connection_id, user_id, user_name, active, attributes, order_key)
+          select 'scim-' || ${prefix}::text || n, ${source.id}, ${prefix}::text || n, email, true,
+            jsonb_build_object('active', true, 'userName', email, 'name', jsonb_build_object('formatted', name),
+              'emails', jsonb_build_array(jsonb_build_object('value', email, 'primary', true)),
+              'enterprise', jsonb_build_object('department', case n % 71 when 49 then ${longA} when 50 then ${longB}
+                when 60 then ${legacy} else 'Team ' || lpad((n % 71)::text,2,'0') end) ||
+                case when n = ${size} then '{}'::jsonb else jsonb_build_object('manager',
+                  jsonb_build_object('value', 'scim-' || ${prefix}::text || ${size}::text)) end),
+            lpad(n::text, 5, '0')
+          from generate_series(1, ${size}::integer) n join "user" on id = ${prefix}::text || n`
+        })
+        const result = await request(`${directoryPath}/sync`, {
+          method: 'PUT',
+          fixture,
+          contentType: 'application/json',
+          body: { source: 'scim' },
+        })
+        assert.equal(record(result.body.sync).state, 'scheduled')
+        const first = (await request(`${directoryPath}/departments`, { fixture })).body
+        assert(Array.isArray(first.departments) && first.departments.length === 50)
+        assert.equal(record(first.departments.at(-1)).name, longB)
+        assert(
+          string(first.nextCursor).length < 512,
+          'A department page cursor must fit in a short URL'
+        )
+        const second = (
+          await request(
+            `${directoryPath}/departments?cursor=${encodeURIComponent(string(first.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(Array.isArray(second.departments) && second.nextCursor === null)
+        const teams = [...first.departments, ...second.departments].map(record)
+        assert.equal(new Set(teams.map((team) => team.name)).size, 71)
+        assert.equal(
+          teams.reduce((sum, team) => sum + Number(team.count), 0),
+          size
+        )
+        for (const label of [longA, longB]) {
+          const key = string(teams.find((team) => team.name === label)?.departmentKey)
+          assert(key.length <= 64)
+          const path = `${directoryPath}?departmentKey=${encodeURIComponent(key)}`
+          const selected = (await request(path, { fixture })).body
+          assert.equal(selected.selectedDepartment, label)
+          assert(Array.isArray(selected.people) && selected.people.length === 50)
+          assert(selected.people.every((person) => record(person).department === label))
+          const person = record(selected.people[0])
+          const profile = record(
+            (await request(`${directoryPath}/${person.memberId}`, { fixture })).body.person
+          )
+          assert.equal(
+            profile.departmentKey,
+            key,
+            'Profile and facet must link to the same department'
+          )
+          const empty = (await request(`${path}&search=does-not-exist`, { fixture })).body
+          assert.deepEqual(empty.people, [])
+          assert.equal(empty.selectedDepartment, label)
+          await request(
+            `${path}&cursor=${encodeURIComponent(string(selected.nextCursor))}&search=changed`,
+            { fixture, expected: 400 }
+          )
+        }
+        const legacyList = (
+          await request(`${directoryPath}?department=${encodeURIComponent(legacy)}`, { fixture })
+        ).body
+        assert(Array.isArray(legacyList.people) && legacyList.people.length === 50)
+        assert(legacyList.people.every((person) => record(person).department === legacy))
+        const byName = (await request(`${directoryPath}?search=person`, { fixture })).body
+        assert(Array.isArray(byName.people) && record(byName.people.at(-1)).name === longName)
+        assert(
+          string(byName.nextCursor).length < 512,
+          'A long name must not inflate a people cursor'
+        )
+        const nextNames = (
+          await request(
+            `${directoryPath}?search=person&cursor=${encodeURIComponent(string(byName.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(
+          Array.isArray(nextNames.people) &&
+            record(nextNames.people[0]).email === `person51@${fixture.domain}`
+        )
+        const filtered = (
+          await request(`${directoryPath}/departments?search=Team%2070`, { fixture })
+        ).body
+        assert(Array.isArray(filtered.departments) && filtered.departments.length === 1)
+        const listed = await request(
+          `${directoryPath}?search=${encodeURIComponent(managerEmail)}`,
+          { fixture }
+        )
+        assert(Array.isArray(listed.body.people) && listed.body.people.length === 1)
+        const managerId = string(record(listed.body.people[0]).memberId)
+        const page = await request(
+          `${directoryPath}/chart?memberId=${encodeURIComponent(managerId)}&size=4&page=2501`,
+          { fixture }
+        )
+        assert.equal(page.body.totalReports, size - 1)
+        assert.equal(page.body.page, 2501)
+        assert(Array.isArray(page.body.reports) && page.body.reports.length === 3)
+        assert.equal(record(page.body.reports[2]).email, `person10003@${fixture.domain}`)
+
+        await sql`update scim_user set attributes=jsonb_set(attributes, '{enterprise,department}', to_jsonb(repeat('x',2049)))
+          where connection_id=${source.id} and user_id=${`${prefix}${size}`}`
+        const rejected = record(
+          (await request(`${directoryPath}/sync/run`, { method: 'POST', fixture })).body.sync
+        )
+        assert.equal(rejected.state, 'failed')
+        assert.match(string(rejected.lastError), /department exceeds 2048 characters/i)
+        const retained = record(
+          (await request(`${directoryPath}/${managerId}`, { fixture })).body.person
+        )
+        assert.equal(retained.department, `Team ${String(size % 71).padStart(2, '0')}`)
+      } finally {
+        await sql`delete from people_directory_sync where organization_id = ${fixture.orgId}`
+        await sql`delete from "user" where id like ${`${prefix}%`}`
+      }
     }
   )
 
@@ -541,6 +940,95 @@ async function run() {
   )
 
   await check(
+    'Address changes and directory removal retire OAuth grants instead of restoring them after suspension',
+    async () => {
+      const carolEmail = `carol@${primary.domain}`
+      const created = await scim(token, '/Users', {
+        method: 'POST',
+        expected: 201,
+        body: {
+          schemas: [USER_SCHEMA],
+          userName: carolEmail,
+          active: true,
+          name: { givenName: 'Carol', familyName: 'Example' },
+          emails: [{ value: carolEmail, type: 'work', primary: true }],
+        },
+      })
+      const carolId = string(created.body.id)
+      const userId = string(
+        (await sql`select user_id from scim_user where id = ${carolId}`)[0]?.user_id
+      )
+      const sessionId = generateId()
+      const clientId = generateId()
+      await sql`insert into session (id, token, user_id, expires_at, created_at, updated_at)
+      values (${sessionId}, ${generateShortId()}, ${userId}, now() + interval '1 day', now(), now())`
+      await sql`insert into oauth_client (id, client_id, name, public, token_endpoint_auth_method, grant_types, redirect_uris)
+      values (${clientId}, ${clientId}, 'SCIM E2E OAuth client', true, 'none',
+        ${['authorization_code', 'refresh_token']}, ${['http://127.0.0.1/callback']})`
+      try {
+        await sql`insert into oauth_consent (id, client_id, user_id, scopes, created_at, updated_at)
+        values (${generateId()}, ${clientId}, ${userId}, ${['api:read']}, now(), now())`
+        await sql`insert into oauth_token_family (id, client_id, user_id, session_id, created_at, expires_at)
+        values (${generateId()}, ${clientId}, ${userId}, ${sessionId}, now(), now() + interval '1 day')`
+        await sql`insert into oauth_access_token (id, token, client_id, user_id, scopes, created_at, expires_at)
+        values (${generateId()}, ${generateShortId()}, ${clientId}, ${userId}, ${['api:read']},
+          now(), now() + interval '1 hour')`
+
+        await patch(token, `/Users/${carolId}`, [
+          { op: 'replace', path: 'name.givenName', value: 'Caroline' },
+        ])
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          1
+        )
+
+        await patch(token, `/Users/${carolId}`, [
+          {
+            op: 'replace',
+            path: 'emails[type eq "work"].value',
+            value: `carol-renamed@${primary.domain}`,
+          },
+        ])
+
+        assert.equal((await sql`select id from session where user_id = ${userId}`).length, 0)
+        assert.equal(
+          (await sql`select id from oauth_token_family where user_id = ${userId}`).length,
+          0
+        )
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          0
+        )
+
+        const rawToken = generateShortId(32)
+        const bearer = `sim_oat_${rawToken}`
+        await sql`insert into oauth_token_family (id, client_id, user_id, created_at, expires_at)
+        values (${generateId()}, ${clientId}, ${userId}, now(), now() + interval '1 day')`
+        await sql`insert into oauth_access_token (id, token, client_id, user_id, scopes, created_at, expires_at)
+        values (${generateId()}, ${createHash('sha256').update(rawToken).digest('hex')},
+          ${clientId}, ${userId}, ${['api:read']}, now(), now() + interval '1 hour')`
+        await request('/api/v2/workspaces', { token: bearer })
+        await patch(token, `/Users/${carolId}`, [{ op: 'replace', path: 'active', value: false }])
+        await request('/api/v2/workspaces', { token: bearer, expected: 401 })
+        await scim(token, `/Users/${carolId}`, { method: 'DELETE', expected: 204 })
+        await request('/api/v2/workspaces', { token: bearer, expected: 401 })
+        assert.equal(
+          (await sql`select id from oauth_token_family where user_id = ${userId}`).length,
+          0,
+          'Directory removal must retire refresh families as well as sessions'
+        )
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          0
+        )
+      } finally {
+        await sql`delete from oauth_client where client_id = ${clientId}`
+        await sql`delete from "user" where id = ${userId}`
+      }
+    }
+  )
+
+  await check(
     'Group CRUD supports Entra member PATCH, duplicates, foreign IDs, and membership-only PUT versions',
     async () => {
       const created = (
@@ -624,6 +1112,349 @@ async function run() {
         )
       ).body
       assert.equal(resources(list)[0]?.id, groupId)
+    }
+  )
+
+  await check(
+    'Renaming an automatically matched group withdraws its old policy even when the new target is already mapped',
+    async () => {
+      await admin(primary, '', {
+        method: 'PUT',
+        body: { settings: { autoMapPermissionGroupsByName: true } },
+      })
+      try {
+        for (const method of ['PATCH', 'PUT'] as const) {
+          const oldPolicyId = generateId()
+          const newPolicyId = generateId()
+          const oldName = `SCIM E2E ${method} Old policy`
+          const newName = `SCIM E2E ${method} New policy`
+          await sql`insert into permission_group (id, organization_id, name, created_by)
+          values (${oldPolicyId}, ${primary.orgId}, ${oldName}, ${primary.ownerId}),
+            (${newPolicyId}, ${primary.orgId}, ${newName}, ${primary.ownerId})`
+          const created = await scim(token, '/Groups', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              schemas: [GROUP_SCHEMA],
+              displayName: oldName,
+              members: [{ value: aliceId }],
+            },
+          })
+          const renamedGroupId = string(created.body.id)
+          try {
+            await admin(primary, '/mappings', {
+              method: 'POST',
+              expected: 201,
+              body: {
+                groupId: renamedGroupId,
+                targetKind: 'permission_group',
+                permissionGroupId: newPolicyId,
+              },
+            })
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where user_id = ${aliceUserId}
+                and permission_group_id in (${oldPolicyId}, ${newPolicyId})`
+              ).length,
+              2
+            )
+            if (method === 'PATCH') {
+              await patch(
+                token,
+                `/Groups/${renamedGroupId}`,
+                [{ op: 'replace', path: 'displayName', value: newName }],
+                204
+              )
+            } else {
+              await scim(token, `/Groups/${renamedGroupId}`, {
+                method,
+                body: {
+                  schemas: [GROUP_SCHEMA],
+                  displayName: newName,
+                  members: [{ value: aliceId }],
+                },
+              })
+            }
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where permission_group_id = ${oldPolicyId}`
+              ).length,
+              0,
+              `${method} rename must immediately withdraw the old automatically matched policy`
+            )
+            assert.equal(
+              (
+                await sql`select id from scim_projection_grant where scim_user_id = ${aliceId}
+                and target_kind = 'permission_group' and target_id = ${oldPolicyId}`
+              ).length,
+              0
+            )
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where permission_group_id = ${newPolicyId}`
+              ).length,
+              1
+            )
+          } finally {
+            await scim(token, `/Groups/${renamedGroupId}`, { method: 'DELETE', expected: 204 })
+            await sql`delete from permission_group where id in (${oldPolicyId}, ${newPolicyId})`
+          }
+        }
+      } finally {
+        await admin(primary, '', {
+          method: 'PUT',
+          body: { settings: { autoMapPermissionGroupsByName: false } },
+        })
+      }
+    }
+  )
+
+  await check(
+    'Mapping status exposes unapplied policy memberships and clears after conflict recovery',
+    async () => {
+      const firstPolicyId = generateId()
+      const secondPolicyId = generateId()
+      const conflictGroupIds: string[] = []
+      await sql`insert into permission_group (id, organization_id, name, membership_mode, created_by)
+      values (${firstPolicyId}, ${primary.orgId}, 'SCIM E2E first policy', 'explicit', ${primary.ownerId}),
+        (${secondPolicyId}, ${primary.orgId}, 'SCIM E2E second policy', 'explicit', ${primary.ownerId})`
+      for (const policyId of [firstPolicyId, secondPolicyId]) {
+        await sql`insert into permission_group_workspace (id, permission_group_id, workspace_id, organization_id)
+        values (${generateId()}, ${policyId}, ${primary.workspaceId}, ${primary.orgId})`
+      }
+      try {
+        for (const [index, policyId] of [firstPolicyId, secondPolicyId].entries()) {
+          const created = await scim(token, '/Groups', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              schemas: [GROUP_SCHEMA],
+              displayName: `SCIM E2E conflict ${index}`,
+              members: [{ value: aliceId }],
+            },
+          })
+          const directoryGroupId = string(created.body.id)
+          conflictGroupIds.push(directoryGroupId)
+          await admin(primary, '/mappings', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              groupId: directoryGroupId,
+              targetKind: 'permission_group',
+              permissionGroupId: policyId,
+            },
+          })
+        }
+        const mappings = (await admin(primary, '/mappings')).body.groups
+        assert(Array.isArray(mappings))
+        const conflicted = record(
+          mappings.find((value) => record(value).id === conflictGroupIds[1])
+        )
+        assert(Array.isArray(conflicted.mappings))
+        const pending = record(conflicted.mappings[0])
+        assert.equal(pending.source, 'manual')
+        assert.equal(
+          pending.unassignedMemberCount,
+          1,
+          'A saved mapping must expose the skipped member'
+        )
+        assert.equal(
+          (
+            await sql`select id from permission_group_member where permission_group_id = ${secondPolicyId}`
+          ).length,
+          0
+        )
+        await patch(
+          token,
+          `/Groups/${conflictGroupIds[0]}`,
+          [{ op: 'remove', path: `members[value eq "${aliceId}"]` }],
+          204
+        )
+        await admin(primary, '/reconcile', { method: 'POST' })
+        const recovered = (await admin(primary, '/mappings')).body.groups
+        assert(Array.isArray(recovered))
+        const recoveredGroup = record(
+          recovered.find((value) => record(value).id === conflictGroupIds[1])
+        )
+        assert(Array.isArray(recoveredGroup.mappings))
+        assert.equal(record(recoveredGroup.mappings[0]).unassignedMemberCount, 0)
+        assert.equal(
+          (
+            await sql`select id from permission_group_member where permission_group_id = ${secondPolicyId}`
+          ).length,
+          1
+        )
+      } finally {
+        for (const directoryGroupId of conflictGroupIds) {
+          await scim(token, `/Groups/${directoryGroupId}`, { method: 'DELETE', expected: 204 })
+        }
+        await sql`delete from permission_group where id in (${firstPolicyId}, ${secondPolicyId})`
+      }
+    }
+  )
+
+  for (const method of ['POST', 'PUT', 'PATCH'] as const) {
+    for (const enabled of [true, false]) {
+      await check(
+        `Group ${method} honors name matching changed to ${enabled} while waiting for the organization lock`,
+        async () => {
+          const policyId = generateId()
+          const name = `SCIM E2E ${method} concurrent ${enabled}`
+          let directoryGroupId: string | undefined
+          await sql`insert into permission_group (id, organization_id, name, created_by)
+          values (${policyId}, ${primary.orgId}, ${name}, ${primary.ownerId})`
+          try {
+            await admin(primary, '', {
+              method: 'PUT',
+              body: { settings: { autoMapPermissionGroupsByName: !enabled } },
+            })
+            if (method !== 'POST') {
+              const created = await scim(token, '/Groups', {
+                method: 'POST',
+                expected: 201,
+                body: {
+                  schemas: [GROUP_SCHEMA],
+                  displayName: `${name} before`,
+                  members: [{ value: aliceId }],
+                },
+              })
+              directoryGroupId = string(created.body.id)
+            }
+            let writing: Promise<unknown> | undefined
+            try {
+              await sql.begin(async (tx) => {
+                const [holder] = await tx`select pg_backend_pid() as pid,
+                pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${primary.orgId}`}, 0))`
+                writing =
+                  method === 'PATCH'
+                    ? patch(
+                        token,
+                        `/Groups/${directoryGroupId}`,
+                        [{ op: 'replace', path: 'displayName', value: name }],
+                        204
+                      )
+                    : scim(token, method === 'POST' ? '/Groups' : `/Groups/${directoryGroupId}`, {
+                        method,
+                        expected: method === 'POST' ? 201 : 200,
+                        body: {
+                          schemas: [GROUP_SCHEMA],
+                          displayName: name,
+                          members: [{ value: aliceId }],
+                        },
+                      }).then((result) => {
+                        directoryGroupId = string(result.body.id)
+                      })
+                void writing.catch(() => {})
+                const deadline = performance.now() + 4000
+                for (;;) {
+                  const waiting = await sql`select pid from pg_stat_activity
+                  where wait_event = 'advisory' and ${holder.pid} = any(pg_blocking_pids(pid))`
+                  if (waiting.length > 0) break
+                  assert(
+                    performance.now() < deadline,
+                    'The group write must reach the organization lock'
+                  )
+                  await sleep(10)
+                }
+                await tx`update scim_connection
+                set settings = settings || ${tx.json({ autoMapPermissionGroupsByName: enabled })}::jsonb
+                where organization_id = ${primary.orgId}`
+              })
+            } finally {
+              await writing
+            }
+            assert(directoryGroupId, 'The group write must return its identifier')
+            const mappings = await sql`select id from scim_group_mapping
+            where group_id = ${directoryGroupId} and permission_group_id = ${policyId}`
+            assert.equal(
+              mappings.length,
+              enabled ? 1 : 0,
+              'The committed name-matching setting must govern the group write'
+            )
+          } finally {
+            if (directoryGroupId)
+              await scim(token, `/Groups/${directoryGroupId}`, { method: 'DELETE', expected: 204 })
+            await sql`delete from permission_group where id = ${policyId}`
+            await admin(primary, '', {
+              method: 'PUT',
+              body: { settings: { autoMapPermissionGroupsByName: false } },
+            })
+          }
+        }
+      )
+    }
+  }
+
+  await check(
+    'Group removal honors membership locking enabled while the request waits for the organization lock',
+    async () => {
+      await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+      values (${generateId()}, ${aliceUserId}, 'workspace', ${primary.workspaceId}, 'read')`
+      const created = await scim(token, '/Groups', {
+        method: 'POST',
+        expected: 201,
+        body: {
+          schemas: [GROUP_SCHEMA],
+          displayName: 'SCIM E2E concurrent lock',
+          members: [{ value: aliceId }],
+        },
+      })
+      const lockedGroupId = string(created.body.id)
+      try {
+        await admin(primary, '/mappings', {
+          method: 'POST',
+          expected: 201,
+          body: {
+            groupId: lockedGroupId,
+            targetKind: 'workspace',
+            workspaceId: primary.workspaceId,
+            permissionType: 'read',
+          },
+        })
+        let removal: Promise<unknown> | undefined
+        try {
+          await sql.begin(async (tx) => {
+            const [holder] = await tx`select pg_backend_pid() as pid,
+              pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${primary.orgId}`}, 0))`
+            removal = patch(
+              token,
+              `/Groups/${lockedGroupId}`,
+              [{ op: 'remove', path: `members[value eq "${aliceId}"]` }],
+              204
+            )
+            void removal.catch(() => {})
+            const deadline = performance.now() + 4000
+            for (;;) {
+              const waiting = await sql`select pid from pg_stat_activity
+                where wait_event = 'advisory' and ${holder.pid} = any(pg_blocking_pids(pid))`
+              if (waiting.length > 0) break
+              assert(
+                performance.now() < deadline,
+                'The group request must reach the organization lock'
+              )
+              await sleep(10)
+            }
+            await tx`update scim_connection
+              set settings = settings || '{"lockManualMembership":true}'::jsonb
+              where organization_id = ${primary.orgId}`
+          })
+        } finally {
+          await removal
+        }
+        assert.equal(
+          await permission(aliceUserId, primary.workspaceId),
+          undefined,
+          'A committed membership lock must govern the subsequent directory withdrawal'
+        )
+      } finally {
+        await scim(token, `/Groups/${lockedGroupId}`, { method: 'DELETE', expected: 204 })
+        await admin(primary, '', {
+          method: 'PUT',
+          body: { settings: { lockManualMembership: false } },
+        })
+        await sql`delete from permissions where user_id = ${aliceUserId}
+          and entity_type = 'workspace' and entity_id = ${primary.workspaceId}`
+      }
     }
   )
 
@@ -906,6 +1737,102 @@ async function run() {
   )
 
   await check(
+    'SCIM writes commit while a People publication waits and the next tick includes them',
+    async () => {
+      const fixture = await seedFixture()
+      const { secret } = await configure(fixture)
+      const create = (name: string) =>
+        scim(secret, '/Users', {
+          method: 'POST',
+          expected: 201,
+          body: { schemas: [USER_SCHEMA], userName: `${name}@${fixture.domain}`, active: true },
+        })
+      const anchor = string((await create('held')).body.id)
+      const retiring = string((await create('retiring')).body.id)
+      const people = `/api/organizations/${fixture.orgId}/people`
+      const syncPath = `${people}/sync`
+      const initial = await request(syncPath, {
+        method: 'PUT',
+        fixture,
+        contentType: 'application/json',
+        body: { source: 'scim' },
+      })
+      assert.equal(record(initial.body.sync).state, 'scheduled')
+      const [retired] =
+        await sql`select id from people_directory_entry where organization_id=${fixture.orgId} and external_id=${retiring}`
+      assert(retired, 'Expected a previously published SCIM profile')
+      await patch(secret, `/Users/${anchor}`, [
+        { op: 'replace', path: 'title', value: 'Updated title' },
+      ])
+
+      let publication: ReturnType<typeof request> | undefined
+      let writes: Promise<void> | undefined
+      let createdId = ''
+      try {
+        await sql.begin(async (tx) => {
+          const [held] = await tx`select pg_backend_pid() as pid from people_directory_entry
+          where organization_id=${fixture.orgId} and external_id=${anchor} for update`
+          assert(held)
+          publication = request(`${syncPath}/run`, { method: 'POST', fixture })
+          void publication.catch(() => {})
+          let publisher: number | undefined
+          const deadline = performance.now() + 15_000
+          while (publisher === undefined) {
+            const [waiting] = await sql<{ pid: number }[]>`select pid from pg_stat_activity
+            where ${held.pid} = any(pg_blocking_pids(pid)) and query ilike '%insert into%people_directory_entry%'`
+            if (waiting) publisher = waiting.pid
+            else {
+              assert(
+                performance.now() < deadline,
+                'The People publish must reach the held profile row'
+              )
+              await sleep(20)
+            }
+          }
+
+          writes = (async () => {
+            createdId = string((await create('during-publish')).body.id)
+            await scim(secret, `/Users/${retiring}`, { method: 'DELETE', expected: 204 })
+            await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+          })()
+          let settled = false
+          void writes.then(
+            () => {
+              settled = true
+            },
+            () => {
+              settled = true
+            }
+          )
+          const writeDeadline = performance.now() + 15_000
+          while (!settled) {
+            const [blocked] = await sql`select pid from pg_stat_activity
+            where ${publisher} = any(pg_blocking_pids(pid)) and query ilike '%update%people_directory_sync%next_sync_at%'`
+            assert(!blocked, 'A SCIM write must not wait behind the People publisher')
+            assert(
+              performance.now() < writeDeadline,
+              'SCIM writes must finish before the held People profile is released'
+            )
+            await sleep(20)
+          }
+          await writes
+        })
+      } finally {
+        await Promise.allSettled([publication, writes])
+      }
+      await publication
+      await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+      assert.equal(record((await request(syncPath, { fixture })).body.sync).state, 'queued')
+      await request('/api/cron/people-directory-sync', {
+        token: requiredEnvironment('CRON_SECRET'),
+      })
+      const active =
+        await sql`select external_id from people_directory_entry where organization_id=${fixture.orgId}`
+      assert.deepEqual(active.map((row) => row.external_id).sort(), [anchor, createdId].sort())
+    }
+  )
+
+  await check(
     'Bearer scopes, shared connection rate limits, rotation, revocation, expiry, and disable apply immediately',
     async () => {
       await sql`update scim_credential set scopes = ${sql.json(['users:read'])} where id = ${credentialId}`
@@ -945,6 +1872,13 @@ async function run() {
       await scim(token, '/Users', { expected: 401 })
       await scim(newToken, '/Users')
       await admin(primary, '', { method: 'PUT', body: { status: 'disabled' } })
+      await request(`/api/organizations/${primary.orgId}/people/import`, {
+        method: 'POST',
+        fixture: primary,
+        contentType: 'application/json',
+        body: { source: 'directory', apply: false },
+        expected: 400,
+      })
       await scim(newToken, '/Users', { expected: 401 })
       await admin(primary, '', { method: 'PUT', body: { status: 'active' } })
       await scim(newToken, '/Users')

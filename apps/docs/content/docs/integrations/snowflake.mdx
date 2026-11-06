@@ -1,14 +1,13 @@
 ---
 title: Snowflake
 description: Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake
+integration:
+  type: "snowflake"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="snowflake"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Snowflake](https://www.snowflake.com/) stores data in databases and schemas and uses virtual warehouses to run queries. Sim connects over the SQL API with a programmatic access token.
@@ -24,18 +23,19 @@ Use the block to execute SQL, synchronize rows, move staged data, manage warehou
 - Snowflake now recommends Cortex Agents for new builds; Cortex Analyst remains available.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Programmatic access tokens](/integrations/snowflake-service-account).
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.
-
-
 
 ## Actions
 
 ### Snowflake Execute SQL
 
 Execute one parameterized SQL statement through the Snowflake SQL API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -80,9 +80,13 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Get Statement
 
 Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +125,13 @@ Check a running or completed statement and retrieve exactly one result partition
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Cancel Statement
 
 Cancel a running Snowflake SQL API statement.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -160,9 +168,13 @@ Cancel a running Snowflake SQL API statement.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Insert Rows
 
 Insert structured JSON rows using bound values.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,11 +216,15 @@ Insert structured JSON rows using bound values.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+</ReferenceDetails>
 
 ### Snowflake Update Rows
 
 Update matching rows with a bound MERGE statement without inserting new rows.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -250,11 +266,15 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+</ReferenceDetails>
 
 ### Snowflake Upsert Rows
 
 Update matching rows and insert unmatched rows with a bound MERGE statement.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -297,9 +317,13 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Delete Rows
 
 Delete rows matching a required set of bound column filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,9 +366,13 @@ Delete rows matching a required set of bound column filters.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Load Data
 
 Load files from an existing Snowflake stage with COPY INTO.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -394,9 +422,13 @@ Load files from an existing Snowflake stage with COPY INTO.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Unload Data
 
 Export a Snowflake table to files in a stage with COPY INTO.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -445,9 +477,13 @@ Export a Snowflake table to files in a stage with COPY INTO.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Databases
 
 List the databases the credential can access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -487,9 +523,13 @@ List the databases the credential can access.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Schemas
 
 List the schemas in a Snowflake database.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -530,9 +570,13 @@ List the schemas in a Snowflake database.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Tables
 
 List the tables in a Snowflake schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -574,9 +618,13 @@ List the tables in a Snowflake schema.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Warehouses
 
 List warehouses visible to the active Snowflake role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -616,9 +664,13 @@ List warehouses visible to the active Snowflake role.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Get Warehouse
 
 Get the full details for a Snowflake virtual warehouse.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -656,11 +708,15 @@ Get the full details for a Snowflake virtual warehouse.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+</ReferenceDetails>
 
 ### Snowflake Resume Warehouse
 
 Resume a Snowflake virtual warehouse if it is suspended.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -697,11 +753,15 @@ Resume a Snowflake virtual warehouse if it is suspended.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+</ReferenceDetails>
 
 ### Snowflake Suspend Warehouse
 
 Suspend a Snowflake virtual warehouse.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -739,9 +799,13 @@ Suspend a Snowflake virtual warehouse.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Alter Warehouse
 
 Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -783,9 +847,13 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Tasks
 
 List tasks in a Snowflake schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -827,9 +895,13 @@ List tasks in a Snowflake schema.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Get Task
 
 Describe a Snowflake task.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -870,9 +942,13 @@ Describe a Snowflake task.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Run Task
 
 Run a Snowflake task immediately, optionally retrying its last failed graph.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -914,9 +990,13 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Resume Task
 
 Resume a suspended Snowflake task so its schedule runs again.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -956,11 +1036,15 @@ Resume a suspended Snowflake task so its schedule runs again.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+</ReferenceDetails>
 
 ### Snowflake Suspend Task
 
 Suspend a Snowflake task so its schedule stops triggering runs.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -1000,9 +1084,13 @@ Suspend a Snowflake task so its schedule stops triggering runs.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Task Runs
 
 Query up to seven days of Snowflake task history, capped at 10000 rows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1046,9 +1134,13 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Get Task Run
 
 Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1091,9 +1183,13 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Cancel Task Query
 
 Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1133,9 +1229,13 @@ Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs al
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Get Task Run Output
 
 Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1176,9 +1276,13 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Query History
 
 List queries that completed in the last seven days, optionally filtered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1223,9 +1327,13 @@ List queries that completed in the last seven days, optionally filtered.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake List Copy History
 
 List staged-file load results for a table over the last fourteen days.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1270,9 +1378,13 @@ List staged-file load results for a table over the last fourteen days.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Introspect Schema
 
 Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1316,9 +1428,13 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Call Procedure
 
 Call a stored procedure with explicitly typed Snowflake bindings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1362,9 +1478,13 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Cortex Analyst Ask
 
 Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1434,9 +1554,13 @@ Ask Snowflake Cortex Analyst a question in natural language against a semantic v
 |     ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |     ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+</ReferenceDetails>
+
 ### Snowflake Cortex Analyst Feedback
 
 Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1452,5 +1576,7 @@ Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedba
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the feedback was recorded |
+
+</ReferenceDetails>
 
 

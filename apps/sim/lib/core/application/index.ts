@@ -8,6 +8,7 @@ export {
   defineAuthorizedWorkspaceUseCase,
   recordProjectedUseCaseAuditEntries,
   type WorkspaceUseCaseAuditEntry,
+  type WorkspaceUseCaseAuditRollup,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export {
   FORBIDDEN_DETAIL_CODES,
@@ -61,3 +62,31 @@ export {
   type WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 export { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+export {
+  admitContent,
+  admitEach,
+  admitWrittenContent,
+  type ContentDeliveryDeclaration,
+  type ContentDeliveryGate,
+  ContentDeliveryUnobservedError,
+  ContentGateFailure,
+  type ContentProvenance,
+  type ContentRefusalReason,
+  ContentRefusedError,
+  type ContentSource,
+  type ContentSourceKind,
+  type ContentVerdict,
+  type ContentView,
+  countWithheldContent,
+  isCopilotPrincipal,
+  mustClassifyContent,
+  noteContentDeliveryOperation,
+  observeContentDelivery,
+  observeContentOutsideModel,
+  redactBeforeCutting,
+  requireAdmittedContent,
+  runDeclaredContentOperation,
+  runWorkflowOutsideContentDelivery,
+  trackContentDelivery,
+  type WithheldContent,
+} from './content-delivery'

@@ -1,52 +1,39 @@
 ---
 title: Crunchbase
 description: Search and look up companies, people, funding rounds, and acquisitions
+integration:
+  type: "crunchbase"
+  color: "#0287D1"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="crunchbase"
-  color="#0287D1"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Crunchbase](https://www.crunchbase.com/) is the private-market data platform companies use to find, research, and track businesses. Its Data API exposes the same graph the site is built on — organizations, people, funding rounds, acquisitions, IPOs, investments, jobs, events, and the relationships between them — through a single, uniform REST interface.
+Use [Crunchbase](https://www.crunchbase.com/) to search and retrieve organizations, people, funding rounds, acquisitions, and related records. Stable UUIDs and permalinks identify records across lookups.
 
-**Why Crunchbase?**
-- **One graph, not a scrape:** Companies, founders, investors, rounds, and deals are linked entities with stable UUIDs and permalinks, so a lookup resolves to the same record every time.
-- **Predicate search:** Every collection is queryable with the same filter grammar — twenty operators over any field the collection publishes — so an ideal-customer profile becomes a query rather than a script.
-- **Keyset pagination:** Results page forward by cursor instead of offset, so a full result set can be walked without the deep-page cost.
-- **Deletion feed:** A dedicated endpoint reports what Crunchbase removed, so a mirrored copy can be pruned in step with the source rather than drifting.
+## Credentials and access
 
-**Using Crunchbase in Sim**
+Requests send your API key in `X-cb-user-key`. Crunchbase documents a limit of [200 calls per minute](https://support.crunchbase.com/hc/en-us/articles/32319290128019-Crunchbase-API-FAQ). Collections and fields depend on your API package: Firmographic, Core Financials, Advanced Financials, Insights Only, or Predictions & Insights. The integration's default field sets aim to use the narrowest package for each collection; check entitlement errors against your license.
 
-Sim's Crunchbase integration covers the Data API end to end with an API key. Four collections most workflows reach for — organizations, people, funding rounds, and acquisitions — get dedicated search and lookup operations with sensible default field sets. The generic **Search Any Collection** and **Get Any Entity** operations reach the remaining 39 collections, including funds, investments, IPOs, jobs, press references, layoffs, insights, and predictions.
+## Search and retrieval
 
-**Key benefits of using Crunchbase in Sim:**
-- **Account enrichment:** Resolve a company name to its permalink with Autocomplete, then pull headcount, headquarters, categories, and founding date onto the record.
-- **Target list building:** Turn an ICP into search predicates, page the full result set with the returned cursor, and write the companies to a table.
-- **Funding and deal monitoring:** Watch rounds and acquisitions announced in a window and route the summary to Slack, email, or a table.
-- **Deep relationship traversal:** **Get Entity Card** pages a single related-entity card — an investor's portfolio, a company's founders, a round's investors — past the 100-item cap an inline card request stops at.
-- **Field discovery:** **Get Fields Metadata** lists exactly which fields each collection publishes, which is how a query gets grounded before it runs.
+Organizations, people, funding rounds, and acquisitions have dedicated operations. **Search Any Collection** and **Get Any Entity** support the other configured collections, including funds, investments, IPOs, jobs, press references, layoffs, insights, and predictions. Use **Get Fields Metadata** to discover available fields before constructing filters.
 
-**Before you start**
-
-Requests authenticate with the `X-cb-user-key` header, and the API is rate limited to 200 calls per minute. Crunchbase sells the API in packages — Firmographic, Core Financials, Advanced Financials, Insights Only, and Predictions & Insights — and **which collections and fields answer depends on the package your key is licensed for**. The default field sets in this integration are drawn from the narrowest package that publishes each collection, so they resolve on the widest range of licenses; a request for a collection or field outside your license returns an error from Crunchbase rather than partial data.
+**Autocomplete** resolves a name to an identifier. Search predicates filter the selected collection; pass the returned cursor to continue through results. **Get Entity Card** pages related records, such as a company's founders or an investor's portfolio, beyond the 100 items returned by an inline card request. The deleted-entity feed lets a synchronization workflow remove records deleted by Crunchbase.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrates the Crunchbase Data API into the workflow. Search organizations, people, funding rounds, and acquisitions with filter predicates, reach the other 39 collections through the generic search and lookup operations, page a single related-entity card past its 100-item cap, autocomplete names into identifiers, follow the deleted-entity feed, and list the fields each collection publishes. Which collections and fields resolve depends on your Crunchbase license.
-
-
+Search and retrieve organizations, people, funding rounds, acquisitions, and other configured collections. Use field metadata to construct queries, page related-entity cards, autocomplete identifiers, and follow deleted records. Available collections and fields depend on your Crunchbase license.
 
 ## Actions
 
 ### Crunchbase Search Organizations
 
 Search Crunchbase companies, investors, and schools with filter predicates on funding, headcount, location, category, and rank.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -68,9 +55,13 @@ Search Crunchbase companies, investors, and schools with filter predicates on fu
 | `entities` | json | Matching organizations as \[\{uuid, properties\}\], where properties holds the requested field_ids |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Organization
 
 Look up a single Crunchbase organization by permalink or UUID, returning the requested fields and related cards.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +82,13 @@ Look up a single Crunchbase organization by permalink or UUID, returning the req
 | `properties` | json | Requested organization fields, keyed by field_id |
 | `cards` | json | Requested related-entity cards, keyed by card_id |
 
+</ReferenceDetails>
+
 ### Crunchbase Search People
 
 Search Crunchbase people — founders, executives, and investors — with filter predicates on job title, organization, location, and rank.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +110,13 @@ Search Crunchbase people — founders, executives, and investors — with filter
 | `entities` | json | Matching people as \[\{uuid, properties\}\], where properties holds the requested field_ids |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Person
 
 Look up a single Crunchbase person by permalink or UUID, returning the requested fields and related cards.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +137,13 @@ Look up a single Crunchbase person by permalink or UUID, returning the requested
 | `properties` | json | Requested person fields, keyed by field_id |
 | `cards` | json | Requested related-entity cards, keyed by card_id |
 
+</ReferenceDetails>
+
 ### Crunchbase Search Funding Rounds
 
 Search Crunchbase funding rounds with filter predicates on announced date, investment type, amount raised, and investors.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +165,13 @@ Search Crunchbase funding rounds with filter predicates on announced date, inves
 | `entities` | json | Matching funding rounds as \[\{uuid, properties\}\], where properties holds the requested field_ids |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Funding Round
 
 Look up a single Crunchbase funding round by permalink or UUID, returning the requested fields and related cards.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -185,9 +192,13 @@ Look up a single Crunchbase funding round by permalink or UUID, returning the re
 | `properties` | json | Requested funding round fields, keyed by field_id |
 | `cards` | json | Requested related-entity cards, keyed by card_id |
 
+</ReferenceDetails>
+
 ### Crunchbase Search Acquisitions
 
 Search Crunchbase acquisitions with filter predicates on announced date, price, acquisition type, and the companies involved.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +220,13 @@ Search Crunchbase acquisitions with filter predicates on announced date, price, 
 | `entities` | json | Matching acquisitions as \[\{uuid, properties\}\], where properties holds the requested field_ids |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Acquisition
 
 Look up a single Crunchbase acquisition by permalink or UUID, returning the requested fields and related cards.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +247,13 @@ Look up a single Crunchbase acquisition by permalink or UUID, returning the requ
 | `properties` | json | Requested acquisition fields, keyed by field_id |
 | `cards` | json | Requested related-entity cards, keyed by card_id |
 
+</ReferenceDetails>
+
 ### Crunchbase Search Entities
 
 Search any Crunchbase collection — events, jobs, ipos, funds, investments, press references, layoffs, insights, predictions, and more — with filter predicates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -257,9 +276,13 @@ Search any Crunchbase collection — events, jobs, ipos, funds, investments, pre
 | `entities` | json | Matching entities as \[\{uuid, properties\}\], where properties holds the requested field_ids |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Entity
 
 Look up a single entity in any Crunchbase collection — events, jobs, ipos, funds, investments, press references, insights, predictions, and more — by permalink or UUID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +304,13 @@ Look up a single entity in any Crunchbase collection — events, jobs, ipos, fun
 | `properties` | json | Requested entity fields, keyed by field_id |
 | `cards` | json | Requested related-entity cards, keyed by card_id |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Entity Card
 
 Page through one related-entity card of a Crunchbase entity — an investor's investments, a company's founders, a round's investors — past the 100-item cap an inline card request returns.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +334,13 @@ Page through one related-entity card of a Crunchbase entity — an investor's in
 | `properties` | json | Properties of the parent entity returned alongside the card |
 | `nextAfterId` | string | UUID of the last card item, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Autocomplete
 
 Suggest Crunchbase entities matching a typed query, returning the permalinks and UUIDs the lookup and search operations take.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -326,9 +357,13 @@ Suggest Crunchbase entities matching a typed query, returning the permalinks and
 | --------- | ---- | ----------- |
 | `entities` | json | Suggestions as \[\{identifier: \{uuid, value, permalink, image_id, entity_def_id\}, facet_ids, short_description\}\] |
 
+</ReferenceDetails>
+
 ### Crunchbase List Deleted Entities
 
 List entities Crunchbase has deleted, so a mirrored copy can be pruned in step with the source.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -349,9 +384,13 @@ List entities Crunchbase has deleted, so a mirrored copy can be pruned in step w
 | `entities` | json | Deleted entities as \[\{deleted_at, identifier: \{uuid, value, permalink, entity_def_id\}\}\] |
 | `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
 
+</ReferenceDetails>
+
 ### Crunchbase Get Fields Metadata
 
 List the field ids, types, and descriptions each Crunchbase collection publishes, which is how the field_ids and query predicates of the other operations are discovered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,5 +404,7 @@ List the field ids, types, and descriptions each Crunchbase collection publishes
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `csv` | string | Field metadata as CSV, one row per field with its collection, id, type, and description |
+
+</ReferenceDetails>
 
 

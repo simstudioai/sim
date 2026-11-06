@@ -34,6 +34,7 @@ import {
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { inboxSettingsPatchSchema } from '@/lib/mothership/inbox/settings-input'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
+import { readSettingsAccessRequests } from '@/lib/mothership/tools/server/settings-access-requests'
 import { readSettingsUsageLimit } from '@/lib/mothership/tools/server/settings-billing'
 import { readArchivedSettingsChats } from '@/lib/mothership/tools/server/settings-chats'
 import {
@@ -46,6 +47,7 @@ import {
 } from '@/lib/mothership/tools/server/settings-operation'
 import { settingsOperations } from '@/lib/mothership/tools/server/settings-operations'
 import { readSettingsDomains } from '@/lib/mothership/tools/server/settings-security'
+import { readSettingsSimLinks } from '@/lib/mothership/tools/server/settings-sim-links'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getOrganizationDataRetention,
@@ -62,6 +64,7 @@ import {
 } from '@/lib/organizations/application/settings'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { type SettingsSection, settingsSections } from '@/lib/settings/sections'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import {
   delegatedAccountPreferencesSchema,
   updateCurrentUserPreferences,
@@ -74,11 +77,18 @@ import {
 import { listCustomBlockSettings } from '@/lib/workflows/custom-blocks/application/settings'
 import { readInboxSettings, updateInboxSettings } from '@/lib/workspaces/application/inbox-settings'
 import { readWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
+import {
+  readWorkspaceIdentity,
+  updateWorkspaceIdentity,
+  workspaceIdentityPatchSchema,
+} from '@/lib/workspaces/application/update-workspace'
 
 interface SettingAdapter {
   get(context: SettingsContext): Promise<unknown>
   schema?: z.ZodType
   update?(context: SettingsContext, changes: Record<string, unknown>): Promise<unknown>
+  /** Whether the section exists for this target at all; a section that does not is never listed. */
+  available?(context: SettingsContext): Promise<boolean>
 }
 
 function organizationInput(context: SettingsContext) {
@@ -88,6 +98,24 @@ function organizationInput(context: SettingsContext) {
 
 /** Closed adapters call the same application operations as Settings; no route proxy or metadata patch. */
 const adapters: Record<string, SettingAdapter> = {
+  'workspace/general': {
+    schema: workspaceIdentityPatchSchema,
+    get: (context) =>
+      readWorkspaceIdentity.execute({
+        principal: context.principal,
+        input: { workspaceId: settingsWorkspaceId(context) },
+      }),
+    update: async (context, changes) =>
+      (
+        await updateWorkspaceIdentity.execute({
+          principal: context.principal,
+          input: {
+            workspaceId: settingsWorkspaceId(context),
+            patch: workspaceIdentityPatchSchema.parse(changes),
+          },
+        })
+      ).identity,
+  },
   'workspace/custom-blocks': {
     get: (context) =>
       listCustomBlockSettings.execute({
@@ -228,6 +256,11 @@ const adapters: Record<string, SettingAdapter> = {
       }),
   },
   'organization/members': { get: readSettingsRoster },
+  'organization/requests': { get: (context) => readSettingsAccessRequests(context) },
+  'organization/sim-links': {
+    available: (context) => isSimLinksEnabled(organizationInput(context).organizationId),
+    get: (context) => readSettingsSimLinks(context),
+  },
   'organization/whitelabeling': {
     schema: updateOrganizationWhitelabelBodySchema.strict(),
     get: async (context) =>
@@ -287,7 +320,14 @@ const adapters: Record<string, SettingAdapter> = {
 }
 
 async function describeSection(context: SettingsContext, section: SettingsSection) {
+  if (
+    context.scope === 'organization' &&
+    section.id === 'sim-links' &&
+    !(await isSimLinksEnabled(organizationInput(context).organizationId))
+  )
+    return null
   const adapter = adapters[`${context.scope}/${section.id}`]
+  if (adapter?.available && !(await adapter.available(context))) return null
   const uiSection =
     context.scope === 'organization' &&
     section.id === 'connected-accounts' &&
@@ -356,6 +396,10 @@ function settingsRefresh(context: SettingsContext, section: string): ResourceCha
 export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
   name: 'settings',
   inputSchema: mothershipSettingsInputSchema,
+  writes: (input) =>
+    input.action === 'update' ||
+    (input.action === 'execute' &&
+      settingsOperations[`${input.scope}/${input.section}`]?.[input.operation]?.effect === 'write'),
   async execute(raw, context) {
     const input = mothershipSettingsInputSchema.parse(raw)
     const target = await resolveSettingsContext(input.scope, context, input.workspaceId)

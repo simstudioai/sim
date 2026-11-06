@@ -8,13 +8,13 @@
     "security",
     "session-policies",
     "access-control",
+    "forks",
     "custom-blocks",
-    "whitelabeling",
     "audit-logs",
     "usage-tracking",
     "data-retention",
     "data-drains",
-    "forks"
+    "whitelabeling"
   ],
   "defaultOpen": false
 }

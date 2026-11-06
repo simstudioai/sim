@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
-import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import {
   buildStorageKeySegment,
   LOCAL_UPLOAD_METADATA_SUFFIX,

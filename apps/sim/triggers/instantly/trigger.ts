@@ -1,11 +1,11 @@
 import { InstantlyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildInstantlyExtraFields,
   buildInstantlyOutputs,
   instantlySetupInstructions,
   instantlyTriggerOptions,
 } from '@/triggers/instantly/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 interface CreateInstantlyTriggerOptions {

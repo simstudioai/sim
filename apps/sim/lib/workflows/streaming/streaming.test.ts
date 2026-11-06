@@ -1417,6 +1417,37 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events).toContainEqual({ event: 'error', error: 'Client cancelled request' })
   })
 
+  it('stops writing frames once the client cancels the response stream', async () => {
+    let finishExecution!: (result: ExecutionResult) => void
+    let completeBlock!: (blockId: string, output: unknown) => Promise<void>
+    const stream = await createStreamingResponse({
+      requestId: 'request-client-cancel',
+      streamConfig: { selectedOutputs: ['block_answer'], includeFileBase64: false },
+      executeFn: async ({ onBlockComplete }) => {
+        completeBlock = onBlockComplete
+        return await new Promise<ExecutionResult>((resolve) => {
+          finishExecution = resolve
+        })
+      },
+    })
+    const reader = stream.getReader()
+    await reader.read()
+    await reader.cancel()
+
+    await expect(completeBlock('block', { answer: 'late answer' })).resolves.toBeUndefined()
+    finishExecution({ success: false, status: 'cancelled', output: {}, logs: [] })
+
+    await vi.waitFor(() =>
+      expect(workflowStreamingLogger.info).toHaveBeenCalledWith(
+        '[request-client-cancel] Streaming execution aborted by client disconnect'
+      )
+    )
+    expect(workflowStreamingLogger.error).not.toHaveBeenCalledWith(
+      '[request-client-cancel] Stream error',
+      expect.anything()
+    )
+  })
+
   it('thinking never enters streamedChunks / log content rewrite', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',

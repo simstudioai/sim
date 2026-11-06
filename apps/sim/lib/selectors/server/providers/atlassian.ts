@@ -8,7 +8,7 @@ import {
 import {
   fetchProviderJsonWithStatus,
   RetryableProviderNetworkError,
-} from '@/lib/selectors/server/providers/provider-http'
+} from '@/lib/selectors/server/providers/http'
 
 const ATLASSIAN_ACCESSIBLE_RESOURCES_URL =
   'https://api.atlassian.com/oauth/token/accessible-resources'

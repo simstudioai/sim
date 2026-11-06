@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { AuthIdentity, AuthButton as Chip } from '@sim/auth-ui'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { createDesktopHandoffTokenContract } from '@/lib/api/contracts/desktop-auth'
@@ -26,6 +26,7 @@ export function AuthorizeHandoff({ state, port, email }: AuthorizeHandoffProps) 
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const authorize = async () => {
+    if (status === 'working') return
     setStatus('working')
     setErrorMessage(null)
     try {
@@ -52,6 +53,7 @@ export function AuthorizeHandoff({ state, port, email }: AuthorizeHandoffProps) 
 
   return (
     <DesktopHandoffShell
+      detail={<AuthIdentity email={email} />}
       title='Sign in to Sim Desktop'
       description={
         status === 'error'
@@ -59,9 +61,16 @@ export function AuthorizeHandoff({ state, port, email }: AuthorizeHandoffProps) 
           : `The Sim desktop app on this computer will be signed in as ${email}.`
       }
     >
-      <Chip variant='primary' disabled={status === 'working'} onClick={() => void authorize()}>
-        {status === 'working' ? 'Signing in…' : status === 'error' ? 'Try again' : 'Continue'}
-      </Chip>
+      {
+        <Chip
+          fullWidth
+          variant='primary'
+          disabled={status === 'working'}
+          onClick={() => void authorize()}
+        >
+          {status === 'working' ? 'Signing in…' : status === 'error' ? 'Try again' : 'Continue'}
+        </Chip>
+      }
     </DesktopHandoffShell>
   )
 }

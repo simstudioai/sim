@@ -1,6 +1,6 @@
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
-import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 

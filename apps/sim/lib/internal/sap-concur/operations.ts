@@ -15,9 +15,9 @@ import {
   type SapConcurInvocation,
 } from '@/lib/internal/sap-concur/client'
 import type { SapConcurApiInput, SapConcurUploadInput } from '@/lib/internal/sap-concur/schema'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 

@@ -1,14 +1,13 @@
 ---
 title: AWS Systems Manager
 description: Run commands, manage parameters, and audit managed nodes
+integration:
+  type: "ssm"
+  color: "#E7157B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ssm"
-  color="#E7157B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS Systems Manager](https://aws.amazon.com/systems-manager/) to run commands on managed nodes, read and write Parameter Store values, inspect inventory and compliance, and manage Automation runbooks.
@@ -17,25 +16,24 @@ The following notes explain how secret values appear in workflow inputs, outputs
 
 Parameter Store decryption is opt-in: `Get Parameter`, `Get Parameters`, and `Get Parameters By Path` leave `WithDecryption` off unless you explicitly enable it, so a SecureString stays encrypted by default.
 
-Be precise about what that protects, because it is narrower than it looks. The value you supply to `Put Parameter` is masked in the editor and is never echoed back in the operation's result, and Sim never puts a parameter value into an error message. It is **not** kept out of the run log: block inputs are recorded, and a value typed directly into the field is recorded verbatim. Referencing an environment variable instead — `{{MY_SECRET}}` — keeps the literal out of the log, because references are restored to their placeholder before the log is written.
+The value you supply to `Put Parameter` is masked in the editor and is never echoed back in the operation's result, and Sim never puts a parameter value into an error message. It is **not** kept out of the run log: block inputs are recorded, and a value typed directly into the field is recorded verbatim. Referencing an environment variable instead — `{{MY_SECRET}}` — keeps the literal out of the log, because references are restored to their placeholder before the log is written.
 
 Reads are exposed the same way. Once you enable decryption the plaintext is ordinary block output: it flows to downstream blocks as intended, and it is written to the run log and the execution trace like any other output.
 
-So enable decryption only on the steps that genuinely need the plaintext, prefer environment-variable references over typed literals when writing, and treat the run logs of any workflow that touches SecureString values as secret material.
+Enable decryption only on the steps that need the plaintext, prefer environment-variable references over typed literals when writing, and treat the run logs of any workflow that touches SecureString values as secret material.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.
-
-
+Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.
 
 ## Actions
 
 ### SSM Send Command
 
 Run an SSM document on managed nodes with AWS Systems Manager Run Command
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +81,13 @@ Run an SSM document on managed nodes with AWS Systems Manager Run Command
 | `outputS3Region` | string | S3 region reported for command output |
 | `serviceRole` | string | IAM service role used for notifications |
 
+</ReferenceDetails>
+
 ### SSM List Commands
 
 List Run Command executions in an AWS account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -108,9 +110,13 @@ List Run Command executions in an AWS account
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of commands returned |
 
+</ReferenceDetails>
+
 ### SSM List Command Invocations
 
 List the per-node invocations of Run Command executions
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +140,13 @@ List the per-node invocations of Run Command executions
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of invocations returned |
 
+</ReferenceDetails>
+
 ### SSM Get Command Invocation
 
 Read the output and status of a Run Command execution on one managed node
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +180,13 @@ Read the output and status of a Run Command execution on one managed node
 | `standardErrorContent` | string | First 8000 characters of stderr; longer output is available at standardErrorUrl |
 | `standardErrorUrl` | string | S3 URL of the full stderr, if S3 output was configured |
 
+</ReferenceDetails>
+
 ### SSM Cancel Command
 
 Cancel an in-flight Run Command execution
+
+<ReferenceDetails>
 
 #### Input
 
@@ -191,9 +205,13 @@ Cancel an in-flight Run Command execution
 | `message` | string | Operation status message |
 | `commandId` | string | ID of the command that was cancelled |
 
+</ReferenceDetails>
+
 ### SSM Get Parameter
 
 Read one parameter from AWS Systems Manager Parameter Store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +237,13 @@ Read one parameter from AWS Systems Manager Parameter Store
 | `arn` | string | ARN of the parameter |
 | `dataType` | string | Data type of the parameter \(text, aws:ec2:image, or aws:ssm:integration\) |
 
+</ReferenceDetails>
+
 ### SSM Get Parameters
 
 Read up to ten parameters from AWS Systems Manager Parameter Store by name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -241,9 +263,13 @@ Read up to ten parameters from AWS Systems Manager Parameter Store by name
 | `invalidParameters` | array | Names that could not be read because they do not exist or are malformed |
 | `count` | number | Number of parameters returned |
 
+</ReferenceDetails>
+
 ### SSM Get Parameters By Path
 
 Read parameters under a Parameter Store hierarchy path
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +293,13 @@ Read parameters under a Parameter Store hierarchy path
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of parameters returned |
 
+</ReferenceDetails>
+
 ### SSM Put Parameter
 
 Create or update a parameter in AWS Systems Manager Parameter Store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -298,9 +328,13 @@ Create or update a parameter in AWS Systems Manager Parameter Store
 | `version` | number | Version number the write produced |
 | `tier` | string | Tier the parameter was stored in |
 
+</ReferenceDetails>
+
 ### SSM Delete Parameter
 
 Delete a parameter from AWS Systems Manager Parameter Store
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +352,13 @@ Delete a parameter from AWS Systems Manager Parameter Store
 | `message` | string | Operation status message |
 | `name` | string | Name of the parameter that was deleted |
 
+</ReferenceDetails>
+
 ### SSM Describe Parameters
 
 List Parameter Store parameter metadata without reading any values
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,9 +380,13 @@ List Parameter Store parameter metadata without reading any values
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of parameters returned |
 
+</ReferenceDetails>
+
 ### SSM Describe Instance Information
 
 List managed nodes registered with AWS Systems Manager and their agent status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -365,9 +407,13 @@ List managed nodes registered with AWS Systems Manager and their agent status
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of managed nodes returned |
 
+</ReferenceDetails>
+
 ### SSM Describe Instance Patches
 
 List the patches reported for one managed node
+
+<ReferenceDetails>
 
 #### Input
 
@@ -389,9 +435,13 @@ List the patches reported for one managed node
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of patches returned |
 
+</ReferenceDetails>
+
 ### SSM Describe Instance Patch States
 
 Read patch compliance summaries for a set of managed nodes
+
+<ReferenceDetails>
 
 #### Input
 
@@ -412,9 +462,13 @@ Read patch compliance summaries for a set of managed nodes
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of patch states returned |
 
+</ReferenceDetails>
+
 ### SSM List Compliance Items
 
 List individual compliance findings reported to AWS Systems Manager
+
+<ReferenceDetails>
 
 #### Input
 
@@ -437,9 +491,13 @@ List individual compliance findings reported to AWS Systems Manager
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of compliance items returned |
 
+</ReferenceDetails>
+
 ### SSM List Compliance Summaries
 
 Read compliant and non-compliant counts per compliance type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -460,9 +518,13 @@ Read compliant and non-compliant counts per compliance type
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of summaries returned |
 
+</ReferenceDetails>
+
 ### SSM Start Automation Execution
 
 Start an AWS Systems Manager Automation runbook execution
+
+<ReferenceDetails>
 
 #### Input
 
@@ -487,9 +549,13 @@ Start an AWS Systems Manager Automation runbook execution
 | --------- | ---- | ----------- |
 | `automationExecutionId` | string | ID of the execution; pass it to ssm_get_automation_execution or ssm_stop_automation_execution |
 
+</ReferenceDetails>
+
 ### SSM Describe Automation Executions
 
 List Automation runbook executions in an AWS account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -510,9 +576,13 @@ List Automation runbook executions in an AWS account
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of executions returned |
 
+</ReferenceDetails>
+
 ### SSM Get Automation Execution
 
 Read the status, outputs, and step results of one Automation execution
+
+<ReferenceDetails>
 
 #### Input
 
@@ -548,9 +618,13 @@ Read the status, outputs, and step results of one Automation execution
 | `stepExecutions` | json | Steps, each with stepName, action, stepStatus, stepExecutionId, executionStartTime, executionEndTime, failureMessage, response, isEnd, and nextStep |
 | `stepExecutionsTruncated` | boolean | Whether the returned step list was truncated |
 
+</ReferenceDetails>
+
 ### SSM Stop Automation Execution
 
 Stop a running AWS Systems Manager Automation execution
+
+<ReferenceDetails>
 
 #### Input
 
@@ -569,9 +643,13 @@ Stop a running AWS Systems Manager Automation execution
 | `message` | string | Operation status message |
 | `automationExecutionId` | string | ID of the execution that was stopped |
 
+</ReferenceDetails>
+
 ### SSM List Documents
 
 List SSM documents and runbooks available to an AWS account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -592,9 +670,13 @@ List SSM documents and runbooks available to an AWS account
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of documents returned |
 
+</ReferenceDetails>
+
 ### SSM Get Document
 
 Read the content of an SSM document or Automation runbook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -623,5 +705,7 @@ Read the content of an SSM document or Automation runbook
 | `documentType` | string | Type of the document \(Command, Automation, Policy, Session, and related values\) |
 | `documentFormat` | string | Format the content is returned in |
 | `reviewStatus` | string | Review status of the document \(APPROVED, NOT_REVIEWED, PENDING, REJECTED\) |
+
+</ReferenceDetails>
 
 

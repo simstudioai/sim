@@ -10,6 +10,7 @@ import {
 import { cn, Textarea } from '@sim/emcn'
 import { ChevronsUpDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   maskSecretText,
@@ -111,7 +112,9 @@ export function LongInput({
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Wand functionality - always call the hook unconditionally
+  const { workspaceId } = useWorkflowScope()
   const wandHook = useWand({
+    workspaceId,
     wandConfig: config.wandConfig,
     currentValue: localContent,
     onStreamStart: () => {

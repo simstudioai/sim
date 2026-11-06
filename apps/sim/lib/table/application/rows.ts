@@ -5,7 +5,15 @@ import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
-import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
+import {
+  admitContent,
+  admitWrittenContent,
+  ContentRefusedError,
+  capabilityGovernedPrincipalUserId,
+  isCopilotPrincipal,
+  mustClassifyContent,
+  type WorkspaceUseCaseAuditRollup,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
@@ -52,10 +60,6 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
-  hasTableRowDeliveryObserver,
-  reportTableRowDelivery,
-} from '@/lib/table/application/row-delivery-observer'
-import {
   resolveRowWriteProvenance,
   type TableRowProvenanceEnvelope,
 } from '@/lib/table/application/row-secret-provenance'
@@ -93,6 +97,27 @@ import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const ROW_CHANGE_COUNTERS = ['rowsInserted', 'rowsUpdated', 'rowsDeleted'] as const
+
+/**
+ * Merges one workflow execution's repeats of a row change to a table into a
+ * single audit row that keeps every row id and count.
+ */
+function rowChangeRollup(tableName: string): WorkspaceUseCaseAuditRollup {
+  return {
+    counterKeys: ROW_CHANGE_COUNTERS,
+    identifierKeys: ['rowId'],
+    describe: ({ entries, counters }) => {
+      const changes = [
+        counters.rowsInserted ? `${counters.rowsInserted} inserted` : undefined,
+        counters.rowsUpdated ? `${counters.rowsUpdated} updated` : undefined,
+        counters.rowsDeleted ? `${counters.rowsDeleted} deleted` : undefined,
+      ].filter((change) => change !== undefined)
+      return `Workflow execution changed rows in table "${tableName}" ${entries} times (${changes.join(', ') || 'no rows'})`
+    },
+  }
+}
 
 export class TableRowsValidationError extends OrchestrationError {
   constructor(
@@ -147,66 +172,94 @@ interface TableResult {
 
 type TableRowsProvenance = ReturnType<TableRowProvenanceReader['exportProvenance']>
 
-/** Provenance is read when the caller asked for it or an internal transport observes delivery. */
+/** Provenance is read when the caller asked for it back or Chat must classify the rows. */
 function createAuthorizedRowsProvenanceReader(
+  principal: Principal,
   workspaceId: string,
   attributedUserId: string,
   include?: boolean
 ): TableRowProvenanceReader | undefined {
-  return include || hasTableRowDeliveryObserver()
+  return include || mustClassifyContent(principal)
     ? new TableRowProvenanceReader({ userId: attributedUserId, workspaceId })
     : undefined
 }
 
 /**
- * Reports the provenance of the rows a use case is about to return to an observing
- * transport, and hands it back only when the caller itself asked for it.
+ * Admits each returned row on its own, against the classification its reader captured, and returns
+ * the rows admitted. A row whose provenance is unknown is left out rather than withholding the
+ * page. `written` marks the rows a committed write returns (see `admitWrittenContent`).
  */
-async function deliverRowsProvenance(
+async function deliverRows<R extends { id: string; data: RowData }>(
+  principal: Principal,
   reader: TableRowProvenanceReader | undefined,
-  rows: readonly { data: RowData }[],
-  options: {
-    /** The caller itself asked for the provenance back. */
-    include?: boolean
-    /** The result also carries run-state or enrichment error text, which has no provenance. */
-    unprovenancedErrorText?: boolean
-  } = {}
-): Promise<TableRowsProvenance | undefined> {
-  if (!reader) return undefined
-  const provenance = reader.exportProvenance()
-  await reportTableRowDelivery(
-    provenance,
-    rows.map((row) => row.data),
-    { unprovenancedErrorText: options.unprovenancedErrorText ?? false }
-  )
-  return options.include ? provenance : undefined
-}
-
-function isNonEmptyText(value: unknown): boolean {
-  return typeof value === 'string' && value.length > 0
-}
-
-/** Whether one group's run state carries error text: its run `error` or any `blockErrors` entry. */
-function executionHasErrorText(execution: RowExecutionMetadata): boolean {
-  return (
-    isNonEmptyText(execution.error) ||
-    Object.values(execution.blockErrors ?? {}).some(isNonEmptyText)
-  )
-}
-
-/** Whether any group in a row's run state carries error text. */
-function runStateHasErrorText(executions: RowExecutions): boolean {
-  return Object.values(executions).some(executionHasErrorText)
+  rows: readonly R[],
+  options: { written?: boolean } = {}
+): Promise<R[]> {
+  if (!reader || !mustClassifyContent(principal)) {
+    await admitContent(principal, [])
+    return [...rows]
+  }
+  const sources = rows.map((row) => ({
+    kind: 'table-row' as const,
+    id: row.id,
+    provenance: reader.rowProvenance(row.id),
+    view: { derived: row.data },
+  }))
+  const admission = await (options.written ? admitWrittenContent : admitContent)(principal, sources)
+  return rows.filter((_, index) => admission.admits(sources[index]))
 }
 
 /**
- * Whether an enrichment cascade carries provider error text. The blob is schemaless JSONB,
- * so it is read as defensively as the v2 presenter projects it.
+ * Run-state and enrichment error text is captured from executor output, which can hold resolved
+ * secret plaintext, and nothing records its provenance, so Chat sees that an error occurred but
+ * not its text. Every other caller sees the text unchanged.
  */
-function enrichmentDetailHasErrorText(detail: EnrichmentRunDetail | null): boolean {
+const WITHHELD_ERROR_TEXT =
+  'Error details are not shown to Chat: they were captured from run output, which can hold secret values.'
+
+function withoutErrorText(execution: RowExecutionMetadata): RowExecutionMetadata {
+  return {
+    ...execution,
+    ...(execution.error ? { error: WITHHELD_ERROR_TEXT } : {}),
+    ...(execution.blockErrors
+      ? {
+          blockErrors: Object.fromEntries(
+            Object.keys(execution.blockErrors).map((blockId) => [blockId, WITHHELD_ERROR_TEXT])
+          ),
+        }
+      : {}),
+  }
+}
+
+function runStateForReader(principal: Principal, executions: RowExecutions): RowExecutions {
+  if (!mustClassifyContent(principal)) return executions
+  return Object.fromEntries(
+    Object.entries(executions).map(([groupId, execution]) => [groupId, withoutErrorText(execution)])
+  )
+}
+
+function rowsForReader(principal: Principal, rows: TableRow[]): TableRow[] {
+  if (!mustClassifyContent(principal)) return rows
+  return rows.map((row) =>
+    row.executions ? { ...row, executions: runStateForReader(principal, row.executions) } : row
+  )
+}
+
+/** The enrichment blob is schemaless JSONB, so it is read as defensively as the v2 presenter does. */
+function enrichmentDetailForReader(
+  principal: Principal,
+  detail: EnrichmentRunDetail | null
+): EnrichmentRunDetail | null {
   const providers: unknown = detail?.providers
-  if (!Array.isArray(providers)) return false
-  return providers.some((provider) => isNonEmptyText(toRecord(provider).error))
+  if (!detail || !Array.isArray(providers) || !mustClassifyContent(principal)) return detail
+  return {
+    ...detail,
+    providers: providers.map((provider) =>
+      typeof toRecord(provider).error === 'string'
+        ? { ...toRecord(provider), error: WITHHELD_ERROR_TEXT }
+        : provider
+    ),
+  }
 }
 
 function requestId(input: TableScopedInput): string {
@@ -471,6 +524,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
   async execute({ principal, input, context }): Promise<ListTableRowsResult> {
     requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId)
     )
@@ -490,14 +544,10 @@ export const listTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         readProvenance
       )
-      await deliverRowsProvenance(readProvenance, result.rows, {
-        unprovenancedErrorText:
-          input.includeRunState === true &&
-          result.rows.some((row) => runStateHasErrorText(row.executions)),
-      })
+      const rows = await deliverRows(principal, readProvenance, result.rows)
       return {
         table: context.table,
-        rows: result.rows,
+        rows: rowsForReader(principal, rows),
         nextCursor: result.nextCursor,
       }
     } catch (error) {
@@ -537,6 +587,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<QueryTableRowsResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
@@ -618,15 +669,15 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         readProvenance
       )
+      const rows = await deliverRows(principal, readProvenance, result.rows)
       return {
         table: context.table,
         ...result,
-        secretProvenance: await deliverRowsProvenance(readProvenance, result.rows, {
-          include: input.includePersistedSecretProvenance,
-          unprovenancedErrorText:
-            input.includeRunState === true &&
-            result.rows.some((row) => runStateHasErrorText(row.executions)),
-        }),
+        rowCount: isCopilotPrincipal(principal) ? rows.length : result.rowCount,
+        rows: rowsForReader(principal, rows),
+        ...(input.includePersistedSecretProvenance && readProvenance
+          ? { secretProvenance: readProvenance.exportProvenance(rows.map((row) => row.id)) }
+          : {}),
       }
     } catch (error) {
       rethrowQueryValidation(error)
@@ -692,6 +743,7 @@ export const readTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
@@ -708,14 +760,16 @@ export const readTableRow = defineAuthorizedTableUseCase({
           budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         })
       : undefined
+    if ((await deliverRows(principal, readProvenance, [row])).length === 0) {
+      throw new ContentRefusedError('table-row')
+    }
     return {
       table: context.table,
       row,
-      ...(runState ? { runState } : {}),
-      secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
-        include: input.includePersistedSecretProvenance,
-        unprovenancedErrorText: runState !== undefined && runStateHasErrorText(runState),
-      }),
+      ...(runState ? { runState: runStateForReader(principal, runState) } : {}),
+      ...(input.includePersistedSecretProvenance && readProvenance
+        ? { secretProvenance: readProvenance.exportProvenance() }
+        : {}),
     }
   },
 })
@@ -753,6 +807,7 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
     resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<ReadTableRowEnrichmentResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId)
     )
@@ -774,17 +829,15 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
       loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
     ])
     const runState = executions[input.groupId] ?? null
-    await deliverRowsProvenance(readProvenance, [row], {
-      unprovenancedErrorText:
-        (runState !== null && executionHasErrorText(runState)) ||
-        enrichmentDetailHasErrorText(detail),
-    })
+    if ((await deliverRows(principal, readProvenance, [row])).length === 0) {
+      throw new ContentRefusedError('table-row')
+    }
     return {
       table: context.table,
       row,
       group,
-      runState,
-      detail,
+      runState: runState && mustClassifyContent(principal) ? withoutErrorText(runState) : runState,
+      detail: enrichmentDetailForReader(principal, detail),
     }
   },
 })
@@ -830,6 +883,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: CreateTableRowsInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<CreateTableRowsResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
@@ -878,13 +932,14 @@ export const createTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         writeOptions
       )
+      await deliverRows(principal, readProvenance, [row], { written: true })
       return {
         kind: 'single',
         table: context.table,
         row,
-        secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
-          include: input.includePersistedSecretProvenance,
-        }),
+        ...(input.includePersistedSecretProvenance && readProvenance
+          ? { secretProvenance: readProvenance.exportProvenance() }
+          : {}),
       }
     }
     if (input.rows.length < 1 || input.rows.length > TABLE_LIMITS.MAX_BATCH_INSERT_SIZE) {
@@ -933,13 +988,14 @@ export const createTableRows = defineAuthorizedTableUseCase({
       requestId(input),
       batchWriteOptions
     )
+    await deliverRows(principal, readProvenance, created, { written: true })
     return {
       kind: 'batch',
       table: context.table,
       rows: created,
-      secretProvenance: await deliverRowsProvenance(readProvenance, created, {
-        include: input.includePersistedSecretProvenance,
-      }),
+      ...(input.includePersistedSecretProvenance && readProvenance
+        ? { secretProvenance: readProvenance.exportProvenance() }
+        : {}),
     }
   },
   projectAudit: ({ context, result }) => {
@@ -950,6 +1006,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Inserted ${inserted} row(s) into table "${context.table.name}"`,
       metadata: {
         op: result.kind === 'single' ? 'insert' : 'batch_insert',
@@ -1019,6 +1076,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Replaced rows in table "${context.table.name}"`,
       metadata: {
         op: 'replace_rows',
@@ -1191,6 +1249,7 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: result.table.id,
       resourceName: result.table.name,
+      executionRollup: rowChangeRollup(result.table.name),
       description: `Replaced rows in table "${result.table.name}"`,
       metadata: {
         op: 'replace_projected_rows',
@@ -1244,6 +1303,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
@@ -1271,13 +1331,14 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       { ...rowWriteOptions(input), readProvenance }
     )
     if (!row) throw new Error('Unconditional table row update was rejected')
+    await deliverRows(principal, readProvenance, [row], { written: true })
     return {
       table: context.table,
       row,
       changed: Object.keys(data).length > 0,
-      secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
-        include: input.includePersistedSecretProvenance,
-      }),
+      ...(input.includePersistedSecretProvenance && readProvenance
+        ? { secretProvenance: readProvenance.exportProvenance() }
+        : {}),
     }
   },
   projectAudit: ({ context, result }) => {
@@ -1287,6 +1348,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated a row in table "${context.table.name}"`,
       metadata: { op: 'update', rowId: result.row.id, rowsUpdated: 1 },
     }
@@ -1327,10 +1389,15 @@ export const updateTableRows = defineAuthorizedTableUseCase({
         input,
         storageData: data,
       })
+      const filter = tableFilterToStorage(
+        input.filter,
+        context.table,
+        input.filterKeying ?? 'names'
+      )
       const result = await updateRowsByFilter(
         context.table,
         {
-          filter: tableFilterToStorage(input.filter, context.table, input.filterKeying ?? 'names'),
+          filter,
           data,
           limit: input.limit,
           actorUserId: actorUserId(principal, context.billedAccountUserId),
@@ -1352,6 +1419,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
       metadata: { op: 'update_by_filter', rowsUpdated: result.affectedCount },
     }
@@ -1458,6 +1526,7 @@ export const batchUpdateTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: context.tableId,
       resourceName: context.table.name,
+      executionRollup: rowChangeRollup(context.table.name),
       description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
       metadata: { op: 'batch_update', rowsUpdated: result.affectedCount },
     }
@@ -1489,6 +1558,7 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     resourceType: AuditResourceType.TABLE,
     resourceId: context.tableId,
     resourceName: context.table.name,
+    executionRollup: rowChangeRollup(context.table.name),
     description: `Deleted a row from table "${context.table.name}"`,
     metadata: { op: 'delete', rowId: result.deletedRowId, rowsDeleted: 1 },
   }),
@@ -1535,10 +1605,15 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
+      const filter = tableFilterToStorage(
+        input.filter,
+        context.table,
+        input.filterKeying ?? 'names'
+      )
       const result = await deleteRowsByFilter(
         context.table,
         {
-          filter: tableFilterToStorage(input.filter, context.table, input.filterKeying ?? 'names'),
+          filter,
           limit: input.limit,
         },
         requestId(input)
@@ -1556,6 +1631,7 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
       resourceType: AuditResourceType.TABLE,
       resourceId: result.table.id,
       resourceName: result.table.name,
+      executionRollup: rowChangeRollup(result.table.name),
       description: `Deleted ${affected} row(s) from table "${result.table.name}"`,
       metadata: {
         op: 'bulk_delete',
@@ -1594,6 +1670,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: UpsertTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpsertTableRowResult> {
     const readProvenance = createAuthorizedRowsProvenanceReader(
+      principal,
       context.workspaceId,
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
@@ -1626,13 +1703,14 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       requestId(input),
       { ...rowWriteOptions(input), readProvenance }
     )
+    await deliverRows(principal, readProvenance, [result.row], { written: true })
     return {
       table: context.table,
       row: result.row,
       operation: result.operation,
-      secretProvenance: await deliverRowsProvenance(readProvenance, [result.row], {
-        include: input.includePersistedSecretProvenance,
-      }),
+      ...(input.includePersistedSecretProvenance && readProvenance
+        ? { secretProvenance: readProvenance.exportProvenance() }
+        : {}),
     }
   },
   projectAudit: ({ context, result }) => ({
@@ -1640,6 +1718,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
     resourceType: AuditResourceType.TABLE,
     resourceId: context.tableId,
     resourceName: context.table.name,
+    executionRollup: rowChangeRollup(context.table.name),
     description: `${result.operation === 'insert' ? 'Inserted' : 'Updated'} a row in table "${context.table.name}"`,
     metadata: {
       op: 'upsert',

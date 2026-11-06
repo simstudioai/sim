@@ -22,7 +22,11 @@ import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -585,7 +589,9 @@ export const sakanaProvider: ProviderConfig = {
           }
         }
       } catch (error) {
-        logger.error('Error in Sakana request:', { error })
+        logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Sakana request:', {
+          error,
+        })
         throw error
       }
 
@@ -717,7 +723,7 @@ export const sakanaProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Sakana request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Sakana request:', {
         error,
         duration: totalDuration,
       })

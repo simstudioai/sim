@@ -14,7 +14,6 @@ import { excludeTableBlockInputRules } from '@/app/workspace/[workspaceId]/files
  */
 export function createJoiningOrderedList() {
   const delimiters = new WeakMap<JSONContent, '.' | ')'>()
-  const parse = OrderedList.config.parseMarkdown
 
   return OrderedList.extend({
     addInputRules() {
@@ -22,8 +21,8 @@ export function createJoiningOrderedList() {
         joinListInputRules(this.parent?.() ?? [], this.type, { compatible: orderedListContinues })
       )
     },
-    parseMarkdown: (token, helpers) => {
-      if (!token.ordered || !token.items?.length) return parse?.(token, helpers) ?? []
+    parseMarkdown(token, helpers) {
+      if (!token.ordered || !token.items?.length) return this.parent?.(token, helpers) ?? []
 
       /**
        * The upstream tokenizer retains each item's raw marker but ignores delimiter changes.
@@ -61,7 +60,7 @@ export function createJoiningOrderedList() {
           ),
         })),
       }
-      const parsedList = parse?.(resolved, helpers) ?? []
+      const parsedList = this.parent?.(resolved, helpers) ?? []
       if (Array.isArray(parsedList)) return parsedList
       /** Use the registered item parser so empty items retain their schema-required paragraph. */
       const parsed = { ...parsedList, content: helpers.parseChildren(resolved.items) }

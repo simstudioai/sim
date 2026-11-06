@@ -3,7 +3,7 @@ import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-
 import { submitPulseParse } from '@/lib/internal/pulse/client'
 import { PulseOperationError } from '@/lib/internal/pulse/errors'
 import type { PulseParseInput } from '@/lib/internal/pulse/input'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 
 const logger = createLogger('PulseOperations')
 

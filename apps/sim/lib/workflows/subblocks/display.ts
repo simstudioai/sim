@@ -12,7 +12,7 @@ import { parseFolderPath } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { FilterRule, SortRule } from '@/lib/table/types'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 

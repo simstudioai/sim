@@ -227,15 +227,17 @@ export class RateLimiter {
   }
 
   /**
-   * Consume one token from an already-namespaced bucket and propagate storage
-   * failures. Declarative API adapters use this for credential/workspace
-   * buckets so an unavailable limiter is never mistaken for spare capacity.
+   * Consume tokens (one by default) from an already-namespaced bucket and
+   * propagate storage failures. Declarative API adapters use this for
+   * credential/workspace buckets so an unavailable limiter is never mistaken
+   * for spare capacity.
    */
   async checkRateLimitDirectOrThrow(
     storageKey: string,
-    config: { maxTokens: number; refillRate: number; refillIntervalMs: number }
+    config: { maxTokens: number; refillRate: number; refillIntervalMs: number },
+    tokens = 1
   ): Promise<RateLimitResult> {
-    const result = await this.storage.consumeTokens(storageKey, 1, config)
+    const result = await this.storage.consumeTokens(storageKey, tokens, config)
     if (!result.allowed) {
       logger.info('Rate limit exceeded', { storageKey, tokensRemaining: result.tokensRemaining })
     }

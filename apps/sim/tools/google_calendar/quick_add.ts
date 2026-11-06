@@ -201,7 +201,7 @@ export const quickAddV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_quick_add_v2',
   name: 'Google Calendar Quick Add',
-  description: 'Create events from natural language text. Returns API-aligned fields only.',
+  description: 'Create events from natural language text.',
   version: '2.0.0',
   oauth: quickAddTool.oauth,
   params: quickAddTool.params,

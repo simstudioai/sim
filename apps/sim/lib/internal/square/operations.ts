@@ -7,8 +7,8 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import type { SquareCatalogImageInput } from '@/lib/internal/square/schema'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { SQUARE_API_VERSION, SQUARE_BASE_URL } from '@/tools/square/types'
 

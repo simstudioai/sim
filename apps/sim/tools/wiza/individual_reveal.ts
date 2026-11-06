@@ -76,7 +76,7 @@ export const wizaIndividualRevealTool: ToolConfig<
   id: 'wiza_individual_reveal',
   name: 'Wiza Individual Reveal',
   description:
-    'Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.',
+    'Reveal a contact by LinkedIn URL, name plus company/domain, or email. Starts the reveal and polls at two-second intervals for up to 60 attempts, failing if it remains incomplete. Wiza charges 2 credits for a valid email, 5 for a phone, or 1 for a matched profile-only reveal.',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 

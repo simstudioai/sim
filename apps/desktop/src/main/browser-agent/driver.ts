@@ -81,6 +81,11 @@ import {
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import {
+  appLaunchNoticeForContents,
+  pagePromptForContents,
+  respondToPagePrompt,
+} from '@/main/browser-agent/page-prompts'
 import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
 import {
   withFailedPostActionObservation,
@@ -457,6 +462,11 @@ function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol)
   activeBrowserToolAdmissions.delete(admission)
 }
 
+/** Whether any chat has a browser action queued or running in this process. */
+export function isBrowserToolRunning(): boolean {
+  return activeBrowserToolAdmissions.size > 0 || pendingBrowserToolQueueBoundaries.size > 0
+}
+
 function retireDriverScopeState(state: DriverScopeState): void {
   state.disposed = true
   state.toolQueueCancellationEpoch++
@@ -555,6 +565,8 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
   const dialog = session.pageDialogForContents(contents)
+  const prompt = pagePromptForContents(contents)
+  const appLaunchNotice = appLaunchNoticeForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -566,6 +578,8 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
     ...(dialog ? { dialog } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(appLaunchNotice ? { appLaunchNotice } : {}),
   }
 }
 
@@ -804,6 +818,7 @@ export function initDriver(
         })
       },
       onDownloadsChanged: (state) => callbacks.onDownloadsChanged?.(state),
+      onAgentNotice: recordNotice,
     },
     getMainWindow,
     persistence,
@@ -1799,6 +1814,34 @@ function navigationRescue(
     effect: { urlChanged: true },
     dialogs: [],
     note: 'The click triggered a page navigation, and the origin document was torn down before its result could be read — that teardown is why no postconditions are reported, not a failure. Take a fresh browser_snapshot of the new page.',
+  }
+}
+
+/**
+ * The tab closed while the click's final release was in flight (cdp.clickAt raises
+ * TabClosedOnReleaseError only then). Whether the release reached the page cannot be confirmed,
+ * so the result reports the tab change but not the click's effect, and forbids a repeat. Any other
+ * dispatch failure keeps its own error.
+ */
+function closedTabRescue(
+  error: unknown,
+  base: { trusted: boolean; activation: string }
+): Record<string, unknown> | null {
+  if (!(error instanceof cdp.TabClosedOnReleaseError)) return null
+  const activeTab = session.automationTab()
+  return {
+    dispatched: true,
+    trusted: base.trusted,
+    activation: base.activation,
+    possibleEffectObserved: true,
+    closedDuringDispatch: true,
+    doNotRetry: true,
+    effect: { tabChanged: true },
+    dialogs: [],
+    ...(activeTab
+      ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
+      : {}),
+    note: "The tab closed while the click's release was in flight, so the click's outcome could not be confirmed. Do not repeat the click; verify the outcome with browser_snapshot before relying on it.",
   }
 }
 
@@ -3296,10 +3339,10 @@ async function executeToolInner(
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
-          const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-            trusted: true,
-            activation: 'native-pointer',
-          })
+          const nativePointer = { trusted: true, activation: 'native-pointer' }
+          const rescued =
+            navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+            closedTabRescue(error, nativePointer)
           if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -3338,10 +3381,10 @@ async function executeToolInner(
             activation = 'native-pointer'
             prepared = finalSurface
           } catch (error) {
-            const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
-              trusted: true,
-              activation: 'native-pointer',
-            })
+            const nativePointer = { trusted: true, activation: 'native-pointer' }
+            const rescued =
+              navigationRescue(contents, epochAtDispatch, urlAtDispatch, nativePointer) ??
+              closedTabRescue(error, nativePointer)
             if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -4763,10 +4806,10 @@ async function executeToolInner(
       try {
         await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
-        const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
-          trusted: true,
-          activation: 'native-pointer',
-        })
+        const nativePointer = { trusted: true, activation: 'native-pointer' }
+        const rescued =
+          navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, nativePointer) ??
+          closedTabRescue(error, nativePointer)
         if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
@@ -5472,6 +5515,11 @@ export async function handlePanelAction(
     }
     if (action.action === 'enable-page-dialogs') {
       session.enablePageDialogs()
+      if (action.pagePrompts === true) session.enablePagePrompts()
+      return
+    }
+    if (action.action === 'respond-prompt') {
+      respondToPagePrompt(session.getBrowserScopeId(), action)
       return
     }
     if (action.action === 'respond-dialog') {

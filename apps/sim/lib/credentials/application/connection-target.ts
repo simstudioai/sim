@@ -12,7 +12,7 @@ import {
 import { getWorkspaceCredential } from '@/lib/credentials/queries'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ResolvedCredentialConnectionTarget {
   provider: OAuthCredentialProviderCatalogEntry

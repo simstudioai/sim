@@ -13,6 +13,8 @@ interface ReplacementControlsProps {
   canReplaceActive: boolean
   canReplaceAll: boolean
   onReplacementChange: (replacement: string) => void
+  /** Hears what is typed in the resource picker, which file options are searched by. */
+  onReplacementSearchChange: (query: string) => void
   onReplaceActive: () => void
   onReplaceAll: () => void
 }
@@ -27,6 +29,7 @@ export function ReplacementControls({
   canReplaceActive,
   canReplaceAll,
   onReplacementChange,
+  onReplacementSearchChange,
   onReplaceActive,
   onReplaceAll,
 }: ReplacementControlsProps) {
@@ -42,6 +45,7 @@ export function ReplacementControls({
           onChange={onReplacementChange}
           placeholder='Choose replacement...'
           searchable
+          onSearchChange={onReplacementSearchChange}
           searchPlaceholder='Search resources...'
           emptyMessage='No valid replacements available'
           disabled={disabled || compatibleResourceOptions.length === 0}
@@ -55,13 +59,13 @@ export function ReplacementControls({
         />
       )}
 
-      <div className='flex @max-[960px]/workflow:flex-wrap items-center justify-between gap-2'>
+      <div className='flex items-center justify-between gap-2 max-md:flex-wrap'>
         <span className='text-[var(--text-muted)] text-xs'>
           {eligibleCount} replaceable match{eligibleCount === 1 ? '' : 'es'}
         </span>
-        <div className='@max-[960px]/workflow:ml-auto flex shrink-0 gap-1.5'>
+        <div className='flex shrink-0 gap-1.5 max-md:ml-auto'>
           <Button
-            className='h-8 @max-[960px]/workflow:pointer-coarse:min-h-11 text-xs'
+            className='h-8 text-xs max-md:pointer-coarse:min-h-11'
             variant='default'
             disabled={disabled || isApplying || !canReplaceActive}
             onClick={onReplaceActive}
@@ -69,7 +73,7 @@ export function ReplacementControls({
             Replace
           </Button>
           <Button
-            className='h-8 @max-[960px]/workflow:pointer-coarse:min-h-11 text-xs'
+            className='h-8 text-xs max-md:pointer-coarse:min-h-11'
             variant='active'
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}

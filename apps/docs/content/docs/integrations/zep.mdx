@@ -1,31 +1,29 @@
 ---
 title: Zep
 description: Long-term memory for AI agents
+integration:
+  type: "zep"
+  color: "#E8E8E8"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zep"
-  color="#E8E8E8"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zep](https://getzep.com) to manage users, conversation threads, messages, and retrieved context across workflow runs. Add messages after an interaction, then retrieve user context for a later agent step.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.
-
-
 
 ## Actions
 
 ### Create Thread
 
 Start a new conversation thread in Zep
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +43,13 @@ Start a new conversation thread in Zep
 | `createdAt` | string | Creation timestamp \(ISO 8601\) |
 | `projectUuid` | string | Project UUID |
 
+</ReferenceDetails>
+
 ### Get Threads
 
 List all conversation threads
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +76,13 @@ List all conversation threads
 | `responseCount` | number | Number of items in this response |
 | `totalCount` | number | Total number of items available |
 
+</ReferenceDetails>
+
 ### Delete Thread
 
 Delete a conversation thread from Zep
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +97,13 @@ Delete a conversation thread from Zep
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the thread was deleted |
 
+</ReferenceDetails>
+
 ### Get User Context
 
 Retrieve user context from a thread with summary or basic mode
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,9 +120,13 @@ Retrieve user context from a thread with summary or basic mode
 | --------- | ---- | ----------- |
 | `context` | string | The context string \(summary or basic mode\) |
 
+</ReferenceDetails>
+
 ### Get Messages
 
 Retrieve messages from a thread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -140,9 +154,13 @@ Retrieve messages from a thread
 | `rowCount` | number | Number of rows returned |
 | `totalCount` | number | Total number of items available |
 
+</ReferenceDetails>
+
 ### Add Messages
 
 Add messages to an existing thread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -160,9 +178,13 @@ Add messages to an existing thread
 | `added` | boolean | Whether messages were added successfully |
 | `messageIds` | array | Array of added message UUIDs |
 
+</ReferenceDetails>
+
 ### Add User
 
 Create a new user in Zep
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +209,13 @@ Create a new user in Zep
 | `createdAt` | string | Creation timestamp \(ISO 8601\) |
 | `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
+</ReferenceDetails>
+
 ### Get User
 
 Retrieve user information from Zep
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +237,13 @@ Retrieve user information from Zep
 | `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
+</ReferenceDetails>
+
 ### Get User Threads
 
 List all conversation threads for a specific user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,5 +266,7 @@ List all conversation threads for a specific user
 |   ↳ `projectUuid` | string | Project UUID |
 |   ↳ `metadata` | object | Custom metadata \(dynamic key-value pairs\) |
 | `totalCount` | number | Total number of items available |
+
+</ReferenceDetails>
 
 

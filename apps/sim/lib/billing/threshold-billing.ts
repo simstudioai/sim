@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -343,7 +343,7 @@ export async function checkAndBillOverageThreshold(
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
     const totalOverageCents = Math.round(currentOverage * 100)
 
-    const billedResult = await db.transaction(
+    const billedResult = await dbFor('billing').transaction(
       async (tx): Promise<InternalThresholdSettlementResult> => {
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
@@ -678,7 +678,7 @@ async function checkAndBillOrganizationOverageThreshold(
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
     const totalOverageCents = Math.round(currentOverage * 100)
 
-    const orgBilledResult = await db.transaction(
+    const orgBilledResult = await dbFor('billing').transaction(
       async (
         tx
       ): Promise<

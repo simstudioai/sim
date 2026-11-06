@@ -1,15 +1,17 @@
+import { LIST_RULESETS_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListRulesetsParams,
   CloudflareListRulesetsResponse,
-  CloudflareRawRuleset,
 } from '@/tools/cloudflare/types'
 import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listRulesetsTool: ToolConfig<
   CloudflareListRulesetsParams,
@@ -52,7 +54,7 @@ export const listRulesetsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets`
       )
       appendParam(url, 'per_page', params.per_page)
       appendParam(url, 'cursor', params.cursor)
@@ -63,69 +65,38 @@ export const listRulesetsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawRuleset[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { rulesets: [], total_count: 0, cursor: null },
-        error: cloudflareErrorMessage(data, 'Failed to list rulesets'),
-      }
-    }
-
-    const rulesets = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        rulesets: rulesets.map((ruleset) => ({
-          id: ruleset.id ?? '',
-          name: ruleset.name ?? '',
-          description: ruleset.description ?? '',
-          kind: ruleset.kind ?? '',
-          phase: ruleset.phase ?? '',
-          version: ruleset.version ?? null,
-          last_updated: ruleset.last_updated ?? null,
-        })),
-        total_count: rulesets.length,
+        rulesets: rows.map((row) => mapCloudflareFields(row, LIST_RULESETS_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
         cursor: data.result_info?.cursors?.after ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list rulesets') } : {}),
     }
   },
-
   outputs: {
     rulesets: {
       type: 'array',
-      description: 'Rulesets defined on the zone',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Ruleset identifier' },
-          name: { type: 'string', description: 'Ruleset name' },
-          description: { type: 'string', description: 'Ruleset description' },
-          kind: {
-            type: 'string',
-            description: 'Ruleset kind (managed, custom, root, or zone)',
-          },
-          phase: {
-            type: 'string',
-            description:
-              'Phase the ruleset runs in (e.g., http_request_firewall_custom, http_request_firewall_managed, http_ratelimit)',
-          },
-          version: { type: 'string', description: 'Ruleset version', optional: true },
-          last_updated: {
-            type: 'string',
-            description: 'RFC 3339 timestamp of the last change',
-            optional: true,
-          },
-        },
-      },
+      description: 'Rulesets',
+      items: { type: 'object', properties: LIST_RULESETS_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Number of rulesets returned on this page' },
-    cursor: {
-      type: 'string',
-      description: 'Cursor to pass to the next call to read the following page, when more remain',
-      optional: true,
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
     },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
+    cursor: { type: 'string', description: 'Cursor for the next page', nullable: true },
   },
 }

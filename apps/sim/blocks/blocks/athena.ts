@@ -17,7 +17,7 @@ export const AthenaBlock: BlockConfig = {
   name: 'Athena',
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
   longDescription:
-    'Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
+    'Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/athena',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

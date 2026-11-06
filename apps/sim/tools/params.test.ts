@@ -1,3 +1,4 @@
+import Ajv from 'ajv'
 import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
@@ -186,9 +187,40 @@ describe('Tool Parameters Utils', () => {
       const { schema } = await createLLMToolSchema(legacyJsonTool, {})
 
       expect(schema.properties.payload).toEqual({
-        type: 'object',
         description: 'Legacy JSON array payload',
       })
+    })
+
+    it('lets a json or any param take an array as well as an object', async () => {
+      const untypedTool = {
+        ...mockToolConfig,
+        id: 'untyped_tool',
+        params: {
+          orgIds: {
+            type: 'json',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Organization IDs, e.g. [129410, 1034157]',
+          },
+          value: {
+            type: 'any',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
+        },
+      }
+
+      const { schema: llmSchema } = await createLLMToolSchema(untypedTool, {})
+      const userSchema = createUserToolSchema(untypedTool, { surface: 'copilot' })
+
+      for (const schema of [llmSchema, userSchema]) {
+        const validate = new Ajv({ strict: false }).compile(schema)
+        expect(validate({ orgIds: [129410, 1034157], value: ['a'] })).toBe(true)
+        expect(validate({ orgIds: { id: 129410 }, value: { a: 1 } })).toBe(true)
+        expect(schema.properties.orgIds.description).toBe(
+          'Organization IDs, e.g. [129410, 1034157]'
+        )
+      }
     })
 
     it.concurrent('should create schema excluding user-provided parameters', async () => {

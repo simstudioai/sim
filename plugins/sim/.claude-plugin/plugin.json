@@ -1,0 +1,21 @@
+{
+  "name": "sim",
+  "displayName": "Sim",
+  "version": "1.0.0",
+  "description": "Connect to Sim, the open-source AI workspace, to build, deploy, and manage AI agents: run workflows and work with tables, knowledge bases, files, and logs.",
+  "author": {
+    "name": "Sim",
+    "url": "https://www.sim.ai"
+  },
+  "homepage": "https://docs.sim.ai/mcp/overview",
+  "repository": "https://github.com/simstudioai/sim",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "ai-agents", "workflows"],
+  "icon": "./assets/logo.png",
+  "mcpServers": {
+    "sim": {
+      "type": "http",
+      "url": "https://mcp.sim.ai/mcp"
+    }
+  }
+}

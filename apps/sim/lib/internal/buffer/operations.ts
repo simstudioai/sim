@@ -8,8 +8,8 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { BufferOperationError } from '@/lib/internal/buffer/errors'
 import type { BufferCreatePostInput, BufferEditPostInput } from '@/lib/internal/buffer/input'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 import { parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,

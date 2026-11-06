@@ -54,7 +54,7 @@ const input = { organizationId: 'org', userId: 'target-user', role: 'admin' } as
 beforeEach(() => {
   resetDbChainMock()
   mocks.scim.mockResolvedValue(undefined)
-  mocks.change.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+  mocks.change.mockResolvedValue({ changed: true, from: 'member', to: 'admin', stoppedRuns: [] })
 })
 describe('organization role update', () => {
   it.each(['owner', 'admin'])(

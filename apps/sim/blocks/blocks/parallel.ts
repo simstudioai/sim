@@ -6,8 +6,7 @@ export const ParallelBlock: BlockConfig = {
   name: 'Parallel AI',
   description: 'Web research with Parallel AI',
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.',
+  longDescription: 'Search the web, extract information from URLs, and conduct deep research.',
   docsLink: 'https://docs.sim.ai/integrations/parallel_ai',
   category: 'tools',
   integrationType: IntegrationType.Search,

@@ -43,7 +43,7 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { loadManagedCredentialGroupBinding } from '@/lib/credential-groups/credentials'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
@@ -58,7 +58,7 @@ import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { slackConnector } from '@/connectors/slack/slack'
 import type { ExternalDocument } from '@/connectors/types'
 

@@ -6,21 +6,25 @@ import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { IdempotencyService } from '@/lib/core/idempotency/service'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { decompressArchiveBufferToWorkspaceFiles, MAX_ARCHIVE_BYTES } from '@/lib/uploads/archive'
+import {
+  archiveFolderName,
+  decompressArchiveBufferToWorkspaceFiles,
+  MAX_ARCHIVE_BYTES,
+} from '@/lib/uploads/archive'
 import {
   archiveWorkspaceFileFolderIfEmpty,
   createWorkspaceFileFolder,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { isArchiveFileName } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('ExtractWorkspaceFile')
@@ -72,16 +76,6 @@ type ExtractWorkspaceFileUseCaseContext = AuthorizedWorkspaceUseCaseContext<
   ExtractWorkspaceFileInput,
   ActiveWorkspaceFileContext
 >
-
-function archiveFolderName(fileName: string): string {
-  const stripped = fileName
-    .replace(/\.zip$/i, '')
-    .normalize('NFC')
-    .replace(/[\x00-\x1f\x7f]/g, '')
-    .replace(/[/\\]/g, '-')
-    .trim()
-  return stripped && stripped !== '.' && stripped !== '..' ? stripped : 'archive'
-}
 
 async function withExtractionLease<T>(
   workspaceId: string,

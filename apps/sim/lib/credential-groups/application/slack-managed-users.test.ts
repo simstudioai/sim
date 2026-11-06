@@ -31,7 +31,7 @@ vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrga
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   createSlackManagedUsersAttempt: hoisted.create,

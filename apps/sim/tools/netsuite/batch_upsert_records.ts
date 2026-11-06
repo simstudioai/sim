@@ -1,5 +1,5 @@
 import type { NetSuiteBatchWriteParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -12,6 +12,7 @@ export const netsuiteBatchUpsertRecordsTool: InternalToolConfig<
   description:
     'Submit an asynchronous batch that creates or updates up to 100 records by external ID.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

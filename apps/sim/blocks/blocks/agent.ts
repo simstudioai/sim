@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
-import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -470,12 +468,7 @@ Return ONLY the JSON array.`,
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
-        const withFiles = normalizedFiles ? { ...params, files: normalizedFiles } : params
-        const fallbackModels = normalizeFallbackModels(params.fallbackModels)
-        const baseParams =
-          fallbackModels.length > 0
-            ? { ...withFiles, fallbackModels }
-            : omit(withFiles, ['fallbackModels'])
+        const baseParams = normalizedFiles ? { ...params, files: normalizedFiles } : params
 
         // If tools array is provided, handle tool usage control
         if (params.tools && Array.isArray(params.tools)) {

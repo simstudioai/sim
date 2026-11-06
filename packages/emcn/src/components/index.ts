@@ -44,7 +44,7 @@ export {
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
 export { ChipEmailsInput } from './chip-emails-input/chip-emails-input'
-export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export { ChipInput } from './chip-input/chip-input'
 export {
   ChipConfirmModal,
   type ChipConfirmTextSegment,
@@ -86,6 +86,7 @@ export { ComposerActionButton } from './composer-action-button/composer-action-b
 export { DetailsPanel } from './details-panel/details-panel'
 export {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemAction,
@@ -112,7 +113,6 @@ export {
   InfoCardList,
 } from './info-card/info-card'
 export { Input } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox } from './lightbox/lightbox'
 export {

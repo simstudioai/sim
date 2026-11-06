@@ -1,7 +1,9 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import type { ToolActivity, TurnOrigin } from '@/lib/mothership/generated/protocol'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
@@ -38,6 +40,8 @@ export interface SendPayload {
 
 export interface QueuedMessage extends SendPayload {
   id: string
+  /** Recovery dropped invalid contexts; the user must review the message before sending. */
+  hasUnavailableContexts?: boolean
   /**
    * An earlier attempt at this message got no answer, so the server may
    * already hold it as sent. It goes out exactly as written, under that
@@ -72,6 +76,8 @@ export interface ToolCallData {
   displayTitle: string
   activityDescription?: string
   status: ToolCallStatus
+  /** Display grouping, held beside `params`. */
+  activity?: ToolActivity
   params?: Record<string, unknown>
   result?: ToolCallResult
   streamingArgs?: string
@@ -88,6 +94,8 @@ export interface ToolCallInfo {
   activityDescription?: string
   /** Model-authored activity phrase for a gateway-resolved integration call. */
   integrationDescription?: string
+  /** Display grouping, held beside `params`; older history carries it in `params.activity`. */
+  activity?: ToolActivity
   params?: Record<string, unknown>
   calledBy?: string
   result?: ToolCallResult
@@ -155,6 +163,7 @@ export interface ChatMessageAttachment {
 export interface ChatMessageContext {
   kind: ChatContextKind
   label: string
+  snapshot?: PageSnapshot
   workflowId?: string
   knowledgeId?: string
   tableId?: string
@@ -187,13 +196,15 @@ export interface ChatMessageContext {
 
 export interface ChatMessage {
   id: string
+  streamId?: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
-  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
-  origin?: 'task'
+  /** Automation opened this turn, not the user: a system chip, not a bubble. */
+  origin?: TurnOrigin
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
+  fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatMessageContext[]
   requestId?: string
 }

@@ -43,7 +43,7 @@ vi.mock('@/lib/billing/enterprise-provisioning', () => {
     retryEnterpriseProvisioning: hoisted.retryProvisioning,
   }
 })
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
   createOrganizationWithOwnerTx: hoisted.createOrganization,
 }))

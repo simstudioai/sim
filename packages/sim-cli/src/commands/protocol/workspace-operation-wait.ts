@@ -1,6 +1,7 @@
 import { sleep } from '@sim/utils/helpers'
 import type { Command } from 'commander'
 import { CLI_CONTRACT } from '../../contract/commands'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import type { GetWorkspaceOperationResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
@@ -55,7 +56,7 @@ export function assertWorkspaceOperationOutcome(
   report: WorkspaceOperation,
   timedOut = false
 ): void {
-  const exitCode = timedOut ? 4 : EXIT_CODES[report.status]
+  const exitCode = timedOut ? STILL_RUNNING_EXIT_CODE : EXIT_CODES[report.status]
   if (!exitCode) return
   throw new SimApiError(
     timedOut
@@ -165,10 +166,12 @@ export function attachWorkspaceOperationWait(operations: Command): void {
   wait
     .argument('<operationId>', 'Operation ID returned by import, fork, push, or pull')
     .allowExcessArguments(false)
-    .description(
-      'Wait for copy and deployment readiness; exit 3 for configuration, 1 for failure, or 4 for timeout'
-    )
+    .description('Wait for workspace copy and deployment readiness')
     .option('--wait-timeout <seconds>', 'Maximum total wait (default 3600; 0 waits indefinitely)')
+    .addHelpText(
+      'after',
+      'Exit codes: 0 completed (including completion with warnings), 1 follow-up work failed, 3 destination configuration is required, 4 timed out. The mutation may already be committed; reconcile using the same operation or request ID rather than repeating it with a new ID.'
+    )
     .action(async (operationId: string, options: { waitTimeout?: string }) => {
       const timeout = workspaceWaitTimeout(options.waitTimeout)
       const { client, profile } = connectWait()

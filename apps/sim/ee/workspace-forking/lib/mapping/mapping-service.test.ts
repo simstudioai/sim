@@ -48,7 +48,7 @@ vi.mock('@/lib/workflows/references/remap-references', () => ({
   scanWorkflowReferences: mockScanWorkflowReferences,
 }))
 
-vi.mock('@/lib/workflows/references/reference-scan', () => ({
+vi.mock('@/lib/workflows/references/scan', () => ({
   toScannerBlocks: vi.fn((state: unknown) => state),
 }))
 

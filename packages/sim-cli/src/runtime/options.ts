@@ -6,6 +6,7 @@ import {
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
+  otherSpellings,
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
   takesJson,
@@ -28,6 +29,7 @@ const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listOrganizationMembers',
   'listOrganizationWorkspaces',
   'listFiles',
+  'listProjectFiles',
   'listKnowledgeBases',
   'listKnowledgeConnectors',
   'listMcpServers',
@@ -162,13 +164,19 @@ function addFieldOption(
     return
   }
 
-  const documented = `${describeField(flag, descriptor, name, field)}${
+  const fieldDescription = `${describeField(flag, descriptor, name, field)}${
     capsAFilter &&
     field === 'limit' &&
     (descriptor.kind === 'number' || descriptor.kind === 'integer')
       ? NON_PAGINATED_LIMIT_HINT
       : ''
   }`
+
+  const effectiveDefault = flag.requestDefault ?? descriptor.default
+  const documented =
+    effectiveDefault !== undefined && !/\bdefault(?:s|ing)?\b/i.test(fieldDescription)
+      ? `${fieldDescription}${/[.!?]$/.test(fieldDescription) ? '' : '.'} Defaults to ${JSON.stringify(effectiveDefault)}.`
+      : fieldDescription
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
     const booleanDoc = withoutWireVocabulary(documented)
@@ -189,7 +197,7 @@ function addFieldOption(
     if (!flag.boolean || flag.negatable) {
       command.option(`--no-${name}`, `Send --${name} as false`)
     }
-    for (const previous of flag.renamedFrom ?? []) {
+    for (const { name: previous } of otherSpellings(flag)) {
       command.addOption(new Option(`--${previous}`).hideHelp())
       if (!flag.boolean || flag.negatable)
         command.addOption(new Option(`--no-${previous}`).hideHelp())
@@ -226,27 +234,34 @@ function addFieldOption(
         : flag.textSource
           ? ' (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @)'
           : ''
-  }${descriptor.required ? ' (required)' : ''}${literalNull ? literalNullHint(documented, name) : ''}`
+  }${
+    descriptor.required
+      ? flag.trailing
+        ? ' (required, or pass the values as arguments)'
+        : ' (required)'
+      : ''
+  }${literalNull ? literalNullHint(documented, name) : ''}`
 
-  const renamedFrom = flag.renamedFrom ?? []
+  const hiddenNames = otherSpellings(flag).map(({ name }) => name)
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (flag.hidden) option.hideHelp()
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))
   }
-  // Commander's mandatory check runs before `executeOperation` can fold a
-  // renamed spelling onto the current one, so a required field that has been
-  // renamed would reject the very argv this exists to keep working. The
-  // requirement is not lost: `buildRequest` raises it against the current
-  // spelling once both have had their chance to supply the value.
-  if (descriptor.required && renamedFrom.length === 0) option.makeOptionMandatory()
+  // Commander's mandatory check runs before `executeOperation` can fold another
+  // spelling or trailing arguments onto the flag, so a required field supplied
+  // either way would be rejected. The requirement is not lost: `buildRequest`
+  // raises it once every spelling has had its chance.
+  if (descriptor.required && hiddenNames.length === 0 && !flag.trailing) {
+    option.makeOptionMandatory()
+  }
   command.addOption(option)
 
-  for (const previous of renamedFrom) {
-    const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
-    if (choices && !takesList) retired.choices([...choices])
-    command.addOption(retired)
+  for (const previous of hiddenNames) {
+    const hidden = new Option(`--${previous} ${placeholder}`).hideHelp()
+    if (choices && !takesList) hidden.choices([...choices])
+    command.addOption(hidden)
   }
 }
 

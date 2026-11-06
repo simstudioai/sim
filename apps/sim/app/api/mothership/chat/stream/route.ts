@@ -1,9 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { mothershipChatStreamQuerySchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
-import { GET as copilotStreamGet, maxDuration } from '@/app/api/copilot/chat/stream/route'
-
-export { maxDuration }
+import { GET as copilotStreamGet } from '@/app/api/copilot/chat/stream/route'
 
 export function GET(request: NextRequest) {
   const validation = mothershipChatStreamQuerySchema.safeParse(

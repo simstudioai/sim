@@ -8,7 +8,7 @@ export const GoogleAppsheetBlock: BlockConfig = {
   description: 'Read, add, edit, and delete rows in a Google AppSheet table',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.',
+    'Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.',
   docsLink: 'https://docs.sim.ai/integrations/google_appsheet',
   category: 'tools',
   integrationType: IntegrationType.Databases,

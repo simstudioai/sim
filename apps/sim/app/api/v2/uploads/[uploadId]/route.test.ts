@@ -1,3 +1,4 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +18,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
 
 vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
+import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 import { PUT } from '@/app/api/v2/uploads/[uploadId]/route'
 
 const { mockGetOwnedUploadSession, mockUploadSessionObjectMetadata: mockMetadata } =
@@ -115,6 +117,23 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
       error: { code: 'FORBIDDEN', message: 'Upload URL does not match this session' },
     })
     expect(mockWriteLocalPut).not.toHaveBeenCalled()
+  })
+
+  it('answers 204 when the retired-Project check fails after the object is written', async () => {
+    mockGetOwnedUploadSession.mockReturnValue({
+      ...SESSION,
+      purpose: 'project_file',
+      storageContext: 'project',
+      finalKey: 'project/project-1/file.bin',
+      metadata: { [PROJECT_FILE_UPLOAD_BINDING_KEY]: { entityId: 'project-1' } },
+    })
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await request()
+
+    expect(response.status).toBe(204)
+    expect(mockWriteLocalPut).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
 
   it('maps exact-size streaming failures to a caller error', async () => {

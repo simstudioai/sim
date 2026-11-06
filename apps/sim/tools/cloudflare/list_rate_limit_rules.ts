@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListRateLimitRulesParams,
   CloudflareRulesetResponse,
@@ -5,10 +7,11 @@ import type {
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyRuleset,
-  mapRuleset,
+  mapCloudflareRuleset,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listRateLimitRulesTool: ToolConfig<
   CloudflareListRateLimitRulesParams,
@@ -37,83 +40,21 @@ export const listRateLimitRulesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/http_ratelimit/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/phases/http_ratelimit/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyRuleset(),
-        error: cloudflareErrorMessage(data, 'Failed to list rate limiting rules'),
-      }
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
+    return {
+      success,
+      output: mapCloudflareRuleset(data.result),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to list rate limit rules') }
+        : {}),
     }
-
-    return { success: true, output: mapRuleset(data.result) }
   },
-
-  outputs: {
-    id: {
-      type: 'string',
-      description: 'Ruleset ID of the http_ratelimit entry point, needed to create or edit rules',
-    },
-    name: { type: 'string', description: 'Ruleset name' },
-    description: { type: 'string', description: 'Ruleset description' },
-    kind: { type: 'string', description: 'Ruleset kind' },
-    phase: { type: 'string', description: 'Phase the ruleset runs in (http_ratelimit)' },
-    version: { type: 'string', description: 'Ruleset version', optional: true },
-    last_updated: {
-      type: 'string',
-      description: 'RFC 3339 timestamp of the last change',
-      optional: true,
-    },
-    rules: {
-      type: 'array',
-      description: 'Rate limiting rules, in evaluation order',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Rule identifier' },
-          version: { type: 'string', description: 'Rule version', optional: true },
-          action: {
-            type: 'string',
-            description: 'Action applied once the rate limit is exceeded',
-          },
-          action_parameters: {
-            type: 'json',
-            description: 'Action-specific parameters, such as a custom block response',
-            optional: true,
-          },
-          expression: {
-            type: 'string',
-            description: 'Filter expression selecting the requests the rule applies to',
-          },
-          description: { type: 'string', description: 'Rule description' },
-          enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
-          ref: { type: 'string', description: 'Rule reference tag', optional: true },
-          last_updated: {
-            type: 'string',
-            description: 'RFC 3339 timestamp of the last change',
-            optional: true,
-          },
-          categories: {
-            type: 'array',
-            description: 'Managed-rule categories',
-            items: { type: 'string', description: 'Category tag' },
-          },
-          logging: { type: 'json', description: 'Logging configuration', optional: true },
-          ratelimit: {
-            type: 'json',
-            description:
-              'Rate limiting configuration (characteristics, period, requests_per_period, mitigation_timeout, counting_expression, requests_to_origin)',
-            optional: true,
-          },
-        },
-      },
-    },
-  },
+  outputs: RULESET_OUTPUTS,
 }

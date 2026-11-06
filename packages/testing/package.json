@@ -8,7 +8,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.2",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -63,7 +63,7 @@
   "peerDependencies": {
     "next": ">=15 <17",
     "stripe": ">=18 <19",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "peerDependenciesMeta": {
     "stripe": {
@@ -72,10 +72,10 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "next": "16.4.0",
+    "next": "16.4.1",
     "stripe": "18.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "dependencies": {
     "@sim/auth": "workspace:*",

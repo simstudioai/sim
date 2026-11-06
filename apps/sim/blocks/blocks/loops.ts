@@ -12,7 +12,7 @@ export const LoopsBlock: BlockConfig = {
   description: 'Manage contacts and send emails with Loops',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.',
+    'Create and manage contacts, send transactional emails, and trigger event-based automations.',
   docsLink: 'https://docs.sim.ai/integrations/loops',
   category: 'tools',
   integrationType: IntegrationType.Email,

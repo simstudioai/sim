@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   type AgentNode,
@@ -80,9 +81,54 @@ describe('activity metadata replay', () => {
     ])
     const blocks = modelToContentBlocks(model)
     expect(blocks.filter((block) => block.toolCall)).toHaveLength(1)
-    expect(blocks.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.activity).toEqual(activity)
     const replay = modelToContentBlocks(contentBlocksToModel(blocks))
-    expect(replay.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+    expect(replay.find((block) => block.toolCall)?.toolCall?.activity).toEqual(activity)
+  })
+
+  const resolvedOperation = (ownActivity: unknown, grouping?: ToolActivity) =>
+    build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'gateway',
+        toolName: 'call_integration_tool',
+        arguments: {
+          toolId: 'azure_devops_create_work_item',
+          description: 'Filing the task',
+          ...(grouping ? { activity: grouping } : {}),
+          arguments: { title: 'Ship it', activity: ownActivity },
+        },
+      }),
+      ...[2, 3].map((seq) =>
+        env(seq, 'tool', {
+          phase: 'call',
+          toolCallId: 'gateway',
+          toolName: 'azure_devops_create_work_item',
+          arguments: { title: 'Ship it', activity: ownActivity },
+        })
+      ),
+    ])
+
+  it("keeps a resolved operation's own activity argument beside the gateway's grouping", () => {
+    const grouping = { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' }
+    const ownActivity = 'Development'
+    const model = resolvedOperation(ownActivity, grouping)
+    for (const blocks of [
+      modelToContentBlocks(model),
+      modelToContentBlocks(contentBlocksToModel(modelToContentBlocks(model))),
+    ]) {
+      const toolCall = blocks.find((block) => block.toolCall)?.toolCall
+      expect(toolCall?.params).toEqual({ title: 'Ship it', activity: ownActivity })
+      expect(toolCall?.activity).toEqual(grouping)
+    }
+  })
+
+  it("never takes a live resolved operation's own activity argument for a grouping", () => {
+    const toolCall = modelToContentBlocks(resolvedOperation({ id: 'case-42' })).find(
+      (block) => block.toolCall
+    )?.toolCall
+    expect(toolCall?.params).toEqual({ title: 'Ship it', activity: { id: 'case-42' } })
+    expect(toolCall?.activity).toBeUndefined()
   })
 })
 

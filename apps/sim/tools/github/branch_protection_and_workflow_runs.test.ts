@@ -209,7 +209,7 @@ describe('github block wiring', () => {
   })
 
   /**
-   * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+   * `generic/handler.ts` merges `{ ...inputs, ...params(inputs) }` and
    * `providers/utils.ts` installs this same function as the provider
    * `paramsTransform`, spreading it over the model's tool-call arguments. Emitting
    * a key the block did not supply would overwrite a model-supplied value with

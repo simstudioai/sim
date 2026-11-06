@@ -37,10 +37,10 @@ vi.mock('@/lib/execution/model-input-provenance', () => ({
 }))
 
 vi.mock('@/lib/uploads/shared/types', () => ({ MAX_BUFFERED_TRANSFER_BYTES: 5 }))
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)

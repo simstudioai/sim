@@ -16,6 +16,212 @@ export const microsoftCopilotProfile: CompetitorProfile = {
   },
   oneLiner:
     'Microsoft Copilot Studio is a low-code Microsoft tool for building, testing, and publishing conversational and autonomous AI agents with topics or LLM-driven generative orchestration, connectors, agent flows, and Dataverse-grounded knowledge.',
+  leadQuestion: 'How does Sim compare to Microsoft Copilot Studio for building agents?',
+  leadAnswer: [
+    'Sim is an open-source AI workspace for building and deploying agents across different models and business systems, with managed cloud and self-hosted options. ',
+    {
+      text: 'Microsoft Copilot Studio',
+      href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-what-is-copilot-studio',
+    },
+    ' is a low-code, Microsoft-operated studio that also connects to ',
+    {
+      text: 'non-Microsoft services',
+      href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+    },
+    '. Choose Sim when direct model-provider configuration and control of the agent runtime matter; choose Copilot Studio when Power Platform governance and Microsoft publishing channels are the better fit.',
+  ],
+  questions: {
+    intro: [
+      {
+        question:
+          'Is Sim a Microsoft Copilot Studio alternative that is not locked into Microsoft 365?',
+        answer: [
+          'Yes, if the requirement is an agent-building workspace with ',
+          { text: 'direct model-provider integrations', href: 'https://docs.sim.ai/introduction' },
+          ' and a choice of ',
+          {
+            text: 'cloud or self-hosted deployment',
+            href: 'https://docs.sim.ai/platform/self-hosting/docker',
+          },
+          '. That does not mean Copilot Studio is confined to Microsoft 365: Microsoft documents ',
+          {
+            text: 'connectors for outside apps, including Salesforce and Google services',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+          },
+          ', ',
+          {
+            text: 'non-default and bring-your-own-model options',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+          },
+          ', and ',
+          {
+            text: 'standalone Copilot Studio',
+            href: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+          },
+          ". Sim is the different product fit when control over the workspace's hosting and provider configuration is the deciding factor.",
+        ],
+      },
+    ],
+    glance: [
+      {
+        question:
+          'How do Copilot Studio, Copilot Pro, Microsoft 365 Premium, and Agent Builder differ?',
+        answer: [
+          '"Copilot Pro" is an ',
+          {
+            text: 'older consumer subscription name',
+            href: 'https://www.microsoft.com/en-us/copilot/blog/2025/10/01/meet-microsoft-365-premium-your-ai-and-productivity-powerhouse/',
+          },
+          ' that still appears in searches; Microsoft describes ',
+          {
+            text: 'Microsoft 365 Premium',
+            href: 'https://support.microsoft.com/en-us/office/introducing-microsoft-365-premium',
+          },
+          ' as a subscription for one to six people with Copilot features, not as the standalone organizational agent-building license. Microsoft calls ',
+          {
+            text: 'Agent Builder',
+            href: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+          },
+          ' the lightweight, in-context creation experience inside Copilot, while Copilot Studio is its low-code agent-building product; its pricing page distinguishes capabilities included for eligible Microsoft 365 Copilot business users from standalone Studio use. If the goal is a workspace with direct model-provider integrations and self-hosting, compare Studio with Sim, not a consumer Copilot subscription.',
+        ],
+      },
+    ],
+    closing: [
+      {
+        question:
+          'What should an IT team switch to if Copilot Studio feels too limited outside the Microsoft ecosystem?',
+        answer: [
+          'Evaluate Sim if the sticking point is where the agent workspace runs or how directly the team configures model providers and tools, rather than assuming Copilot Studio cannot reach external systems. Before switching, map the agents, connectors, access rules, and publishing channels you actually use: Microsoft documents ',
+          {
+            text: 'outside-app connectors',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+          },
+          ', ',
+          {
+            text: 'granular governance',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase3',
+          },
+          ', and ',
+          {
+            text: 'multiple publishing channels',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/publication-fundamentals-publish-channels',
+          },
+          '. Rebuild and test one representative agent in Sim first; this is a migration decision, not a one-click replacement for every Microsoft capability.',
+        ],
+      },
+    ],
+  },
+  glance: [
+    {
+      label: 'Model choice',
+      sim: [
+        {
+          text: 'Direct integrations with multiple model providers',
+          href: 'https://docs.sim.ai/introduction',
+        },
+        ', including a ',
+        {
+          text: 'bring-your-own-key path',
+          href: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Provided models and separately billed bring-your-own-model configurations, including Azure Foundry',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+        },
+        '.',
+      ],
+    },
+    {
+      label: 'Non-Microsoft integrations',
+      sim: [{ text: 'App integrations and tools for custom agents', href: '/integrations' }, '.'],
+      competitor: [
+        {
+          text: 'Standard, premium, and custom connectors',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+        },
+        ', including connections to services outside Microsoft.',
+      ],
+    },
+    {
+      label: 'Self-hosting',
+      sim: [
+        {
+          text: 'Docker or Kubernetes deployment',
+          href: 'https://docs.sim.ai/platform/self-hosting/docker',
+        },
+        '; the core is open source, while Enterprise features have ',
+        { text: 'separate licensing', href: 'https://docs.sim.ai/introduction' },
+        '.',
+      ],
+      competitor: [
+        'Microsoft documents ',
+        {
+          text: 'cloud deployments',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+        },
+        ', not a self-hosted Copilot Studio authoring or runtime deployment.',
+      ],
+    },
+    {
+      label: 'Governance and access control',
+      sim: [
+        { text: 'Workspace roles', href: 'https://docs.sim.ai/platform/permissions' },
+        ', with additional Enterprise controls separately licensed.',
+      ],
+      competitor: [
+        {
+          text: 'Entra ID access, Dataverse roles, and tenant- or environment-level data policies',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase3',
+        },
+        '.',
+      ],
+    },
+    {
+      label: 'Pricing model',
+      sim: [
+        { text: 'Credit-based cloud plans', href: '/pricing' },
+        ', with ',
+        {
+          text: 'BYOK billing distinctions',
+          href: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Copilot Credits',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+        },
+        ' for metered standard-harness usage, with prepaid and pay-as-you-go options and different rules for eligible Microsoft 365 Copilot usage or BYO models.',
+      ],
+    },
+    {
+      label: 'Deployment options',
+      sim: [
+        {
+          text: 'Managed cloud or self-hosted workspace',
+          href: 'https://docs.sim.ai/platform/self-hosting/docker',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Microsoft-operated commercial and government cloud environments',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+        },
+        '; agents can be ',
+        {
+          text: 'published to supported channels',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/publication-fundamentals-publish-channels',
+        },
+        '.',
+      ],
+    },
+  ],
+  relatedReading: ['best-microsoft-copilot-studio-power-automate-alternatives'],
   standoutFeatures: [
     {
       title: 'Broad, independently audited compliance certification list',
@@ -77,7 +283,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
         label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -251,7 +457,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
             label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -423,7 +629,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/bring-your-own-model-prompts',
             label:
               'Bring your own model for your prompts - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -731,7 +937,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
             label:
               'Use connectors in Copilot Studio agents - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-08',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -853,22 +1059,27 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
             label: 'Billing rates and management - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'Copilot Studio Pre-Purchase Plan: $200/month for a 25,000 Copilot Credit capacity pack (roughly 20% cheaper than pay-as-you-go), or pay-as-you-go at $0.01 per Copilot Credit with no upfront commitment',
+          'Copilot Studio capacity pack: $200/month for 25,000 Copilot Credits, or pay-as-you-go at $0.01 per Copilot Credit with no upfront commitment; a separate Pre-purchase plan of Copilot Credit Commit Units saves up to 20%',
         detail:
-          'Both require an active Azure subscription for billing; a $200 free Azure credit is available for new accounts to trial the pay-as-you-go meter.',
+          'Pay-as-you-go and the Pre-purchase plan require an active Azure subscription for billing; a $200 free Azure credit is available for new accounts to trial the pay-as-you-go meter.',
         shortValue: '$200/month for 25,000 credits, or $0.01/credit pay-as-you-go',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio',
-            label: 'Microsoft 365 Copilot Pricing - AI Agents | Copilot Studio',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+            label: 'Microsoft Copilot Studio Plans and Pricing',
+            asOf: '2026-11-02',
+          },
+          {
+            url: 'https://azure.microsoft.com/en-us/pricing/details/copilot-studio/',
+            label: 'Copilot Studio pricing (Azure pay-as-you-go meter)',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -881,9 +1092,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio',
-            label: 'Microsoft 365 Copilot Pricing - AI Agents | Copilot Studio',
-            asOf: '2026-07-02',
+            url: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+            label: 'Microsoft Copilot Studio Plans and Pricing',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -899,7 +1110,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/bring-your-own-model-prompts',
             label:
               'Bring your own model for your prompts - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },

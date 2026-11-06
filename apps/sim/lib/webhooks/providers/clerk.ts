@@ -1,6 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -9,48 +7,9 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Clerk')
-
-/**
- * Verify a Clerk webhook signature using the Svix signing scheme.
- * Clerk uses Svix under the hood: HMAC-SHA256 of `${svix-id}.${svix-timestamp}.${body}`
- * signed with the base64-decoded `whsec_...` secret, compared against the
- * space-delimited, versioned (`v1,<sig>`) `svix-signature` header.
- */
-function verifySvixSignature(
-  secret: string,
-  msgId: string,
-  timestamp: string,
-  signatures: string,
-  rawBody: string
-): boolean {
-  try {
-    const ts = Number.parseInt(timestamp, 10)
-    const now = Math.floor(Date.now() / 1000)
-    if (Number.isNaN(ts) || Math.abs(now - ts) > 5 * 60) {
-      return false
-    }
-
-    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
-    const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
-
-    const providedSignatures = signatures.split(' ')
-    for (const versionedSig of providedSignatures) {
-      const parts = versionedSig.split(',')
-      if (parts.length !== 2) continue
-      const sig = parts[1]
-      if (safeCompare(sig, expectedSignature)) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Error verifying Clerk Svix signature:', error)
-    return false
-  }
-}
 
 export const clerkHandler: WebhookProviderHandler = {
   async verifyAuth({
@@ -65,19 +24,15 @@ export const clerkHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Clerk signing secret is required', { status: 401 })
     }
 
-    const svixId = request.headers.get('svix-id')
-    const svixTimestamp = request.headers.get('svix-timestamp')
-    const svixSignature = request.headers.get('svix-signature')
-
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      logger.warn(`[${requestId}] Clerk webhook missing Svix signature headers`)
-      return new NextResponse('Unauthorized - Missing Clerk signature headers', { status: 401 })
-    }
-
-    if (!verifySvixSignature(signingSecret, svixId, svixTimestamp, svixSignature, rawBody)) {
-      logger.warn(`[${requestId}] Clerk Svix signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Clerk signature', { status: 401 })
-    }
+    const failure = verifyStandardWebhookRequest({
+      request,
+      rawBody,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Clerk',
+      headerPrefix: 'svix',
+    })
+    if (failure) return failure
 
     return null
   },

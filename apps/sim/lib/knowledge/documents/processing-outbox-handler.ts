@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
@@ -18,18 +18,19 @@ import {
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+  VISION_CHECKPOINT_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/checkpoint-events'
 import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
-import {
-  getOcrRequestRejection,
-  isPermanentDocumentProcessingError,
-  isUsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
 import { cleanupEmbeddingCheckpoint } from '@/lib/knowledge/documents/embedding-checkpoints'
 import { cleanupOcrCheckpoint } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import { dispatchDocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
+import {
+  getOcrRequestRejection,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/processing-error'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
@@ -58,6 +59,7 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { cleanupKnowledgeStorage } from '@/lib/knowledge/documents/storage-cleanup'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
+import { cleanupVisionCheckpoint } from '@/lib/knowledge/documents/vision-checkpoints'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
   if (!isRecordLike(payload)) {
@@ -240,6 +242,7 @@ export const knowledgeDocumentProcessingOutboxHandlers = {
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
   [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
+  [VISION_CHECKPOINT_CLEANUP_EVENT]: cleanupVisionCheckpoint,
   [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
     processKnowledgeDocument,
     KNOWLEDGE_HANDLER_TIMEOUT_MS

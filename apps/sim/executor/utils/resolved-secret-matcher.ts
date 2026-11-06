@@ -293,7 +293,8 @@ export function sanitizeResolvedSecretString(
   value: string,
   matcher: ResolvedSecretMatcher,
   maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
-  onMatch?: (plaintext: string) => void
+  onMatch?: (plaintext: string) => void,
+  options: { preserveLineBreaks?: boolean } = {}
 ): string {
   /**
    * A substitution can leave a literal the previous pass could not act on: an empty replacement can
@@ -302,12 +303,24 @@ export function sanitizeResolvedSecretString(
    * pathological chain from looping, and the throw past it stays the fail-closed backstop callers
    * already handle by dropping the value.
    */
-  let sanitized = substituteResolvedSecrets(value, matcher, maxBytes, onMatch)
+  let sanitized = substituteResolvedSecrets(
+    value,
+    matcher,
+    maxBytes,
+    onMatch,
+    options.preserveLineBreaks
+  )
   for (let pass = 1; containsResolvedSecret(sanitized, matcher); pass += 1) {
     if (pass >= MAX_SETTLE_PASSES) {
       throw new ResolvedSecretMatcherError('Sanitized content still contains an active secret')
     }
-    sanitized = substituteResolvedSecrets(sanitized, matcher, maxBytes, onMatch)
+    sanitized = substituteResolvedSecrets(
+      sanitized,
+      matcher,
+      maxBytes,
+      onMatch,
+      options.preserveLineBreaks
+    )
   }
   return sanitized
 }
@@ -316,7 +329,8 @@ function substituteResolvedSecrets(
   value: string,
   matcher: ResolvedSecretMatcher,
   maxBytes: number,
-  onMatch?: (plaintext: string) => void
+  onMatch?: (plaintext: string) => void,
+  preserveLineBreaks = false
 ): string {
   if (maxBytes < 0) {
     throw new ResolvedSecretMatcherError('Sanitized secret-bearing string exceeds the size limit')
@@ -356,7 +370,21 @@ function substituteResolvedSecrets(
       const slot = emitCursor % windowSize
       if (slotStarts[slot] === emitCursor && slotReplacements[slot] !== undefined) {
         append(value.slice(literalStart, emitCursor))
-        append(slotReplacements[slot] ?? '')
+        const replacement = slotReplacements[slot] ?? ''
+        if (preserveLineBreaks) {
+          const lineReplacement = replacement.replace(/[\r\n]/g, ' ') || ' '
+          const matched = value.slice(emitCursor, slotEnds[slot])
+          let position = 0
+          while (position < matched.length) {
+            append(lineReplacement)
+            const newline = matched.indexOf('\n', position)
+            if (newline < 0) break
+            append(newline > position && matched[newline - 1] === '\r' ? '\r\n' : '\n')
+            position = newline + 1
+          }
+        } else {
+          append(replacement)
+        }
         emitCursor = slotEnds[slot]
         literalStart = emitCursor
       } else {

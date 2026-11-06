@@ -10,7 +10,7 @@ export const pitchbookInvestorDealServiceProvidersTool: ToolConfig<
   id: 'pitchbook_investor_deal_service_providers',
   name: 'PitchBook Investor Deal Service Providers',
   description:
-    'Retrieve the service providers that worked on an investor deals, and what each was hired for',
+    'Retrieve the service providers that worked on an investor’s deals, and what each was hired for',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
@@ -57,7 +57,7 @@ export const pitchbookInvestorDealServiceProvidersTool: ToolConfig<
   outputs: {
     dealServiceProviders: {
       type: 'array',
-      description: 'Service providers engaged on the investor deals',
+      description: 'Service providers engaged on the investor’s deals',
       items: {
         type: 'object',
         properties: {

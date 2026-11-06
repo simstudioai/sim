@@ -34,7 +34,7 @@ vi.mock('@/lib/api-key/byok-entitlement', () => ({
   isOrganizationBYOKEntitled: isEntitled,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

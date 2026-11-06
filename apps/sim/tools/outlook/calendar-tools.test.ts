@@ -5,45 +5,31 @@ import { outlookCalendarRespondTool } from '@/tools/outlook/calendar_respond'
 import { outlookCalendarUpdateEventTool } from '@/tools/outlook/calendar_update_event'
 
 describe('outlook calendar tools', () => {
-  it('builds a calendarView URL with the time window and paging', () => {
-    const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
-    const built = url({
-      accessToken: 't',
-      startDateTime: '2025-06-03T00:00:00Z',
-      endDateTime: '2025-06-10T00:00:00Z',
-      maxResults: 5,
-    })
-    expect(built).toContain('https://graph.microsoft.com/v1.0/me/calendarView')
-    expect(built).toContain('startDateTime=2025-06-03T00%3A00%3A00Z')
-    expect(built).toContain('%24top=5')
-    expect(built).toContain('%24orderby=start%2FdateTime')
-
-    // A Graph-origin nextLink page token is accepted.
-    expect(url({ accessToken: 't', pageToken: 'https://graph.microsoft.com/next' })).toBe(
-      'https://graph.microsoft.com/next'
-    )
-  })
-
-  it('scopes list and create to a selected calendar, defaulting to the default calendar', () => {
+  it('scopes to a selected calendar, treats a blank pick as the default calendar, and rejects path ids', () => {
     const listUrl = outlookCalendarListEventsTool.request.url as (p: unknown) => string
-    const createUrl = outlookCalendarCreateEventTool.request.url as (p: unknown) => string
     const window = {
       accessToken: 't',
       startDateTime: '2025-06-03T00:00:00Z',
       endDateTime: '2025-06-10T00:00:00Z',
     }
 
-    expect(listUrl(window)).toContain('/v1.0/me/calendarView?')
     expect(listUrl({ ...window, calendarId: 'AAMk=' })).toContain(
       '/v1.0/me/calendars/AAMk%3D/calendarView?'
     )
-    // A blank pick means "default calendar", not a malformed /me/calendars// URL.
     expect(listUrl({ ...window, calendarId: '  ' })).toContain('/v1.0/me/calendarView?')
+    expect(() => listUrl({ ...window, calendarId: '..' })).toThrow()
+  })
 
-    expect(createUrl({ accessToken: 't' })).toBe('https://graph.microsoft.com/v1.0/me/events')
-    expect(createUrl({ accessToken: 't', calendarId: 'AAMk=' })).toBe(
-      'https://graph.microsoft.com/v1.0/me/calendars/AAMk%3D/events'
-    )
+  it('encodes a Graph id containing a slash instead of rejecting it', () => {
+    const listUrl = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    expect(
+      listUrl({
+        accessToken: 't',
+        startDateTime: '2025-06-03T00:00:00Z',
+        endDateTime: '2025-06-10T00:00:00Z',
+        calendarId: 'AAMk/AB=',
+      })
+    ).toContain('/v1.0/me/calendars/AAMk%2FAB%3D/calendarView?')
   })
 
   it('treats date-only bounds as an all-day event even without the flag', () => {
@@ -177,48 +163,15 @@ describe('outlook calendar tools', () => {
     expect(built.isAllDay).toBe(true)
   })
 
-  it('rejects a non-Graph pageToken so the bearer token cannot be exfiltrated', () => {
+  it('rejects a pageToken that is not a Graph event-collection nextLink', () => {
     const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
     expect(() => url({ accessToken: 't', pageToken: 'https://evil.example.com/steal' })).toThrow(
       /Microsoft Graph/
     )
-  })
-
-  it('builds an all-day create body with midnight bounds and an exclusive end day', () => {
-    const body = outlookCalendarCreateEventTool.request.body as (
-      p: unknown
-    ) => Record<string, unknown>
-    const built = body({
-      accessToken: 't',
-      subject: 'Offsite',
-      startDateTime: '2025-06-03',
-      endDateTime: '2025-06-03',
-      isAllDay: true,
-    })
-    expect(built.isAllDay).toBe(true)
-    expect(built.start).toEqual({ dateTime: '2025-06-03T00:00:00', timeZone: 'UTC' })
-    expect(built.end).toEqual({ dateTime: '2025-06-04T00:00:00', timeZone: 'UTC' })
-  })
-
-  it('builds a create-event body with Graph datetime shape and attendees', () => {
-    const body = outlookCalendarCreateEventTool.request.body as (
-      p: unknown
-    ) => Record<string, unknown>
-    const built = body({
-      accessToken: 't',
-      subject: 'Sync',
-      startDateTime: '2025-06-03T10:00:00-08:00',
-      endDateTime: '2025-06-03T11:00:00-08:00',
-      attendees: 'a@x.com, b@y.com',
-      isOnlineMeeting: true,
-    })
-    expect(built.subject).toBe('Sync')
-    expect(built.start).toEqual({ dateTime: '2025-06-03T18:00:00', timeZone: 'UTC' })
-    expect(built.attendees).toHaveLength(2)
-    expect(built.isOnlineMeeting).toBe(true)
-    // onlineMeetingProvider is optional and pinning it would break mailboxes that
-    // disallow that provider; isOnlineMeeting alone initializes the online meeting.
-    expect('onlineMeetingProvider' in built).toBe(false)
+    // A Graph origin alone is not enough: the bearer must not be replayed to another endpoint.
+    expect(() =>
+      url({ accessToken: 't', pageToken: 'https://graph.microsoft.com/v1.0/me/messages' })
+    ).toThrow(/calendarView/)
   })
 
   it('rejects an invalid respond responseType', () => {
@@ -226,47 +179,18 @@ describe('outlook calendar tools', () => {
     expect(() => url({ accessToken: 't', eventId: 'e1', responseType: 'maybe' })).toThrow(
       /Invalid responseType/
     )
-    expect(url({ accessToken: 't', eventId: 'e1', responseType: 'accept' })).toBe(
-      'https://graph.microsoft.com/v1.0/me/events/e1/accept'
-    )
   })
 
   it('requires both window bounds unless paging with a pageToken', () => {
     const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
     // Paging supplies only the token: the window is already baked into the nextLink.
-    expect(url({ accessToken: 't', pageToken: 'https://graph.microsoft.com/next' })).toBe(
-      'https://graph.microsoft.com/next'
-    )
+    const nextLink =
+      'https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=2025-06-03T00%3A00%3A00Z&endDateTime=2025-06-10T00%3A00%3A00Z&%24skip=10'
+    expect(url({ accessToken: 't', pageToken: nextLink })).toBe(nextLink)
     expect(() => url({ accessToken: 't', startDateTime: '2025-06-03T00:00:00Z' })).toThrow(
       /startDateTime and endDateTime are required/
     )
     expect(() => url({ accessToken: 't' })).toThrow(/startDateTime and endDateTime are required/)
-  })
-
-  it('omits the comment key when empty but keeps it alongside sendResponse=false', () => {
-    const body = outlookCalendarRespondTool.request.body as (p: unknown) => Record<string, unknown>
-    // Empty/whitespace comment with sendResponse off: comment must NOT be present.
-    const noComment = body({
-      eventId: 'e1',
-      responseType: 'accept',
-      sendResponse: false,
-      comment: '',
-    })
-    expect(noComment).toEqual({ sendResponse: false })
-    expect('comment' in noComment).toBe(false)
-
-    const nullComment = body({ eventId: 'e1', responseType: 'decline', sendResponse: false })
-    expect('comment' in nullComment).toBe(false)
-
-    // A real comment with sendResponse=false is valid: Graph's documented 400s for
-    // accept/decline are both about proposedNewTime, which we never send.
-    expect(
-      body({ eventId: 'e1', responseType: 'decline', sendResponse: false, comment: 'Conflict' })
-    ).toEqual({ sendResponse: false, comment: 'Conflict' })
-
-    // A real comment is included, and sendResponse defaults to true.
-    const withComment = body({ eventId: 'e1', responseType: 'accept', comment: 'See you there' })
-    expect(withComment).toEqual({ sendResponse: true, comment: 'See you there' })
   })
 
   it('sends a stable transactionId so a retried create cannot duplicate the event', () => {

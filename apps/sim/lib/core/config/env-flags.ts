@@ -108,6 +108,9 @@ export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_
  */
 export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
 
+/** Deployment-only opt-in; authenticated resource permissions still apply. */
+export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
+
 /**
  * Is billing enforcement enabled.
  *
@@ -288,7 +291,7 @@ export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
  * `NEXT_PUBLIC_ENTERPRISE_ENABLED` twin (see {@link isBillingEnabled}).
  * Deployments must set both together.
  */
-export const isEnterpriseEnabled =
+const isEnterpriseEnabled =
   typeof window === 'undefined'
     ? isTruthy(env.ENTERPRISE_ENABLED)
     : isTruthy(getEnv('NEXT_PUBLIC_ENTERPRISE_ENABLED'))

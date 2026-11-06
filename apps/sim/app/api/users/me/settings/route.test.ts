@@ -44,7 +44,10 @@ describe('GET /api/users/me/settings', () => {
   })
 
   it('preserves anonymous defaults without entering the protected current-user read', async () => {
-    const response = await GET()
+    const response = await GET(
+      createMockRequest({ method: 'GET', url: 'http://localhost:3000/api/users/me/settings' }),
+      undefined
+    )
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
@@ -59,7 +62,10 @@ describe('GET /api/users/me/settings', () => {
       throw new Error('Database unavailable')
     })
 
-    const response = await GET()
+    const response = await GET(
+      createMockRequest({ method: 'GET', url: 'http://localhost:3000/api/users/me/settings' }),
+      undefined
+    )
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Failed to load settings' })

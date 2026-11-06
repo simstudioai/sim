@@ -29,7 +29,7 @@ import { useFolderStore } from '@/stores/folders/store'
 
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex size-[44px] items-center md:size-[26px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
+  'flex size-[26px] items-center pointer-coarse:size-[44px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
 interface MessageActionsProps {
   content: string
@@ -58,7 +58,7 @@ export const MessageActions = memo(function MessageActions({
   const owner = params.organizationId
     ? { organizationId: params.organizationId }
     : params.workspaceId
-  const { chatId } = useChatSurface()
+  const { chatId, onNavigateToChat } = useChatSurface()
   const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -141,7 +141,9 @@ export const MessageActions = memo(function MessageActions({
           `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
         )
       }
-      if (params.organizationId) {
+      if (onNavigateToChat) {
+        onNavigateToChat(result.id)
+      } else if (params.organizationId) {
         router.push(organizationRoutes(params.organizationId).chat(result.id))
       } else {
         useFolderStore.getState().clearChatSelection()

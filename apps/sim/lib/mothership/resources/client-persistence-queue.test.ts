@@ -27,12 +27,12 @@ describe('ResourcePersistenceQueue', () => {
     queue.enqueue(TABLE_RESOURCE, 'chat-1', 'chat-1')
     await Promise.resolve()
     expect(queue.getPendingResourceKeys('chat-1').size).toBe(0)
-    expect(queue.hasPendingUpsert('chat-1', 'table', 'table-1')).toBe(true)
-    expect(queue.hasPendingUpsert('chat-2', 'table', 'table-1')).toBe(false)
+    expect(queue.hasPendingUpsert('chat-1', TABLE_RESOURCE)).toBe(true)
+    expect(queue.hasPendingUpsert('chat-2', TABLE_RESOURCE)).toBe(false)
     const settled = queue.flush('chat-1')
     write.resolve({ success: true })
     await settled
-    expect(queue.hasPendingUpsert('chat-1', 'table', 'table-1')).toBe(false)
+    expect(queue.hasPendingUpsert('chat-1', TABLE_RESOURCE)).toBe(false)
   })
 
   it('drains a newer update after the write for the same resource settles', async () => {
@@ -66,14 +66,10 @@ describe('ResourcePersistenceQueue', () => {
     queue.enqueue({ ...TABLE_RESOURCE, clearViewId: true }, 'chat-1', 'chat-1', saved)
     expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([TABLE_RESOURCE])
     expect(queue.applyPendingUpdates('chat-2', [saved])).toEqual([saved])
-    queue
-      .remove('table', TABLE_RESOURCE.id, 'chat-1')
-      .scheduleDelete('chat-1', () => removal.promise)
+    queue.remove(TABLE_RESOURCE, 'chat-1').scheduleDelete('chat-1', () => removal.promise)
     expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([])
     write.resolve({ success: true })
-    await vi.waitFor(() =>
-      expect(queue.hasPendingUpsert('chat-1', 'table', TABLE_RESOURCE.id)).toBe(false)
-    )
+    await vi.waitFor(() => expect(queue.hasPendingUpsert('chat-1', TABLE_RESOURCE)).toBe(false))
     expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([])
     removal.resolve({ success: true })
     await queue.flush('chat-1')
@@ -110,7 +106,7 @@ describe('ResourcePersistenceQueue', () => {
     const queue = new ResourcePersistenceQueue({ persist, onError })
 
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', 'chat-1')
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     removal.scheduleDelete('chat-1', remove)
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-b' }, 'chat-1', 'chat-1')
     await Promise.resolve()
@@ -138,7 +134,7 @@ describe('ResourcePersistenceQueue', () => {
     failed.reject(new Error('offline'))
     await Promise.allSettled(Array.from(queue.inFlight.values()))
 
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     expect(removal.wasPending).toBe(true)
     expect(removal.wasPersisted).toBe(true)
     const remove = vi.fn().mockResolvedValue({ success: true })
@@ -157,7 +153,7 @@ describe('ResourcePersistenceQueue', () => {
     failed.reject(new Error('offline'))
     await Promise.allSettled(Array.from(queue.inFlight.values()))
 
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     expect(removal.wasPending).toBe(true)
     expect(removal.wasPersisted).toBe(false)
   })
@@ -172,7 +168,7 @@ describe('ResourcePersistenceQueue', () => {
 
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', 'chat-1', TABLE_RESOURCE)
     await Promise.allSettled(Array.from(queue.inFlight.values()))
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     removal.scheduleDelete('chat-1', remove)
     await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce())
 
@@ -194,7 +190,7 @@ describe('ResourcePersistenceQueue', () => {
       .mockResolvedValueOnce({ success: true })
     const queue = new ResourcePersistenceQueue({ persist, onError })
 
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     removal.scheduleDelete('chat-1', remove)
     first.reject(new Error('offline'))
     await Promise.allSettled(Array.from(queue.inFlight.values()))
@@ -261,7 +257,7 @@ describe('ResourcePersistenceQueue', () => {
 
     // The server still holds a resource the client has dropped, so an order
     // built from client state would not match and must wait for the delete.
-    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const removal = queue.remove(TABLE_RESOURCE, 'chat-1')
     removal.scheduleDelete('chat-1', remove)
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
 
@@ -327,14 +323,14 @@ describe('ResourcePersistenceQueue', () => {
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', 'chat-1', TABLE_RESOURCE)
     await Promise.allSettled(queue.getInFlightWrites('chat-1'))
 
-    const firstRemoval = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const firstRemoval = queue.remove(TABLE_RESOURCE, 'chat-1')
     firstRemoval.scheduleDelete('chat-1', remove)
     await Promise.allSettled(queue.getInFlightWrites('chat-1'))
 
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-b' }, 'chat-1', 'chat-1')
     await Promise.allSettled(queue.getInFlightWrites('chat-1'))
 
-    const secondRemoval = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    const secondRemoval = queue.remove(TABLE_RESOURCE, 'chat-1')
     expect(secondRemoval.wasPending).toBe(true)
     expect(secondRemoval.wasPersisted).toBe(true)
   })
@@ -347,7 +343,7 @@ it('persists same-named cross-workspace resources independently and deletes only
   const second = { ...TABLE_RESOURCE, workspaceId: 'b' }
   queue.enqueue(first, undefined, 'pending')
   queue.enqueue(second, undefined, 'pending')
-  queue.remove(second.type, second.id, 'pending', false, 'b')
+  queue.remove(second, 'pending')
   await queue.flush('chat', 'pending')
   expect(persist.mock.calls).toEqual([['chat', first]])
 })

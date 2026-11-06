@@ -9,6 +9,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-inline-file', () => ({
   readWorkspaceInlineFile: {
     operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mockReadInline,
+    authorize: vi.fn(async () => undefined),
   },
 }))
 

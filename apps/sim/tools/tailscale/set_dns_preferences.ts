@@ -1,16 +1,10 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface TailscaleSetDnsPreferencesParams {
-  apiKey: string
-  tailnet: string
-  magicDNS: boolean
-}
-
-interface TailscaleSetDnsPreferencesResponse extends ToolResponse {
-  output: {
-    magicDNS: boolean
-  }
-}
+import type {
+  TailscaleSetDnsPreferencesParams,
+  TailscaleSetDnsPreferencesResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleSetDnsPreferencesTool: ToolConfig<
   TailscaleSetDnsPreferencesParams,
@@ -18,63 +12,48 @@ export const tailscaleSetDnsPreferencesTool: ToolConfig<
 > = {
   id: 'tailscale_set_dns_preferences',
   name: 'Tailscale Set DNS Preferences',
-  description: 'Set DNS preferences for the tailnet (enable/disable MagicDNS)',
+  description: 'Enable or disable MagicDNS for the tailnet',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     tailnet: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
     },
     magicDNS: {
       type: 'boolean',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Whether to enable (true) or disable (false) MagicDNS',
+      description: 'Whether MagicDNS is enabled',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/preferences`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/dns/preferences`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      magicDNS: params.magicDNS,
-    }),
+    body: (params) => ({ magicDNS: params.magicDNS }),
   },
-
   transformResponse: async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { magicDNS: false },
-        error: (data as Record<string, string>).message ?? 'Failed to set DNS preferences',
-      }
-    }
-
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        magicDNS: data.magicDNS ?? false,
-      },
-    }
+    await assertTailscaleResponse(response)
+    const data: { magicDNS: boolean } = await response.json()
+    return { success: true, output: { magicDNS: data.magicDNS ?? false } }
   },
-
   outputs: {
-    magicDNS: { type: 'boolean', description: 'Updated MagicDNS status' },
+    magicDNS: {
+      type: 'boolean',
+      description: 'Whether MagicDNS is enabled',
+    },
   },
 }

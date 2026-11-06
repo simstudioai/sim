@@ -88,6 +88,7 @@ export function CustomToolDetail({
   const identity = useMemo(() => extractSchemaIdentity(jsonSchema), [jsonSchema])
 
   const schemaGeneration = useSchemaGeneration({
+    workspaceId,
     jsonSchema,
     setJsonSchema: (updater) => {
       setJsonSchema(updater)
@@ -100,6 +101,7 @@ export function CustomToolDetail({
   })
 
   const codeGeneration = useCodeGeneration({
+    workspaceId,
     functionCode,
     schemaParameters,
     setFunctionCode: (updater) => {

@@ -32,7 +32,7 @@ const hoisted = vi.hoisted(() => ({
   orgSend: vi.fn(),
   workspaceSend: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)

@@ -1,31 +1,29 @@
 ---
 title: ElevenLabs
 description: Generate and transform audio with ElevenLabs
+integration:
+  type: "elevenlabs"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="elevenlabs"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [ElevenLabs](https://elevenlabs.io/) generates and transforms audio. Use this integration for text-to-speech, sound effects, speech-to-speech, and audio isolation. You can also list voices and models, inspect or change voice settings, and read account information.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.
-
-
+Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.
 
 ## Actions
 
 ### ElevenLabs TTS
 
 Convert text to speech using ElevenLabs voices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +43,13 @@ Convert text to speech using ElevenLabs voices
 | `audioUrl` | string | The URL of the generated audio |
 | `audioFile` | file | The generated audio file |
 
+</ReferenceDetails>
+
 ### ElevenLabs Sound Effects
 
 Generate a sound effect from a text prompt using ElevenLabs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,9 +69,13 @@ Generate a sound effect from a text prompt using ElevenLabs
 | `audioUrl` | string | URL of the generated sound effect |
 | `audioFile` | file | The generated sound effect file |
 
+</ReferenceDetails>
+
 ### ElevenLabs Speech to Speech
 
 Convert audio into a chosen ElevenLabs voice while preserving content and emotion
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +94,13 @@ Convert audio into a chosen ElevenLabs voice while preserving content and emotio
 | `audioUrl` | string | URL of the converted audio |
 | `audioFile` | file | The converted audio file |
 
+</ReferenceDetails>
+
 ### ElevenLabs Audio Isolation
 
 Remove background noise from an audio file, isolating the speech using ElevenLabs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -106,9 +116,13 @@ Remove background noise from an audio file, isolating the speech using ElevenLab
 | `audioUrl` | string | URL of the isolated audio |
 | `audioFile` | file | The isolated audio file |
 
+</ReferenceDetails>
+
 ### ElevenLabs List Voices
 
 List the voices available in your ElevenLabs account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +150,13 @@ List the voices available in your ElevenLabs account
 | `hasMore` | boolean | Whether more voices are available |
 | `nextPageToken` | string | Token to fetch the next page |
 
+</ReferenceDetails>
+
 ### ElevenLabs Get Voice
 
 Get metadata and settings for a specific ElevenLabs voice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +180,13 @@ Get metadata and settings for a specific ElevenLabs voice
 | `highQualityBaseModelIds` | array | Model IDs that support high-quality output for this voice |
 | `isOwner` | boolean | Whether the current user owns this voice |
 
+</ReferenceDetails>
+
 ### ElevenLabs Get Voice Settings
 
 Get the configured settings for a specific ElevenLabs voice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +205,13 @@ Get the configured settings for a specific ElevenLabs voice
 | `useSpeakerBoost` | boolean | Whether speaker boost is enabled |
 | `speed` | number | Speech speed \(1.0 = normal\) |
 
+</ReferenceDetails>
+
 ### ElevenLabs Edit Voice Settings
 
 Update the settings for a specific ElevenLabs voice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +231,13 @@ Update the settings for a specific ElevenLabs voice
 | --------- | ---- | ----------- |
 | `status` | string | Request outcome \("ok" on success\) |
 
+</ReferenceDetails>
+
 ### ElevenLabs List Models
 
 List the models available in ElevenLabs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -231,9 +261,13 @@ List the models available in ElevenLabs
 |     ↳ `languageId` | string | Language code |
 |     ↳ `name` | string | Language name |
 
+</ReferenceDetails>
+
 ### ElevenLabs Get User
 
 Get account and subscription information for the ElevenLabs user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,5 +288,7 @@ Get account and subscription information for the ElevenLabs user
 |   ↳ `canExtendCharacterLimit` | boolean | Whether the character limit can be extended |
 |   ↳ `status` | string | Subscription status |
 |   ↳ `nextCharacterCountResetUnix` | number | Unix timestamp when the character count resets |
+
+</ReferenceDetails>
 
 

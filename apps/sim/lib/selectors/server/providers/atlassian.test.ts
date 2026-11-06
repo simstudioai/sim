@@ -8,7 +8,7 @@ const { mockFetchProviderJsonWithStatus } = vi.hoisted(() => ({
   mockFetchProviderJsonWithStatus: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
+vi.mock('@/lib/selectors/server/providers/http', () => ({
   fetchProviderJsonWithStatus: mockFetchProviderJsonWithStatus,
   RetryableProviderNetworkError: class RetryableProviderNetworkError extends Error {},
 }))
@@ -20,7 +20,7 @@ import {
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorAtlassianCloudId } from '@/lib/selectors/server/providers/atlassian'
-import { RetryableProviderNetworkError } from '@/lib/selectors/server/providers/provider-http'
+import { RetryableProviderNetworkError } from '@/lib/selectors/server/providers/http'
 
 const mockRetryWithExponentialBackoff =
   knowledgeDocumentsUtilsMockFns.mockRetryWithExponentialBackoff

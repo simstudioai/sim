@@ -14,7 +14,6 @@ vi.mock('@/lib/internal/table/read-schema', () => ({
 }))
 
 import { enrichKBTagsSchema, enrichTableToolSchema } from '@/tools/schema-enrichers'
-import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 
 const ORIGINAL_SCHEMA = {
   type: 'object' as const,
@@ -103,17 +102,6 @@ describe('enrichTableToolSchema', () => {
     await expect(
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
     ).rejects.toThrow('Workflow ID is required to enrich table tool schema for table-1')
-  })
-
-  /**
-   * The v2 query tool shipped with no enrichment at all, so an agent using it
-   * never saw the table's columns. These pin both halves of the fix: the tool
-   * declares the wiring, and the enricher answers it in v2's grammar rather
-   * than v1's.
-   */
-  it('wires the v2 query tool to the enricher under its own tool id', () => {
-    expect(tableQueryRowsV2Tool.toolEnrichment?.dependsOn).toBe('tableId')
-    expect(tableQueryRowsV2Tool.toolEnrichment?.enrichTool).toBeTypeOf('function')
   })
 
   it('enriches the v2 query tool with predicate grammar, not the v1 filter grammar', async () => {

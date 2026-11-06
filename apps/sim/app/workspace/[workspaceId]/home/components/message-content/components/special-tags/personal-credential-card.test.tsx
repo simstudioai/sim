@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canEdit: mocks.canEdit }),
 }))

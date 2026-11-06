@@ -24,7 +24,7 @@ export const powerAutomateProfile: CompetitorProfile = {
       source: {
         url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
         label: 'Power Automate product page',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
     {
@@ -119,7 +119,7 @@ export const powerAutomateProfile: CompetitorProfile = {
       source: {
         url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
         label: 'Power Automate pricing page',
-        asOf: '2026-07-02',
+        asOf: '2026-11-02',
       },
     },
   ],
@@ -230,7 +230,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
             label: 'Power Automate pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -439,7 +439,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
             label: 'Power Automate product page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -684,17 +684,17 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/blog/2023/05/11/microsoft-power-platform-celebrates-1000-certified-connectors/',
             label: 'Power Platform celebrates 1000 certified connectors',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://learn.microsoft.com/en-us/connectors/connector-reference/connector-reference-powerautomate-connectors',
             label: 'List of all Power Automate connectors - Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
             label: 'Microsoft Power Automate product page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -861,7 +861,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
             label: 'Power Automate pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -875,7 +875,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
             label: 'Power Automate pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -890,7 +890,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
             label: 'Power Automate pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
         ],
       },
@@ -1288,7 +1288,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate/pricing',
             label: 'Power Automate pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-11-02',
           },
           {
             url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/run-unattended-desktop-flows',

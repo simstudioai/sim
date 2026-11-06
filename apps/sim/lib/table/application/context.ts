@@ -2,7 +2,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
 import { getTableById } from '@/lib/table/service'
 import type { TableDefinition } from '@/lib/table/types'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export type TableWorkspaceContext = TableAuthorizationContext
 

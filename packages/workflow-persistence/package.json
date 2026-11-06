@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.2",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -45,13 +45,13 @@
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*",
-    "@xyflow/react": "12.11.3",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/node": "24.2.1",
+    "@types/node": "24.19.2",
+    "@xyflow/react": "12.12.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

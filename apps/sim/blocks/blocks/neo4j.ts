@@ -7,8 +7,7 @@ export const Neo4jBlock: BlockConfig = {
   type: 'neo4j',
   name: 'Neo4j',
   description: 'Connect to Neo4j graph database',
-  longDescription:
-    'Integrate Neo4j graph database into the workflow. Can query, create, merge, update, and delete nodes and relationships.',
+  longDescription: 'Query, create, merge, update, and delete nodes and relationships.',
   docsLink: 'https://docs.sim.ai/integrations/neo4j',
   category: 'tools',
   integrationType: IntegrationType.Databases,

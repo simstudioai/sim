@@ -84,7 +84,7 @@ export const gmailMarkUnreadV2Tool: InternalToolConfig<GmailMarkReadParams, Gmai
   {
     id: 'gmail_mark_unread_v2',
     name: 'Gmail Mark as Unread',
-    description: 'Mark a Gmail message as unread. Returns API-aligned fields only.',
+    description: 'Mark a Gmail message as unread.',
     version: '2.0.0',
     oauth: gmailMarkUnreadTool.oauth,
     params: gmailMarkUnreadTool.params,

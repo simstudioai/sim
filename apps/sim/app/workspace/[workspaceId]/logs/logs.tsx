@@ -52,7 +52,6 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import type {
@@ -109,6 +108,7 @@ import { Dashboard, LogDetails, LogRowContextMenu } from './components'
 import {
   formatDate,
   getDisplayStatus,
+  getLogWorkflowLabel,
   type LogStatus,
   parseDuration,
   resolveLogWorkflowId,
@@ -790,13 +790,7 @@ export default function Logs() {
       logs.map((log) => {
         const formattedDate = formatDate(log.createdAt)
         const displayStatus = getDisplayStatus(log.status)
-        const isMothershipJob = log.trigger === 'mothership'
-        const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
-        const workflowName = isMothershipJob
-          ? log.jobTitle || 'Untitled Job'
-          : isDeletedWorkflow
-            ? DELETED_WORKFLOW_LABEL
-            : log.workflow?.name || 'Unknown'
+        const workflowName = getLogWorkflowLabel(log)
 
         const durationMs = parseDuration({ duration: log.duration ?? undefined })
         const durationText =

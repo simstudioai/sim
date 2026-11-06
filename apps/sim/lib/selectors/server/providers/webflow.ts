@@ -10,7 +10,7 @@ import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-result
 import {
   fetchProviderJson,
   fetchProviderJsonWithStatus,
-} from '@/lib/selectors/server/providers/provider-http'
+} from '@/lib/selectors/server/providers/http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,

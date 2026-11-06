@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs'
+import { EventEmitter } from 'node:events'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +20,17 @@ vi.mock('@/main/browser-import', () => ({
     passwordsUpdated: 0,
     passwordsSkipped: 1,
   })),
+  continueSignIn: vi.fn(async () => ({
+    pending: { site: 'example.com', browserLabel: 'Chrome' },
+  })),
+  bringSignInBack: vi.fn(async () => ({
+    result: { cookiesImported: 2, cookiesSkipped: 0 },
+    handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+    current: true,
+  })),
+  cancelSignIn: vi.fn(),
+  getPendingSignIn: vi.fn(() => null),
+  migrateSignIn: vi.fn(),
 }))
 
 vi.mock('@/main/browser-search/suggestions', () => ({
@@ -113,7 +127,12 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
-import type { DesktopPreferences } from '@sim/desktop-bridge'
+import {
+  type ComputerUseAppPermission,
+  ComputerUseError,
+  type DesktopPreferences,
+} from '@sim/desktop-bridge'
+import type { ComputerUseResult } from '@sim/desktop-bridge/computer-use'
 import type { WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
 import * as browserDriver from '@/main/browser-agent/driver'
@@ -127,11 +146,16 @@ import {
   revealCredential,
 } from '@/main/browser-credentials'
 import {
+  bringSignInBack,
+  continueSignIn,
   importChromeCookies,
   importChromePasswords,
   listChromeImportProfiles,
+  migrateSignIn,
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
+import { ComputerUseService } from '@/main/computer-use/service'
+import { createConfigStore } from '@/main/config'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilePermissions } from '@/main/local-file-permissions'
@@ -261,6 +285,7 @@ const _activeChooserEvent = {
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
+  const computerRoots: string[] = []
 
   beforeEach(() => {
     // Frozen so the input-recency windows cannot lapse mid-test: the gates read
@@ -354,6 +379,7 @@ describe('registerIpcHandlers', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    for (const root of computerRoots.splice(0)) rmSync(root, { recursive: true, force: true })
   })
 
   it('opens validated external URLs only after recent user input', async () => {
@@ -550,6 +576,225 @@ describe('registerIpcHandlers', () => {
     // comparison rejects even though it is the same origin.
     const explicitPort = { senderFrame: { url: 'https://sim.ai:443/workspace/ws1' } }
     expect(await handler?.(explicitPort)).toMatchObject({ notificationsEnabled: true })
+  })
+
+  function computerFixture() {
+    const root = mkdtempSync(join(tmpdir(), 'computer-ipc-'))
+    computerRoots.push(root)
+    const config = createConfigStore(join(root, 'settings.json'))
+    config.set('computerUseEnabled', true)
+    const status: ComputerUseResult = {
+      kind: 'status',
+      platform: 'darwin',
+      accessibility: true,
+      screenRecording: true,
+    }
+    const native = {
+      request: vi.fn(
+        async (method: string): Promise<ComputerUseResult> =>
+          method === 'list_apps' ? { kind: 'apps', apps: [] } : status
+      ),
+      stop: vi.fn(),
+    }
+    const approveApp = vi.fn(
+      async (_app: ComputerUseAppPermission, _signal: AbortSignal): Promise<'once' | 'deny'> =>
+        'once'
+    )
+    const service = new ComputerUseService({
+      config,
+      native,
+      supported: true,
+      approveApp,
+      onActivity: vi.fn(),
+    })
+    deps.computerUse = service
+    const cancel = vi.spyOn(service, 'cancel')
+    const execute = collectHandlers().invoke.get('computer-use:execute-tool')
+    if (!execute) throw new Error('Computer use handler was not registered')
+    return { native, approveApp, status, cancel, execute }
+  }
+
+  function computerSender(fetch: (url: string, init?: RequestInit) => Promise<Response>) {
+    const sender = Object.assign(new EventEmitter(), {
+      session: { fetch },
+      isDestroyed: () => false,
+    })
+    return { sender, senderFrame: { url: `${APP}/workspace/ws1` } }
+  }
+
+  function computerAuthorization(args: Record<string, unknown> = { action: 'status' }) {
+    return Response.json({ chatId: 'computer-chat', toolName: 'computer', args })
+  }
+
+  function expectComputerListenersRemoved(sender: EventEmitter) {
+    for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation'])
+      expect(sender.listenerCount(event)).toBe(0)
+  }
+
+  it('preserves native pre-dispatch certainty in serializable IPC data', async () => {
+    const { native, execute } = computerFixture()
+    const error = {
+      code: 'activation_required',
+      message: 'Activate and observe the app first.',
+      dispatchState: 'not_started' as const,
+    }
+    native.request.mockRejectedValueOnce(new ComputerUseError(error))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const result = await execute(owner, 'sim_tool_safe_failure', { action: 'status' })
+    expect(structuredClone(result)).toEqual({ kind: 'error', error })
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it('does not label an unstructured native failure as safely undispatched', async () => {
+    const { native, execute } = computerFixture()
+    native.request.mockRejectedValueOnce(new Error('Helper disconnected after input.'))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    await expect(execute(owner, 'sim_tool_unknown_failure', { action: 'status' })).rejects.toThrow(
+      'Helper disconnected'
+    )
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it.each(['destroyed', 'render-process-gone', 'did-start-navigation'])(
+    'cancels authorization pending on owning renderer %s',
+    async (eventName) => {
+      const { native, cancel, execute } = computerFixture()
+      let finishAuthorization: (response: Response) => void = () => {}
+      const owner = computerSender(
+        vi.fn(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishAuthorization = resolve
+            })
+        )
+      )
+      const pending = execute(owner, 'owner-tool', { action: 'status' })
+      const rejected = expect(pending).rejects.toThrow('stopped')
+      owner.sender.emit(eventName, {}, `${APP}/reload`, false, true)
+      owner.sender.emit('destroyed')
+      expect(cancel).toHaveBeenCalledExactlyOnceWith('owner-tool')
+      finishAuthorization(computerAuthorization())
+      await rejected
+      expect(native.request).not.toHaveBeenCalled()
+      expectComputerListenersRemoved(owner.sender)
+    }
+  )
+
+  it.each(['destroyed', 'render-process-gone', 'did-start-navigation'])(
+    'stops native work on owning renderer %s',
+    async (eventName) => {
+      const { native, cancel, execute } = computerFixture()
+      let rejectNative: (error: Error) => void = () => {}
+      native.request.mockImplementation(
+        () =>
+          new Promise<ComputerUseResult>((_resolve, reject) => {
+            rejectNative = reject
+          })
+      )
+      native.stop.mockImplementation(() => rejectNative(new Error('native stopped')))
+      const owner = computerSender(vi.fn(async () => computerAuthorization()))
+      const pending = execute(owner, 'active-tool', { action: 'status' })
+      const rejected = expect(pending).rejects.toThrow('stopped')
+      await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+      owner.sender.emit(eventName, {}, `${APP}/reload`, false, true)
+      owner.sender.emit('destroyed')
+      await rejected
+      expect(cancel).toHaveBeenCalledExactlyOnceWith('active-tool')
+      expect(native.stop).toHaveBeenCalledOnce()
+      expectComputerListenersRemoved(owner.sender)
+    }
+  )
+
+  it('aborts the app approval when its renderer crashes', async () => {
+    const { native, approveApp, execute } = computerFixture()
+    approveApp.mockImplementation(
+      (_app, signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () => resolve('deny'), { once: true })
+        })
+    )
+    const owner = computerSender(
+      vi.fn(async () =>
+        computerAuthorization({
+          action: 'activate_app',
+          bundleId: 'com.example.Fixture',
+        })
+      )
+    )
+    const pending = execute(owner, 'approval-tool', { action: 'status' })
+    const rejected = expect(pending).rejects.toThrow('stopped')
+    await vi.waitFor(() => expect(approveApp).toHaveBeenCalledOnce())
+    owner.sender.emit('render-process-gone')
+    await rejected
+    expect(native.request.mock.calls.map(([method]) => method)).toEqual(['list_apps'])
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it('canceling another renderer admission leaves the active owner running', async () => {
+    const { native, status, cancel, execute } = computerFixture()
+    let finishNative: (result: ComputerUseResult) => void = () => {}
+    native.request.mockImplementation(
+      () =>
+        new Promise<ComputerUseResult>((resolve) => {
+          finishNative = resolve
+        })
+    )
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const active = execute(owner, 'active-tool', { action: 'status' })
+    await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+    let finishAuthorization: (response: Response) => void = () => {}
+    const other = computerSender(
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishAuthorization = resolve
+          })
+      )
+    )
+    const pending = execute(other, 'other-tool', { action: 'status' })
+    const rejected = expect(pending).rejects.toThrow('stopped')
+    other.sender.emit('render-process-gone')
+    expect(cancel).toHaveBeenCalledExactlyOnceWith('other-tool')
+    expect(native.stop).not.toHaveBeenCalled()
+    finishAuthorization(computerAuthorization())
+    await rejected
+    finishNative(status)
+    await expect(active).resolves.toEqual(status)
+    expect(native.request).toHaveBeenCalledOnce()
+    expectComputerListenersRemoved(owner.sender)
+    expectComputerListenersRemoved(other.sender)
+  })
+
+  it('keeps native work through SPA/subframe navigation and releases listeners on success', async () => {
+    const { native, status, cancel, execute } = computerFixture()
+    let finishNative: (result: ComputerUseResult) => void = () => {}
+    native.request.mockImplementation(
+      () =>
+        new Promise<ComputerUseResult>((resolve) => {
+          finishNative = resolve
+        })
+    )
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const pending = execute(owner, 'navigation-tool', { action: 'status' })
+    await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+    owner.sender.emit('did-start-navigation', {}, `${APP}/another-chat`, true, true)
+    owner.sender.emit('did-start-navigation', {}, 'https://example.com', false, false)
+    expect(cancel).not.toHaveBeenCalled()
+    finishNative(status)
+    await expect(pending).resolves.toEqual(status)
+    expectComputerListenersRemoved(owner.sender)
+    owner.sender.emit('destroyed')
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('releases owner listeners after authorization failure', async () => {
+    const { native, cancel, execute } = computerFixture()
+    const owner = computerSender(vi.fn(async () => new Response(null, { status: 403 })))
+    await expect(execute(owner, 'denied-tool', { action: 'status' })).rejects.toThrow('authorized')
+    expectComputerListenersRemoved(owner.sender)
+    owner.sender.emit('render-process-gone')
+    expect(cancel).not.toHaveBeenCalled()
+    expect(native.request).not.toHaveBeenCalled()
   })
 
   it('restricts browser-agent tool execution to the app origin and known tools', async () => {
@@ -907,8 +1152,20 @@ describe('registerIpcHandlers', () => {
     })
 
     expect(migrate).not.toHaveBeenCalled()
+    expect(migrateSignIn).not.toHaveBeenCalled()
     expect(deps.scopeEvents.activateBrowser).toHaveBeenCalledTimes(1)
 
+    migrate.mockRestore()
+  })
+
+  it('moves a pending sign-in with the browser scope when a new chat gets its id', async () => {
+    const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'pending:signin')
+    await invoke.get('browser-agent:migrate-scope')?.(appEvent, 'pending:signin', 'chat-saved')
+
+    expect(migrateSignIn).toHaveBeenCalledWith('pending:signin', 'chat-saved')
     migrate.mockRestore()
   })
 
@@ -931,6 +1188,161 @@ describe('registerIpcHandlers', () => {
       cookiesSkipped: 1,
     })
     expect(importChromeCookies).toHaveBeenCalledWith('Default')
+  })
+
+  describe('continuing a sign-in in another browser', () => {
+    const SIGN_IN_URL = 'https://signin.example.com/login'
+    let tabUrl = SIGN_IN_URL
+    let active: ReturnType<typeof vi.spyOn>
+
+    beforeEach(async () => {
+      tabUrl = SIGN_IN_URL
+      active = vi.spyOn(browserSession, 'activeTab').mockReturnValue({
+        id: 'tab-1',
+        view: { webContents: { getURL: () => tabUrl } },
+      } as never)
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        activeAppEvent,
+        'chat-signin'
+      )
+    })
+
+    afterEach(() => active.mockRestore())
+
+    const continueIn = (event: typeof activeAppEvent, ...args: unknown[]) =>
+      collectHandlers().invoke.get('browser-import:continue-sign-in')?.(event, ...args)
+
+    it('hands over the page the tab shows, ignoring any address the renderer names', async () => {
+      await expect(
+        continueIn(activeAppEvent, 'chrome:Default', 'chat-signin', 'https://evil.example/')
+      ).resolves.toEqual({ pending: { site: 'example.com', browserLabel: 'Chrome' } })
+      expect(continueSignIn).toHaveBeenCalledWith('chat-signin', {
+        profileId: 'chrome:Default',
+        tabId: 'tab-1',
+        url: SIGN_IN_URL,
+      })
+    })
+
+    it('refuses a renderer acting without the user', async () => {
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        inactiveAppEvent,
+        'chat-scripted'
+      )
+      expect(await continueIn(inactiveAppEvent, 'chrome:Default', 'chat-scripted')).toEqual({
+        error: 'unknown',
+      })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+
+    it('refuses a foreign origin and a malformed profile', async () => {
+      expect(await continueIn(evilEvent, 'chrome:Default', 'chat-signin')).toEqual({
+        error: 'unknown',
+      })
+      expect(await continueIn(activeAppEvent, 42, 'chat-signin')).toEqual({ error: 'unknown' })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+
+    it("refuses Sim's own pages, which ride the app session", async () => {
+      tabUrl = `${APP}/workspace/ws1/files`
+      expect(await continueIn(activeAppEvent, 'chrome:Default', 'chat-signin')).toEqual({
+        error: 'unsupported-page',
+      })
+      expect(continueSignIn).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('bringing a sign-in back', () => {
+    let panelAction: ReturnType<typeof vi.spyOn>
+    let peek: ReturnType<typeof vi.spyOn>
+    const tabsWith = (...tabIds: string[]) => ({
+      scopeId: 'chat-signin',
+      tabs: tabIds.map((tabId) => ({ tabId, url: '', title: '', loading: false, active: false })),
+      activeTabId: 'tab-2',
+    })
+
+    beforeEach(async () => {
+      panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
+      peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsWith('tab-1', 'tab-2'))
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        activeAppEvent,
+        'chat-signin'
+      )
+    })
+
+    afterEach(() => {
+      panelAction.mockRestore()
+      peek.mockRestore()
+    })
+
+    const bringBack = (event: typeof activeAppEvent, scope: string) =>
+      collectHandlers().invoke.get('browser-import:bring-sign-in-back')?.(event, scope)
+
+    it('refuses a renderer acting without the user, and a foreign origin', async () => {
+      await collectHandlers().invoke.get('browser-agent:activate-scope')?.(
+        inactiveAppEvent,
+        'chat-scripted'
+      )
+      expect(await bringBack(inactiveAppEvent, 'chat-scripted')).toEqual({
+        cookiesImported: 0,
+        cookiesSkipped: 0,
+        error: 'unknown',
+      })
+      expect(await bringBack(evilEvent, 'chat-signin')).toMatchObject({ error: 'unknown' })
+      expect(bringSignInBack).not.toHaveBeenCalled()
+    })
+
+    it('reopens the handed-off page in its own tab', async () => {
+      await expect(bringBack(activeAppEvent, 'chat-signin')).resolves.toEqual({
+        cookiesImported: 2,
+        cookiesSkipped: 0,
+      })
+      expect(bringSignInBack).toHaveBeenCalledWith('chat-signin')
+      expect(panelAction.mock.calls).toEqual([
+        ['chat-signin', { action: 'switch-tab', tabId: 'tab-1' }],
+        ['chat-signin', { action: 'navigate', url: 'https://signin.example.com/login' }],
+      ])
+    })
+
+    it('reopens the page in a new tab when its tab was closed', async () => {
+      peek.mockReturnValue(tabsWith('tab-2'))
+      const tabContents = { loadURL: vi.fn(async () => {}), isDestroyed: () => false }
+      const add = vi
+        .spyOn(browserSession, 'addTab')
+        .mockReturnValue({ view: { webContents: tabContents } } as never)
+      const focus = vi.spyOn(browserSession, 'focusPageForUser').mockImplementation(() => {})
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(add).toHaveBeenCalledOnce()
+      expect(tabContents.loadURL).toHaveBeenCalledWith('https://signin.example.com/login')
+      expect(panelAction).not.toHaveBeenCalled()
+      add.mockRestore()
+      focus.mockRestore()
+    })
+
+    it('leaves the tabs alone when a newer continue retired the handoff mid-import', async () => {
+      vi.mocked(bringSignInBack).mockResolvedValueOnce({
+        result: { cookiesImported: 2, cookiesSkipped: 0 },
+        handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+        current: false,
+      })
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(panelAction).not.toHaveBeenCalled()
+    })
+
+    it('leaves the tabs alone when nothing came back', async () => {
+      vi.mocked(bringSignInBack).mockResolvedValueOnce({
+        result: { cookiesImported: 0, cookiesSkipped: 0 },
+        handoff: { tabId: 'tab-1', url: 'https://signin.example.com/login' },
+        current: true,
+      })
+
+      await bringBack(activeAppEvent, 'chat-signin')
+
+      expect(panelAction).not.toHaveBeenCalled()
+    })
   })
 
   it('never imports Chrome cookies for a foreign origin', async () => {

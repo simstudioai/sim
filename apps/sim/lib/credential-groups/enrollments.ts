@@ -1129,7 +1129,6 @@ async function buildPublicCredentialGroupEnrollment(
       .select({
         optionId: credential.credentialGroupOptionId,
         status: credential.managedOauthStatus,
-        scopeVersion: credential.managedOauthScopeVersion,
         authorizationAppId: credential.authorizationAppId,
         grantedScopes: credential.grantedScopes,
         displayName: credential.displayName,
@@ -1217,7 +1216,6 @@ async function buildPublicCredentialGroupEnrollment(
                   ? ('revoked' as const)
                   : connection.status !== 'active' ||
                       connection.authorizationAppId !== policy.authorizationAppId ||
-                      connection.scopeVersion !== policy.scopeVersion ||
                       !adapter.hasRequiredScopes(
                         connection.grantedScopes ?? [],
                         policy.requiredScopes
@@ -1346,20 +1344,6 @@ async function completeResolvedCredentialGroupEnrollment(
     if (!completed) throw new Error('Credential group enrollment completion returned no row')
     return { completed: true, transitioned }
   })
-}
-
-/** Resolves the private, server-only context bound to a public enrollment link and option. */
-export async function getCredentialGroupOAuthContext(
-  token: string,
-  optionId: string
-): Promise<CredentialGroupOAuthContext | null> {
-  const row = await resolvePublicEnrollmentRowByIdentity({
-    invitationTokenHash: hashInvitationToken(token),
-  })
-  if (!row) return null
-  const option = row.options.find((candidate) => candidate.id === optionId)
-  if (!option || option.status !== 'active') return null
-  return credentialGroupOAuthContextFromRow(row, option)
 }
 
 export async function getAuthorizedCredentialGroupOAuthContext(

@@ -28,6 +28,7 @@ import {
   vector,
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
+import { sealedText } from './sealed-text'
 
 /**
  * Drizzle push compares index options as JSON, while Postgres introspection
@@ -68,6 +69,20 @@ export const bytea = customType<{
  */
 export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
   return sql<string>`lower(btrim(${column}))`
+}
+
+/**
+ * The Gmail mailbox an address delivers to, in SQL, or NULL for any other
+ * domain. Gmail ignores dots and everything after `+` in the local part and
+ * treats `googlemail.com` as `gmail.com`, so every such variant of one inbox
+ * maps to the same `local@gmail.com`. It is the exact expression
+ * `user_gmail_mailbox_idx` indexes; a predicate spelled any other way scans `user`.
+ */
+export function gmailMailbox(column: AnyPgColumn | SQL): SQL<string | null> {
+  const address = foldedEmail(column)
+  const isGmail = sql`split_part(${address}, '@', 2) IN ('gmail.com', 'googlemail.com')`
+  const inbox = sql`replace(split_part(split_part(${address}, '@', 1), '+', 1), '.', '')`
+  return sql<string | null>`(CASE WHEN ${isGmail} THEN ${inbox} || '@gmail.com' END)`
 }
 
 /**
@@ -141,6 +156,13 @@ export const user = pgTable(
      * UNIQUE so the state cannot arise at all.
      */
     emailLowerIdx: index('user_email_lower_idx').on(foldedEmail(table.email)),
+    /**
+     * Finds the other accounts on one Gmail inbox, so a dot or `+tag` variant
+     * of an existing address does not get a second free allowance.
+     */
+    gmailMailboxIdx: index('user_gmail_mailbox_idx')
+      .on(gmailMailbox(table.email))
+      .where(sql`${gmailMailbox(table.email)} IS NOT NULL`),
   })
 )
 
@@ -176,8 +198,8 @@ export const account = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    accessToken: text('access_token'),
-    refreshToken: text('refresh_token'),
+    accessToken: sealedText('account', 'access_token'),
+    refreshToken: sealedText('account', 'refresh_token'),
     idToken: text('id_token'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
@@ -253,14 +275,16 @@ export const folder = pgTable(
   'folder',
   {
     id: text('id').primaryKey(),
+    /** File folders may belong to a Project; other resource folders remain workspace-owned. */
+    projectId: text('project_id').references((): AnyPgColumn => project.id, {
+      onDelete: 'restrict',
+    }),
     resourceType: folderResourceTypeEnum('resource_type').notNull(),
     name: text('name').notNull(),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     parentId: text('parent_id').references((): AnyPgColumn => folder.id, {
       onDelete: 'set null',
     }),
@@ -271,6 +295,37 @@ export const folder = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (table) => ({
+    ownerCheck: check(
+      'folder_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND (${table.projectId} IS NULL OR ${table.resourceType} = 'file')`
+    ),
+    workspaceOwnerTypeUnique: unique('folder_workspace_owner_type_unique').on(
+      table.id,
+      table.workspaceId,
+      table.resourceType
+    ),
+    workspaceParentOwnerFk: foreignKey({
+      name: 'folder_workspace_parent_owner_fk',
+      columns: [table.parentId, table.workspaceId, table.resourceType],
+      foreignColumns: [table.id, table.workspaceId, table.resourceType],
+    }),
+    projectOwnerTypeUnique: unique('folder_project_owner_type_unique').on(
+      table.id,
+      table.projectId,
+      table.resourceType
+    ),
+    projectParentOwnerFk: foreignKey({
+      name: 'folder_project_parent_owner_fk',
+      columns: [table.parentId, table.projectId, table.resourceType],
+      foreignColumns: [table.id, table.projectId, table.resourceType],
+    }),
+    projectIdIdx: index('folder_project_id_idx').on(table.projectId, table.id).concurrently(),
+    projectResourceParentNameActiveUnique: uniqueIndex(
+      'folder_project_resource_parent_name_active_unique'
+    )
+      .on(table.projectId, table.resourceType, sql`coalesce(${table.parentId}, '')`, table.name)
+      .concurrently()
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     userIdx: index('folder_user_idx').on(table.userId),
     workspaceResourceParentIdx: index('folder_workspace_resource_parent_idx').on(
       table.workspaceId,
@@ -401,7 +456,6 @@ export const workflow = pgTable(
     archivedAt: timestamp('archived_at'),
   },
   (table) => ({
-    userIdIdx: index('workflow_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('workflow_user_workspace_idx').on(table.userId, table.workspaceId),
     workspaceFolderNameUnique: uniqueIndex('workflow_workspace_folder_name_active_unique')
@@ -477,7 +531,6 @@ export const workflowEdges = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_edges_workflow_id_idx').on(table.workflowId),
     workflowSourceIdx: index('workflow_edges_workflow_source_idx').on(
       table.workflowId,
       table.sourceBlockId
@@ -505,7 +558,6 @@ export const workflowSubflows = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_subflows_workflow_id_idx').on(table.workflowId),
     workflowTypeIdx: index('workflow_subflows_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
@@ -529,7 +581,6 @@ export const workflowExecutionSnapshots = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_snapshots_workflow_id_idx').on(table.workflowId),
     stateHashIdx: index('workflow_snapshots_hash_idx').on(table.stateHash),
     workflowHashUnique: uniqueIndex('workflow_snapshots_workflow_hash_idx').on(
       table.workflowId,
@@ -600,7 +651,6 @@ export const workflowExecutionLogs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
     stateSnapshotIdIdx: index('workflow_execution_logs_state_snapshot_id_idx').on(
       table.stateSnapshotId
     ),
@@ -617,19 +667,19 @@ export const workflowExecutionLogs = pgTable(
       table.workflowId,
       table.startedAt
     ),
-    workspaceStartedAtIdx: index('workflow_execution_logs_workspace_started_at_idx').on(
-      table.workspaceId,
-      table.startedAt
-    ),
-    /** Supports index-only activity summaries and breakdowns. */
-    workspaceActivityIdx: index('workflow_execution_logs_workspace_activity_idx')
+    /**
+     * Supports index-only activity summaries and breakdowns, and the logs dashboard
+     * stats, which also read `level`.
+     */
+    workspaceActivityLevelIdx: index('workflow_execution_logs_workspace_activity_level_idx')
       .on(
         table.workspaceId,
         table.startedAt,
         table.status,
         table.totalDurationMs,
         table.workflowId,
-        table.trigger
+        table.trigger,
+        table.level
       )
       .concurrently(),
     workspaceStartedAtIdDescIdx: index(
@@ -699,6 +749,13 @@ export const executionLargeValues = pgTable(
      * would otherwise sequentially scan this table each time.
      */
     workflowIdIdx: index('execution_large_values_workflow_id_idx').on(table.workflowId),
+    /**
+     * Backs the `ON DELETE CASCADE` referential trigger. The cleanup indexes lead with
+     * `workspace_id` but are partial, so the trigger's unqualified `workspace_id = $1` cannot use them.
+     */
+    workspaceIdIdx: index('execution_large_values_workspace_id_idx')
+      .on(table.workspaceId)
+      .concurrently(),
   })
 )
 
@@ -881,6 +938,38 @@ export const organizationSecret = pgTable(
   ]
 )
 
+/**
+ * An organization's Sim links (go links): `sim/<name>` redirects members to `url`. Names match
+ * case- and punctuation-insensitively through `normalized_name`. `{*}` in `url`
+ * marks a variable link filled from the path after the name, and `default_url`
+ * serves a variable link opened without values. `visit_count` counts redirects.
+ */
+export const simLink = pgTable(
+  'sim_link',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    url: text('url').notNull(),
+    defaultUrl: text('default_url'),
+    description: text('description'),
+    unlisted: boolean('unlisted').notNull().default(false),
+    restrictEdit: boolean('restrict_edit').notNull().default(false),
+    visitCount: integer('visit_count').notNull().default(0),
+    lastVisitedAt: timestamp('last_visited_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
+    index('sim_link_created_by_idx').on(table.createdBy),
+  ]
+)
+
 export const workspaceEnvironment = pgTable(
   'workspace_environment',
   {
@@ -1040,6 +1129,7 @@ export const organizationBYOKKeys = pgTable(
   })
 )
 
+// contract-pending(after the release that stops declaring them is deployed): drop settings.show_training_controls and settings.copilot_enabled_models — nothing has read or written either since v0.7.56; safe once no deployed release declares them.
 export const settings = pgTable('settings', {
   /** Use the user id as the key */
   id: text('id').primaryKey(),
@@ -1059,7 +1149,6 @@ export const settings = pgTable('settings', {
     .notNull()
     .default(true),
 
-  showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
   mothershipEnvironment: text('mothership_environment').notNull().default('default'),
 
@@ -1071,9 +1160,6 @@ export const settings = pgTable('settings', {
   autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
-
-  /** Copilot preferences - maps model_id to enabled/disabled boolean */
-  copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
 
   /**
    * Copilot auto-allowed integration tools - array of tool IDs that can run without confirmation
@@ -1135,6 +1221,11 @@ export const workflowSchedule = pgTable(
     excludedDates: jsonb('excluded_dates').$type<string[]>(),
     /** Recurrence end boundary: the schedule completes once its next run would fall after this instant. */
     endsAt: timestamp('ends_at'),
+    /**
+     * A job's spend cap per run in USD; the run pauses once its settled cost reaches it. Null
+     * takes the default cap. Unused by workflow schedules.
+     */
+    runBudgetUsd: decimal('run_budget_usd', { precision: 12, scale: 4 }),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1185,10 +1276,29 @@ export const jobExecutionLogs = pgTable(
     totalDurationMs: integer('total_duration_ms'),
     executionData: jsonb('execution_data').notNull().default('{}'),
     cost: jsonb('cost'),
+    /**
+     * The schedule occurrence this run is for. With the schedule it names the run once:
+     * `execution_id` is derived from both and is the job turn's run id. Null on legacy rows.
+     */
+    occurrenceAt: timestamp('occurrence_at'),
+    /** 'met' | 'not_met' | 'blocked' | 'failed' | 'skipped_busy' | 'skipped_budget' | 'interrupted' */
+    outcome: text('outcome'),
+    summary: text('summary'),
+    /** The billing request the run's charges settle under, recorded when its first leg is admitted. */
+    billingRequestId: text('billing_request_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    scheduleIdIdx: index('job_execution_logs_schedule_id_idx').on(table.scheduleId),
+    scheduleOccurrenceUnique: uniqueIndex('job_execution_logs_schedule_occurrence_unique').on(
+      table.scheduleId,
+      table.occurrenceAt
+    ),
+    billingRequestUnique: uniqueIndex('job_execution_logs_billing_request_unique')
+      .on(table.billingRequestId)
+      .where(sql`${table.billingRequestId} IS NOT NULL`),
+    openRunsIdx: index('job_execution_logs_open_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} IN ('queued', 'running')`),
     workspaceStartedAtIdx: index('job_execution_logs_workspace_started_at_idx').on(
       table.workspaceId,
       table.startedAt
@@ -1409,6 +1519,13 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Whether the personal free-tier allowance counts toward this user's limit.
+   * False when the account reuses an identity from a recently deleted account
+   * (see `deletedAccountIdentity`): the free allowance is granted once per
+   * person, not once per account row. Prepaid credit and paid plans are unaffected.
+   */
+  freeTierEligible: boolean('free_tier_eligible').notNull().default(true),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1432,6 +1549,28 @@ export const userStats = pgTable('user_stats', {
     .default({}),
 })
 
+/**
+ * Keyed one-way digests of the sign-in identities (canonical email, OAuth
+ * provider subject) of accounts deleted at their holder's request, kept for a
+ * bounded window so a new account on the same identity does not receive a
+ * second free-tier allowance. Holds no user id, address, or other profile
+ * data. The digests are pseudonymous: the server key (derived from
+ * `BETTER_AUTH_SECRET`) can test a candidate identity against them, and
+ * rotating that secret orphans them. Rows are purged once `expiresAt` passes.
+ */
+export const deletedAccountIdentity = pgTable(
+  'deleted_account_identity',
+  {
+    /** HMAC-SHA256 (hex) of `<kind>:<canonical identity>`. */
+    identityHash: text('identity_hash').primaryKey(),
+    deletedAt: timestamp('deleted_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    expiresAtIdx: index('deleted_account_identity_expires_at_idx').on(table.expiresAt),
+  })
+)
+
 export const customTools = pgTable(
   'custom_tools',
   {
@@ -1445,7 +1584,6 @@ export const customTools = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
     workspaceTitleUnique: uniqueIndex('custom_tools_workspace_title_unique').on(
       table.workspaceId,
       table.title
@@ -1497,17 +1635,6 @@ export const skillMember = pgTable(
     uniqueMembership: uniqueIndex('skill_member_unique').on(table.skillId, table.userId),
   })
 )
-
-export const mothershipSettings = pgTable('mothership_settings', {
-  workspaceId: text('workspace_id')
-    .primaryKey()
-    .references(() => workspace.id, { onDelete: 'cascade' }),
-  mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
-  customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
-  skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
 
 export const subscription = pgTable(
   'subscription',
@@ -1615,12 +1742,8 @@ export const chat = pgTable(
     /**
      * When true, public chat SSE exposes tool lifecycle events. Independent of
      * includeThinking and of the protocol header.
-     *
-     * Nullable only because the column was added after the table; readers treat
-     * null as false.
      */
-    // contract-pending(any release): normalize nulls to false, then set DEFAULT false and NOT NULL — cosmetic only, since no reader distinguishes null from false
-    includeToolCalls: boolean('include_tool_calls'),
+    includeToolCalls: boolean('include_tool_calls').notNull().default(false),
 
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1638,6 +1761,7 @@ export const chat = pgTable(
         table.workflowId,
         table.archivedAt
       ),
+      userIdIdx: index('chat_user_id_idx').on(table.userId).concurrently(),
     }
   }
 )
@@ -1857,6 +1981,148 @@ export const member = pgTable(
 )
 
 /**
+ * A member's place in their organization, from an admin's people-data import or edit: the facts
+ * behind the People page, profiles and reporting lines. At most one row per member, deleted with
+ * the membership; `manager_member_id` is cleared when the manager's membership ends. Both members
+ * belong to the same organization, which every writer checks.
+ */
+export const memberProfile = pgTable(
+  'member_profile',
+  {
+    memberId: text('member_id')
+      .primaryKey()
+      .references(() => member.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    startDate: date('start_date'),
+    managerMemberId: text('manager_member_id').references((): AnyPgColumn => member.id, {
+      onDelete: 'set null',
+    }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('member_profile_manager_member_id_idx').on(table.managerMemberId),
+    index('member_profile_updated_by_idx').on(table.updatedBy),
+    check('member_profile_not_own_manager', sql`${table.managerMemberId} <> ${table.memberId}`),
+  ]
+)
+
+/** The single authoritative People source and its fenced synchronization lease for one organization. */
+export const peopleDirectorySync = pgTable(
+  'people_directory_sync',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    source: text('source').$type<'okta' | 'entra' | 'scim'>().notNull(),
+    sourceTarget: text('source_target').notNull(),
+    clientId: text('client_id'),
+    encryptedCredential: text('encrypted_credential'),
+    configuredBy: text('configured_by').references(() => user.id, { onDelete: 'set null' }),
+    leaseToken: text('lease_token'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    runId: text('run_id'),
+    runStartedAt: timestamp('run_started_at'),
+    phase: text('phase').$type<'users' | 'relationships' | 'publish'>(),
+    cursor: text('cursor'),
+    usersRead: integer('users_read').notNull().default(0),
+    retryCount: integer('retry_count').notNull().default(0),
+    nextSyncAt: timestamp('next_sync_at').notNull().defaultNow(),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    lastSuccessAt: timestamp('last_success_at'),
+    lastFailedAt: timestamp('last_failed_at'),
+    lastError: text('last_error'),
+  },
+  (table) => [index('people_directory_sync_due_idx').on(table.nextSyncAt)]
+)
+
+/** Coalesces provisioning changes independently of the worker's long-held publication lock. */
+export const peopleDirectoryScimChange = pgTable(
+  'people_directory_scim_change',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    changedAt: timestamp('changed_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('people_directory_scim_change_due_idx').on(table.changedAt, table.organizationId),
+  ]
+)
+
+/** Source identities live independently of accounts, memberships, seats, and access grants. */
+export const peopleDirectoryEntry = pgTable(
+  'people_directory_entry',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    source: text('source').$type<'okta' | 'entra' | 'scim'>().notNull(),
+    externalId: text('external_id').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    managerExternalId: text('manager_external_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('people_directory_entry_source_id_idx').on(table.organizationId, table.externalId),
+    index('people_directory_entry_email_idx').on(table.organizationId, table.email),
+    index('people_directory_entry_manager_idx').on(table.organizationId, table.managerExternalId),
+  ]
+)
+
+/** A private working generation. Only a complete generation may replace the public People entries. */
+export const peopleDirectoryStage = pgTable(
+  'people_directory_stage',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    runId: text('run_id').notNull(),
+    externalId: text('external_id').notNull(),
+    proposedId: text('proposed_id').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    title: text('title'),
+    department: text('department'),
+    location: text('location'),
+    managerExternalId: text('manager_external_id'),
+    reportsCursor: text('reports_cursor'),
+    reportsComplete: boolean('reports_complete').notNull().default(false),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.runId, table.externalId] }),
+    uniqueIndex('people_directory_stage_email_idx').on(
+      table.organizationId,
+      table.runId,
+      table.email
+    ),
+    index('people_directory_stage_pending_idx')
+      .on(table.organizationId, table.runId, table.externalId)
+      .where(sql`NOT ${table.reportsComplete}`),
+  ]
+)
+
+/** Stores hashes of processed user-list and direct-report cursors to detect replays. */
+export const peopleDirectoryPage = pgTable(
+  'people_directory_page',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => peopleDirectorySync.organizationId, { onDelete: 'cascade' }),
+    runId: text('run_id').notNull(),
+    pageHash: text('page_hash').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.runId, table.pageHash] })]
+)
+
+/**
  * Per-member usage limit (in dollars) scoped to a single organization.
  *
  * Keyed by `(organizationId, userId)` so it covers both organization members
@@ -2018,6 +2284,21 @@ export const workspaceModeEnum = pgEnum('workspace_mode', [
 
 export type WorkspaceMode = (typeof workspaceModeEnum.enumValues)[number]
 
+/**
+ * A development push that bootstraps Projects first pushes this column nullable, so the columns
+ * `0032_project_membership` reads exist before it fills the column and enforces NOT NULL; the
+ * push that follows uses the required column. Every other push and generation reads it required,
+ * including one that inherits a stray bootstrap flag outside a development push.
+ */
+function workspaceProjectIdColumn() {
+  const column = text('project_id').references((): AnyPgColumn => project.id, {
+    onDelete: 'restrict',
+  })
+  return process.env.SIM_DEV_DB_PUSH === '1' && process.env.SIM_DB_PUSH_PROJECT_BOOTSTRAP === '1'
+    ? (column as ReturnType<typeof column.notNull>)
+    : column.notNull()
+}
+
 export const workspace = pgTable(
   'workspace',
   {
@@ -2041,8 +2322,11 @@ export const workspace = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'set null',
     }),
-    /** Legacy memberships remain nullable until the registered Project backfill completes. */
-    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
+    projectId: workspaceProjectIdColumn(),
     workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
@@ -2082,8 +2366,25 @@ export const workspace = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    idProjectUnique: unique('workspace_id_project_unique').on(table.id, table.projectId),
+    /** Maintenance installs these two composite checks as DEFERRABLE INITIALLY DEFERRED. */
+    projectOrganizationFk: foreignKey({
+      name: 'workspace_project_organization_fk',
+      columns: [table.projectId, table.organizationScopeKey],
+      foreignColumns: [project.id, project.organizationScopeKey],
+    }),
+    /** The existing parent FK clears only the parent pointer on deletion. */
+    forkProjectFk: foreignKey({
+      name: 'workspace_fork_project_fk',
+      columns: [table.forkedFromWorkspaceId, table.projectId],
+      foreignColumns: [table.id, table.projectId],
+    }),
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    /** Workspaces a user pays for (upgrade target, account deletion) and the user FK's delete check. */
+    billedAccountUserIdIdx: index('workspace_billed_account_user_id_idx')
+      .on(table.billedAccountUserId)
+      .concurrently(),
     projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',
@@ -2114,6 +2415,10 @@ export const project = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'restrict',
     }),
+    /** Encodes nullable organization identity for the composite membership foreign key. */
+    organizationScopeKey: text('organization_scope_key').generatedAlwaysAs(
+      sql`CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END`
+    ),
     /** Lifecycle owner for personal and organization Projects; never an implicit access grant. */
     ownerId: text('owner_id')
       .notNull()
@@ -2123,6 +2428,10 @@ export const project = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    organizationScopeUnique: unique('project_id_organization_scope_unique').on(
+      table.id,
+      table.organizationScopeKey
+    ),
     nameLength: check(
       'project_name_length',
       sql`char_length(btrim(${table.name})) BETWEEN 1 AND 100`
@@ -2133,46 +2442,6 @@ export const project = pgTable(
       table.id
     ),
     ownerIdx: index('project_owner_archive_id_idx').on(table.ownerId, table.archivedAt, table.id),
-  })
-)
-
-/** contract-pending(after #8830 is fully deployed): #8590 drops this with the connector; readers recognize the completed schema. */
-export const projectMembershipRollout = pgTable(
-  'project_membership_rollout',
-  {
-    id: text('id').primaryKey(),
-    phase: text('phase', { enum: ['connector', 'column'] })
-      .notNull()
-      .default('connector'),
-  },
-  (table) => ({
-    singleton: check('project_membership_rollout_singleton', sql`${table.id} = 'membership'`),
-    phase: check(
-      'project_membership_rollout_phase',
-      sql`${table.phase} IN ('connector', 'column')`
-    ),
-  })
-)
-
-// contract-pending(after project writers are fully deployed and backfill validates): enforce exactly-one membership and active Project environment minimums at commit.
-export const projectWorkspace = pgTable(
-  'project_workspace',
-  {
-    // contract-pending(after #8830 is fully deployed and pre-8830 servers/workers drain): retire this table in #8590 — the durable authority marker has switched to column and compatibility readers tolerate its absence.
-    /** @deprecated Use the phase-aware membership helpers; retained for pre-8830 binaries during rollout. */
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id, { onDelete: 'restrict' }),
-    /** @deprecated Use workspace.id. */
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    /** @deprecated Membership is stored on workspace. */
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.projectId, table.workspaceId] }),
-    workspaceUnique: uniqueIndex('project_workspace_workspace_id_unique').on(table.workspaceId),
   })
 )
 
@@ -2220,11 +2489,6 @@ export const workspaceForkResourceMap = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    childWorkspaceIdx: index('workspace_fork_resource_map_child_ws_idx').on(table.childWorkspaceId),
-    childWorkspaceTypeIdx: index('workspace_fork_resource_map_child_ws_type_idx').on(
-      table.childWorkspaceId,
-      table.resourceType
-    ),
     childTypeParentUnique: uniqueIndex('workspace_fork_resource_map_child_type_parent_unique').on(
       table.childWorkspaceId,
       table.resourceType,
@@ -2311,12 +2575,8 @@ export const workspaceForkDependentValue = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Reconcile replaces a workflow's stored values by its id, so index that sweep.
-    childWsWorkflowIdx: index('workspace_fork_dependent_value_child_ws_wf_idx').on(
-      table.childWorkspaceId,
-      table.targetWorkflowId
-    ),
-    // One stored value per (edge, target workflow, target block, subblock).
+    // One stored value per (edge, target workflow, target block, subblock). Its leading
+    // (child workspace, target workflow) columns also serve reconcile's per-workflow sweep.
     childWsFieldUnique: uniqueIndex('workspace_fork_dependent_value_field_unique').on(
       table.childWorkspaceId,
       table.targetWorkflowId,
@@ -2516,6 +2776,7 @@ export const workspaceFile = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    uploadedByIdx: index('workspace_file_uploaded_by_idx').on(table.uploadedBy).concurrently(),
   })
 )
 
@@ -2710,6 +2971,8 @@ export const workspaceFiles = pgTable(
   'workspace_files',
   {
     id: text('id').primaryKey(),
+    /** Direct owner, independent of creator, caller, and billing payer. */
+    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     key: text('key').notNull(),
     userId: text('user_id')
       .notNull()
@@ -2777,7 +3040,8 @@ export const workspaceFiles = pgTable(
      * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
      * claimed, indexed, or cleaned up. The default truncates, and the
      * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
-     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
+     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and updates that change row
+     * data. Relationship fences that only advance the row version preserve an existing revision.
      */
     contentUpdatedAt: timestamp('content_updated_at')
       .notNull()
@@ -2791,6 +3055,27 @@ export const workspaceFiles = pgTable(
     secretProvenanceVersion: integer('secret_provenance_version'),
   },
   (table) => ({
+    ownerCheck: check(
+      'workspace_files_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}, ${table.organizationId}) <= 1`
+    ),
+    workspaceBindingCheck: check(
+      'workspace_files_workspace_binding_check',
+      sql`${table.context} NOT IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos') OR ${table.workspaceId} IS NOT NULL`
+    ),
+    projectBindingCheck: check(
+      'workspace_files_project_binding_check',
+      sql`(${table.projectId} IS NOT NULL) = (${table.context} = 'project') AND (${table.projectId} IS NULL OR ${table.chatId} IS NULL)`
+    ),
+    projectIdIdx: index('workspace_files_project_id_idx')
+      .on(table.projectId, table.id)
+      .concurrently(),
+    projectFolderOriginalNameActiveUnique: uniqueIndex(
+      'workspace_files_project_folder_name_active_unique'
+    )
+      .on(table.projectId, sql`coalesce(${table.folderId}, '')`, table.originalName)
+      .concurrently()
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
@@ -2802,19 +3087,74 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
     /**
-     * Serves the search backfill's hourly keyset walk over every live workspace file, which pages
-     * by `(workspace_id, id)`.
+     * Serves the search backfill's hourly keyset walk over every live workspace and project file,
+     * which pages by `(owner type, owner id, id)` — the owner expressions below, where a project
+     * file's owner is its project and every other file's is its workspace.
      *
      * Without this index nothing supplies that order under that filter, so each page sorts the
      * whole remaining set and the dispatcher's statement timeout aborts the transaction before any
-     * page commits. The column order must match the walk's `ORDER BY`, and the predicate must match
-     * its filter exactly, or the planner cannot prove the partial index covers the query.
+     * page commits. The expressions and their order must match the walk's `ORDER BY`, and the
+     * predicate must match its filter exactly, or the planner cannot prove the partial index
+     * covers the query.
      *
-     * The walk must also compare its cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek
-     * with this index; `a > x OR (a = x AND b > y)` is only ever a filter. See `seedBackfillPage`.
+     * The walk must also compare its cursor row-wise (`(type, owner, id) > (:type, :owner, :id)`)
+     * to seek with this index; an `OR` of per-column comparisons is only ever a filter. See
+     * `seedBackfillPage`.
+     */
+    ownerSearchKeysetIdx: index('workspace_files_search_owner_keyset_idx')
+      .on(
+        sql`(CASE WHEN ${table.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END)`,
+        sql`coalesce(${table.projectId}, ${table.workspaceId})`,
+        table.id
+      )
+      .where(
+        sql`${table.deletedAt} IS NULL AND ((${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL) OR (${table.context} = 'project' AND ${table.projectId} IS NOT NULL))`
+      )
+      .concurrently(),
+    /**
+     * Served the pre-project backfill walk, which paged live workspace files by
+     * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
+     *
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, and `workspace_files_workspace_active_uploaded_idx` (same predicate, leading `workspace_id`) serves every workspace-scoped read this index serves while id lookups have the primary key; retire it once its idx_scan stops growing after that index deploys.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /** Serves a workspace's live file list, and its bounded SSR seed, in upload order. */
+    workspaceActiveUploadedIdx: index('workspace_files_workspace_active_uploaded_idx')
+      .on(table.workspaceId, table.uploadedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves a folder page by upload date: `(workspace_id, coalesce(folder_id, ''))` equality,
+     * then the raw `(uploaded_at, id)` keyset the file sorts order on, and seeks a folder's live
+     * files for its rollup, which reads `size_bytes` from the heap. The folder expression must
+     * match `workspaceFileFolderKey` and the predicate the list's owner and lifecycle filter, or
+     * the planner cannot use it. `size_bytes` stays out of the key to keep the index narrow.
+     */
+    workspaceFolderUploadedIdx: index('workspace_files_workspace_folder_uploaded_idx')
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.uploadedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves the case-insensitive substring name search (`original_name ILIKE '%term%'`).
+     * `fastupdate` is off so file writes never stall on a foreground merge of every other
+     * writer's pending entries.
+     */
+    workspaceNameTrgmIdx: index('workspace_files_workspace_name_trgm_idx')
+      .using(
+        'gin',
+        table.workspaceId.asc().op('text_ops'),
+        table.originalName.asc().op('gin_trgm_ops')
+      )
+      .with({ fastupdate: 'off' })
       .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
@@ -2909,7 +3249,8 @@ export const workspaceFileSearchIndex = pgTable(
   })
 )
 
-/** One bounded scheduler row per workspace with current file revisions awaiting dispatch. */
+// contract-pending(after owner-aware search workers are fully deployed): retire this queue and dual enqueue after old dispatchers and retries drain.
+/** @deprecated Compatibility scheduling for previously deployed workspace workers. */
 export const workspaceFileSearchDispatchQueue = pgTable(
   'workspace_file_search_dispatch_queue',
   {
@@ -2932,10 +3273,37 @@ export const workspaceFileSearchDispatchQueue = pgTable(
   })
 )
 
+/** Owner-neutral dispatch replaces the workspace-only queue after older workers drain. */
+export const fileSearchDispatchQueue = pgTable(
+  'file_search_dispatch_queue',
+  {
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    enqueuedAt: timestamp('enqueued_at').notNull().defaultNow(),
+    lastDispatchedAt: timestamp('last_dispatched_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.entityType, table.entityId] }),
+    ownerCheck: check(
+      'file_search_dispatch_owner_check',
+      sql`${table.entityType} IN ('workspace', 'project') AND length(${table.entityId}) > 0`
+    ),
+    scheduleIdx: index('file_search_dispatch_schedule_idx').on(
+      table.lastDispatchedAt.asc().nullsFirst(),
+      table.enqueuedAt,
+      table.entityType,
+      table.entityId
+    ),
+  })
+)
+
 /** Singleton keyset cursor for the resumable initial workspace-file search backfill. */
 export const workspaceFileSearchBackfill = pgTable('workspace_file_search_backfill', {
   id: text('id').primaryKey(),
   afterWorkspaceId: text('after_workspace_id'),
+  afterEntityType: text('after_entity_type'),
+  afterEntityId: text('after_entity_id'),
   afterFileId: text('after_file_id'),
   completedAt: timestamp('completed_at'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2988,13 +3356,21 @@ export const workspaceFileSearchBuild = pgTable(
   {
     id: text('id').primaryKey(),
     fileId: text('file_id').notNull(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+    artifactKey: text('artifact_key'),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     /** Null only for a completely published build; abandoned workers expire automatically. */
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_build_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_build scan. */
+    ownerCheck: check(
+      'file_search_build_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
     fileIdx: index('workspace_file_search_build_file_idx').on(table.fileId),
     cleanupIdx: index('workspace_file_search_build_cleanup_idx')
       .on(table.expiresAt, table.id)
@@ -3009,7 +3385,9 @@ export const workspaceFileSearchRevision = pgTable(
     fileId: text('file_id')
       .primaryKey()
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
     status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
     buildId: text('build_id').references(() => workspaceFileSearchBuild.id, {
@@ -3031,6 +3409,29 @@ export const workspaceFileSearchRevision = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_revision_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_revision scan. */
+    ownerCheck: check(
+      'file_search_revision_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
+    ownerPendingIdx: index('file_search_revision_owner_pending_idx')
+      .on(
+        sql`coalesce(${table.entityType}, 'workspace')`,
+        sql`coalesce(${table.entityId}, ${table.workspaceId})`,
+        table.updatedAt,
+        table.fileId,
+        table.sourceContentUpdatedAt
+      )
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`)
+      .concurrently(),
+    ownerStatusIdx: index('file_search_revision_owner_status_idx')
+      .on(
+        sql`coalesce(${table.entityType}, 'workspace')`,
+        sql`coalesce(${table.entityId}, ${table.workspaceId})`,
+        table.status,
+        table.dispatchedAt
+      )
+      .concurrently(),
     workspaceStatusIdx: index('workspace_file_search_revision_workspace_status_idx').on(
       table.workspaceId,
       table.status
@@ -3052,7 +3453,9 @@ export const workspaceFileSearchChunk = pgTable(
     buildId: text('build_id')
       .notNull()
       .references(() => workspaceFileSearchBuild.id),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
     ordinal: integer('ordinal').notNull(),
     lineStart: integer('line_start').notNull(),
     fragment: boolean('fragment').notNull(),
@@ -3060,6 +3463,21 @@ export const workspaceFileSearchChunk = pgTable(
     content: text('content').notNull(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_chunk_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_chunk scan. */
+    ownerCheck: check(
+      'file_search_chunk_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
+    ownerContentIdx: index('file_search_chunk_owner_content_idx')
+      .using(
+        'gin',
+        table.entityType.asc().op('text_ops'),
+        table.entityId.asc().op('text_ops'),
+        table.content.asc().op('gin_trgm_ops')
+      )
+      .where(sql`${table.entityType} = 'project'`)
+      .with({ fastupdate: 'off' })
+      .concurrently(),
     pk: primaryKey({
       name: 'workspace_file_search_chunk_pk',
       columns: [table.buildId, table.ordinal],
@@ -3085,6 +3503,33 @@ export const workspaceFileSearchChunk = pgTable(
   })
 )
 
+/** A bounded compiled-input manifest outlives input deletion until its build is retired. */
+export const fileSearchDependency = pgTable(
+  'file_search_dependency',
+  {
+    buildId: text('build_id')
+      .notNull()
+      .references(() => workspaceFileSearchBuild.id, { onDelete: 'cascade' }),
+    fileId: text('file_id').notNull(),
+    key: text('key').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    /**
+     * The build's canonical owner, always derived from the build by the
+     * `file_search_dependency_owner` trigger, so the dispatcher can find an owner's stale
+     * dependencies without testing every ready revision.
+     */
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.buildId, table.fileId] }),
+    fileIdx: index('file_search_dependency_file_idx').on(table.fileId, table.buildId),
+    ownerIdx: index('file_search_dependency_owner_idx')
+      .on(table.entityType, table.entityId, table.buildId)
+      .concurrently(),
+  })
+)
+
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
   'completing',
@@ -3107,7 +3552,9 @@ export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
 
 export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
   'workspace_file',
+  'project_file',
   'table_import',
+  'knowledge_import',
   'knowledge_document',
   'profile_picture',
   'workspace_logo',
@@ -3265,9 +3712,8 @@ export const workspaceFileVersion = pgTable(
     fileId: text('file_id')
       .notNull()
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Compatibility scope, checked against fileId; Project versions derive their owner from the file. */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     key: text('key').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
@@ -3322,12 +3768,12 @@ export const publicShare = pgTable(
     /** 'file' | 'folder' (folder reserved for future) */
     resourceType: text('resource_type').notNull(),
     resourceId: text('resource_id').notNull(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     /**
      * SET NULL (not CASCADE) so a share — and its public link — outlives the user who created it;
-     * the file still belongs to the workspace.
+     * the shared file keeps its durable owner.
      */
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     token: text('token').notNull(),
@@ -3342,6 +3788,21 @@ export const publicShare = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after 0034_backfill_public_share_entities has run in every environment): validate public_share_entity_binding_check separately — 0425 added it NOT VALID so rollout avoids a public_share scan. */
+    entityBinding: check(
+      'public_share_entity_binding_check',
+      sql`
+      (${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL)
+      OR (${table.entityType} IS NOT NULL AND ${table.entityId} IS NOT NULL AND char_length(${table.entityId}) > 0
+        AND ((${table.entityType} = 'workspace' AND ${table.workspaceId} IS NOT NULL AND ${table.entityId} = ${table.workspaceId})
+          OR (${table.entityType} = 'project' AND ${table.workspaceId} IS NULL AND ${table.resourceType} = 'file')))
+    `
+    ),
+    entityIdIdx: index('public_share_entity_id_idx').on(
+      table.entityType,
+      table.entityId,
+      table.resourceType
+    ),
     tokenIdx: uniqueIndex('public_share_token_unique').on(table.token),
     resourceUniqueIdx: uniqueIndex('public_share_resource_unique').on(
       table.resourceType,
@@ -3403,11 +3864,7 @@ export const permissions = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userIdIdx: index('permissions_user_id_idx').on(table.userId),
-
     entityIdx: index('permissions_entity_idx').on(table.entityType, table.entityId),
-
-    userEntityTypeIdx: index('permissions_user_entity_type_idx').on(table.userId, table.entityType),
 
     userEntityPermissionIdx: index('permissions_user_entity_permission_idx').on(
       table.userId,
@@ -3445,7 +3902,6 @@ export const memory = pgTable(
   (table) => {
     return {
       keyIdx: index('memory_key_idx').on(table.key),
-      workspaceIdx: index('memory_workspace_idx').on(table.workspaceId),
       uniqueKeyPerWorkspaceIdx: uniqueIndex('memory_workspace_key_idx').on(
         table.workspaceId,
         table.key
@@ -3624,7 +4080,6 @@ export const knowledgeBase = pgTable(
     organizationNameActiveUnique: uniqueIndex('kb_organization_name_active_unique')
       .on(table.organizationId, table.name)
       .where(sql`${table.deletedAt} IS NULL`),
-    userIdIdx: index('kb_user_id_idx').on(table.userId),
     workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     folderIdIdx: index('kb_folder_id_idx').on(table.folderId),
@@ -3639,6 +4094,57 @@ export const knowledgeBase = pgTable(
     workspaceSearchIndexUnique: uniqueIndex('kb_workspace_search_index_unique')
       .on(table.workspaceId)
       .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
+  })
+)
+
+/**
+ * One knowledge-base bundle import, from the moment its uploaded archive is
+ * complete. The id is the upload session's id, so the resource keeps one id
+ * across both halves of its life; the base it creates is linked once it exists.
+ */
+export const knowledgeBaseImport = pgTable(
+  'knowledge_base_import',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /**
+     * Attribution only, with no foreign key: the row is the janitor's handle on
+     * the bundle and the base, so it must outlive its importer's account.
+     */
+    userId: text('user_id').notNull(),
+    /** The uploaded archive, deleted once the import settles. */
+    sourceKey: text('source_key').notNull(),
+    knowledgeBaseId: text('knowledge_base_id').references(() => knowledgeBase.id, {
+      onDelete: 'set null',
+    }),
+    status: text('status')
+      .$type<'running' | 'completed' | 'failed' | 'canceled'>()
+      .notNull()
+      .default('running'),
+    documentsTotal: integer('documents_total').notNull().default(0),
+    documentsImported: integer('documents_imported').notNull().default(0),
+    documentsFailed: integer('documents_failed').notNull().default(0),
+    /** Whether the bundle's vectors matched this deployment's embedding model and were kept. */
+    vectorsReused: boolean('vectors_reused').notNull().default(false),
+    /** The first few documents that could not be imported, as `{ filename, message }`. */
+    failures: jsonb('failures')
+      .$type<{ filename: string; message: string }[]>()
+      .notNull()
+      .default([]),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** When a worker claimed the import; unset, a retried completion dispatches it again. */
+    startedAt: timestamp('started_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    watchdogIdx: index('knowledge_base_import_watchdog_idx').on(table.status, table.updatedAt),
+    knowledgeBaseIdIdx: index('knowledge_base_import_knowledge_base_id_idx').on(
+      table.knowledgeBaseId
+    ),
   })
 )
 
@@ -3762,7 +4268,11 @@ export const document = pgTable(
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
   (table) => ({
-    knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    /** Backs the `ON DELETE SET NULL` referential trigger on user deletion. */
+    uploadedByIdx: index('doc_uploaded_by_idx')
+      .on(table.uploadedBy)
+      .where(sql`${table.uploadedBy} IS NOT NULL`)
+      .concurrently(),
     /** Search's updated-after filter: the documents of a base changed since a time, without a base scan. */
     sourceModifiedLookupIdx: index('doc_kb_source_modified_idx')
       .on(table.knowledgeBaseId, table.sourceModifiedAt)
@@ -3792,12 +4302,6 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
-    /** Superseded by the per-source recovery index; drop in a follow-up migration once that deploy has shipped. */
-    processingRecoveryIdx: index('doc_processing_recovery_idx')
-      .on(table.uploadedAt, table.id)
-      .where(
-        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
-      ),
     /**
      * Oldest-first recovery pages per eligible source. Recovery walks only the sources it may
      * admit, so retained inputs of paused or federated sources are never read.
@@ -3827,14 +4331,6 @@ export const document = pgTable(
       table.connectorId,
       table.externalId
     ),
-    /**
-     * Superseded by `doc_connector_reconciliation_v2_idx`; drop it concurrently once the id-keyset
-     * walks are fully deployed. Nothing orders by `source_seen_at` any more, and keying it makes
-     * every listing's seen stamp a non-HOT update.
-     */
-    connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
-      .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
-      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
     /**
      * Id-keyset absence reconciliation and resurrection walks, including tombstones and skipping
      * excluded or archived rows. `source_seen_at` stays out of the key so the per-listing seen
@@ -3945,7 +4441,6 @@ export const knowledgeBaseTagDefinitions = pgTable(
       table.knowledgeBaseId,
       table.displayName
     ),
-    kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
 )
 
@@ -4065,7 +4560,10 @@ export const embedding = pgTable(
     boolean2Idx: index('emb_boolean2_idx').on(table.boolean2),
     boolean3Idx: index('emb_boolean3_idx').on(table.boolean3),
 
-    contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
+    /** Chunk writes must not inherit a foreground merge of every other writer's pending entries. */
+    contentFtsIdx: index('emb_content_fts_idx')
+      .using('gin', table.contentTsv)
+      .with({ fastupdate: 'off' }),
 
     /**
      * Exactly one width is populated per chunk. A row with none is an
@@ -4079,35 +4577,11 @@ export const embedding = pgTable(
   })
 )
 
-/** Compatibility storage for connector-detachment workers from before keyword retirement. */
-// contract-pending(after the keyword-projection retirement release and old connector-detachment workers have drained): drop embedding_keyword_tin — no new projection writer uses it.
-export const embeddingKeywordTin = pgTable(
-  'embedding_keyword_tin',
-  {
-    id: text('id')
-      .primaryKey()
-      .references(() => embedding.id, { onDelete: 'cascade' }),
-    knowledgeBaseId: text('knowledge_base_id').notNull(),
-    documentId: text('document_id').notNull(),
-    enabled: boolean('enabled').notNull(),
-    content: text('content').notNull(),
-    /**
-     * The document's source and ACL, mirrored by trigger so ranking decides readability on the row it
-     * scores rather than through a join per ranked chunk. Hydration still reads under the full predicate.
-     */
-    connectorId: text('connector_id'),
-    acl: text('acl').array(),
-  },
-  (table) => ({
-    /** The document ACL trigger fans out by document; without this it scans the projection per document. */
-    documentIdx: index('embedding_keyword_tin_document_idx').on(table.documentId),
-  })
-)
-
 /**
  * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
  * candidate scans from fetching full-precision TOAST values. Application writers only change
- * `embedding`: its trigger writes this projection in the writer's transaction. A chunk write that
+ * `embedding`: its trigger writes this projection in the writer's transaction, and deletes the row
+ * instead for a chunk of a retired Search knowledge base (`isSearchIndex`). A chunk write that
  * skipped the trigger, as releases that deferred projection did, is written by the knowledge
  * projector after the commit (see {@link knowledgeProjectionDirty}).
  */
@@ -4280,6 +4754,125 @@ export const docsEmbeddings = pgTable(
 
 export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
 
+/** Private benchmark artifacts retain their source scope and fence each asynchronous attempt. */
+export const mothershipBenchmarks = pgTable(
+  'mothership_benchmarks',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Null preserves the original owner's execution identity for existing cases. */
+    runAsUserId: text('run_as_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    version: integer('version').notNull().default(1),
+    runningStage: text('running_stage'),
+    attemptId: text('attempt_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    plannerChatId: text('planner_chat_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCreatedIdx: index('mothership_benchmarks_owner_created_idx').on(
+      table.organizationId,
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    workspaceIdx: index('mothership_benchmarks_workspace_idx').on(table.sourceWorkspaceId),
+    versionCheck: check('mothership_benchmarks_version_check', sql`${table.version} > 0`),
+    attemptCheck: check(
+      'mothership_benchmarks_attempt_check',
+      sql`(${table.runningStage} IS NULL AND ${table.attemptId} IS NULL AND ${table.leaseExpiresAt} IS NULL) OR (${table.runningStage} IS NOT NULL AND ${table.runningStage} IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND ${table.attemptId} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`
+    ),
+  })
+)
+
+/** Immutable artifacts with separate human reviews; the parent owns access and deletion. */
+export const mothershipBenchmarkRuns = pgTable(
+  'mothership_benchmark_runs',
+  {
+    id: text('id').primaryKey(),
+    benchmarkId: text('benchmark_id')
+      .notNull()
+      .references(() => mothershipBenchmarks.id, { onDelete: 'cascade' }),
+    label: text('label').notNull().default(''),
+    evaluationKey: text('evaluation_key').notNull(),
+    reviews: jsonb('reviews').notNull().default([]),
+    version: integer('version').notNull().default(1),
+    reviewedAt: timestamp('reviewed_at'),
+    correct: integer('correct').notNull(),
+    automaticCorrect: integer('automatic_correct').notNull(),
+    total: integer('total').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    benchmarkCreatedIdx: index('mothership_benchmark_runs_benchmark_created_idx').on(
+      table.benchmarkId,
+      table.createdAt,
+      table.id
+    ),
+    scoreCheck: check(
+      'mothership_benchmark_runs_score_check',
+      sql`${table.total} > 0 AND ${table.correct} >= 0 AND ${table.correct} <= ${table.total}`
+    ),
+    versionCheck: check('mothership_benchmark_runs_version_check', sql`${table.version} > 0`),
+    automaticScoreCheck: check(
+      'mothership_benchmark_runs_automatic_score_check',
+      sql`${table.automaticCorrect} >= 0 AND ${table.automaticCorrect} <= ${table.total}`
+    ),
+  })
+)
+
+/** Private graph names; memory content stays in the memory service. */
+export const mothershipMemorySpaces = pgTable(
+  'mothership_memory_spaces',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdx: index('mothership_memory_spaces_owner_idx').on(table.userId, table.organizationId),
+  })
+)
+
+/** Null selects the implicit Default, whose original namespace never changes. */
+export const mothershipMemorySelections = pgTable(
+  'mothership_memory_selections',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    spaceId: uuid('space_id').references(() => mothershipMemorySpaces.id, {
+      onDelete: 'no action',
+    }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.organizationId] }),
+  })
+)
+
+// contract-pending(after the release that stops declaring plan_artifact is deployed): drop copilot_chats.plan_artifact — the plan artifact moved into the message transcript; safe once no deployed release declares the column.
 export const copilotChats = pgTable(
   'copilot_chats',
   {
@@ -4292,6 +4885,8 @@ export const copilotChats = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    /** Bound once, without an FK: workspace chats can outlive their organization; missing graph ownership fails closed. */
+    memorySpaceId: uuid('memory_space_id'),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
@@ -4300,13 +4895,6 @@ export const copilotChats = pgTable(
     externalConversationKey: text('external_conversation_key'),
     externalConversationMetadata: jsonb('external_conversation_metadata'),
     previewYaml: text('preview_yaml'),
-    /**
-     * @deprecated Nothing reads or writes this any more — the plan artifact
-     * moved into the message transcript. Kept only so the column survives the
-     * deploy that removes its last readers; drop it in a follow-up migration
-     * once that deploy has fully rolled out (expand/contract).
-     */
-    planArtifact: text('plan_artifact'),
     config: jsonb('config'),
     resources: jsonb('resources').notNull().default('[]'),
     /**
@@ -4339,7 +4927,6 @@ export const copilotChats = pgTable(
       table.createdAt,
       table.id
     ),
-    userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
     userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
 
@@ -4376,6 +4963,7 @@ export const mothershipResourceEffects = pgTable(
   (table) => ({ pk: primaryKey({ columns: [table.chatId, table.effectId] }) })
 )
 
+// contract-pending(after the release that stops declaring them is deployed): drop copilot_messages.parent_message_id, tokens_in, and tokens_out — no code has read or written them since they were added; safe once no deployed release declares them.
 export const copilotMessages = pgTable(
   'copilot_messages',
   {
@@ -4386,11 +4974,14 @@ export const copilotMessages = pgTable(
     messageId: text('message_id').notNull(),
     role: text('role').notNull(),
     content: jsonb('content').notNull(),
+    /**
+     * The chat UI's projection of `content` (tool-call params truncated), or null when it equals
+     * `content` or has not been backfilled. Transcript reads for the UI select
+     * `coalesce(display_content, content)` so they never detoast the full params.
+     */
+    displayContent: jsonb('display_content'),
     streamId: text('stream_id'),
-    parentMessageId: text('parent_message_id'),
     model: text('model'),
-    tokensIn: integer('tokens_in'),
-    tokensOut: integer('tokens_out'),
     seq: integer('seq'),
     deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -4416,30 +5007,6 @@ export const copilotMessages = pgTable(
   })
 )
 
-export const copilotWorkflowReadHashes = pgTable(
-  'copilot_workflow_read_hashes',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    chatId: uuid('chat_id')
-      .notNull()
-      .references(() => copilotChats.id, { onDelete: 'cascade' }),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    hash: text('hash').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    chatIdIdx: index('copilot_workflow_read_hashes_chat_id_idx').on(table.chatId),
-    workflowIdIdx: index('copilot_workflow_read_hashes_workflow_id_idx').on(table.workflowId),
-    chatWorkflowUnique: uniqueIndex('copilot_workflow_read_hashes_chat_workflow_unique').on(
-      table.chatId,
-      table.workflowId
-    ),
-  })
-)
-
 export const workflowCheckpoints = pgTable(
   'workflow_checkpoints',
   {
@@ -4460,8 +5027,6 @@ export const workflowCheckpoints = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userIdIdx: index('workflow_checkpoints_user_id_idx').on(table.userId),
-    workflowIdIdx: index('workflow_checkpoints_workflow_id_idx').on(table.workflowId),
     chatIdIdx: index('workflow_checkpoints_chat_id_idx').on(table.chatId),
     messageIdIdx: index('workflow_checkpoints_message_id_idx').on(table.messageId),
 
@@ -4511,6 +5076,12 @@ export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
 export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
+
+export interface AssistantActionBinding {
+  operationVersion: number
+  effect: 'read' | 'write'
+  credentialId: string
+}
 
 /** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
 export const copilotRequestStops = pgTable(
@@ -4610,11 +5181,9 @@ export const copilotRuns = pgTable(
   },
   (table) => ({
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
-    chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
     chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
     userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
-    workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),
     statusIdx: index('copilot_runs_status_idx').on(table.status),
     chatExecutionIdx: index('copilot_runs_chat_execution_idx').on(table.chatId, table.executionId),
     executionStartedAtIdx: index('copilot_runs_execution_started_at_idx').on(
@@ -4649,7 +5218,6 @@ export const copilotRunCheckpoints = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    runIdIdx: index('copilot_run_checkpoints_run_id_idx').on(table.runId),
     pendingToolCallIdIdx: index('copilot_run_checkpoints_pending_tool_call_id_idx').on(
       table.pendingToolCallId
     ),
@@ -4676,19 +5244,27 @@ export const copilotAsyncToolCalls = pgTable(
     toolCallId: text('tool_call_id').notNull(),
     toolName: text('tool_name').notNull(),
     args: jsonb('args').notNull().default('{}'),
+    /** Canonical dispatch identity; null only on calls recorded before invocation binding. */
+    executableName: text('executable_name'),
+    targetWorkspaceId: text('target_workspace_id'),
+    /** Validated user edits, committed once with the decision; original args stay immutable. */
+    approvedArgs: jsonb('approved_args'),
+    /** Server-resolved authority sealed with the original proposal, never supplied by the worker. */
+    assistantAction: jsonb('assistant_action').$type<AssistantActionBinding>(),
+    /** External writes without a provider idempotency key must never be replayed after a crash. */
+    executionRetryable: boolean('execution_retryable').notNull().default(true),
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
     /**
-     * Set only for tools declaring requiresApproval in the mothership tool catalog. A null decision
-     * on such a tool means the prompt is still outstanding, which is what lets it survive a reload.
+     * A null decision on a gated call means its prompt is still outstanding after a reload.
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
     /**
      * Set when this call was held for the user's decision. Whether a call is gated depends on the
      * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
-     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     * every execution claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
     /**
@@ -4715,10 +5291,24 @@ export const copilotAsyncToolCalls = pgTable(
     executionOwnerToken: text('execution_owner_token'),
     executionLeaseExpiresAt: timestamp('execution_lease_expires_at', { withTimezone: true }),
     executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
+    /** Sim executions started for this call, counting each re-run after its owner died. */
+    executionAttempts: integer('execution_attempts').notNull().default(0),
+    /**
+     * When Sim must have settled this call: the worker's wait from the frame, less the settle
+     * margin, fixed at first receipt. Every wait, execution and re-run of the call ends by it.
+     * Null when the frame named no deadline.
+     */
+    executionDeadlineAt: timestamp('execution_deadline_at', { withTimezone: true }),
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')
-      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      /** `ownerToken` names the execution attempt that started the command. */
+      .$type<
+        Record<
+          string,
+          { sandboxId: string; sessionKey: string; settled: boolean; ownerToken?: string }
+        >
+      >()
       .notNull()
       .default({}),
     completedAt: timestamp('completed_at'),
@@ -4726,7 +5316,6 @@ export const copilotAsyncToolCalls = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
     checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
@@ -5146,7 +5735,6 @@ export const ssoDomain = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    organizationIdIdx: index('sso_domain_organization_id_idx').on(table.organizationId),
     domainIdx: index('sso_domain_domain_idx').on(table.domain),
     /**
      * An org holds at most one row per domain. Makes claims idempotent under
@@ -5482,7 +6070,6 @@ export const customBlock = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    organizationIdIdx: index('custom_block_organization_id_idx').on(table.organizationId),
     workflowIdIdx: index('custom_block_workflow_id_idx').on(table.workflowId),
     orgTypeUnique: uniqueIndex('custom_block_organization_type_unique').on(
       table.organizationId,
@@ -5526,6 +6113,20 @@ export const auditLog = pgTable(
       table.id
     ),
     actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
+    /**
+     * Serves the organization-level branch of an organization's listing: workspace-less rows
+     * attributed through `metadata.organizationId`, read newest first by the listing keyset.
+     */
+    orgLevelCreatedAtIdIdx: index('audit_log_org_level_created_at_id_idx')
+      .on(
+        sql`(${table.metadata}->>'organizationId')`,
+        sql`date_trunc('milliseconds', ${table.createdAt})`,
+        table.id
+      )
+      .concurrently()
+      .where(
+        sql`${table.workspaceId} IS NULL AND (${table.metadata}->>'organizationId') IS NOT NULL`
+      ),
     resourceIdx: index('audit_log_resource_idx').on(table.resourceType, table.resourceId),
     actionIdx: index('audit_log_action_idx').on(table.action),
   })
@@ -5561,38 +6162,6 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'api-tool',
   'workflow-test',
 ])
-
-/** Content-free organization Search activity, independent of billable model usage. */
-// contract-pending(after the indexed-search retirement release and old activity writers have drained): drop organization_search_invocation — live Search does not record indexed result activity.
-export const organizationSearchInvocation = pgTable(
-  'organization_search_invocation',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-    surface: text('surface').notNull(),
-    sourceTypes: text('source_types').array().notNull(),
-    resultCount: integer('result_count').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => ({
-    organizationCreatedAtIdx: index('organization_search_invocation_org_created_idx').on(
-      table.organizationId,
-      table.createdAt
-    ),
-    userIdIdx: index('organization_search_invocation_user_idx').on(table.userId),
-    resultCountBounds: check(
-      'organization_search_invocation_result_count_bounds',
-      sql`${table.resultCount} BETWEEN 0 AND 100`
-    ),
-    sourceTypesBounds: check(
-      'organization_search_invocation_source_types_bounds',
-      sql`cardinality(${table.sourceTypes}) <= 100`
-    ),
-  })
-)
 
 /** MCP tool attempts, separate from successful Search invocations and billable usage. */
 export const organizationSearchMcpInvocation = pgTable(
@@ -5688,38 +6257,30 @@ export const usageLog = pgTable(
     eventKeyUnique: uniqueIndex('usage_log_event_key_unique')
       .on(table.eventKey)
       .where(sql`${table.eventKey} IS NOT NULL`),
-    billingEntityPeriodIdx: index('usage_log_billing_entity_period_idx')
-      .on(
-        table.billingEntityType,
-        table.billingEntityId,
-        table.billingPeriodStart,
-        table.billingPeriodEnd
-      )
-      .where(sql`${table.billingEntityType} IS NOT NULL`),
     /**
-     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
-     * `cost` so the billing-period aggregates resolve index-only rather than taking
-     * a heap fetch per matched row.
+     * Serves every stamped-period aggregate index-only: the period sums
+     * (entity + both period stamps, optionally `user_id`), the weekly-refresh
+     * buckets (entity + `billing_period_start`, reading `created_at` and
+     * `billing_period_end` as payload), and the cycle-close range over the
+     * period stamps.
      *
-     * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
-     * putting `billingPeriodEnd` in that slot would end the usable prefix at
-     * `billingPeriodStart` and leave that query scanning the whole period.
-     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
-     * removes no rows and rides along as payload.
-     *
-     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
-     * column it deduplicates to a fraction of this index's size, which keeps
-     * prefix-only bitmap scans cheap.
+     * Both period stamps lead, ahead of every payload column, so the hottest
+     * read (all four leading columns equal) ends its scan at the period's last
+     * entry. The planner underestimates that match badly, because the period
+     * stamps are functionally dependent on the entity and their selectivities
+     * multiply; with the stamps split by other columns it preferred a slimmer
+     * index without `cost` and fetched every matched row from the heap.
+     * `user_id` comes next for the per-user sums that filter on it; the rest is
+     * payload.
      */
-    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+    billingPeriodCostIdx: index('usage_log_billing_entity_period_cost_idx')
       .on(
         table.billingEntityType,
         table.billingEntityId,
         table.billingPeriodStart,
+        table.billingPeriodEnd,
         table.userId,
         table.createdAt,
-        table.billingPeriodEnd,
         table.source,
         table.cost
       )
@@ -5742,9 +6303,28 @@ export const usageLog = pgTable(
         (${table.billingEntityType} IS NOT NULL AND ${table.billingEntityId} IS NOT NULL AND ${table.billingPeriodStart} IS NOT NULL AND ${table.billingPeriodEnd} IS NOT NULL AND ${table.billingPeriodStart} < ${table.billingPeriodEnd})
       )`
     ),
-    workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
+    /**
+     * Serves the Workspaces drill-down index-only: an analytics read narrowed to one
+     * workspace over a `created_at` window (entity + `workspace_id` + the window)
+     * reads its totals, series, and member, source and workflow rankings from here,
+     * and skips the workspace's rows billed to another entity without a heap fetch.
+     * A Stripe-period drill-down matches the period stamps, which are not here.
+     *
+     * `workspace_id` and `created_at` lead so the scan is bounded by the
+     * workspace's rows in the window rather than its organization's, and so the
+     * reads that name only the workspace keep their order: the `workspace_id`
+     * foreign key's `ON DELETE SET NULL`, and the ledger list filtered to a
+     * workspace. The entity and everything after it are payload.
+     */
+    workspaceCreatedAtCostIdx: index('usage_log_workspace_created_at_cost_idx').on(
       table.workspaceId,
-      table.createdAt
+      table.createdAt,
+      table.billingEntityType,
+      table.billingEntityId,
+      table.userId,
+      table.source,
+      table.cost,
+      table.workflowId
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
@@ -5778,6 +6358,8 @@ export interface ManagedMcpToolSnapshot {
   name: string
   description?: string
   inputSchema: Record<string, unknown>
+  /** Absent when the tool declares no output schema, and on snapshots taken before it was kept. */
+  outputSchema?: Record<string, unknown>
 }
 
 /** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */
@@ -6018,7 +6600,6 @@ export const credentialGroup = pgTable(
       'credential_group_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('credential_group_organization_id_idx').on(table.organizationId),
     organizationUnique: uniqueIndex('credential_group_organization_unique').on(
       table.organizationId
     ),
@@ -6195,6 +6776,40 @@ export const credentialGroupEnrollment = pgTable(
       'credential_group_enrollment_invitation_token_hash_length_check',
       sql`length(${table.invitationTokenHash}) = 64`
     ),
+  })
+)
+
+/** Personal Assistant preferences never confer access to another account or override organization policy. */
+export const assistantToolPermission = pgTable(
+  'assistant_tool_permission',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull().default(1),
+    readPolicy: text('read_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('allow'),
+    writePolicy: text('write_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('ask'),
+    overrides: jsonb('overrides')
+      .$type<Record<string, { version: number; policy: 'allow' | 'ask' | 'block' }>>()
+      .notNull()
+      .default({}),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.organizationId, table.userId, table.credentialId] }),
+    credentialIdx: index('assistant_tool_permission_credential_idx').on(table.credentialId),
+    userIdx: index('assistant_tool_permission_user_idx').on(table.userId),
+    policyCheck: check(
+      'assistant_tool_permission_policy_check',
+      sql`${table.readPolicy} IN ('allow', 'ask', 'block') AND ${table.writePolicy} IN ('allow', 'ask', 'block')`
+    ),
+    revisionCheck: check('assistant_tool_permission_revision_check', sql`${table.revision} > 0`),
   })
 )
 
@@ -6377,7 +6992,6 @@ export const permissionGroupMember = pgTable(
     assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   },
   (table) => ({
-    permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
     groupUserUnique: uniqueIndex('permission_group_member_group_user_unique').on(
       table.permissionGroupId,
       table.userId
@@ -6527,6 +7141,11 @@ export const knowledgeConnector = pgTable(
      * member-sync job finishes the rewrite before the mode takes effect.
      */
     accessRewritePending: boolean('access_rewrite_pending').notNull().default(false),
+    /**
+     * Set when a settings change stops indexing images the connector already
+     * indexed; the next sync removes them and clears it.
+     */
+    imageRemovalPending: boolean('image_removal_pending').notNull().default(false),
     /**
      * Where the members-mode absence reconcile resumes: the external id of the
      * last live document it checked, in `doc_connector_external_id_idx` order.
@@ -6894,7 +7513,6 @@ export const knowledgeExternalDirectory = pgTable(
       'ked_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('ked_organization_id_idx').on(table.organizationId),
     workspaceIdentity: uniqueIndex('ked_workspace_identity_unique').on(
       table.workspaceId,
       table.providerId,
@@ -6955,7 +7573,6 @@ export const knowledgeExternalGroup = pgTable(
       'keg_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
     ),
-    organizationIdIdx: index('keg_organization_id_idx').on(table.organizationId),
     organizationIdentityUnique: uniqueIndex('keg_organization_identity_unique').on(
       table.organizationId,
       table.providerId,
@@ -7125,6 +7742,16 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    /**
+     * Serves the retention prune of closed sync history, which claims `completed` and `failed`
+     * rows older than the cutoff. `started_at` is not a leading key of
+     * `kcsl_connector_started_at_idx`, so that sweep read the whole index on every run. The
+     * predicate matches the prune's status list exactly so the planner can prove it.
+     */
+    terminalStartedAtIdx: index('kcsl_terminal_started_at_idx')
+      .on(table.startedAt)
+      .concurrently()
+      .where(sql`${table.status} IN ('completed', 'failed')`),
     databaseFailureClassCheck: check(
       'kcsl_database_failure_class_check',
       sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
@@ -7195,6 +7822,8 @@ export const userTableDefinitions = pgTable(
   (table) => ({
     workspaceIdIdx: index('user_table_def_workspace_id_idx').on(table.workspaceId),
     folderIdIdx: index('user_table_def_folder_id_idx').on(table.folderId),
+    /** Backs the `ON DELETE CASCADE` referential trigger on user deletion. */
+    createdByIdx: index('user_table_def_created_by_idx').on(table.createdBy).concurrently(),
     workspaceNameUnique: uniqueIndex('user_table_def_workspace_name_unique')
       .on(table.workspaceId, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
@@ -7242,6 +7871,11 @@ export const userTableRows = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (table) => ({
+    /** Backs the `ON DELETE SET NULL` referential trigger on user deletion. */
+    createdByIdx: index('user_table_rows_created_by_idx')
+      .on(table.createdBy)
+      .where(sql`${table.createdBy} IS NOT NULL`)
+      .concurrently(),
     /**
      * Tenant-scoped containment index (requires the `btree_gin` extension,
      * created in migration 0232). A plain GIN on `data` matches `@>` candidates
@@ -7250,12 +7884,12 @@ export const userTableRows = pgTable(
      * 33k-row match). Leading with `table_id` intersects inside the index, and
      * `jsonb_path_ops` indexes only containment paths: rare-equality probe
      * 326ms → 17ms, and the index is smaller than the one it replaces.
+     * `fastupdate` is off so row writes never stall on a foreground merge of
+     * every other writer's pending entries.
      */
-    dataGinIdx: index('user_table_rows_tenant_data_gin_idx').using(
-      'gin',
-      table.tableId,
-      sql`${table.data} jsonb_path_ops`
-    ),
+    dataGinIdx: index('user_table_rows_tenant_data_gin_idx')
+      .using('gin', table.tableId, sql`${table.data} jsonb_path_ops`)
+      .with({ fastupdate: 'off' }),
     workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
       table.workspaceId,
       table.tableId
@@ -7652,46 +8286,6 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-/**
- * The application code that read/wrote this table (Academy) was removed in
- * the same PR that would have dropped it here — deferred to a follow-up PR
- * once that removal has actually shipped, per the expand/contract migration
- * safety check (`check:migrations`), since a same-deploy drop would break
- * any pod still running the old code during a rolling deploy.
- */
-export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
-
-/** Partner certification records issued on course completion */
-export const academyCertificate = pgTable(
-  'academy_certificate',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    /** References the file-based course ID from lib/academy/content */
-    courseId: text('course_id').notNull(),
-    status: academyCertStatusEnum('status').notNull().default('active'),
-    issuedAt: timestamp('issued_at').notNull().defaultNow(),
-    /** Optional expiry for recertification requirements */
-    expiresAt: timestamp('expires_at'),
-    /** Human-readable unique certificate number, e.g. SIM-2026-00042 */
-    certificateNumber: text('certificate_number').notNull().unique(),
-    /** Snapshot of name and other metadata at time of issue */
-    metadata: jsonb('metadata'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    userIdIdx: index('academy_certificate_user_id_idx').on(table.userId),
-    courseIdIdx: index('academy_certificate_course_id_idx').on(table.courseId),
-    userCourseUnique: uniqueIndex('academy_certificate_user_course_unique').on(
-      table.userId,
-      table.courseId
-    ),
-    statusIdx: index('academy_certificate_status_idx').on(table.status),
-  })
-)
-
 export const dataDrainSourceEnum = pgEnum('data_drain_source', [
   'workflow_logs',
   'job_logs',
@@ -7706,6 +8300,7 @@ export const dataDrainDestinationEnum = pgEnum('data_drain_destination', [
   's3',
   'gcs',
   'azure_blob',
+  'sentinel',
   'datadog',
   'bigquery',
   'snowflake',
@@ -7757,7 +8352,6 @@ export const dataDrains = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    orgIdx: index('data_drains_org_idx').on(table.organizationId),
     dueIdx: index('data_drains_due_idx').on(table.enabled, table.lastRunAt),
     orgNameUnique: uniqueIndex('data_drains_org_name_unique').on(table.organizationId, table.name),
   })
@@ -7829,7 +8423,6 @@ export const workspaceSandbox = pgTable(
       table.workspaceId,
       table.name
     ),
-    workspaceIdx: index('workspace_sandbox_workspace_idx').on(table.workspaceId),
     specHashIdx: index('workspace_sandbox_spec_hash_idx').on(table.specHash),
   })
 )
@@ -8173,7 +8766,6 @@ export const scimGroupMapping = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    groupIdx: index('scim_group_mapping_group_idx').on(table.groupId),
     permissionGroupIdx: index('scim_group_mapping_permission_group_idx').on(
       table.permissionGroupId
     ),
@@ -8275,34 +8867,6 @@ export const scimRequestLog = pgTable(
       table.createdAt
     ),
   })
-)
-
-/**
- * Retained for the deployment transition from callback subscriptions to the worker task
- * inbox (mothership D35). New code reads canonical execution status and does not use
- * this table. Drop it only after the previous worker/Sim versions have been retired.
- */
-export const copilotTaskSubscriptions = pgTable(
-  'copilot_task_subscriptions',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    taskId: uuid('task_id').notNull(),
-    executionId: text('execution_id').notNull(),
-    chatId: uuid('chat_id')
-      .notNull()
-      .references(() => copilotChats.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => [
-    index('copilot_task_subscriptions_execution_idx').on(table.executionId),
-    uniqueIndex('copilot_task_subscriptions_task_idx').on(table.taskId),
-  ]
 )
 
 /** Provider costs outlive tool results and chat deletion until the billing owner acknowledges them. */

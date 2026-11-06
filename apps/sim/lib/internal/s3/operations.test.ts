@@ -23,8 +23,8 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mocks.getSignedUrl,
 }))
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 import { S3OperationError } from '@/lib/internal/s3/errors'
 import { executeS3PutObject } from '@/lib/internal/s3/operations'

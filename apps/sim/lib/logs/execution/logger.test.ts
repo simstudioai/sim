@@ -1,7 +1,8 @@
-import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { usageLog, workflow, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
@@ -22,6 +23,7 @@ import {
   billingUsageMonitorMock,
   billingUsageMonitorMockFns,
 } from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -86,13 +88,15 @@ afterAll(resetDbChainMock)
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
 vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
+
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
@@ -269,6 +273,9 @@ describe('ExecutionLogger', () => {
     async function completeAndReadWrite(params: {
       executionState?: SerializableExecutionState
       redactedState?: SerializableExecutionState
+      /** Runs the real log-stage PII pass instead of standing in for it. */
+      realRedaction?: boolean
+      finalOutput?: Record<string, unknown>
     }) {
       const startedAt = new Date('2026-08-11T00:00:00.000Z')
       queueTableRows(workflowExecutionLogs, [
@@ -298,12 +305,14 @@ describe('ExecutionLogger', () => {
           costTotalRefined: boolean
         }>
       }
-      vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
-        async (_workspaceId: string, payload: Record<string, unknown>) =>
-          Object.hasOwn(params, 'redactedState')
-            ? { ...payload, executionState: params.redactedState }
-            : payload
-      )
+      if (!params.realRedaction) {
+        vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
+          async (_workspaceId: string, payload: Record<string, unknown>) =>
+            Object.hasOwn(params, 'redactedState')
+              ? { ...payload, executionState: params.redactedState }
+              : payload
+        )
+      }
       vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue({
         recordedIncrement: 0,
         costTotalRefined: false,
@@ -323,7 +332,7 @@ describe('ExecutionLogger', () => {
           baseExecutionCharge: 0,
           models: {},
         },
-        finalOutput: { completed: true },
+        finalOutput: params.finalOutput ?? { completed: true },
         traceSpans: [],
         ...(params.executionState ? { executionState: params.executionState } : {}),
       })
@@ -430,6 +439,65 @@ describe('ExecutionLogger', () => {
       expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
       expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
       expect(preserved?.blockStates).toEqual(redactedState.blockStates)
+    })
+
+    test('keeps encrypted provenance sidecars intact through log PII redaction', async () => {
+      queueTableRows(workspace, [
+        {
+          orgSettings: {
+            piiRedaction: { rules: [{ workspaceId: null, entityTypes: ['PHONE_NUMBER'] }] },
+          },
+        },
+      ])
+      maskClientMockFns.mockMaskPIIBatchViaHttp.mockImplementation(async (texts: string[]) => ({
+        masked: texts.map((text) => text.replace(/\d{7,}/g, '<PHONE_NUMBER>')),
+        scrubbedCount: 0,
+      }))
+      const sidecar = (encryptedValue: string) => ({
+        version: 1 as const,
+        complete: true,
+        entries: [{ name: 'API_SECRET', encryptedValue }],
+      })
+      const finalOutputProvenance = sidecar('9f3c2a5551234567e0:4b18093327716650aa:0c1d')
+      const workflowInputProvenance = sidecar('1e2f5550001111e0:77a0384460007799bb:9d8e')
+      const loopInputProvenance = sidecar('3a4b5552223333c0:66b0129930004455cc:5f6a')
+      const parallelOutputProvenance = sidecar('7c8d5554445555a0:11b0567780009911dd:2e3f')
+
+      const written = await completeAndReadWrite({
+        realRedaction: true,
+        finalOutput: { reply: 'Call me at 5551234567' },
+        executionState: {
+          ...EMPTY_STATE,
+          sourceExecutionId: 'execution-20260811123456789',
+          resolvedSecretTraceProvenance: RUN_PROVENANCE,
+          resolvedSecretTraceCheckpointVersion: 1,
+          finalOutputResolvedSecretTraceProvenance: finalOutputProvenance,
+          workflowInputResolvedSecretTraceProvenance: workflowInputProvenance,
+          loopExecutions: {
+            loop1: {
+              iteration: 0,
+              items: ['Call 5559876543'],
+              inputResolvedSecretTraceProvenance: loopInputProvenance,
+            },
+          },
+          parallelExecutions: {
+            parallel1: { resolvedSecretTraceProvenance: parallelOutputProvenance },
+          },
+        } as SerializableExecutionState,
+      })
+
+      const state = written?.executionState as SerializableExecutionState | undefined
+      expect(written?.finalOutput).toEqual({ reply: 'Call me at <PHONE_NUMBER>' })
+      expect(state?.loopExecutions?.loop1?.items).toEqual(['Call <PHONE_NUMBER>'])
+      expect(state?.finalOutputResolvedSecretTraceProvenance).toEqual(finalOutputProvenance)
+      expect(state?.workflowInputResolvedSecretTraceProvenance).toEqual(workflowInputProvenance)
+      expect(state?.loopExecutions?.loop1?.inputResolvedSecretTraceProvenance).toEqual(
+        loopInputProvenance
+      )
+      expect(state?.parallelExecutions?.parallel1?.resolvedSecretTraceProvenance).toEqual(
+        parallelOutputProvenance
+      )
+      expect(state?.sourceExecutionId).toBe('execution-20260811123456789')
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -746,6 +814,66 @@ describe('ExecutionLogger', () => {
       expect(files).toHaveLength(1)
       expect(files[0].name).toBe('nested.json')
     })
+  })
+})
+
+describe('recordExecutionUsage for a workflow that no longer exists', () => {
+  const executionLoggerLog =
+    loggerMock.createLogger.mock.results[
+      loggerMock.createLogger.mock.calls.findIndex(([name]) => name === 'ExecutionLogger')
+    ]?.value
+  const costSummary = {
+    totalCost: 0.005,
+    totalInputCost: 0,
+    totalOutputCost: 0,
+    totalTokens: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    baseExecutionCharge: 0.005,
+    models: {},
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const record = () =>
+    (
+      new ExecutionLogger() as unknown as {
+        recordExecutionUsage: (...args: unknown[]) => Promise<unknown>
+      }
+    ).recordExecutionUsage(
+      'workflow-1',
+      costSummary,
+      'api',
+      'exec-1',
+      'user-1',
+      undefined,
+      true,
+      'ws-1'
+    )
+
+  test('records nothing and logs at info when the whole workspace was deleted', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.info).toHaveBeenCalledWith(
+      "Skipped usage recording: the run's workspace was deleted"
+    )
+  })
+
+  test('still logs an error when the workflow is missing from a live workspace', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [{ id: 'ws-1' }])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).toHaveBeenCalledWith('Workflow not found for usage recording')
   })
 })
 

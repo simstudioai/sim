@@ -6,7 +6,7 @@ import {
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import { getActiveKnowledgeBaseReference } from '@/lib/knowledge/service'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import {

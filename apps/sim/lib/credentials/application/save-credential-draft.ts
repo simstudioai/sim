@@ -5,7 +5,7 @@ import { type CredentialActorContext, getCredentialActorContext } from '@/lib/cr
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface SaveCredentialDraftInput {
   workspaceId: string

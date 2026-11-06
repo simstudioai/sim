@@ -10,6 +10,10 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
+import {
+  MobileTouchTarget,
+  mobileTouchTargetClass,
+} from '../mobile-touch-target/mobile-touch-target'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 import {
   chipActiveSurfaceClass,
@@ -93,23 +97,7 @@ const chipVariants = cva(
 type ChipIcon = ComponentType<{ className?: string }>
 
 const CHIP_MOBILE_ICON_ONLY_CLASS =
-  "max-md:relative max-md:size-[30px] max-md:shrink-0 max-md:justify-center max-md:gap-0 max-md:px-0 max-md:pointer-coarse:min-h-0 max-md:pointer-coarse:min-w-0 max-md:after:absolute max-md:after:top-1/2 max-md:after:left-1/2 max-md:after:size-11 max-md:after:-translate-x-1/2 max-md:after:-translate-y-1/2 max-md:after:content-['']"
-
-interface ChipTouchTargetProps {
-  compact: boolean
-  children: ReactNode
-}
-
-/** Reserves the expanded target without enlarging the chip's visible surface. */
-function ChipTouchTarget({ compact, children }: ChipTouchTargetProps) {
-  return compact ? (
-    <span className='contents max-md:inline-flex max-md:size-11 max-md:shrink-0 max-md:items-center max-md:justify-center'>
-      {children}
-    </span>
-  ) : (
-    children
-  )
-}
+  'max-md:size-[30px] max-md:justify-center max-md:gap-0 max-md:px-0'
 
 /**
  * Variants a `Chip`/`ChipLink` may render. The `default` (bare) chip is implicit
@@ -131,6 +119,8 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
   rightAdornment?: ReactNode
   /** Below the desktop breakpoint, show a 30px icon face with a reserved 44px hit target. Requires a glyph and a visible or accessible label. */
   mobileIconOnly?: boolean
+  /** Keeps the 30px face and label on mobile while reserving a 44px touch target. */
+  mobileCompact?: boolean
   children?: ReactNode
 }
 
@@ -191,6 +181,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     rightIcon,
     rightAdornment,
     mobileIconOnly,
+    mobileCompact,
     children,
     type,
     ...props
@@ -203,12 +194,17 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
   )
   return (
-    <ChipTouchTarget compact={compactOnMobile}>
+    <MobileTouchTarget
+      enabled={compactOnMobile || Boolean(mobileCompact)}
+      square={compactOnMobile}
+      fullWidth={Boolean(fullWidth)}
+    >
       <button
         ref={ref}
         type={type ?? 'button'}
         className={cn(
           chipVariants({ variant, shape, active, fullWidth }),
+          (compactOnMobile || mobileCompact) && mobileTouchTargetClass,
           compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
           className
         )}
@@ -225,7 +221,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
           {children}
         </ChipContent>
       </button>
-    </ChipTouchTarget>
+    </MobileTouchTarget>
   )
 })
 
@@ -249,6 +245,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
     rightIcon,
     rightAdornment,
     mobileIconOnly,
+    mobileCompact,
     children,
     ...props
   },
@@ -260,11 +257,16 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
       ((children != null && children !== false) || props['aria-label'] || props['aria-labelledby'])
   )
   return (
-    <ChipTouchTarget compact={compactOnMobile}>
+    <MobileTouchTarget
+      enabled={compactOnMobile || Boolean(mobileCompact)}
+      square={compactOnMobile}
+      fullWidth={Boolean(fullWidth)}
+    >
       <Link
         ref={ref}
         className={cn(
           chipVariants({ variant, shape, active, fullWidth }),
+          (compactOnMobile || mobileCompact) && mobileTouchTargetClass,
           compactOnMobile && CHIP_MOBILE_ICON_ONLY_CLASS,
           className
         )}
@@ -281,7 +283,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
           {children}
         </ChipContent>
       </Link>
-    </ChipTouchTarget>
+    </MobileTouchTarget>
   )
 })
 

@@ -8094,4 +8094,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  list_user_projects: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        cursor: {
+          type: 'string',
+          minLength: 1,
+        },
+        limit: {
+          default: 50,
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
 }

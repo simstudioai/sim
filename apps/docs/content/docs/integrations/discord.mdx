@@ -1,50 +1,38 @@
 ---
 title: Discord
 description: Interact with Discord
+integration:
+  type: "discord"
+  color: "#5865F2"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="discord"
-  color="#5865F2"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Discord](https://discord.com) is a powerful communication platform that allows you to connect with friends, communities, and teams. It offers a range of features for team collaboration, including text channels, voice channels, and video calls.
+Use [Discord](https://discord.com) to manage messages, threads, channels, roles, members, invites, and webhooks. Authenticate with a bot token and grant the bot access to the servers and channels the workflow needs.
 
-With a Discord account or bot, you can:
+## Set up your Discord bot [#setting-up-your-discord-bot]
 
-- **Send messages**: Send messages to a specific channel
-- **Get messages**: Get messages from a specific channel
-- **Get server**: Get information about a specific server
-- **Get user**: Get information about a specific user
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and create an application.
+2. Open **Bot**, create the bot if needed, and copy its token.
+3. Under **Privileged Gateway Intents**, enable **Message Content Intent** when the workflow needs message content.
+4. Invite the bot to your servers with the permissions required by its operations.
 
-In Sim, the Discord integration enables your agents to access and leverage your organization's Discord servers. Agents can retrieve information from Discord channels, search for specific users, get server information, and send messages. This allows your workflows to integrate with your Discord communities, automate notifications, and create interactive experiences.
-
-> **Important:** To read message content, your Discord bot needs the "Message Content Intent" enabled in the Discord Developer Portal. Without this permission, you'll still receive message metadata but the content field will appear empty.
-
-## Setting Up Your Discord Bot
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application and navigate to the "Bot" tab
-3. Create a bot and copy your bot token
-4. Under "Privileged Gateway Intents", enable the **Message Content Intent** to read message content
-5. Invite your bot to your servers with appropriate permissions
+Discord restricts `content`, embeds, attachments, and components when the Message Content intent is unavailable, with exceptions such as messages sent by the bot, direct messages, and messages that mention it. Verified apps may need approval for this intent. See [Discord's Message Content requirements](https://docs.discord.com/developers/events/gateway#message-content-intent).
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.
-
-
+Manage Discord messages, threads, channels, roles, members, invites, and webhooks.
 
 ## Actions
 
 ### Discord Send Message
 
 Send a message to a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +67,13 @@ Send a message to a Discord channel
 |   ↳ `mention_roles` | array | Role mentions in message |
 |   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
+</ReferenceDetails>
+
 ### Discord Get Messages
 
 Retrieve messages from a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +107,13 @@ Retrieve messages from a Discord channel
 |     ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 |   ↳ `channel_id` | string | Channel ID |
 
+</ReferenceDetails>
+
 ### Discord Get Server
 
 Retrieve information about a Discord server (guild)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +137,13 @@ Retrieve information about a Discord server (guild)
 |   ↳ `approximate_member_count` | number | Approximate total member count |
 |   ↳ `approximate_presence_count` | number | Approximate online member count |
 
+</ReferenceDetails>
+
 ### Discord Get User
 
 Retrieve information about a Discord user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +167,13 @@ Retrieve information about a Discord user
 |   ↳ `email` | string | User email \(if available\) |
 |   ↳ `verified` | boolean | Whether user email is verified |
 
+</ReferenceDetails>
+
 ### Discord Edit Message
 
 Edit an existing message in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,9 +196,13 @@ Edit an existing message in a Discord channel
 |   ↳ `channel_id` | string | Channel ID |
 |   ↳ `edited_timestamp` | string | Message edited timestamp |
 
+</ReferenceDetails>
+
 ### Discord Delete Message
 
 Delete a message from a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +219,13 @@ Delete a message from a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Bulk Delete Messages
 
 Delete 2-100 messages from a Discord channel in a single request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +242,13 @@ Delete 2-100 messages from a Discord channel in a single request
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Add Reaction
 
 Add a reaction emoji to a Discord message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -250,9 +266,13 @@ Add a reaction emoji to a Discord message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Remove Reaction
 
 Remove a reaction from a Discord message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -271,9 +291,13 @@ Remove a reaction from a Discord message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Pin Message
 
 Pin a message in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -290,9 +314,13 @@ Pin a message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Unpin Message
 
 Unpin a message in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +337,13 @@ Unpin a message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Get Pinned Messages
 
 Retrieve all pinned messages in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +370,13 @@ Retrieve all pinned messages in a Discord channel
 |     ↳ `username` | string | Author username |
 | `hasMore` | boolean | Whether more pinned messages exist beyond this page |
 
+</ReferenceDetails>
+
 ### Discord Create Thread
 
 Create a thread in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -366,9 +402,13 @@ Create a thread in a Discord channel
 |   ↳ `guild_id` | string | Server ID |
 |   ↳ `parent_id` | string | Parent channel ID |
 
+</ReferenceDetails>
+
 ### Discord Join Thread
 
 Join a thread in Discord
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +424,13 @@ Join a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Leave Thread
 
 Leave a thread in Discord
+
+<ReferenceDetails>
 
 #### Input
 
@@ -402,9 +446,13 @@ Leave a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Archive Thread
 
 Archive or unarchive a thread in Discord
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +472,13 @@ Archive or unarchive a thread in Discord
 |   ↳ `id` | string | Thread ID |
 |   ↳ `archived` | boolean | Whether thread is archived |
 
+</ReferenceDetails>
+
 ### Discord Create Channel
 
 Create a new channel in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -450,9 +502,13 @@ Create a new channel in a Discord server
 |   ↳ `type` | number | Channel type |
 |   ↳ `guild_id` | string | Server ID |
 
+</ReferenceDetails>
+
 ### Discord Update Channel
 
 Update a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -475,9 +531,13 @@ Update a Discord channel
 |   ↳ `type` | number | Channel type |
 |   ↳ `topic` | string | Channel topic |
 
+</ReferenceDetails>
+
 ### Discord Delete Channel
 
 Delete a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -498,9 +558,13 @@ Delete a Discord channel
 |   ↳ `type` | number | Channel type |
 |   ↳ `guild_id` | string | Server ID |
 
+</ReferenceDetails>
+
 ### Discord Get Channel
 
 Get information about a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -522,9 +586,13 @@ Get information about a Discord channel
 |   ↳ `topic` | string | Channel topic |
 |   ↳ `guild_id` | string | Server ID |
 
+</ReferenceDetails>
+
 ### Discord List Channels
 
 List all channels in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -546,9 +614,13 @@ List all channels in a Discord server
 |   ↳ `parent_id` | string | Parent category ID |
 |   ↳ `position` | number | Sort position within the channel list |
 
+</ReferenceDetails>
+
 ### Discord Create Role
 
 Create a new role in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -573,9 +645,13 @@ Create a new role in a Discord server
 |   ↳ `hoist` | boolean | Whether role is hoisted |
 |   ↳ `mentionable` | boolean | Whether role is mentionable |
 
+</ReferenceDetails>
+
 ### Discord Update Role
 
 Update a role in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -599,9 +675,13 @@ Update a role in a Discord server
 |   ↳ `name` | string | Role name |
 |   ↳ `color` | number | Role color |
 
+</ReferenceDetails>
+
 ### Discord Delete Role
 
 Delete a role from a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -617,9 +697,13 @@ Delete a role from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Assign Role
 
 Assign a role to a member in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -636,9 +720,13 @@ Assign a role to a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Remove Role
 
 Remove a role from a member in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -655,9 +743,13 @@ Remove a role from a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord List Roles
 
 List all roles in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -679,9 +771,13 @@ List all roles in a Discord server
 |   ↳ `position` | number | Role position in the hierarchy |
 |   ↳ `mentionable` | boolean | Whether role is mentionable |
 
+</ReferenceDetails>
+
 ### Discord Kick Member
 
 Kick a member from a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -698,9 +794,13 @@ Kick a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Ban Member
 
 Ban a member from a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -718,9 +818,13 @@ Ban a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Unban Member
 
 Unban a member from a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -737,9 +841,13 @@ Unban a member from a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Get Member
 
 Get information about a member in a Discord server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -763,9 +871,13 @@ Get information about a member in a Discord server
 |   ↳ `roles` | array | Array of role IDs |
 |   ↳ `joined_at` | string | When the member joined |
 
+</ReferenceDetails>
+
 ### Discord Update Member
 
 Update a member in a Discord server (e.g., change nickname)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -788,9 +900,13 @@ Update a member in a Discord server (e.g., change nickname)
 |   ↳ `mute` | boolean | Voice mute status |
 |   ↳ `deaf` | boolean | Voice deaf status |
 
+</ReferenceDetails>
+
 ### Discord Create Invite
 
 Create an invite link for a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -815,9 +931,13 @@ Create an invite link for a Discord channel
 |   ↳ `max_uses` | number | Max uses |
 |   ↳ `temporary` | boolean | Whether temporary |
 
+</ReferenceDetails>
+
 ### Discord Get Invite
 
 Get information about a Discord invite
+
+<ReferenceDetails>
 
 #### Input
 
@@ -839,9 +959,13 @@ Get information about a Discord invite
 |   ↳ `approximate_member_count` | number | Approximate member count |
 |   ↳ `approximate_presence_count` | number | Approximate online count |
 
+</ReferenceDetails>
+
 ### Discord Delete Invite
 
 Delete a Discord invite
+
+<ReferenceDetails>
 
 #### Input
 
@@ -857,9 +981,13 @@ Delete a Discord invite
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+</ReferenceDetails>
+
 ### Discord Create Webhook
 
 Create a webhook in a Discord channel
+
+<ReferenceDetails>
 
 #### Input
 
@@ -882,9 +1010,13 @@ Create a webhook in a Discord channel
 |   ↳ `url` | string | Webhook URL |
 |   ↳ `channel_id` | string | Channel ID |
 
+</ReferenceDetails>
+
 ### Discord Execute Webhook
 
 Execute a Discord webhook to send a message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -907,9 +1039,13 @@ Execute a Discord webhook to send a message
 |   ↳ `channel_id` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 
+</ReferenceDetails>
+
 ### Discord Get Webhook
 
 Get information about a Discord webhook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -931,9 +1067,13 @@ Get information about a Discord webhook
 |   ↳ `guild_id` | string | Server ID |
 |   ↳ `token` | string | Webhook token |
 
+</ReferenceDetails>
+
 ### Discord Delete Webhook
 
 Delete a Discord webhook
+
+<ReferenceDetails>
 
 #### Input
 
@@ -948,5 +1088,7 @@ Delete a Discord webhook
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
+
+</ReferenceDetails>
 
 

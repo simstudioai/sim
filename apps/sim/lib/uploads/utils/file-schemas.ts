@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file'
 
 const isUrlLike = (value: string) =>
   value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')

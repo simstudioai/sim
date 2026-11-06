@@ -378,11 +378,13 @@ describe('queryRows byte budget', () => {
     expect(secondBatchAsk).toBeGreaterThan(firstBatchAsk)
   })
 
-  it('sort path advances by offset and emits an offset cursor with inbound offset applied', async () => {
+  it('sort path reads its order from the inbound offset and emits an offset cursor past it', async () => {
     const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
     dbChainMockFns.limit.mockResolvedValueOnce([])
-    // Sorted batch with inbound offset 40 terminates at .offset(40).
-    dbChainMockFns.offset.mockResolvedValueOnce([row(1, perRow), row(2, perRow)])
+    // The sorted id pass with inbound offset 40 terminates at .offset(40); its rows are then
+    // fetched by id.
+    dbChainMockFns.offset.mockResolvedValueOnce([{ id: 'row_1' }, { id: 'row_2' }])
+    queueTableRows(schemaMock.userTableRows, [row(1, perRow), row(2, perRow)])
 
     const result = await queryRows(
       TABLE,

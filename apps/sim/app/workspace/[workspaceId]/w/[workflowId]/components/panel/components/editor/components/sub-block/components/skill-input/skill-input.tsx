@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
 import { AgentSkillsIcon } from '@/components/icons'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -34,8 +34,7 @@ export function SkillInput({
   disabled,
 }: SkillInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const { config: permissionConfig } = usePermissionConfig()
   const { data: workspaceSkills = [] } = useSkills(workspaceId)
@@ -199,6 +198,7 @@ export function SkillInput({
       </div>
 
       <SkillModal
+        workspaceId={workspaceId}
         open={showCreateModal || !!editingSkill}
         onOpenChange={(isOpen) => {
           if (!isOpen) {

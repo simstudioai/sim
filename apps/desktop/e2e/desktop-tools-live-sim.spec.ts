@@ -79,7 +79,8 @@ test.describe('desktop tools against a live Sim', () => {
     db = new SimDatabase(sim)
     await Promise.all([proxy.start(), agent.start()])
     proxy.rewriteAnswer(REGISTRATION_PATH, executorUnavailable)
-    await test.step('warm up the routes the tests use', warmUp)
+    if (process.env.SIM_DESKTOP_E2E_APP_SERVER !== 'start')
+      await test.step('warm up the routes the tests use', warmUp)
   })
 
   test.afterAll(async () => {
@@ -546,7 +547,7 @@ test.describe('desktop tools against a live Sim', () => {
     expect(await callState(chatId)).toMatch(/^completed/)
   })
 
-  test('a long import whose window crashed settles as outcome unknown about one lease later', async () => {
+  test('a long import whose window crashed settles as outcome unknown about one lease later @lease-lapse', async () => {
     test.setTimeout(420_000)
     const user = await db.seedUser(['Crashing import chat'])
     const { callId } = await slowImport(user, 'Crashing import chat', '[crash-import]')

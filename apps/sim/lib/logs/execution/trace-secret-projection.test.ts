@@ -340,6 +340,63 @@ describe('projectTraceSpansForSecrets', () => {
     expect(result[0].output).toEqual({ value: 'prefix {{LONG}} suffix' })
   })
 
+  /** Never moves backwards across tests: the slice deadline it sets outlives each one. */
+  let fakeClockMs = 0
+
+  /**
+   * Counts event-loop turns that complete while the projection is in flight, on a clock that
+   * advances 1ms per read so the slice expires at a fixed rate on any machine. A single yield
+   * before any work allows one turn — the pending immediate runs, and its successor cannot until
+   * the projection parks again — so two or more prove it keeps yielding mid-projection.
+   */
+  async function countTurnsDuringProjection(spans: TraceSpan[]) {
+    fakeClockMs = Math.max(fakeClockMs, performance.now())
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => {
+      fakeClockMs += 1
+      return fakeClockMs
+    })
+    let settled = false
+    let turns = 0
+    const tick = () => {
+      if (settled) return
+      turns += 1
+      setImmediate(tick)
+    }
+    setImmediate(tick)
+    try {
+      const projected = await projectTraceSpansForSecrets(spans, {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{SECRET}}' }]),
+        store: STORE,
+      })
+      return { turns, projected }
+    } finally {
+      settled = true
+      now.mockRestore()
+    }
+  }
+
+  it('keeps yielding to the event loop throughout a content projection', async () => {
+    const spans = Array.from({ length: 30 }, (_, index) =>
+      createSpan({ id: `span-${index}`, output: { note: `span ${index} holds secretval` } })
+    )
+
+    const { turns, projected } = await countTurnsDuringProjection(spans)
+
+    expect(turns).toBeGreaterThanOrEqual(2)
+    expect(projected[29].output).toEqual({ note: 'span 29 holds {{SECRET}}' })
+  })
+
+  it('keeps yielding to the event loop throughout a structure-only projection', async () => {
+    const children = Array.from({ length: 50 }, (_, index) => createSpan({ id: `child-${index}` }))
+
+    const { turns, projected } = await countTurnsDuringProjection([
+      createSpan({ id: 'root', type: 'workflow', children }),
+    ])
+
+    expect(turns).toBeGreaterThanOrEqual(2)
+    expect(projected[0].children).toHaveLength(50)
+  })
+
   it('projects a successfully resolved numeric Function result without mutating runtime output', async () => {
     const runtimeOutput = { result: 12345678, unchanged: 5678 }
     const source = createSpan({ output: runtimeOutput })
@@ -443,6 +500,85 @@ describe('projectTraceSpansForSecrets', () => {
     expect(span.providerTiming?.segments[0]).not.toHaveProperty('assistantContent')
     expect(span.providerTiming?.segments[0].toolCalls).toBeUndefined()
     expect(span.children?.[0]).not.toHaveProperty('output')
+  })
+
+  it('marks every span of a structural-only fallback as content-withheld', async () => {
+    const source = [
+      createSpan({
+        output: { secret: 'raw' },
+        children: [createSpan({ id: 'child-1', output: { secret: 'raw' } })],
+      }),
+    ]
+
+    const incomplete = await projectTraceSpansForSecrets(source, {
+      registry: createRegistry([], false),
+      store: STORE,
+    })
+    const failedMatcher = await projectTraceSpansForSecrets(source, {
+      registry: createRegistry([
+        { plaintext: 's'.repeat(64 * 1024 + 1), replacement: '{{TOO_LARGE}}' },
+      ]),
+      store: STORE,
+    })
+    const failedInvariant = await enforceTraceSpanSecretInvariant(
+      [createSpan({ output: { apiKey: '[REDACTED]' } })],
+      {
+        registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
+        store: STORE,
+      }
+    )
+
+    for (const [span] of [incomplete, failedMatcher]) {
+      expect(span.contentWithheld).toBe(true)
+      expect(span.children?.[0].contentWithheld).toBe(true)
+    }
+    expect(failedInvariant[0].contentWithheld).toBe(true)
+  })
+
+  it('marks a span whose content field was omitted and leaves fully projected spans unmarked', async () => {
+    const [omitted, intact] = await projectTraceSpansForSecrets(
+      [
+        createSpan({ input: { safe: 'keep' }, output: { secretval: 1, '{{TOKEN}}': 2 } }),
+        createSpan({ id: 'span-2', output: { value: 'secretval' } }),
+      ],
+      {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{TOKEN}}' }]),
+        store: STORE,
+      }
+    )
+
+    expect(omitted.input).toEqual({ safe: 'keep' })
+    expect(omitted.contentWithheld).toBe(true)
+    expect(intact.output).toEqual({ value: '{{TOKEN}}' })
+    expect(intact).not.toHaveProperty('contentWithheld')
+  })
+
+  it('marks a span whose tool-call content was omitted', async () => {
+    const [span] = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          output: { safe: 'keep' },
+          toolCalls: [
+            {
+              name: 'legacy',
+              duration: 1,
+              startTime: '2026-07-01T00:00:00.000Z',
+              endTime: '2026-07-01T00:00:00.001Z',
+              status: 'success',
+              output: { secretval: 1, '{{TOKEN}}': 2 },
+            },
+          ],
+        }),
+      ],
+      {
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{TOKEN}}' }]),
+        store: STORE,
+      }
+    )
+
+    expect(span.output).toEqual({ safe: 'keep' })
+    expect(span.toolCalls?.[0]).not.toHaveProperty('output')
+    expect(span.contentWithheld).toBe(true)
   })
 
   it('fails closed when a later log transform reintroduces an active literal', async () => {
@@ -883,6 +1019,13 @@ describe('projectTraceSpansForSecrets', () => {
     }
 
     expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      phase: 'write',
+      spanId: 'span-1',
+      spanType: 'function',
+      field: 'output',
       failure: { name: 'SyntaxError' },
     })
   })
@@ -910,5 +1053,209 @@ describe('projectTraceSpansForSecrets', () => {
     expect(projectedDepth).toBe(100)
     expect(cursor).not.toHaveProperty('output')
     expect(cursor?.children).toEqual([])
+  })
+})
+
+describe('projectTraceSpansForSecrets whole-trace content budget', () => {
+  const SECRET_REGISTRY = createRegistry([
+    { plaintext: 'top-secret', replacement: '{{API_SECRET}}' },
+  ])
+
+  /** A span whose output alone fits the content budget but two-and-a-half of which do not. */
+  function heavySpan(id: string, marker: string, overrides: Partial<TraceSpan> = {}): TraceSpan {
+    return createSpan({
+      id,
+      output: { marker, items: Array.from({ length: 40_000 }, (_, index) => `row-${index}`) },
+      ...overrides,
+    })
+  }
+
+  it('keeps the spans checked before the budget ran out and withholds the rest', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first top-secret'),
+        heavySpan('span-b', 'second'),
+        heavySpan('span-c', 'third top-secret'),
+        createSpan({ id: 'span-d', output: { marker: 'fourth top-secret' } }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected.map((span) => span.id)).toEqual(['span-a', 'span-b', 'span-c', 'span-d'])
+    expect(projected[0].output?.marker).toBe('first {{API_SECRET}}')
+    expect(projected[0]).not.toHaveProperty('contentWithheld')
+    expect(projected[1].output?.marker).toBe('second')
+    for (const withheld of projected.slice(2)) {
+      expect(withheld).not.toHaveProperty('output')
+      expect(withheld.contentWithheld).toBe(true)
+    }
+    expect(JSON.stringify(projected)).not.toContain('top-secret')
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace content exceeded the projection budget; withholding the remaining content',
+      expect.objectContaining({
+        executionId: 'execution-1',
+        phase: 'read',
+        retainedSpanCount: 2,
+        withheldSpanCount: 2,
+      })
+    )
+  })
+
+  it('still withholds every span when a later span fails for any reason but the budget', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        createSpan({ id: 'span-a', output: { marker: 'first' } }),
+        createSpan({
+          id: 'span-b',
+          toolCalls: Array.from({ length: 100_001 }, (_, index) => ({
+            name: `tool-${index}`,
+            duration: 0,
+            startTime: '2026-07-01T00:00:00.000Z',
+            endTime: '2026-07-01T00:00:00.000Z',
+            status: 'success',
+          })),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0]).not.toHaveProperty('output')
+    expect(projected[0].contentWithheld).toBe(true)
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace secret projection failed; retaining structural spans only',
+      expect.objectContaining({ executionId: 'execution-1', phase: 'read' })
+    )
+  })
+
+  it('keeps the retained spans and the withheld fallback within one structure budget', async () => {
+    const emptyChildren = (prefix: string) =>
+      Array.from({ length: 60_000 }, (_, index) => createSpan({ id: `${prefix}-${index}` }))
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first', { children: emptyChildren('a') }),
+        createSpan({
+          id: 'span-b',
+          output: { items: Array.from({ length: 70_000 }, (_, index) => `row-${index}`) },
+          children: emptyChildren('b'),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+    const countSpans = (spans: TraceSpan[]): number =>
+      spans.reduce((total, span) => total + 1 + countSpans(span.children ?? []), 0)
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(countSpans(projected)).toBeLessThanOrEqual(100_000)
+  })
+
+  it('keeps the structure a whole-trace fallback would for the span that crossed the budget', async () => {
+    const toolCall = (index: number) => ({
+      name: `tool-${index}`,
+      duration: 0,
+      startTime: '2026-07-01T00:00:00.000Z',
+      endTime: '2026-07-01T00:00:00.000Z',
+      status: 'success' as const,
+    })
+    const projected = await projectTraceSpansForSecrets(
+      [
+        heavySpan('span-a', 'first', {
+          children: Array.from({ length: 30_000 }, (_, index) => createSpan({ id: `a-${index}` })),
+        }),
+        createSpan({
+          id: 'span-b',
+          output: { items: Array.from({ length: 70_000 }, (_, index) => `row-${index}`) },
+          toolCalls: Array.from({ length: 50_000 }, (_, index) => toolCall(index)),
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0].output?.marker).toBe('first')
+    expect(projected[1]).not.toHaveProperty('output')
+    expect(projected[1].toolCalls).toHaveLength(50_000)
+  })
+
+  it('keeps checked content under a single workflow root when a descendant crosses the budget', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          id: 'workflow-execution',
+          output: { marker: 'root top-secret' },
+          children: [
+            heavySpan('block-a', 'first top-secret'),
+            createSpan({
+              id: 'loop',
+              output: { marker: 'loop top-secret' },
+              children: [
+                heavySpan('iteration-1', 'second'),
+                heavySpan('iteration-2', 'third top-secret', {
+                  children: [createSpan({ id: 'nested', output: { marker: 'nested top-secret' } })],
+                }),
+                createSpan({ id: 'iteration-3', output: { marker: 'fourth top-secret' } }),
+              ],
+            }),
+            createSpan({ id: 'block-b', output: { marker: 'fifth top-secret' } }),
+          ],
+        }),
+        createSpan({ id: 'after-root', output: { marker: 'sixth top-secret' } }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    const [root, afterRoot] = projected
+    const [blockA, loop, blockB] = root.children ?? []
+    const [iteration1, iteration2, iteration3] = loop.children ?? []
+
+    for (const [kept, marker] of [
+      [root, 'root {{API_SECRET}}'],
+      [blockA, 'first {{API_SECRET}}'],
+      [loop, 'loop {{API_SECRET}}'],
+      [iteration1, 'second'],
+    ] as const) {
+      expect(kept.output?.marker).toBe(marker)
+      expect(kept).not.toHaveProperty('contentWithheld')
+    }
+    for (const withheld of [iteration2, iteration2.children?.[0], iteration3, blockB, afterRoot]) {
+      expect(withheld).toMatchObject({ contentWithheld: true })
+      expect(withheld).not.toHaveProperty('output')
+    }
+    expect(JSON.stringify(projected)).not.toContain('top-secret')
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace content exceeded the projection budget; withholding the remaining content',
+      expect.objectContaining({ retainedSpanCount: 4, withheldSpanCount: 5 })
+    )
+  })
+
+  it('withholds every span when a descendant fails for any reason but the budget', async () => {
+    const projected = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          id: 'workflow-execution',
+          output: { marker: 'root' },
+          children: [
+            createSpan({ id: 'block-a', output: { marker: 'first' } }),
+            createSpan({
+              id: 'block-b',
+              toolCalls: Array.from({ length: 100_001 }, (_, index) => ({
+                name: `tool-${index}`,
+                duration: 0,
+                startTime: '2026-07-01T00:00:00.000Z',
+                endTime: '2026-07-01T00:00:00.000Z',
+                status: 'success',
+              })),
+            }),
+          ],
+        }),
+      ],
+      { registry: SECRET_REGISTRY, store: STORE, allowLargeValueWrites: false }
+    )
+
+    expect(projected[0]).not.toHaveProperty('output')
+    expect(projected[0].children?.[0]).not.toHaveProperty('output')
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace secret projection failed; retaining structural spans only',
+      expect.objectContaining({ executionId: 'execution-1', phase: 'read' })
+    )
   })
 })

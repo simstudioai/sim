@@ -1,5 +1,5 @@
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import type { SandboxTaskId } from '@/sandboxes/registry'
 
 export { DEFAULT_EXECUTION_TIMEOUT_MS }
 

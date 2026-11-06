@@ -1,5 +1,5 @@
 import type { NetSuiteResponse, NetSuiteSystemParams } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +9,7 @@ export const netsuiteGetServerTimeTool: InternalToolConfig<NetSuiteSystemParams,
     name: 'NetSuite Get Server Time',
     description: 'Retrieve the current UTC time from the NetSuite server.',
     version: '1.0.0',
+    oauth: NETSUITE_OAUTH,
     params: {
       ...netsuiteAuthParamFields,
     },

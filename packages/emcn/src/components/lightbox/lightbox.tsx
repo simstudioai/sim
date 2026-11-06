@@ -26,6 +26,8 @@ export interface LightboxProps {
   children: ReactElement
   src: string
   alt: string
+  /** Optional image behind the media, retained while zooming. */
+  backgroundSrc?: string
   type?: 'image' | 'video'
   /** Displayed until the recording's first frame is ready. */
   poster?: string
@@ -78,6 +80,7 @@ export function Lightbox({
   children,
   src,
   alt,
+  backgroundSrc,
   type = 'image',
   poster,
   captionsSrc,
@@ -175,7 +178,11 @@ export function Lightbox({
                 ref={mediaFrameRef}
                 type='button'
                 aria-label='Close media viewer'
-                className='m-1 block shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0 shadow-[var(--shadow-overlay)] outline-none'
+                className={cn(
+                  'm-1 block shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] bg-center bg-cover shadow-[var(--shadow-overlay)] outline-none',
+                  backgroundSrc ? 'p-4 sm:p-8' : 'p-0'
+                )}
+                style={backgroundSrc ? { backgroundImage: `url("${backgroundSrc}")` } : undefined}
               >
                 {type === 'image' ? (
                   <img
@@ -183,7 +190,11 @@ export function Lightbox({
                     alt={alt}
                     draggable={false}
                     onLoad={() => centerViewport(viewportRef.current)}
-                    className={MEDIA_CLASS}
+                    className={cn(
+                      MEDIA_CLASS,
+                      backgroundSrc &&
+                        'max-h-[calc(100dvh-10rem)] max-w-[calc(92vw-4rem)] rounded-md border border-[var(--border)] shadow-medium'
+                    )}
                     style={{ zoom }}
                   />
                 ) : (

@@ -1,6 +1,17 @@
-import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
-import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
+import {
+  type AuditActionType,
+  type AuditLogParams,
+  type AuditResourceTypeValue,
+  type AuditRollupSummary,
+  recordAudit,
+  recordAuditOnce,
+  recordAuditRollup,
+} from '@sim/audit'
+import type { Principal, PrincipalActor, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
@@ -17,6 +28,13 @@ import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
+const logger = createLogger('WorkspaceUseCaseAudit')
+
+/** The audit actor of a workflow-execution delegation that names its run. */
+type ExecutionDelegatedActor = Extract<PrincipalActor, { kind: 'delegated' }> & {
+  executionId: string
+}
+
 export interface WorkspaceUseCaseAuditEntry {
   /** Canonical affected workspace; null keeps an organization event outside the authorization workspace. */
   workspaceId?: string | null
@@ -26,6 +44,26 @@ export interface WorkspaceUseCaseAuditEntry {
   resourceName?: string
   description?: string
   metadata?: Record<string, unknown>
+  /**
+   * Records the entry at most once for this key, for an operation a caller may
+   * retry after losing its response: each retry projects the same entry again.
+   */
+  idempotencyKey?: string
+  /**
+   * Merges this entry with its repeats from the same workflow execution into
+   * one row, keeping every count and identifier (see `recordAuditRollup`).
+   * Applies only to an executor delegation that names its execution; every
+   * other caller records the entry as usual.
+   */
+  executionRollup?: WorkspaceUseCaseAuditRollup
+}
+
+export interface WorkspaceUseCaseAuditRollup {
+  /** Metadata keys summed across merged entries. */
+  counterKeys: readonly string[]
+  /** Metadata keys collected into a `<key>s` array on a merged row. */
+  identifierKeys: readonly string[]
+  describe(summary: AuditRollupSummary): string
 }
 
 export interface AuthorizedWorkspaceUseCaseContext<
@@ -105,8 +143,13 @@ export function recordProjectedUseCaseAuditEntries(
   organizationId?: string
 ): void {
   const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
-  for (const entry of entries) {
-    recordAudit({
+  const { actor } = attribution
+  const rollupActor =
+    actor.kind === 'delegated' && actor.executionId && !request
+      ? { ...actor, executionId: actor.executionId }
+      : undefined
+  for (const { idempotencyKey, executionRollup, ...entry } of entries) {
+    const params = {
       workspaceId: entry.workspaceId === undefined ? workspaceId : entry.workspaceId,
       actorId: attribution.actorId,
       actorName: attribution.actorName,
@@ -122,8 +165,50 @@ export function recordProjectedUseCaseAuditEntries(
         actor: attribution.actor,
       },
       request,
+    }
+    if (executionRollup && rollupActor && !idempotencyKey) {
+      recordExecutionAuditRollup(params, rollupActor, executionRollup)
+      continue
+    }
+    if (!idempotencyKey) {
+      recordAudit(params)
+      continue
+    }
+    recordAuditOnce(idempotencyKey, params).catch((error) => {
+      logger.error('Failed to record audit log', { error, action: params.action })
     })
   }
+}
+
+/**
+ * Entries merge when everything but their counters, identifiers, and the
+ * per-call delegation matches, so a merged row never blends two operations.
+ */
+function recordExecutionAuditRollup(
+  params: AuditLogParams & { metadata: Record<string, unknown> },
+  { delegationId, ...sharedActor }: ExecutionDelegatedActor,
+  rollup: WorkspaceUseCaseAuditRollup
+): void {
+  const shared: Record<string, unknown> = { ...params.metadata, actor: sharedActor }
+  const counters: Record<string, number> = {}
+  const identifiers: Record<string, string | undefined> = { delegationId }
+  for (const key of rollup.counterKeys) {
+    const value = toNumberOrNull(shared[key])
+    if (value !== null) counters[key] = value
+    delete shared[key]
+  }
+  for (const key of rollup.identifierKeys) {
+    identifiers[key] = toStringOrNull(shared[key]) ?? undefined
+    delete shared[key]
+  }
+  recordAuditRollup({
+    key: JSON.stringify(shared),
+    params,
+    rollupMetadata: shared,
+    counters,
+    identifiers,
+    describe: rollup.describe,
+  })
 }
 
 /**
@@ -214,27 +299,30 @@ export function defineAuthorizedWorkspaceUseCase<
     async execute(args) {
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
-      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
-        const result = await withinAuthorizedWorkspaceOperation(() =>
-          definition.execute(executionContext)
-        )
-        const resultContext = { ...executionContext, result }
-        const projectedAudit = definition.projectAudit?.(resultContext)
-        if (projectedAudit !== undefined) {
-          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-          if (auditEntries.length > 0) {
-            recordProjectedUseCaseAuditEntries(
-              definition.operation,
-              context.workspaceId,
-              principal,
-              request,
-              auditEntries
-            )
+      return runWithOutboundOrganization(context.workspaceOrganizationId, () =>
+        runDeclaredContentOperation(
+          definition.operation,
+          principal,
+          () => withinAuthorizedWorkspaceOperation(() => definition.execute(executionContext)),
+          async (result) => {
+            const resultContext = { ...executionContext, result }
+            const projectedAudit = definition.projectAudit?.(resultContext)
+            if (projectedAudit !== undefined) {
+              const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+              if (auditEntries.length > 0) {
+                recordProjectedUseCaseAuditEntries(
+                  definition.operation,
+                  context.workspaceId,
+                  principal,
+                  request,
+                  auditEntries
+                )
+              }
+            }
+            await definition.afterSuccess?.(resultContext)
           }
-        }
-        await definition.afterSuccess?.(resultContext)
-        return result
-      })
+        )
+      )
     },
   }
 }

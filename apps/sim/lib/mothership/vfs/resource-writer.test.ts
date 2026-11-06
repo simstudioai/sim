@@ -25,12 +25,9 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   admitCreateWorkspaceFile: hoisted.admitCreateWorkspaceFile,
 }))
 
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/write-workspace-file-by-path', () => ({
   createWorkspaceFileBufferByPath: hoisted.createWorkspaceFileBufferByPath,
@@ -321,6 +318,40 @@ describe('resource writer', () => {
       existingFileId: 'file-report',
       vfsPath: 'files/Reports/2026/summary.csv',
     })
+  })
+
+  it('validates an overwrite of a missing target as the create the writer will perform', async () => {
+    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-reports')
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    const target = { path: 'files/Reports/summary.csv', mode: 'overwrite' } as const
+
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-1',
+        principal: createSessionPrincipal(),
+        target,
+      })
+    ).resolves.toEqual({
+      mode: 'create',
+      vfsPath: 'files/Reports/summary.csv',
+      fileName: 'summary.csv',
+      folderId: 'folder-reports',
+    })
+
+    mocks.admitCreateWorkspaceFile.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient permissions')
+    )
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-1',
+        principal: createSessionPrincipal(),
+        target,
+      })
+    ).rejects.toThrow('Insufficient permissions')
   })
 
   it('upserts: an overwrite of a missing target falls through to create', async () => {

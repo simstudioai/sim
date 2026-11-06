@@ -5,7 +5,6 @@ import { Plugin } from '@tiptap/pm/state'
 import { Lexer, Tokenizer } from 'marked'
 import { imageTypeAt } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { createTextInputRulePlugins } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/text-input-rule'
 
 /**
  * React-free schema half of the image node. Lives apart from {@link ./image} (its React resize node
@@ -187,10 +186,8 @@ const ImageSchema = Image.extend({
 })
 
 export const MarkdownImage = ImageSchema.extend({
-  addProseMirrorPlugins() {
-    return createTextInputRulePlugins(
-      this.editor,
-      this.name,
+  addInputRules() {
+    return [
       new InputRule({
         find: new RegExp(`${inputRegex.source}(?![\\s\\S])`),
         handler: ({ state, range, match }) => {
@@ -201,8 +198,8 @@ export const MarkdownImage = ImageSchema.extend({
             .replaceRangeWith(from, range.to, type.create({ alt, src, title: title ?? null }))
             .scrollIntoView()
         },
-      })
-    )
+      }),
+    ]
   },
   addCommands() {
     return {

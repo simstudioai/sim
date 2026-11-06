@@ -5,7 +5,7 @@ import {
   getExtensionFromMimeType,
   getFileExtension,
   isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   isAlphanumericExtension,
   isSupportedExtension,

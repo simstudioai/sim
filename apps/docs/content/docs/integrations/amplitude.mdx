@@ -1,31 +1,29 @@
 ---
 title: Amplitude
 description: Track events and query analytics from Amplitude
+integration:
+  type: "amplitude"
+  color: "#13294B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="amplitude"
-  color="#13294B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Amplitude](https://amplitude.com/) to send events, update user and group properties, and query product analytics from a workflow. The HTTP and Dashboard REST APIs use API-key and secret-key authentication.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.
-
-
+Track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.
 
 ## Actions
 
 ### Amplitude Send Event
 
 Track an event in Amplitude using the HTTP V2 API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +59,13 @@ Track an event in Amplitude using the HTTP V2 API.
 | `payloadSizeBytes` | number | Size of the payload in bytes |
 | `serverUploadTime` | number | Server upload timestamp |
 
+</ReferenceDetails>
+
 ### Amplitude Identify User
 
 Set user properties in Amplitude using the Identify API. Supports $set, $setOnce, $add, $append, $unset operations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,9 +84,13 @@ Set user properties in Amplitude using the Identify API. Supports $set, $setOnce
 | `code` | number | HTTP response status code |
 | `message` | string | Response message |
 
+</ReferenceDetails>
+
 ### Amplitude Group Identify
 
 Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append, $unset operations.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +109,13 @@ Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append,
 | `code` | number | HTTP response status code |
 | `message` | string | Response message |
 
+</ReferenceDetails>
+
 ### Amplitude User Search
 
 Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard REST API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +135,13 @@ Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard RES
 |   ↳ `userId` | string | External user ID |
 | `type` | string | Match type \(e.g., match_user_or_device_id\) |
 
+</ReferenceDetails>
+
 ### Amplitude User Activity
 
 Get the event stream for a specific user by their Amplitude ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +178,13 @@ Get the event stream for a specific user by their Amplitude ID.
 |   ↳ `firstUsed` | string | Date the user first appeared |
 |   ↳ `lastUsed` | string | Date of most recent user activity |
 
+</ReferenceDetails>
+
 ### Amplitude User Profile
 
 Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -189,9 +207,13 @@ Get a user profile including properties, cohort memberships, and computed proper
 | `cohortIds` | array | List of cohort IDs the user belongs to |
 | `computations` | json | Computed user properties |
 
+</ReferenceDetails>
+
 ### Amplitude Event Segmentation
 
 Query event analytics data with segmentation. Get event counts, uniques, averages, and more.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -221,9 +243,13 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 | `seriesCollapsed` | json | Collapsed aggregate totals per series |
 | `xValues` | array | Date values for the x-axis |
 
+</ReferenceDetails>
+
 ### Amplitude Get Active Users
 
 Get active or new user counts over a date range from the Dashboard REST API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,9 +273,13 @@ Get active or new user counts over a date range from the Dashboard REST API.
 | `seriesMeta` | array | Metadata labels for each data series \(e.g., segment names\) |
 | `xValues` | array | Date values for the x-axis |
 
+</ReferenceDetails>
+
 ### Amplitude Real-time Active Users
 
 Get real-time active user counts at 5-minute granularity for the last 2 days.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +297,13 @@ Get real-time active user counts at 5-minute granularity for the last 2 days.
 | `seriesLabels` | array | Labels for each series \(e.g., "Today", "Yesterday"\) |
 | `xValues` | array | Time values for the x-axis \(e.g., "15:00", "15:05"\) |
 
+</ReferenceDetails>
+
 ### Amplitude List Events
 
 List all event types in the Amplitude project with their weekly totals and unique counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +326,13 @@ List all event types in the Amplitude project with their weekly totals and uniqu
 |   ↳ `nonActive` | boolean | Whether the event is excluded from active user calculations |
 |   ↳ `flowHidden` | boolean | Whether the event is hidden from user flow charts |
 
+</ReferenceDetails>
+
 ### Amplitude Get Revenue
 
 Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -319,9 +357,13 @@ Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user count
 |   ↳ `values` | json | Per-date metric values keyed by date \(r1d..r90d, count, paid, total_amount\) |
 | `seriesLabels` | array | Labels for each data series |
 
+</ReferenceDetails>
+
 ### Amplitude Funnels
 
 Analyze conversion rates and drop-off between a sequence of events.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +396,13 @@ Analyze conversion rates and drop-off between a sequence of events.
 |   ↳ `events` | json | Event names for each funnel step |
 |   ↳ `dayFunnels` | json | Daily funnel breakdown \{series, xValues\} |
 
+</ReferenceDetails>
+
 ### Amplitude Retention
 
 Measure how many users return to perform an action after a starting action.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,5 +430,7 @@ Measure how many users return to perform an action after a starting action.
 |   ↳ `values` | json | Per-cohort-date retention counts keyed by date |
 |   ↳ `combined` | json | Deduplicated aggregate retention across all cohorts |
 | `seriesMeta` | array | Segment/event index metadata for each series entry |
+
+</ReferenceDetails>
 
 

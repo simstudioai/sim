@@ -24,7 +24,7 @@ const { mockReadWorkspaceFileRecordByKey } = vi.hoisted(() => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock(
   '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',

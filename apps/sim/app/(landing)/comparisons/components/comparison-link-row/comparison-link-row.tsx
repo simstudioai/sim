@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { CompetitorProfile } from '@/lib/compare/data'
 import { BrandIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { comparisonPath } from '@/app/(landing)/comparisons/utils'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 
 interface ComparisonLinkRowProps {
@@ -12,7 +13,7 @@ export function ComparisonLinkRow({ competitor }: ComparisonLinkRowProps) {
   const Icon = competitor.brand?.icon
   return (
     <Link
-      href={`/comparisons/${competitor.id}`}
+      href={comparisonPath(competitor)}
       className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover-hover:bg-[var(--surface-hover)]'
       aria-label={`Sim vs ${competitor.name} comparison`}
     >

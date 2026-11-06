@@ -1,31 +1,29 @@
 ---
 title: Apollo
 description: Search, enrich, and manage contacts with Apollo.io
+integration:
+  type: "apollo"
+  color: "#EBF212"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="apollo"
-  color="#EBF212"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Apollo.io](https://apollo.io/) in Sim to search and enrich people and companies, manage CRM contacts and accounts, add contacts to sequences, and create follow-up tasks. Single-record and bulk enrichment operations are documented below.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.
-
-
+Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.
 
 ## Actions
 
 ### Apollo People Search
 
 Search Apollo's database for people using demographic filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -55,9 +53,13 @@ Search Apollo's database for people using demographic filters
 | `per_page` | number | Results per page |
 | `total_entries` | number | Total matching entries |
 
+</ReferenceDetails>
+
 ### Apollo People Enrichment
 
 Enrich data for a single person using Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -84,9 +86,13 @@ Enrich data for a single person using Apollo
 | `person` | json | Enriched person data from Apollo |
 | `enriched` | boolean | Whether the person was successfully enriched |
 
+</ReferenceDetails>
+
 ### Apollo Bulk People Enrichment
 
 Enrich data for up to 10 people at once using Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -108,9 +114,13 @@ Enrich data for up to 10 people at once using Apollo
 | `missing_records` | number | Number of records that could not be enriched |
 | `credits_consumed` | number | Number of Apollo credits consumed by this request |
 
+</ReferenceDetails>
+
 ### Apollo Organization Search
 
 Search Apollo's database for companies using filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -136,9 +146,13 @@ Search Apollo's database for companies using filters
 | `per_page` | number | Results per page |
 | `total_entries` | number | Total matching entries |
 
+</ReferenceDetails>
+
 ### Apollo Organization Enrichment
 
 Enrich data for a single organization using Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +168,13 @@ Enrich data for a single organization using Apollo
 | `organization` | json | Enriched organization data from Apollo |
 | `enriched` | boolean | Whether the organization was successfully enriched |
 
+</ReferenceDetails>
+
 ### Apollo Bulk Organization Enrichment
 
 Enrich data for up to 10 organizations at once using Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +193,13 @@ Enrich data for up to 10 organizations at once using Apollo
 | `missing_records` | number | Number of domains that could not be enriched |
 | `unique_domains` | number | Number of unique domains processed |
 
+</ReferenceDetails>
+
 ### Apollo Create Contact
 
 Create a new contact in your Apollo database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -210,9 +232,13 @@ Create a new contact in your Apollo database
 | `contact` | json | Created contact data from Apollo |
 | `created` | boolean | Whether the contact was successfully created |
 
+</ReferenceDetails>
+
 ### Apollo Update Contact
 
 Update an existing contact in your Apollo database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +271,13 @@ Update an existing contact in your Apollo database
 | `contact` | json | Updated contact data from Apollo |
 | `updated` | boolean | Whether the contact was successfully updated |
 
+</ReferenceDetails>
+
 ### Apollo Search Contacts
 
 Search your team's contacts in Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -269,9 +299,13 @@ Search your team's contacts in Apollo
 | `contacts` | json | Array of contacts matching the search criteria |
 | `pagination` | json | Pagination information |
 
+</ReferenceDetails>
+
 ### Apollo Bulk Create Contacts
 
 Create up to 100 contacts at once in your Apollo database. Supports deduplication to prevent creating duplicate contacts. Master key required.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -292,9 +326,13 @@ Create up to 100 contacts at once in your Apollo database. Supports deduplicatio
 | `created` | number | Number of contacts successfully created |
 | `existing` | number | Number of existing contacts found |
 
+</ReferenceDetails>
+
 ### Apollo Bulk Update Contacts
 
 Update up to 100 existing contacts at once in your Apollo database. Each contact must include an id field. Master key required.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -314,9 +352,13 @@ Update up to 100 existing contacts at once in your Apollo database. Each contact
 | `job_id` | string | Async job ID extracted from entity_progress_job |
 | `message` | string | Optional confirmation message from Apollo |
 
+</ReferenceDetails>
+
 ### Apollo Create Account
 
 Create a new account (company) in your Apollo database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +380,13 @@ Create a new account (company) in your Apollo database
 | `account` | json | Created account data from Apollo |
 | `created` | boolean | Whether the account was successfully created |
 
+</ReferenceDetails>
+
 ### Apollo Update Account
 
 Update an existing account in your Apollo database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +409,13 @@ Update an existing account in your Apollo database
 | `account` | json | Updated account data from Apollo |
 | `updated` | boolean | Whether the account was successfully updated |
 
+</ReferenceDetails>
+
 ### Apollo Search Accounts
 
 Search your team's accounts in Apollo. Display limit: 50,000 records (100 records per page, 500 pages max). Use filters to narrow results. Master key required.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -387,9 +437,13 @@ Search your team's accounts in Apollo. Display limit: 50,000 records (100 record
 | `accounts` | json | Array of accounts matching the search criteria |
 | `pagination` | json | Pagination information |
 
+</ReferenceDetails>
+
 ### Apollo Bulk Create Accounts
 
 Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -412,9 +466,13 @@ Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true t
 | `existing` | number | Number of existing accounts found |
 | `failed` | number | Number of accounts that failed to be created |
 
+</ReferenceDetails>
+
 ### Apollo Bulk Update Accounts
 
 Update up to 1000 existing accounts at once in your Apollo database (higher limit than contacts!). Each account must include an id field. Master key required.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -438,9 +496,13 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 | `job_id` | string | Async job ID extracted from entity_progress_job |
 | `message` | string | Optional confirmation message from Apollo |
 
+</ReferenceDetails>
+
 ### Apollo Create Opportunity
 
 Create a new deal for an account in your Apollo database (master key required)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -462,9 +524,13 @@ Create a new deal for an account in your Apollo database (master key required)
 | `opportunity` | json | Created opportunity data from Apollo |
 | `created` | boolean | Whether the opportunity was successfully created |
 
+</ReferenceDetails>
+
 ### Apollo Search Opportunities
 
 Search and list all deals/opportunities in your team's Apollo account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -484,9 +550,13 @@ Search and list all deals/opportunities in your team's Apollo account
 | `per_page` | number | Results per page |
 | `total_entries` | number | Total matching entries |
 
+</ReferenceDetails>
+
 ### Apollo Get Opportunity
 
 Retrieve complete details of a specific deal/opportunity by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -502,9 +572,13 @@ Retrieve complete details of a specific deal/opportunity by ID
 | `opportunity` | json | Complete opportunity data from Apollo |
 | `found` | boolean | Whether the opportunity was found |
 
+</ReferenceDetails>
+
 ### Apollo Update Opportunity
 
 Update an existing deal/opportunity in your Apollo database
+
+<ReferenceDetails>
 
 #### Input
 
@@ -526,9 +600,13 @@ Update an existing deal/opportunity in your Apollo database
 | `opportunity` | json | Updated opportunity data from Apollo |
 | `updated` | boolean | Whether the opportunity was successfully updated |
 
+</ReferenceDetails>
+
 ### Apollo Search Sequences
 
 Search for sequences/campaigns in your team's Apollo account (master key required)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -548,9 +626,13 @@ Search for sequences/campaigns in your team's Apollo account (master key require
 | `per_page` | number | Results per page |
 | `total_entries` | number | Total matching entries |
 
+</ReferenceDetails>
+
 ### Apollo Add Contacts to Sequence
 
 Add contacts to an Apollo sequence
+
+<ReferenceDetails>
 
 #### Input
 
@@ -587,9 +669,13 @@ Add contacts to an Apollo sequence
 | `total_added` | number | Total number of contacts added |
 | `total_skipped` | number | Total number of contacts skipped |
 
+</ReferenceDetails>
+
 ### Apollo Create Task
 
 Create one or more tasks in Apollo (one task per contact_id, master key required)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -611,9 +697,13 @@ Create one or more tasks in Apollo (one task per contact_id, master key required
 | `tasks` | json | Array of created tasks \(when returned by Apollo\) |
 | `created` | boolean | Whether the request succeeded |
 
+</ReferenceDetails>
+
 ### Apollo Search Tasks
 
 Search for tasks in Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -632,9 +722,13 @@ Search for tasks in Apollo
 | `tasks` | json | Array of tasks matching the search criteria |
 | `pagination` | json | Pagination information |
 
+</ReferenceDetails>
+
 ### Apollo Get Email Accounts
 
 Get list of team's linked email accounts in Apollo
+
+<ReferenceDetails>
 
 #### Input
 
@@ -648,5 +742,7 @@ Get list of team's linked email accounts in Apollo
 | --------- | ---- | ----------- |
 | `email_accounts` | json | Array of team email accounts linked in Apollo |
 | `total` | number | Total count of email accounts |
+
+</ReferenceDetails>
 
 

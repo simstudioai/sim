@@ -4,6 +4,7 @@ import type {
   BrowserKnownSessionsState,
   BrowserSessionEvidence,
 } from '@sim/browser-protocol'
+import { isSameOrSubdomain } from '@/main/browser-import/site-scope'
 import type { BrowserKnownSiteSetting, ConfigStore, DesktopSettings } from '@/main/config'
 
 const MAX_STORED_SITES = 100
@@ -107,7 +108,7 @@ function recordsEqual(
 
 function cookieMatchesHost(cookieDomain: string, hostname: string): boolean {
   const domain = normalizePublicHostname(cookieDomain)
-  return domain !== null && (hostname === domain || hostname.endsWith(`.${domain}`))
+  return domain !== null && isSameOrSubdomain(hostname, domain)
 }
 
 /**

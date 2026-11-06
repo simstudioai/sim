@@ -10,6 +10,7 @@ export const workspaceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: [
       'session',
       'personal_api_key',

@@ -65,7 +65,7 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
 const { mockChatContext } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,
@@ -133,6 +133,30 @@ describe('POST /api/copilot/chat/abort', () => {
     expect(mockUnsettledWorkflows).toHaveBeenCalledExactlyOnceWith('stream-1', 'user-1')
     expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
     expect(mockAbortWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
+  it('still cancels the run’s workflows when the abort marker cannot be written', async () => {
+    mockUnsettledWorkflows.mockResolvedValue(['client-execution'])
+    mockAbortActiveStream.mockRejectedValueOnce(new Error('redis unavailable'))
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(200)
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalled()
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
+  it('signals the worker before the run’s workflow ownership has been read', async () => {
+    let releaseRead: (ids: string[]) => void = () => {}
+    mockUnsettledWorkflows.mockReturnValue(
+      new Promise<string[]>((resolve) => {
+        releaseRead = resolve
+      })
+    )
+    const response = POST(abortRequest())
+    await vi.waitFor(() => expect(mockRequestExplicitStreamAbort).toHaveBeenCalled())
+    expect(mockAbortActiveStream).toHaveBeenCalled()
+    releaseRead(['client-execution'])
+    expect((await response).status).toBe(200)
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
   })
 
   it('does not signal workflows when the atomic Stop and admission closure cannot commit', async () => {

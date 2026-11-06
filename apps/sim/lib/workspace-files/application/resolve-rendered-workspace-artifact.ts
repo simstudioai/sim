@@ -1,9 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { resolveDocumentRender } from '@/lib/uploads/documents/render'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 
 /**
@@ -31,30 +28,11 @@ export async function resolveRenderedWorkspaceArtifact(
   file: WorkspaceFileRecord,
   filePrincipal: Principal,
   options: { maxBytes: number; signal?: AbortSignal; tooLargeMessage?: (limit: string) => string }
-): Promise<{ buffer: Buffer; contentType: string }> {
-  try {
-    options.signal?.throwIfAborted()
-    return await fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
+) {
+  return resolveDocumentRender(file.name, options, () =>
+    fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
       maxBytes: options.maxBytes,
       signal: options.signal,
     })
-  } catch (error) {
-    options.signal?.throwIfAborted()
-    if (isDocNotReadyError(error)) {
-      if (error.pending) throw new OrchestrationError('conflict', docNotReadyMessage())
-      throw new OrchestrationError(
-        'conflict',
-        `"${file.name}" could not be generated: ${error.message}`
-      )
-    }
-    if (isPayloadSizeLimitError(error)) {
-      const limit = formatFileSize(options.maxBytes, { includeBytes: true })
-      throw new OrchestrationError(
-        'payload_too_large',
-        options.tooLargeMessage?.(limit) ??
-          `"${file.name}" renders to more than ${limit} and is too large to download.`
-      )
-    }
-    throw error
-  }
+  )
 }

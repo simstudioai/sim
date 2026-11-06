@@ -14,7 +14,7 @@ import {
 import {
   createWorkspaceCredential,
   listInternalCredentials,
-} from '@/lib/credentials/application/credential-crud'
+} from '@/lib/credentials/application/crud'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
 

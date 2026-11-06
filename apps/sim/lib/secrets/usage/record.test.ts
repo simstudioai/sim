@@ -1,5 +1,6 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { flushMacrotask } from '@sim/testing/helpers/async'
+import { toArray } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 
@@ -28,7 +29,7 @@ describe('recordSecretUsage', () => {
     await flushMacrotask()
 
     expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    const rows = dbChainMockFns.values.mock.calls[0]?.[0]
+    const rows = toArray(dbChainMockFns.values.mock.calls[0]?.[0])
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
       workspaceId: 'workspace-1',
@@ -71,7 +72,9 @@ describe('recordSecretUsage', () => {
     }
     await flushMacrotask()
 
-    expect(dbChainMockFns.values.mock.calls[0]?.[0][0]).toMatchObject({ usageDate: '2026-03-14' })
+    expect(toArray(dbChainMockFns.values.mock.calls[0]?.[0])[0]).toMatchObject({
+      usageDate: '2026-03-14',
+    })
   })
 
   it('increments the existing bucket instead of inserting a duplicate', async () => {

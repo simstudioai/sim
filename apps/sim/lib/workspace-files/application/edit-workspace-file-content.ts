@@ -15,13 +15,14 @@ import {
   updateWorkspaceFileContent as updateStoredWorkspaceFileContent,
   type VersionedWorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import {
   applyWorkspaceFileContentEdit,
   countLines,
@@ -116,6 +117,11 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
        * that is merely too big. The post-edit check below covers the other
        * direction, where an edit grows a file past the same ceiling.
        */
+      /**
+       * An edit's answers — not found, ambiguous, how many matches — are read off the stored text,
+       * so it is admitted as text before a byte is read.
+       */
+      await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete')
       let buffer: Buffer
       try {
         buffer = await fetchWorkspaceFileBuffer(file, {

@@ -22,7 +22,7 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 
 ## Architecture (what you're plugging into)
 
-- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, projectFailure, mapOutput }` — `toolProvider` fills `projectFailure` with the standard HTTP projection; override it only for a provider whose failure shape is nonstandard (see `enrichments/provider-failures/`). Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
+- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, projectFailure, mapOutput, isVerified? }` — `toolProvider` fills `projectFailure` with the standard HTTP projection; override it only for a provider whose failure shape is nonstandard (see `enrichments/provider-failures/`). Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
 - **`enrichments/providers.ts`** — `toolProvider(...)` (typed passthrough) plus shared input helpers: `str(v)`, `normalizeDomain(v)`, `firstNonEmpty(arr)`, `splitName(fullName)`, and `projectEnrichmentProviderFailure`.
 - **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId, userId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
 - **`enrichments/registry.ts`** — `ENRICHMENT_REGISTRY` / `ALL_ENRICHMENTS` / `getEnrichment`. Register new entries here.
@@ -37,7 +37,9 @@ For each output the enrichment produces, decide which existing tool provides it.
 - Its `params` accept what you can derive from table columns (read the tool's `params`).
 - Its `outputs` / `transformResponse` actually expose the field you need (read the real output shape — don't assume).
 
-Order providers **cheapest / most-likely-to-hit first**; the cascade stops at the first non-empty result. Apollo and LinkedIn APIs are not hosted-safe (ToS) — never call them as providers.
+Order providers by **accuracy first, then price per hit**. Order decides which answer wins when two providers would disagree, so a cheaper but less accurate provider ahead of a better one trades quality for cost; reorder for price only with benchmark evidence. Among similarly accurate providers, put the ones that bill on a miss or charge a high price per hit after the cheaper, free-on-miss ones (check each vendor's billing docs and the tool's `hosting.pricing`); never move a more accurate provider behind a less accurate one to save cost. The cascade stops at the first non-empty, verified result. Apollo and LinkedIn APIs are not hosted-safe (ToS) — never call them as providers.
+
+Prefer a vendor's own verified-only option (e.g. Prospeo `only_verified_email`) when it turns an unverified result into a free miss. Otherwise, when a provider can return an unconfirmed hit (a catch-all guess, a `risky` status), declare `isVerified(output)`: an unconfirmed hit is held while later providers look for a confirmed one, and fills the cell only if none does. `isVerified: false` marks a provider that never confirms its hits (a database record); it runs only while nothing is held.
 
 ## Step 2: Verify hosted-key support — chain to `/add-hosted-key` if missing
 
@@ -136,7 +138,8 @@ export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
 
 - [ ] Each output mapped to a real tool field (verified against the tool's `params`/`outputs`)
 - [ ] **Every provider tool has a `hosting` block — ran `/add-hosted-key` for any that didn't**
-- [ ] Providers ordered cheapest / most-likely-first; Apollo/LinkedIn not used
+- [ ] Providers ordered accuracy-first, then price per hit (billing on a miss checked against vendor docs); Apollo/LinkedIn not used
+- [ ] Providers that can return an unconfirmed hit declare `isVerified`
 - [ ] Enrichment file is client-safe (no `@/tools` import); uses `toolProvider` + shared helpers
 - [ ] `buildParams` returns `null` on insufficient inputs; `mapOutput` returns `null` on a miss
 - [ ] Registered in `enrichments/registry.ts`

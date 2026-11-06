@@ -6,7 +6,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   name: 'Microsoft Teams Chat',
   provider: 'microsoft-teams',
   description:
-    'Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions',
+    'Trigger workflows from Microsoft Teams chat message notifications via Microsoft Graph subscriptions. Notifications share a seven-day deduplication window keyed by subscription and message ID, so later edits may not start a separate run.',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 

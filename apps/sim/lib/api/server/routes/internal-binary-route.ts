@@ -1,6 +1,5 @@
-import { describePrincipalAuth, type Principal, type SessionPrincipal } from '@sim/auth/principal'
+import { describePrincipalAuth, type SessionPrincipal } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
-import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
   methodMatchesContract,
@@ -8,6 +7,7 @@ import {
 } from '@/lib/api/server/routes/definition'
 import {
   type InternalErrorPolicy,
+  type InternalRateLimitPolicy,
   InternalUnauthenticatedError,
   internalErrorResponse,
   type internalSessionAuth,
@@ -19,17 +19,12 @@ import type {
   JsonErrorResponseDescriptor,
   JsonNextRouteHandler,
   JsonRouteContext,
+  NoContentResponseDescriptor,
 } from '@/lib/api/server/routes/types'
-import type { ParsedRequest } from '@/lib/api/server/validation'
+import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-interface InternalBinaryRateLimitPolicy {
-  readonly kind: 'none'
-  readonly reason: string
-  enforce(request: NextRequest, principal: Principal): Promise<void>
-}
 
 interface InternalBinaryRouteDefinition<
   C extends BinaryApiRouteContract,
@@ -41,7 +36,12 @@ interface InternalBinaryRouteDefinition<
   operation: O
   mapInput(input: ParsedRequest<C>): I
   useCase: OperationUseCase<NoInfer<O>, I, R>
-  present(result: R): BinaryResponseDescriptor | Promise<BinaryResponseDescriptor>
+  present(
+    result: R
+  ):
+    | BinaryResponseDescriptor
+    | NoContentResponseDescriptor
+    | Promise<BinaryResponseDescriptor | NoContentResponseDescriptor>
 }
 
 interface InternalBinaryRouteOptions<
@@ -51,8 +51,10 @@ interface InternalBinaryRouteOptions<
   R,
 > extends InternalBinaryRouteDefinition<C, O, I, R> {
   auth: typeof internalSessionAuth
-  rateLimit: InternalBinaryRateLimitPolicy
+  rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  parseOptions?: Pick<ParseRequestOptions, 'maxBodyBytes'>
+  headSafe?: boolean
   onSuccess?(args: { principal: SessionPrincipal; input: I; result: R }): void | Promise<void>
 }
 
@@ -68,11 +70,15 @@ export function defineInternalBinaryRoute<
   I,
   R,
 >(options: InternalBinaryRouteOptions<C, O, I, R>): JsonNextRouteHandler {
-  const { successStatus } = requireBinaryRouteDefinition(
+  const { successStatus, successStatuses } = requireBinaryRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
   )
+
+  if (options.headSafe === false && typeof options.useCase.authorize !== 'function') {
+    throw new Error('A binary route with headSafe: false requires an authorize phase')
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -93,15 +99,37 @@ export function defineInternalBinaryRoute<
       }
       setRequestAuth(describePrincipalAuth(principal))
 
-      await options.rateLimit.enforce(request, principal)
-      const parsed = await parseRequest(options.contract, request, context ?? {})
+      const rateLimitResponse = await options.rateLimit.enforce(request, principal)
+      if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)
+      const parsed = await parseRequest(
+        options.contract,
+        request,
+        context ?? {},
+        options.parseOptions
+      )
       if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = options.mapInput(parsed.data)
+        if (request.method === 'HEAD' && options.headSafe === false) {
+          if (!options.useCase.authorize) throw new Error('Missing HEAD authorization phase')
+          await options.useCase.authorize({ principal, input, request })
+          return new NextResponse(null, {
+            status: successStatus,
+            headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' },
+          })
+        }
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
         await options.onSuccess?.({ principal, input, result })
+        if ('status' in descriptor) {
+          if (!successStatuses.includes(descriptor.status)) {
+            throw new Error(
+              `Internal binary route produced undeclared success status ${descriptor.status}; expected ${successStatuses.join(', ')}`
+            )
+          }
+          return new NextResponse(null, { status: descriptor.status, headers: descriptor.headers })
+        }
         const headers = new Headers(descriptor.headers)
         headers.set('Content-Type', descriptor.contentType)
         if (descriptor.contentDisposition) {
@@ -125,7 +153,14 @@ export function defineInternalBinaryRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (response.status >= 400) {
+      response.headers.set('Cache-Control', 'private, no-store')
+      response.headers.set('X-Content-Type-Options', 'nosniff')
+    }
+    return response
+  }
 }
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {

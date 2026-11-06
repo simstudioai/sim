@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
+import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'
@@ -40,7 +40,7 @@ export function ContentPostPage({
   const showUpdated = modifiedIso.slice(0, 10) !== post.date.slice(0, 10)
 
   return (
-    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
+    <article className='w-full bg-[var(--bg)]'>
       <JsonLd data={graphJsonLd} />
       <header className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='mb-6'>
@@ -59,7 +59,6 @@ export function ContentPostPage({
                 sizes='(max-width: 1023px) calc(100vw - 64px), 450px'
                 priority
                 fetchPriority='high'
-                itemProp='image'
                 unoptimized
               />
             </div>
@@ -68,13 +67,13 @@ export function ContentPostPage({
             <div>
               <h1
                 className='text-balance text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
-                itemProp='headline'
+                data-speakable='headline'
               >
                 {post.title}
               </h1>
               <p
                 className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg sm:leading-7'
-                itemProp='description'
+                data-speakable='description'
               >
                 {post.description}
               </p>
@@ -84,11 +83,10 @@ export function ContentPostPage({
                 <time
                   className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'
                   dateTime={post.date}
-                  itemProp='datePublished'
                 >
                   {formatPostDate(post.date)}
                 </time>
-                {showUpdated ? (
+                {showUpdated && (
                   <>
                     <span aria-hidden='true' className='text-[var(--text-secondary)] text-xs'>
                       ·
@@ -96,13 +94,10 @@ export function ContentPostPage({
                     <time
                       className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'
                       dateTime={modifiedIso}
-                      itemProp='dateModified'
                     >
                       Updated {formatPostDate(modifiedIso)}
                     </time>
                   </>
-                ) : (
-                  <meta itemProp='dateModified' content={modifiedIso} />
                 )}
               </div>
               <div className='flex items-center gap-3'>
@@ -118,11 +113,8 @@ export function ContentPostPage({
                       href={`${basePath}/authors/${encodeURIComponent(a?.id ?? '')}`}
                       rel='author'
                       className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] hover:text-[var(--text-primary)]'
-                      itemProp='author'
-                      itemScope
-                      itemType='https://schema.org/Person'
                     >
-                      <span itemProp='name'>{a?.name}</span>
+                      {a?.name}
                     </Link>
                   </div>
                 ))}
@@ -139,8 +131,17 @@ export function ContentPostPage({
 
       <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
-          <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
-            <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-secondary)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
+          <div className='mx-auto max-w-[900px] px-6 py-16'>
+            <div
+              className={cn(
+                'prose prose-lg max-w-none prose-headings:font-season prose-headings:tracking-[-0.02em]',
+                '[--tw-prose-body:var(--text-body)] [--tw-prose-headings:var(--text-primary)] [--tw-prose-lead:var(--text-body)]',
+                '[--tw-prose-bold:var(--text-primary)] [--tw-prose-bullets:var(--text-primary)] [--tw-prose-counters:var(--text-primary)] [--tw-prose-links:var(--text-primary)]',
+                '[--tw-prose-captions:var(--text-secondary)] [--tw-prose-hr:var(--border)] [--tw-prose-quote-borders:var(--border)] [--tw-prose-quotes:var(--text-secondary)]',
+                '[--tw-prose-code:var(--text-primary)] [--tw-prose-pre-bg:var(--surface-5)] [--tw-prose-pre-code:var(--text-primary)]',
+                '[--tw-prose-td-borders:var(--border)] [--tw-prose-th-borders:var(--border)]'
+              )}
+            >
               <Article />
               {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
             </div>
@@ -160,11 +161,6 @@ export function ContentPostPage({
       </div>
 
       <div className='-mt-px h-px w-full bg-[var(--border)]' />
-
-      <meta itemProp='publisher' content='Sim' />
-      <meta itemProp='inLanguage' content='en-US' />
-      <meta itemProp='keywords' content={post.tags.join(', ')} />
-      {post.wordCount && <meta itemProp='wordCount' content={String(post.wordCount)} />}
     </article>
   )
 }

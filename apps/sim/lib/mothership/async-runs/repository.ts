@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { SpanKind, trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
@@ -9,6 +10,8 @@ import {
   copilotOrganizationRequestStops,
   copilotRequestStops,
   copilotRuns,
+  user,
+  workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
@@ -17,10 +20,14 @@ import {
   and,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
+  like,
+  lt,
   ne,
+  not,
   notInArray,
   or,
   type SQL,
@@ -28,11 +35,17 @@ import {
 } from 'drizzle-orm'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
 import {
+  DEADLINE_SIM_TOOL_MESSAGE,
+  EXHAUSTED_SIM_TOOL_MESSAGE,
   INTERRUPTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_LEASE_SECONDS,
+  SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
+  SIM_TOOL_MIN_START_BUDGET_MS,
   SimToolExecutionLeaseLostError,
   type SimToolExecutionOwner,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -43,17 +56,34 @@ import {
   DESKTOP_TOOL_CLAIM_OWNER,
   EXECUTABLE_TOOL_PERMISSION_DECISIONS,
   isAwaitingToolPermission,
+  isExecutableToolPermissionDecision,
   SIM_TOOL_EXECUTION_VERSION,
+  SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS,
+  supportsSimToolExecution,
 } from '@/lib/mothership/async-runs/lifecycle'
+import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
   traceMothershipQuery,
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
+import {
+  isDurableStreamRun,
+  parseRecordedSecretAuthority,
+} from '@/lib/mothership/request/lifecycle/durable-run'
 import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  DEFAULT_SECRET_MOUNT_POLICY,
+  NO_SECRET_AUTHORITY,
+  type TurnSecretAuthority,
+} from '@/lib/mothership/secret-mount-policy'
+import {
+  isWorkflowToolName,
+  WORKFLOW_TOOL_NAMES,
+} from '@/lib/mothership/tools/client-executed-tools'
 import {
   type DesktopToolClaimOwner,
   isDesktopToolCall,
@@ -64,7 +94,7 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
-const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
+export const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
 // Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
 // before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
 // can evaluate modules before instrumentation-node.ts finishes).
@@ -134,7 +164,7 @@ export interface CreateRunSegmentInput {
 
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-/** Serializes Stop and admission, including when no run row exists to lock yet. */
+/** Serializes account suspension, Stop and admission, even before a run row exists. */
 export async function withRunAdmissionLock<T>(
   userId: string,
   streamId: string,
@@ -142,6 +172,8 @@ export async function withRunAdmissionLock<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+    /** Lock the account before any chat/run writes; suspension updates it before scanning runs. */
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('share')
     const key = JSON.stringify(['copilot-run-admission', userId, streamId])
     await acquireAdvisoryXactLock(tx, 'copilot_run_admission', key)
     return action(tx)
@@ -187,32 +219,160 @@ export async function requestRunStop(
         (input.chatId && run.chatId !== input.chatId))
     )
       return run
-    const { userId, streamId } = input
-    const owner = resourceScopeFromOwner(input)
-    if (owner.kind === 'organization') {
-      await tx
-        .insert(copilotOrganizationRequestStops)
-        .values({ userId, organizationId: owner.organizationId, streamId })
-        .onConflictDoNothing()
-    } else {
-      await tx
-        .insert(copilotRequestStops)
-        .values({ userId, workspaceId: owner.workspaceId, streamId })
-        .onConflictDoNothing()
-    }
-    if (run) {
-      const stoppedRuns = and(
-        eq(copilotRuns.userId, input.userId),
-        eq(copilotRuns.streamId, input.streamId)
-      )
-      await tx
-        .update(copilotRuns)
-        .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
-        .where(stoppedRuns)
-      await cancelOpenDesktopToolCalls(tx, stoppedRuns, input.userId)
-    }
+    await recordRunStopTx(tx, input, Boolean(run))
     return run ?? null
   })
+}
+
+/**
+ * Records Stop for one stream in the caller's transaction: the durable intent every later
+ * segment and the worker's run-control read observe, closed tool admission, and settled
+ * desktop calls. `admitted` is false when no run row exists yet to close.
+ */
+async function recordRunStopTx(tx: DbTransaction, input: RunStopInput, admitted = true) {
+  const { userId, streamId } = input
+  const owner = resourceScopeFromOwner(input)
+  if (owner.kind === 'organization') {
+    await tx
+      .insert(copilotOrganizationRequestStops)
+      .values({ userId, organizationId: owner.organizationId, streamId })
+      .onConflictDoNothing()
+  } else {
+    await tx
+      .insert(copilotRequestStops)
+      .values({ userId, workspaceId: owner.workspaceId, streamId })
+      .onConflictDoNothing()
+  }
+  if (!admitted) return
+  const stoppedRuns = and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId))
+  await tx
+    .update(copilotRuns)
+    .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
+    .where(stoppedRuns)
+  await cancelOpenDesktopToolCalls(tx, stoppedRuns, userId)
+}
+
+type StoppedSandboxProcess = SessionProcessIdentity & { toolCallId: string }
+
+/** The run a Stop is delivered to. */
+export interface RunStopTarget {
+  id: string
+  streamId: string
+  userId: string
+  chatId: string
+  desktopDeviceId: string | null
+}
+
+/** The client workflows and sandbox commands a stopped run started, read once its admission closed. */
+export interface StoppedRunWork {
+  clientWorkflowExecutionIds: string[]
+  /** Runs its calls started and left running past the call (`getDetachedWorkflowExecutions`). */
+  detachedWorkflowExecutionIds: string[]
+  sandboxProcesses: StoppedSandboxProcess[]
+}
+
+/**
+ * A run a removal stopped. Its work is read in the removal's own transaction, before a hard
+ * delete cascades those rows away.
+ */
+export interface StoppedRun extends RunStopTarget, StoppedRunWork {}
+
+type LiveRunScope =
+  | { chatIds: string[] }
+  | { userId: string }
+  | { workspaceId: string }
+  | { userId: string; workspaceIds: string[] }
+  | { userId: string; organizationId: string }
+
+function liveRunScopeCondition(scope: LiveRunScope): SQL | undefined {
+  if ('chatIds' in scope) return inArray(copilotRuns.chatId, scope.chatIds)
+  if ('organizationId' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      eq(copilotRuns.organizationId, scope.organizationId)
+    )
+  if ('workspaceIds' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      inArray(copilotRuns.workspaceId, scope.workspaceIds)
+    )
+  if ('workspaceId' in scope) return eq(copilotRuns.workspaceId, scope.workspaceId)
+  return eq(copilotRuns.userId, scope.userId)
+}
+
+/** Of these workspaces, the ones where the user still has an unfinished Chat run. */
+export async function findWorkspacesWithLiveRunsTx(
+  tx: DbTransaction,
+  userId: string,
+  workspaceIds: string[]
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return []
+  const rows = await tx
+    .selectDistinct({ workspaceId: copilotRuns.workspaceId })
+    .from(copilotRuns)
+    .where(
+      and(
+        eq(copilotRuns.userId, userId),
+        inArray(copilotRuns.workspaceId, workspaceIds),
+        notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)
+      )
+    )
+  return rows.flatMap(({ workspaceId }) => (workspaceId ? [workspaceId] : []))
+}
+
+/**
+ * Stops every unfinished run in `scope` inside the removal's own transaction, so Stop commits
+ * exactly when the removal does: a restored chat cannot revive the run and a takeover never
+ * adopts it. Rows a hard delete cascades away take their Stop with them; run control then
+ * answers Stop because the chat or owner is gone. Callers deliver the returned runs' Stop with
+ * `deliverRunStops` after commit.
+ */
+export async function stopLiveRunsTx(
+  tx: DbTransaction,
+  scope: LiveRunScope
+): Promise<StoppedRun[]> {
+  if (
+    ('chatIds' in scope && scope.chatIds.length === 0) ||
+    ('workspaceIds' in scope && scope.workspaceIds.length === 0)
+  )
+    return []
+  const rows = await tx
+    .select({
+      id: copilotRuns.id,
+      streamId: copilotRuns.streamId,
+      userId: copilotRuns.userId,
+      chatId: copilotRuns.chatId,
+      workspaceId: copilotRuns.workspaceId,
+      organizationId: copilotRuns.organizationId,
+      desktopDeviceId: copilotRuns.desktopDeviceId,
+    })
+    .from(copilotRuns)
+    .where(and(liveRunScopeCondition(scope), notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)))
+  const stopped: StoppedRun[] = []
+  for (const {
+    id,
+    streamId,
+    userId,
+    chatId,
+    workspaceId,
+    organizationId,
+    desktopDeviceId,
+  } of rows) {
+    /** A run with no single owner has no Stop row to write; run control already answers Stop. */
+    if (Boolean(workspaceId) !== Boolean(organizationId))
+      await recordRunStopTx(tx, { streamId, userId, workspaceId, organizationId })
+    stopped.push({
+      id,
+      streamId,
+      userId,
+      chatId,
+      desktopDeviceId,
+      clientWorkflowExecutionIds: await getUnsettledClientWorkflowExecutions(streamId, userId, tx),
+      detachedWorkflowExecutionIds: await getDetachedWorkflowExecutions(streamId, userId, tx),
+      sandboxProcesses: await getUnsettledStreamSandboxProcesses(streamId, userId, tx),
+    })
+  }
+  return stopped
 }
 
 /**
@@ -306,28 +466,36 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
   )
 }
 
-/** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
+/**
+ * Caller holds the Stop/admission lock; its related chat writes commit with this run. The
+ * chat row is read FOR SHARE, after that lock as chat admission takes it, so a soft delete
+ * either commits first and this run starts stopped, or waits and then stops this run.
+ */
 export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
-  let workspaceId = input.workspaceId
-  let organizationId = input.organizationId
-  if (!workspaceId && !organizationId) {
-    const [chat] = await tx
-      .select({
-        workspaceId: copilotChats.workspaceId,
-        organizationId: copilotChats.organizationId,
-      })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
-      .limit(1)
-    workspaceId = chat?.workspaceId
-    organizationId = chat?.organizationId
-  }
+  const [chat] = await tx
+    .select({
+      workspaceId: copilotChats.workspaceId,
+      organizationId: copilotChats.organizationId,
+      deletedAt: copilotChats.deletedAt,
+      suspendedAt: user.suspendedAt,
+    })
+    .from(copilotChats)
+    .innerJoin(user, eq(user.id, copilotChats.userId))
+    .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
+    .for('share')
+  const inheritsOwner = !input.workspaceId && !input.organizationId
+  const workspaceId = inheritsOwner ? chat?.workspaceId : input.workspaceId
+  const organizationId = inheritsOwner ? chat?.organizationId : input.organizationId
   const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
   const [stop] = await tx
     .select({ stoppedAt: table.stoppedAt })
     .from(table)
     .where(predicate)
     .limit(1)
+  const closedAt = stop?.stoppedAt ?? chat?.deletedAt ?? chat?.suspendedAt
+  if (chat?.suspendedAt && !stop) {
+    await recordRunStopTx(tx, { ...input, workspaceId, organizationId }, false)
+  }
   const [run] = await tx
     .insert(copilotRuns)
     .values({
@@ -346,8 +514,8 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
       desktopDeviceId: input.desktopDeviceId ?? null,
-      status: stop ? 'cancelled' : (input.status ?? 'active'),
-      ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
+      status: closedAt ? 'cancelled' : (input.status ?? 'active'),
+      ...(closedAt ? { completedAt: sql`now()`, toolAdmissionClosedAt: closedAt } : {}),
     })
     .returning()
   if (!run) throw new Error('Run admission did not return its persisted identity')
@@ -425,13 +593,49 @@ export async function recordRunBillingAdmission(
             eq(copilotRuns.id, runId),
             notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
             sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`,
-            sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+            isDurableStreamRun(copilotRuns.requestContext)
           )
         )
         .returning({ id: copilotRuns.id, status: copilotRuns.status })
       return run ?? null
     }
   )
+}
+
+/**
+ * The secret authority a turn was admitted with, for a lane that rebuilds its tool context from
+ * Go's request instead of inheriting the turn's. Headless runs record it at admission; an
+ * interactive chat narrows it only in assistant mode, so its saved request decides. Anything
+ * else — no run, another user's or chat's run, an unrecorded headless run — mounts nothing.
+ */
+export async function getRunSecretAuthority(input: {
+  streamId: string
+  userId: string
+  chatId: string
+}): Promise<TurnSecretAuthority> {
+  const [run] = await db
+    .select({
+      chatId: copilotRuns.chatId,
+      recorded: sql<unknown>`${copilotRuns.requestContext}->'secretAuthority'`,
+      recoveryKind: sql<string | null>`${copilotRuns.requestContext}->'recovery'->>'kind'`,
+      requestMode: sql<
+        string | null
+      >`COALESCE(${copilotRuns.requestContext}->'recovery'->>'requestMode', ${copilotRuns.requestContext}->'recovery'->'request'->>'mode')`,
+    })
+    .from(copilotRuns)
+    .where(and(eq(copilotRuns.streamId, input.streamId), eq(copilotRuns.userId, input.userId)))
+    .limit(1)
+  if (!run || run.chatId !== input.chatId) return NO_SECRET_AUTHORITY
+
+  if (run.recorded !== null)
+    return parseRecordedSecretAuthority(run.recorded) ?? NO_SECRET_AUTHORITY
+  if (run.recoveryKind === 'interactive_stream' && run.requestMode !== 'assistant') {
+    return {
+      secretMountPolicy: { ...DEFAULT_SECRET_MOUNT_POLICY },
+      secretActorUserId: input.userId,
+    }
+  }
+  return NO_SECRET_AUTHORITY
 }
 
 // Un-instrumented: called from a 4 Hz resume poll; per-call spans
@@ -486,10 +690,16 @@ export async function upsertAsyncToolCall(input: {
   toolCallId: string
   toolName: string
   args?: Record<string, unknown>
+  executableName?: string
+  targetWorkspaceId?: string
+  executionRetryable?: boolean
+  assistantAction?: typeof copilotAsyncToolCalls.$inferInsert.assistantAction
   status?: CopilotAsyncToolStatus
   sealedContext?: AsyncCompletionData
   /** The call is held for the user's decision before anything may run it. */
   permissionRequested?: boolean
+  /** When the call must be settled by; the first row written for the call keeps its own. */
+  executionDeadlineAt?: Date
 }) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
@@ -502,11 +712,29 @@ export async function upsertAsyncToolCall(input: {
       [TraceAttr.RunId]: input.runId ?? undefined,
     },
     async () => {
-      const existing = await getAsyncToolCall(input.toolCallId)
-      if (existing) {
-        if (input.runId && existing.runId !== input.runId) {
+      const args = sanitizeValueForJsonb(input.args ?? {})
+      const executableName = input.executableName ?? input.toolName
+      const assertInvocation = (record: typeof copilotAsyncToolCalls.$inferSelect) => {
+        if (input.runId && record.runId !== input.runId) {
           throw new AsyncToolCallOwnershipError()
         }
+        if (
+          record.toolName !== input.toolName ||
+          !isDeepStrictEqual(record.args, args) ||
+          !isDeepStrictEqual(record.assistantAction, input.assistantAction ?? null) ||
+          (record.executableName !== null &&
+            (record.executableName !== executableName ||
+              record.targetWorkspaceId !== (input.targetWorkspaceId ?? null) ||
+              record.executionRetryable !== (input.executionRetryable ?? true)))
+        ) {
+          throw new AsyncToolCallOwnershipError(
+            'Async tool call does not match its persisted invocation'
+          )
+        }
+      }
+      const existing = await getAsyncToolCall(input.toolCallId)
+      if (existing) {
+        assertInvocation(existing)
         return existing
       }
 
@@ -522,7 +750,6 @@ export async function upsertAsyncToolCall(input: {
       }
 
       const now = new Date()
-      const args = sanitizeValueForJsonb(input.args ?? {})
       const sealedContext = sanitizeValueForJsonb(input.sealedContext)
       const [row] = await traceMothershipQuery('INSERT', 'copilot_async_tool_calls', () =>
         db
@@ -533,9 +760,16 @@ export async function upsertAsyncToolCall(input: {
             toolCallId: input.toolCallId,
             toolName: input.toolName,
             args,
+            executableName,
+            targetWorkspaceId: input.targetWorkspaceId ?? null,
+            executionRetryable: input.executionRetryable ?? true,
+            assistantAction: input.assistantAction ?? null,
             status: incomingStatus,
             ...(sealedContext !== undefined ? { result: sealedContext } : {}),
             ...(input.permissionRequested ? { permissionRequestedAt: now } : {}),
+            ...(input.executionDeadlineAt
+              ? { executionDeadlineAt: input.executionDeadlineAt }
+              : {}),
             updatedAt: now,
           })
           .onConflictDoNothing()
@@ -543,9 +777,7 @@ export async function upsertAsyncToolCall(input: {
       )
 
       const persisted = row ?? (await getAsyncToolCall(input.toolCallId))
-      if (persisted && persisted.runId !== effectiveRunId) {
-        throw new AsyncToolCallOwnershipError()
-      }
+      if (persisted) assertInvocation(persisted)
       return persisted
     }
   )
@@ -665,7 +897,8 @@ async function claimUnderRunAdmission<T>(
   call: { toolCallId: string; runId: string; userId: string; desktopDeviceId?: string },
   claimedBy: string,
   requireCurrentVersion: boolean,
-  claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>
+  claim: (tx: RunAdmissionTransaction, thisCall: SQL | undefined) => Promise<T>,
+  transaction?: DbTransaction
 ): Promise<T | { outcome: 'closed' } | { outcome: 'existing' }> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -676,47 +909,45 @@ async function claimUnderRunAdmission<T>(
       [TraceAttr.RunId]: call.runId,
       [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
     },
-    () =>
-      traceMothershipTransaction<T | { outcome: 'closed' } | { outcome: 'existing' }>(
-        'claim_tool',
-        async (tx) => {
-          const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
-            tx
-              .select({
-                toolExecutionVersion: copilotRuns.toolExecutionVersion,
-                toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
-                status: copilotRuns.status,
-              })
-              .from(copilotRuns)
-              .where(
-                and(
-                  eq(copilotRuns.id, call.runId),
-                  eq(copilotRuns.userId, call.userId),
-                  call.desktopDeviceId
-                    ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
-                    : undefined
-                )
+    () => {
+      const execute = async (
+        tx: DbTransaction
+      ): Promise<T | { outcome: 'closed' } | { outcome: 'existing' }> => {
+        const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
+          tx
+            .select({
+              toolExecutionVersion: copilotRuns.toolExecutionVersion,
+              toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+              status: copilotRuns.status,
+            })
+            .from(copilotRuns)
+            .where(
+              and(
+                eq(copilotRuns.id, call.runId),
+                eq(copilotRuns.userId, call.userId),
+                call.desktopDeviceId
+                  ? eq(copilotRuns.desktopDeviceId, call.desktopDeviceId)
+                  : undefined
               )
-              .for('update')
-          )
-          // The run is not bound to the claiming device: the call is not this device's to take.
-          if (!run && call.desktopDeviceId) return { outcome: 'existing' }
-          if (
-            !run ||
-            (requireCurrentVersion && run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
-          )
-            throw new Error('Tool execution ownership is unavailable for this run')
-          if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
-            return { outcome: 'closed' }
-          return claim(
-            tx,
-            and(
-              eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
-              eq(copilotAsyncToolCalls.runId, call.runId)
             )
+            .for('update')
+        )
+        // The run is not bound to the claiming device: the call is not this device's to take.
+        if (!run && call.desktopDeviceId) return { outcome: 'existing' }
+        if (!run || (requireCurrentVersion && !supportsSimToolExecution(run.toolExecutionVersion)))
+          throw new Error('Tool execution ownership is unavailable for this run')
+        if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
+          return { outcome: 'closed' }
+        return claim(
+          tx,
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, call.toolCallId),
+            eq(copilotAsyncToolCalls.runId, call.runId)
           )
-        }
-      )
+        )
+      }
+      return transaction ? execute(transaction) : traceMothershipTransaction('claim_tool', execute)
+    }
   )
 }
 
@@ -727,43 +958,219 @@ export type ToolExecutionClaim =
   /** Already claimed or settled. */
   | { outcome: 'existing' }
 
-/** Sim claims a call it is about to execute under an execution lease; a terminal result never releases it. */
-export async function claimToolExecution(
-  owner: SimToolExecutionOwner
-): Promise<ToolExecutionClaim> {
-  return await claimUnderRunAdmission(owner, 'sim-stream', true, async (tx, thisCall) => {
-    const startedAt = new Date()
-    const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
-      tx
-        .update(copilotAsyncToolCalls)
-        .set({
-          status: ASYNC_TOOL_STATUS.running,
-          claimedBy: 'sim-stream',
-          claimedAt: startedAt,
-          executionStartedAt: startedAt,
-          executionOwnerToken: owner.ownerToken,
-          executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
-          updatedAt: startedAt,
-        })
-        .where(
-          and(
-            thisCall,
-            isNull(copilotAsyncToolCalls.executionStartedAt),
-            inArray(copilotAsyncToolCalls.status, [
-              ASYNC_TOOL_STATUS.pending,
-              ASYNC_TOOL_STATUS.running,
-            ])
+/** A Sim handler's claim, which also reports an unclaimed call too late to start. */
+export type SimToolExecutionClaim =
+  | Exclude<ToolExecutionClaim, { outcome: 'claimed' }>
+  | {
+      outcome: 'claimed'
+      invocation: {
+        executableName: string | null
+        targetWorkspaceId: string | null
+        args: Record<string, unknown>
+        assistantAction?: typeof copilotAsyncToolCalls.$inferSelect.assistantAction
+      }
+    }
+  | { outcome: 'awaiting_permission' }
+  | { outcome: 'permission_denied' }
+  /** Admitted but unclaimed, with too little of its deadline left to start: nothing ran it. */
+  | { outcome: 'too_late' }
+
+/**
+ * Every condition at once, typed as a condition: drizzle's `and` may return undefined, which a
+ * negation would render as `NOT (NULL)` and match nothing.
+ */
+function allOf(...conditions: SQL[]): SQL {
+  return sql`(${sql.join(
+    conditions.map((condition) => sql`(${condition})`),
+    sql` and `
+  )})`
+}
+
+/**
+ * A Sim handler's execution of a call that has no result yet. Only a Sim handler sets
+ * `executionStartedAt` without a browser workflow execution, so desktop and browser
+ * executions, which settle their own lapses, never match.
+ */
+const unfinishedSimExecution = allOf(
+  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+  isNotNull(copilotAsyncToolCalls.executionStartedAt),
+  isNull(copilotAsyncToolCalls.executionSettledAt),
+  isNull(copilotAsyncToolCalls.executionRevokedAt),
+  isNull(copilotAsyncToolCalls.clientWorkflowExecutionId)
+)
+
+/**
+ * A call whose deadline leaves less than the minimum start budget, so nothing may start it: no
+ * re-run and no claim. A call without a deadline never matches.
+ */
+const tooLateToStart = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_MIN_START_BUDGET_MS} * interval '1 millisecond')`
+
+/**
+ * A call past its deadline plus the resume grace: the resume wait's ceiling for it (`run.ts`), past
+ * which nothing still waits for its result. A call without a deadline never matches.
+ */
+const pastResumeGiveUp = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} + ${TOOL_WATCHDOG_RESUME_GRACE_MS} * interval '1 millisecond' <= clock_timestamp())`
+
+/** A call nothing claimed or started whose deadline leaves too little to start it. */
+const pendingTooLateToStart = allOf(
+  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+  isNull(copilotAsyncToolCalls.executionStartedAt),
+  tooLateToStart
+)
+
+/**
+ * A Sim execution whose owner died before recording a result: its lease lapsed, which a live
+ * owner's heartbeat never lets happen. A takeover runs it again until it has started
+ * {@link SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times, while enough of its deadline remains.
+ */
+const interruptedSimExecution = allOf(
+  unfinishedSimExecution,
+  eq(copilotAsyncToolCalls.executionRetryable, true),
+  sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`,
+  lt(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
+  not(tooLateToStart)
+)
+
+/**
+ * An interrupted execution a takeover may still run again: its run still admits tools. Another
+ * call's wait or workbench access must not revoke it as interrupted before that re-run.
+ */
+const rerunnableSimExecution = allOf(
+  interruptedSimExecution,
+  sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.tool_admission_closed_at IS NULL AND r.status NOT IN (${sql.join(
+    TERMINAL_RUN_STATUSES.map((status) => sql`${status}`),
+    sql`, `
+  )}))`
+)
+
+/**
+ * Sim claims a call it is about to execute under an execution lease; a terminal result never
+ * releases it. The claim takes a call's first execution, or re-runs one whose owner died
+ * mid-execution: the new owner token fences the dead owner out, since its renewals and its
+ * result both require the token and an unexpired lease. A pending call too late to start is left
+ * unclaimed, under the same admission check, for its caller to settle as never run.
+ */
+async function claimSimToolExecution(
+  owner: SimToolExecutionOwner,
+  assistant: boolean,
+  transaction?: DbTransaction
+): Promise<SimToolExecutionClaim> {
+  return await claimUnderRunAdmission(
+    owner,
+    'sim-stream',
+    true,
+    async (tx, thisCall) => {
+      const startedAt = new Date()
+      const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
+        tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            status: ASYNC_TOOL_STATUS.running,
+            claimedBy: 'sim-stream',
+            claimedAt: startedAt,
+            executionStartedAt: startedAt,
+            executionOwnerToken: owner.ownerToken,
+            executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+            executionAttempts: sql`${copilotAsyncToolCalls.executionAttempts} + 1`,
+            updatedAt: startedAt,
+          })
+          .where(
+            and(
+              thisCall,
+              executableToolPermission(),
+              assistant
+                ? isNotNull(copilotAsyncToolCalls.assistantAction)
+                : isNull(copilotAsyncToolCalls.assistantAction),
+              or(
+                and(
+                  isNull(copilotAsyncToolCalls.executionStartedAt),
+                  inArray(copilotAsyncToolCalls.status, [
+                    ASYNC_TOOL_STATUS.pending,
+                    ASYNC_TOOL_STATUS.running,
+                  ]),
+                  not(pendingTooLateToStart)
+                ),
+                interruptedSimExecution
+              )
+            )
           )
-        )
-        .returning({ id: copilotAsyncToolCalls.id })
+          .returning({
+            executableName: copilotAsyncToolCalls.executableName,
+            targetWorkspaceId: copilotAsyncToolCalls.targetWorkspaceId,
+            args: copilotAsyncToolCalls.args,
+            approvedArgs: copilotAsyncToolCalls.approvedArgs,
+            assistantAction: copilotAsyncToolCalls.assistantAction,
+          })
+      )
+      if (claimed) {
+        const args = toRecordOrNull(claimed.approvedArgs ?? claimed.args)
+        if (!args) throw new Error('Tool execution arguments are unavailable')
+        return {
+          outcome: 'claimed',
+          invocation: {
+            executableName: claimed.executableName,
+            targetWorkspaceId: claimed.targetWorkspaceId,
+            args,
+            assistantAction: claimed.assistantAction,
+          },
+        } as const
+      }
+      const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
+        tx
+          .select({
+            tooLate: sql<boolean>`${pendingTooLateToStart}`,
+            status: copilotAsyncToolCalls.status,
+            permissionRequestedAt: copilotAsyncToolCalls.permissionRequestedAt,
+            permissionDecision: copilotAsyncToolCalls.permissionDecision,
+          })
+          .from(copilotAsyncToolCalls)
+          .where(thisCall)
+      )
+      if (!record) throw new Error('Tool execution record is unavailable')
+      if (
+        assistant &&
+        record.status === ASYNC_TOOL_STATUS.pending &&
+        record.permissionDecision === 'skip'
+      )
+        return { outcome: 'permission_denied' } as const
+      if (record.status === ASYNC_TOOL_STATUS.pending && isAwaitingToolPermission(record)) {
+        return { outcome: 'awaiting_permission' } as const
+      }
+      return record.tooLate
+        ? ({ outcome: 'too_late' } as const)
+        : ({ outcome: 'existing' } as const)
+    },
+    transaction
+  )
+}
+
+/** Ordinary execution cannot admit a call bound to an Assistant permission policy. */
+export function claimToolExecution(owner: SimToolExecutionOwner): Promise<SimToolExecutionClaim> {
+  return claimSimToolExecution(owner, false)
+}
+
+/** Called inside the authorized Assistant use case, after current account and policy locks. */
+export async function claimAssistantToolExecution(
+  owner: SimToolExecutionOwner,
+  transaction: DbTransaction
+): Promise<SimToolExecutionClaim> {
+  const [currentTurn] = await transaction
+    .select({ id: copilotRuns.id })
+    .from(copilotRuns)
+    .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+    .where(
+      and(
+        eq(copilotRuns.id, owner.runId),
+        eq(copilotRuns.userId, owner.userId),
+        eq(copilotChats.userId, owner.userId),
+        eq(copilotChats.conversationId, copilotRuns.streamId),
+        isNull(copilotChats.deletedAt)
+      )
     )
-    if (claimed) return { outcome: 'claimed' } as const
-    const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
-      tx.select({ id: copilotAsyncToolCalls.id }).from(copilotAsyncToolCalls).where(thisCall)
-    )
-    if (!record) throw new Error('Tool execution record is unavailable')
-    return { outcome: 'existing' } as const
-  })
+    .for('share', { of: copilotChats })
+    .limit(1)
+  if (!currentTurn) return { outcome: 'closed' }
+  return claimSimToolExecution(owner, true, transaction)
 }
 
 /** The desktop app acting on a pending call it was handed, before any effect on the machine. */
@@ -828,6 +1235,7 @@ export async function claimDesktopToolCall(
             and(
               thisCall,
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              not(tooLateToStart),
               // The executor takes only a call Sim offered it, inside its pickup window; once the
               // window closed the call belongs to its not-started settlement.
               executor
@@ -836,15 +1244,7 @@ export async function claimDesktopToolCall(
                     isNull(copilotAsyncToolCalls.pickupDeadlineAt),
                     sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
                   ),
-              or(
-                and(
-                  isNull(copilotAsyncToolCalls.permissionRequestedAt),
-                  isNull(copilotAsyncToolCalls.permissionDecision)
-                ),
-                inArray(copilotAsyncToolCalls.permissionDecision, [
-                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-                ])
-              )
+              executableToolPermission()
             )
           )
           .returning({ id: copilotAsyncToolCalls.id })
@@ -871,7 +1271,8 @@ export async function claimDesktopToolCall(
 /**
  * Expired ownership cannot be renewed, even before a follower has observed the expiry. With
  * `desktop`, the call must still be running on a run bound to that device, so a call Stop settled
- * cannot be renewed either.
+ * cannot be renewed either, nor one past its deadline plus the resume grace: its lease then lapses
+ * and the call settles as outcome unknown.
  */
 export async function renewSimToolExecutionLease(
   owner: SimToolExecutionOwner,
@@ -894,6 +1295,7 @@ export async function renewSimToolExecutionLease(
         desktop
           ? and(
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+              not(pastResumeGiveUp),
               'deviceId' in desktop
                 ? sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id = ${desktop.deviceId})`
                 : and(
@@ -937,17 +1339,76 @@ export async function getChatViewDesktopLeaseRemainingMs(
   return row ? Number(row.remainingMs) : null
 }
 
-/** Revocation ends local execution authority; recorded remote commands remain independently unsettled. */
-export async function revokeExpiredSimToolExecutions(input: { runId: string; userId: string }) {
+/**
+ * Why a lapsed execution ended without a result: once, after every re-run it was allowed, or
+ * with too little of its deadline left to run again.
+ */
+const interruptionMessage = sql<string>`CASE WHEN ${copilotAsyncToolCalls.executionAttempts} >= ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} THEN ${EXHAUSTED_SIM_TOOL_MESSAGE}::text WHEN ${tooLateToStart} THEN ${DEADLINE_SIM_TOOL_MESSAGE}::text ELSE ${INTERRUPTED_SIM_TOOL_MESSAGE}::text END`
+
+/**
+ * Whether one of the run's Sim handlers is still running with its execution lease held. Its
+ * controller renews that lease from the same process, so a run whose controller is gone holds
+ * none once the lease lapses; until then, taking the run over would find the call neither
+ * finished nor re-runnable.
+ */
+export async function hasLiveSimToolExecution(runId: string): Promise<boolean> {
+  const [live] = await db
+    .select({ id: copilotAsyncToolCalls.id })
+    .from(copilotAsyncToolCalls)
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.runId, runId),
+        unfinishedSimExecution,
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+      )
+    )
+    .limit(1)
+  return !!live
+}
+
+/**
+ * Revocation ends local execution authority; recorded remote commands remain independently
+ * unsettled. The waiting call's own lapsed execution is revoked; another call's is spared while
+ * a takeover may still run it again.
+ */
+export async function revokeExpiredSimToolExecutions(input: {
+  runId: string
+  userId: string
+  toolCallId: string
+}) {
   return db.transaction((tx) =>
     revokeExpiredExecutions(
       tx,
-      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`
+      and(
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`,
+        or(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId), not(rerunnableSimExecution))
+      )
     )
   )
 }
 
-async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) {
+/**
+ * Fails the run's lapsed executions that already started every time they may, or whose
+ * deadline leaves too little to run again, so a takeover hands the model a clear failure for
+ * each instead of running it again.
+ */
+export async function revokeExhaustedSimToolExecutions(runId: string) {
+  return db.transaction((tx) =>
+    revokeExpiredExecutions(
+      tx,
+      and(
+        eq(copilotAsyncToolCalls.runId, runId),
+        or(
+          eq(copilotAsyncToolCalls.executionRetryable, false),
+          gte(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
+          tooLateToStart
+        )
+      )
+    )
+  )
+}
+
+async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL | undefined) {
   const revoked = await tx
     .update(copilotAsyncToolCalls)
     .set({ executionRevokedAt: sql`now()` })
@@ -973,8 +1434,8 @@ async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) 
       .update(copilotAsyncToolCalls)
       .set({
         status: ASYNC_TOOL_STATUS.failed,
-        result: { error: INTERRUPTED_SIM_TOOL_MESSAGE },
-        error: INTERRUPTED_SIM_TOOL_MESSAGE,
+        result: sql`jsonb_build_object('error', ${interruptionMessage})`,
+        error: interruptionMessage,
         claimedBy: null,
         claimedAt: null,
         completedAt: sql`now()`,
@@ -1065,14 +1526,16 @@ export async function recordSimSandboxProcess(
           .for('update')
         if (
           !run ||
-          run.version !== SIM_TOOL_EXECUTION_VERSION ||
+          !supportsSimToolExecution(run.version) ||
           run.closedAt ||
           TERMINAL_RUN_STATUSES.includes(run.status)
         ) {
           throw new Error('Sandbox command admission is closed or unavailable')
         }
         const { id, sandboxId, sessionKey } = input.process
-        const entry = JSON.stringify({ [id]: { sandboxId, sessionKey, settled: false } })
+        const entry = JSON.stringify({
+          [id]: { sandboxId, sessionKey, settled: false, ownerToken: input.ownerToken },
+        })
         const [row] = await tx
           .update(copilotAsyncToolCalls)
           .set({
@@ -1125,15 +1588,16 @@ export async function settleSimSandboxProcess(
 
 export async function getUnsettledStreamSandboxProcesses(
   streamId: string,
-  userId: string
-): Promise<Array<SessionProcessIdentity & { toolCallId: string }>> {
+  userId: string,
+  executor: DbOrTx = db
+): Promise<StoppedSandboxProcess[]> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
-      const rows = await db
+      const rows = await executor
         .select({
           toolCallId: copilotAsyncToolCalls.toolCallId,
           processes: copilotAsyncToolCalls.sandboxProcesses,
@@ -1225,7 +1689,7 @@ export async function prepareWorkbenchAccess(
       throw new Error('Workbench does not belong to this tool execution')
     }
     const [claim] = await tx
-      .select({ id: copilotAsyncToolCalls.id })
+      .select({ processes: copilotAsyncToolCalls.sandboxProcesses })
       .from(copilotAsyncToolCalls)
       .where(
         and(
@@ -1262,7 +1726,7 @@ export async function prepareWorkbenchAccess(
     if (
       !latest ||
       latest.id !== input.runId ||
-      latest.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION ||
+      !supportsSimToolExecution(latest.toolExecutionVersion) ||
       latest.toolAdmissionClosedAt ||
       TERMINAL_RUN_STATUSES.includes(latest.status)
     ) {
@@ -1283,13 +1747,18 @@ export async function prepareWorkbenchAccess(
       )
     await revokeExpiredExecutions(
       tx,
-      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`
+      and(
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`,
+        /** This run was just verified to admit tools; every older run's admission just closed. */
+        not(allOf(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution))
+      )
     )
     const previous = await tx
       .select({
         settledAt: copilotAsyncToolCalls.executionSettledAt,
         revokedAt: copilotAsyncToolCalls.executionRevokedAt,
         toolCallId: copilotAsyncToolCalls.toolCallId,
+        executableName: copilotAsyncToolCalls.executableName,
         processes: copilotAsyncToolCalls.sandboxProcesses,
       })
       .from(copilotAsyncToolCalls)
@@ -1314,7 +1783,33 @@ export async function prepareWorkbenchAccess(
           )
         )
       )
-    const processes = previous.flatMap((row) =>
+    /**
+     * A re-run's earlier attempts may have left commands running on the remote workbench, which
+     * outlive the Sim process that started them; they are stopped like any earlier call's.
+     */
+    /** A sibling awaiting its re-run has no live handler, but its dead attempt's commands may still run. */
+    const rerunnableSiblings = await tx
+      .select({
+        toolCallId: copilotAsyncToolCalls.toolCallId,
+        processes: copilotAsyncToolCalls.sandboxProcesses,
+      })
+      .from(copilotAsyncToolCalls)
+      .where(
+        and(
+          eq(copilotAsyncToolCalls.runId, input.runId),
+          ne(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+          interruptedSimExecution
+        )
+      )
+    const earlierAttempts = {
+      toolCallId: input.toolCallId,
+      processes: Object.fromEntries(
+        Object.entries(claim.processes).filter(
+          ([, process]) => process.ownerToken !== input.ownerToken
+        )
+      ),
+    }
+    const processes = [...previous, ...rerunnableSiblings, earlierAttempts].flatMap((row) =>
       Object.entries(row.processes).flatMap(([id, process]) =>
         process.settled
           ? []
@@ -1331,7 +1826,13 @@ export async function prepareWorkbenchAccess(
     if (processes.some((process) => process.sessionKey !== input.sessionKey))
       throw new Error('Recorded workbench ownership does not match this chat')
     return {
-      handlersPending: previous.some((row) => !row.settledAt && !row.revokedAt),
+      // A workflow tool's run never touches the workbench, and one answered running outlives its turn.
+      handlersPending: previous.some(
+        (row) =>
+          !row.settledAt &&
+          !row.revokedAt &&
+          !(row.executableName && isWorkflowToolName(row.executableName))
+      ),
       processes,
     }
   })
@@ -1355,7 +1856,7 @@ export async function closeStreamToolAdmission(streamId: string, userId: string)
         })
         .where(and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId)))
         .returning({ version: copilotRuns.toolExecutionVersion })
-      return run?.version === SIM_TOOL_EXECUTION_VERSION
+      return supportsSimToolExecution(run?.version)
     }
   )
 }
@@ -1380,7 +1881,7 @@ export async function areStreamToolExecutionsSettled(
           and(
             eq(copilotRuns.streamId, streamId),
             eq(copilotRuns.userId, userId),
-            eq(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+            inArray(copilotRuns.toolExecutionVersion, [...SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS]),
             isNotNull(copilotRuns.toolAdmissionClosedAt)
           )
         )
@@ -1405,14 +1906,18 @@ export async function areStreamToolExecutionsSettled(
 }
 
 /** Execution IDs reserved by this run's browser-facing workflow handlers, independent of tool results. */
-export async function getUnsettledClientWorkflowExecutions(streamId: string, userId: string) {
+export async function getUnsettledClientWorkflowExecutions(
+  streamId: string,
+  userId: string,
+  executor: DbOrTx = db
+) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
-      const rows = await db
+      const rows = await executor
         .select({ executionId: copilotAsyncToolCalls.clientWorkflowExecutionId })
         .from(copilotAsyncToolCalls)
         .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
@@ -1420,7 +1925,7 @@ export async function getUnsettledClientWorkflowExecutions(streamId: string, use
           and(
             eq(copilotRuns.streamId, streamId),
             eq(copilotRuns.userId, userId),
-            eq(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+            inArray(copilotRuns.toolExecutionVersion, [...SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS]),
             isNotNull(copilotRuns.toolAdmissionClosedAt),
             isNotNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
             isNotNull(copilotAsyncToolCalls.executionStartedAt),
@@ -1428,6 +1933,108 @@ export async function getUnsettledClientWorkflowExecutions(streamId: string, use
           )
         )
       return rows.flatMap((row) => (row.executionId ? [row.executionId] : []))
+    }
+  )
+}
+
+/** The fields of a stored call that say whether it left a workflow run going, read as text. */
+interface DetachedRunCall {
+  executableName: string | null
+  /** `args.request.invocation.argv` of a `sim_cli` call. */
+  argv: unknown
+  exitCode: string | null
+  stdout: string | null
+  status: string | null
+  executionId: string | null
+}
+
+/**
+ * The workflow execution a settled call started and left running: a `workflows run` the CLI
+ * answered still running (exit 4 and its run record), or a workflow tool answered still running
+ * (`WorkflowToolRunningResult`). A run the call only waited on (`workflows runs wait`) is not
+ * one: another run started it.
+ */
+export function detachedWorkflowExecutionId(call: DetachedRunCall): string | undefined {
+  if (call.executableName === 'sim_cli') {
+    const argv = call.argv
+    // The command path, wherever global flags (`--output json`) put it, never `workflows runs`.
+    const end = Array.isArray(argv) && argv.includes('--') ? argv.indexOf('--') : undefined
+    const tokens = Array.isArray(argv) ? argv.slice(0, end) : []
+    if (!tokens.some((token, index) => token === 'workflows' && tokens[index + 1] === 'run'))
+      return undefined
+    if (call.exitCode !== '4' || call.stdout === null) return undefined
+    try {
+      const record = toRecordOrNull(JSON.parse(call.stdout))
+      return record?.status === 'running' && typeof record.runId === 'string'
+        ? record.runId
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+  return call.status === 'running' && call.executionId !== null ? call.executionId : undefined
+}
+
+/**
+ * Workflow executions this run's calls started and left running past the call, and that are still
+ * running: what a Stop cancels beyond the calls still open, since a detached run takes no call's
+ * abort signal. A run whose log has settled or paused is left alone: a paused run waits on a
+ * person, not on this turn, and the durable cancel flag would fail its resume under the same
+ * execution id. A run with no log yet may still be starting, so it is cancelled.
+ */
+export async function getDetachedWorkflowExecutions(
+  streamId: string,
+  userId: string,
+  executor: DbOrTx = db
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
+    async () => {
+      const { args, result } = copilotAsyncToolCalls
+      // Only what `detachedWorkflowExecutionId` reads; an exit-4 `sim_cli` stdout is its run record.
+      const rows: DetachedRunCall[] = await executor
+        .select({
+          executableName: copilotAsyncToolCalls.executableName,
+          argv: sql<unknown>`${args} #> '{request,invocation,argv}'`,
+          exitCode: sql<string | null>`${result} ->> 'exitCode'`,
+          stdout: sql<string | null>`${result} ->> 'stdout'`,
+          status: sql<string | null>`${result} ->> 'status'`,
+          executionId: sql<string | null>`${result} ->> 'executionId'`,
+        })
+        .from(copilotAsyncToolCalls)
+        .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            or(
+              and(
+                eq(copilotAsyncToolCalls.executableName, 'sim_cli'),
+                sql`${result} ->> 'exitCode' = '4'`
+              ),
+              and(
+                inArray(copilotAsyncToolCalls.executableName, [...WORKFLOW_TOOL_NAMES]),
+                sql`${result} ->> 'status' = 'running'`
+              )
+            )
+          )
+        )
+      const detached = [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
+      if (detached.length === 0) return []
+      const settled = await executor
+        .select({ executionId: workflowExecutionLogs.executionId })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            inArray(workflowExecutionLogs.executionId, detached),
+            ne(workflowExecutionLogs.status, 'running')
+          )
+        )
+      const notRunning = new Set(settled.map((row) => row.executionId))
+      return detached.filter((executionId) => !notRunning.has(executionId))
     }
   )
 }
@@ -1467,7 +2074,7 @@ export async function claimWorkflowToolExecution(
           .for('update', { of: copilotRuns })
         if (
           !run ||
-          run.version !== SIM_TOOL_EXECUTION_VERSION ||
+          !supportsSimToolExecution(run.version) ||
           run.closedAt ||
           TERMINAL_RUN_STATUSES.includes(run.status)
         )
@@ -1487,19 +2094,43 @@ export async function claimWorkflowToolExecution(
           .where(
             and(
               eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-              isNull(copilotAsyncToolCalls.claimedBy),
-              isNull(copilotAsyncToolCalls.executionStartedAt),
+              not(tooLateToStart),
               or(
-                inArray(copilotAsyncToolCalls.status, [
-                  ASYNC_TOOL_STATUS.running,
-                  ASYNC_TOOL_STATUS.delivered,
-                ]),
                 and(
-                  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-                  inArray(copilotAsyncToolCalls.permissionDecision, [
-                    ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-                  ])
-                )
+                  isNull(copilotAsyncToolCalls.claimedBy),
+                  isNull(copilotAsyncToolCalls.executionStartedAt),
+                  or(
+                    inArray(copilotAsyncToolCalls.status, [
+                      ASYNC_TOOL_STATUS.running,
+                      ASYNC_TOOL_STATUS.delivered,
+                    ]),
+                    and(
+                      eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+                      inArray(copilotAsyncToolCalls.permissionDecision, [
+                        ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                      ])
+                    )
+                  )
+                ),
+                /** Only the server re-runs a workflow whose Sim executor died; no browser resumes it. */
+                executor === 'sim' ? interruptedSimExecution : undefined,
+                /**
+                 * A server claim that never started, such as one whose claimant died between
+                 * claiming and starting. Nothing here checks the claimant is gone: what keeps
+                 * the call to one execution is `claimToolExecution`, the only start, so if the
+                 * earlier claimant is alive whichever starts second observes the first's result.
+                 */
+                executor === 'sim'
+                  ? and(
+                      like(copilotAsyncToolCalls.claimedBy, `${WORKFLOW_EXECUTION_CLAIM_PREFIX}%`),
+                      isNull(copilotAsyncToolCalls.executionStartedAt),
+                      isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+                      inArray(copilotAsyncToolCalls.status, [
+                        ASYNC_TOOL_STATUS.running,
+                        ASYNC_TOOL_STATUS.delivered,
+                      ])
+                    )
+                  : undefined
               )
             )
           )
@@ -1720,6 +2351,7 @@ export async function replaceTerminalAsyncToolCallResult(input: {
   status: AsyncTerminalStatus
   result: AsyncCompletionData | null
   error: string | null
+  expectedResult?: AsyncCompletionData
 }) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -1742,7 +2374,10 @@ export async function replaceTerminalAsyncToolCallResult(input: {
         .where(
           and(
             eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-            eq(copilotAsyncToolCalls.status, input.status)
+            eq(copilotAsyncToolCalls.status, input.status),
+            input.expectedResult !== undefined
+              ? sql`${copilotAsyncToolCalls.result} = ${JSON.stringify(sanitizeValueForJsonb(input.expectedResult))}::jsonb`
+              : undefined
           )
         )
         .returning()
@@ -1762,7 +2397,8 @@ export async function replaceTerminalAsyncToolCallResult(input: {
  */
 export async function recordToolPermissionDecision(
   toolCallId: string,
-  decision: CopilotToolPermissionDecision
+  decision: CopilotToolPermissionDecision,
+  options?: { approvedArgs: Record<string, unknown>; executor?: DbTransaction }
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -1774,11 +2410,14 @@ export async function recordToolPermissionDecision(
     },
     async () => {
       const now = new Date()
-      const [row] = await db
+      const [row] = await (options?.executor ?? db)
         .update(copilotAsyncToolCalls)
         .set({
           permissionDecision: decision,
           permissionDecidedAt: now,
+          ...(options && isExecutableToolPermissionDecision(decision)
+            ? { approvedArgs: sanitizeValueForJsonb(options.approvedArgs) }
+            : {}),
           // No pickup window runs while the user decides: a gated call is offered afresh once
           // allowed. A call that was never gated keeps the window it was offered with.
           pickupDeadlineAt: sql`CASE WHEN ${copilotAsyncToolCalls.permissionRequestedAt} IS NULL THEN ${copilotAsyncToolCalls.pickupDeadlineAt} END`,
@@ -1788,7 +2427,12 @@ export async function recordToolPermissionDecision(
           and(
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
             isNull(copilotAsyncToolCalls.permissionDecision),
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+            options?.executor ? undefined : isNull(copilotAsyncToolCalls.assistantAction),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+            isNull(copilotAsyncToolCalls.executionStartedAt),
+            options
+              ? sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.tool_execution_version = ${SIM_TOOL_EXECUTION_VERSION})`
+              : undefined
           )
         )
         .returning()

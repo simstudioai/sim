@@ -47,6 +47,7 @@ export type OAuthProvider =
   | 'oracle-epm'
   | 'oracle-fusion'
   | 'github-repositories'
+  | 'greenhouse'
   | 'github-app-installation'
   | 'google'
   | 'google-email'
@@ -98,6 +99,8 @@ export type OAuthProvider =
   | 'pipedrive'
   | 'quickbooks'
   | 'ramp'
+  | 'helpscout'
+  | 'fivetran'
   | 'vanta'
   | 'hubspot'
   | 'harmonic'
@@ -120,6 +123,7 @@ export type OAuthService =
   | 'oracle-fusion'
   | 'oci'
   | 'github-repositories'
+  | 'greenhouse'
   | 'google'
   | 'google-email'
   | 'google-drive'
@@ -169,6 +173,8 @@ export type OAuthService =
   | 'pipedrive'
   | 'quickbooks'
   | 'ramp'
+  | 'helpscout'
+  | 'fivetran'
   | 'vanta'
   | 'hubspot'
   | 'harmonic'
@@ -186,6 +192,9 @@ export type OAuthService =
   | 'monday'
   | 'manageengine-sdp'
   | 'zoho-desk'
+  | 'snowflake'
+  | 'netsuite'
+  | 'claude-platform'
 
 export interface OAuthProviderConfig {
   name: string
@@ -212,6 +221,8 @@ export interface OAuthServiceConfig {
   icon: (props: { className?: string }) => ReactNode
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
+  /** Operation fallback scopes; consent may request additional capabilities used by explicit tools. */
+  defaultToolScopes?: string[]
   authType?: OAuthAuthType
   serviceAccountProviderId?: string
   /**

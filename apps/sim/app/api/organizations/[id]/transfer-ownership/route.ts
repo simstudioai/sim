@@ -13,6 +13,7 @@ import {
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 
 const logger = createLogger('TransferOwnershipAPI')
 
@@ -148,15 +149,21 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         organizationId,
         memberId: selfMember.id,
+        actorUserId: session.user.id,
         spareSessionToken: session.session.token,
       })
+      deliverRunStops(removeResult.stoppedRuns)
 
       if (!removeResult.success) {
-        logger.error('Transfer succeeded but self-removal failed', {
+        const outcome = {
           organizationId,
           userId: session.user.id,
           error: removeResult.error,
-        })
+          refusalCode: removeResult.refusalCode,
+        }
+        if (removeResult.refusalCode)
+          logger.info('Transfer succeeded; policy kept the previous owner as admin', outcome)
+        else logger.error('Transfer succeeded but self-removal failed', outcome)
         return NextResponse.json(
           {
             success: true,

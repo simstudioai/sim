@@ -1,47 +1,31 @@
 ---
 title: Grain
 description: Access meeting recordings, transcripts, and AI summaries
+integration:
+  type: "grain_v2"
+  color: "#F6FAF9"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="grain_v2"
-  color="#F6FAF9"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Grain](https://grain.com/) is a modern platform for capturing, storing, and sharing meeting recordings, transcripts, highlights, and AI-powered summaries. Grain enables teams to turn conversations into actionable insights and keep everyone aligned on key moments from meetings.
+Use [Grain](https://grain.com/) to list, search, and retrieve meeting recordings, transcripts, highlights, AI summaries, participants, and related metadata. Filter meetings by the inputs available on the selected action.
 
-With Grain, you can:
-
-- **Access searchable recordings and transcripts**: Find and review every meeting by keyword, participant, or topic.
-- **Share highlights and clips**: Capture important moments and share short video/audio highlights across your team or workflows.
-- **Get AI-generated summaries**: Automatically produce meeting summaries, action items, and key insights using Grain’s advanced AI.
-- **Organize meetings by team or type**: Tag and categorize recordings for easy access and reporting.
-
-The Sim Grain integration empowers your agents to:
-
-- List, search, and retrieve meeting recordings and details by flexible filters (datetime, participant, team, etc).
-- Access AI summaries, participants, highlights, and other metadata for meetings to power automations or analysis.
-- Trigger workflows whenever new meetings are processed, summaries are generated, or highlights are created via Grain webhooks.
-- Easily bridge Grain data into other tools or notify teammates the moment something important happens in a meeting.
-
-Whether you want to automate follow-up actions, keep records of important conversations, or surface insights across your organization, Grain and Sim make it easy to connect meeting intelligence to your workflows.
+Grain webhook triggers can start workflows when meeting data, summaries, or highlights are available. Use the returned meeting content to prepare follow-up actions or pass it to another integration.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.
-
-
+Access meeting recordings, transcripts, highlights, and AI-generated summaries. Trigger workflows based on Grain webhook events.
 
 ## Actions
 
 ### Grain List Recordings
 
 List recordings from Grain with optional filters and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +63,13 @@ List recordings from Grain with optional filters and pagination
 |   ↳ `meeting_type` | object | Meeting type info |
 | `cursor` | string | Cursor for next page \(null if no more\) |
 
+</ReferenceDetails>
+
 ### Grain Get Recording
 
 Get details of a single recording by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -119,9 +107,13 @@ Get details of a single recording by ID
 | `calendar_event` | object | Calendar event data \(if included\) |
 | `hubspot` | object | HubSpot associations \(if included\) |
 
+</ReferenceDetails>
+
 ### Grain Get Transcript
 
 Get the full transcript of a recording
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +133,13 @@ Get the full transcript of a recording
 |   ↳ `end` | number | End timestamp in ms |
 |   ↳ `text` | string | Transcript text |
 
+</ReferenceDetails>
+
 ### Grain List Teams
 
 List all teams in the workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +155,13 @@ List all teams in the workspace
 |   ↳ `id` | string | Team UUID |
 |   ↳ `name` | string | Team name |
 
+</ReferenceDetails>
+
 ### Grain List Meeting Types
 
 List all meeting types in the workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -178,9 +178,13 @@ List all meeting types in the workspace
 |   ↳ `name` | string | Meeting type name |
 |   ↳ `scope` | string | internal or external |
 
+</ReferenceDetails>
+
 ### Grain Create Webhook
 
 Create a webhook for a specific Grain event type (v2 API)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +206,13 @@ Create a webhook for a specific Grain event type (v2 API)
 | `include` | json | Include object the hook was created with |
 | `inserted_at` | string | ISO8601 creation timestamp |
 
+</ReferenceDetails>
+
 ### Grain List Webhooks
 
 List webhooks for the account (v2 API)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +234,13 @@ List webhooks for the account (v2 API)
 |   ↳ `include` | object | Include object the hook was created with |
 |   ↳ `inserted_at` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Grain Delete Webhook
 
 Delete a webhook by ID (v2 API)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,16 +255,20 @@ Delete a webhook by ID (v2 API)
 | --------- | ---- | ----------- |
 | `success` | boolean | True when webhook was successfully deleted |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Grain All Events
 
 Trigger on every Grain event (recordings, highlights, stories, uploads)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -267,13 +283,14 @@ Trigger on every Grain event (recordings, highlights, stories, uploads)
 | `user_id` | string | User UUID who triggered the event |
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Highlight Added
 
 Trigger when a new highlight/clip is created in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -286,7 +303,7 @@ Trigger when a new highlight/clip is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Highlight UUID |
 |   ↳ `recording_id` | string | Parent recording UUID |
 |   ↳ `text` | string | Highlight title/description |
@@ -299,13 +316,14 @@ Trigger when a new highlight/clip is created in Grain
 |   ↳ `thumbnail_url` | string | Thumbnail URL |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Grain Highlight Deleted
 
 Trigger when a highlight/clip is deleted in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -320,12 +338,13 @@ Trigger when a highlight/clip is deleted in Grain
 | `user_id` | string | User UUID who triggered the event |
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Highlight Updated
 
 Trigger when a highlight/clip is updated in Grain
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -339,7 +358,7 @@ Trigger when a highlight/clip is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Highlight UUID |
 |   ↳ `recording_id` | string | Parent recording UUID |
 |   ↳ `text` | string | Highlight title/description |
@@ -352,13 +371,14 @@ Trigger when a highlight/clip is updated in Grain
 |   ↳ `thumbnail_url` | string | Thumbnail URL |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Grain Recording Added
 
 Trigger when a new recording is added in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -371,7 +391,7 @@ Trigger when a new recording is added in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Recording UUID |
 |   ↳ `title` | string | Recording title |
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
@@ -385,13 +405,14 @@ Trigger when a new recording is added in Grain
 |   ↳ `teams` | array | Array of team objects |
 |   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Recording Deleted
 
 Trigger when a recording is deleted in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -406,12 +427,13 @@ Trigger when a recording is deleted in Grain
 | `user_id` | string | User UUID who triggered the event |
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Recording Updated
 
 Trigger when a recording is updated in Grain
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -425,7 +447,7 @@ Trigger when a recording is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Recording UUID |
 |   ↳ `title` | string | Recording title |
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
@@ -439,13 +461,14 @@ Trigger when a recording is updated in Grain
 |   ↳ `teams` | array | Array of team objects |
 |   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Story Added
 
 Trigger when a new story is created in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -458,19 +481,20 @@ Trigger when a new story is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Story UUID |
 |   ↳ `title` | string | Story title |
 |   ↳ `url` | string | URL to view in Grain |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Grain Story Deleted
 
 Trigger when a story is deleted in Grain
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -485,12 +509,13 @@ Trigger when a story is deleted in Grain
 | `user_id` | string | User UUID who triggered the event |
 | `data` | object | Event data object \(recording, highlight, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Grain Story Updated
 
 Trigger when a story is updated in Grain
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -504,18 +529,19 @@ Trigger when a story is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Story UUID |
 |   ↳ `title` | string | Story title |
 |   ↳ `url` | string | URL to view in Grain |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Grain Upload Status
 
 Trigger on progress updates for recordings uploaded to Grain
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -530,4 +556,6 @@ Trigger on progress updates for recordings uploaded to Grain
 | `type` | string | Event type \(e.g., recording_added\) |
 | `user_id` | string | User UUID who triggered the event |
 | `data` | object | Event data object \(recording, highlight, etc.\) |
+
+</ReferenceDetails>
 

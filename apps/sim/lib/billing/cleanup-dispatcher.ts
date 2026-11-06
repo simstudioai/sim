@@ -1,15 +1,23 @@
 import { db } from '@sim/db'
 import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
-import { organization, workspace } from '@sim/db/schema'
+import {
+  folder,
+  organization,
+  project,
+  workspace,
+  workspaceFiles,
+  workspaceFileVersion,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, eq, gt, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { validateCleanupLimits } from '@/lib/api/contracts/cleanup'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
+import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
 import { type CleanupBudgets, type CleanupLimits, createCleanupBudgets } from '@/lib/cleanup/limits'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -17,6 +25,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isBillingEnabled, isDataRetentionEnabled } from '@/lib/core/config/env-flags'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('RetentionDispatcher')
@@ -24,6 +33,7 @@ const logger = createLogger('RetentionDispatcher')
 /** Trigger.dev's documented cap on items per `batchTrigger` call (SDK 4.3.1+). */
 const BATCH_TRIGGER_CHUNK_SIZE = 1000
 const WORKSPACE_SCOPE_PAGE_SIZE = 500
+const PROJECT_PAYER_LOOKUP_CONCURRENCY = 10
 
 /** Bounds per-run memory + DB connections regardless of plan size. */
 const WORKSPACES_PER_CLEANUP_CHUNK = 500
@@ -43,6 +53,8 @@ export interface CleanupJobPayload {
   workspaceIds: string[]
   /** Organization-owned Search data is retained independently of workspace membership. */
   organizationIds?: string[]
+  /** Shared file retention follows the canonical Project payer. */
+  projectIds?: string[]
   retentionHours: number
   label: string
   /** Set on exactly one chunk per dispatch so plan-wide housekeeping runs once. */
@@ -320,6 +332,93 @@ async function forEachCleanupChunk(
         retentionHours: hours,
         label: `enterprise/${row.id}`,
       })
+    }
+  }
+
+  if (jobType === 'cleanup-soft-deletes' || jobType === 'cleanup-file-versions') {
+    let afterProjectId: string | null = null
+    while (!shouldStop()) {
+      const rows = await db
+        .select({
+          id: project.id,
+          ownerId: project.ownerId,
+          organizationId: project.organizationId,
+          settings: organization.dataRetentionSettings,
+        })
+        .from(project)
+        .leftJoin(organization, eq(organization.id, project.organizationId))
+        .where(
+          and(
+            isNull(project.archivedAt),
+            jobType === 'cleanup-soft-deletes'
+              ? sql`(EXISTS (SELECT 1 FROM ${workspaceFiles}
+                  WHERE ${workspaceFiles.projectId} = ${project.id} AND ${workspaceFiles.deletedAt} IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM ${folder}
+                  WHERE ${folder.projectId} = ${project.id} AND ${folder.resourceType} = 'file' AND ${folder.deletedAt} IS NOT NULL))`
+              : sql`EXISTS (SELECT 1 FROM ${workspaceFiles}
+                  WHERE ${workspaceFiles.projectId} = ${project.id}
+                    AND EXISTS (SELECT 1 FROM ${workspaceFileVersion}
+                      WHERE ${workspaceFileVersion.fileId} = ${workspaceFiles.id}
+                        AND ${workspaceFileVersion.supersededAt} IS NOT NULL))`,
+            afterProjectId ? gt(project.id, afterProjectId) : undefined
+          )
+        )
+        .orderBy(asc(project.id))
+        .limit(pageSize)
+      if (!rows.length) break
+      afterProjectId = rows[rows.length - 1].id
+      const scopes = await mapWithConcurrency(
+        rows,
+        PROJECT_PAYER_LOOKUP_CONCURRENCY,
+        async (row) => {
+          if (shouldStop()) return null
+          try {
+            let plan: PlanCategory = 'enterprise'
+            if (isBillingEnabled) {
+              const billing = await resolveProjectStorageBillingContext({
+                projectId: row.id,
+                ownerId: row.ownerId,
+                organizationId: row.organizationId,
+              })
+              if (row.organizationId && billing.plan === null) return null
+              plan = getPlanType(billing.plan)
+            }
+            const retentionHours =
+              plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
+            if (retentionHours === null) return null
+            if (!Number.isFinite(retentionHours) || retentionHours < 0)
+              throw new Error('Invalid Project retention policy')
+            return { projectId: row.id, plan, retentionHours }
+          } catch (error) {
+            if (failOnLookupError) throw error
+            logger.error('Skipping Project cleanup after payer policy lookup failed', {
+              projectId: row.id,
+              error,
+            })
+            return null
+          }
+        }
+      )
+      const groups = new Map<string, CleanupJobPayload>()
+      for (const scope of scopes) {
+        if (!scope) continue
+        const key = `${scope.plan}/${scope.retentionHours}`
+        const group = groups.get(key)
+        if (group) group.projectIds?.push(scope.projectId)
+        else
+          groups.set(key, {
+            plan: scope.plan,
+            retentionHours: scope.retentionHours,
+            projectIds: [scope.projectId],
+            workspaceIds: [],
+            label: `${scope.plan}/projects/${scope.projectId}`,
+          })
+      }
+      for (const group of groups.values()) {
+        if (shouldStop()) break
+        for (const projectIds of chunkArray(group.projectIds ?? [], WORKSPACES_PER_CLEANUP_CHUNK))
+          await emitChunk({ ...group, projectIds })
+      }
     }
   }
 

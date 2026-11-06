@@ -8,7 +8,7 @@ export const Mem0Block: BlockConfig = {
   name: 'Mem0',
   description: 'Agent memory management',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Mem0 into the workflow. Can add, search, and retrieve memories.',
+  longDescription: 'Add, search, and retrieve memories.',
   bgColor: '#181C1E',
   icon: Mem0Icon,
   canvasPresentation: {

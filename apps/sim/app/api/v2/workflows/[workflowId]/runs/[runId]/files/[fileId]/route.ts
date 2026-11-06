@@ -1,9 +1,9 @@
 import { v2DownloadRunFileContract } from '@/lib/api/contracts/v2/workflows'
 import { defineV2BinaryRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { downloadWorkflowRunFileStream } from '@/lib/workflows/application/download-workflow-run-file'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

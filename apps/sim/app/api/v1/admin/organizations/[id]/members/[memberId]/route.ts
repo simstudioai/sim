@@ -43,6 +43,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
@@ -271,6 +272,7 @@ export const DELETE = withRouteHandler(
         memberId,
         skipBillingLogic,
       })
+      deliverRunStops(result.stoppedRuns)
 
       if (!result.success) {
         if (result.error === 'Cannot remove organization owner') {

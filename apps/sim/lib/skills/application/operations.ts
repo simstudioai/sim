@@ -52,6 +52,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listAvailable: defineWorkspaceOperation({
@@ -60,6 +61,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -68,6 +70,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
@@ -76,6 +79,7 @@ export const skillOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -84,6 +88,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -102,6 +107,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
@@ -110,6 +116,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   listEditors: defineWorkspaceOperation({
@@ -118,6 +125,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HTTP_SKILL_EDITOR_READ_POLICY,
   }),
   grantEditor: defineWorkspaceOperation({
@@ -126,6 +134,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
   revokeEditor: defineWorkspaceOperation({
@@ -134,6 +143,7 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'skills.use',
+    contentDelivery: 'none',
     ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
 } as const

@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeUnloadDataParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStatementResponse> = {
   id: 'snowflake_unload_data',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Unload Data',
   description: 'Export a Snowflake table to files in a stage with COPY INTO.',
   params: {

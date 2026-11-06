@@ -151,6 +151,18 @@ describe('retired keyword projection upgrade in PostgreSQL', () => {
     ).toEqual([{ id: 'new-chunk' }])
   })
 
+  it('retires the writers when a schema push already dropped the Tin table', async () => {
+    await applyContract()
+    await sql`DROP TABLE embedding_keyword_tin`
+    await retireKeywordWriters(sql)
+    await sql`INSERT INTO embedding (id, knowledge_base_id, document_id, content)
+      VALUES ('after-tin', 'kb', 'doc', 'written without Tin')`
+    await sql`UPDATE document SET connector_id = 'new-source', acl = ARRAY['new-reader'] WHERE id = 'doc'`
+    expect(await sql`SELECT connector_id, acl FROM embedding_search`).toEqual([
+      { connector_id: 'new-source', acl: ['new-reader'] },
+    ])
+  })
+
   it('refuses dependent objects and rolls back the trigger removal', async () => {
     await sql`CREATE VIEW retained_dependency AS SELECT id FROM embedding_keyword_search`
     await expect(applyContract()).rejects.toMatchObject({ code: '2BP01' })

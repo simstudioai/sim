@@ -151,10 +151,6 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
     const queue = tableRowQueues.get(table)
     if (queue && queue.length > 0) return queue.shift() ?? null
   }
-  /** Default unit fixtures represent a migrated database after authority cutover. */
-  if (tables.includes(schemaMock.projectMembershipRollout)) {
-    return [{ id: 'membership', phase: 'column' }]
-  }
   return null
 }
 
@@ -167,7 +163,7 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
  *   `.returning` / `.groupBy` / `.for` terminals
- * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
+ * - `select().from().innerJoin()|leftJoin()|crossJoinLateral()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
  * Results resolve, in priority order:
@@ -243,27 +239,23 @@ const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
+const crossJoinLateral = chainSpy()
 const insert = chainSpy()
 const update = chainSpy()
 const set = chainSpy()
 const del = chainSpy()
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
-const execute = vi.fn((statement?: unknown) => {
-  if (
-    statement &&
-    typeof statement === 'object' &&
-    'toSQL' in statement &&
-    typeof statement.toSQL === 'function' &&
-    statement.toSQL().sql.includes("to_regclass('public.project_membership_rollout')")
-  ) {
-    return Promise.resolve([{ marker: true, complete: false }] as unknown[])
-  }
-  return Promise.resolve([] as unknown[])
-})
+const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
-const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+const values = vi.fn<
+  (values: unknown) => {
+    returning: typeof returning
+    onConflictDoUpdate: typeof onConflictDoUpdate
+    onConflictDoNothing: typeof onConflictDoNothing
+  }
+>(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
@@ -355,6 +347,8 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
   )
+  // A lateral join reads a SQL expression, not a table, so the chain routes as before it.
+  builder.crossJoinLateral = spyOrDefault(crossJoinLateral, () => joinBuilder(tables, fields))
   return builder
 }
 
@@ -381,6 +375,7 @@ export const dbChainMockFns = {
   returning,
   innerJoin,
   leftJoin,
+  crossJoinLateral,
   groupBy,
   having,
   as: asAlias,
@@ -397,8 +392,9 @@ export const dbChainMockFns = {
 }
 
 /**
- * Restores every `dbChainMockFns` entry to its default wiring, drains any
- * unconsumed `...Once` overrides, and clears all table-routed row queues.
+ * Restores every `dbChainMockFns` entry and `isPrimaryPoolClient` to their default
+ * wiring, drains any unconsumed `...Once` overrides, and clears all table-routed
+ * row queues.
  * Call this in `beforeEach` so each test starts from fresh defaults — a
  * `...Once` override queued by a previous test but never consumed would
  * otherwise leak into the next test (`clearMocks` clears call history only,
@@ -414,6 +410,7 @@ export function resetDbChainMock(): void {
     ;(spy as ChainSpy).mockReset()
   }
   query.mockReset()
+  mockIsPrimaryPoolClient.mockReset()
   for (const key of [
     'select',
     'selectDistinct',
@@ -444,6 +441,8 @@ const dbInstance = {
   transaction,
 }
 
+const mockIsPrimaryPoolClient = vi.fn((executor: object): boolean => executor === dbInstance)
+
 /**
  * Static mock module for `@sim/db` backed by `dbChainMockFns`.
  *
@@ -456,8 +455,9 @@ export const dbChainMock = {
   db: dbInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbInstance,
-  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
+  /** Sub-pool clients (`dbFor('auth' | 'billing' | ...)`) share the same instance too. */
   dbFor: () => dbInstance,
+  isPrimaryPoolClient: mockIsPrimaryPoolClient,
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,
 }
@@ -479,6 +479,8 @@ function resolveDbUrl(
  */
 export const databaseMockFns = {
   mockResolveDbUrl: vi.fn(resolveDbUrl),
+  /** Recognizes only the shared instance unless a test marks its own client. */
+  mockIsPrimaryPoolClient,
   mockEnsureRowCountTriggers: vi.fn(async (): Promise<void> => {}),
   mockVerifyRowCountTriggers: vi.fn(async () => ({
     incrementTrigger: true,

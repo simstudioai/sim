@@ -31,7 +31,7 @@ describe('deleteAccountUseCase', () => {
       input: { confirmEmail: '  ada@example.com ' },
     })
 
-    expect(mockDeleteUserAccount).toHaveBeenCalledWith('user-1')
+    expect(mockDeleteUserAccount).toHaveBeenCalledWith('user-1', { recordIdentity: true })
   })
 
   it('refuses a confirmation that names a different address', async () => {

@@ -9,12 +9,12 @@ import { generateId } from '@sim/utils/id'
 /**
  * Runs the real-infrastructure test layer (`*.integration.ts`) locally: `bun run test:integration`.
  * Creates and removes its own Postgres and Redis containers, provisions the schema the way CI does,
- * and runs `vitest run --mode integration` in `packages/db` and `apps/sim` with `TEST_DATABASE_URL`
+ * and runs `vitest run --mode integration` in `packages/db`, `apps/sim`, and `apps/realtime` with `TEST_DATABASE_URL`
  * and `TEST_REDIS_URL`; it never reads an application DSN.
  * Set INTEGRATION_DB_PROVISION=migrate to exercise the versioned SQL migration path.
  * Set KNOWLEDGE_SCALE_TEST=true for the opt-in scale suite; its JSON report is saved in tmpdir.
  * Optional positional `apps/sim` Vitest filename filters limit a diagnostic run (and skip
- * `packages/db`); omit them for full validation.
+ * `packages/db` and `apps/realtime`); omit them for full validation.
  */
 const logger = createLogger('IntegrationTests')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -180,6 +180,10 @@ try {
   if (!scale && testFilters.length === 0) {
     run('bun', ['run', 'test', '--mode', 'integration'], {
       cwd: path.join(root, 'packages/db'),
+      env: environment,
+    })
+    run('bun', ['run', 'test', '--mode', 'integration'], {
+      cwd: path.join(root, 'apps/realtime'),
       env: environment,
     })
   }

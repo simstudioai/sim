@@ -102,8 +102,16 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
      * instead of a driver-level 500. `GET /logs` and `GET /workflows/{workflowId}/runs`
      * already share it, and an audit trail is read alongside them.
      */
-    startDate: v2RunWindowBoundSchema('startDate').optional(),
-    endDate: v2RunWindowBoundSchema('endDate').optional(),
+    startDate: v2RunWindowBoundSchema('startDate')
+      .optional()
+      .describe(
+        'Include audit entries created at or after this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.'
+      ),
+    endDate: v2RunWindowBoundSchema('endDate')
+      .optional()
+      .describe(
+        'Include audit entries created at or before this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.'
+      ),
     /**
      * Declared with the shared boolean flag rather than reused from the v1
      * shape: v1 spells it as a `'true'`/`'false'` string enum, and every other

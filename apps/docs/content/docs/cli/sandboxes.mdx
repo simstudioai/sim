@@ -1,21 +1,21 @@
 ---
 title: Sandboxes
-description: Manage sandboxes — every subcommand, argument, and flag
+description: Manage reusable dependency sets for Function blocks.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Manage reusable dependency sets for Function blocks.
+
 `sim sandboxes` is also spelled `sim sandbox`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
-## Create sandbox
+## List sandboxes
 
 ```bash
-sim sandboxes create [options]
+sim sandboxes list [options]
 ```
-
-Create Sandbox (OAuth login or personal API key required)
 
 **Options**
 
@@ -23,41 +23,14 @@ Create Sandbox (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--name <value>` | Yes | Display name, unique within the workspace; 1 to 64 characters. |
-| `--language <value>` | Yes | Dependency ecosystem: `javascript` installs from npm, `python` from PyPI. Accepted values: `javascript`, `python`. |
-| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
-| `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--system-packages <value...>` | No | Debian packages installed into the sandbox, one per entry. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--search <value>` | No | Case-insensitive substring match against the sandbox name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
-## Delete sandbox
-
-```bash
-sim sandboxes delete <sandboxId> [options]
-```
-
-Delete Sandbox (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `sandboxId` | Yes | Unique sandbox identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
+API request and response schemas: [listSandboxes](/api-reference/sandboxes/listSandboxes).
 
 ## Get sandbox
 
@@ -75,10 +48,14 @@ sim sandboxes get <sandboxId>
 
 </CommandTable>
 
-## List sandboxes
+API request and response schemas: [getSandbox](/api-reference/sandboxes/getSandbox).
+
+## Create sandbox
+
+OAuth login or personal API key required.
 
 ```bash
-sim sandboxes list [options]
+sim sandboxes create [options]
 ```
 
 **Options**
@@ -87,20 +64,23 @@ sim sandboxes list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--search <value>` | No | Case-insensitive substring match against the sandbox name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--name <value>` | Yes | Display name, unique within the workspace; 1 to 64 characters. |
+| `--language <value>` | Yes | Dependency ecosystem: `javascript` installs from npm, `python` from PyPI. Accepted values: `javascript`, `python`. |
+| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. Defaults to []. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Debian packages installed into the sandbox, one per entry. Defaults to []. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
 
 </CommandTable>
 
+API request and response schemas: [createSandbox](/api-reference/sandboxes/createSandbox).
+
 ## Update sandbox
+
+OAuth login or personal API key required.
 
 ```bash
 sim sandboxes update <sandboxId> [options]
 ```
-
-Update Sandbox (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -125,3 +105,41 @@ Update Sandbox (OAuth login or personal API key required)
 | `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
 
 </CommandTable>
+
+API request and response schemas: [updateSandbox](/api-reference/sandboxes/updateSandbox).
+
+## Delete sandbox
+
+OAuth login or personal API key required.
+
+This deletes the sandbox; Function blocks that select it fail until re-pointed.
+
+```bash
+sim sandboxes delete <sandboxId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sandboxId` | Yes | Unique sandbox identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteSandbox](/api-reference/sandboxes/deleteSandbox).
+
+## Related docs
+
+- [Function sandboxes](/workflows/blocks/function#sandboxes)

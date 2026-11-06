@@ -1,21 +1,176 @@
 ---
 title: Workspaces
-description: Manage workspaces — every subcommand, argument, and flag
+description: Read workspace access and manage reviewed fork, push, and pull operations.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Read workspace access and manage reviewed fork, push, and pull operations.
+
 `sim workspaces` is also spelled `sim workspace`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
-## Cancel workspace access request
+## Workspace access
+
+### List workspaces
+
+```bash
+sim workspaces list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "createdAt". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaces](/api-reference/workspaces/listWorkspaces).
+
+### Get workspace
+
+```bash
+sim workspaces get
+```
+
+API request and response schemas: [getWorkspace](/api-reference/workspaces/getWorkspace).
+
+### List workspace members
+
+```bash
+sim workspaces members [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceMembers](/api-reference/workspaces/listWorkspaceMembers).
+
+### Create workspace invitations
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces invitations create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Defaults to "read". Accepted values: `admin`, `write`, `read`. |
+| `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Defaults to "member". Accepted values: `member`, `admin`, `external`. |
+
+</CommandTable>
+
+API request and response schemas: [createWorkspaceInvitations](/api-reference/workspaces/createWorkspaceInvitations).
+
+### Get workspace permission config
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces permission-config
+```
+
+API request and response schemas: [getWorkspacePermissionConfig](/api-reference/workspaces/getWorkspacePermissionConfig).
+
+## Access requests
+
+### Discover workspace access requests
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "label". Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+API request and response schemas: [discoverWorkspaceAccessRequests](/api-reference/access-requests/discoverWorkspaceAccessRequests).
+
+### Create workspace access request
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. Defaults to "". |
+
+</CommandTable>
+
+API request and response schemas: [createWorkspaceAccessRequest](/api-reference/access-requests/createWorkspaceAccessRequest).
+
+### List my workspace access requests
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+API request and response schemas: [listMyWorkspaceAccessRequests](/api-reference/access-requests/listMyWorkspaceAccessRequests).
+
+### Cancel workspace access request
+
+OAuth login or personal API key required.
 
 ```bash
 sim workspaces access-requests cancel <requestId>
 ```
-
-Cancel Workspace Access Request (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -27,13 +182,27 @@ Cancel Workspace Access Request (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Create workspace access request
+API request and response schemas: [cancelWorkspaceAccessRequest](/api-reference/access-requests/cancelWorkspaceAccessRequest).
+
+## Forks and lineage
+
+### Get workspace fork availability
+
+OAuth login or personal API key required.
 
 ```bash
-sim workspaces access-requests create [options]
+sim workspaces fork-availability
 ```
 
-Create Workspace Access Request (OAuth login or personal API key required)
+API request and response schemas: [getWorkspaceForkAvailability](/api-reference/workspace-sync/getWorkspaceForkAvailability).
+
+### List workspace fork resources
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces fork-resources [options]
+```
 
 **Options**
 
@@ -41,84 +210,23 @@ Create Workspace Access Request (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
-| `--reason <value>` | No | Why the acting user needs this access. |
-
-</CommandTable>
-
-## Discover workspace access requests
-
-```bash
-sim workspaces access-requests discover [options]
-```
-
-Discover Workspace Access Requests (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--search <value>` | No | Case-insensitive substring match against the access item label. |
-| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
-| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--kind <value>` | Yes | Kind of source resource to list for copy selection. Accepted values: `files`, `tables`, `knowledgeBases`, `customTools`, `skills`, `mcpServers`, `workflowMcpServers`. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Defaults to "id". Accepted values: `id`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`. |
 
 </CommandTable>
 
-## List my workspace access requests
+API request and response schemas: [listWorkspaceForkResources](/api-reference/workspace-sync/listWorkspaceForkResources).
+
+### Preview workspace fork
+
+OAuth login or personal API key required.
 
 ```bash
-sim workspaces access-requests mine [options]
+sim workspaces fork-preview [options]
 ```
-
-List My Workspace Access Requests (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## Create workspace invitations
-
-```bash
-sim workspaces invitations create [options]
-```
-
-Create Workspace Invitations (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Accepted values: `admin`, `write`, `read`. |
-| `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Accepted values: `member`, `admin`, `external`. |
-
-</CommandTable>
-
-## Fork workspace
-
-```bash
-sim workspaces fork [options]
-```
-
-Fork Workspace (OAuth login or personal API key required)
 
 **Options**
 
@@ -128,42 +236,78 @@ Fork Workspace (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--name <value>` | No | Display name of the workflow or workspace. |
 | `--copy <json\|@file>` | No | Explicit resource selections to copy into the new fork; omitted resource kinds are not copied. (JSON, or @path / @- to read a file or stdin). |
-| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
-| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
+
+</CommandTable>
+
+API request and response schemas: [previewWorkspaceFork](/api-reference/workspace-sync/previewWorkspaceFork).
+
+### Fork workspace
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces fork [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Display name of the workflow or workspace. |
+| `--copy <json\|@file>` | No | Explicit resource selections to copy into the new fork; omitted resource kinds are not copied. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value. |
 | `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
 | `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
 
 </CommandTable>
 
-## Get workspace
+API request and response schemas: [forkWorkspace](/api-reference/workspace-sync/forkWorkspace).
 
-```bash
-sim workspaces get
-```
+### Get workspace fork lineage
 
-## Get workspace fork availability
-
-```bash
-sim workspaces fork-availability
-```
-
-Get Workspace Fork Availability (OAuth login or personal API key required)
-
-## Get workspace fork lineage
+OAuth login or personal API key required.
 
 ```bash
 sim workspaces lineage
 ```
 
-Get Workspace Fork Lineage (OAuth login or personal API key required)
+API request and response schemas: [getWorkspaceForkLineage](/api-reference/workspace-sync/getWorkspaceForkLineage).
 
-## Get workspace fork mappings
+### List workspace fork children
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces children [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceForkChildren](/api-reference/workspace-sync/listWorkspaceForkChildren).
+
+## Mappings
+
+### Get workspace fork mappings
+
+OAuth login or personal API key required.
 
 ```bash
 sim workspaces mappings get [options]
 ```
-
-Get Workspace Fork Mappings (OAuth login or personal API key required)
 
 **Options**
 
@@ -175,18 +319,20 @@ Get Workspace Fork Mappings (OAuth login or personal API key required)
 | `--direction <value>` | Yes | Push means current to other; pull means other to current, independent of parent/child orientation. Accepted values: `push`, `pull`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `id`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Defaults to "id". Accepted values: `id`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`. |
 
 </CommandTable>
 
-## Update workspace fork mappings
+API request and response schemas: [getWorkspaceForkMappings](/api-reference/workspace-sync/getWorkspaceForkMappings).
+
+### Update workspace fork mappings
+
+OAuth login or personal API key required.
 
 ```bash
 sim workspaces mappings update [options]
 ```
-
-Update Workspace Fork Mappings (OAuth login or personal API key required)
 
 **Options**
 
@@ -196,11 +342,151 @@ Update Workspace Fork Mappings (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
 | `--direction <value>` | Yes | Push means current to other; pull means other to current, independent of parent/child orientation. Accepted values: `push`, `pull`. |
-| `--mappings <json\|@file>` | Yes | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--mappings <json\|@file>` | Yes | Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
-## Get workspace operation
+API request and response schemas: [updateWorkspaceForkMappings](/api-reference/workspace-sync/updateWorkspaceForkMappings).
+
+## Push and pull
+
+### Preview workspace push
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces push-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [previewWorkspacePush](/api-reference/workspace-sync/previewWorkspacePush).
+
+### Push workspace
+
+OAuth login or personal API key required.
+
+This replaces target workflows and may archive targets whose sources were deleted.
+
+```bash
+sim workspaces push [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [pushWorkspace](/api-reference/workspace-sync/pushWorkspace).
+
+### Preview workspace pull
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces pull-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [previewWorkspacePull](/api-reference/workspace-sync/previewWorkspacePull).
+
+### Pull workspace
+
+OAuth login or personal API key required.
+
+This replaces target workflows and may archive targets whose sources were deleted.
+
+```bash
+sim workspaces pull [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [pullWorkspace](/api-reference/workspace-sync/pullWorkspace).
+
+## Operation status
+
+### List workspace operations
+
+```bash
+sim workspaces operations list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--request-id <value>` | No | Find an uncertain mutation by the original client request ID; keep the same filter while paging. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceOperations](/api-reference/workspace-sync/listWorkspaceOperations).
+
+### Get workspace operation
 
 ```bash
 sim workspaces operations get <operationId>
@@ -216,25 +502,9 @@ sim workspaces operations get <operationId>
 
 </CommandTable>
 
-## List workspace operations
+API request and response schemas: [getWorkspaceOperation](/api-reference/workspace-sync/getWorkspaceOperation).
 
-```bash
-sim workspaces operations list [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--request-id <value>` | No | Stable client request ID for reconciliation and identical retries. |
-
-</CommandTable>
-
-## Wait for copy and deployment readiness; exit 3 for configuration, 1 for failure, or 4 for timeout
+### Wait for workspace copy and deployment readiness [#wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout]
 
 ```bash
 sim workspaces operations wait <operationId> [options]
@@ -260,257 +530,19 @@ sim workspaces operations wait <operationId> [options]
 
 </CommandTable>
 
-## Get workspace permission config
+Exit codes: 0 completed (including completion with warnings), 1 follow-up work failed, 3 destination configuration is required, 4 timed out. The mutation may already be committed; reconcile using the same operation or request ID rather than repeating it with a new ID.
 
-```bash
-sim workspaces permission-config
-```
+API request and response schemas: [getWorkspaceOperation](/api-reference/workspace-sync/getWorkspaceOperation).
 
-Get Workspace Permission Config (OAuth login or personal API key required)
+## Exclusions and recovery
 
-## List workspace fork children
+### Update workspace fork exclusions
 
-```bash
-sim workspaces children [options]
-```
-
-List Workspace Fork Children (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `createdAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `desc`. |
-
-</CommandTable>
-
-## List workspace fork resources
-
-```bash
-sim workspaces fork-resources [options]
-```
-
-List Workspace Fork Resources (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--kind <value>` | Yes | Resource or operation kind. Accepted values: `files`, `tables`, `knowledgeBases`, `customTools`, `skills`, `mcpServers`, `workflowMcpServers`. |
-| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `id`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`. |
-
-</CommandTable>
-
-## List workspace members
-
-```bash
-sim workspaces members [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## List workspaces
-
-```bash
-sim workspaces list [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Preview workspace fork
-
-```bash
-sim workspaces fork-preview [options]
-```
-
-Preview Workspace Fork (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | Display name of the workflow or workspace. |
-| `--copy <json\|@file>` | No | Explicit resource selections to copy into the new fork; omitted resource kinds are not copied. (JSON, or @path / @- to read a file or stdin). |
-
-</CommandTable>
-
-## Preview workspace pull
-
-```bash
-sim workspaces pull-preview [options]
-```
-
-Preview Workspace Pull (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
-| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
-| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
-| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
-
-</CommandTable>
-
-## Preview workspace push
-
-```bash
-sim workspaces push-preview [options]
-```
-
-Preview Workspace Push (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
-| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
-| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
-| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
-
-</CommandTable>
-
-## Pull workspace
-
-```bash
-sim workspaces pull [options]
-```
-
-Pull Workspace (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
-| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
-| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
-| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
-| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
-| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
-| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
-| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Push workspace
-
-```bash
-sim workspaces push [options]
-```
-
-Push Workspace (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
-| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
-| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
-| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
-| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
-| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
-| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
-| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Rollback workspace fork
-
-```bash
-sim workspaces fork-rollback [options]
-```
-
-Rollback Workspace Fork (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Unlink workspace fork
-
-```bash
-sim workspaces unlink [options]
-```
-
-Unlink Workspace Fork (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Update workspace fork exclusions
+OAuth login or personal API key required.
 
 ```bash
 sim workspaces sync-exclusions [options]
 ```
-
-Update Workspace Fork Exclusions (OAuth login or personal API key required)
 
 **Options**
 
@@ -522,3 +554,56 @@ Update Workspace Fork Exclusions (OAuth login or personal API key required)
 | `--fork-sync-excluded <true\|false>` | Yes | Whether the named workflows should be skipped as sync sources and targets. Accepted values: `true`, `false`. |
 
 </CommandTable>
+
+API request and response schemas: [updateWorkspaceForkExclusions](/api-reference/workspace-sync/updateWorkspaceForkExclusions).
+
+### Rollback workspace fork
+
+OAuth login or personal API key required.
+
+This restores the latest sync using its prior deployed versions.
+
+```bash
+sim workspaces fork-rollback [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [rollbackWorkspaceFork](/api-reference/workspace-sync/rollbackWorkspaceFork).
+
+### Unlink workspace fork
+
+OAuth login or personal API key required.
+
+This removes the fork relationship and its persisted mappings.
+
+```bash
+sim workspaces unlink [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
+
+## Related docs
+
+- [Workspace sync](/cli/workflow-sync)
+- [Workspaces](/platform/workspaces)

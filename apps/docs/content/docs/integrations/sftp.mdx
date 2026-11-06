@@ -1,35 +1,22 @@
 ---
 title: SFTP
 description: Transfer files via SFTP (SSH File Transfer Protocol)
+integration:
+  type: "sftp_v2"
+  color: "#2D3748"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="sftp_v2"
-  color="#2D3748"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-SFTP (SSH File Transfer Protocol) is a secure file transfer protocol that runs over an SSH connection, letting you move and manage files on a remote server without exposing credentials or data in plaintext. It supports authentication via password or private key, making it a standard choice for secure file exchange with servers, hosting providers, and legacy systems.
+Use SFTP (SSH File Transfer Protocol) to upload or download files, list directories with optional metadata, delete files or directories, and create directories on a remote server. Authenticate with a password or OpenSSH private key; provide a passphrase for an encrypted key.
 
-With this block, you can:
-
-- **Upload files**: Send files or direct text content to a directory on a remote server
-- **Download files**: Retrieve a file from the remote server as text or base64-encoded content
-- **List directory contents**: Browse files and folders, optionally with detailed metadata like size and permissions
-- **Delete files or directories**: Remove remote files, with optional recursive deletion for directories
-- **Create directories**: Make new directories on the remote server, optionally creating parent directories as needed
-
-In Sim, the SFTP block allows your agents to upload, download, list, delete, and create files and directories on a remote server, all authenticated with a password or private key. This enables workflows that move generated files to a remote destination, pull files from a server for processing, sync directory contents, or manage remote file structures as part of a larger automation.
+Uploads accept workspace files or direct text content. The current Download operation returns a stored file reference for later workflow steps. Recursive deletion removes directory contents, so check the target path before enabling it.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.
-
-
 
 ## Actions
 

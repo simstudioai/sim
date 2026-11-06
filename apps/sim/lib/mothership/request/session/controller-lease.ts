@@ -4,6 +4,8 @@ import { getRedisClient } from '@/lib/core/config/redis'
 export interface ChatStreamLease {
   key: string
   value: string
+  /** When the lock was taken (ms epoch, read before the write), so its TTL is known to run from then. */
+  acquiredAt?: number
 }
 
 export class StreamControllerSupersededError extends Error {

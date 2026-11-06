@@ -8,7 +8,7 @@ import {
   recordSandboxProcess,
   reportUnsettledSandboxProcess,
   settleSandboxProcess,
-} from '@/lib/execution/remote-sandbox/execution-observer'
+} from '@/lib/execution/remote-sandbox/observer'
 
 const { recover } = vi.hoisted(() => ({ recover: vi.fn() }))
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)

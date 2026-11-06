@@ -1,11 +1,17 @@
-import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { resolveByteRange } from '@/lib/uploads/server/byte-range'
+import {
+  bufferedRepresentationEtag,
+  FILE_CACHE_CONTROL,
+  fileDeliveryHeaders,
+} from '@/lib/uploads/server/delivery'
+import type { ByteRange } from '@/lib/uploads/shared/types'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FilesUtils')
 
@@ -151,116 +157,20 @@ export async function findLocalFile(filename: string): Promise<string | null> {
   }
 }
 
-const SAFE_INLINE_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/gif',
-  'image/svg+xml',
-  'image/webp',
-  'image/avif',
-  'image/bmp',
-  'image/x-icon',
-  'application/pdf',
-  'text/plain',
-  'text/csv',
-  'application/json',
-])
-
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
-
-export function getSecureFileHeaders(filename: string, originalContentType: string) {
-  const extension = filename.split('.').pop()?.toLowerCase() || ''
-
-  if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
-    return {
-      contentType: 'application/octet-stream',
-      disposition: 'attachment',
-    }
-  }
-
-  let safeContentType = originalContentType
-
-  if (originalContentType === 'text/html') {
-    safeContentType = 'text/plain'
-  }
-
-  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
-
-  return {
-    contentType: safeContentType,
-    disposition,
-  }
-}
-
-/**
- * Percent-encode a filename as an RFC 8187 `ext-value`.
- *
- * `encodeURIComponent` alone is not enough: it leaves `'`, `(`, `)` and `*` raw, and
- * none of those are `attr-char`. The apostrophe is the specific hazard — it is the
- * delimiter in `UTF-8''name`, so a filename like `it's.pdf` would emit a third `'`
- * and desync the parser.
- */
-function encodeExtValue(filename: string): string {
-  return encodeURIComponent(filename).replace(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
-  )
-}
-
-/**
- * Build the `filename` parameters for a Content-Disposition header.
- *
- * The name is attacker-controlled (it is the user's `originalName`), so it can never
- * be interpolated raw: a `"` closes the quoted-string early and everything after it
- * is parsed as further parameters. An injected `filename*` is the payload that
- * matters, because RFC 6266 tells clients to prefer `filename*` over `filename` —
- * so the attacker's value wins and the download lands under a name the product UI
- * never showed. Both parameters are therefore always emitted from sanitized input:
- * the quoted form keeps only printable ASCII minus `"` and `\`, and the `filename*`
- * form is fully percent-encoded.
- *
- * `;` is neutralized too, even though a quoted string may legally contain one: the
- * quoted parameter exists as the fallback for clients that do not implement
- * `filename*`, and those are the same clients liable to split parameters on a bare
- * `;` without honouring the quoting. The exact name still survives in `filename*`.
- */
-export function encodeFilenameForHeader(storageKey: string): string {
-  const filename = storageKey.split('/').pop() || storageKey
-  const asciiSafe = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_')
-  // Unchanged input proves the name is printable ASCII with no `"` or `\`, so the
-  // quoted form alone is both safe and sufficient — `filename*` buys nothing here.
-  if (asciiSafe === filename) {
-    return `filename="${filename}"`
-  }
-  return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
-}
-
 /**
  * Derives the served filename from the CALLER's content type (`getSecureFileHeaders`
  * downgrades `text/html`) before the header decision, so a derived `.html` name gets the
  * same forced-attachment treatment a stored `.html` file gets.
  */
 export function createFileResponse(file: FileResponse): NextResponse {
-  const servedFilename = ensureFileNameExtension(file.filename, file.contentType)
-
-  const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
-
-  const headers: Record<string, string> = {
-    'Content-Type': contentType,
-    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(servedFilename)}`,
-    // Default to PRIVATE: this response is served only after access verification, so it must never be
-    // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
-    // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
-    'Cache-Control': file.cacheControl || 'private, no-cache',
-    'X-Content-Type-Options': 'nosniff',
-  }
-
-  if (contentType === 'image/svg+xml') {
-    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-  }
-
-  return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
+  return new NextResponse(file.buffer as BodyInit, {
+    status: 200,
+    headers: fileDeliveryHeaders({
+      ...file,
+      cacheControl: file.cacheControl || FILE_CACHE_CONTROL.private,
+      contentLength: file.buffer.length,
+    }),
+  })
 }
 
 /**
@@ -294,23 +204,89 @@ export function createConditionalFileResponse(
   file: FileResponse,
   ifNoneMatch: string | null
 ): NextResponse {
-  const etag = `"${createHash('sha256').update(file.buffer).digest('base64url')}"`
+  const etag = bufferedRepresentationEtag(file.buffer)
 
   if (ifNoneMatchHolds(ifNoneMatch, etag)) {
-    // A 304 repeats the headers that govern caching, so the stored response is refreshed with the
-    // lifetime this request would have granted it rather than keeping the one it was stored with.
-    return new NextResponse(null, {
-      status: 304,
-      headers: {
-        ETag: etag,
-        'Cache-Control': file.cacheControl || 'private, no-cache',
-      },
+    const headers = fileDeliveryHeaders({
+      ...file,
+      cacheControl: file.cacheControl || FILE_CACHE_CONTROL.private,
     })
+    headers.set('ETag', etag)
+    return new NextResponse(null, { status: 304, headers })
   }
 
   const response = createFileResponse(file)
   response.headers.set('ETag', etag)
   return response
+}
+
+/** A file answered straight from its stored object, read only as far as the response needs. */
+interface StoredFileStream {
+  filename: string
+  contentType: string
+  cacheControl: string
+  /** The stored object's exact length, which `Content-Length` and every range are measured against. */
+  size: number
+  /**
+   * Strong validator for the stored bytes. Without one, a revalidation is never answered 304 and
+   * `If-Range` never matches, so a resumed transfer restarts from the first byte.
+   */
+  etag?: string
+  /** Opens the bytes to send: the whole object, or one inclusive span of it. */
+  open(range: ByteRange | undefined): Promise<ReadableStream<Uint8Array>>
+}
+
+/**
+ * Answers a request from a stored object without materializing it: a 304 when the client already
+ * holds these bytes, a 206 for the one byte range it asked for, a 416 for a range past the end, and
+ * otherwise a 200 streaming the whole object.
+ *
+ * Ranges are what let a media element seek, and Safari will not play a video at all from a server
+ * that refuses them. A rejected range is answered before storage is opened, so it costs no read.
+ */
+export async function createStoredFileStreamResponse(
+  file: StoredFileStream,
+  requestHeaders: Headers
+): Promise<NextResponse> {
+  const headers = fileDeliveryHeaders(file)
+  headers.set('Accept-Ranges', 'bytes')
+  if (file.etag) headers.set('ETag', file.etag)
+
+  if (file.etag && ifNoneMatchHolds(requestHeaders.get('if-none-match'), file.etag)) {
+    return new NextResponse(null, { status: 304, headers })
+  }
+
+  const resolution = resolveByteRange({
+    range: requestHeaders.get('range'),
+    ifRange: requestHeaders.get('if-range'),
+    etag: file.etag,
+    size: file.size,
+  })
+
+  if (resolution.kind === 'unsatisfiable') {
+    return NextResponse.json(
+      { error: 'RangeNotSatisfiable', message: 'Requested range is outside the file' },
+      {
+        status: 416,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'Content-Range': `bytes */${file.size}`,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      }
+    )
+  }
+
+  if (resolution.kind === 'full') {
+    headers.set('Content-Length', String(file.size))
+    return new NextResponse(await file.open(undefined), { status: 200, headers })
+  }
+
+  const { range } = resolution
+  headers.set('Content-Length', String(range.end - range.start + 1))
+  headers.set('Content-Range', `bytes ${range.start}-${range.end}/${file.size}`)
+  return new NextResponse(await file.open(range), { status: 206, headers })
 }
 
 export function createFileErrorResponse(error: Error, status = 500): NextResponse {
@@ -331,7 +307,10 @@ export function createFileErrorResponse(error: Error, status = 500): NextRespons
       error: error.name,
       message: error.message,
     },
-    { status: statusCode }
+    {
+      status: statusCode,
+      headers: { 'Cache-Control': FILE_CACHE_CONTROL.noStore, 'X-Content-Type-Options': 'nosniff' },
+    }
   )
 }
 

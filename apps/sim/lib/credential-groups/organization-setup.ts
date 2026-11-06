@@ -6,6 +6,16 @@ import {
   requireResourcePolicy,
 } from '@/lib/resource-policies/repository'
 
+/** An existing account container lacks its explicit workspace-sharing policy. */
+export class OrganizationAccountsSetupRequiredError extends OrchestrationError {
+  constructor() {
+    super(
+      'conflict',
+      'Existing organization accounts require a migration review. Check Search dependencies and reconnect people before enabling workflow sharing.'
+    )
+  }
+}
+
 /** A v2 policy is created atomically with a fresh org group; legacy grants are never adopted automatically. */
 export async function requireOrganizationAccountsSetup(
   organizationId: string,
@@ -24,10 +34,7 @@ export async function requireOrganizationAccountsSetup(
     )
   } catch (error) {
     if (error instanceof ResourcePolicyNotFoundError)
-      throw new OrchestrationError(
-        'conflict',
-        'Existing organization accounts require a migration review. Check Search dependencies and reconnect people before enabling workflow sharing.'
-      )
+      throw new OrganizationAccountsSetupRequiredError()
     throw error
   }
 }

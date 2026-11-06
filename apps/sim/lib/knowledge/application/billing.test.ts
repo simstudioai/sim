@@ -8,7 +8,7 @@ import {
 } from '@sim/testing/mocks/billing-attribution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 import {
   resolveKnowledgeAttributedUserId,

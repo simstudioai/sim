@@ -1,98 +1,98 @@
 ---
 title: Using files in workflows
-description: Read a file's contents in a workflow, pass a file to a block that needs one, or save a new file from a run.
+description: Read a workspace file, summarize it with an Agent, and save the result.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
 
-A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/integrations/file) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
-
-What you do with a file depends on the task, so this page covers the File block's operations and how a file moves between blocks rather than one fixed recipe. The example we'll use throughout reads `report.pdf`, asks an agent to summarize it, and saves the summary as `summary.md`, which exercises reading, processing, and writing in one workflow.
+Use a File block to read `report.pdf`, an Agent to summarize it, and another File block to save `summary.md`. You can also pass a file directly to a compatible block, such as an email attachment or image input.
 
 <WorkflowPreview workflow={FILE_SUMMARY_WORKFLOW} height={200} />
 
-## The File block
+Before running the example, upload `report.pdf` to workspace **Files** and choose an Agent model and provider that support PDF attachments. The execution identity must have access to the file and permission to create the summary.
 
-The **File** block is one block with five operations, chosen from a dropdown. Each operation is a different way a file, or its contents, enters or leaves the workflow.
+## Read the file [#reading-a-file-in]
 
-| Operation | What it does | Outputs |
+1. Add a [File](/integrations/file) block named `File`.
+2. Select **Read** and choose `report.pdf` in the file picker.
+3. Connect it to an Agent block named `Agent`.
+
+Read returns `files`, an array of file objects. Reference the first file as `<file.files[0]>`, or the array as `<file.files>`. Each object carries its ID, name, URL, byte size, MIME type, and storage key. See the [file object fields](/files/passing-files#file-objects).
+
+In advanced mode, Read can take a canonical workspace file ID. Use that for a file saved earlier in the same run. If another block already returned the file object you need, pass that object directly to a compatible input.
+
+## Summarize with Agent [#processing-the-file]
+
+In the Agent block:
+
+1. Set **Files** to `<file.files[0]>`.
+2. Add the instruction “Summarize this document” to **Messages**.
+3. Select a model and provider that support the file's format.
+
+The summary is available as `<agent.content>`. Attachment support varies by model and provider. Sim does not automatically turn an unsupported attachment into prompt text; use **Get Content** and reference the extracted string in **Messages** for a text-only path.
+
+## Save the summary [#writing-a-file-out]
+
+1. Connect the Agent to a second File block.
+2. Select **Write**.
+3. Set **File Name** to `summary.md`.
+4. Set **Content** to `<agent.content>` and leave **File** empty.
+5. Run the workflow, then open **Files** to verify the saved summary.
+
+Write returns `id`, `name`, `size`, `url`, `version`, and `revision`. By default, a duplicate name in the destination folder gets a numeric suffix. Turn on **Overwrite Existing File** only when you want to replace that file's contents.
+
+Saving is optional. You can return the summary, send it to Slack, or email it as text without creating a workspace file. To save a binary file returned by another block, use Write's **File** input instead of **Content**; see [Generating files](/files/generating).
+
+## Choose another file operation [#the-file-block]
+
+These operations cover common file-processing paths:
+
+| Operation | Use it for | Outputs |
 | --- | --- | --- |
-| **Read** | Take an existing workspace file, by file picker or by file ID. | `files` |
-| **Get Content** | Extract a workspace file's text, by file picker or by file ID. | `contents` |
-| **Fetch** | Download and parse a file from an external URL. | `files`, `combinedContent` |
-| **Write** | Create a new workspace file from a name and text content. | `id`, `name`, `size`, `url` |
-| **Append** | Add text to the end of an existing workspace file. | `id`, `name`, `size`, `url` |
+| **Read** | Obtain workspace file objects by picker, canonical ID, or folder selection | `files` |
+| **Get Content** | Extract text from supported files | `contents`, and `lineRanges` when a line window is requested |
+| **Fetch** | Download and parse an HTTP(S) file URL, with optional request headers | `files`, `combinedContent` |
+| **Write** | Save text or an existing file object to workspace Files | `id`, `name`, `size`, `url`, `version`, `revision` |
+| **Append** | Add text to an existing file | `id`, `name`, `size`, `url`, `version`, `revision` |
 
-Read hands the next block the **file itself**; Get Content hands it the **text inside**. Fetch brings in both for an external URL. Write and Append put a file out. A workflow uses only the operations its task needs, often just Read. The two sections below cover Read and Write; the other operations are variants noted alongside.
+The current File block also supports listing, searching, applying edits, archives, sharing, and folder operations. See the [File block reference](/integrations/file) for their inputs and limits.
 
-{/* VISUAL: File block config UI. Operation dropdown open showing Read / Get Content / Fetch / Write / Append */}
+### Extract text
 
-## Reading a file in
+Select **Get Content** when the next step needs text rather than the original file. Its `contents` array has one extracted string per selected file: `<file.contents[0]>` reads the first one. Optional offset and limit fields request a line window; line numbers refer to extracted text, not PDF pages or spreadsheet rows.
 
-In our example, the first File block is set to **Read**, with `report.pdf` chosen from the file picker. When it runs, it produces `files`: a list of **file objects**, one per file read. The first is `<file1.files[0]>`.
+Read and Get Content can select folders. A folder selection expands at run time and includes nested folders by default, so newly added files can be picked up by a later run. Turn off the subfolder option to include direct files only.
 
-When the next step needs the file's *text* rather than the file itself, use **Get Content** instead: it extracts the text and outputs `contents`, an array with one string per file, read as `<file1.contents[0]>`.
+### Fetch a URL
 
-A **file object** is the standard shape Sim uses for every file. It carries the file's details:
+Select **Fetch**, enter the file URL, and provide request headers when needed, such as `Authorization: Bearer …`. The URL must pass the deployment's network validation and download limits. Fetch returns file objects in `files` and extracted text in `combinedContent`. It does not automatically save the fetched file to workspace Files.
 
-```jsonc
-{
-  "id": "wf_V1StGXR8z5jdHi6B…", // workspace file ID
-  "name": "report.pdf",
-  "url": "https://…",         // where to access it
-  "size": 248120,             // bytes
-  "type": "application/pdf"
-}
+### Process with Function
+
+For deterministic CSV or JSON processing, use **Get Content** and reference its text in a [Function](/workflows/blocks/function). For example, parse a JSON file after extraction:
+
+```javascript
+return JSON.parse(<file.contents[0]>);
 ```
 
-You rarely type a reference by hand. Wherever a block parameter accepts a file or a value, the builder lists the available outputs and you pick the one you want. Read mode also takes a file ID directly in advanced mode, which is how you read a file produced earlier in the same run.
+For a text file, JavaScript without imports can read the original file bytes with a helper:
 
-<Callout type="info">
-**Fetch** brings in files that live outside the workspace. Point it at a URL, and add request headers (such as `Authorization: Bearer …`) when the download needs authentication. It outputs `files` like Read does, plus `combinedContent`: the fetched files' text merged into one string.
-</Callout>
+```javascript
+const file = <file.files[0]>;
+return await sim.files.readText(file);
+```
 
-{/* VISUAL: File block in Read mode, file picker open with report.pdf selected; callout on the files[] output */}
+`readText` decodes file bytes; it does not extract PDF text. Use Get Content for document parsing. Python, Shell, and JavaScript with imports can use an indexed file-path reference such as `<file.files[0].path>` to request a sandbox mount under `/tmp/sim/inputs`. This special reference resolves to the mounted path; `.path` is not a stored property you can read after assigning the whole object to a variable.
 
-## Processing the file
+Files written under `/tmp/sim/outputs` return as Function `files` output. Pass them to a compatible attachment/upload input, or use File Write to save them. See [Generating files](/files/generating#what-produces-file-content).
 
-Once a file is read, a processing block reads that output by name. Two blocks do this, and they consume the file differently.
+### Append to an existing file
 
-### Agent block
+Select **Append**, choose an existing file, and provide the text to add. Use it for a running `notes.md` or log. Selecting a file directly avoids ambiguous names; when using a name, specify a folder scope if the name exists in several folders.
 
-An [Agent](/workflows/blocks/agent) block has a **Files** input. Reference the read file there, `<file1.files[0]>`, and write the instruction in the prompt: "Summarize this document." The agent receives the file object, not just its text, so a **vision-capable model** can analyze images and scanned pages directly. Other models work from the file's text content.
+## Related docs [#composing-the-steps]
 
-In our example the Agent reads `<file1.files[0]>`, summarizes it, and keeps the summary under its own name as `<agent1.content>`.
-
-{/* VISUAL: Agent block config. Files input bound to <file1.files[0]>, prompt "Summarize this document" */}
-
-### Function block
-
-A [Function](/workflows/blocks/function) block runs code, and it usually works with file **text**. Read the file with **Get Content** and pass the extracted text, `<file1.contents[0]>`, and the code can parse, filter, or reshape it and return the result as its own output. A Function can also take the file object itself and read it in code with the `sim.files` helpers, like `await sim.files.readText(file)` — see [the Function block](/workflows/blocks/function) for those. Use a Function when the file is structured text (a CSV or JSON dump) and you want exact, deterministic processing instead of a model's interpretation.
-
-<Callout type="info">
-The two blocks differ in what they take. An **Agent** takes the file object on its Files input, while a **Function** typically takes the file's text from Get Content's `contents`. Both store their result under their own name for the next block to read.
-</Callout>
-
-## Writing a file out
-
-Writing a file is optional, and many workflows skip it. The agent's summary could be returned in the response, posted to Slack, or emailed as-is without ever becoming a workspace file. Write a file when you specifically need a new one to keep, download, or hand to a later run.
-
-The last block in our example is a File block set to **Write**. Give it a file name and the content to save:
-
-- `fileName`: `summary.md`
-- `content`: `<agent1.content>`
-
-Write creates a new workspace file and returns its `id`, `name`, `size`, and `url`. If a file with that name already exists, Write keeps both by adding a numeric suffix to the new one. The saved file lands in your workspace [files](/files), ready for the next run, a download, or another workflow.
-
-{/* VISUAL: run log showing the File Write step with the returned file id, name, and url */}
-
-<Callout type="info">
-**Append** adds to a file instead of replacing it. Target an existing workspace file by name and give it the content to add to the end. Use it to accumulate across runs, such as appending each run's observation to one `notes.md`.
-</Callout>
-
-## Composing the steps
-
-Each block references the previous one by name, so you compose only the steps a task needs. A contract read by an Agent that returns a verdict stops at processing, and an uploaded image described by a vision model never touches Write, while a fetched CSV cleaned by a Function and saved as a new file uses all three. Reading a file in is common, and writing one out is only for when the result is itself a file.
-
-For the file-object schema in full, base64 access, and how files move across API and chat triggers, see [Passing files](/files/passing-files).
+- [Passing files](/files/passing-files): object fields, API input, and authenticated downloads
+- [Generating files](/files/generating): text and binary persistence
+- [Function](/workflows/blocks/function): code, file mounts, and sandbox exports
+- [File block](/integrations/file): complete operation reference

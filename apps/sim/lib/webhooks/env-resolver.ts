@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
+import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/attribution'
 import { getEffectiveDecryptedEnv, getExecutionEnvironment } from '@/lib/environment/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 

@@ -4,8 +4,8 @@
     "workspaces",
     "organization",
     "permissions",
-    "connected-accounts",
     "credentials",
+    "connected-accounts",
     "costs"
   ]
 }

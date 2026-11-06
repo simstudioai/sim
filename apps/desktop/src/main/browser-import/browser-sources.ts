@@ -26,6 +26,8 @@ export interface BrowserSource {
   userDataSegments: readonly string[]
   /** The login-Keychain generic-password item holding the Safe Storage key. */
   keychain: { service: string; account: string }
+  /** The macOS bundle identifier, used to open a page in this browser. */
+  bundleId: string
 }
 
 export const BROWSER_SOURCES: readonly BrowserSource[] = [
@@ -34,42 +36,49 @@ export const BROWSER_SOURCES: readonly BrowserSource[] = [
     label: 'Chrome',
     userDataSegments: ['Library', 'Application Support', 'Google', 'Chrome'],
     keychain: { service: 'Chrome Safe Storage', account: 'Chrome' },
+    bundleId: 'com.google.Chrome',
   },
   {
     id: 'arc',
     label: 'Arc',
     userDataSegments: ['Library', 'Application Support', 'Arc', 'User Data'],
     keychain: { service: 'Arc Safe Storage', account: 'Arc' },
+    bundleId: 'company.thebrowser.Browser',
   },
   {
     id: 'dia',
     label: 'Dia',
     userDataSegments: ['Library', 'Application Support', 'Dia', 'User Data'],
     keychain: { service: 'Dia Safe Storage', account: 'Dia' },
+    bundleId: 'company.thebrowser.dia',
   },
   {
     id: 'brave',
     label: 'Brave',
     userDataSegments: ['Library', 'Application Support', 'BraveSoftware', 'Brave-Browser'],
     keychain: { service: 'Brave Safe Storage', account: 'Brave' },
+    bundleId: 'com.brave.Browser',
   },
   {
     id: 'edge',
     label: 'Microsoft Edge',
     userDataSegments: ['Library', 'Application Support', 'Microsoft Edge'],
     keychain: { service: 'Microsoft Edge Safe Storage', account: 'Microsoft Edge' },
+    bundleId: 'com.microsoft.edgemac',
   },
   {
     id: 'vivaldi',
     label: 'Vivaldi',
     userDataSegments: ['Library', 'Application Support', 'Vivaldi'],
     keychain: { service: 'Vivaldi Safe Storage', account: 'Vivaldi' },
+    bundleId: 'com.vivaldi.Vivaldi',
   },
   {
     id: 'chromium',
     label: 'Chromium',
     userDataSegments: ['Library', 'Application Support', 'Chromium'],
     keychain: { service: 'Chromium Safe Storage', account: 'Chromium' },
+    bundleId: 'org.chromium.Chromium',
   },
 ] as const
 

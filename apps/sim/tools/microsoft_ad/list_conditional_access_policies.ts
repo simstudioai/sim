@@ -3,12 +3,8 @@ import type {
   MicrosoftAdListConditionalAccessPoliciesResponse,
 } from '@/tools/microsoft_ad/types'
 import { CONDITIONAL_ACCESS_POLICY_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import {
-  assertGraphNextPageUrlForCollection,
-  buildGraphCollectionUrl,
-  mapConditionalAccessPolicy,
-} from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { buildGraphCollectionUrl, mapConditionalAccessPolicy } from '@/tools/microsoft_ad/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listConditionalAccessPoliciesTool: ToolConfig<

@@ -6,7 +6,7 @@ import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-clien
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 

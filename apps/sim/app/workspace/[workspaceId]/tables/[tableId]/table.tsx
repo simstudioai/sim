@@ -1322,6 +1322,7 @@ export function Table({
                     label: 'Rename',
                     icon: Pencil,
                     onClick: handleStartTableRename,
+                    disabled: userPermissions.canEdit !== true,
                   },
                   ...(userPermissions.canAdmin
                     ? [

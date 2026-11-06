@@ -10,7 +10,7 @@ export const pitchbookCompanyMostRecentDebtFinancingTool: ToolConfig<
   id: 'pitchbook_company_most_recent_debt_financing',
   name: 'PitchBook Company Most Recent Debt Financing',
   description:
-    'Retrieve a company most recent debt financing, including each debt instrument raised',
+    'Retrieve a company’s most recent debt financing, including each debt instrument raised',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ThemeProviderProps } from 'next-themes'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
-import { LANDING_ROUTES } from '@/lib/landing/routes'
+import { isLandingPath } from '@/lib/landing/routes'
 
 /**
  * First path segments outside the `(landing)` group whose pages pin the light
@@ -41,6 +41,8 @@ const NON_LANDING_LIGHT_SEGMENTS = [
  */
 const LIGHT_MODE_SEGMENTS: ReadonlySet<string> = new Set(NON_LANDING_LIGHT_SEGMENTS)
 
+const APP_SURFACE = { defaultTheme: 'system', storageKey: 'sim-theme' } as const
+
 /**
  * The marketing surface: the root plus every `app/(landing)` segment. These
  * pages keep their own stored theme, written only by the landing footer's
@@ -50,15 +52,7 @@ const LIGHT_MODE_SEGMENTS: ReadonlySet<string> = new Set(NON_LANDING_LIGHT_SEGME
  * every signed-in user, which would render the marketing site in the OS theme
  * and overwrite any choice the footer toggle made.
  */
-const LANDING_SEGMENTS: ReadonlySet<string> = new Set(LANDING_ROUTES)
-
-const APP_SURFACE = { defaultTheme: 'system', storageKey: 'sim-theme' } as const
 const LANDING_SURFACE = { defaultTheme: 'light', storageKey: 'sim-landing-theme' } as const
-
-function isLandingPath(pathname: string): boolean {
-  const firstSegment = pathname.split('/')[1]
-  return firstSegment === '' || LANDING_SEGMENTS.has(firstSegment)
-}
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()

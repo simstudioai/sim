@@ -10,6 +10,8 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
+  ComputerUseError,
+  type ComputerUseToolFailure,
   type DesktopExecutorDevice,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
@@ -55,6 +57,7 @@ import {
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  activeTab,
   addTab,
   findInActiveTab,
   focusPageForUser,
@@ -77,13 +80,19 @@ import {
   revealCredential,
 } from '@/main/browser-credentials'
 import {
+  bringSignInBack,
+  cancelSignIn,
+  continueSignIn,
+  getPendingSignIn,
   importChromeCookies,
   importChromeData,
   importChromePasswords,
   listChromeImportProfiles,
+  migrateSignIn,
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
+import type { ComputerUseService } from '@/main/computer-use/service'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
@@ -339,6 +348,7 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
 }
 
 export interface IpcDeps {
+  computerUse?: ComputerUseService
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
   /** False while local account-data persistence is unavailable or teardown must be retried. */
@@ -381,7 +391,7 @@ export interface IpcDeps {
   updates: {
     getState: () => DesktopUpdateState
     check: () => void
-    install: () => void
+    install: (options: { mandatory: boolean }) => void
   }
   server: {
     open: () => void
@@ -530,21 +540,19 @@ async function fetchDesktopToolAuthorization(
   deps: IpcDeps,
   toolCallId: unknown,
   claim = false,
-  onFailureStatus?: (status: number) => void
+  onFailureStatus?: (status: number) => void,
+  authorizationPath = '/api/desktop/tool/authorize'
 ): Promise<DesktopToolAuthorization | null> {
   if (!isDesktopToolCallId(toolCallId)) return null
   const startedAt = Date.now()
   try {
-    const response = await event.sender.session.fetch(
-      `${deps.appOrigin()}/api/desktop/tool/authorize`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
-        signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
-      }
-    )
+    const response = await event.sender.session.fetch(`${deps.appOrigin()}${authorizationPath}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
+      signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
+    })
     if (!response.ok) {
       onFailureStatus?.(response.status)
       logger.warn('Desktop tool authorization was rejected', {
@@ -705,6 +713,84 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   }
 
   const channels: Record<string, ChannelSpec> = {
+    'computer-use:get-activity': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: null,
+      handler: () => deps.computerUse?.getActivity() ?? null,
+    },
+    'computer-use:status': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: null,
+      handler: () => deps.computerUse?.getStatus(),
+    },
+    'computer-use:set-enabled': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (enabled) => {
+        if (typeof enabled !== 'boolean')
+          throw new Error('A boolean Computer Use preference is required.')
+        return deps.computerUse?.setEnabled(enabled)
+      },
+    },
+    'computer-use:request-permission': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (permission) => {
+        if (permission !== 'accessibility' && permission !== 'screenCapture')
+          throw new Error('Unknown Computer Use permission.')
+        return deps.computerUse?.requestPermission(permission)
+      },
+    },
+    'computer-use:list-permissions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: [],
+      handler: () => deps.computerUse?.listAppPermissions() ?? [],
+    },
+    'computer-use:revoke-app': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: undefined,
+      handler: (bundleId) => {
+        if (typeof bundleId !== 'string' || bundleId.length > 255)
+          throw new Error('Invalid app identifier.')
+        deps.computerUse?.revokeApp(bundleId)
+      },
+    },
+    'computer-use:cancel': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: undefined,
+      handler: (toolCallId) => {
+        if (toolCallId !== undefined && !isDesktopToolCallId(toolCallId))
+          throw new Error('Invalid tool call identifier.')
+        deps.computerUse?.cancel(toolCallId)
+      },
+    },
+    'computer-use:execute-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: undefined,
+      handler: (scopeId, toolCallId, params) => {
+        if (!deps.computerUse || typeof scopeId !== 'string' || typeof toolCallId !== 'string')
+          throw new Error('Computer Use is unavailable.')
+        return deps.computerUse.execute(toolCallId, scopeId, params)
+      },
+    },
     'desktop:open-external': {
       kind: 'invoke',
       gate: 'any',
@@ -936,7 +1022,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       needsUserActivation: true,
-      handler: () => deps.updates.install(),
+      handler: (options) =>
+        deps.updates.install({ mandatory: isRecordLike(options) && options.mandatory === true }),
     },
     'browser-agent:execute-tool': {
       kind: 'invoke',
@@ -1096,6 +1183,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return { tabs: [], activeTabId: null }
         }
         consumePendingScope(browserPendingScopesBySender, contents, from)
+        migrateSignIn(from, to)
         if (browserScopeBySender.get(contents) === from) {
           browserScopeBySender.set(contents, to)
           deps.scopeEvents.activateBrowser(contents, to)
@@ -1232,6 +1320,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: ([action]) => {
         if (!isRecordLike(action)) return false
         if (action.action === 'navigate') return true
+        if (action.action === 'respond-prompt') {
+          return isRecordLike(action.response) && action.response.allowed === true
+        }
         return action.action === 'respond-media-permission' && action.allowed === true
       },
       handler: (sender, action, rawScope) => {
@@ -1430,6 +1521,78 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           typeof profileId === 'string' ? profileId : undefined,
           policy === 'replace' ? 'replace' : 'keep-existing'
         )
+      },
+    },
+    // Continue a sign-in in the user's own browser (see the bridge's
+    // `continueSignIn`). The shell reads the address from the tab, never from
+    // the renderer; Sim's own pages ride the app session, so they are refused.
+    'browser-import:continue-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { error: 'unknown' },
+      handler: (sender, profileId, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scopeId || typeof profileId !== 'string') return { error: 'unknown' }
+        const tab = withBrowserScope(scopeId, () => activeTab())
+        const url = tab?.view.webContents.getURL() ?? ''
+        if (!tab || isAppOrigin(url, deps.appOrigin())) return { error: 'unsupported-page' }
+        return continueSignIn(scopeId, { profileId, tabId: tab.id, url })
+      },
+    },
+    // Imports the chat's pending sign-in, then reopens the handed-off page
+    // through the omnibox's navigation path, or in a new tab if it was closed.
+    'browser-import:bring-sign-in-back': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
+      handler: async (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (!scopeId) return { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' }
+        const { result, handoff, current } = await bringSignInBack(scopeId)
+        if (!handoff || !current || result.cookiesImported === 0) return result
+        const tabOpen = withBrowserScope(scopeId, () =>
+          peekTabsState().tabs.some(({ tabId }) => tabId === handoff.tabId)
+        )
+        if (!tabOpen) {
+          withBrowserScope(scopeId, () => {
+            const tab = addTab()
+            void tab.view.webContents.loadURL(handoff.url).catch(() => {})
+            focusPageForUser(tab.view.webContents)
+          })
+          return result
+        }
+        await handlePanelAction(scopeId, { action: 'switch-tab', tabId: handoff.tabId })
+          .then(() => handlePanelAction(scopeId, { action: 'navigate', url: handoff.url }))
+          .catch(() => {})
+        return result
+      },
+    },
+    'browser-import:cancel-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: undefined,
+      handler: (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (scopeId) cancelSignIn(scopeId)
+      },
+    },
+    'browser-import:pending-sign-in': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: null,
+      handler: (sender, rawScope) => {
+        const scopeId = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scopeId ? getPendingSignIn(scopeId) : null
       },
     },
     // Reported by the browser preload for the page it is running in. The
@@ -2073,6 +2236,59 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return spec.denied
         }
         let handlerArgs = args
+        if (channel === 'computer-use:execute-tool') {
+          if (!deps.computerUse?.isEnabled())
+            throw new Error('Computer Use is switched off on this Mac.')
+          const toolCallId = args[0]
+          if (!isDesktopToolCallId(toolCallId)) throw new Error('Invalid tool call identifier.')
+          const computerUse = deps.computerUse
+          let ownerEnded = false
+          const cancelOwnedTool = (): void => {
+            if (ownerEnded) return
+            ownerEnded = true
+            computerUse.cancel(toolCallId)
+          }
+          const onNavigation = (
+            _event: unknown,
+            _url: string,
+            isInPlace: boolean,
+            isMainFrame: boolean
+          ): void => {
+            if (!isInPlace && isMainFrame) cancelOwnedTool()
+          }
+          /** A crashed renderer cannot send pagehide or Stop; main owns the action lifetime. */
+          event.sender.on('destroyed', cancelOwnedTool)
+          event.sender.on('render-process-gone', cancelOwnedTool)
+          event.sender.on('did-start-navigation', onNavigation)
+          try {
+            if (event.sender.isDestroyed()) throw new Error('Computer Use session ended.')
+            return await computerUse.executeAuthorized(toolCallId, async () => {
+              const authorization = await fetchDesktopToolAuthorization(
+                event,
+                deps,
+                toolCallId,
+                false,
+                undefined,
+                '/api/desktop/computer/authorize'
+              )
+              if (!authorization || authorization.toolName !== 'computer') {
+                throw new Error('This is not an authorized pending Computer Use action.')
+              }
+              if (!senderAllowed(event, spec.gate) || !deps.accountDataAvailable())
+                throw new Error('Computer Use session ended.')
+              return { scopeId: authorization.chatId, input: authorization.args }
+            })
+          } catch (error) {
+            /** Electron drops custom Error properties; keep native dispatch certainty in data. */
+            if (error instanceof ComputerUseError)
+              return { kind: 'error', error: error.details } satisfies ComputerUseToolFailure
+            throw error
+          } finally {
+            event.sender.removeListener('destroyed', cancelOwnedTool)
+            event.sender.removeListener('render-process-gone', cancelOwnedTool)
+            event.sender.removeListener('did-start-navigation', onNavigation)
+          }
+        }
         if (channel === 'browser-agent:execute-tool') {
           const toolCallId = args[0]
           const requestedTool = args[1]

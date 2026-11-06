@@ -105,7 +105,10 @@ export interface ClientCredentialAccountDescriptor {
   defaultAuthMethod?: string
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
-  /** Optional one-line caveat rendered in the connect modal. */
+  /**
+   * Optional one-line caveat, rendered under the `orgId` field of the connect modal. A descriptor
+   * without an `orgId` field puts its guidance in a field `hint` instead.
+   */
   helpText?: string
 }
 
@@ -115,9 +118,12 @@ export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-accoun
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 export const RAMP_SERVICE_ACCOUNT_PROVIDER_ID = 'ramp-service-account' as const
 export const VANTA_SERVICE_ACCOUNT_PROVIDER_ID = 'vanta-service-account' as const
+export const FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID = 'fivetran-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
+export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
+export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -137,8 +143,11 @@ export type ClientCredentialAccountProviderId =
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RAMP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof VANTA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -398,6 +407,47 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/ramp',
   },
+  [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Greenhouse',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/greenhouse',
+  },
+  [HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Help Scout',
+    connectNoun: 'app',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'App ID',
+        placeholder: 'Paste the App ID',
+        secret: false,
+        hint: 'Create the app in Help Scout under Your Profile > My Apps.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'App secret',
+        placeholder: 'Paste the App Secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/helpscout',
+  },
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Vanta',
@@ -436,6 +486,27 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/vanta',
+  },
+  [FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Fivetran',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'API key',
+        placeholder: 'Paste the API key',
+        secret: true,
+        hint: 'In Fivetran, click your username, then API Key > Generate API key. The key acts with your Fivetran permissions.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'API secret',
+        placeholder: 'Paste the API secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/fivetran',
   },
   [ZOOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,

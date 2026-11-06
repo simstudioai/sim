@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/resources/types'
+import type {
+  ChatResourceAddress,
+  MothershipResource,
+  MothershipResourceType,
+} from '@/lib/mothership/resources/types'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { NativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
@@ -42,7 +46,7 @@ export interface DesktopTabResourceOptions {
   selectedResourceId: string | null
   /** Adds a tab without activating it; activation goes through {@link onResourceEvent}. */
   addResource: (resource: MothershipResource) => void
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  removeResource: (resource: ChatResourceAddress) => void
   /** Explicit user selection, which claims the strip's selection for the user. */
   selectResource: (resourceId: string) => void
   /** Agent activity on a tab, subject to the panel's user-ownership policy. */
@@ -167,7 +171,7 @@ export function useDesktopTabResources({
     for (const tabId of known) {
       if (liveTabIds.has(tabId)) continue
       known.delete(tabId)
-      if (resourceTabIds.has(tabId)) removeResource(type, tabId)
+      if (resourceTabIds.has(tabId)) removeResource({ type, id: tabId })
     }
   }, [addResource, hasSession, removeResource, resources, scopeId, tabs, type])
 

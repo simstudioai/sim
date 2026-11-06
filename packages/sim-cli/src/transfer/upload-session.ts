@@ -67,7 +67,7 @@ async function uploadBytes(
 
 async function uploadParts<Operation extends V2OperationName>(
   client: OperationClient<Operation>,
-  workspaceId: string,
+  workspaceId: string | undefined,
   session: UploadSession<Operation>,
   transfer: Extract<UploadTransfer, { method: 'multipart' }>,
   file: Blob | StreamingUpload
@@ -95,7 +95,7 @@ async function uploadParts<Operation extends V2OperationName>(
       session.operations.parts,
       {
         params: session.params,
-        query: { workspaceId },
+        query: workspaceId ? { workspaceId } : undefined,
         headers: { 'upload-token': session.uploadToken },
         body: { partNumbers },
       }
@@ -126,7 +126,7 @@ async function uploadParts<Operation extends V2OperationName>(
 /** Uploads and completes a signed transfer, aborting its session if the transfer fails. */
 export async function finishUploadSession<T, Operation extends V2OperationName>(
   client: OperationClient<Operation>,
-  workspaceId: string,
+  workspaceId: string | undefined,
   session: UploadSession<Operation>,
   path: string
 ): Promise<T> {
@@ -171,7 +171,7 @@ export async function finishUploadSession<T, Operation extends V2OperationName>(
 
     const completed = await client.request<{ data: T }>(session.operations.complete, {
       params: session.params,
-      query: { workspaceId },
+      query: workspaceId ? { workspaceId } : undefined,
       headers: { 'upload-token': session.uploadToken },
     })
     return completed.data
@@ -185,7 +185,7 @@ export async function finishUploadSession<T, Operation extends V2OperationName>(
     await cleanupClient
       .request(session.operations.abort, {
         params: session.params,
-        query: { workspaceId },
+        query: workspaceId ? { workspaceId } : undefined,
         headers: { 'upload-token': session.uploadToken },
       })
       .catch(() => undefined)

@@ -12,6 +12,7 @@ vi.mock('node:dns/promises', () => ({
 }))
 
 import {
+  app,
   BrowserWindow,
   dialog,
   session as electronSession,
@@ -19,6 +20,11 @@ import {
   shell,
   WebContentsView,
 } from 'electron'
+import {
+  appLaunchNoticeForContents,
+  handleBrowserLogin,
+  pagePromptForContents,
+} from '@/main/browser-agent/page-prompts'
 import * as panel from '@/main/browser-agent/panel'
 import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
@@ -32,7 +38,7 @@ function _setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { configurable: true, value: platform })
 }
 
-type PopupHandler = (details: { url: string }) => {
+type PopupHandler = (details: { url: string; disposition?: string }) => {
   action: string
   outlivesOpener?: boolean
   createWindow?: (options: Record<string, unknown>) => unknown
@@ -350,6 +356,13 @@ describe('browser-agent session', () => {
     mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     win = mainWindowMock()
     session = freshSession(win)
+  })
+
+  it('ignores browser shortcuts and mouse buttons before any chat has opened a browser', () => {
+    session.disposeBrowserScope('chat-test')
+
+    expect(session.handleFocusedShortcut('back', win)).toBe(false)
+    expect(session.handleFocusedShortcut('close-tab', win)).toBe(false)
   })
 
   it('invalidates only top-frame starts and identifies same-document commits', () => {
@@ -1250,6 +1263,11 @@ describe('browser-agent session', () => {
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).not.toHaveBeenCalled()
+    // window.open names no initiating frame, so an app link from it is never offered either.
+    session.enablePagePrompts()
+    app.getApplicationNameForProtocol = vi.fn(() => 'Zoom')
+    expect(openHandler({ url: 'zoommtg://zoom.us/join' })).toEqual({ action: 'deny' })
+    expect(appLaunchNoticeForContents(contents as unknown as WebContents)).toBeUndefined()
   })
 
   it('opens a background-disposition popup by URL and keeps cross-scheme popups denied', () => {
@@ -1259,7 +1277,7 @@ describe('browser-agent session', () => {
     openWindow({ url: 'https://example.com/later' }).createWindow?.({})
     const popup = (session.activeTab()?.view as unknown as MockView).webContents
     expect(popup).not.toBe(source)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later', expect.anything())
     expect(openWindow({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
     expect(session.listTabs()).toHaveLength(2)
   })
@@ -1559,9 +1577,11 @@ describe('browser-agent session', () => {
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {
     const clearStorageData = vi.fn(async () => {})
     const clearCache = vi.fn(async () => {})
+    const clearAuthCache = vi.fn(async () => {})
     vi.mocked(electronSession.fromPartition).mockReturnValue({
       clearStorageData,
       clearCache,
+      clearAuthCache,
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
     const { persistence, snapshots } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
@@ -1580,6 +1600,8 @@ describe('browser-agent session', () => {
     expect(snapshots.get('chat-test')).toMatchObject({ tabs: [], activeIndex: -1 })
     expect(clearStorageData).toHaveBeenCalled()
     expect(clearCache).toHaveBeenCalled()
+    // Chromium keeps typed HTTP sign-in credentials outside storage and cache.
+    expect(clearAuthCache).toHaveBeenCalled()
   })
 
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
@@ -1710,6 +1732,57 @@ describe('browser-agent session', () => {
       filename: 'report.csv',
       state: 'completed',
     })
+  })
+
+  it('asks about an HTTP sign-in only while its top-level navigation is still loading', () => {
+    const url = 'https://intranet.example/'
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    session.enablePagePrompts()
+    const emit = (eventName: string, ...args: unknown[]) => {
+      for (const [name, handler] of contents.on.mock.calls) {
+        if (name === eventName && typeof handler === 'function') handler(...args)
+      }
+    }
+    const signIn = () => {
+      const callback = vi.fn()
+      handleBrowserLogin(
+        { preventDefault: () => {} },
+        contents as unknown as WebContents,
+        { url, isRequestForNavigation: true, firstAuthAttempt: true } as never,
+        { isProxy: false, scheme: 'basic', host: 'intranet.example', port: 443, realm: '' },
+        callback
+      )
+      return callback
+    }
+
+    emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url })
+    const loading = signIn()
+    expect(loading).not.toHaveBeenCalled()
+    expect(pagePromptForContents(contents as unknown as WebContents)).toMatchObject({
+      kind: 'http-auth',
+    })
+
+    // The navigation is aborted: Chromium reports ERR_ABORTED, which records no failure.
+    emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url })
+    emit('did-stop-loading')
+    expect(signIn()).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  it('counts a download as in flight for a restart only until it finishes', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'report.csv', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+    await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+    expect(session.countProgressingBrowserDownloads()).toBe(1)
+
+    download.emitDone('completed')
+    await vi.waitFor(() => expect(session.countProgressingBrowserDownloads()).toBe(0))
   })
 
   it('never overwrites a file that takes the allocated name before the download claims it', async () => {
@@ -2321,12 +2394,27 @@ describe('importAgentCookies', () => {
 
 describe('first-party browser sessions', () => {
   const origin = 'https://www.dev.sim.ai'
+  const appSession = new WebContentsView().webContents.session
   function initialize(persistence?: sessionModule.BrowserSessionPersistence) {
     return freshSession(null, {}, persistence, undefined, {
       origin,
-      session: new WebContentsView().webContents.session,
+      session: appSession,
     })
   }
+
+  it("opens a deferred blank popup in its opener's session", () => {
+    const session = initialize()
+    const opener = session.addAutomationTab(`${origin}/home`).view.webContents
+    Object.assign(opener, { session: appSession })
+    const openWindow = vi.mocked(opener.setWindowOpenHandler).mock.calls[0]?.[0] as PopupHandler
+
+    const popup = openWindow({ url: 'about:blank', disposition: 'background-tab' }).createWindow?.(
+      {}
+    ) as WebContents
+    expect(popup).not.toBe(opener)
+    expect(agentAppOrigin(popup)).toBe(origin)
+    expect(popup.loadURL).not.toHaveBeenCalled()
+  })
 
   it('keeps a populated tab and its history when crossing the session boundary', () => {
     const session = initialize()

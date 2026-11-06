@@ -9,7 +9,7 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
 import { requireWorkspacePersonalAccounts } from '@/lib/credentials/application/workspace-personal-accounts'
 import { getPersonalOAuthCredentials } from '@/lib/credentials/personal'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface StartPersonalCredentialConnectionInput {
   workspaceId: string

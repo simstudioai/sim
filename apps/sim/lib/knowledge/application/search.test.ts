@@ -62,7 +62,7 @@ vi.mock('@/lib/knowledge/reranker', () => ({
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 

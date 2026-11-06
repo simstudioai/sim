@@ -19,7 +19,7 @@ import {
   type SaveAgentMemoryTurnInput,
   saveAgentMemoryTurn,
 } from '@/lib/memory/conversation-store'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 function requireMatchingInvocation(
   principal: WorkflowExecutionDelegatedPrincipal,

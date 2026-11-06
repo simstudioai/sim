@@ -30,6 +30,7 @@ import { googleVaultConnectorMeta } from '@/connectors/google-vault/meta'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
 import { greenhouseConnectorMeta } from '@/connectors/greenhouse/meta'
+import { helpScoutConnectorMeta } from '@/connectors/helpscout/meta'
 import { hubspotConnectorMeta } from '@/connectors/hubspot/meta'
 import { incidentioConnectorMeta } from '@/connectors/incidentio/meta'
 import { intercomConnectorMeta } from '@/connectors/intercom/meta'
@@ -108,6 +109,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   grain: grainConnectorMeta,
   granola: granolaConnectorMeta,
   greenhouse: greenhouseConnectorMeta,
+  helpscout: helpScoutConnectorMeta,
   hubspot: hubspotConnectorMeta,
   incidentio: incidentioConnectorMeta,
   intercom: intercomConnectorMeta,

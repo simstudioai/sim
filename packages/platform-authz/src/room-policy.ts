@@ -13,17 +13,19 @@ import { isPermissionType, type PermissionType, permissionSatisfies } from './pr
  */
 
 /**
- * A file-doc room IS the collaborative editor, so occupying it requires `write`;
- * every other room carries only reads/presence and requires `read`. Workflow is
+ * Rooms carry reads and presence; document content changes require a separate write check.
+ * Workflow is
  * included for the sweep's benefit even though it authorizes through its own path
  * (`authorizeWorkflowByWorkspacePermission`).
  */
 export const ROOM_MEMBERSHIP_ACTIONS = {
   [ROOM_TYPES.WORKFLOW]: 'read',
   [ROOM_TYPES.WORKSPACE_FILES]: 'read',
+  [ROOM_TYPES.PROJECT_FILES]: 'read',
   [ROOM_TYPES.WORKSPACE_TABLES]: 'read',
   [ROOM_TYPES.WORKSPACE_WORKFLOWS]: 'read',
-  [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'write',
+  [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'read',
+  [ROOM_TYPES.PROJECT_FILE_DOC]: 'read',
   [ROOM_TYPES.TABLE]: 'read',
 } as const satisfies Record<RoomType, PermissionType>
 

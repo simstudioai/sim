@@ -17,6 +17,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { serializeSignedCookie } from 'better-call'
@@ -41,7 +42,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { assertCodaLiveFixture } from '@/lib/knowledge/__integration__/coda-live-fixture'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
@@ -225,7 +226,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
             .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
           for (const row of rows)
             if (row.storageKey) await deleteFile({ key: row.storageKey, context: 'knowledge-base' })
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(organization).where(eq(organization.id, ids.organizationId))
           await db.delete(user).where(eq(user.id, ids.aliceId))
           await db.delete(user).where(eq(user.id, ids.bobId))

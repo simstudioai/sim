@@ -15,7 +15,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import { useExecutionStore } from '@/stores/execution/store'
 
 const {
@@ -69,7 +69,7 @@ vi.mock('@sim/utils/retry', () => ({
 }))
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution', () => ({
   executeWorkflowWithFullLogging,
 }))
 
@@ -241,6 +241,25 @@ describe('run tool execution cancellation', () => {
     } finally {
       unsubscribe()
     }
+  })
+
+  it('leaves a paused run for Sim to report, and a reload neither re-sends nor restarts it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockResolvedValueOnce({
+      success: true,
+      status: 'paused',
+      output: {},
+      logs: [],
+    })
+
+    executeRunToolOnClient('tool-paused', 'run_workflow', { workflowId: 'wf-1' })
+    await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+    await expect(bindRunToolToExecution('tool-paused', 'wf-1')).resolves.toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('cancels and reports the owned execution even when its workflow has a newer UI pointer', async () => {

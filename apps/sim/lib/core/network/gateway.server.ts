@@ -1,6 +1,8 @@
 import { isIP, Socket } from 'node:net'
 import { checkServerIdentity, connect as connectTls } from 'node:tls'
+import { createLogger } from '@sim/logger'
 import { evaluateAddress, STRICT_EGRESS_POLICY } from '@sim/security/egress'
+import { toError } from '@sim/utils/errors'
 import { Agent, Client } from 'undici/index.js'
 import type { OutboundGateway } from '@/lib/core/network/config.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
@@ -8,6 +10,9 @@ import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { checkResolvedEgress, validateEgressUrl } from '@/lib/core/security/egress/validate'
 
 const CONNECT_TIMEOUT_MS = 10_000
+const MAX_CONNECT_ATTEMPTS = 2
+
+const logger = createLogger('OutboundGateway')
 
 /** The proxy CA never changes trust for the upstream service. */
 export async function secureOutboundTunnel(
@@ -64,7 +69,36 @@ export async function openGatewayTunnel(
   ) {
     throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
   }
-  const authority = `${address}:443`
+  for (let attempt = 1; ; attempt++) {
+    const result = await attemptGatewayConnect(gateway, `${address}:443`)
+    if (result.socket) return result.socket
+    logger.warn('Gateway CONNECT failed', {
+      gatewayId: gateway.id,
+      organizationId: gateway.organizationId,
+      attempt,
+      statusCode: result.statusCode,
+      errorName: result.error?.name,
+      errorCode: getErrorCode(result.error),
+    })
+    if (!result.retryable || attempt >= MAX_CONNECT_ATTEMPTS) {
+      throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    }
+  }
+}
+
+type GatewayConnectResult =
+  | { socket: Socket; statusCode?: never; error?: never; retryable?: never }
+  | { socket?: never; statusCode?: number; error?: Error; retryable: boolean }
+
+/**
+ * A failure before the proxy answers 200 has sent no upstream bytes, so it is safe to retry.
+ * Credential or admission rejections (4xx) are not transient and never retry.
+ */
+async function attemptGatewayConnect(
+  gateway: OutboundGateway,
+  authority: string
+): Promise<GatewayConnectResult> {
+  /** A fresh client per attempt opens a new connection, which the NLB can route to another task. */
   const client = new Client(gateway.url, {
     allowH2: false,
     maxHeaderSize: 16_384,
@@ -77,17 +111,20 @@ export async function openGatewayTunnel(
       signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS),
       headers: { host: authority, 'proxy-authorization': `Bearer ${gateway.token}` },
     })
-    if (statusCode !== 200 || !(socket instanceof Socket)) {
-      socket.destroy()
-      throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
-    }
-    return socket
-  } catch {
-    throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    if (statusCode === 200 && socket instanceof Socket) return { socket }
+    socket.destroy()
+    return { statusCode, retryable: statusCode >= 500 }
+  } catch (error) {
+    return { error: toError(error), retryable: true }
   } finally {
     /** An upgraded socket is detached from the dispatcher and now belongs to its caller. */
     await client.destroy()
   }
+}
+
+function getErrorCode(error: Error | undefined): string | undefined {
+  const code = error && 'code' in error ? error.code : undefined
+  return typeof code === 'string' ? code : undefined
 }
 
 /** A dispatcher belongs to one organization and gateway, never a process-wide default. */

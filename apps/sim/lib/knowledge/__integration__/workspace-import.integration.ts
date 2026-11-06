@@ -17,6 +17,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -61,8 +62,8 @@ import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-uploa
 import {
   deleteWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -171,7 +172,7 @@ afterAll(async () => {
   for (const ids of fixtures) {
     await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }

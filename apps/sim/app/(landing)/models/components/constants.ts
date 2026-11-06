@@ -51,3 +51,11 @@ const colorMap = new Map(
 export function getProviderColor(providerId: string): string {
   return colorMap.get(providerId) ?? FALLBACK_COLOR
 }
+
+/** Header cell of the catalog's data tables (context windows, model comparisons). */
+export const MODEL_TABLE_HEADER_CELL_CLASS =
+  'px-6 py-3 text-left align-bottom font-normal text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'
+
+/** Body cell of the catalog's data tables. */
+export const MODEL_TABLE_CELL_CLASS =
+  'px-6 py-4 align-top text-[var(--text-primary)] text-sm leading-snug'

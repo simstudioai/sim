@@ -25,7 +25,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
 vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
 vi.mock('@/lib/internal/whatsapp/upload', () => ({
   uploadWhatsAppMedia: mocks.uploadMedia,

@@ -1,35 +1,21 @@
 ---
 title: Mistral Parser
 description: Extract text from PDF documents
+integration:
+  type: "mistral_parse_v3"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mistral_parse_v3"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-The Mistral Parse tool provides a powerful way to extract and process content from PDF documents using [Mistral's OCR API](https://mistral.ai/). This tool leverages advanced optical character recognition to accurately extract text and structure from PDF files, making it easy to incorporate document data into your agent workflows.
-
-With the Mistral Parse tool, you can:
-
-- **Extract text from PDFs**: Accurately convert PDF content to text, markdown, or JSON formats
-- **Process PDFs from URLs**: Directly extract content from PDFs hosted online by providing their URLs
-- **Maintain document structure**: Preserve formatting, tables, and layout from the original PDFs
-- **Extract images**: Optionally include embedded images from the PDFs
-- **Select specific pages**: Process only the pages you need from multi-page documents
-
-The Mistral Parse tool is particularly useful for scenarios where your agents need to work with PDF content, such as analyzing reports, extracting data from forms, or processing text from scanned documents. It simplifies the process of making PDF content available to your agents, allowing them to work with information stored in PDFs just as easily as with direct text input.
+Use [Mistral's OCR API](https://mistral.ai/) to extract text and page structure from a PDF uploaded to Sim or supplied by URL. The current parser returns page Markdown, image metadata, the model, and usage information. **Specific Pages** accepts zero-based indices such as `0,1,2`; leave it empty to process all pages. The block offers Markdown, plain-text, and JSON format values, but its current result uses the structured page output documented below. Base64 image data is a hidden tool input and has no block control.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.
-
-
+Extract text from uploaded PDF documents, or from a URL.
 
 ## Actions
 
@@ -37,12 +23,14 @@ Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF do
 
 Parse PDF documents using Mistral OCR API
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Normalized UserFile from file upload or file reference |
-| `resultType` | string | No | Type of parsed result \(markdown, text, or json\). Defaults to markdown. |
+| `resultType` | string | No | Legacy parser output format \(markdown, text, or json; default markdown\). Versions 2 and 3 return structured OCR pages regardless of this value. |
 | `pages` | array | No | Specific pages to process \(array of page numbers, starting from 0\) |
 | `apiKey` | string | Yes | Mistral API key \(MISTRAL_API_KEY\) |
 
@@ -73,5 +61,7 @@ Parse PDF documents using Mistral OCR API
 |   ↳ `pages_processed` | number | Total number of pages processed |
 |   ↳ `doc_size_bytes` | number | Document file size in bytes |
 | `document_annotation` | string | Structured annotation data as JSON string \(when applicable\) |
+
+</ReferenceDetails>
 
 

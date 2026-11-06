@@ -22,6 +22,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
+  getFreeTierAllowance,
   getFreeTierLimit,
   getPlanPricing,
   hasPaidSubscriptionStatus,
@@ -276,6 +277,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
           creditBalance: userStats.creditBalance,
           billingBlocked: userStats.billingBlocked,
           billingBlockedReason: userStats.billingBlockedReason,
+          freeTierEligible: userStats.freeTierEligible,
         })
         .from(userStats)
         .where(eq(userStats.userId, userId))
@@ -326,7 +328,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
     const effectiveCurrentUsage = Math.max(0, toNumber(currentUsage) - refreshDeduction)
     const usageLimit = stats.currentUsageLimit
       ? toNumber(toDecimal(stats.currentUsageLimit))
-      : getFreeTierLimit()
+      : getFreeTierAllowance(stats.freeTierEligible)
     const percentUsed = usageLimit > 0 ? (effectiveCurrentUsage / usageLimit) * 100 : 0
     const isExceeded = effectiveCurrentUsage >= usageLimit
     const isWarning = !isExceeded && percentUsed >= 80

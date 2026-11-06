@@ -1,7 +1,7 @@
-import { ChipLink, StatusPageContent } from '@sim/emcn'
+import { AuthLinkButton as ChipLink, AuthStatusContent as StatusPageContent } from '@sim/auth-ui'
 import type { Metadata } from 'next'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { LogoShell } from '@/app/(landing)/components/logo-shell'
+import { AuthShell as LogoShell } from '@/app/(auth)/components'
 
 export const metadata: Metadata = {
   title: 'Credential connected',
@@ -21,7 +21,7 @@ export default async function CredentialConnectedPage({
   const connected = result === 'connected' && !error
 
   return (
-    <LogoShell center>
+    <LogoShell>
       <StatusPageContent
         title={connected ? 'Credential connected' : 'Connection failed'}
         description={

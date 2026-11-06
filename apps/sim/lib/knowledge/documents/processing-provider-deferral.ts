@@ -6,7 +6,7 @@ import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
+} from '@/lib/knowledge/documents/processing-error'
 
 /**
  * Reads typed capacity failures through OCR's aggregate wrappers. A caller abort

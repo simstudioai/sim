@@ -9,6 +9,8 @@ single PII_URL serves both.
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import regex as regex_module
@@ -174,10 +176,14 @@ if not logger.handlers:
     logger.addHandler(_log_handler)
     logger.propagate = False
 
-logger.info("building analyzer (spacy)")
-analyzer = build_analyzer()
-batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
-anonymizer = AnonymizerEngine()
+# Built per worker by `lifespan`, never at import: with --workers N the uvicorn
+# supervisor imports this module too, and a module-level build left it holding an
+# idle copy of every model.
+analyzer: AnalyzerEngine
+batch_analyzer: BatchAnalyzerEngine
+anonymizer: AnonymizerEngine
+NER_ENTITIES: frozenset
+_BLANK_ARTIFACTS: dict
 
 # Every entity the spaCy NER recognizers can actually produce. A request touching
 # any of these must run spaCy; a request naming only non-NER (regex/checksum)
@@ -206,30 +212,6 @@ def _producible_ner_entities() -> frozenset:
                 producible.add(entity)
     return frozenset(producible)
 
-
-NER_ENTITIES = _SPACY_NER_FLOOR | (
-    frozenset(
-        entity
-        for recognizer in analyzer.registry.recognizers
-        if isinstance(recognizer, SpacyRecognizer)
-        for entity in recognizer.supported_entities
-    )
-    & _producible_ner_entities()
-)
-
-# One blank NlpArtifacts per language, built once at startup. Passing these to
-# analyze() skips nlp_engine.process_text (the spaCy tok2vec+ner pass) entirely:
-# the pattern recognizers still match on the raw text, SpacyRecognizer finds
-# nothing in blank artifacts (and can only be consulted at all for claimed-but-
-# unproducible entities like PHONE_NUMBER), and score_threshold is unset so
-# detection is identical.
-# Only context-based score boosting (which needs real tokens) is unavailable — an
-# accepted trade for skipping NER on the hot block-output path. Read-only, so it
-# is safe to share across requests and workers.
-_BLANK_ARTIFACTS = {
-    language: analyzer.nlp_engine.process_text("", language)
-    for language in SUPPORTED_LANGUAGES
-}
 
 
 def _regex_only(entities: list[str] | None, score_threshold: float | None) -> bool:
@@ -308,7 +290,39 @@ def _analyze_many(
     )
 
 
-app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    global analyzer, batch_analyzer, anonymizer, NER_ENTITIES, _BLANK_ARTIFACTS
+    logger.info("building analyzer (spacy)")
+    analyzer = build_analyzer()
+    batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
+    anonymizer = AnonymizerEngine()
+    NER_ENTITIES = _SPACY_NER_FLOOR | (
+        frozenset(
+            entity
+            for recognizer in analyzer.registry.recognizers
+            if isinstance(recognizer, SpacyRecognizer)
+            for entity in recognizer.supported_entities
+        )
+        & _producible_ner_entities()
+    )
+    # One blank NlpArtifacts per language, built once at startup. Passing these to
+    # analyze() skips nlp_engine.process_text (the spaCy tok2vec+ner pass) entirely:
+    # the pattern recognizers still match on the raw text, SpacyRecognizer finds
+    # nothing in blank artifacts (and can only be consulted at all for claimed-but-
+    # unproducible entities like PHONE_NUMBER), and score_threshold is unset so
+    # detection is identical.
+    # Only context-based score boosting (which needs real tokens) is unavailable — an
+    # accepted trade for skipping NER on the hot block-output path. Read-only, so it
+    # is safe to share across requests.
+    _BLANK_ARTIFACTS = {
+        language: analyzer.nlp_engine.process_text("", language)
+        for language in SUPPORTED_LANGUAGES
+    }
+    yield
+
+
+app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.exception_handler(RequestValidationError)
@@ -377,6 +391,41 @@ def custom_operators(patterns: list[CustomPattern] | None) -> dict[str, dict[str
     }
 
 
+# Seconds one request may spend matching its custom patterns, summed over every
+# pattern and text. REGEX_TIMEOUT_SECONDS bounds only one pattern on one text, so
+# without this a batch could cost texts x patterns x that timeout.
+CUSTOM_PATTERN_BUDGET_SECONDS = 60
+
+
+class _MatchBudget:
+    """Custom-pattern matching seconds left for one request, shared by its
+    recognizers. A request is analyzed on a single thread, so no lock is needed."""
+
+    def __init__(self, seconds: float) -> None:
+        self.remaining = seconds
+
+
+class BudgetedPatternRecognizer(PatternRecognizer):
+    """Custom-pattern recognizer that charges its matching time to the request's
+    budget and fails the request with a 400 once the budget is spent."""
+
+    def __init__(self, budget: _MatchBudget, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._budget = budget
+
+    def analyze(self, *args: Any, **kwargs: Any) -> list[RecognizerResult]:
+        started = time.perf_counter()
+        results = super().analyze(*args, **kwargs)
+        self._budget.remaining -= time.perf_counter() - started
+        if self._budget.remaining < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Custom patterns exceeded the {CUSTOM_PATTERN_BUDGET_SECONDS}s "
+                "matching budget for this request",
+            )
+        return results
+
+
 def build_custom_recognizers(
     patterns: list[CustomPattern] | None, language: str
 ) -> tuple[list[PatternRecognizer], list[str]]:
@@ -384,6 +433,7 @@ def build_custom_recognizers(
 
     Each regex is precompiled so a malformed pattern fails fast as a 400 rather
     than surfacing later as an opaque analyze-time 500."""
+    budget = _MatchBudget(CUSTOM_PATTERN_BUDGET_SECONDS)
     recognizers: list[PatternRecognizer] = []
     entity_ids: list[str] = []
     for i, p in enumerate(patterns or []):
@@ -395,7 +445,8 @@ def build_custom_recognizers(
             ) from exc
         entity = f"{CUSTOM_ENTITY_PREFIX}{i}"
         recognizers.append(
-            PatternRecognizer(
+            BudgetedPatternRecognizer(
+                budget,
                 supported_entity=entity,
                 # Score 1.0 so a user's explicit pattern wins any overlap with a
                 # built-in detector (e.g. spaCy tagging "EMP-123456" as ORGANIZATION

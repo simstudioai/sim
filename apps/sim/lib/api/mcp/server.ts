@@ -1,12 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 import { z } from 'zod'
 import {
   describeOperation,
+  describeOperationOutput,
   OPERATION_DOMAINS,
   resolveOperation,
   searchOperations,
+  searchOperationsOutput,
   TOOL_NAMES,
 } from '@/lib/api/mcp/catalog'
 import {
@@ -14,9 +17,13 @@ import {
   type McpDispatchContext,
   type McpOperationCall,
 } from '@/lib/api/mcp/dispatch'
-import { jsonToolResult, toolError } from '@/lib/mcp/tool-result'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { structuredToolResult, toolError } from '@/lib/mcp/tool-result'
 
 const logger = createLogger('SimMcpServer')
+
+const DESCRIPTION =
+  'Lets an agent work in Sim, the AI workspace for building, deploying, and managing AI agents: search the Sim API, then read or change workspaces, workflows and their runs, tables, knowledge bases, files, logs, credentials, and deployments.'
 
 const INSTRUCTIONS = `Sim is the AI workspace where teams build, deploy, and manage AI agents. This server exposes the full Sim API: workspaces, workflows and their runs, tables, knowledge bases, files, logs, credentials, deployments, and more.
 
@@ -43,8 +50,21 @@ const searchInput = z
       .describe(
         'Keywords matched against operation names, summaries, and paths, e.g. "table rows".'
       ),
-    domain: z.enum(OPERATION_DOMAINS).optional().describe('Only operations in this API area.'),
-    limit: z.number().int().min(1).max(100).default(25),
+    domain: z
+      .enum(OPERATION_DOMAINS)
+      .optional()
+      .describe(
+        'API area to search or list, such as tables, workflows, or knowledge. Omit to search every area.'
+      ),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(25)
+      .describe(
+        'How many matching operations to return, best match first. When total in the result is larger, narrow the query or domain.'
+      ),
   })
   .strict()
 
@@ -57,20 +77,28 @@ const callInput = z
     params: z
       .record(z.string(), z.string())
       .optional()
-      .describe('Path parameters by name, e.g. { "tableId": "..." }.'),
+      .describe(
+        'Values for the bracketed segments of the operation’s path, by name, e.g. { "tableId": "..." }. IDs come from list operations such as listTables.'
+      ),
     query: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
       .optional()
-      .describe('Query-string parameters by name.'),
+      .describe(
+        'Query-string values by name, as the query schema from describe_operation lists them, e.g. { "limit": 50 } or the cursor from the previous page.'
+      ),
     headers: z
       .record(z.string(), z.string())
       .optional()
-      .describe('Request headers the operation declares, such as upload-token.'),
+      .describe(
+        'Headers the operation’s describe_operation schema lists, such as upload-token. Sim sets authentication and content headers itself.'
+      ),
     body: z
       .record(z.string(), z.unknown())
       .meta({ additionalProperties: true })
       .optional()
-      .describe('JSON request body, as describe_operation specifies.'),
+      .describe(
+        'JSON request body matching the body schema from describe_operation. Omit it when the operation takes no body.'
+      ),
   })
   .strict()
 
@@ -84,7 +112,29 @@ const callInput = z
  * tools so a client can approve reads once and still confirm every change.
  */
 export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>): McpServer {
-  const server = new McpServer({ name: 'Sim', version: '1.0.0' }, { instructions: INSTRUCTIONS })
+  const baseUrl = getBaseUrl()
+  const server = new McpServer(
+    {
+      name: 'Sim',
+      title: 'Sim',
+      version: '1.0.0',
+      description: DESCRIPTION,
+      websiteUrl: `${SIM_DOCS_URL}/mcp/overview`,
+      icons: [
+        {
+          src: `${baseUrl}/favicon/android-chrome-512x512.png`,
+          mimeType: 'image/png',
+          sizes: ['512x512'],
+        },
+        {
+          src: `${baseUrl}/favicon/android-chrome-192x192.png`,
+          mimeType: 'image/png',
+          sizes: ['192x192'],
+        },
+      ],
+    },
+    { instructions: INSTRUCTIONS }
+  )
 
   async function call(
     tool: 'read' | 'write',
@@ -111,8 +161,9 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
     {
       title: 'Search operations',
       description:
-        'Find Sim API operations by keyword or domain. Returns each operation’s name, HTTP method, path, summary, and the tool that runs it. Call without a query to list a domain.',
+        'Find Sim API operations by keyword or domain. Returns how many match and, best match first, each operation’s name, HTTP method, path, summary, and the tool that runs it. Call without a query to list a domain.',
       inputSchema: searchInput,
+      outputSchema: searchOperationsOutput,
       annotations: {
         title: 'Search operations',
         readOnlyHint: true,
@@ -121,7 +172,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
         openWorldHint: false,
       },
     },
-    async (input) => jsonToolResult(await searchOperations(input))
+    async (input) => structuredToolResult(await searchOperations(input))
   )
 
   server.registerTool(
@@ -129,8 +180,9 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
     {
       title: 'Describe operation',
       description:
-        'Get the JSON Schema of an operation’s path parameters, query, body, and headers. Read it before calling an operation for the first time.',
+        'Get what is needed to call one operation: its HTTP method, path, summary, longer description when it has one, the tool that runs it, whether it refuses workspace API keys, and the JSON Schema of its path parameters, query, body, and headers. Read it before calling an operation for the first time.',
       inputSchema: describeInput,
+      outputSchema: describeOperationOutput,
       annotations: {
         title: 'Describe operation',
         readOnlyHint: true,
@@ -143,7 +195,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       const resolved = await resolveOperation(operation, 'any')
       return 'error' in resolved
         ? toolError(resolved.error)
-        : jsonToolResult(await describeOperation(resolved.operation))
+        : structuredToolResult(await describeOperation(resolved.operation))
     }
   )
 
@@ -168,12 +220,12 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
   server.registerTool(
     TOOL_NAMES.write,
     {
-      title: 'Change Sim',
+      title: 'Write to Sim',
       description:
-        'Run a Sim API operation that creates, changes, runs, or deletes something, such as createTable, executeWorkflow, or deleteFile.',
+        'Run a Sim API operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as createTable, executeWorkflow, or deleteFile. Changes apply immediately, with no preview or undo. A workflow run executes its blocks, which can call external services and use credits, so confirm deletions and runs with the user first.',
       inputSchema: callInput,
       annotations: {
-        title: 'Change Sim',
+        title: 'Write to Sim',
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: false,

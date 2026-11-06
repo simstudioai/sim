@@ -1,17 +1,14 @@
 import { db } from '@sim/db'
 import { copilotChats, document, organization, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { chatCleanupMock, chatCleanupMockFns } from '@sim/testing/mocks/chat-cleanup.mock'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCleanupCopilotBackend } = vi.hoisted(() => ({
-  mockCleanupCopilotBackend: vi.fn(),
-}))
-
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/cleanup/chat-cleanup', () => ({ cleanupCopilotBackend: mockCleanupCopilotBackend }))
+vi.mock('@/lib/cleanup/chat-cleanup', () => chatCleanupMock)
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
@@ -22,6 +19,7 @@ import {
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 
 const { mockDeleteFile } = storageServiceMockFns
+const { mockCleanupCopilotBackend } = chatCleanupMockFns
 const { mockEnqueueOutboxEvent } = outboxServiceMockFns
 
 const ORG_ID = 'org-1'

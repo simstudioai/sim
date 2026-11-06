@@ -85,7 +85,11 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
           id: { type: 'string', description: 'Vector ID' },
           values: { type: 'array', description: 'Vector values' },
           metadata: { type: 'object', description: 'Associated metadata' },
-          score: { type: 'number', description: 'Match score (1.0 for exact matches)' },
+          score: {
+            type: 'number',
+            description:
+              'Fixed score of 1.0 assigned by this fetch operation; not a similarity-query score',
+          },
         },
       },
     },

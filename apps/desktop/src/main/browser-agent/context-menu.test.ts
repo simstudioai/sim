@@ -29,7 +29,18 @@ type Page = Parameters<typeof buildAgentContextMenuTemplate>[1]
 type Handlers = Parameters<typeof buildAgentContextMenuTemplate>[2]
 
 function params(overrides: Partial<Params> = {}): Params {
-  return { selectionText: '', linkURL: '', isEditable: false, editFlags: EDIT_FLAGS, ...overrides }
+  return {
+    selectionText: '',
+    linkURL: '',
+    isEditable: false,
+    editFlags: EDIT_FLAGS,
+    misspelledWord: '',
+    dictionarySuggestions: [],
+    mediaType: 'none',
+    srcURL: '',
+    hasImageContents: false,
+    ...overrides,
+  }
 }
 
 function page(overrides: Partial<Page> = {}): Page {
@@ -46,13 +57,20 @@ function page(overrides: Partial<Page> = {}): Page {
 function handlers(): Handlers {
   return {
     addToChat: vi.fn(),
+    replaceMisspelling: vi.fn(),
+    addToDictionary: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    cut: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    reload: vi.fn(),
+    pasteAndMatchStyle: vi.fn(),
+    selectAll: vi.fn(),
+    navigate: vi.fn(),
     openTab: vi.fn(),
     copyLink: vi.fn(),
+    copyImage: vi.fn(),
+    saveImage: vi.fn(),
     setZoomFactor: vi.fn(),
   }
 }
@@ -82,11 +100,16 @@ describe('buildAgentContextMenuTemplate', () => {
 })
 
 describe('attachAgentContextMenu', () => {
+  const navigationHost = {
+    history: () => ({ canGoBack: false, canGoForward: false }),
+    navigate: vi.fn(),
+  }
   type ContextMenuListener = (event: unknown, params: Params) => void
 
   it('suppresses one agent context menu and immediately allows the next menu', async () => {
     const contents = new WebContentsView().webContents
     attachAgentContextMenu(contents, {
+      ...navigationHost,
       addToChat: vi.fn(),
       openTab: vi.fn(),
       defaultZoomFactor: () => BASE_ZOOM_FACTOR,
@@ -110,6 +133,7 @@ describe('attachAgentContextMenu', () => {
     async (inputEvent) => {
       const contents = new WebContentsView().webContents
       attachAgentContextMenu(contents, {
+        ...navigationHost,
         addToChat: vi.fn(),
         openTab: vi.fn(),
         defaultZoomFactor: () => BASE_ZOOM_FACTOR,

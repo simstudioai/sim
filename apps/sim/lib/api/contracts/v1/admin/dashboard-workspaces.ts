@@ -90,6 +90,17 @@ const adminDashboardWorkspaceSourceImpactSchema = z.object({
       })
     )
     .max(500),
+  /** Source-org blocks published elsewhere but used here; these placements break after the move. */
+  inboundCustomBlocks: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.string(),
+        name: z.string(),
+        movingWorkspaceUsage: adminDashboardCustomBlockUsageSchema,
+      })
+    )
+    .max(500),
   /** Non-empty means the move is blocked until the fork is disconnected. */
   blockingForkEdges: z
     .array(
@@ -125,6 +136,7 @@ const adminDashboardWorkspaceSourceImpactSchema = z.object({
   truncated: z
     .object({
       customBlocks: z.number().int().min(0),
+      inboundCustomBlocks: z.number().int().min(0),
       permissionGroups: z.number().int().min(0),
       collaboratorCaps: z.number().int().min(0),
       forkEdges: z.number().int().min(0),

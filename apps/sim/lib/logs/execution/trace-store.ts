@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -14,6 +15,7 @@ import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/ha
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   isResolvedSecretTraceProvenanceV1,
+  type ProvenanceDecryptFailure,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -27,6 +29,17 @@ export const SECRET_PROJECTION_VERSION = 1 as const
  * is stored on the slim `execution_data` row.
  */
 export const TRACE_STORE_REF_KEY = 'traceStoreRef'
+
+/**
+ * Bytes of the stored archive a slim `execution_data` row points at, or 0 when
+ * the row carries its execution data inline. Read before materializing, so a
+ * caller can budget a page by what it is about to load.
+ */
+export function executionDataArchiveBytes(executionData: unknown): number {
+  if (!isRecordLike(executionData)) return 0
+  const ref = executionData[TRACE_STORE_REF_KEY]
+  return isLargeValueRef(ref) ? ref.size : 0
+}
 
 /**
  * The only metadata kept inline on the slim row (everything else lives in the
@@ -362,16 +375,25 @@ export async function materializeExecutionData(
   }
 }
 
-const LOG_DISPLAY_CONTENT_KEYS = [
+/**
+ * Display envelope values project one per span, so an oversized or ref-backed value withholds
+ * only itself. They share the trace spans' content budget, so the bulky block dumps go after the
+ * spans: when the budget runs out, those lose their content before the run's error or its trace.
+ */
+const LEADING_LOG_DISPLAY_CONTENT_KEYS = [
+  'error',
+  'message',
+  'completionFailure',
+  'errorDetails',
   'finalOutput',
   'workflowInput',
-  'blockInput',
-  'blockExecutions',
-  'error',
-  'errorDetails',
-  'completionFailure',
-  'message',
 ] as const
+const TRAILING_LOG_DISPLAY_CONTENT_KEYS = ['blockInput', 'blockExecutions'] as const
+const LOG_DISPLAY_CONTENT_KEYS = [
+  ...LEADING_LOG_DISPLAY_CONTENT_KEYS,
+  ...TRAILING_LOG_DISPLAY_CONTENT_KEYS,
+] as const
+type LogDisplayContentKey = (typeof LOG_DISPLAY_CONTENT_KEYS)[number]
 
 const LOG_DISPLAY_PROJECTION_SPAN_ID = 'secret-safe-log-display-projection'
 const EXACT_LOG_VALUE_PROVENANCE_KEYS = {
@@ -435,7 +457,7 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
     'traceStore.blockOutputRunProvenance'
   )
-  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  const provenanceFaults = new Map<string, StoredDisplayFault>()
   if (runImport.fault) provenanceFaults.set('run', runImport.fault)
   const blockOutputs = new Map<string, unknown>()
   const projectionStore = createReadOnlyProjectionStore(context)
@@ -454,10 +476,11 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       registry = blockImport.registry
     }
     const now = new Date().toISOString()
+    const blockOutputSpanId = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`
     const [projected] = await projectTraceSpansForSecrets(
       [
         {
-          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`,
+          id: blockOutputSpanId,
           name: 'Block Output Display Projection',
           type: 'display',
           duration: 0,
@@ -466,7 +489,12 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
           output: { value: blockState.output },
         },
       ],
-      { registry, allowLargeValueWrites: false, store: projectionStore }
+      {
+        registry,
+        allowLargeValueWrites: false,
+        store: projectionStore,
+        displayFieldsBySpanId: new Map([[blockOutputSpanId, `blockOutput:${blockId}`]]),
+      }
     )
     if (projected?.output && Object.hasOwn(projected.output, 'value')) {
       blockOutputs.set(blockId, projected.output.value)
@@ -483,9 +511,15 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 type StoredDisplayProvenanceFault = 'incomplete' | 'malformed' | 'undecryptable'
 
+interface StoredDisplayFault {
+  kind: StoredDisplayProvenanceFault
+  /** Set for `undecryptable`: the entry detail the registry would otherwise log on its own line. */
+  decryptFailure?: ProvenanceDecryptFailure
+}
+
 interface StoredDisplayEnvelopeImport {
   registry: ResolvedSecretTraceRegistry | undefined
-  fault: StoredDisplayProvenanceFault | undefined
+  fault: StoredDisplayFault | undefined
 }
 
 /**
@@ -506,15 +540,27 @@ async function importStoredDisplayEnvelope(
 ): Promise<StoredDisplayEnvelopeImport> {
   if (provenance === undefined) return { registry: undefined, fault: undefined }
   if (!isResolvedSecretTraceProvenanceV1(provenance)) {
-    return { registry: undefined, fault: 'malformed' }
+    return { registry: undefined, fault: { kind: 'malformed' } }
   }
 
   const registry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
-  await registry.importProvenance(provenance, { trusted: true, origin })
-  const fault = !provenance.complete
-    ? 'incomplete'
+  let decryptFailure: ProvenanceDecryptFailure | undefined
+  await registry.importProvenance(provenance, {
+    trusted: true,
+    origin,
+    // Only a complete envelope can classify as `undecryptable`, whose line carries this detail.
+    ...(provenance.complete
+      ? {
+          onDecryptFailure: (failure: ProvenanceDecryptFailure) => {
+            decryptFailure = failure
+          },
+        }
+      : {}),
+  })
+  const fault: StoredDisplayFault | undefined = !provenance.complete
+    ? { kind: 'incomplete' }
     : registry.isPermanentlyIncomplete()
-      ? 'undecryptable'
+      ? { kind: 'undecryptable', decryptFailure }
       : undefined
   return { registry, fault }
 }
@@ -527,7 +573,7 @@ const STORED_PROVENANCE_FAULT_REPORTS = {
     message: 'Stored execution provenance cannot vouch for display content',
   },
   malformed: { level: 'error', message: 'Stored execution provenance is malformed' },
-  /** The entry-level decrypt error already logs its counts; this adds the execution it hit. */
+  /** Carries the entry decrypt detail too, which the registry hands over instead of logging. */
   undecryptable: { level: 'error', message: 'Stored execution provenance could not be decrypted' },
 } as const satisfies Record<
   StoredDisplayProvenanceFault,
@@ -552,7 +598,7 @@ const STORED_PROVENANCE_FAULT_REPORTS = {
 function reportStoredDisplayProvenanceFaults(
   site: string,
   context: TraceStoreReadContext,
-  faults: ReadonlyMap<string, StoredDisplayProvenanceFault>
+  faults: ReadonlyMap<string, StoredDisplayFault>
 ): void {
   if (faults.size === 0) return
   const details = {
@@ -565,13 +611,23 @@ function reportStoredDisplayProvenanceFaults(
     StoredDisplayProvenanceFault,
     (typeof STORED_PROVENANCE_FAULT_REPORTS)[StoredDisplayProvenanceFault],
   ][]) {
-    const parts = [...faults].filter(([, fault]) => fault === kind).map(([part]) => part)
-    if (parts.length === 0) continue
+    const matching = [...faults].filter(([, fault]) => fault.kind === kind)
+    if (matching.length === 0) continue
+    const decryptFailures = matching.flatMap(([, fault]) =>
+      fault.decryptFailure ? [fault.decryptFailure] : []
+    )
     logger[report.level](report.message, {
       ...details,
       fault: kind,
-      parts: parts.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS),
-      partCount: parts.length,
+      parts: matching.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS).map(([part]) => part),
+      partCount: matching.length,
+      ...(decryptFailures.length > 0
+        ? {
+            error: decryptFailures[0].error,
+            failedEntryCount: decryptFailures.reduce((sum, f) => sum + f.failedEntryCount, 0),
+            totalEntryCount: decryptFailures.reduce((sum, f) => sum + f.totalEntryCount, 0),
+          }
+        : {}),
     })
   }
 }
@@ -614,7 +670,7 @@ export async function projectExecutionDataForDisplay(
     return projectLegacyExecutionDataForDisplay(executionData)
   }
 
-  const provenanceFaults = new Map<string, StoredDisplayProvenanceFault>()
+  const provenanceFaults = new Map<string, StoredDisplayFault>()
   const runImport = await importStoredDisplayEnvelope(provenance, 'traceStore.spanProvenance')
   const registry = runImport.registry
   if (runImport.fault) provenanceFaults.set('traceSpans', runImport.fault)
@@ -673,10 +729,11 @@ export async function projectExecutionDataForDisplay(
       exactRegistry.markIncomplete('untrusted-provenance', { origin: 'traceStore.exactProvenance' })
     }
 
+    const exactValueSpanId = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${valueKey}`
     const [projected] = await projectTraceSpansForSecrets(
       [
         {
-          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${valueKey}`,
+          id: exactValueSpanId,
           name: 'Exact Log Value Display Projection',
           type: 'display',
           duration: 0,
@@ -685,7 +742,12 @@ export async function projectExecutionDataForDisplay(
           output: { value: executionData[valueKey] },
         },
       ],
-      { registry: exactRegistry, allowLargeValueWrites: false, store: projectionStore }
+      {
+        registry: exactRegistry,
+        allowLargeValueWrites: false,
+        store: projectionStore,
+        displayFieldsBySpanId: new Map([[exactValueSpanId, valueKey]]),
+      }
     )
     if (projected?.output && Object.hasOwn(projected.output, 'value')) {
       exactValueProjections.set(valueKey, projected.output.value)
@@ -693,37 +755,51 @@ export async function projectExecutionDataForDisplay(
   }
   reportStoredDisplayProvenanceFaults('traceStore.displayProjection', context, provenanceFaults)
 
-  const envelope: Record<string, unknown> = {}
-  for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-    const exactProvenanceKey =
-      EXACT_LOG_VALUE_PROVENANCE_KEYS[key as keyof typeof EXACT_LOG_VALUE_PROVENANCE_KEYS]
-    if (
-      Object.hasOwn(executionData, key) &&
-      (!exactProvenanceKey || !executionState || !Object.hasOwn(executionState, exactProvenanceKey))
-    ) {
-      envelope[key] = executionData[key]
-    }
-  }
-
   const now = new Date().toISOString()
-  const syntheticSpan: TraceSpan = {
-    id: LOG_DISPLAY_PROJECTION_SPAN_ID,
-    name: 'Log Display Projection',
-    type: 'display',
-    duration: 0,
-    startTime: now,
-    endTime: now,
-    output: envelope,
-  }
+  /** Unguessable per call, so no stored span id can be mistaken for an envelope value. */
+  const envelopeSpanIdPrefix = `${LOG_DISPLAY_PROJECTION_SPAN_ID}-${generateShortId()}`
+  const envelopeKeysBySpanId = new Map<string, LogDisplayContentKey>()
+  const envelopeSpans = (keys: readonly LogDisplayContentKey[]): TraceSpan[] =>
+    keys.flatMap((key) => {
+      const exactProvenanceKey =
+        EXACT_LOG_VALUE_PROVENANCE_KEYS[key as keyof typeof EXACT_LOG_VALUE_PROVENANCE_KEYS]
+      if (
+        !Object.hasOwn(executionData, key) ||
+        (exactProvenanceKey && executionState && Object.hasOwn(executionState, exactProvenanceKey))
+      ) {
+        return []
+      }
+      const id = `${envelopeSpanIdPrefix}-${key}`
+      envelopeKeysBySpanId.set(id, key)
+      return [
+        {
+          id,
+          name: 'Log Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: now,
+          endTime: now,
+          output: { value: executionData[key] },
+        },
+      ]
+    })
   const sourceTraceSpans = Array.isArray(executionData.traceSpans)
     ? (executionData.traceSpans as TraceSpan[])
     : []
   const spansToProject = retainStoredTraceSpans ? [] : sourceTraceSpans
-  const projectedSpans = await projectTraceSpansForSecrets([syntheticSpan, ...spansToProject], {
-    registry,
-    allowLargeValueWrites: false,
-    store: projectionStore,
-  })
+  const projectedSpans = await projectTraceSpansForSecrets(
+    [
+      ...envelopeSpans(LEADING_LOG_DISPLAY_CONTENT_KEYS),
+      ...spansToProject,
+      ...envelopeSpans(TRAILING_LOG_DISPLAY_CONTENT_KEYS),
+    ],
+    {
+      registry,
+      allowLargeValueWrites: false,
+      store: projectionStore,
+      displayFieldsBySpanId: envelopeKeysBySpanId,
+    }
+  )
 
   const displayData = omit(executionData, [
     ...LOG_DISPLAY_CONTENT_KEYS,
@@ -731,12 +807,10 @@ export async function projectExecutionDataForDisplay(
     'traceSpans',
   ]) as Record<string, unknown>
 
-  const projectedEnvelope = projectedSpans.find(
-    (span) => span.id === LOG_DISPLAY_PROJECTION_SPAN_ID
-  )?.output
-  if (projectedEnvelope) {
-    for (const key of LOG_DISPLAY_CONTENT_KEYS) {
-      if (Object.hasOwn(projectedEnvelope, key)) displayData[key] = projectedEnvelope[key]
+  for (const span of projectedSpans) {
+    const key = envelopeKeysBySpanId.get(span.id)
+    if (key && span.output && Object.hasOwn(span.output, 'value')) {
+      displayData[key] = span.output.value
     }
   }
   for (const [key, value] of exactValueProjections) {
@@ -746,7 +820,7 @@ export async function projectExecutionDataForDisplay(
   if (Array.isArray(executionData.traceSpans)) {
     displayData.traceSpans = retainStoredTraceSpans
       ? sourceTraceSpans
-      : projectedSpans.filter((span) => span.id !== LOG_DISPLAY_PROJECTION_SPAN_ID)
+      : projectedSpans.filter((span) => !envelopeKeysBySpanId.has(span.id))
   }
 
   return displayData

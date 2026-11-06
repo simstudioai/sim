@@ -1,5 +1,5 @@
 import { CREDIT_TIERS } from '@/lib/billing/constants'
-import type { CompetitorProfile, Fact, Prose } from '@/lib/compare/data'
+import type { ComparisonQuestion, CompetitorProfile, Fact, Prose } from '@/lib/compare/data'
 import { simProfile } from '@/lib/compare/data'
 import { toSiteUrl } from '@/lib/core/utils/urls'
 import { getAllCustomerStoryMeta, getCustomerStorySource } from '@/lib/customers/registry'
@@ -13,6 +13,7 @@ import {
   ALL_COMPETITORS,
   buildBottomLine,
   getLatestVerifiedDate,
+  getQuestionSectionGroups,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
@@ -79,9 +80,14 @@ function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+function questionMarkdown({ question, answer }: ComparisonQuestion): string {
+  return `**${question}**\n\n${proseToMarkdown(answer)}`
+}
+
 /** The key facts of one `/comparisons/{id}` page as markdown, from the same profile data. */
 function comparisonMarkdown(competitor: CompetitorProfile): string {
   const verdict = buildBottomLine(competitor)
+  const questions = getQuestionSectionGroups(competitor)
   const verified = new Date(
     Math.max(SIM_LATEST_VERIFIED.getTime(), getLatestVerifiedDate(competitor).getTime())
   )
@@ -98,8 +104,23 @@ function comparisonMarkdown(competitor: CompetitorProfile): string {
     `### Sim vs ${competitor.name}`,
     `URL: ${toSiteUrl(`/comparisons/${competitor.id}`)} · Facts last verified ${isoDate(verified)}`,
     `${competitor.name}: ${competitor.oneLiner}`,
-    competitor.leadAnswer ? proseToMarkdown(competitor.leadAnswer) : '',
-    competitor.betterThanAnswer ? proseToMarkdown(competitor.betterThanAnswer) : '',
+    questions.lead
+      ? questionMarkdown(questions.lead)
+      : competitor.leadAnswer
+        ? proseToMarkdown(competitor.leadAnswer)
+        : '',
+    ...questions.opening.map(questionMarkdown),
+    competitor.glance
+      ? [
+          `| Decision point | Sim | ${competitor.name} |`,
+          '| --- | --- | --- |',
+          ...competitor.glance.map(
+            (row) =>
+              `| ${row.label} | ${proseToMarkdown(row.sim)} | ${proseToMarkdown(row.competitor)} |`
+          ),
+        ].join('\n')
+      : '',
+    ...questions.glance.map(questionMarkdown),
     `- ${verdict.chooseSim}\n- ${verdict.chooseCompetitor}`,
     competitor.standoutFeatures.length > 0
       ? `Standout features of ${competitor.name}:\n\n${competitor.standoutFeatures.map((f) => `- ${f.title}: ${f.description}`).join('\n')}`
@@ -108,6 +129,7 @@ function comparisonMarkdown(competitor: CompetitorProfile): string {
       ? `Documented limitations of ${competitor.name}:\n\n${competitor.limitations.map((l) => `- ${l.title}: ${l.description}`).join('\n')}`
       : '',
     [`| Feature | Sim | ${competitor.name} |`, '| --- | --- | --- |', ...rows].join('\n'),
+    ...questions.closing.map(questionMarkdown),
   ]
     .filter(Boolean)
     .join('\n\n')

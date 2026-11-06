@@ -15,8 +15,7 @@ export const GoogleTasksBlock: BlockConfig = {
   type: 'google_tasks',
   name: 'Google Tasks',
   description: 'Manage Google Tasks',
-  longDescription:
-    'Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.',
+  longDescription: 'Create, read, update, delete, and list tasks and task lists.',
   docsLink: 'https://docs.sim.ai/integrations/google_tasks',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

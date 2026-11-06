@@ -136,7 +136,7 @@ export const GitLabBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
-    'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Supports all core GitLab DevOps operations.',
+    'Manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Additional operations depend on the connected account and instance permissions.',
   docsLink: 'https://docs.sim.ai/integrations/gitlab',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

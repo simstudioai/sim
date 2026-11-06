@@ -3,7 +3,7 @@ import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-
 import { submitReductoParse } from '@/lib/internal/reducto/client'
 import { ReductoOperationError } from '@/lib/internal/reducto/errors'
 import type { ReductoParseInput } from '@/lib/internal/reducto/input'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 
 const logger = createLogger('ReductoOperations')
 

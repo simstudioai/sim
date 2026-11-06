@@ -7,7 +7,7 @@ import {
   type SaveMemorySummaryInput,
   saveMemorySummary,
 } from '@/lib/memory/summary-store'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const readAgentMemorySummaryUseCase = defineAuthorizedWorkspaceUseCase({
   operation: memoryOperations.readSummary,

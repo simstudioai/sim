@@ -10,7 +10,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
-import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/attribution'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

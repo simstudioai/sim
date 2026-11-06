@@ -1,9 +1,17 @@
+import { isRecordLike } from '@sim/utils/object'
+import { TUNNEL_CONFIGURATION_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareGetTunnelConfigurationParams,
   CloudflareGetTunnelConfigurationResponse,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  mapCloudflareFields,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTunnelConfigurationTool: ToolConfig<
   CloudflareGetTunnelConfigurationParams,
@@ -38,62 +46,21 @@ export const getTunnelConfigurationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}/configurations`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/cfd_tunnel/${safeUrlPathSegment(params.tunnelId, 'tunnelId')}/configurations`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: {
-          tunnel_id: '',
-          account_id: '',
-          version: null,
-          source: null,
-          created_at: null,
-          config: null,
-        },
-        error: cloudflareErrorMessage(data, 'Failed to get tunnel configuration'),
-      }
-    }
-
-    const result = data.result
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
-      success: true,
-      output: {
-        tunnel_id: result?.tunnel_id ?? '',
-        account_id: result?.account_id ?? '',
-        version: result?.version ?? null,
-        source: result?.source ?? null,
-        created_at: result?.created_at ?? null,
-        config: result?.config ?? null,
-      },
+      success,
+      output: mapCloudflareFields(data.result, TUNNEL_CONFIGURATION_OUTPUTS),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to get tunnel configuration') }
+        : {}),
     }
   },
-
-  outputs: {
-    tunnel_id: { type: 'string', description: 'Tunnel the configuration belongs to' },
-    account_id: { type: 'string', description: 'Account the tunnel belongs to' },
-    version: {
-      type: 'number',
-      description: 'Configuration version, incremented on every change',
-      optional: true,
-    },
-    source: {
-      type: 'string',
-      description: 'Where the configuration is managed: local or cloudflare',
-      optional: true,
-    },
-    created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-    config: {
-      type: 'json',
-      description:
-        'Tunnel configuration with ingress rules, originRequest defaults, and warp-routing settings',
-      optional: true,
-    },
-  },
+  outputs: TUNNEL_CONFIGURATION_OUTPUTS,
 }

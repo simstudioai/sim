@@ -67,10 +67,10 @@ vi.mock('drizzle-orm', () => ({
 
 import {
   changeOrganizationWorkspaceBilledAccountsInTx,
+  changeProjectAndWorkspaceStoragePayersInTx,
   changeWorkspaceStoragePayerInTx,
-  changeWorkspaceStoragePayersInTx,
 } from '@/lib/billing/storage/payer-transfer'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const { warn: loggerWarn } = getMockLogger('WorkspaceStoragePayerTransfer')
 
@@ -277,7 +277,7 @@ function createFakeBatchTx(state: FakeBatchTransferState) {
   return {
     execute,
     locks,
-    tx: { execute, select, update } as unknown as DbOrTx,
+    tx: { execute, select, update } as unknown as DbTransaction,
     updates,
   }
 }
@@ -508,7 +508,7 @@ describe('changeWorkspaceStoragePayerInTx', () => {
   })
 })
 
-describe('changeWorkspaceStoragePayersInTx', () => {
+describe('changeProjectAndWorkspaceStoragePayersInTx workspace changes', () => {
   it('uses the same payer lock order for opposite-direction moves', async () => {
     const personalToOrganization = createFakeBatchTx({
       exactBytes: { 'workspace-a': 10 },
@@ -537,41 +537,38 @@ describe('changeWorkspaceStoragePayersInTx', () => {
       ],
     })
 
-    await changeWorkspaceStoragePayersInTx(personalToOrganization.tx, [
-      {
-        workspaceId: 'workspace-a',
-        organizationId: 'org-a',
-        billedAccountUserId: 'org-owner',
-      },
-    ])
-    await changeWorkspaceStoragePayersInTx(organizationToPersonal.tx, [
-      {
-        workspaceId: 'workspace-b',
-        organizationId: null,
-        billedAccountUserId: 'user-z',
-      },
-    ])
+    await changeProjectAndWorkspaceStoragePayersInTx(personalToOrganization.tx, {
+      projectChanges: [],
+      workspaceChanges: [
+        {
+          workspaceId: 'workspace-a',
+          organizationId: 'org-a',
+          billedAccountUserId: 'org-owner',
+        },
+      ],
+    })
+    await changeProjectAndWorkspaceStoragePayersInTx(organizationToPersonal.tx, {
+      projectChanges: [],
+      workspaceChanges: [
+        {
+          workspaceId: 'workspace-b',
+          organizationId: null,
+          billedAccountUserId: 'user-z',
+        },
+      ],
+    })
 
+    const lockOrder = ['workspace', 'userStats', 'organization']
     expect(personalToOrganization.locks.map(({ table }) => table)).toEqual([
-      'workspace',
-      'userStats',
-      'organization',
+      ...lockOrder,
+      ...lockOrder,
     ])
     expect(organizationToPersonal.locks.map(({ table }) => table)).toEqual([
-      'workspace',
-      'userStats',
-      'organization',
+      ...lockOrder,
+      ...lockOrder,
     ])
-    expect(personalToOrganization.updates.map(({ table }) => table)).toEqual([
-      'userStats',
-      'organization',
-      'workspace',
-    ])
-    expect(organizationToPersonal.updates.map(({ table }) => table)).toEqual([
-      'userStats',
-      'organization',
-      'workspace',
-    ])
+    expect(personalToOrganization.updates.map(({ table }) => table)).toEqual(lockOrder)
+    expect(organizationToPersonal.updates.map(({ table }) => table)).toEqual(lockOrder)
   })
 
   it('aggregates payer deltas once and clamps outgoing bytes before adding incoming bytes', async () => {
@@ -594,24 +591,28 @@ describe('changeWorkspaceStoragePayersInTx', () => {
       ],
     })
 
-    await changeWorkspaceStoragePayersInTx(fake.tx, [
-      {
-        workspaceId: 'workspace-b',
-        organizationId: null,
-        billedAccountUserId: 'destination',
-      },
-      {
-        workspaceId: 'workspace-a',
-        organizationId: null,
-        billedAccountUserId: 'destination',
-      },
-    ])
+    await changeProjectAndWorkspaceStoragePayersInTx(fake.tx, {
+      projectChanges: [],
+      workspaceChanges: [
+        {
+          workspaceId: 'workspace-b',
+          organizationId: null,
+          billedAccountUserId: 'destination',
+        },
+        {
+          workspaceId: 'workspace-a',
+          organizationId: null,
+          billedAccountUserId: 'destination',
+        },
+      ],
+    })
 
     expect(fake.execute).toHaveBeenCalledTimes(1)
-    expect(fake.locks).toEqual([
+    const sortedLocks = [
       { ids: ['workspace-a', 'workspace-b'], table: 'workspace' },
       { ids: ['destination', 'source'], table: 'userStats' },
-    ])
+    ]
+    expect(fake.locks).toEqual([...sortedLocks, ...sortedLocks])
     const userStatsUpdates = fake.updates.filter(({ table }) => table === 'userStats')
     expect(userStatsUpdates).toHaveLength(1)
     expect(readCaseAssignments(userStatsUpdates[0]?.values.storageUsedBytes)).toEqual({
@@ -636,22 +637,29 @@ describe('changeWorkspaceStoragePayersInTx', () => {
     })
 
     await expect(
-      changeWorkspaceStoragePayersInTx(fake.tx, [
-        {
-          workspaceId: 'workspace-a',
-          organizationId: null,
-          billedAccountUserId: 'destination',
-          expectedCurrentPayer: {
+      changeProjectAndWorkspaceStoragePayersInTx(fake.tx, {
+        projectChanges: [],
+        workspaceChanges: [
+          {
+            workspaceId: 'workspace-a',
             organizationId: null,
-            billedAccountUserId: 'stale',
+            billedAccountUserId: 'destination',
+            expectedCurrentPayer: {
+              organizationId: null,
+              billedAccountUserId: 'stale',
+            },
           },
-        },
-      ])
+        ],
+      })
     ).rejects.toThrow('Workspace workspace-a payer changed before the transaction lock')
 
     expect(fake.execute).not.toHaveBeenCalled()
     expect(fake.updates).toEqual([])
-    expect(fake.locks).toEqual([{ ids: ['workspace-a'], table: 'workspace' }])
+    expect(fake.locks).toEqual([
+      { ids: ['workspace-a'], table: 'workspace' },
+      { ids: ['current', 'destination'], table: 'userStats' },
+      { ids: ['workspace-a'], table: 'workspace' },
+    ])
   })
 })
 

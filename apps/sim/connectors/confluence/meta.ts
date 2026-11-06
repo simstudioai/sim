@@ -52,6 +52,12 @@ export const confluenceConnectorMeta: ConnectorMeta = {
    */
   rehydrateOnFullSync: true,
 
+  /** Image attachments hold tables, scans and screenshots, so they go through the vision extractor. */
+  imageExtraction: { settingId: 'imageAttachments' },
+
+  /** New connectors read images; existing ones keep them off until their owner opts in. */
+  defaultSourceConfig: { imageAttachments: 'semantic' },
+
   /** CQL search under a member's token returns only content that member may view. */
   permissionScopedListing: { capFieldIds: ['maxPages'] },
 
@@ -108,6 +114,20 @@ export const confluenceConnectorMeta: ConnectorMeta = {
         { label: 'Pages only', id: 'page' },
         { label: 'Blog posts only', id: 'blogpost' },
         { label: 'All content', id: 'all' },
+      ],
+    },
+    {
+      id: 'imageAttachments',
+      setupGroup: 'options',
+      title: 'Image Attachments',
+      placeholder: "Don't index",
+      type: 'dropdown',
+      required: false,
+      description:
+        'Read with AI turns tables, scans and screenshots into searchable text, billed per image. Logos and icons are kept but not searched.',
+      options: [
+        { label: 'Read with AI', id: 'semantic' },
+        { label: "Don't index", id: 'off' },
       ],
     },
     {

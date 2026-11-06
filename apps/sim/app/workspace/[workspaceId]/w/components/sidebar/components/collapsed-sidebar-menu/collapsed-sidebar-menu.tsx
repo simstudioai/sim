@@ -29,7 +29,10 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import {
+  holdRowFocus,
+  interleaveSiblings,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -45,6 +48,19 @@ interface CollapsedResourceFlyoutProps {
    */
   isLoading?: boolean
   emptyLabel: string
+  /**
+   * Fills each folder's submenu itself, on open, instead of from `entries`' nested children —
+   * for a resource whose folders are listed a page at a time. `isEmpty` decides which folders
+   * are inert, since their children are not in `entries` to count.
+   */
+  lazyFolders?: LazyFolderContent
+  /** A row after the entries, e.g. a link to the rest of a list the flyout shows only part of. */
+  footer?: React.ReactNode
+}
+
+interface LazyFolderContent {
+  render: (folderId: string) => React.ReactNode
+  isEmpty: (folderId: string) => boolean
 }
 
 /**
@@ -59,6 +75,8 @@ export function CollapsedResourceFlyout({
   currentItemId,
   isLoading = false,
   emptyLabel,
+  lazyFolders,
+  footer,
 }: CollapsedResourceFlyoutProps) {
   if (isLoading) {
     return (
@@ -71,7 +89,16 @@ export function CollapsedResourceFlyout({
   if (entries.length === 0) {
     return <DropdownMenuItem disabled>{emptyLabel}</DropdownMenuItem>
   }
-  return <CollapsedFlyoutRows entries={entries} currentItemId={currentItemId} />
+  return (
+    <>
+      <CollapsedFlyoutRows
+        entries={entries}
+        currentItemId={currentItemId}
+        lazyFolders={lazyFolders}
+      />
+      {footer}
+    </>
+  )
 }
 
 /**
@@ -88,7 +115,8 @@ function PinnedGlyph() {
 function CollapsedFlyoutRows({
   entries,
   currentItemId,
-}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId'>) {
+  lazyFolders,
+}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId' | 'lazyFolders'>) {
   return (
     <>
       {entries.map((entry) => {
@@ -103,7 +131,8 @@ function CollapsedFlyoutRows({
           )
         }
 
-        if (entry.children.length === 0) {
+        const isEmpty = lazyFolders ? lazyFolders.isEmpty(entry.id) : entry.children.length === 0
+        if (isEmpty) {
           return (
             <DropdownMenuItem key={entry.id} disabled>
               <OverflowText label={entry.name} />
@@ -119,7 +148,11 @@ function CollapsedFlyoutRows({
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
-              <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
+              {lazyFolders ? (
+                lazyFolders.render(entry.id)
+              ) : (
+                <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
@@ -185,15 +218,6 @@ interface CollapsedWorkflowFlyoutItemProps {
   onOpenInNewTab?: () => void
   onRename?: () => void
   canRename?: boolean
-}
-
-/**
- * Prevents Radix's mouse pointer handlers from transferring focus. Row handlers keep
- * actions submenus open; content capture handlers preserve inline rename focus,
- * including inside portaled folders. Radix skips handlers for defaulted events.
- */
-const holdRowFocus = (e: React.PointerEvent) => {
-  if (e.pointerType === 'mouse') e.preventDefault()
 }
 
 const EDIT_ROW_CLASS = cn(

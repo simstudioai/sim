@@ -72,6 +72,15 @@ export function getFreeTierLimit(): number {
 }
 
 /**
+ * The free allowance one user actually receives: the free tier limit, or zero
+ * when `user_stats.free_tier_eligible` is false because the account reuses the
+ * identity of a recently deleted one (see `lib/users/deleted-identity`).
+ */
+export function getFreeTierAllowance(freeTierEligible: boolean): number {
+  return freeTierEligible ? getFreeTierLimit() : 0
+}
+
+/**
  * Get the pro tier limit from env or fallback to default
  */
 export function getProTierLimit(): number {
@@ -165,11 +174,13 @@ export function isOrgScopedSubscription(
  * responsible for gating with `isOrgScopedSubscription` before calling.
  *
  * @param subscription The subscription object
+ * @param freeTierEligible The user's `user_stats.free_tier_eligible`, which
+ *   decides the floor when there is no paid subscription
  * @returns The per-user minimum limit in dollars
  */
-export function getPerUserMinimumLimit(subscription: any): number {
+export function getPerUserMinimumLimit(subscription: any, freeTierEligible: boolean): number {
   if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
-    return getFreeTierLimit()
+    return getFreeTierAllowance(freeTierEligible)
   }
 
   if (isPro(subscription.plan)) {
@@ -182,7 +193,7 @@ export function getPerUserMinimumLimit(subscription: any): number {
     return 0
   }
 
-  return getFreeTierLimit()
+  return getFreeTierAllowance(freeTierEligible)
 }
 
 /**
