@@ -12,6 +12,12 @@ export const awsMarketplaceOperations = {
     principalKinds: ['session'],
     capability: 'none',
   }),
+  // permission-group-exempt: a buyer with no organization takes their own purchase; nothing a group governs is touched.
+  registerToAccount: defineOperation({
+    id: 'aws_marketplace.license.register_account',
+    principalKinds: ['session'],
+    capability: 'none',
+  }),
   // permission-group-exempt: linking a purchased license is organization administration, not a governed capability.
   linkLicense: defineOrganizationOperation({
     id: 'organization.aws_marketplace_license.link',

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AuthField, AuthFormMessage, AuthSelect, AuthTag } from '@sim/auth-ui'
 import { useRouter } from 'next/navigation'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
-import { client, useSession } from '@/lib/auth/client'
+import { useSession } from '@/lib/auth/client'
 import {
   AWS_MARKETPLACE_ONBOARDING_PATH,
   type AwsMarketplaceOnboardingError,
@@ -15,6 +15,7 @@ import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import {
   useAwsMarketplaceClaim,
   useLinkAwsMarketplaceLicense,
+  useRegisterAwsMarketplaceLicenseToAccount,
 } from '@/hooks/queries/aws-marketplace'
 
 const RESTART_FROM_AWS =
@@ -64,6 +65,7 @@ export function AwsMarketplaceOnboarding({
   const viewerId = session?.user?.id ?? null
   const claimQuery = useAwsMarketplaceClaim(registrationError ? null : viewerId)
   const linkLicense = useLinkAwsMarketplaceLicense()
+  const registerToAccount = useRegisterAwsMarketplaceLicenseToAccount()
   const returnHome = { label: 'Return to Home', onClick: () => router.push('/') }
 
   if (registrationError) {
@@ -122,6 +124,19 @@ export function AwsMarketplaceOnboarding({
     )
   }
 
+  if (registerToAccount.isSuccess) {
+    return (
+      <InviteLayout>
+        <InviteStatusCard
+          type='success'
+          title='Subscription registered'
+          description='Our team will set up your Enterprise workspace and email you when it is ready.'
+          actions={[{ label: 'Go to Sim', onClick: () => router.push(APP_ENTRY_PATH) }]}
+        />
+      </InviteLayout>
+    )
+  }
+
   if (claimQuery.isPending) {
     return (
       <InviteLayout>
@@ -157,36 +172,22 @@ export function AwsMarketplaceOnboarding({
     )
   }
 
-  if (claim.organizations.length === 0) {
-    return (
-      <InviteLayout>
-        <InviteStatusCard
-          type='warning'
-          title='No organization to link'
-          description='Only an owner or admin of a Sim organization can link this subscription. Sign in with that account in this browser.'
-          actions={[
-            {
-              label: 'Sign in with a different account',
-              onClick: async () => {
-                await client.signOut()
-                router.push(authLink('/login'))
-              },
-            },
-            returnHome,
-          ]}
-        />
-      </InviteLayout>
-    )
-  }
-
+  const pending = linkLicense.isPending || registerToAccount.isPending
   return (
     <LinkLicenseCard
       claim={claim}
+      pending={pending}
       linking={linkLicense.isPending}
-      error={linkLicense.error?.message ?? null}
-      onLink={(organizationId) =>
+      registering={registerToAccount.isPending}
+      error={(linkLicense.error ?? registerToAccount.error)?.message ?? null}
+      onLink={(organizationId) => {
+        registerToAccount.reset()
         linkLicense.mutate({ licenseId: claim.license.id, organizationId })
-      }
+      }}
+      onRegister={() => {
+        linkLicense.reset()
+        registerToAccount.mutate({ licenseId: claim.license.id })
+      }}
       onCancel={returnHome.onClick}
     />
   )
@@ -194,13 +195,29 @@ export function AwsMarketplaceOnboarding({
 
 interface LinkLicenseCardProps {
   claim: Extract<AwsMarketplaceClaim, { status: 'ready' }>
+  pending: boolean
   linking: boolean
+  registering: boolean
   error: string | null
   onLink: (organizationId: string) => void
+  onRegister: () => void
   onCancel: () => void
 }
 
-function LinkLicenseCard({ claim, linking, error, onLink, onCancel }: LinkLicenseCardProps) {
+/**
+ * Links the license to an organization the viewer administers, or registers it to their
+ * account when they administer none or would rather not pick one.
+ */
+function LinkLicenseCard({
+  claim,
+  pending,
+  linking,
+  registering,
+  error,
+  onLink,
+  onRegister,
+  onCancel,
+}: LinkLicenseCardProps) {
   const { license, organizations } = claim
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>()
   const linkedOrganization = organizations.find((org) => org.id === license.organizationId)
@@ -218,12 +235,28 @@ function LinkLicenseCard({ claim, linking, error, onLink, onCancel }: LinkLicens
     },
   ]
 
+  const hasOrganizations = organizations.length > 0
+  const registerAction = {
+    label: hasOrganizations ? 'Register to my account instead' : 'Register to my account',
+    onClick: onRegister,
+    disabled: pending,
+    loading: registering,
+  }
+
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
-        title='Link your AWS Marketplace subscription'
-        description='Choose the organization this subscription is for. Our team will finish setting up your plan after you link it.'
+        title={
+          hasOrganizations
+            ? 'Link your AWS Marketplace subscription'
+            : 'Set up your AWS Marketplace subscription'
+        }
+        description={
+          hasOrganizations
+            ? 'Choose the organization this subscription is for, or register it to your account. Our team will finish setting up your plan.'
+            : 'Register this subscription to your account. Our team will set up your Enterprise workspace and email you.'
+        }
         details={
           <div className='au:w-full au:space-y-4'>
             <dl className='au:w-full au:space-y-2 au:text-sm au:tabular-nums'>
@@ -240,26 +273,33 @@ function LinkLicenseCard({ claim, linking, error, onLink, onCancel }: LinkLicens
                 </dd>
               </div>
             </dl>
-            <AuthField htmlFor='aws-marketplace-organization' label='Organization'>
-              <AuthSelect
-                id='aws-marketplace-organization'
-                options={organizations.map((org) => ({ label: org.name, value: org.id }))}
-                value={organizationId}
-                onChange={setSelectedOrganizationId}
-                placeholder='Select an organization'
-                fullWidth
-              />
-            </AuthField>
+            {hasOrganizations && (
+              <AuthField htmlFor='aws-marketplace-organization' label='Organization'>
+                <AuthSelect
+                  id='aws-marketplace-organization'
+                  options={organizations.map((org) => ({ label: org.name, value: org.id }))}
+                  value={organizationId}
+                  onChange={setSelectedOrganizationId}
+                  placeholder='Select an organization'
+                  fullWidth
+                />
+              </AuthField>
+            )}
             {error && <AuthFormMessage type='error'>{error}</AuthFormMessage>}
           </div>
         }
         actions={[
-          {
-            label: 'Link subscription',
-            onClick: () => organizationId && onLink(organizationId),
-            disabled: !organizationId || linking,
-            loading: linking,
-          },
+          ...(hasOrganizations
+            ? [
+                {
+                  label: 'Link subscription',
+                  onClick: () => organizationId && onLink(organizationId),
+                  disabled: !organizationId || pending,
+                  loading: linking,
+                },
+              ]
+            : []),
+          registerAction,
           { label: 'Not now', onClick: onCancel },
         ]}
       />

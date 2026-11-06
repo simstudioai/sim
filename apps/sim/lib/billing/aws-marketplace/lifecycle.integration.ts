@@ -50,7 +50,10 @@ vi.mock('@aws-sdk/client-sqs', () => ({
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
-import { linkAwsMarketplaceLicense } from '@/lib/billing/aws-marketplace/application/use-cases'
+import {
+  linkAwsMarketplaceLicense,
+  registerAwsMarketplaceLicenseToAccount,
+} from '@/lib/billing/aws-marketplace/application/use-cases'
 import { hashClaimToken } from '@/lib/billing/aws-marketplace/claim'
 import { reconcileAwsMarketplaceLicenses } from '@/lib/billing/aws-marketplace/reconcile'
 import { POST as register } from '@/app/api/marketplace/aws/register/route'
@@ -406,6 +409,136 @@ describe('linking a claimed license', () => {
     )
     expect(replay).toMatchObject({ code: 'forbidden' })
     expect(emailMailerMockFns.mockSendEmail).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('registering a claimed license to an account', () => {
+  let buyerId: string
+
+  beforeAll(async () => {
+    buyerId = await createUser()
+  })
+
+  function registerToAccount(input: { licenseId: string; claimToken: string | null }) {
+    return registerAwsMarketplaceLicenseToAccount.execute({
+      principal: createSessionPrincipal({ userId: buyerId }),
+      input,
+    })
+  }
+
+  it('registers to a buyer with no organization, consumes the claim, audits, and emails once', async () => {
+    const license = await createClaimedLicense()
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+
+    await registerToAccount({ licenseId: license.id, claimToken: license.token })
+
+    const row = await readLicense(license.licenseArn)
+    expect(row).toMatchObject({
+      organizationId: null,
+      linkedByUserId: buyerId,
+      claimTokenHash: null,
+      claimExpiresAt: null,
+    })
+    expect(row?.linkedAt).toBeInstanceOf(Date)
+    expect(emailMailerMockFns.mockSendEmail).toHaveBeenCalledTimes(1)
+    expect(emailMailerMockFns.mockSendEmail.mock.calls[0][0]).toMatchObject({
+      to: [expect.stringMatching(/^enterprise@/)],
+      text: expect.stringMatching(/no organization yet/),
+    })
+    await vi.waitFor(async () => {
+      const entries = await db
+        .select({ action: auditLog.action })
+        .from(auditLog)
+        .where(and(eq(auditLog.resourceId, license.id), eq(auditLog.actorId, buyerId)))
+      expect(entries).toEqual([{ action: 'aws_marketplace_license.registered' }])
+    })
+
+    const replay = await rejection(
+      registerToAccount({ licenseId: license.id, claimToken: license.token })
+    )
+    expect(replay).toMatchObject({ code: 'forbidden' })
+    expect(emailMailerMockFns.mockSendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a browser that holds no claim', async () => {
+    const license = await createClaimedLicense()
+
+    const error = await rejection(registerToAccount({ licenseId: license.id, claimToken: null }))
+
+    expect(error).toMatchObject({ code: 'forbidden' })
+    expect((await readLicense(license.licenseArn))?.linkedByUserId).toBeNull()
+  })
+
+  it('refuses an expired claim', async () => {
+    const license = await createClaimedLicense({ claimExpiresAt: new Date(Date.now() - 1000) })
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+
+    const error = await rejection(
+      registerToAccount({ licenseId: license.id, claimToken: license.token })
+    )
+
+    expect(error).toMatchObject({ code: 'forbidden', message: expect.stringMatching(/expired/) })
+    expect((await readLicense(license.licenseArn))?.linkedByUserId).toBeNull()
+  })
+
+  it('refuses when AWS no longer reports a current entitlement', async () => {
+    const license = await createClaimedLicense()
+    entitlementsByLicense.set(license.licenseArn, [lapsedEntitlement()])
+
+    const error = await rejection(
+      registerToAccount({ licenseId: license.id, claimToken: license.token })
+    )
+
+    expect(error).toMatchObject({ code: 'conflict' })
+    expect(await readLicense(license.licenseArn)).toMatchObject({
+      linkedByUserId: null,
+      status: 'inactive',
+      claimTokenHash: hashClaimToken(license.token),
+    })
+    expect(emailMailerMockFns.mockSendEmail).not.toHaveBeenCalled()
+  })
+
+  it('refuses a license already linked to an organization', async () => {
+    const ownerId = await createUser()
+    const organizationId = await createOrganization([{ userId: ownerId, role: 'owner' }])
+    const license = await createClaimedLicense({ organizationId, linkedByUserId: ownerId })
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+
+    const error = await rejection(
+      registerToAccount({ licenseId: license.id, claimToken: license.token })
+    )
+
+    expect(error).toMatchObject({ code: 'conflict' })
+    expect(await readLicense(license.licenseArn)).toMatchObject({
+      organizationId,
+      linkedByUserId: ownerId,
+    })
+  })
+
+  it('lets a license registered to an account be linked to an organization later', async () => {
+    const license = await createClaimedLicense()
+    entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+    await registerToAccount({ licenseId: license.id, claimToken: license.token })
+
+    resolvesTo(license.licenseArn)
+    const response = await registration('x-amzn-marketplace-token=second-visit')
+    const token =
+      /sim_aws_marketplace_claim=([^;]+)/.exec(response.headers.get('set-cookie') ?? '')?.[1] ??
+      null
+    expect(token).not.toBeNull()
+    const organizationId = await createOrganization([{ userId: buyerId, role: 'owner' }])
+
+    await linkAwsMarketplaceLicense.execute({
+      principal: createSessionPrincipal({ userId: buyerId }),
+      input: { organizationId, licenseId: license.id, claimToken: token },
+    })
+
+    expect(await readLicense(license.licenseArn)).toMatchObject({
+      organizationId,
+      linkedByUserId: buyerId,
+      claimTokenHash: null,
+    })
+    expect(emailMailerMockFns.mockSendEmail).toHaveBeenCalledTimes(2)
   })
 })
 

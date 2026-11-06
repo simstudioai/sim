@@ -134,14 +134,15 @@ export async function lockLicense(
 }
 
 /**
- * Consumes the claim and records the verification it relied on, linking the license when `link`
- * is given. A license already linked to the claimed organization keeps its original link.
+ * Consumes the claim and records the verification it relied on, taking the license when `link`
+ * is given: for an organization, or for an account alone when its organization is null. A
+ * license already taken by the same party keeps its original link.
  */
 export async function consumeLicenseClaim(
   tx: DbTransaction,
   input: {
     licenseId: string
-    link: { organizationId: string; userId: string } | null
+    link: { organizationId: string | null; userId: string } | null
     summary: EntitlementSummary
     verifiedAt: Date
   }
@@ -180,15 +181,17 @@ export async function listAdministeredOrganizations(
 
 /** Who linked a license to which organization, for the team's provisioning notice. */
 export async function getLinkParties(
-  organizationId: string,
+  organizationId: string | null,
   userId: string
 ): Promise<{ organizationName: string | null; userName: string | null; userEmail: string | null }> {
   const [[org], [person]] = await Promise.all([
-    db
-      .select({ name: organization.name })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1),
+    organizationId
+      ? db
+          .select({ name: organization.name })
+          .from(organization)
+          .where(eq(organization.id, organizationId))
+          .limit(1)
+      : Promise.resolve([]),
     db
       .select({ name: user.name, email: user.email })
       .from(user)

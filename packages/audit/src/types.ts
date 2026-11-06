@@ -12,6 +12,7 @@ export const AuditAction = {
   AUDIT_LOGS_EXPORTED: 'audit_logs.exported',
 
   AWS_MARKETPLACE_LICENSE_LINKED: 'aws_marketplace_license.linked',
+  AWS_MARKETPLACE_LICENSE_REGISTERED: 'aws_marketplace_license.registered',
 
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',

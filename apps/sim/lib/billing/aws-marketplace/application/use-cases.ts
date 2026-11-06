@@ -20,6 +20,7 @@ import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
+import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
 import { env } from '@/lib/core/config/env'
@@ -62,7 +63,11 @@ function requireOpenClaim(
   return license
 }
 
-function requireLinkableTo(license: AwsMarketplaceLicenseRecord, organizationId: string): void {
+/** A license linked to one organization is never moved, and never taken without one. */
+function requireLinkableTo(
+  license: AwsMarketplaceLicenseRecord,
+  organizationId: string | null
+): void {
   if (license.organizationId && license.organizationId !== organizationId) {
     throw new OrchestrationError(
       'conflict',
@@ -100,27 +105,69 @@ export const readAwsMarketplaceClaim: OperationUseCase<
   },
 }
 
-interface LinkLicenseInput {
-  organizationId: string
+interface ClaimInput {
   licenseId: string
   /** The raw claim token from this browser's httpOnly cookie, or null when it holds none. */
   claimToken: string | null
 }
 
+interface LinkLicenseInput extends ClaimInput {
+  organizationId: string
+}
+
 interface LinkedLicense {
   license: AwsMarketplaceLicenseRecord
-  /** False when the license was already linked to this organization; nothing new to announce. */
+  /** False when the license already belonged here; nothing new to audit or announce. */
   newlyLinked: boolean
 }
 
 /**
- * Tells the team a license now belongs to an organization, so they provision it the way an
- * Enterprise deal is provisioned. No subscription is created or changed here. A failed send never
- * undoes the committed link; the warning is the fallback trail.
+ * Checks this browser's claim, then asks the Entitlement Service again: a license is taken only
+ * while AWS says it is current. A lapsed answer is recorded before the refusal. The caller
+ * rechecks the claim under the row lock, so two tabs racing one claim take it at most once.
  */
-async function notifyTeamOfLinkedLicense(
+async function verifyClaimedLicense(input: ClaimInput, organizationId: string | null) {
+  const productCode = requireProductCode()
+  const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
+  const claimed = requireOpenClaim(
+    claimHash ? await findLicenseByClaimHash(claimHash) : null,
+    input.licenseId,
+    claimHash
+  )
+  requireLinkableTo(claimed, organizationId)
+
+  const verifiedAt = new Date()
+  const summary = await verifyLicense(productCode, claimed.licenseArn)
+  if (!summary.active) {
+    await recordLicenseVerification({
+      licenseArn: claimed.licenseArn,
+      productCode,
+      summary,
+      verifiedAt,
+    })
+    throw new OrchestrationError(
+      'conflict',
+      'AWS Marketplace reports no active subscription for this license.'
+    )
+  }
+  return { claimHash, summary, verifiedAt }
+}
+
+const TEAM_INSTRUCTIONS = {
+  organization:
+    'Provision this organization the way Enterprise deals are provisioned. No subscription was changed.',
+  account:
+    'Registered to an account, no organization yet. Create the Enterprise organization for this buyer and link it. No subscription was changed.',
+} as const
+
+/**
+ * Tells the team a license is taken, so they provision it the way an Enterprise deal is
+ * provisioned. No subscription is created or changed here. A failed send never undoes the
+ * committed write; the warning is the fallback trail.
+ */
+async function notifyTeam(
   license: AwsMarketplaceLicenseRecord,
-  organizationId: string,
+  organizationId: string | null,
   userId: string
 ): Promise<void> {
   const parties = await getLinkParties(organizationId, userId)
@@ -131,10 +178,10 @@ async function notifyTeamOfLinkedLicense(
     quantity: license.quantity,
     expiresAt: license.expiresAt?.toISOString() ?? null,
   }
-  const text = `AWS Marketplace license linked
-Linked: ${new Date().toISOString()}
-Organization: ${parties.organizationName ?? 'Unknown'} (${organizationId})
-Linked by: ${parties.userName ?? 'Unknown'} <${parties.userEmail ?? 'unknown'}>
+  const text = `AWS Marketplace license ${organizationId ? 'linked' : 'registered to an account'}
+Taken: ${new Date().toISOString()}
+Organization: ${organizationId ? `${parties.organizationName ?? 'Unknown'} (${organizationId})` : 'None yet'}
+Buyer: ${parties.userName ?? 'Unknown'} <${parties.userEmail ?? 'unknown'}> (${userId})
 License: ${license.licenseArn}
 AWS account: ${license.customerAwsAccountId ?? 'Not provided'}
 Customer identifier: ${license.customerIdentifier}
@@ -142,38 +189,48 @@ Dimension: ${license.dimension ?? 'Not provided'}
 Quantity: ${license.quantity ?? 'Not provided'}
 Expires: ${notice.expiresAt ?? 'No expiry'}
 
-Provision this organization the way Enterprise deals are provisioned. No subscription was changed.
+${TEAM_INSTRUCTIONS[organizationId ? 'organization' : 'account']}
 `
+  const subject = organizationId
+    ? (parties.organizationName ?? organizationId)
+    : `${parties.userEmail ?? userId} (no organization)`
   try {
     const result = await sendEmail({
       to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
-      subject: `[AWS MARKETPLACE] ${parties.organizationName ?? organizationId}`,
+      subject: `[AWS MARKETPLACE] ${subject}`,
       text,
       from: getFromEmailAddress(),
       ...(parties.userEmail && { replyTo: parties.userEmail }),
       emailType: 'transactional',
     })
     if (result.success) {
-      logger.info('Notified the team of a linked AWS Marketplace license', notice)
+      logger.info('Notified the team of an AWS Marketplace license', notice)
       return
     }
-    logger.warn('Could not notify the team of a linked AWS Marketplace license', {
+    logger.warn('Could not notify the team of an AWS Marketplace license', {
       ...notice,
       message: result.message,
     })
   } catch (error) {
-    logger.warn('Could not notify the team of a linked AWS Marketplace license', {
+    logger.warn('Could not notify the team of an AWS Marketplace license', {
       ...notice,
       message: getErrorMessage(error, 'Unknown error'),
     })
   }
 }
 
+function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
+  return {
+    dimension: license.dimension,
+    quantity: license.quantity,
+    expiresAt: license.expiresAt?.toISOString() ?? null,
+  }
+}
+
 /**
- * Links the license this browser's claim names to an organization the caller administers. The
- * claim is checked before and again under the row lock, so two tabs racing one claim link it at
- * most once, and the Entitlement Service is asked again: a license links only while AWS says it
- * is current. A license belongs to at most one organization.
+ * Links the license this browser's claim names to an organization the caller administers. A
+ * license belongs to at most one organization; one registered to an account and no organization
+ * yet may still be linked.
  */
 export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   operation: awsMarketplaceOperations.linkLicense,
@@ -184,30 +241,10 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
     input,
     context,
   }: OrganizationUseCaseContext<LinkLicenseInput>): Promise<LinkedLicense> {
-    const productCode = requireProductCode()
-    const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
-    const claimed = requireOpenClaim(
-      claimHash ? await findLicenseByClaimHash(claimHash) : null,
-      input.licenseId,
-      claimHash
+    const { claimHash, summary, verifiedAt } = await verifyClaimedLicense(
+      input,
+      input.organizationId
     )
-    requireLinkableTo(claimed, input.organizationId)
-
-    const verifiedAt = new Date()
-    const summary = await verifyLicense(productCode, claimed.licenseArn)
-    if (!summary.active) {
-      await recordLicenseVerification({
-        licenseArn: claimed.licenseArn,
-        productCode,
-        summary,
-        verifiedAt,
-      })
-      throw new OrchestrationError(
-        'conflict',
-        'AWS Marketplace reports no active subscription for this license.'
-      )
-    }
-
     return db.transaction(async (tx) => {
       const locked = requireOpenClaim(
         await lockLicense(tx, input.licenseId),
@@ -243,16 +280,66 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
           resourceId: result.license.id,
           resourceName: result.license.dimension ?? 'AWS Marketplace license',
           description: 'Linked an AWS Marketplace subscription to the organization',
-          metadata: {
-            dimension: result.license.dimension,
-            quantity: result.license.quantity,
-            expiresAt: result.license.expiresAt?.toISOString() ?? null,
-          },
+          metadata: licenseAuditMetadata(result.license),
         }
       : [],
   afterSuccess: async ({ result, input, context }) => {
     if (result.newlyLinked) {
-      await notifyTeamOfLinkedLicense(result.license, input.organizationId, context.userId)
+      await notifyTeam(result.license, input.organizationId, context.userId)
     }
   },
 })
+
+/**
+ * Registers the license this browser's claim names to the signed-in account, with no
+ * organization: a new buyer who administers none still completes setup, and the team creates
+ * the Enterprise organization and links it. A license already linked to an organization is
+ * refused; registering it here never moves it.
+ */
+export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
+  typeof awsMarketplaceOperations.registerToAccount,
+  ClaimInput,
+  { licenseId: string }
+> = {
+  operation: awsMarketplaceOperations.registerToAccount,
+  async execute({ principal, input, request }) {
+    assertOperationPrincipal(principal, awsMarketplaceOperations.registerToAccount)
+    const { claimHash, summary, verifiedAt } = await verifyClaimedLicense(input, null)
+    const { license, newlyRegistered } = await db.transaction(async (tx) => {
+      const locked = requireOpenClaim(
+        await lockLicense(tx, input.licenseId),
+        input.licenseId,
+        claimHash
+      )
+      requireLinkableTo(locked, null)
+      const newlyRegistered = locked.linkedByUserId !== principal.userId
+      const consumed = await consumeLicenseClaim(tx, {
+        licenseId: input.licenseId,
+        link: newlyRegistered ? { organizationId: null, userId: principal.userId } : null,
+        summary,
+        verifiedAt,
+      })
+      return { license: consumed, newlyRegistered }
+    })
+    if (newlyRegistered) {
+      recordProjectedUseCaseAuditEntries(
+        awsMarketplaceOperations.registerToAccount,
+        null,
+        principal,
+        request,
+        [
+          {
+            action: AuditAction.AWS_MARKETPLACE_LICENSE_REGISTERED,
+            resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
+            resourceId: license.id,
+            resourceName: license.dimension ?? 'AWS Marketplace license',
+            description: 'Registered an AWS Marketplace subscription to an account',
+            metadata: licenseAuditMetadata(license),
+          },
+        ]
+      )
+      await notifyTeam(license, null, principal.userId)
+    }
+    return { licenseId: license.id }
+  },
+}

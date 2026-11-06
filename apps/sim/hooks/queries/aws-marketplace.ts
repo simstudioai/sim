@@ -4,6 +4,7 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   getAwsMarketplaceClaimContract,
   linkAwsMarketplaceLicenseContract,
+  registerAwsMarketplaceLicenseToAccountContract,
 } from '@/lib/api/contracts/aws-marketplace'
 
 const AWS_MARKETPLACE_CLAIM_STALE_TIME = 30 * 1000
@@ -30,6 +31,17 @@ export function useLinkAwsMarketplaceLicense() {
   return useMutation({
     mutationFn: (body: ContractBodyInput<typeof linkAwsMarketplaceLicenseContract>) =>
       requestJson(linkAwsMarketplaceLicenseContract, { body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: awsMarketplaceKeys.claims() })
+    },
+  })
+}
+
+export function useRegisterAwsMarketplaceLicenseToAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ContractBodyInput<typeof registerAwsMarketplaceLicenseToAccountContract>) =>
+      requestJson(registerAwsMarketplaceLicenseToAccountContract, { body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: awsMarketplaceKeys.claims() })
     },

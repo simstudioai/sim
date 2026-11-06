@@ -368,6 +368,8 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID:                     z.string().optional(),                  // AWS access key ID
     AWS_SECRET_ACCESS_KEY:                 z.string().optional(),                  // AWS secret access key
     TRIGGER_AWS_ROLE_ARN:                  z.string().optional(),                  // Role Trigger.dev runs assume through workload identity, instead of static keys
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: z.string().optional(),                 // Set by ECS: path of the task-role credential endpoint
+    AWS_CONTAINER_CREDENTIALS_FULL_URI:    z.string().optional(),                  // Set by ECS Anywhere/EKS Pod Identity: full task-role credential endpoint URL
     S3_BUCKET_NAME:                        z.string().optional(),                  // S3 bucket for general file storage
     S3_KB_BUCKET_NAME:                     z.string().optional(),                  // S3 bucket for knowledge base files
     S3_EXECUTION_FILES_BUCKET_NAME:        z.string().optional(),                  // S3 bucket for workflow execution files

@@ -58,3 +58,11 @@ export const linkAwsMarketplaceLicenseContract = defineRouteContract({
     schema: z.object({ success: z.literal(true), organizationId: z.string() }),
   },
 })
+
+/** Registers the claimed license to the signed-in account when no organization is chosen. */
+export const registerAwsMarketplaceLicenseToAccountContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/marketplace/aws/claim/register-account',
+  body: z.object({ licenseId: z.string().min(1, 'License ID is required').max(255) }),
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
