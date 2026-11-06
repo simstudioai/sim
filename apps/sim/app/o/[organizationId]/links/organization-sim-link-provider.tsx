@@ -1,9 +1,16 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
-import { LinkEditor } from '@/platform/app/(shell)/links/_components/links-page/link-editor'
+
+/** Every organization route mounts this provider; only a new-link shortcut needs the form. */
+const LinkEditor = dynamic(() =>
+  import('@/platform/app/(shell)/links/_components/links-page/link-editor').then(
+    (module) => module.LinkEditor
+  )
+)
 
 interface OrganizationSimLinkProviderProps {
   organizationId: string | null
