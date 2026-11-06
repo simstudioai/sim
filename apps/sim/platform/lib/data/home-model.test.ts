@@ -17,6 +17,7 @@ import {
   toCalendarDay,
   toHomeConnection,
   toReadableProviders,
+  toRecentItems,
 } from '@/platform/lib/data/home-model'
 
 function entry(provider: string, overrides: Partial<MemberIntegration>): MemberIntegration {
@@ -235,5 +236,67 @@ describe('placing a meeting on the day', () => {
     const calendar = day([event(window.startAt, window.endAt, true)])
     expect(calendar.meetings).toEqual([])
     expect(calendar.allDay).toHaveLength(1)
+  })
+})
+
+describe('collapsing recents', () => {
+  const viewed = (url: string, title?: string, connectorType?: string, siteName?: string) => ({
+    url,
+    ...(title ? { title } : {}),
+    ...(connectorType ? { connectorType } : {}),
+    ...(siteName ? { siteName } : {}),
+    viewedAt: '2026-11-05T10:00:00.000Z',
+  })
+  const recents = (...sources: ReturnType<typeof viewed>[]) =>
+    toRecentItems({ sources, queries: [] })
+
+  it('shows one chip for a channel, linking the latest message and carrying every message', () => {
+    const items = recents(
+      viewed('https://acme.slack.com/archives/C1/p3', '#candidates', 'slack'),
+      viewed('https://acme.slack.com/archives/C1/p2', '#candidates', 'slack'),
+      viewed('https://acme.slack.com/archives/C1/p1', '#candidates', 'slack')
+    )
+    expect(items).toHaveLength(1)
+    expect(items[0].href).toBe('https://acme.slack.com/archives/C1/p3')
+    expect(items[0].urls).toEqual([
+      'https://acme.slack.com/archives/C1/p3',
+      'https://acme.slack.com/archives/C1/p2',
+      'https://acme.slack.com/archives/C1/p1',
+    ])
+  })
+
+  it('keeps equal titles apart when they come from different places', () => {
+    expect(
+      recents(
+        viewed('https://a.example.com/x', 'Roadmap'),
+        viewed('https://b.example.com/x', 'Roadmap'),
+        viewed('https://acme.atlassian.net/wiki/x', 'Roadmap', 'confluence')
+      )
+    ).toHaveLength(3)
+  })
+
+  it('keeps recency order with a repeat counted at its latest visit', () => {
+    const items = recents(
+      viewed('https://acme.slack.com/archives/C1/p2', '#candidates', 'slack'),
+      viewed('https://linkedin.com/in/someone'),
+      viewed('https://acme.slack.com/archives/C1/p1', '#candidates', 'slack')
+    )
+    expect(items.map((item) => item.label)).toEqual(['#candidates', 'linkedin.com'])
+  })
+
+  it('leaves a provider its mark and gives anything else a host to look up', () => {
+    const [slack, site] = recents(
+      viewed('https://acme.slack.com/archives/C1/p1', '#candidates', 'slack'),
+      viewed('https://www.ismailp.dev/about')
+    )
+    expect(slack.icon).toBeTruthy()
+    expect(site.icon).toBeUndefined()
+    expect(site.host).toBe('www.ismailp.dev')
+  })
+
+  it('gives a connector with no mark a host to look up too', () => {
+    const [item] = recents(viewed('https://example.com/a', 'A', 'no-such-connector'))
+    expect(item.icon).toBeUndefined()
+    expect(item.host).toBe('example.com')
   })
 })

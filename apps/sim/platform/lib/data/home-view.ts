@@ -1,5 +1,4 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import type { OrganizationHomeWidget } from '@/stores/organization-home/store'
 
 export type AttentionItem = {
@@ -106,6 +105,17 @@ export interface HomeGetStartedStep {
   complete: boolean
 }
 
+/** One chip on Home's Recents: every visit it stands for, so removing it removes them all. */
+export interface HomeRecentItem {
+  id: string
+  label: string
+  href: string
+  icon?: IconName
+  /** Where to look up an icon, for a source with no provider mark. */
+  host: string | null
+  urls: readonly string[]
+}
+
 export interface HomeView {
   asOf: number
   greeting: string
@@ -118,7 +128,7 @@ export interface HomeView {
   /** The viewer's workspaces, the sidebar's rows. Nothing renders for a viewer with none. */
   workspaces: HomeListState<HomeWorkspaceItem>
   workspaceCount: number
-  recents: HomeListState<RecentItem>
+  recents: HomeListState<HomeRecentItem>
   getStarted: readonly HomeGetStartedStep[]
   hiddenWidgets: readonly OrganizationHomeWidget[]
 }
