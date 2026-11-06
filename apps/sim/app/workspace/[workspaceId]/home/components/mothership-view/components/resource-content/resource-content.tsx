@@ -1,9 +1,9 @@
 'use client'
 
 import {
+  type ComponentType,
   lazy,
   memo,
-  type ReactNode,
   Suspense,
   useCallback,
   useEffect,
@@ -52,7 +52,7 @@ import {
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
-  type ShareDialogModel,
+  type ShareDialogProps,
   ShareModal,
 } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
@@ -431,14 +431,14 @@ interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
-  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 export function ResourceActions({
   workspaceId,
   resource,
   downloadSourceRef,
-  renderShareDialog,
+  ShareDialogComponent,
 }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
@@ -451,7 +451,7 @@ export function ResourceActions({
           fileId={resource.id}
           filePath={resource.path}
           downloadSourceRef={downloadSourceRef}
-          renderShareDialog={renderShareDialog}
+          ShareDialogComponent={ShareDialogComponent}
         />
       )
     case 'knowledgebase':
@@ -761,7 +761,7 @@ interface EmbeddedFileActionsProps {
   fileId: string
   filePath?: string
   downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
-  renderShareDialog?: (dialog: ShareDialogModel) => ReactNode
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
 }
 
 function EmbeddedFileActions({
@@ -769,13 +769,14 @@ function EmbeddedFileActions({
   fileId,
   filePath,
   downloadSourceRef,
-  renderShareDialog,
+  ShareDialogComponent,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { canEdit } = useUserPermissionsContext()
   const [isShareOpen, setIsShareOpen] = useState(false)
   const { file } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
+  const ShareDialog = ShareDialogComponent ?? ShareModal
 
   const handleDownload = async () => {
     if (!file) return
@@ -836,7 +837,7 @@ function EmbeddedFileActions({
             </Tooltip.Content>
           </Tooltip.Root>
           {isShareOpen && (
-            <ShareModal
+            <ShareDialog
               key={file.id}
               open
               onOpenChange={setIsShareOpen}
@@ -844,7 +845,6 @@ function EmbeddedFileActions({
               fileId={file.id}
               fileName={file.name}
               initialShare={file.share ?? null}
-              renderDialog={renderShareDialog}
             />
           )}
         </>

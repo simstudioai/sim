@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { lazy, Suspense, useRef } from 'react'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -11,7 +11,6 @@ import {
 } from '@/app/o/[organizationId]/search/use-organization-search'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
-import { CONVERSATION_APPEARANCE } from '@/platform/app/(shell)/_components/conversation/appearance'
 import conversationStyles from '@/platform/app/(shell)/_components/conversation/conversation.module.css'
 import { MicrophoneHelp } from '@/platform/app/(shell)/_components/conversation/dialogs'
 import { ConversationLanding } from '@/platform/app/(shell)/_components/conversation/landing'
@@ -29,6 +28,12 @@ import { Icon } from '@/platform/design-system/components/icon/icon'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 const FIELD_MAX_HEIGHT_PX = 200
+
+const PageConversation = lazy(() =>
+  import('@/platform/app/(shell)/_components/conversation/page-conversation').then((module) => ({
+    default: module.PageConversation,
+  }))
+)
 
 interface SearchFieldProps {
   userId: string
@@ -161,27 +166,36 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
     />
   )
   const header = <SearchSurfaceHeader search={search} />
+  const assistantFallback = search.chatId ? (
+    <ConversationSkeleton header={header} />
+  ) : (
+    <LandingSkeleton field='composer' header={header} />
+  )
   return (
     <SearchFrame
       search={search}
       header={header}
       unresolvedFallback={<LandingSkeleton field='search' />}
-      assistant={{
-        appearance: CONVERSATION_APPEARANCE,
-        fallback: search.chatId ? (
-          <ConversationSkeleton header={header} />
-        ) : (
-          <LandingSkeleton field='composer' header={header} />
-        ),
-        landing: {
-          render: ({ composer }) => (
-            <ConversationLanding heading={`Ask ${organization.name}`}>
-              {composer}
-              <AssistantGetStarted />
-            </ConversationLanding>
-          ),
-        },
-      }}
+      assistant={
+        <Suspense fallback={assistantFallback}>
+          <PageConversation
+            key={search.conversationInstance}
+            requestMode='assistant'
+            chatId={search.chatId}
+            header={header}
+            active={search.activeMode === 'assistant'}
+            summaryRequest={search.pendingSummary}
+            onSummaryConsumed={search.consumeSummary}
+            fallback={assistantFallback}
+            landing={({ composer }) => (
+              <ConversationLanding heading={`Ask ${organization.name}`}>
+                {composer}
+                <AssistantGetStarted />
+              </ConversationLanding>
+            )}
+          />
+        </Suspense>
+      }
     >
       <div className={styles.body}>
         <RedesignSurface>
@@ -204,7 +218,7 @@ function OrganizationSearchSurfaceContent({ userId, chatId }: OrganizationSearch
             <div className={styles.scroll}>
               <div className={styles.landing}>
                 <div className={styles.column}>
-                  <h1 className={styles.heading} data-type='T076'>
+                  <h1 className={conversationStyles.landingHeading} data-type='T076'>
                     Search {organization.name}
                   </h1>
                   {field}

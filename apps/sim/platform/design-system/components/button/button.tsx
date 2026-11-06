@@ -15,6 +15,8 @@ interface ButtonProps {
   render?: ReactElement
   children: string
   count?: number
+  /** Replaces the label below 48rem. Give the button an `aria-label` so its name holds at any width. */
+  narrowLabel?: string
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   size?: 'regular' | 'compact'
   submit?: boolean
@@ -28,6 +30,7 @@ export function Button({
   render,
   children,
   count,
+  narrowLabel,
   variant = 'secondary',
   size = 'regular',
   submit,
@@ -57,7 +60,18 @@ export function Button({
             ) : (
               <Icon providerId={icon.providerId} />
             ))}
-          <CountedLabel label={children} count={count} />
+          {narrowLabel ? (
+            <>
+              <span className={styles.wideLabel}>
+                <CountedLabel label={children} count={count} />
+              </span>
+              <span className={styles.narrowLabel}>
+                <CountedLabel label={narrowLabel} count={count} />
+              </span>
+            </>
+          ) : (
+            <CountedLabel label={children} count={count} />
+          )}
           {trailingIcon && <Icon name={trailingIcon} />}
         </>
       ),

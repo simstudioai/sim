@@ -11,3 +11,8 @@ export function organizationDraftKey(
 ): string {
   return `${namespace ? `${namespace}:` : ''}${userId}:organization:${organizationId}:${slot}`
 }
+
+/** The slot Search's Assistant keeps its unsent question under. */
+export const SEARCH_ASSISTANT_DRAFT_SLOT = 'search-assistant'
+/** The slot Home's Assistant keeps its unsent question under. */
+export const HOME_ASSISTANT_DRAFT_SLOT = 'home-assistant'

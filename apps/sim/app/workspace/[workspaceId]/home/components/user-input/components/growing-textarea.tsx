@@ -8,7 +8,6 @@ interface GrowingTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaE
   scrollerRef: RefObject<HTMLDivElement | null>
   value: string
   maxHeight?: number
-  compact?: boolean
 }
 
 /** The common editing surface for Search and Build; hosts add mentions and toolbar layout. */
@@ -17,7 +16,6 @@ export function GrowingTextarea({
   scrollerRef,
   value,
   maxHeight,
-  compact = false,
   className,
   ...props
 }: GrowingTextareaProps) {
@@ -28,11 +26,7 @@ export function GrowingTextarea({
       ref={inputRef}
       value={value}
       rows={1}
-      className={cn(
-        TEXTAREA_BASE_CLASSES,
-        compact && 'whitespace-pre px-0 py-[3px] [overflow-wrap:normal]',
-        className
-      )}
+      className={cn(TEXTAREA_BASE_CLASSES, className)}
     />
   )
 }

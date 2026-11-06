@@ -9,8 +9,8 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { organizationDraftKey } from '@/lib/organizations/draft-key'
-import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/organization-conversation'
+import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/use-organization-conversation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
@@ -29,6 +29,35 @@ export const SEARCH_MODES = [
 
 type SearchMode = (typeof SEARCH_MODES)[number]['value']
 
+const NEW_CHAT_LABEL = 'New chat'
+
+/** What an Assistant chat's New control does, here and on a page that hosts one itself. */
+export function useStartNewConversation() {
+  const router = useRouter()
+  const [conversationInstance, setConversationInstance] = useState(0)
+  const [isStartingNew, startNewTransition] = useTransition()
+  const startNew = (href: string, clearDrafts: () => void) => {
+    clearDrafts()
+    startNewTransition(() => {
+      setConversationInstance((current) => current + 1)
+      router.push(href, { scroll: false })
+    })
+  }
+  return { conversationInstance, isStartingNew, startNew, newChatLabel: NEW_CHAT_LABEL }
+}
+
+/** Search's address from a page that carries an Assistant chat but not the Search view beside it. */
+export function useSearchViewHref() {
+  const { organization } = useOrganizationContext()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { search } = organizationRoutes(organization.id)
+  const onChat = pathname.startsWith(`${search}/chat/`)
+  const params = new URLSearchParams(onChat ? searchParams.toString() : '')
+  params.set('mode', 'search')
+  return `${onChat ? pathname : search}?${params}`
+}
+
 interface UseOrganizationSearchProps {
   userId: string
   chatId?: string
@@ -38,7 +67,7 @@ function searchDraftKeys(userId: string | undefined, organizationId: string) {
   const latest = organizationDraftKey(userId, organizationId, 'search')
   return {
     latest,
-    assistant: `${latest}-assistant`,
+    assistant: organizationDraftKey(userId, organizationId, SEARCH_ASSISTANT_DRAFT_SLOT),
     query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
   }
 }
@@ -48,9 +77,9 @@ function searchDraftKeys(userId: string | undefined, organizationId: string) {
  * Summarize hand-off to Assistant, New chat or search, and committing a query.
  */
 export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchProps) {
+  const starter = useStartNewConversation()
   const { organization, mothershipAvailable } = useOrganizationContext()
   const { recordQuery } = useSearchHistoryActions()
-  const router = useRouter()
   const pathname = usePathname()
   const hasSearchParams = useSearchParams().toString() !== ''
   const routes = organizationRoutes(organization.id)
@@ -64,8 +93,6 @@ export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchP
   const activeMode = mothershipAvailable ? routeMode : 'search'
   const preferenceKey = `organization-search-mode:${userId}:${organization.id}`
   const [assistantOpened, setAssistantOpened] = useState(activeMode === 'assistant')
-  const [conversationInstance, setConversationInstance] = useState(0)
-  const [isStartingNew, startNewTransition] = useTransition()
   const [summaries, setSummaries] = useState<OrganizationSummaryRequest[]>([])
   const consumeSummary = useCallback(
     (id: string) => setSummaries((current) => current.filter((request) => request.id !== id)),
@@ -89,20 +116,19 @@ export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchP
   }
   const startNew = () => {
     setSummaries([])
-    const { clearDraft } = useMothershipDraftsStore.getState()
-    const drafts = searchDraftKeys(userId, organization.id)
-    if (activeMode === 'assistant') {
-      clearDraft(drafts.assistant)
-    } else {
-      clearDraft(drafts.latest)
-      clearDraft(drafts.query(''))
-    }
-    startNewTransition(() => {
-      setConversationInstance((current) => current + 1)
-      router.push(mothershipAvailable ? `${routes.search}?mode=${activeMode}` : routes.search, {
-        scroll: false,
-      })
-    })
+    starter.startNew(
+      mothershipAvailable ? `${routes.search}?mode=${activeMode}` : routes.search,
+      () => {
+        const { clearDraft } = useMothershipDraftsStore.getState()
+        const drafts = searchDraftKeys(userId, organization.id)
+        if (activeMode === 'assistant') {
+          clearDraft(drafts.assistant)
+        } else {
+          clearDraft(drafts.latest)
+          clearDraft(drafts.query(''))
+        }
+      }
+    )
   }
   const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
     setSummaries((current) => [...current, { id: generateId(), message, assistantSearch }])
@@ -131,15 +157,15 @@ export function useOrganizationSearch({ userId, chatId }: UseOrganizationSearchP
     modes: SEARCH_MODES.filter((entry) => mothershipAvailable || entry.value === 'search'),
     changeMode,
     assistantMounted: (assistantOpened || hasConversation) && mothershipAvailable,
-    conversationInstance,
+    conversationInstance: starter.conversationInstance,
     pendingSummary: summaries[0],
     consumeSummary,
     summarize: mothershipAvailable ? summarize : undefined,
     submit,
-    newLabel: activeMode === 'assistant' ? 'New chat' : 'New search',
+    newLabel: activeMode === 'assistant' ? starter.newChatLabel : 'New search',
     canStartNew: hasConversation || (activeMode === 'search' && Boolean(q.trim())),
     startNew,
-    isStartingNew,
+    isStartingNew: starter.isStartingNew,
   }
 }
 
