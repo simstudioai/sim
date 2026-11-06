@@ -209,7 +209,8 @@ async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
   requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
-  controls: Pick<ComponentProps<typeof Composer>, 'isSending' | 'restoredContexts'> = {
+  controls: Pick<ComponentProps<typeof Composer>, 'isSending'> &
+    Partial<Pick<ComponentProps<typeof Composer>, 'restoredContexts'>> = {
     isSending: false,
   }
 ) {
