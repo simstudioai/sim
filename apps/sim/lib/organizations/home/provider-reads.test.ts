@@ -83,7 +83,7 @@ async function readGmailThreads(input: { accessToken: string; signal: AbortSigna
   const { threads } = await readGmailThreadsPage({
     ...input,
     credentialId: `credential-${credentialCount}`,
-    accountId: 'account',
+    providerSubjectId: 'google-sub',
     count: HOME_EMAIL_THREAD_LIMIT,
   })
   return threads
@@ -296,7 +296,13 @@ describe('sharing a Gmail read across accounts', () => {
         : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
     )
     const read = (accessToken: string, credentialId: string) =>
-      readGmailThreadsPage({ accessToken, signal, credentialId, accountId: 'account', count: 1 })
+      readGmailThreadsPage({
+        accessToken,
+        signal,
+        credentialId,
+        providerSubjectId: 'google-sub',
+        count: 1,
+      })
     await read('token-a', 'mailbox-cached')
     const rotated = await read('token-b', 'mailbox-cached')
     expect(mailboxEmail).toHaveBeenCalledTimes(1)
@@ -305,23 +311,23 @@ describe('sharing a Gmail read across accounts', () => {
     expect(mailboxEmail).toHaveBeenCalledTimes(2)
   })
 
-  it('reads the mailbox again when a reconnect moves the credential to another account', async () => {
+  it('reads the mailbox again when a reconnect binds a credential that had no subject', async () => {
     providerFetch.mockImplementation(async (url: string) =>
       url.includes('/threads?')
         ? respond({ threads: [{ id: 't' }] })
         : respond(gmailThread('t', [metadataMessage('Ada', 'S', 'P')]))
     )
-    const read = (accountId: string) =>
+    const read = (providerSubjectId: string | null) =>
       readGmailThreadsPage({
         accessToken: 'token',
         signal,
         credentialId: 'mailbox-reconnected',
-        accountId,
+        providerSubjectId,
         count: 1,
       })
-    await read('account-old')
+    await read(null)
     mailboxEmail.mockResolvedValue('new@example.com')
-    const reconnected = await read('account-new')
+    const reconnected = await read('google-sub-new')
     expect(reconnected.threads[0].url).toBe(gmailThreadUrl('t', 'new@example.com'))
   })
 
@@ -338,7 +344,7 @@ describe('sharing a Gmail read across accounts', () => {
       accessToken: 'token',
       signal,
       credentialId: 'mailbox-parallel',
-      accountId: 'account',
+      providerSubjectId: 'google-sub',
       count: 1,
     })
     await vi.waitFor(() => expect(mailboxEmail).toHaveBeenCalledOnce())
@@ -358,7 +364,7 @@ describe('sharing a Gmail read across accounts', () => {
         accessToken: 't',
         signal,
         credentialId: 'mailbox-failed',
-        accountId: 'account',
+        providerSubjectId: 'google-sub',
         count: 1,
       })
     await expect(read()).rejects.toMatchObject({ failure: 'unavailable' })

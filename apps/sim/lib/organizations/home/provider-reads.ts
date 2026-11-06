@@ -175,9 +175,9 @@ function mailboxReadFailure(error: unknown): HomeProviderReadError {
 }
 
 /**
- * The address thread links open as. A reconnect can point a credential at another Google account, on
- * any instance, so the key names the account too. It holds only the address: the token itself is
- * resolved fresh for every read.
+ * The address thread links open as. A reconnect can bind a credential to a Google account it had no
+ * identity for, on any instance, so the key names the account's subject too. It holds only the
+ * address: the token itself is resolved fresh for every read.
  */
 const gmailMailboxes = new LRUCache<string, string>({
   max: 10_000,
@@ -188,9 +188,9 @@ async function readGmailMailbox({
   accessToken,
   signal,
   credentialId,
-  accountId,
-}: ProviderReadInput & { credentialId: string; accountId: string | null }) {
-  const key = `${credentialId}:${accountId}`
+  providerSubjectId,
+}: ProviderReadInput & { credentialId: string; providerSubjectId: string | null }) {
+  const key = `${credentialId}:${providerSubjectId}`
   const cached = gmailMailboxes.get(key)
   if (cached !== undefined) return cached
   const mailbox = await getGmailMailboxEmail(accessToken, { signal }).catch((error: unknown) => {
@@ -211,9 +211,13 @@ export async function readGmailThreads({
   accessToken,
   signal,
   credentialId,
-  accountId,
+  providerSubjectId,
   count,
-}: ProviderReadInput & { credentialId: string; accountId: string | null; count: number }): Promise<{
+}: ProviderReadInput & {
+  credentialId: string
+  providerSubjectId: string | null
+  count: number
+}): Promise<{
   threads: HomeEmailThread[]
   cursor: GmailThreadCursor
 }> {
@@ -223,7 +227,7 @@ export async function readGmailThreads({
       { accessToken, labelIds: 'INBOX', maxResults: HOME_EMAIL_THREAD_LIMIT },
       signal
     ),
-    readGmailMailbox({ accessToken, signal, credentialId, accountId }),
+    readGmailMailbox({ accessToken, signal, credentialId, providerSubjectId }),
   ])
   if (!list.success) throw new HomeProviderReadError('unavailable')
   const cursor: GmailThreadCursor = {
