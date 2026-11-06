@@ -4,7 +4,14 @@ import { defineConfig } from '@playwright/test'
 const report = process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-live/report.json'
 
 /** Each needs its own stack, so each is its own folder and never part of the `zone` run. */
-const TOPOLOGIES = ['flag-off', 'zone-down', 'zone-recovered', 'rollout', 'self-hosted'] as const
+const TOPOLOGIES = [
+  'flag-off',
+  'zone-down',
+  'zone-recovered',
+  'rollout',
+  'self-hosted',
+  'zone-boot',
+] as const
 
 /**
  * Runs against a real main app, Platform zone and database you have already started; it starts no
@@ -17,6 +24,7 @@ const TOPOLOGIES = ['flag-off', 'zone-down', 'zone-recovered', 'rollout', 'self-
  * - `zone-recovered`: the flag is on and the zone has just come back.
  * - `rollout`: flags read from AppConfig (`support/appconfig-service.ts`), targeting one organization.
  * - `self-hosted`: no zone, not on a Sim hostname, billing off.
+ * - `zone-boot`: starts its own misconfigured zones from the build; run from `apps/sim`.
  */
 export default defineConfig({
   testDir: __dirname,

@@ -197,6 +197,7 @@ jobs:
           --report "$RUNNER_TEMP/e2e/platform-live-zone-recovered/report.json"
           --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
           --report "$RUNNER_TEMP/e2e/platform-live-rollout/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-boot/report.json"
       - name: Hold the parity ledger's flag-off rows to this run
         if: always() && matrix.topology == 'flag-off'
         run: >-

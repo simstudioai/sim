@@ -510,8 +510,8 @@ JS
   # The zone as deployed: flag on, /org rewritten to the Platform build. Then, on that running app,
   # the zone goes away, answers 503 to everything, and comes back. Then the same build with the flag
   # off, which must put everyone back on the legacy surface. Then that build with its flags read from
-  # AppConfig, the real rollout path, targeting one organization by id. Every phase reports, whichever
-  # fails.
+  # AppConfig, the real rollout path, targeting one organization by id. Last, that zone's build
+  # misconfigured, which must refuse to start. Every phase reports, whichever fails.
   platform-live-zone)
     platform_live_environment
     export SIM_PLATFORM_ORIGIN=http://127.0.0.1:3028
@@ -551,6 +551,7 @@ JS
     export PLATFORM_LIVE_APPCONFIG_URL=http://127.0.0.1:3033
     start_app platform-live-rollout 3027 'Platform main, per-organization rollout' record-http-status
     run_platform_live rollout platform-live-rollout || live_status=$?
+    run_platform_live zone-boot platform-live-zone-boot || live_status=$?
     exit "$live_status"
     ;;
 
