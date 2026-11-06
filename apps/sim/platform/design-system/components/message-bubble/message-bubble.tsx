@@ -16,7 +16,7 @@ export function MessageBubble({ children, onSelect, label }: MessageBubbleProps)
       aria-label={label}
       onClick={onSelect}
     >
-      {children}
+      <span className={styles.preview}>{children}</span>
     </button>
   ) : (
     <p className={styles.bubble} data-type='T048'>

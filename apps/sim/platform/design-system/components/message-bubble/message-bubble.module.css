@@ -12,14 +12,21 @@
 
 button.bubble {
   cursor: pointer;
-  box-shadow: inset 0 0 0 var(--spacing-stroke-default) transparent;
-  transition: box-shadow var(--ui-motion-color);
+  background: color-mix(in srgb, var(--control-muted-fill) var(--opacity-0-6), transparent);
+  transition: background var(--ui-motion-color);
 }
 
 button.bubble:hover {
-  box-shadow: inset 0 0 0 var(--spacing-stroke-default) var(--control-hover-border);
+  background: color-mix(in srgb, var(--control-muted-hover) var(--opacity-0-6), transparent);
 }
 
 button.bubble:active {
-  box-shadow: inset 0 0 0 var(--spacing-stroke-default) var(--ui-secondary);
+  background: color-mix(in srgb, var(--control-muted-pressed) var(--opacity-0-6), transparent);
+}
+
+.preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }

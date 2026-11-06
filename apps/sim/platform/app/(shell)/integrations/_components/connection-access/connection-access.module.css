@@ -17,20 +17,20 @@
 }
 .items {
   gap: var(--ui-row-gap);
+  padding-inline-start: var(--spacing-16);
+  list-style: disc;
 }
 .item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--ui-row-gap);
+  padding-inline-start: var(--spacing-2);
   overflow-wrap: anywhere;
 }
-.item > :first-child {
-  flex: none;
+.item::marker {
+  color: var(--ui-secondary);
 }
 .viewport {
   display: grid;
   min-block-size: 0;
-  max-block-size: var(--ui-widget-max-size);
+  max-block-size: min(var(--spacing-192), 30dvh);
 }
 
 .copy {

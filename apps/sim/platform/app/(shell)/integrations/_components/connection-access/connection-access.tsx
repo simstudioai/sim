@@ -3,7 +3,7 @@ import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
-import { Icon, ScrollArea } from '@/platform/design-system/components'
+import { ScrollArea } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 
 interface ConnectionAccessProps {
@@ -32,10 +32,9 @@ export function ConnectionAccess({
                   <h3 data-type='T052'>{group}</h3>
                   <ul className={styles.items}>
                     {items.map(({ id, label, description }) => (
-                      <li className={styles.item} key={id}>
-                        <Icon name='I137' />
+                      <li className={styles.item} key={id} data-type='T060'>
                         <span className={styles.copy}>
-                          <span data-type='T060'>{label}</span>
+                          <span>{label}</span>
                           {description && (
                             <span className={styles.description} data-type='T050'>
                               {description}

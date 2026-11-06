@@ -17,7 +17,7 @@ export function IntegrationIdea({ providerId, name, example }: IntegrationIdeaPr
     <section className={styles.idea} aria-label={`Idea for ${name}`}>
       <img
         className={styles.artwork}
-        src={publicAssetPath('/integration-artwork/fireflies-world.webp')}
+        src={publicAssetPath('/integration-artwork/meeting-world.webp')}
         alt=''
         width={2172}
         height={724}

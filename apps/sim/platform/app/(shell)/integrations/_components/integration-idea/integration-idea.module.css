@@ -37,13 +37,13 @@
 }
 
 [data-platform-ui][data-theme="dark"] .artwork {
-  filter: invert(0.92) hue-rotate(180deg);
+  filter: invert(0.92);
   opacity: var(--opacity-0-6);
 }
 
 @media (prefers-color-scheme: dark) {
   [data-platform-ui][data-theme="system"] .artwork {
-    filter: invert(0.92) hue-rotate(180deg);
+    filter: invert(0.92);
     opacity: var(--opacity-0-6);
   }
 }
@@ -51,9 +51,5 @@
 @media (max-width: 40rem) {
   .idea {
     padding-inline: var(--spacing-16);
-  }
-
-  .artwork {
-    object-position: right bottom;
   }
 }

@@ -41,7 +41,7 @@ Form dialogs use `Modal` or `MultiStepModal`. Pass a title, content, action labe
 
 ContentTabs uses Base UI tab behavior with the same ControlRow lane, spacing and paint as DestinationTabs. DataTable composes those tabs, a caller-owned toolbar, native table semantics and shared checkboxes for controlled row/select-all operations. Passive table rows have no whole-row hover or click target; their controls remain independent. Consumers own filtering, sorting and mutation policy.
 
-MessageBubble owns the normal user-message surface and selectable integration ideas. Idea messages sit centered over full-width artwork; selecting one appends to the Home draft without submitting or discarding existing text or attachments.
+MessageBubble owns the normal user-message surface and selectable integration ideas. Idea messages sit centered over full-width monochrome meeting artwork, with a translucent fill and at most two visible lines. Hover and press change the muted fill without adding a border. Selecting one appends the full prompt to the Home draft without submitting or discarding existing text or attachments.
 
 Use `useClipboard` / `CopyButton` for successful copy feedback and `useFeedbackExpiry` for temporary status. Copied indicators and transient notices dwell for four seconds; repeated events restart the timer. Pause an actionable notice during hover or focus and keep its action available in the stack afterward. Icon color changes use `--ui-motion-color` (120ms, zero under reduced motion). Do not put literal timers or CSS durations in product components.
 
