@@ -30,11 +30,13 @@ vi.mock(
       changed,
       onChange,
       onSave,
+      onRemove,
     }: {
       draft: PolicyDraft
       changed: boolean
       onChange: (draft: PolicyDraft) => void
       onSave: () => void
+      onRemove: () => Promise<void>
     }): ReactNode => (
       <div>
         <output>{draft.logDays}</output>
@@ -46,6 +48,16 @@ vi.mock(
         </button>
         <button type='button' disabled={!changed} onClick={onSave}>
           Save
+        </button>
+        <button
+          type='button'
+          onClick={() =>
+            void onRemove().catch((error: Error) => {
+              window.document.body.dataset.removeError = error.message
+            })
+          }
+        >
+          Remove
         </button>
       </div>
     ),
@@ -122,6 +134,7 @@ describe('DataRetentionSection across saves', () => {
     server.writes = []
     server.answer = (body) => retentionDocument((body.logRetentionHours ?? 0) / 24)
     server.read = async () => ({ success: true, data: server.document })
+    delete window.document.body.dataset.removeError
     apiClientRequestMockFns.mockRequestJson
       .mockReset()
       .mockImplementation(
@@ -196,6 +209,38 @@ describe('DataRetentionSection across saves', () => {
 
     expect(server.writes.map((write) => write.logRetentionHours)).toEqual([days(7), days(14)])
     expect(emcnMockFns.mockToast.error).not.toHaveBeenCalled()
+  })
+
+  describe('the read before a write fails', () => {
+    async function failNextReads(start: () => Promise<void>) {
+      server.read = async () => {
+        throw new Error('read failed')
+      }
+      await start()
+      await settle()
+    }
+
+    it('writes nothing over the document from before the failure, and says so', async () => {
+      server.document = retentionDocument(60)
+      await click('Organization')
+      await click('keep logs 7 days')
+      await failNextReads(() => click('Save'))
+
+      expect(server.writes).toEqual([])
+      expect(emcnMockFns.mockToast.error).toHaveBeenCalledWith(
+        'Could not confirm the latest retention settings. Nothing was saved.'
+      )
+    })
+
+    it('removes nothing over the document from before the failure', async () => {
+      await click('Organization')
+      await failNextReads(() => click('Remove'))
+
+      expect(server.writes).toEqual([])
+      expect(window.document.body.dataset.removeError).toBe(
+        'Could not confirm the latest retention settings.'
+      )
+    })
   })
 
   it('shows the route answer without waiting on the read that follows the save', async () => {

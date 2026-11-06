@@ -199,7 +199,7 @@ interface RetentionFormProps {
   initialData: DataRetentionResponse
   organizationId: string
   workspaceOptions: { value: string; label: string }[]
-  refetch: () => Promise<{ data?: DataRetentionResponse }>
+  refetch: () => Promise<{ data?: DataRetentionResponse; isError: boolean }>
 }
 
 /**
@@ -236,8 +236,9 @@ function RetentionForm({
         withOverrides={withOverrides}
         isSaving={update.isPending}
         readLatest={async () => {
-          const { data } = await refetch()
-          return data ? snapshotFrom(data) : null
+          // A failed refetch still resolves, carrying the last good document.
+          const { data, isError } = await refetch()
+          return data && !isError ? snapshotFrom(data) : null
         }}
         persist={persist}
         onClose={() => setSelection(null)}
