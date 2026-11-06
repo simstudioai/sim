@@ -4422,6 +4422,9 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)
+          const expectedPathname = `${root}/${route.path.split('?')[0]}`
+          if (new URL(page.url()).pathname !== expectedPathname)
+            failures.push(`${route.name} landed on ${pathOf(page.url())}`)
           if (facts.dark !== (theme === 'dark')) failures.push(`${route.name} wrong theme`)
           if (/Times/.test(facts.font)) failures.push(`${route.name} has no stylesheet`)
           if (facts.overflow > 1) failures.push(`${route.name} overflows by ${facts.overflow}px`)
