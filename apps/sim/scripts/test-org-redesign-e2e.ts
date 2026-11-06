@@ -136,6 +136,12 @@ let currentCheck = 'Setup'
 let currentSection = 'Setup'
 /** What the running check expects to fail; everything else is reported. */
 let allowedFailures: RegExp[] = []
+/**
+ * The token route limits per user and each document load mints one, while a persona opens pages
+ * here far faster than anyone does. Which check runs out shifts as the suite grows, and the page
+ * retries after the route's `Retry-After`, so a throttled mint never says anything about a check.
+ */
+const SOCKET_TOKEN_THROTTLED = /429 POST \/api\/auth\/socket-token/
 
 const HANDLED_RUNTIME = /NEXT_REDIRECT|NEXT_HTTP_ERROR_FALLBACK/
 /** A Suspense boundary the server gave up on, which is only fine when it was a redirect or not-found. */
@@ -187,6 +193,7 @@ function pathOf(address: string) {
 
 function recordProblem(kind: Problem['kind'], address: string, detail: string) {
   const signature = `${kind} ${address} ${detail}`
+  if (SOCKET_TOKEN_THROTTLED.test(signature)) return
   if (allowedFailures.some((pattern) => pattern.test(signature))) return
   if (
     unexpected.some(
@@ -3249,8 +3256,6 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
 async function walkRoutes(personas: Persona[]) {
   section('Route walk')
   currentCheck = 'Route walk'
-  // The token route limits per user, and one persona opens a hundred pages here within minutes.
-  allowedFailures = [/429 POST \/api\/auth\/socket-token/]
   const plan = personas.flatMap((persona) =>
     [DESKTOP, PHONE].flatMap((viewport) =>
       (['light', 'dark'] as const).map((theme) => ({ persona, viewport, theme }))
