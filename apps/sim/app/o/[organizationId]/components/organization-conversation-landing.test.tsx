@@ -57,7 +57,9 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
 vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: vi.fn() }),
 }))
-vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
+vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
+  PageComposer: mocks.composer,
+}))
 vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
   SuggestedActions: () => <div>Suggested actions</div>,
 }))
@@ -67,18 +69,16 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => (
 }))
 
 import {
-  OrganizationConversation,
-  type OrganizationLandingSlot,
-} from '@/app/o/[organizationId]/components/organization-conversation'
+  type ConversationLandingSlot,
+  PageConversation,
+} from '@/platform/app/(shell)/_components/conversation/page-conversation'
 
-const landing = {
-  render: ({ requestMode, composer }: OrganizationLandingSlot) => (
-    <div>
-      <div>Dashboard for {requestMode}</div>
-      {composer}
-    </div>
-  ),
-}
+const landing = ({ requestMode, composer }: ConversationLandingSlot) => (
+  <div>
+    <div>Dashboard for {requestMode}</div>
+    {composer}
+  </div>
+)
 
 let root: Root
 let container: HTMLDivElement
@@ -118,7 +118,7 @@ describe('an Assistant conversation on a surface with its own landing', () => {
   it('holds the surface’s fallback until the session arrives', async () => {
     authClientMockFns.mockUseSession.mockReturnValue({ data: null })
     await render(
-      <OrganizationConversation
+      <PageConversation
         requestMode='assistant'
         fallback={<div>Dashboard skeleton</div>}
         landing={landing}
@@ -130,7 +130,7 @@ describe('an Assistant conversation on a surface with its own landing', () => {
   it('shows no dashboard while a restored chat entry hands itself back to the router', async () => {
     nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization-a/search/chat/chat-1')
     await render(
-      <OrganizationConversation
+      <PageConversation
         requestMode='assistant'
         fallback={<div>Dashboard skeleton</div>}
         landing={landing}

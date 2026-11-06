@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { act, type ComponentProps, type ReactNode } from 'react'
+import { act, type ReactNode } from 'react'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import {
   createMockDeploymentShape,
@@ -76,7 +76,9 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
 vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
-vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
+vi.mock('@/platform/app/(shell)/_components/conversation/page-composer', () => ({
+  PageComposer: mocks.composer,
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
@@ -84,8 +86,8 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => (
   MothershipChat: mocks.renderer,
 }))
 
-import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
-import type { Composer } from '@/app/o/[organizationId]/home/components/composer'
+import type { ConversationComposerProps } from '@/app/o/[organizationId]/home/components/composer'
+import { PageConversation } from '@/platform/app/(shell)/_components/conversation/page-conversation'
 
 const mockSession = authClientMockFns.mockUseSession
 const mockContext = organizationProviderMockFns.mockUseOrganizationContext
@@ -145,7 +147,7 @@ function renderHome(element: ReactNode, searchParams = '') {
     </NuqsTestingAdapter>
   )
 }
-function composerProps(): ComponentProps<typeof Composer> {
+function composerProps(): ConversationComposerProps {
   const call = mocks.composer.mock.lastCall
   if (!call) throw new Error('Composer has not rendered')
   return call[0]
@@ -184,15 +186,15 @@ describe('organization home', () => {
     })
     mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
     await act(async () =>
-      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-a' />)
+      renderHome(<PageConversation requestMode='agent' chatId='chat-a' fallback={null} />)
     )
     await act(async () => composerProps().onChange('A draft for chat A'))
     await act(async () =>
-      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-a' />)
+      renderHome(<PageConversation requestMode='agent' chatId='chat-a' fallback={null} />)
     )
     expect(composerProps().value).toBe('A draft for chat A')
     await act(async () =>
-      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-b' />)
+      renderHome(<PageConversation requestMode='agent' chatId='chat-b' fallback={null} />)
     )
     expect(composerProps().value).toBe('')
     expect(mocks.chat).toHaveBeenLastCalledWith(
@@ -209,22 +211,22 @@ describe('organization home', () => {
 it('isolates saved drafts by user, organization, and conversation', async () => {
   mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
   await act(async () =>
-    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+    renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   await attachDraftImage()
   await act(async () => composerProps().onChange('Chat A follow-up'))
   await act(async () =>
-    renderHome(<OrganizationConversation chatId='chat-b' requestMode='assistant' />)
+    renderHome(<PageConversation chatId='chat-b' requestMode='assistant' fallback={null} />)
   )
   expect(composerProps().value).toBe('')
   await act(async () =>
-    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+    renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   expect(composerProps().value).toBe('Chat A follow-up')
   expect(composerProps().files.attachedFiles[0]?.key).toBe('image-key')
   mockSession.mockReturnValue({ data: { user: { id: 'other-user' } } })
   await act(async () =>
-    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+    renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   expect(composerProps().value).toBe('')
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
@@ -233,7 +235,7 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
     organization: { id: 'other-org', name: 'Other' },
   })
   await act(async () =>
-    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+    renderHome(<PageConversation chatId='chat-a' requestMode='assistant' fallback={null} />)
   )
   expect(composerProps().value).toBe('')
 })

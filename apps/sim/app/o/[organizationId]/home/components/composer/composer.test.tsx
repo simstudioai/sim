@@ -88,9 +88,9 @@ vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () 
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
-import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { PageComposer as Composer } from '@/platform/app/(shell)/_components/conversation/page-composer'
 
 const deploymentShape = () => createMockDeploymentShape()
 deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)

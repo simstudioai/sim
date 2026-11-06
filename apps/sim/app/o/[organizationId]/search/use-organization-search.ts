@@ -9,7 +9,7 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/organization-conversation'
+import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/use-organization-conversation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
