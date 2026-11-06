@@ -3406,13 +3406,9 @@ async function settingsChecks() {
     await check(`${persona.key}: the same sections, in order`, async () => {
       await withSession(persona, async ({ page }) => {
         await page.goto(orgUrl('/settings/general'))
-        const links = sidebar(page).getByRole('link')
-        await expect(links.first()).toBeVisible()
-        const labels = (await links.allInnerTexts()).map((text) => text.trim()).filter(Boolean)
-        assert.deepEqual(
-          labels.filter((label) => expected.includes(label)),
-          expected
-        )
+        await expect(
+          sidebar(page).getByRole('navigation', { name: 'Settings' }).getByRole('link')
+        ).toHaveText([...expected])
       })
     })
   }
@@ -3880,12 +3876,13 @@ async function settingsChecks() {
 async function blastRadiusChecks() {
   section('Blast radius')
   const workspaceHome = `/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`
+  const WORKSPACE_RAIL_ROWS = ['Integrations', 'Tables', 'Files', 'Knowledge bases', 'Logs']
   await check('/workspace has no platform surface and its usual nav', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(url(workspaceHome))
       const rail = page.getByRole('complementary', { name: 'Workspace sidebar' })
       await expect(rail).toBeVisible()
-      for (const label of ['Integrations', 'Tables', 'Files', 'Knowledge bases', 'Logs'])
+      for (const label of WORKSPACE_RAIL_ROWS)
         await expect(rail.getByRole('link', { name: label, exact: true })).toBeVisible()
       await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
     })
@@ -3987,7 +3984,14 @@ async function blastRadiusChecks() {
             const differences = Object.keys(fresh)
               .filter((key) => key in carried && carried[key] !== fresh[key])
               .map((key) => `${key}: fresh ${fresh[key]} vs carried ${carried[key]}`)
-            assert(Object.keys(fresh).length > 20, 'The sample found the rail controls')
+            const comparedControls = Object.keys(fresh).filter(
+              (key) => !key.startsWith(':root ') && !key.startsWith('body ') && key in carried
+            )
+            for (const label of WORKSPACE_RAIL_ROWS)
+              assert(
+                comparedControls.some((key) => key.startsWith(`A ${label} #`)),
+                `The comparison never reached the ${label} row: ${comparedControls.join(', ')}`
+              )
             assert.deepEqual(
               differences,
               [],
