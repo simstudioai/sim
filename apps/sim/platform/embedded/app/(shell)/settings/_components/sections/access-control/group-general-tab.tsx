@@ -29,8 +29,8 @@ import {
   usePermissionGroupMembers,
   useRemovePermissionGroupMember,
 } from '@/platform/embedded/lib/data/access-control'
-import { plural } from '@/platform/lib/plural'
-import { formatTimestamp } from '@/platform/lib/time'
+import { plural } from '@/platform/shared/plural'
+import { formatTimestamp } from '@/platform/shared/time'
 
 interface GroupMembersProps {
   group: PermissionGroup

@@ -15,9 +15,9 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
 import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
-import { canOpenOrganizationChat } from '@/platform/lib/data/chat-open'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { toast } from '@/platform/lib/data/toast'
+import { canOpenOrganizationChat } from '@/platform/shared/chat-open'
 
 const CHAT_PREFETCH_DWELL_MS = 80
 

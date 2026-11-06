@@ -17,7 +17,7 @@ import {
   useSettingsNavigation,
 } from '@/platform/embedded/lib/data/settings-navigation'
 import { searchSettings } from '@/platform/embedded/lib/data/settings-search'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const BACK_LABEL = 'Back to app'

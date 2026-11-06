@@ -110,6 +110,8 @@ function PageConversationContent({
   usePageConversationEffects({ chatId, requestMode, conversation })
   const header = frameHeader ?? (hasChat ? chatHeader : undefined)
   const composer = <PageComposer {...composerProps} />
+  // The landing names its own main region; a chat has only this frame to carry it.
+  const Frame = hasChat ? 'main' : 'div'
   return (
     <ChatChromeProvider value={PAGE_CHAT_CHROME}>
       <ChatResourcePanel
@@ -121,29 +123,27 @@ function PageConversationContent({
         panel={panel}
         onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
       >
-        <div
+        <Frame
           className={cn(
             'flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]',
             'md:min-w-[min(480px,50%)]'
           )}
         >
           {hasChat ? (
-            <main className='contents'>
-              <AssistantActionReviewProvider {...reviewProps}>
-                <MothershipChat
-                  {...threadProps}
-                  className={cn(hostBridge.palette, styles.thread)}
-                  reserveResourceHeader={!header && threadProps.reserveResourceHeader}
-                  SearchConnectionComponent={SearchIntegrationConnection}
-                  composer={composer}
-                  initialScrollBlocked={panel.initialScrollBlocked}
-                />
-              </AssistantActionReviewProvider>
-            </main>
+            <AssistantActionReviewProvider {...reviewProps}>
+              <MothershipChat
+                {...threadProps}
+                className={cn(hostBridge.palette, styles.thread)}
+                reserveResourceHeader={!header && threadProps.reserveResourceHeader}
+                SearchConnectionComponent={SearchIntegrationConnection}
+                composer={composer}
+                initialScrollBlocked={panel.initialScrollBlocked}
+              />
+            </AssistantActionReviewProvider>
           ) : (
             landing?.({ requestMode, composer })
           )}
-        </div>
+        </Frame>
       </ChatResourcePanel>
     </ChatChromeProvider>
   )

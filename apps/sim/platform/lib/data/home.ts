@@ -56,7 +56,6 @@ import {
   toTaskPoints,
   wallClockMinute,
 } from '@/platform/lib/data/home-model'
-import { homeDayParam } from '@/platform/lib/data/home-params'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
 import {
@@ -64,9 +63,10 @@ import {
   type PlatformOrganization,
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
-import { isRefusal } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-import { MINUTE_MS } from '@/platform/lib/time'
+import { homeDayParam } from '@/platform/shared/home-params'
+import { isRefusal } from '@/platform/shared/query-view'
+import { MINUTE_MS } from '@/platform/shared/time'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90

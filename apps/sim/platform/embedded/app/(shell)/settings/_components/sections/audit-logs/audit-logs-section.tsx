@@ -41,7 +41,7 @@ import {
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section.module.css'
 import { useAuditLogFeed } from '@/platform/embedded/lib/data/audit-logs/feed'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 const ALL_TYPES = '__all_types__'
 

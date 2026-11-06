@@ -18,13 +18,8 @@ interface SkeletonPlaceholderProps {
 }
 
 /** Text a live region can announce, since these shapes say nothing. */
-function announcement(label: string, silent: boolean | undefined) {
-  return silent
-    ? { props: { 'aria-hidden': true as const }, text: null }
-    : {
-        props: { role: 'status', 'aria-label': label },
-        text: <span data-visually-hidden>{label}</span>,
-      }
+function Announcement({ label, silent }: SkeletonPlaceholderProps) {
+  return silent ? null : <span data-visually-hidden>{label}</span>
 }
 
 /** Holds a widget's list at its final size, so the page does not move when the data arrives. */
@@ -34,10 +29,14 @@ export function WidgetSkeleton({
   glyph = true,
   silent,
 }: WidgetSkeletonProps) {
-  const { props, text } = announcement(label, silent)
   return (
-    <div className={styles.rows} {...props}>
-      {text}
+    <div
+      className={styles.rows}
+      role={silent ? undefined : 'status'}
+      aria-label={silent ? undefined : label}
+      aria-hidden={silent || undefined}
+    >
+      <Announcement label={label} silent={silent} />
       {Array.from({ length: rows }, (_, index) => (
         <span key={index} className={styles.row}>
           {glyph && <i className={styles.glyph} />}
@@ -53,20 +52,28 @@ export function WidgetSkeleton({
 
 /** The same fill for a chart or schedule, whose shape has no rows. */
 export function SkeletonBlock({ label, silent }: SkeletonPlaceholderProps) {
-  const { props, text } = announcement(label, silent)
   return (
-    <div className={styles.block} {...props}>
-      {text}
+    <div
+      className={styles.block}
+      role={silent ? undefined : 'status'}
+      aria-label={silent ? undefined : label}
+      aria-hidden={silent || undefined}
+    >
+      <Announcement label={label} silent={silent} />
     </div>
   )
 }
 
 /** A recents lane holding its height until the history read settles. */
 export function SkeletonLane({ label, silent }: SkeletonPlaceholderProps) {
-  const { props, text } = announcement(label, silent)
   return (
-    <div className={styles.lane} {...props}>
-      {text}
+    <div
+      className={styles.lane}
+      role={silent ? undefined : 'status'}
+      aria-label={silent ? undefined : label}
+      aria-hidden={silent || undefined}
+    >
+      <Announcement label={label} silent={silent} />
       <i />
       <i />
       <i />

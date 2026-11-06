@@ -4,7 +4,7 @@ import {
   formatClockTime,
   formatRelativeTime,
   formatTimeRange,
-} from '@/platform/lib/time'
+} from '@/platform/shared/time'
 
 describe('activity time against a fixed reading instant', () => {
   const now = Date.UTC(2026, 10, 4, 12)

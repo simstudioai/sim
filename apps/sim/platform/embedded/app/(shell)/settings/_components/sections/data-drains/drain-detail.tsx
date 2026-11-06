@@ -33,7 +33,7 @@ import {
   FieldStack,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 const RECENT_RUN_LIMIT = 10
 

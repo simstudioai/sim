@@ -23,7 +23,7 @@ import {
   personHref,
   usePeoplePath,
 } from '@/platform/lib/data/people'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 import '@xyflow/react/dist/style.css'
 

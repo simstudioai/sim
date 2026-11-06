@@ -71,9 +71,9 @@ import {
 } from '@/platform/embedded/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/embedded/lib/data/integrations'
 import { workspaceHref } from '@/platform/embedded/lib/data/workspaces'
-import { homeDayParam } from '@/platform/lib/data/home-params'
-import { isRefusal } from '@/platform/lib/data/query-view'
-import { currentMinute, MINUTE_MS } from '@/platform/lib/time'
+import { homeDayParam } from '@/platform/shared/home-params'
+import { isRefusal } from '@/platform/shared/query-view'
+import { currentMinute, MINUTE_MS } from '@/platform/shared/time'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,

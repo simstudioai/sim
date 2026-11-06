@@ -22,7 +22,7 @@ import { LinkEditor } from '@/platform/embedded/app/(shell)/links/_components/li
 import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
 import { openLink, useLinksPage } from '@/platform/embedded/lib/data/links'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 const LINK_SKELETON_ROWS = 6
 

@@ -23,7 +23,7 @@ import {
   truncateBreakdown,
   usageHeatLevel,
 } from '@/ee/organization-usage/format'
-import { formatCalendarDate } from '@/platform/lib/time'
+import { formatCalendarDate } from '@/platform/shared/time'
 
 export const USAGE_TABS = USAGE_TAB_ORDER.map((tab) => ({
   value: tab,

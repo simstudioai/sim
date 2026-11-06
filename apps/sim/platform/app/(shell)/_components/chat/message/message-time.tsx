@@ -1,4 +1,4 @@
-import { formatClockTime } from '@/platform/lib/time'
+import { formatClockTime } from '@/platform/shared/time'
 
 interface MessageTimeProps {
   sentAt: number

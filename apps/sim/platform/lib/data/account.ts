@@ -28,9 +28,9 @@ import {
 import { useResetPassword, useUserProfile } from '@/hooks/queries/user-profile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
-import { loadMoreOf, queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-import { formatInstantDate } from '@/platform/lib/time'
+import { loadMoreOf, queryView } from '@/platform/shared/query-view'
+import { formatInstantDate } from '@/platform/shared/time'
 
 const logger = createLogger('PlatformAccount')
 

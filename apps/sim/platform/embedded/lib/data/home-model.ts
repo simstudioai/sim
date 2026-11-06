@@ -32,7 +32,7 @@ import type {
   HomeWidgetState,
   HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
-import { groupRecentSources } from '@/platform/lib/data/recent-sources'
+import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */

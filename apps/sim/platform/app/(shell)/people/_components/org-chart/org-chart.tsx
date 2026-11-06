@@ -26,7 +26,7 @@ import {
   usePeoplePicker,
   usePeopleViewer,
 } from '@/platform/lib/data/people'
-import { isRefusal } from '@/platform/lib/data/query-view'
+import { isRefusal } from '@/platform/shared/query-view'
 
 function ReportingLinesGraphic() {
   return (

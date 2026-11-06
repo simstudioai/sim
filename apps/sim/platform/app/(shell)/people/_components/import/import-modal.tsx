@@ -26,7 +26,7 @@ import {
   useProvisioningConnection,
 } from '@/platform/lib/data/people'
 import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

@@ -10,7 +10,7 @@ import {
   useMothershipRequests,
   useMothershipUserBreakdown,
 } from '@/hooks/queries/mothership-admin'
-import { queryView } from '@/platform/lib/data/query-view'
+import { queryView } from '@/platform/shared/query-view'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 export type { MothershipEnv }

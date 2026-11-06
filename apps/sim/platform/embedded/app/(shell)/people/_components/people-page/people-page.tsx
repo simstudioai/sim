@@ -13,7 +13,7 @@ import {
   usePeopleUrl,
   usePeopleViewer,
 } from '@/platform/embedded/lib/data/people'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 function LoadingBody() {
   return (

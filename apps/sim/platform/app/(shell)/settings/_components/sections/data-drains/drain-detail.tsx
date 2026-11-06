@@ -35,7 +35,7 @@ import {
   useUpdateDataDrain,
 } from '@/platform/lib/data/data-drains'
 import { toast } from '@/platform/lib/data/toast'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 const RECENT_RUN_LIMIT = 10
 

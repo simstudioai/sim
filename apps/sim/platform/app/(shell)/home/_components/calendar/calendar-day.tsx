@@ -16,7 +16,7 @@ import {
   OverflowText,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/lib/time'
+import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 
 interface CalendarDayProps {
   calendar: HomeCalendarDay

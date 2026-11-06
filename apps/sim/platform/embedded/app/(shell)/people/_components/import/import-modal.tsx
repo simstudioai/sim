@@ -26,7 +26,7 @@ import {
   usePeopleViewer,
   useProvisioningConnection,
 } from '@/platform/embedded/lib/data/people'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

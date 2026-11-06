@@ -15,7 +15,7 @@ import { ChartTooltip } from '@/platform/design-system/components/chart/chart-to
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
 import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
+import { DAY_MS, formatCalendarDate } from '@/platform/shared/time'
 
 interface HomeActivityChartProps {
   title: string

@@ -63,9 +63,9 @@ import {
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { PreviewData } from '@/platform/fixtures'
-import { formatCalendarDate } from '@/platform/lib/time'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
+import { formatCalendarDate } from '@/platform/shared/time'
 
 interface ControlSpecimenProps {
   master: (typeof evidence)[number]

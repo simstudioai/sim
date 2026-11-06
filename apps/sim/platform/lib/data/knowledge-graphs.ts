@@ -6,8 +6,8 @@ import {
   useMemorySpaces,
   useSelectMemorySpace,
 } from '@/hooks/queries/memory-spaces'
-import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
+import { queryView } from '@/platform/shared/query-view'
 
 export function useKnowledgeGraphs(organizationId: string) {
   const spaces = useMemorySpaces(organizationId)

@@ -23,7 +23,7 @@ import {
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },

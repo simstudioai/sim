@@ -27,7 +27,7 @@ import {
 } from '@/ee/audit-logs/search-params'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
-import { currentMinute } from '@/platform/lib/time'
+import { currentMinute } from '@/platform/shared/time'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 const logger = createLogger('AuditLogFeed')

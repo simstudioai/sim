@@ -35,7 +35,7 @@ import {
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/platform/embedded/lib/data/access-control'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 function groupSummary(group: PermissionGroup): string {
   if (group.isDefault) return 'Everyone in the organization'

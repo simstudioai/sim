@@ -14,10 +14,10 @@ import {
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
-import { queryView } from '@/platform/lib/data/query-view'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
+import { queryView } from '@/platform/shared/query-view'
 
 const TEXT_FIELDS = [
   'brandName',

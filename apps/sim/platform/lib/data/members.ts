@@ -44,8 +44,8 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
-import { formatInstantDate } from '@/platform/lib/time'
+import { plural } from '@/platform/shared/plural'
+import { formatInstantDate } from '@/platform/shared/time'
 
 type OrganizationRole = RosterMember['role']
 export type WorkspacePermission = RosterWorkspaceAccess['permission']

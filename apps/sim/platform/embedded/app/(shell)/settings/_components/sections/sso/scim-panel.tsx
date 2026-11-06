@@ -47,8 +47,8 @@ import {
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import { GroupMappings } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/group-mappings'
 import { useSettingsNavigationBlocked } from '@/platform/embedded/lib/data/settings-guard'
-import { plural } from '@/platform/lib/plural'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { plural } from '@/platform/shared/plural'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'

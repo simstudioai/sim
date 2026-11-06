@@ -5,9 +5,9 @@ import {
   useRestoreMothershipChat,
 } from '@/hooks/queries/mothership-chats'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
-import { queryView } from '@/platform/lib/data/query-view'
 import { toast } from '@/platform/lib/data/toast'
-import { formatInstantDate } from '@/platform/lib/time'
+import { queryView } from '@/platform/shared/query-view'
+import { formatInstantDate } from '@/platform/shared/time'
 
 export function useDeletedChats(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()

@@ -22,7 +22,7 @@ import {
   type PersonSummary,
   personHref,
 } from '@/platform/embedded/lib/data/people'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 import '@xyflow/react/dist/style.css'
 

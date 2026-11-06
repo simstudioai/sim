@@ -49,7 +49,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { isRefusal } from '@/platform/lib/data/query-view'
+import { isRefusal } from '@/platform/shared/query-view'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult

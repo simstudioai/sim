@@ -6,7 +6,7 @@ import {
   useMemorySpaces,
   useSelectMemorySpace,
 } from '@/hooks/queries/memory-spaces'
-import { queryView } from '@/platform/lib/data/query-view'
+import { queryView } from '@/platform/shared/query-view'
 
 /** The create contract's own bound, so a long name is refused here before it is sent. */
 const MEMORY_SPACE_NAME_MAX_LENGTH = 100

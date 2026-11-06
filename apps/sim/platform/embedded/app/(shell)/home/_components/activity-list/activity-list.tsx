@@ -12,7 +12,7 @@ import type {
   EmailItem,
   HomeListState,
 } from '@/platform/embedded/lib/data/home-view'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 interface EmailListProps {
   items: readonly EmailItem[]

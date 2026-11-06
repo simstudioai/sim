@@ -14,7 +14,7 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
-import { canOpenOrganizationChat } from '@/platform/lib/data/chat-open'
+import { canOpenOrganizationChat } from '@/platform/shared/chat-open'
 
 export function organizationChatHref(
   chat: { id: string; mode?: string },

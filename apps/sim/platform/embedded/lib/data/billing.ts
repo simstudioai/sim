@@ -39,8 +39,8 @@ import { useOrganizationBillingSummary } from '@/hooks/queries/organization-bill
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { reportFailure } from '@/platform/embedded/lib/notices'
-import { queryView } from '@/platform/lib/data/query-view'
-import { formatInstantDate } from '@/platform/lib/time'
+import { queryView } from '@/platform/shared/query-view'
+import { formatInstantDate } from '@/platform/shared/time'
 
 const logger = createLogger('PlatformBilling')
 

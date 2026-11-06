@@ -16,7 +16,7 @@ import type { GeneralSettings } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
-import { queryView } from '@/platform/lib/data/query-view'
+import { queryView } from '@/platform/shared/query-view'
 
 const usePlatformSettings = useGeneralSettings
 const useWritePlatformSetting = useUpdateGeneralSetting

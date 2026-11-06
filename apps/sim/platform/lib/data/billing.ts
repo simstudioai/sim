@@ -37,10 +37,10 @@ import { useOrganizationBillingSummary } from '@/hooks/queries/organization-bill
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { queryView } from '@/platform/lib/data/query-view'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
-import { formatCalendarDate, formatInstantDate } from '@/platform/lib/time'
+import { queryView } from '@/platform/shared/query-view'
+import { formatCalendarDate, formatInstantDate } from '@/platform/shared/time'
 
 const logger = createLogger('PlatformBilling')
 

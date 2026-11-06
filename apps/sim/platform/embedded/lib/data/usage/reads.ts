@@ -39,7 +39,7 @@ import {
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/embedded/lib/data/usage/model'
-import { DAY_MS } from '@/platform/lib/time'
+import { DAY_MS } from '@/platform/shared/time'
 
 const logger = createLogger('PlatformUsage')
 

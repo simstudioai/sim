@@ -442,17 +442,19 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   const workbenchConsumer = /^(?:platform\/preview|platform\/app\/workbench)\//.test(file)
   if (inPlatform && workbenchDependency && !workbenchConsumer)
     report('workbench-dependency', file, 'Only the workbench may import its tooling')
-  const inSeam = file.startsWith(dataSeam)
+  const inSeam = file.startsWith(dataSeam) || file.startsWith('platform/shared/')
   const seamTarget =
     inSeam &&
     target !== null &&
     (seamHelpers.has(target) ||
       seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
-  // The zone and the organization views share only the design system: the zone is a separate app, and
-  // what the views import from the host would ride into it.
+  // The zone and the organization views share only the design system and `platform/shared`: the zone
+  // is a separate app, and what the views import from the host would ride into it.
   if (inPlatform && !inEmbedded && target?.startsWith(embedded))
     report('zone-embedded', file, `The zone may not import the organization views: ${specifier}`)
-  if (inEmbedded && target && /^platform\/(?!embedded\/|design-system\/)/.test(target))
+  if (file.startsWith('platform/shared/') && target && /^platform\/(?!shared\/)/.test(target))
+    report('zone-embedded', file, `platform/shared may only import itself: ${specifier}`)
+  if (inEmbedded && target && /^platform\/(?!embedded\/|design-system\/|shared\/)/.test(target))
     report('zone-embedded', file, `The organization views may not import the zone: ${specifier}`)
   const hostMountsWhatItShips =
     file.startsWith(embeddedHost) &&
@@ -949,7 +951,7 @@ function checkJs(file: string, content: string) {
   const owner = file.startsWith(system) || privateRoute(file)
   const preview = file.startsWith('platform/preview/')
   const ownsTimeLabels =
-    file === 'platform/lib/time.ts' ||
+    file === 'platform/shared/time.ts' ||
     file === `${embedded}lib/time.ts` ||
     file.startsWith('platform/checks/') ||
     /\.test\.[jt]sx?$/.test(file)

@@ -49,7 +49,7 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
-import { isRefusal } from '@/platform/lib/data/query-view'
+import { isRefusal } from '@/platform/shared/query-view'
 
 export type ChartBranch = ContractChartBranch
 export type PeopleImportResult = ContractImportResult

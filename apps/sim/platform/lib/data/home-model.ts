@@ -27,7 +27,7 @@ import type {
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import { groupRecentSources } from '@/platform/lib/data/recent-sources'
+import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */

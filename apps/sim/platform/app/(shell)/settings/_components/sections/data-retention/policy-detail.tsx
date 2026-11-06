@@ -40,7 +40,7 @@ import {
   stageHasContent,
   updateStagePolicy,
 } from '@/platform/lib/data/data-retention'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 function CustomPatternsEditor({
   patterns,

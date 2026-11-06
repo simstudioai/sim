@@ -1,7 +1,7 @@
 import 'server-only'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'
-import { formatCalendarDate, formatClockTime, formatRelativeTime } from '@/platform/lib/time'
+import { formatCalendarDate, formatClockTime, formatRelativeTime } from '@/platform/shared/time'
 
 function datedClock(instant: string) {
   return `${formatCalendarDate(instant.slice(0, 10))}, ${formatClockTime(Date.parse(instant))}`

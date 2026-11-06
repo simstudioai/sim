@@ -43,7 +43,7 @@ import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
 type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>

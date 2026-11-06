@@ -42,7 +42,7 @@ import {
   Muted,
 } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail.module.css'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 function CustomPatternsEditor({
   patterns,

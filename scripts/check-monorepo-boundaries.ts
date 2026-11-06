@@ -145,7 +145,8 @@ function zoneEmbeddedViolation(file: string, specifier: string): string | null {
   if (
     !specifier.startsWith('@/platform/') ||
     matchesModule(specifier, '@/platform/embedded') ||
-    matchesModule(specifier, '@/platform/design-system')
+    matchesModule(specifier, '@/platform/design-system') ||
+    matchesModule(specifier, '@/platform/shared')
   ) {
     return null
   }
