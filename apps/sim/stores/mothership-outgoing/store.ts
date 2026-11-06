@@ -3,7 +3,6 @@ import { toError } from '@sim/utils/errors'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
-import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 /**
  * What a chat still has to deliver, as much as a remount needs to carry on under
@@ -98,5 +97,3 @@ export const useMothershipOutgoingStore = create<MothershipOutgoingState>()(
     { name: 'mothership-outgoing-store' }
   )
 )
-
-registerUserDataReset('mothership-outgoing', () => useMothershipOutgoingStore.getState().reset())
