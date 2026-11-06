@@ -9,6 +9,7 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { getPlanTierCredits, isEnterprise, isFree, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceHostKeys } from '@/hooks/queries/workspace-host'
@@ -38,6 +39,7 @@ export interface UpgradeState {
     status: string
   }
   showUpgradePlans: boolean
+  billedThroughMarketplace: boolean
   proTier: { credits: number; dollars: number; name: string }
   maxTier: { credits: number; dollars: number; name: string }
   isOnPro: boolean
@@ -65,6 +67,7 @@ export function useUpgradeState({
   const { handleUpgrade } = useSubscriptionUpgrade()
   const queryClient = useQueryClient()
   const { ownerBilling } = hostContext
+  const marketplace = useAwsMarketplaceBilling(hostContext.hostOrganizationId ?? null)
   const [isAnnual, setIsAnnual] = useState(
     !ownerBilling.isPaid || ownerBilling.billingInterval === 'year'
   )
@@ -197,7 +200,9 @@ export function useUpgradeState({
     isAnnual,
     setIsAnnual,
     subscription,
-    showUpgradePlans: !subscription.isEnterprise,
+    showUpgradePlans:
+      !subscription.isEnterprise && !marketplace.isPending && !marketplace.billedThroughMarketplace,
+    billedThroughMarketplace: marketplace.billedThroughMarketplace,
     proTier: PRO_TIER,
     maxTier: MAX_TIER,
     isOnPro,
