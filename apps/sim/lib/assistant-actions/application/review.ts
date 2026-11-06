@@ -38,7 +38,9 @@ interface ReviewInput {
   runId: string
 }
 
-const NOTHING_TO_REVIEW = { runId: null, streamId: null, actions: [], nextCursor: null }
+function nothingToReview() {
+  return { runId: null, streamId: null, actions: [], nextCursor: null }
+}
 
 export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseCase({
   operation: assistantActionOperations.list,
@@ -66,7 +68,7 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
       )
       .orderBy(desc(copilotRuns.startedAt), desc(copilotRuns.id))
       .limit(1)
-    if (!latest) return NOTHING_TO_REVIEW
+    if (!latest) return nothingToReview()
     const runId = latest.id
     const run = await requireAssistantRun(principal, { ...input, runId }, context.userId).catch(
       (error: unknown) => {
@@ -75,7 +77,7 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
         throw error
       }
     )
-    if (!run) return NOTHING_TO_REVIEW
+    if (!run) return nothingToReview()
     const records = await db
       .select()
       .from(copilotAsyncToolCalls)
