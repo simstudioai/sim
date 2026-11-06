@@ -34,6 +34,8 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
+import { IntegrationsBack } from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page'
+import { ProviderHeading } from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import {
   NewRow,
   SavedRow,
@@ -47,10 +49,32 @@ import {
 } from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-draft'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
 import { useGenericSecrets } from '@/platform/embedded/lib/data/generic-secrets'
+import { memberSecretMetadata } from '@/platform/embedded/lib/integrations/metadata.generated'
 import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000
+
+interface SecretsHeaderProps {
+  mode: SecretSourceMode
+  backLabel: string
+  onBack: () => void
+}
+
+/** A member reads this as one more integration's page, and an admin as a section of Sources. */
+function SecretsHeader({ mode, backLabel, onBack }: SecretsHeaderProps) {
+  if (mode === 'organization')
+    return <DetailHeader backLabel={backLabel} onBack={onBack} title={memberSecretMetadata.name} />
+  return (
+    <>
+      <IntegrationsBack label={backLabel} onBack={onBack} />
+      <ProviderHeading
+        name={memberSecretMetadata.name}
+        description={memberSecretMetadata.description}
+      />
+    </>
+  )
+}
 
 interface SecretsEditorProps {
   mode: SecretSourceMode
@@ -75,12 +99,7 @@ export function SecretsEditor({ mode, backHref }: SecretsEditorProps) {
   if (!editor)
     return (
       <SectionStack>
-        <DetailHeader
-          backLabel={back.text}
-          onBack={() => router.push(back.href)}
-          title='Generic Secrets'
-          pageHeading={mode === 'member'}
-        />
+        <SecretsHeader mode={mode} backLabel={back.text} onBack={() => router.push(back.href)} />
         {failureNotice ?? <LoadingRows label='Loading secrets…' />}
       </SectionStack>
     )
@@ -216,11 +235,10 @@ function SecretRows({ back, mode, refreshFailure, variables, save, isSaving }: S
   return (
     <SectionStack>
       <AutofillDecoys />
-      <DetailHeader
+      <SecretsHeader
+        mode={mode}
         backLabel={back.text}
         onBack={() => guard.guardBack(() => router.push(back.href))}
-        title='Generic Secrets'
-        pageHeading={mode === 'member'}
       />
       {conflict && (
         <DraftConflictNotice onKeepMine={secrets.keepMine} onTakeLatest={resetToSaved} />
