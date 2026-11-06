@@ -30,11 +30,13 @@ interface DirectoryCellProps {
 }
 
 function DirectoryCell({ value }: DirectoryCellProps) {
-  return (
-    <span className={value ? undefined : styles.blank} data-type='T043'>
-      {value || '—'}
-    </span>
-  )
+  if (!value)
+    return (
+      <span className={styles.blank} data-type='T043'>
+        —
+      </span>
+    )
+  return <span data-type='T043'>{value}</span>
 }
 
 interface PersonSummaryProps {

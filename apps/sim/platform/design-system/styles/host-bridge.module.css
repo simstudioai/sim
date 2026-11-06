@@ -38,6 +38,7 @@
   --design-spacing-app-touch-target: 2.75rem;
   --design-container-chat: 44rem;
   --design-container-chat-message: 40rem;
+  --design-container-app-panel-start: 30rem;
   --design-ui-page-max-size: calc(75rem + 2 * 3rem);
 }
 html[class~="dark"] .tokens {

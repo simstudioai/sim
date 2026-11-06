@@ -9,7 +9,8 @@ import styles from '@/platform/embedded/app/(shell)/_components/conversation/con
 import { formatTimestamp } from '@/platform/shared/time'
 
 interface BodyDialogProps {
-  className?: string
+  /** Leaves what it shows out of session capture. */
+  uncaptured?: boolean
   children: ReactNode
 }
 
@@ -18,9 +19,9 @@ interface BodyDialogProps {
  * inside the chat's column or panel would go `inert` or undisplayed with it, leaving the page locked.
  * Render it only while open: it reads `document`.
  */
-export function BodyDialog({ className, children }: BodyDialogProps) {
+export function BodyDialog({ uncaptured, children }: BodyDialogProps) {
   return createPortal(
-    <div className={className ? `${className} ${styles.dialogHost}` : styles.dialogHost}>
+    <div className={uncaptured ? `ph-no-capture ${styles.dialogHost}` : styles.dialogHost}>
       <Surface detached>{children}</Surface>
     </div>,
     document.body
@@ -65,7 +66,7 @@ export function PageContextDialog({
   onClose,
 }: PageContextDialogProps) {
   return (
-    <BodyDialog className='ph-no-capture'>
+    <BodyDialog uncaptured>
       <Modal open onOpenChange={onClose} title={title} confirmLabel='Done'>
         <div className={styles.pageContextMeta} data-type='T060'>
           <a href={snapshot.url} target='_blank' rel='noopener noreferrer' title={snapshot.url}>

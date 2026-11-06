@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { maskedClientSecret } from '@/ee/sso/lib/provider-form'
 import { AutofillDecoys, Button, SecretField, TextField } from '@/platform/design-system/components'
 import { ActionRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field.module.css'
 
 interface ClientSecretFieldProps {
   /** A secret is saved, so the field opens as a masked fact rather than an input. */
@@ -52,7 +53,7 @@ export function ClientSecretField({
     )
   }
   return (
-    <div className='contents' onFocusCapture={() => setUnlocked(true)}>
+    <div className={styles.fields} onFocusCapture={() => setUnlocked(true)}>
       <AutofillDecoys />
       <SecretField
         label='Client secret'

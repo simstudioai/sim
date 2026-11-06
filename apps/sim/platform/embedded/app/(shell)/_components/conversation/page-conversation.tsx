@@ -124,8 +124,6 @@ function PageConversationContent({
   usePageConversationEffects({ chatId, requestMode, conversation })
   const header = frameHeader ?? (hasChat ? chatHeader : undefined)
   const composer = <PageComposer {...composerProps} />
-  // The landing names its own main region; a chat has only this frame to carry it.
-  const Frame = hasChat ? 'main' : 'div'
   return (
     <ChatChromeProvider value={PAGE_CHAT_CHROME}>
       <ChatResourcePanel
@@ -137,13 +135,9 @@ function PageConversationContent({
         panel={panel}
         onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
       >
-        <Frame
-          className={cn(
-            'flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]',
-            'md:min-w-[min(480px,50%)]'
-          )}
-        >
-          {hasChat ? (
+        {hasChat ? (
+          // The landing names its own main region; a chat has only this frame to carry it.
+          <main className={styles.conversationFrame}>
             <AssistantActionReviewProvider
               organizationId={reviewProps.organizationId}
               chatId={reviewProps.chatId}
@@ -160,10 +154,10 @@ function PageConversationContent({
                 initialScrollBlocked={panel.initialScrollBlocked}
               />
             </AssistantActionReviewProvider>
-          ) : (
-            landing?.({ requestMode, composer })
-          )}
-        </Frame>
+          </main>
+        ) : (
+          <div className={styles.conversationFrame}>{landing?.({ requestMode, composer })}</div>
+        )}
       </ChatResourcePanel>
     </ChatChromeProvider>
   )

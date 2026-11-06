@@ -8,7 +8,7 @@
 .mark > * {
   grid-area: 1 / 1;
 }
-.favicon {
+.mark > img {
   flex: none;
   inline-size: var(--spacing-16);
   block-size: var(--spacing-16);

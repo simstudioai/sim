@@ -15,12 +15,7 @@ export function SiteMark({ host }: SiteMarkProps) {
   return (
     <span className={styles.mark}>
       {!loaded && <Icon name='I041' />}
-      <Favicon
-        host={host}
-        fallback={null}
-        className={styles.favicon}
-        onLoad={() => setLoaded(true)}
-      />
+      <Favicon host={host} fallback={null} onLoad={() => setLoaded(true)} />
     </span>
   )
 }

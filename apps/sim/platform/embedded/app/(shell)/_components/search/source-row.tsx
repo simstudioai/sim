@@ -100,18 +100,18 @@ function SourceActions({ source, onSummarize }: SourceActionsProps) {
 
 interface SourceLinkProps {
   source: SourceTagData
-  className: string
-  type: string
+  /** One line, for recent activity. */
+  compact?: boolean
   children: ReactNode
 }
 
 /** Opens the document in a new tab and records the view; arrow keys move between these links. */
-function SourceLink({ source, className, type, children }: SourceLinkProps) {
+function SourceLink({ source, compact, children }: SourceLinkProps) {
   const navigate = useSourceNavigation(source)
   return (
     <a
-      className={className}
-      data-type={type}
+      className={compact ? styles.compactTitle : styles.title}
+      data-type={compact ? 'T060' : 'T048'}
       data-source-link=''
       href={source.url}
       target='_blank'
@@ -146,9 +146,7 @@ export function SourceRow({ source, query, onSummarize }: SourceRowProps) {
     <div className={styles.row}>
       <SourceMark source={source} />
       <div className={styles.rowBody}>
-        <SourceLink source={source} className={styles.title} type='T048'>
-          {sourceLabel(source)}
-        </SourceLink>
+        <SourceLink source={source}>{sourceLabel(source)}</SourceLink>
         <span className={styles.meta} data-type='T052'>
           <OverflowText text={meta}>{meta}</OverflowText>
         </span>
@@ -178,7 +176,7 @@ export const CompactSourceRow = memo(function CompactSourceRow({
   return (
     <div className={styles.compactRow}>
       <SourceMark source={source} />
-      <SourceLink source={source} className={styles.compactTitle} type='T060'>
+      <SourceLink source={source} compact>
         <OverflowText text={label}>{label}</OverflowText>
       </SourceLink>
       <span className={styles.compactMeta} data-type='T052'>

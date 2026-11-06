@@ -107,13 +107,7 @@ export function PageComposer(props: ConversationComposerProps) {
   return (
     <div
       {...composer.frameProps}
-      className={cn(
-        'relative z-10 mx-auto w-full max-w-chat',
-        hostBridge.palette,
-        conversationStyles.font,
-        styles.box,
-        styles.frame
-      )}
+      className={`${hostBridge.palette} ${conversationStyles.font} ${styles.frame}`}
     >
       <div className={styles.backdrop} aria-hidden='true'>
         <Surface>
