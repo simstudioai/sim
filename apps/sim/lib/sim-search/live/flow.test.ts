@@ -15,12 +15,12 @@ const entity = {
   links: { inbound: [], outbound: [], crosslinks: [], inboundOrder: {} },
   updatedAt: '2026-10-01T12:00:00Z',
 }
-const input: NativeSearchInput = {
+const input = {
   query: 'temperature',
   limit: 10,
   scopes: [],
   native: { provider: 'flow', query: 'temperature', project: PROJECT_ID },
-}
+} satisfies NativeSearchInput
 
 function client(json: NativeClient['json']): NativeClient {
   return {
@@ -36,6 +36,38 @@ function client(json: NativeClient['json']): NativeClient {
 
 /** Failure modes: stale hits bypassing current reads, missing project scope, malformed entity states, and wrong entity identities. */
 describe('Flow live entity boundary', () => {
+  it.each([
+    { location: 'search project', id: '.' },
+    { location: 'search project', id: '..' },
+    { location: 'read project', id: '.' },
+    { location: 'read project', id: '..' },
+    { location: 'read entity', id: '.' },
+    { location: 'read entity', id: '..' },
+  ])(
+    'rejects a dot segment in $location ($id) before requesting a different endpoint',
+    async ({ location, id }) => {
+      const requests: string[] = []
+      const api = client(async (path) => {
+        requests.push(path)
+        return []
+      })
+      await expect(
+        location === 'search project'
+          ? searchFlow(
+              api,
+              { ...input, native: { ...input.native, provider: 'flow', project: id } },
+              ORIGIN
+            )
+          : readFlow(
+              api,
+              { ...reference, ...(location === 'read project' ? { container: id } : { id }) },
+              ORIGIN
+            )
+      ).rejects.toThrow('path traversal')
+      expect(requests).toEqual([])
+    }
+  )
+
   it('reads current project-bound content rather than returning stale search previews', async () => {
     const api = client(async (path) => {
       if (path === `/project/${PROJECT_ID}/entities/search`) {

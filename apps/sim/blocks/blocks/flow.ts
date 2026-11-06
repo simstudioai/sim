@@ -638,7 +638,7 @@ export const FlowBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         prompt:
           'Generate valid JSON for Flow entities: Array of 1\u2013100 entities: [{entityType, name, id?}]. IDs may be omitted for server generation. Return only JSON. Use only supplied category IDs and field keys.',
         placeholder: 'Describe the entities to generate',
@@ -710,9 +710,8 @@ export const FlowBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
         prompt:
-          'Generate valid JSON for Flow value: Field value as JSON, matching the data model: string, number, boolean, array, object, or null. Return only JSON. Use only supplied category IDs and field keys.',
+          'Generate valid JSON for Flow value: Field value as JSON, matching the data model: string, number, boolean, array, object, or null. Use only supplied category IDs and field keys. Return ONLY one raw JSON value, without markdown fences or prose.',
         placeholder: 'Describe the value to generate',
       },
     },
@@ -732,7 +731,7 @@ export const FlowBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         prompt:
           'Generate valid JSON for Flow updates: Array of 1\u2013100 field updates: [{entityId, key, value}]. Return only JSON. Use only supplied category IDs and field keys.',
         placeholder: 'Describe the updates to generate',

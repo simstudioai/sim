@@ -1,7 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { nativeText } from '@/lib/sim-search/live/dates'
-import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
+import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
 import type {
   NativeClient,
@@ -10,6 +10,7 @@ import type {
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
 import { htmlToPlainText } from '@/connectors/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const MAX_PROJECTS = 6
 const MAX_ITEM_TEXT = 120_000
@@ -17,7 +18,7 @@ const MAX_ITEM_TEXT = 120_000
 function itemDocument(
   row: Record<string, unknown>,
   origin: string,
-  project?: string,
+  project: string,
   humanId?: string
 ): NativeDocument | undefined {
   const id = string(row.id)
@@ -42,7 +43,10 @@ function itemDocument(
     container: project,
     kind: string(row.type) || 'item',
     title: [humanId, string(values.name) || `Item ${id}`].filter(Boolean).join(' · '),
-    url: new URL(`/project/${segment(project ?? '')}/entities/${segment(id)}`, origin).toString(),
+    url: new URL(
+      `/project/${safeUrlPathSegment(project, 'projectId')}/entities/${safeUrlPathSegment(id, 'entityId')}`,
+      origin
+    ).toString(),
     content: truncate(
       [
         ...fields,
@@ -65,7 +69,8 @@ async function searchProject(
   project: string
 ): Promise<NativePage> {
   const limit = Math.min(input.limit, 100)
-  const response = await client.json(`/project/${segment(project)}/entities/search`, {
+  const projectPath = safeUrlPathSegment(project, 'projectId')
+  const response = await client.json(`/project/${projectPath}/entities/search`, {
     query: {
       query: nativeText(input),
       branch_id: 'master',
@@ -78,7 +83,7 @@ async function searchProject(
   const ids = [...new Set(hits.map((row) => string(row.entity_id)).filter(Boolean))]
   if (!ids.length) return { documents: [], partial: response.length > 0 }
   const details = await client.json(
-    `/project/${segment(project)}/entities/${ids.map(segment).join(',')}`,
+    `/project/${projectPath}/entities/${ids.map((id) => safeUrlPathSegment(id, 'entityId')).join(',')}`,
     { query: { branch_id: 'master', include_metadata: 'true' } }
   )
   if (!Array.isArray(details))
@@ -140,7 +145,7 @@ export async function readFlow(
   if (!origin || !reference.id || reference.id.length > 256 || !reference.container)
     throw new NativeSearchError('unavailable', 'Invalid Flow item reference.')
   const response = await client.json(
-    `/project/${segment(reference.container)}/entities/${segment(reference.id)}`,
+    `/project/${safeUrlPathSegment(reference.container, 'projectId')}/entities/${safeUrlPathSegment(reference.id, 'entityId')}`,
     { query: { branch_id: 'master', include_metadata: 'true' } }
   )
   if (!Array.isArray(response))
