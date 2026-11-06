@@ -3,7 +3,7 @@ import { resolvedSecretTraceProvenanceSchema, userFileSchema } from '@/lib/api/c
 import { toolBooleanSchema } from '@/lib/api/contracts/tools/media/shared'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
-export const videoProviders = ['runway', 'veo', 'luma', 'minimax', 'falai'] as const
+export const videoProviders = ['runway', 'veo', 'luma', 'minimax', 'falai', 'higgsfield'] as const
 const MISSING_VIDEO_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and prompt'
 
 export const videoToolBodySchema = z

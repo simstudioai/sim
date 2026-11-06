@@ -2,7 +2,7 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface VideoParams {
-  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai'
+  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai' | 'higgsfield'
   apiKey: string
   model?: string
   prompt: string

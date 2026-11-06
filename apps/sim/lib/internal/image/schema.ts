@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const imageProviders = ['openai', 'gemini', 'falai'] as const
+export const imageProviders = ['openai', 'gemini', 'falai', 'higgsfield'] as const
 const MISSING_IMAGE_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and prompt'
 const optionalNumberInput = (value: unknown) =>
   value === null || (typeof value === 'string' && value.trim() === '') ? undefined : value

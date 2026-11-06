@@ -15,10 +15,20 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
-import { buildFalVideoRequest, getFalAIValidationError } from '@/lib/internal/video/fal-request'
+import {
+  buildFalVideoRequest,
+  getFalAIValidationError,
+  isCustomFalVideoModel,
+} from '@/lib/internal/video/fal-request'
 import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
 import { cancelFalRequest, downloadFalMedia } from '@/lib/media/falai'
 import { fetchFalAIResult } from '@/lib/media/falai-result'
+import {
+  HIGGSFIELD_FAILED_STATUSES,
+  higgsfieldAuthHeaders,
+  higgsfieldFailureMessage,
+  higgsfieldStatusUrl,
+} from '@/lib/media/higgsfield'
 import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { UserFile } from '@/executor/types'
@@ -28,7 +38,7 @@ const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
 const MAX_VIDEO_JSON_BYTES = 2 * 1024 * 1024
 const POLL_INTERVAL_MS = 5000
 
-export type VideoProvider = 'runway' | 'veo' | 'luma' | 'minimax' | 'falai'
+export type VideoProvider = 'runway' | 'veo' | 'luma' | 'minimax' | 'falai' | 'higgsfield'
 
 export interface VideoGenerationInput {
   provider: VideoProvider
@@ -123,7 +133,8 @@ async function generateWithDirectProvider(
   if (protocol === 'gemini') {
     headers['x-goog-api-key'] = input.apiKey
     headers['Api-Revision'] = '2026-05-20'
-  } else headers.Authorization = `Bearer ${input.apiKey}`
+  } else if (protocol === 'higgsfield') Object.assign(headers, higgsfieldAuthHeaders(input.apiKey))
+  else headers.Authorization = `Bearer ${input.apiKey}`
   if (protocol === 'runway') headers['X-Runway-Version'] = '2024-11-06'
 
   if (input.visualReference) {
@@ -163,7 +174,10 @@ async function generateWithDirectProvider(
       signal,
     })
   )
-  const jobId = getStringProperty(data, 'id') || getStringProperty(data, 'task_id')
+  const jobId =
+    getStringProperty(data, 'id') ||
+    getStringProperty(data, 'task_id') ||
+    getStringProperty(data, 'request_id')
   if (!jobId) throw new Error(`${input.provider} response missing job ID`)
   const encodedId = encodeURIComponent(jobId)
   const pollUrl =
@@ -175,7 +189,9 @@ async function generateWithDirectProvider(
           ? `https://api.lumalabs.ai/dream-machine/v1/generations/${encodedId}`
           : protocol === 'minimax-v2'
             ? `https://api.minimax.io/v2/query/video_generation/${encodedId}`
-            : `${prepared.url}/${encodedId}`
+            : protocol === 'higgsfield'
+              ? higgsfieldStatusUrl(jobId)
+              : `${prepared.url}/${encodedId}`
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
   for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     const task = protocol === 'minimax-v2' && isRecordLike(data.task) ? data.task : data
@@ -197,6 +213,8 @@ async function generateWithDirectProvider(
         videoUrl = isRecordLike(task.assets) ? getStringProperty(task.assets, 'video') : undefined
       } else if (protocol === 'minimax-v2') {
         videoUrl = isRecordLike(task.content) ? getStringProperty(task.content, 'url') : undefined
+      } else if (protocol === 'higgsfield') {
+        videoUrl = isRecordLike(task.video) ? getStringProperty(task.video, 'url') : undefined
       } else if (protocol === 'minimax-v1') {
         const fileId = getStringProperty(task, 'file_id')
         if (!fileId) throw new Error('MiniMax response missing file_id')
@@ -300,6 +318,12 @@ async function generateWithDirectProvider(
                 ? Number.parseFloat(videoOptions.duration)
                 : undefined
       return { buffer, jobId, duration, ...dimensions }
+    }
+    if (
+      protocol === 'higgsfield' &&
+      HIGGSFIELD_FAILED_STATUSES.some((failedStatus) => failedStatus === status)
+    ) {
+      throw new Error(higgsfieldFailureMessage(status || '', task.error))
     }
     if (
       [
@@ -462,7 +486,8 @@ async function generateWithFalAI(
 
         const { buffer } = await downloadFalMedia(videoUrl, signal)
         const catalogModel = getFalVideoModel(model)
-        const legacyMetadata = !catalogModel || catalogModel.legacyId === model
+        const legacyMetadata =
+          !isCustomFalVideoModel(model) && (!catalogModel || catalogModel.legacyId === model)
         let width = getNumberProperty(videoOutput, 'width')
         let height = getNumberProperty(videoOutput, 'height')
         if (legacyMetadata && !width && aspectRatio?.includes(':')) {

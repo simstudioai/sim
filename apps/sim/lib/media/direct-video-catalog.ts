@@ -10,11 +10,20 @@ interface VideoSettings {
   defaults?: Readonly<Record<string, string | number>>
 }
 interface DirectVideoModel {
-  provider: 'runway' | 'veo' | 'luma' | 'minimax'
+  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'higgsfield'
   id: string
   label: string
   aliases?: readonly string[]
-  protocol: 'runway' | 'gemini' | 'luma' | 'luma-legacy' | 'minimax-v1' | 'minimax-v2'
+  protocol:
+    | 'runway'
+    | 'gemini'
+    | 'luma'
+    | 'luma-legacy'
+    | 'minimax-v1'
+    | 'minimax-v2'
+    | 'higgsfield'
+  /** Request field that carries the audio toggle, for models whose field differs by family. */
+  audioField?: 'sound' | 'generate_audio'
   text?: VideoSettings
   image?: VideoSettings
 }
@@ -111,6 +120,72 @@ export const directVideoModels: readonly DirectVideoModel[] = [
       },
     })
   ),
+  ...(
+    [
+      ['kling-video/v3.0-turbo/text-to-video', 'Kling 3.0 Turbo'],
+      ['kling-video/v3.0/pro/text-to-video', 'Kling 3.0 Pro'],
+      ['kling-video/v3.0/std/text-to-video', 'Kling 3.0 Standard'],
+    ] as const
+  ).map(
+    ([id, label]): DirectVideoModel => ({
+      provider: 'higgsfield',
+      id,
+      label,
+      protocol: 'higgsfield',
+      ...(id.includes('turbo')
+        ? {
+            text: {
+              maxPromptLength: 3072,
+              durations: range(3, 15),
+              aspectRatios: ['16:9', '9:16', '1:1'],
+              resolutions: ['720p', '1080p'],
+            },
+          }
+        : {
+            audioField: 'sound',
+            text: {
+              maxPromptLength: 2500,
+              durations: range(3, 15),
+              aspectRatios: ['16:9', '9:16', '1:1'],
+              audio: true,
+            },
+          }),
+    })
+  ),
+  {
+    provider: 'higgsfield',
+    id: 'kling-video/v2.5-turbo/pro/text-to-video',
+    label: 'Kling 2.5 Turbo Pro',
+    protocol: 'higgsfield',
+    text: { durations: [5, 10] },
+  },
+  {
+    provider: 'higgsfield',
+    id: 'bytedance/seedance-2.0/text-to-video',
+    label: 'Seedance 2.0',
+    protocol: 'higgsfield',
+    audioField: 'generate_audio',
+    text: {
+      durations: range(4, 15),
+      aspectRatios: ratios,
+      resolutions: ['480p', '720p', '1080p', '4k'],
+      audio: true,
+    },
+  },
+  {
+    provider: 'higgsfield',
+    id: 'minimax/h3/text-to-video',
+    label: 'MiniMax H3',
+    protocol: 'higgsfield',
+    text: { maxPromptLength: 7000, durations: range(5, 15), aspectRatios: ratios },
+  },
+  {
+    provider: 'higgsfield',
+    id: 'minimax/hailuo-2.3/standard/text-to-video',
+    label: 'Hailuo 2.3 Standard',
+    protocol: 'higgsfield',
+    text: { durations: [6, 10], promptOptimizer: true },
+  },
 ]
 
 export const directVideoDefaults = {
@@ -118,6 +193,7 @@ export const directVideoDefaults = {
   veo: 'gemini-omni-1.1-flash',
   luma: 'ray-2',
   minimax: 'hailuo-2.3',
+  higgsfield: 'kling-video/v3.0-turbo/text-to-video',
 } as const
 const byId = new Map(directVideoModels.map((model) => [`${model.provider}:${model.id}`, model]))
 for (const model of directVideoModels) {
