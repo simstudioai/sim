@@ -28,6 +28,7 @@ import {
   Button,
   CopyField,
   DataTable,
+  DateRangePicker,
   EmptyState,
   InlineNotice,
   LoadingRows,
@@ -60,8 +61,8 @@ export default function MothershipSection() {
     mothershipUrlKeys
   )
   const defaults = defaultTimeRange()
-  const [start, setStart] = useState(defaults.start)
-  const [end, setEnd] = useState(defaults.end)
+  const [range, setRange] = useState(defaults)
+  const { start, end } = range
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   return (
     <SectionStack>
@@ -75,8 +76,14 @@ export default function MothershipSection() {
               requestLeave(() => void setParams({ env: value as MothershipEnv }))
           }}
         />
-        <TextField label='From' type='datetime-local' value={start} onChange={setStart} />
-        <TextField label='To' type='datetime-local' value={end} onChange={setEnd} />
+        <DateRangePicker
+          label='Time range'
+          withTime
+          value={range}
+          onValueChange={(next) => {
+            if (next) setRange(next)
+          }}
+        />
       </SectionToolbar>
       <ActionRow>
         <SegmentedControl
