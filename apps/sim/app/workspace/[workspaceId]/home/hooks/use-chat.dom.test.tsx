@@ -80,7 +80,8 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
     requestJson<C extends AnyApiRouteContract>(contract: C, input: ApiClientRequest<C>) {
       return contract.path === '/api/copilot/chat/abort' ||
         contract.path === '/api/copilot/chat/steer' ||
-        contract.path === '/api/copilot/chat/steer/dismiss'
+        contract.path === '/api/copilot/chat/steer/dismiss' ||
+        contract.path === '/api/copilot/chat/steer/disposition'
         ? actual.requestJson(contract, input)
         : mockRequestJson(contract, input)
     },
@@ -186,6 +187,8 @@ interface NetworkState {
   toolInputPadding?: string
   abortTraceparents: Array<string | null>
   steerBodies: CopilotChatSteerBody[]
+  /** Disposition reads, which never send the message; they answer from `steerDispositions`. */
+  readBodies: Array<{ chatId: string; steeringId: string }>
   /**
    * How the steer route answers, one per request: a disposition status, or
    * `409` (no live run took it). Once spent, it answers `409`.
@@ -207,6 +210,7 @@ const state: NetworkState = {
   stopBodies: [],
   abortTraceparents: [],
   steerBodies: [],
+  readBodies: [],
   steerDispositions: [],
   dismissBodies: [],
   dismissAnswers: [],
@@ -231,6 +235,19 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     if (body.streamId) state.pendingAdmissions.get(body.streamId)?.()
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
     return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
+  }
+  if (url.includes('/api/copilot/chat/steer/disposition')) {
+    const body: { chatId: string; steeringId: string } = JSON.parse(String(init?.body))
+    state.readBodies.push(body)
+    const disposition = state.steerDispositions.shift() ?? 'not_applied'
+    if (disposition === 500) return Response.json({ error: 'Worker failed' }, { status: 500 })
+    return Response.json({
+      steeringId: body.steeringId,
+      status: disposition === 409 ? 'not_applied' : disposition,
+      ...(disposition === 'applied' && state.appliedOffset !== undefined
+        ? { eventSeq: 1, textOffset: state.appliedOffset }
+        : {}),
+    })
   }
   if (url.includes('/api/copilot/chat/steer/dismiss')) {
     state.dismissBodies.push(JSON.parse(String(init?.body)))
@@ -700,6 +717,7 @@ describe('useChat remount send recovery', () => {
     state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
     state.steerBodies = []
+    state.readBodies = []
     state.steerDispositions = []
     state.appliedOffset = undefined
     useMothershipOutgoingStore.getState().reset()
@@ -3587,10 +3605,11 @@ describe('useChat remount send recovery', () => {
       state.steerDispositions = ['applied']
       const view = await restoredDaysLater({ status: 'steered', streamId: 'earlier-turn' })
 
-      await vi.waitFor(() => expect(state.steerBodies.length).toBeGreaterThan(0))
+      await vi.waitFor(() => expect(state.readBodies.length).toBeGreaterThan(0))
       await vi.waitFor(() =>
         expect(deliveryOf(view, '6f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f7')).toBeUndefined()
       )
+      expect(state.steerBodies).toEqual([])
       expect(state.postBodies).toEqual([])
     })
 
@@ -3642,7 +3661,8 @@ describe('useChat remount send recovery', () => {
       })
       await waitFor(() => state.postBodies.length === 1)
 
-      expect(state.steerBodies).toHaveLength(1)
+      expect(state.readBodies).toEqual([{ chatId, steeringId: id }])
+      expect(state.steerBodies).toEqual([])
       expect(state.postBodies[0]).toMatchObject({ userMessageId: id, steeringFallback: true })
     })
 
@@ -3711,7 +3731,7 @@ describe('useChat remount send recovery', () => {
       await turn.emit('error', { message: 'The model failed.' })
       await turn.emit('complete', { status: 'error' })
       await turn.end()
-      await waitFor(() => state.steerBodies.length === 2)
+      await waitFor(() => state.readBodies.length === 1)
       await act(async () => {
         await settle()
       })
@@ -3909,8 +3929,8 @@ describe('useChat remount send recovery', () => {
         await settle()
       })
 
-      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId, steeringId])
-      expect(state.steerBodies[1].content).toBe('Then summarize')
+      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId])
+      expect(state.readBodies).toEqual([{ chatId, steeringId }])
       expect(state.postBodies).toHaveLength(2)
       expect(state.postBodies[1]).toMatchObject({
         message: 'Then summarize',
@@ -3933,12 +3953,13 @@ describe('useChat remount send recovery', () => {
         await waitFor(() => state.steerBodies.length === 1)
 
         await turn.end()
-        await waitFor(() => state.steerBodies.length === 2)
+        await waitFor(() => state.readBodies.length === 1)
         await act(async () => {
           await vi.advanceTimersByTimeAsync(10_000)
         })
 
-        expect(state.steerBodies).toHaveLength(2)
+        expect(state.steerBodies).toHaveLength(1)
+        expect(state.readBodies).toHaveLength(1)
         expect(state.postBodies).toHaveLength(1)
       } finally {
         vi.useRealTimers()
@@ -4032,7 +4053,8 @@ describe('useChat remount send recovery', () => {
       const remounted = renderUseChatInChat(chatId, history)
       await waitFor(() => state.postBodies.length === 2)
 
-      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId, steeringId])
+      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId])
+      expect(state.readBodies).toEqual([{ chatId, steeringId }])
       expect(state.postBodies[1]).toMatchObject({
         message: 'Then summarize',
         userMessageId: steeringId,
@@ -4053,7 +4075,7 @@ describe('useChat remount send recovery', () => {
 
       state.steerDispositions = ['queued', 'queued', 'queued']
       const remounted = renderUseChatInChat(chatId, history)
-      await waitFor(() => state.steerBodies.length === 2)
+      await waitFor(() => state.readBodies.length === 1)
       await act(async () => {
         await settle()
       })
@@ -4120,13 +4142,8 @@ describe('useChat remount send recovery', () => {
 
       await waitFor(() => state.postBodies.length === 1)
 
-      expect(state.steerBodies).toEqual([
-        expect.objectContaining({
-          steeringId,
-          streamId: 'earlier-turn',
-          content: 'Then summarize',
-        }),
-      ])
+      expect(state.readBodies).toEqual([{ chatId, steeringId }])
+      expect(state.steerBodies).toEqual([])
       expect(state.postBodies[0]).toMatchObject({
         message: 'Then summarize',
         userMessageId: steeringId,
@@ -4286,8 +4303,9 @@ describe('useChat remount send recovery', () => {
       await act(async () => {
         deadline.abort('timeout')
       })
-      await waitFor(() => state.steerBodies.length === 2)
+      await waitFor(() => state.readBodies.length === 1)
       await waitFor(() => state.postBodies.length === 2)
+      expect(state.steerBodies).toHaveLength(1)
     })
 
     it('shows a message the chat keeps refusing as not delivered, and retries it on request', async () => {

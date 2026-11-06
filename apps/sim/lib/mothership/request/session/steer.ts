@@ -6,6 +6,8 @@ import type { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ChatContextItem,
+  type SteerDispositionRequest,
+  SteerDispositionResponse,
   type SteerV2Request,
   SteerV2Response,
 } from '@/lib/mothership/generated/protocol'
@@ -146,8 +148,66 @@ async function failureCode(response: Response): Promise<string | undefined> {
   return typeof code === 'string' ? code : undefined
 }
 
+/**
+ * What a read of a steering message's disposition found. `unknown`: the worker
+ * holds nothing under this id and its run is live, so it was never delivered.
+ * `unsupported`: a worker without the read (or one answering outside its
+ * contract), which can only be answered by re-sending the message.
+ */
+type SteeringDispositionRead =
+  | { status: 'queued' | 'not_applied' | 'unknown' }
+  | { status: 'applied'; eventSeq?: number; textOffset?: number }
+  | { status: 'unsupported' }
+
+/**
+ * Reads what became of a steering message without sending it, so a read can never
+ * deliver it. A run the worker does not know (after the same brief retries as a
+ * steer) could never have held it, which is final: `not_applied`.
+ */
+export async function requestSteeringDisposition(params: {
+  streamId: string
+  userId: string
+  chatId: string
+  steeringId: string
+  timeoutMs?: number
+  otelContext?: Context
+}): Promise<SteeringDispositionRead> {
+  const url = `${await getMothershipBaseURL({ userId: params.userId })}/api/streams/steer/v2/disposition`
+  const body: SteerDispositionRequest = {
+    messageId: params.streamId,
+    steeringId: params.steeringId,
+  }
+  const post = () => postToWorker(url, body, params, 'sim → go /api/streams/steer/v2/disposition')
+  let response = await post()
+  let code = await failureCode(response)
+  for (const delayMs of TARGET_MISSING_RETRY_DELAYS_MS) {
+    if (code !== 'steering_target_missing') break
+    await sleep(delayMs)
+    response = await post()
+    code = await failureCode(response)
+  }
+  if (response.ok) {
+    // boundary-raw-json: the worker's disposition is validated by its generated schema.
+    const parsed = SteerDispositionResponse.safeParse(await response.json().catch(() => null))
+    if (!parsed.success || parsed.data.steeringId !== params.steeringId) {
+      logger.warn('Worker answered a disposition read outside its contract', {
+        streamId: params.streamId,
+        steeringId: params.steeringId,
+      })
+      return { status: 'unsupported' }
+    }
+    const { steeringId: _, ...disposition } = parsed.data
+    return disposition
+  }
+  if (code === 'steering_target_missing') return { status: 'not_applied' }
+  if ((response.status === 404 || response.status === 405) && !code) {
+    return { status: 'unsupported' }
+  }
+  throw new Error(`Steering disposition unavailable (${response.status})`)
+}
+
 function postSteering(url: string, params: SteeringRequest): Promise<Response> {
-  const { streamId, chatId, steeringId, content, context, assistantImages, otelContext } = params
+  const { streamId, steeringId, content, context, assistantImages } = params
   const body: z.input<typeof SteerV2Request> = {
     messageId: streamId,
     steeringId,
@@ -155,17 +215,26 @@ function postSteering(url: string, params: SteeringRequest): Promise<Response> {
     ...(context?.length ? { context } : {}),
     ...(assistantImages?.length ? { assistantImages } : {}),
   }
+  return postToWorker(url, body, params, 'sim → go /api/streams/steer/v2')
+}
+
+function postToWorker(
+  url: string,
+  body: unknown,
+  params: { streamId: string; chatId: string; timeoutMs?: number; otelContext?: Context },
+  spanName: string
+): Promise<Response> {
   return fetchGo(url, {
     method: 'POST',
     headers: mothershipRequestHeaders(),
     signal: AbortSignal.timeout(params.timeoutMs ?? DEFAULT_STEER_TIMEOUT_MS),
     body: JSON.stringify(body),
-    otelContext,
-    spanName: 'sim → go /api/streams/steer/v2',
+    otelContext: params.otelContext,
+    spanName,
     operation: 'steer',
     attributes: {
-      [TraceAttr.StreamId]: streamId,
-      [TraceAttr.ChatId]: chatId,
+      [TraceAttr.StreamId]: params.streamId,
+      [TraceAttr.ChatId]: params.chatId,
     },
   })
 }

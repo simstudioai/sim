@@ -23,7 +23,6 @@ import {
   type PersistedFileAttachment,
   type PersistedMessage,
   stripToolResultOutput,
-  withoutSteeringInput,
 } from '@/lib/mothership/chat/persisted-message'
 import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
 import {
@@ -137,11 +136,9 @@ export async function loadCopilotChatMessages(
   // Also strip on read: rows written before the backfill still carry outputs.
   return rows.map((row) =>
     stripToolResultOutput(
-      withoutSteeringInput(
-        options?.projection === 'display'
-          ? { ...(row.content as PersistedMessage), streamId: row.streamId ?? undefined }
-          : (row.content as PersistedMessage)
-      )
+      options?.projection === 'display'
+        ? { ...(row.content as PersistedMessage), streamId: row.streamId ?? undefined }
+        : (row.content as PersistedMessage)
     )
   )
 }

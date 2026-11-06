@@ -569,6 +569,27 @@ export const SteerV2Response = z.discriminatedUnion("status", [
 ]);
 export type SteerV2Response = z.infer<typeof SteerV2Response>;
 
+/**
+ * POST /api/streams/steer/v2/disposition: what became of the input `steeringId`, read without
+ * sending it. It never queues, renders or claims anything. An input the chat holds answers as
+ * a retry of it on /api/streams/steer/v2 would (the chat-wide identity included). One it does
+ * not hold answers `not_applied` once the run `messageId` has ended or stopped, since no
+ * steer could reach it any more, and `unknown` while the run is live: nothing was delivered,
+ * and sending it is still the caller's choice. A run that does not exist (or another
+ * tenant's) is a 404 `steering_target_missing`, as for a steer.
+ */
+export const SteerDispositionRequest = z.strictObject({
+  messageId: z.uuid(),
+  steeringId: z.uuid(),
+});
+export type SteerDispositionRequest = z.infer<typeof SteerDispositionRequest>;
+
+export const SteerDispositionResponse = z.discriminatedUnion("status", [
+  ...SteerV2Response.options,
+  z.strictObject({ steeringId: z.string(), status: z.literal("unknown") }),
+]);
+export type SteerDispositionResponse = z.infer<typeof SteerDispositionResponse>;
+
 /** The `run`/`steering_applied` frame: a steer reached the run's model input. */
 export interface StreamSteeringApplied {
   kind: "steering_applied";

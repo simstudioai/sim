@@ -598,6 +598,21 @@ export const copilotChatDismissSteeringContract = defineRouteContract({
   },
 })
 
+/**
+ * What became of a steering message, read without sending it: `queued` while a run
+ * holds it, `applied` once one did, and `not_applied` when none holds it or ever
+ * will, so its sender may deliver it as a turn of its own.
+ */
+export const copilotChatReadSteeringContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/steer/disposition',
+  body: z.object({
+    chatId: z.string().min(1, 'chatId is required'),
+    steeringId: z.string().uuid(),
+  }),
+  response: { mode: 'json', schema: copilotChatSteerDispositionSchema },
+})
+
 export const copilotChatSteerContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/steer',

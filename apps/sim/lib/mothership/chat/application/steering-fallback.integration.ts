@@ -3,12 +3,11 @@
  * PostgreSQL transcripts and a worker stubbed at HTTP. Failure modes: a message a
  * run already applied runs again as a turn; one still queued in a live run goes
  * out beside it; a stale steering record keeps its place before the turn it failed
- * to steer, so the new turn's message sorts above that turn's answer; the
- * disposition read sends input other than what the worker holds (which it
- * refuses); an ordinary message id costs a worker call; a steer under a turn's
- * own id rewrites or deletes that turn's row; a final disposition leaves the input
- * (rendered mentions, base64 images) in the row, or a reader outside the steering
- * path sees it.
+ * to steer, so the new turn's message sorts above that turn's answer; a read
+ * of what became of a message re-sends it, and so delivers it (a gate, a dismiss,
+ * a retry); an ordinary message id costs a worker call; a steer under a turn's own
+ * id rewrites or deletes that turn's row; a worker without the read is asked by
+ * re-sending instead of from Sim's run.
  */
 import { db } from '@sim/db'
 import {
@@ -56,11 +55,18 @@ import {
 import { steerRun } from '@/lib/mothership/request/application/steer-run'
 
 const WORKER = 'http://worker.integration.test'
-const RECORDED_INPUT = {
-  context: [{ type: 'workflow', tag: '@Invoices', content: '{"blocks":{}}' }],
+const STEER = '/api/streams/steer/v2'
+const READ = '/api/streams/steer/v2/disposition'
+
+/** The worker's scripted answers in call order, and the path and body of each call. */
+const worker: { answers: Response[]; calls: string[]; bodies: unknown[] } = {
+  answers: [],
+  calls: [],
+  bodies: [],
 }
 
-const worker: { answers: Response[]; bodies: unknown[] } = { answers: [], bodies: [] }
+/** A worker that predates the read: its router answers an unknown path with a bare 404. */
+const withoutRead = () => new Response('404 page not found', { status: 404 })
 
 describe('steering fallback gate in PostgreSQL', () => {
   const userId = generateId()
@@ -88,7 +94,7 @@ describe('steering fallback gate in PostgreSQL', () => {
       [
         {
           ...buildPersistedUserMessage({ id: steeringId, content: 'Then summarize' }),
-          steering: { streamId: turnId, input: RECORDED_INPUT },
+          steering: { streamId: turnId },
         },
       ],
       { streamId: turnId }
@@ -159,12 +165,13 @@ describe('steering fallback gate in PostgreSQL', () => {
 
   beforeEach(() => {
     worker.answers = []
+    worker.calls = []
     worker.bodies = []
     mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue(WORKER)
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input) !== `${WORKER}/api/streams/steer/v2`) {
-        throw new Error(`Unexpected request ${String(input)}`)
-      }
+      const path = String(input).replace(WORKER, '')
+      if (path !== STEER && path !== READ) throw new Error(`Unexpected request ${String(input)}`)
+      worker.calls.push(path)
       worker.bodies.push(JSON.parse(String(init?.body)))
       const answer = worker.answers.shift()
       if (!answer) throw new Error('No scripted worker answer')
@@ -189,9 +196,8 @@ describe('steering fallback gate in PostgreSQL', () => {
     const fallback = await resolveSteeringFallback({ chatId, messageId: steeringId, userId })
 
     expect(fallback).toEqual({ kind: 'applied' })
-    expect(worker.bodies).toEqual([
-      { messageId: turnId, steeringId, content: 'Then summarize', ...RECORDED_INPUT },
-    ])
+    expect(worker.calls).toEqual([READ])
+    expect(worker.bodies).toEqual([{ messageId: turnId, steeringId }])
     expect(await transcriptIds(chatId)).toContain(steeringId)
   })
 
@@ -298,7 +304,7 @@ describe('steering fallback gate in PostgreSQL', () => {
         chatId,
         {
           ...buildPersistedUserMessage({ id: turnId, content: 'Rewritten' }),
-          steering: { streamId: generateId(), input: RECORDED_INPUT },
+          steering: { streamId: generateId() },
         },
         { streamId: generateId() }
       )
@@ -351,7 +357,7 @@ describe('steering fallback gate in PostgreSQL', () => {
   })
 
   describe('a final disposition', () => {
-    it('drops the input once a message is applied, and answers later reads from the record', async () => {
+    it('answers later reads from the record once a message is applied', async () => {
       const steeringId = generateId()
       const { chatId, turnId } = await chatWithSteeredTurn()
       await runFor(chatId, turnId, 'active')
@@ -364,17 +370,18 @@ describe('steering fallback gate in PostgreSQL', () => {
       const reread = await steerRun.execute({ principal: owner, input })
 
       expect(reread).toEqual({ steeringId, status: 'applied', eventSeq: 4, textOffset: 2 })
-      expect(worker.bodies).toHaveLength(1)
-      const stored = await storedSteering(chatId, steeringId)
-      expect(stored).not.toHaveProperty('input')
-      expect(stored.disposition).toEqual({ status: 'applied', eventSeq: 4, textOffset: 2 })
+      expect((await storedSteering(chatId, steeringId)).disposition).toEqual({
+        status: 'applied',
+        eventSeq: 4,
+        textOffset: 2,
+      })
       expect(await resolveSteeringFallback({ chatId, messageId: steeringId, userId })).toEqual({
         kind: 'applied',
       })
-      expect(worker.bodies).toHaveLength(1)
+      expect(worker.calls).toEqual([STEER])
     })
 
-    it('keeps the input while the message is only queued', async () => {
+    it('records nothing final while the message is only queued', async () => {
       const steeringId = generateId()
       const { chatId, turnId } = await chatWithSteeredTurn()
       await runFor(chatId, turnId, 'active')
@@ -385,7 +392,7 @@ describe('steering fallback gate in PostgreSQL', () => {
         input: { streamId: turnId, chatId, steeringId, content: 'Focus on the tests' },
       })
 
-      expect(await storedSteering(chatId, steeringId)).toHaveProperty('input')
+      expect(await storedSteering(chatId, steeringId)).toEqual({ streamId: turnId })
     })
 
     it('settles a message a queued answer can no longer apply, since Sim says the run is over', async () => {
@@ -400,15 +407,14 @@ describe('steering fallback gate in PostgreSQL', () => {
       })
 
       expect(answer).toEqual({ steeringId, status: 'not_applied' })
-      const stored = await storedSteering(chatId, steeringId)
-      expect(stored).not.toHaveProperty('input')
       expect(await resolveSteeringFallback({ chatId, messageId: steeringId, userId })).toEqual({
         kind: 'send',
       })
       expect(await transcriptIds(chatId)).not.toContain(steeringId)
+      expect(worker.calls).toEqual([STEER])
     })
 
-    it('drops the input when the gate learns the message was applied', async () => {
+    it('keeps the answer the gate reads', async () => {
       const { chatId, steeringId } = await chatWithSteeredTurn()
       worker.answers.push(
         Response.json({ steeringId, status: 'applied', eventSeq: 2, textOffset: 1 })
@@ -416,12 +422,13 @@ describe('steering fallback gate in PostgreSQL', () => {
 
       await resolveSteeringFallback({ chatId, messageId: steeringId, userId })
 
-      const stored = await storedSteering(chatId, steeringId)
-      expect(stored).not.toHaveProperty('input')
-      expect(stored.disposition).toMatchObject({ status: 'applied', textOffset: 1 })
+      expect((await storedSteering(chatId, steeringId)).disposition).toMatchObject({
+        status: 'applied',
+        textOffset: 1,
+      })
     })
 
-    it("drops the input when a turn's own transcript shows it applied the message", async () => {
+    it("records the answer when a turn's own transcript shows it applied the message", async () => {
       const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
       await db
         .update(copilotChats)
@@ -441,17 +448,80 @@ describe('steering fallback gate in PostgreSQL', () => {
         toolCalls: [],
       })
 
-      const stored = await storedSteering(chatId, steeringId)
-      expect(stored).not.toHaveProperty('input')
-      expect(stored.disposition).toEqual({ status: 'applied' })
+      expect((await storedSteering(chatId, steeringId)).disposition).toEqual({ status: 'applied' })
+    })
+  })
+
+  describe('reading without sending', () => {
+    it('reads a retried steer instead of sending it twice', async () => {
+      const steeringId = generateId()
+      const { chatId, turnId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      const input = { streamId: turnId, chatId, steeringId, content: 'Focus on the tests' }
+      worker.answers.push(
+        Response.json({ steeringId, status: 'queued' }),
+        Response.json({ steeringId, status: 'queued' })
+      )
+
+      await steerRun.execute({ principal: owner, input })
+      const retried = await steerRun.execute({ principal: owner, input })
+
+      expect(retried).toEqual({ steeringId, status: 'queued' })
+      expect(worker.calls).toEqual([STEER, READ])
     })
 
-    it('never shows the input to a reader of the whole transcript (fork, import)', async () => {
+    it('steers a recorded message afresh once no run holds it', async () => {
       const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      const laterTurn = generateId()
+      await runFor(chatId, laterTurn, 'active')
+      worker.answers.push(
+        Response.json({ steeringId, status: 'unknown' }),
+        Response.json({ steeringId, status: 'queued' })
+      )
 
-      const messages = await loadCopilotChatMessages(chatId)
+      const answer = await steerRun.execute({
+        principal: owner,
+        input: { streamId: laterTurn, chatId, steeringId, content: 'Then summarize' },
+      })
 
-      expect(messages.find((row) => row.id === steeringId)?.steering).toEqual({ streamId: turnId })
+      expect(answer).toEqual({ steeringId, status: 'queued' })
+      expect(worker.calls).toEqual([READ, STEER])
+      expect(worker.bodies[0]).toEqual({ messageId: turnId, steeringId })
+      expect(await storedSteering(chatId, steeringId)).toEqual({ streamId: laterTurn })
+    })
+
+    it('admits a turn for a message a live run never received, without delivering it', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      worker.answers.push(Response.json({ steeringId, status: 'unknown' }))
+
+      expect(await resolveSteeringFallback({ chatId, messageId: steeringId, userId })).toEqual({
+        kind: 'send',
+      })
+      expect(worker.calls).toEqual([READ])
+      expect(await transcriptIds(chatId)).not.toContain(steeringId)
+    })
+
+    it("decides from Sim's run with a worker that predates the read, never re-sending", async () => {
+      const live = await chatWithSteeredTurn()
+      await runFor(live.chatId, live.turnId, 'active')
+      const ended = await chatWithSteeredTurn()
+      worker.answers.push(withoutRead(), withoutRead())
+
+      const whileLive = await resolveSteeringFallback({
+        chatId: live.chatId,
+        messageId: live.steeringId,
+        userId,
+      })
+      const onceEnded = await resolveSteeringFallback({
+        chatId: ended.chatId,
+        messageId: ended.steeringId,
+        userId,
+      })
+
+      expect(whileLive).toEqual({ kind: 'busy', streamId: live.turnId })
+      expect(onceEnded).toEqual({ kind: 'send' })
+      expect(worker.calls).toEqual([READ, READ])
     })
   })
 
@@ -510,9 +580,10 @@ describe('steering fallback gate in PostgreSQL', () => {
       expect(await transcriptIds(chatId)).toContain(turnId)
     })
 
-    it('removes a record whose bytes the worker no longer recognizes', async () => {
-      const { chatId, steeringId } = await chatWithSteeredTurn()
-      worker.answers.push(new Response(null, { status: 409 }))
+    it('never delivers a message it dismisses, even one a live run never received', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      worker.answers.push(Response.json({ steeringId, status: 'unknown' }))
 
       const answer = await dismissSteeringMessage.execute({
         principal: owner,
@@ -520,7 +591,23 @@ describe('steering fallback gate in PostgreSQL', () => {
       })
 
       expect(answer).toEqual({ status: 'dismissed' })
+      expect(worker.calls).toEqual([READ])
       expect(await transcriptIds(chatId)).not.toContain(steeringId)
+    })
+
+    it('keeps one a live run may hold when the worker predates the read', async () => {
+      const { chatId, turnId, steeringId } = await chatWithSteeredTurn()
+      await runFor(chatId, turnId, 'active')
+      worker.answers.push(withoutRead())
+
+      const answer = await dismissSteeringMessage.execute({
+        principal: owner,
+        input: { chatId, messageId: steeringId },
+      })
+
+      expect(answer).toEqual({ status: 'busy', streamId: turnId })
+      expect(worker.calls).toEqual([READ])
+      expect(await transcriptIds(chatId)).toContain(steeringId)
     })
 
     it("refuses someone else's chat, leaving the record", async () => {

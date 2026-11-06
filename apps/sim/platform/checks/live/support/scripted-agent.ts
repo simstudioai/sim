@@ -9,7 +9,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
  * Steering follows the worker's v2 contract (`/api/streams/steer/v2`): a message steered into a
  * running count is applied at its next number, with a `run`/`steering_applied` frame and a reply
  * that quotes it. A count asked to `ignore steering` finishes without applying any, so each one it
- * held is `not_applied`. Every disposition is durable: re-sending a steering id reads it again.
+ * held is `not_applied`. Every disposition is durable: re-sending a steering id reads it again, and
+ * `/disposition` reads it without sending (`unknown` for an id a live run never received).
  */
 const port = Number(process.argv[2])
 if (!port) throw new Error('usage: scripted-agent.ts <port>')
@@ -123,6 +124,23 @@ createServer((request, response) => {
       const path = new URL(request.url ?? '/', 'http://agent').pathname
       if (path === '/api/mothership' || path === '/api/copilot') {
         streamTurn(body, response)
+        return
+      }
+      if (path === '/api/streams/steer/v2/disposition') {
+        const steeringId = String(body.steeringId)
+        const steering = steerings.get(steeringId)
+        const status =
+          steering?.status ?? (openStreams.has(String(body.messageId)) ? 'unknown' : 'not_applied')
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            steeringId,
+            status,
+            ...(steering?.status === 'applied'
+              ? { eventSeq: steering.eventSeq, textOffset: steering.textOffset }
+              : {}),
+          })
+        )
         return
       }
       if (path === '/api/streams/steer/v2') {

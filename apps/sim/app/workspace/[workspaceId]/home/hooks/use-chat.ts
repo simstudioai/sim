@@ -23,6 +23,7 @@ import {
   type CopilotChatSteerBody,
   copilotChatAbortContract,
   copilotChatDismissSteeringContract,
+  copilotChatReadSteeringContract,
   copilotChatSteerContract,
 } from '@/lib/api/contracts/copilot'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
@@ -673,6 +674,42 @@ interface ActiveStreamRecovery {
   subjectKey: string
   controller: AbortController
   promise: Promise<void>
+}
+
+/**
+ * The outcome a steer or a disposition read came back with. A refusal (409: no live
+ * run took it, or the worker refused it; 404: the run or chat is gone; 400: not a
+ * message steering can carry) means no turn holds it, so it goes out as a turn of its
+ * own. No answer at all is `unknown`: it may or may not be held.
+ */
+async function steeringOutcomeOf(
+  request: Promise<
+    | { status: 'queued' | 'not_applied' }
+    | { status: 'applied'; textOffset?: number; eventSeq?: number }
+  >,
+  steeringId: string
+): Promise<SteeringOutcome> {
+  try {
+    const disposition = await request
+    return disposition.status === 'applied'
+      ? {
+          status: 'applied',
+          ...(disposition.textOffset !== undefined ? { textOffset: disposition.textOffset } : {}),
+        }
+      : { status: disposition.status }
+  } catch (error) {
+    if (
+      isApiClientError(error) &&
+      (error.status === 409 || error.status === 404 || error.status === 400)
+    ) {
+      return { status: 'not_applied' }
+    }
+    logger.warn('Steering request got no disposition', {
+      steeringId,
+      error: getErrorMessage(error),
+    })
+    return { status: 'unknown' }
+  }
 }
 
 export function getMothershipUseChatOptions(
@@ -4297,15 +4334,15 @@ export function useChat(
    * arrived. The same id and content read the earlier attempt's disposition, so a
    * repeat never steers twice. `unknown`: no answer, so it may or may not be held.
    */
+  /**
+   * Steers a message into the turn `streamId` and returns what the worker did with
+   * it. `unknown`: no answer, so it may or may not be held.
+   */
   const requestSteering = useCallback(
-    async (
-      message: OutgoingMessage,
-      streamId: string,
-      chatId: string
-    ): Promise<SteeringOutcome> => {
+    (message: OutgoingMessage, streamId: string, chatId: string): Promise<SteeringOutcome> => {
       const { content, contexts, fileAttachments } = message.payload
-      try {
-        const disposition = await requestJson(copilotChatSteerContract, {
+      return steeringOutcomeOf(
+        requestJson(copilotChatSteerContract, {
           signal: AbortSignal.timeout(STEER_REQUEST_TIMEOUT_MS),
           body: {
             streamId,
@@ -4319,34 +4356,27 @@ export function useChat(
               : {}),
             ...(fileAttachments?.length ? { fileAttachments } : {}),
           },
-        })
-        return disposition.status === 'applied'
-          ? {
-              status: 'applied',
-              ...(disposition.textOffset !== undefined
-                ? { textOffset: disposition.textOffset }
-                : {}),
-            }
-          : { status: disposition.status }
-      } catch (error) {
-        /* 409: no live run took it, or the worker refused it; 404: the run it names
-           was never admitted; 400: it is not a message steering can carry. No turn
-           holds it, so it goes out as a turn of its own. */
-        if (
-          isApiClientError(error) &&
-          (error.status === 409 || error.status === 404 || error.status === 400)
-        ) {
-          return { status: 'not_applied' }
-        }
-        logger.warn('Steering request got no disposition', {
-          streamId,
-          steeringId: message.id,
-          error: getErrorMessage(error),
-        })
-        return { status: 'unknown' }
-      }
+        }),
+        message.id
+      )
     },
     [withTableViews]
+  )
+
+  /**
+   * Reads what became of a message steered into a turn that ended, or one the user
+   * retries, without sending it again: a read never delivers it.
+   */
+  const readSteering = useCallback(
+    (message: OutgoingMessage, chatId: string): Promise<SteeringOutcome> =>
+      steeringOutcomeOf(
+        requestJson(copilotChatReadSteeringContract, {
+          signal: AbortSignal.timeout(STEER_REQUEST_TIMEOUT_MS),
+          body: { chatId, steeringId: message.id },
+        }),
+        message.id
+      ),
+    []
   )
 
   /** Steers a message into the running turn `streamId`, once that turn's admission settles. */
@@ -4461,7 +4491,7 @@ export function useChat(
         writeOutgoing((current) => current.filter((candidate) => candidate.id !== message.id))
         continue
       }
-      const outcome = await requestSteering(message, streamId, chatId)
+      const outcome = await readSteering(message, chatId)
       updateOutgoing(
         message.id,
         afterDispositionRead(message, outcome, {
@@ -4487,7 +4517,7 @@ export function useChat(
     liveStreamId,
     queryClient,
     recordSteeredMessage,
-    requestSteering,
+    readSteering,
     updateOutgoing,
     writeOutgoing,
   ])

@@ -112,9 +112,9 @@ export async function appendSteeringMessageIfAbsent(
 }
 
 /**
- * Stores steering messages' final dispositions and drops the input kept to read
- * them, which nothing needs after this. The first final answer stands: a later,
- * less specific one (a turn's end has no offset) does not replace it.
+ * Stores steering messages' final dispositions, which answer later reads without
+ * asking the worker. The first final answer stands: a later, less specific one (a
+ * turn's end has no offset) does not replace it.
  */
 export async function recordSteeringDisposition(
   chatId: string,
@@ -126,7 +126,7 @@ export async function recordSteeringDisposition(
   await executor
     .update(copilotMessages)
     .set({
-      content: sql`jsonb_set(${copilotMessages.content} #- '{steering,input}', '{steering,disposition}', ${JSON.stringify(disposition)}::jsonb)`,
+      content: sql`jsonb_set(${copilotMessages.content}, '{steering,disposition}', ${JSON.stringify(disposition)}::jsonb)`,
       updatedAt: new Date(),
     })
     .where(

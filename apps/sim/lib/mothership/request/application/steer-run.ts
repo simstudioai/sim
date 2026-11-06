@@ -4,7 +4,9 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import {
+  dropSteeringRecord,
   loadSteeringRecord,
+  readSteeringRecord,
   steeredRunHasEnded,
 } from '@/lib/mothership/chat/application/steering-fallback'
 import {
@@ -41,13 +43,13 @@ export const steerRun = defineAuthorizedChatUseCase({
     resolveRunContext(args),
   authorizationOptions: {},
   /**
-   * Returns the disposition of the steering id. The message is recorded (as steering
-   * of its turn, with the exact input it sends) before the worker is asked, so a
-   * retry of the same id re-sends identical input and reads the same disposition even
-   * after the first answer was lost: the sender does that when its turn ended without
-   * the `steering_applied` frame. A worker that refuses it leaves the record to be
-   * cleared when the message goes out as a turn. Once final, the disposition is kept
-   * on the record and answers later reads, and the input is dropped.
+   * Steers the message into the turn and returns its disposition. It is recorded (as
+   * steering of its turn) before the worker is asked, so a retry of the same id finds
+   * the record and reads what became of it instead of sending it again. A record no
+   * run holds (the first send never arrived, or the run it named is over) is stale:
+   * it is dropped and the message is steered afresh. The worker keeps one identity
+   * per steering id across the chat, so even then it is never applied twice. Once
+   * final, the disposition is kept on the record and answers later reads.
    *
    * A steering id that names a turn's own message is a conflict, and its row keeps its
    * content: a send the server admitted without answering must not steer itself, and
@@ -57,54 +59,56 @@ export const steerRun = defineAuthorizedChatUseCase({
     const { streamId, steeringId, content } = input
     const { userId, chatId } = context
     if (streamId === steeringId) throw alreadyATurn()
-    let recorded = await loadSteeringRecord(chatId, steeringId)
-    if (!recorded) {
-      const prepared = await prepareSteeringInput({ principal, chat: context, input })
-      const sent = {
-        context: prepared.context,
-        ...(prepared.assistantImages ? { assistantImages: prepared.assistantImages } : {}),
+    const recorded = await loadSteeringRecord(chatId, steeringId)
+    if (recorded) {
+      if (recorded.content !== content) {
+        throw new OrchestrationError(
+          'conflict',
+          'This steering id was already used for other content.'
+        )
       }
-      const stored = await appendSteeringMessageIfAbsent(
+      const reading = await readSteeringRecord({
         chatId,
-        {
-          ...buildPersistedUserMessage({
-            id: steeringId,
-            content,
-            ...(context.mode === 'assistant' || context.mode === 'plan' || context.mode === 'agent'
-              ? { requestMode: context.mode }
-              : {}),
-            ...(prepared.fileAttachments ? { fileAttachments: prepared.fileAttachments } : {}),
-            ...(input.contexts?.length
-              ? { contexts: normalizeContexts(input.contexts) as PersistedMessageContext[] }
-              : {}),
-          }),
-          steering: { streamId, input: sent },
-        },
-        { streamId }
-      )
-      recorded = stored
-        ? { streamId, content, input: sent }
-        : await loadSteeringRecord(chatId, steeringId)
-      if (!recorded) throw alreadyATurn()
+        messageId: steeringId,
+        record: recorded,
+        userId,
+      })
+      if (reading.status === 'held') return { steeringId, status: 'queued' as const }
+      if (reading.status === 'applied') return { steeringId, ...reading }
+      await dropSteeringRecord(chatId, steeringId)
     }
-    if (recorded.content !== content) {
-      throw new OrchestrationError(
-        'conflict',
-        'This steering id was already used for other content.'
-      )
-    }
-    if (recorded.disposition) return { steeringId, ...recorded.disposition }
+    const prepared = await prepareSteeringInput({ principal, chat: context, input })
+    const stored = await appendSteeringMessageIfAbsent(
+      chatId,
+      {
+        ...buildPersistedUserMessage({
+          id: steeringId,
+          content,
+          ...(context.mode === 'assistant' || context.mode === 'plan' || context.mode === 'agent'
+            ? { requestMode: context.mode }
+            : {}),
+          ...(prepared.fileAttachments ? { fileAttachments: prepared.fileAttachments } : {}),
+          ...(input.contexts?.length
+            ? { contexts: normalizeContexts(input.contexts) as PersistedMessageContext[] }
+            : {}),
+        }),
+        steering: { streamId },
+      },
+      { streamId }
+    )
+    if (!stored) throw alreadyATurn()
     const result = await requestStreamSteering({
-      streamId: recorded.streamId,
+      streamId,
       userId,
       chatId,
       steeringId,
       content,
-      ...recorded.input,
+      context: prepared.context,
+      ...(prepared.assistantImages ? { assistantImages: prepared.assistantImages } : {}),
     })
     if (result.status === 'refused') throw new SteeringNotQueuedError(result.goStatus)
     if (result.status === 'queued') {
-      if (!(await steeredRunHasEnded(recorded.streamId, userId))) return { steeringId, ...result }
+      if (!(await steeredRunHasEnded(streamId, userId))) return { steeringId, ...result }
       await recordSteeringDisposition(chatId, [steeringId], { status: 'not_applied' })
       return { steeringId, status: 'not_applied' as const }
     }

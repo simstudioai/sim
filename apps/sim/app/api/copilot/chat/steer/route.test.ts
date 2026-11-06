@@ -59,9 +59,16 @@ const STREAM_ID = '7f3c2b6e-1d4a-4c8b-9e2f-3a5b6c7d8e9f'
 const STEERING_ID = '0b1c2d3e-4f50-4617-8899-aabbccddeeff'
 
 /** The worker's scripted answers per route, in call order, and what it was sent. */
-const worker: { v2: Response[]; v1: Response[]; calls: string[]; bodies: unknown[] } = {
+const worker: {
+  v2: Response[]
+  v1: Response[]
+  read: Response[]
+  calls: string[]
+  bodies: unknown[]
+} = {
   v2: [],
   v1: [],
+  read: [],
   calls: [],
   bodies: [],
 }
@@ -75,7 +82,7 @@ function steerRequest() {
   })
 }
 
-function answer(route: 'v1' | 'v2'): Response {
+function answer(route: 'v1' | 'v2' | 'read'): Response {
   const next = worker[route].shift()
   if (!next) throw new Error(`No scripted worker answer for ${route}`)
   return next
@@ -87,6 +94,7 @@ describe('POST /api/copilot/chat/steer', () => {
   beforeEach(() => {
     worker.v2 = []
     worker.v1 = []
+    worker.read = []
     worker.calls = []
     worker.bodies = []
     mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue(WORKER)
@@ -95,6 +103,7 @@ describe('POST /api/copilot/chat/steer', () => {
       worker.calls.push(url.replace(WORKER, ''))
       worker.bodies.push(JSON.parse(String(init?.body)))
       if (url === `${WORKER}/api/streams/steer/v2`) return answer('v2')
+      if (url === `${WORKER}/api/streams/steer/v2/disposition`) return answer('read')
       if (url === `${WORKER}/api/streams/steer`) return answer('v1')
       throw new Error(`Unexpected worker call ${url}`)
     })
@@ -112,7 +121,7 @@ describe('POST /api/copilot/chat/steer', () => {
     mockRecordDisposition.mockResolvedValue(undefined)
   })
 
-  it('records the message with the exact input it sends before asking the worker', async () => {
+  it('records the message before asking the worker', async () => {
     worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
     let callsWhenRecorded: string[] | undefined
     mockAppend.mockImplementationOnce(async () => {
@@ -134,7 +143,7 @@ describe('POST /api/copilot/chat/steer', () => {
       expect.objectContaining({
         id: STEERING_ID,
         content: 'focus on the tests',
-        steering: { streamId: STREAM_ID, input: { context: [] } },
+        steering: { streamId: STREAM_ID },
       }),
       { streamId: STREAM_ID }
     )
@@ -217,7 +226,7 @@ describe('POST /api/copilot/chat/steer', () => {
     })
   })
 
-  it('keeps reading a queued message while its run runs, keeping its input', async () => {
+  it('keeps reading a queued message while its run runs', async () => {
     worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
     mockGetLatestRunForStream.mockResolvedValue({
       chatId: 'chat-1',
@@ -276,7 +285,7 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(worker.calls).toEqual(['/api/streams/steer/v2'])
   })
 
-  it('renders files and mentions as a turn does, and records that exact input', async () => {
+  it('renders files and mentions as a turn does', async () => {
     worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
     mockProcessContexts.mockResolvedValueOnce([{ type: 'workflow', content: 'mentioned' }])
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('write')
@@ -306,36 +315,50 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(response.status).toBe(200)
     const sent = worker.bodies[0] as { context: Array<{ type: string }> }
     expect(sent.context.map((item) => item.type)).toEqual(['workflow', 'uploaded_file'])
-    const recorded = mockAppend.mock.calls[0][1] as { steering: { input: unknown } }
-    expect(recorded.steering.input).toEqual({ context: sent.context })
   })
 
-  it('re-sends the recorded input on a retry, even if its mentions would now render differently', async () => {
-    const recordedInput = { context: [{ type: 'workflow', content: 'as first rendered' }] }
-    queueTableRows(copilotMessages, [
-      {
-        content: {
-          content: 'focus on the tests',
-          steering: { streamId: STREAM_ID, input: recordedInput },
-        },
-      },
-    ])
-    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'not_applied' }))
+  describe('a retry of a recorded message', () => {
+    const READ = '/api/streams/steer/v2/disposition'
+    beforeEach(() => {
+      queueTableRows(copilotMessages, [
+        { content: { content: 'focus on the tests', steering: { streamId: STREAM_ID } } },
+      ])
+    })
 
-    const response = await POST(
-      createMockRequest('POST', {
-        streamId: STREAM_ID,
-        chatId: 'chat-1',
-        steeringId: STEERING_ID,
-        content: 'focus on the tests',
-        contexts: [{ kind: 'workflow', workflowId: 'wf-1', label: 'Invoices' }],
-      })
-    )
+    it('reads what became of it instead of sending it again', async () => {
+      worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
 
-    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
-    expect(worker.bodies[0]).toMatchObject(recordedInput)
-    expect(mockProcessContexts).not.toHaveBeenCalled()
-    expect(mockAppend).not.toHaveBeenCalled()
+      const response = await POST(steerRequest())
+
+      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+      expect(worker.calls).toEqual([READ])
+      expect(worker.bodies).toEqual([{ messageId: STREAM_ID, steeringId: STEERING_ID }])
+      expect(mockAppend).not.toHaveBeenCalled()
+    })
+
+    it('steers it afresh once no run holds it', async () => {
+      worker.read.push(Response.json({ steeringId: STEERING_ID, status: 'unknown' }))
+      worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+
+      const response = await POST(steerRequest())
+
+      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+      expect(worker.calls).toEqual([READ, '/api/streams/steer/v2'])
+      expect(mockAppend).toHaveBeenCalledOnce()
+    })
+
+    it.each([
+      ['answers with a bare 404', () => new Response('404 page not found', { status: 404 })],
+      ['answers with a 405', () => new Response(null, { status: 405 })],
+      ['answers outside the contract', () => Response.json({ settled: true })],
+    ])("decides from Sim's run when the worker %s, never re-sending it", async (_name, reply) => {
+      worker.read.push(reply())
+
+      const response = await POST(steerRequest())
+
+      expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+      expect(worker.calls).toEqual([READ])
+    })
   })
 
   it('passes on where an applied message landed', async () => {

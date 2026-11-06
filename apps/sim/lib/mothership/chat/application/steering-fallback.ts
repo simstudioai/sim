@@ -5,7 +5,6 @@ import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getLatestRunForStream,
   TERMINAL_RUN_STATUSES,
@@ -14,22 +13,28 @@ import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/a
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { recordSteeringDisposition } from '@/lib/mothership/chat/messages-store'
 import type { SteeringFinalDisposition } from '@/lib/mothership/chat/steering'
-import type { SteerV2Request } from '@/lib/mothership/generated/protocol'
-import type { PreparedSteeringInput } from '@/lib/mothership/request/application/steering-input'
-import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
+import { requestSteeringDisposition } from '@/lib/mothership/request/session/steer'
 
 /**
  * A steering message as Sim recorded it before asking the worker: the run it was
- * sent into, its text, and the exact input the worker was sent, so a read of its
- * disposition re-sends identical bytes (the worker refuses a retry whose input
- * differs). Once the disposition is final it is recorded here and the input is gone.
+ * sent into and its text, with the worker's final answer once one is known.
  */
 export interface SteeringRecord {
   streamId: string
   content: string
-  input: Pick<PreparedSteeringInput, 'context' | 'assistantImages'>
   disposition?: SteeringFinalDisposition
 }
+
+/**
+ * What a read of a recorded steering message found:
+ * - `applied`: a run applied it, so it is in the conversation;
+ * - `held`: the run it steered still holds it and may yet apply it;
+ * - `not_held`: no run holds it or ever will, so it was not delivered.
+ */
+type SteeringReading =
+  | { status: 'applied'; eventSeq?: number; textOffset?: number }
+  | { status: 'held' }
+  | { status: 'not_held' }
 
 /**
  * What a turn whose message id is a steering id may do:
@@ -79,18 +84,9 @@ export async function loadSteeringRecord(
   /* Re-marked after the worker refused its turn as already applied: it is that turn's
      own message, not a record anything still delivers. */
   if (steering.streamId === messageId) return undefined
-  const input = toRecord(steering.input)
   return {
     streamId: steering.streamId,
     content: message.content,
-    input: {
-      context: Array.isArray(input.context)
-        ? (input.context as PreparedSteeringInput['context'])
-        : [],
-      ...(Array.isArray(input.assistantImages)
-        ? { assistantImages: input.assistantImages as SteerV2Request['assistantImages'] }
-        : {}),
-    },
     ...readFinalDisposition(steering.disposition),
   }
 }
@@ -106,15 +102,58 @@ export async function steeredRunHasEnded(streamId: string, userId: string): Prom
 }
 
 /**
+ * Reads what became of a recorded steering message without sending it, so no read
+ * can deliver it. A final answer is kept on the record and answers later reads. A
+ * `queued` answer counts only while Sim still runs that turn: a run Sim recorded as
+ * ended (one whose worker owner died, say) never applies it, and waiting on it
+ * would hold the message forever.
+ *
+ * A worker without the read decides from Sim's run alone, never by re-sending the
+ * message: a live run may hold it, and an ended one can no longer apply it. If it
+ * did apply it, a turn sent under its id is refused by the worker (`input_applied`)
+ * and settles as already applied, so nothing runs twice.
+ */
+export async function readSteeringRecord(params: {
+  chatId: string
+  messageId: string
+  record: SteeringRecord
+  userId: string
+}): Promise<SteeringReading> {
+  const { chatId, messageId, record, userId } = params
+  if (record.disposition?.status === 'applied') return record.disposition
+  if (record.disposition) return { status: 'not_held' }
+  const answer = await requestSteeringDisposition({
+    streamId: record.streamId,
+    userId,
+    chatId,
+    steeringId: messageId,
+  })
+  if (answer.status === 'unsupported') {
+    return (await steeredRunHasEnded(record.streamId, userId))
+      ? { status: 'not_held' }
+      : { status: 'held' }
+  }
+  if (answer.status === 'unknown') return { status: 'not_held' }
+  if (answer.status === 'queued') {
+    if (!(await steeredRunHasEnded(record.streamId, userId))) return { status: 'held' }
+    await recordSteeringDisposition(chatId, [messageId], { status: 'not_applied' })
+    return { status: 'not_held' }
+  }
+  await recordSteeringDisposition(chatId, [messageId], answer)
+  return answer.status === 'applied' ? answer : { status: 'not_held' }
+}
+
+/** Removes a steering record nothing delivers any more; a turn's own row is never matched. */
+export async function dropSteeringRecord(chatId: string, messageId: string): Promise<void> {
+  await db.delete(copilotMessages).where(steeringRow(chatId, messageId))
+}
+
+/**
  * Settles a turn sent under the id of a steering message the user sent into an
  * earlier turn, before it is admitted: the chat-send operation's own step, run
- * after the chat's ownership is authorized and before admission. The worker's
- * durable disposition of that id decides, read with the recorded input. A
- * `queued` answer counts only while Sim still runs that turn: a run Sim recorded
- * as ended (one whose worker owner died, say) never applies it, and waiting on it
- * would hold the message forever. A message no run applied (or one the worker
- * refused) loses its steering record, so the turn's own message is stored after
- * the turn it failed to steer rather than at the place the record holds.
+ * after the chat's ownership is authorized and before admission. A message no run
+ * holds loses its steering record, so the turn's own message is stored after the
+ * turn it failed to steer rather than at the place the record holds.
  */
 export async function resolveSteeringFallback(params: {
   chatId: string
@@ -124,25 +163,10 @@ export async function resolveSteeringFallback(params: {
   const { chatId, messageId, userId } = params
   const record = await loadSteeringRecord(chatId, messageId)
   if (!record) return { kind: 'send' }
-  if (record.disposition?.status === 'applied') return { kind: 'applied' }
-  if (!record.disposition) {
-    const disposition = await requestStreamSteering({
-      streamId: record.streamId,
-      userId,
-      chatId,
-      steeringId: messageId,
-      content: record.content,
-      ...record.input,
-    })
-    if (disposition.status === 'applied') {
-      await recordSteeringDisposition(chatId, [messageId], disposition)
-      return { kind: 'applied' }
-    }
-    if (disposition.status === 'queued' && !(await steeredRunHasEnded(record.streamId, userId))) {
-      return { kind: 'busy', streamId: record.streamId }
-    }
-  }
-  await db.delete(copilotMessages).where(steeringRow(chatId, messageId))
+  const reading = await readSteeringRecord({ chatId, messageId, record, userId })
+  if (reading.status === 'applied') return { kind: 'applied' }
+  if (reading.status === 'held') return { kind: 'busy', streamId: record.streamId }
+  await dropSteeringRecord(chatId, messageId)
   return { kind: 'send' }
 }
 
@@ -183,10 +207,10 @@ export const settleSteeringFallback = defineAuthorizedChatUseCase({
 
 /**
  * Drops a steering message the user gave up on (a Not delivered message's Dismiss).
- * The same reading decides as for a turn going out under its id, so a message a
- * run applied, or may yet apply, stays where it is. Anything else loses its record,
- * including one whose bytes the worker no longer recognizes, and a row that is a
- * turn's own message is never touched.
+ * The same reading decides as for a turn going out under its id, and it only reads,
+ * so dismissing never delivers the message. One a run applied, or may yet apply,
+ * stays where it is; anything else loses its record, and a row that is a turn's own
+ * message is never touched.
  */
 export const dismissSteeringMessage = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
@@ -211,19 +235,57 @@ export const dismissSteeringMessage = defineAuthorizedChatUseCase({
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {},
   async execute({ input, context }) {
-    const { chatId, userId } = context
     const fallback = await resolveSteeringFallback({
-      chatId,
+      chatId: context.chatId,
       messageId: input.messageId,
-      userId,
-    }).catch(async (error: unknown) => {
-      if (!(error instanceof OrchestrationError) || error.code !== 'conflict') throw error
-      /* The worker holds other bytes under this id, so no read of it can ever answer.
-         Left in place the record would come back as an orphan on the next read. */
-      await db.delete(copilotMessages).where(steeringRow(chatId, input.messageId))
-      return { kind: 'send' as const }
+      userId: context.userId,
     })
     if (fallback.kind === 'busy') return { status: 'busy' as const, streamId: fallback.streamId }
     return { status: fallback.kind === 'applied' ? ('applied' as const) : ('dismissed' as const) }
+  },
+})
+
+/**
+ * Reads what became of a steering message for its sender, after the turn it was sent
+ * into ended or when the user retries it. It only reads, so it never delivers the
+ * message: one no run holds answers `not_applied`, and the sender decides whether it
+ * goes out as a turn. An id with no record was never stored as steering, so nothing
+ * holds it either.
+ */
+export const readSteeringMessage = defineAuthorizedChatUseCase({
+  operation: defineWorkspaceOperation({
+    id: 'mothership.chats.read_steering',
+    capability: 'copilot.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  organizationOperation: defineOrganizationOperation({
+    id: 'mothership.chats.read_steering',
+    capability: 'copilot.use',
+    minimumRole: 'member',
+    principalKinds: ['session'],
+  }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: SessionPrincipal
+    input: { chatId: string; messageId: string }
+  }) => resolveOwnedChatContext(principal, input.chatId),
+  authorizationOptions: {},
+  async execute({ input, context }) {
+    const steeringId = input.messageId
+    const record = await loadSteeringRecord(context.chatId, steeringId)
+    if (!record) return { steeringId, status: 'not_applied' as const }
+    const reading = await readSteeringRecord({
+      chatId: context.chatId,
+      messageId: steeringId,
+      record,
+      userId: context.userId,
+    })
+    if (reading.status === 'held') return { steeringId, status: 'queued' as const }
+    if (reading.status === 'not_held') return { steeringId, status: 'not_applied' as const }
+    return { steeringId, ...reading }
   },
 })

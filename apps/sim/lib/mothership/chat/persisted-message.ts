@@ -290,20 +290,8 @@ export function compactToolCallParams(message: PersistedMessage): PersistedMessa
  * `content` is the stored form, already passed through {@link stripToolResultOutput}.
  */
 export function displayContentOf(content: PersistedMessage): PersistedMessage | null {
-  const display = withoutSteeringInput(compactToolCallParams(content))
+  const display = compactToolCallParams(content)
   return display === content ? null : display
-}
-
-/**
- * A message as every reader outside the steering path sees it: a steering record's
- * outbox (the exact input sent to the worker, `steering.input`) and its delivery
- * bookkeeping stay out of transcripts, exports and forks.
- */
-export function withoutSteeringInput<M extends { steering?: unknown }>(message: M): M {
-  const steering = toRecord(message.steering)
-  if (typeof steering.streamId !== 'string') return message
-  if (!('input' in steering) && !('disposition' in steering)) return message
-  return { ...message, steering: { streamId: steering.streamId } }
 }
 
 // Write: OrchestratorResult → PersistedMessage
