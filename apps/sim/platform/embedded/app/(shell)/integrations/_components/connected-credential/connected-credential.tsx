@@ -6,7 +6,7 @@ import { Button } from '@/platform/design-system/components/button/button'
 import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
-import type { IntegrationAccount } from '@/platform/embedded/lib/integrations/model'
+import type { IntegrationAccount } from '@/platform/shared/integrations'
 
 interface CredentialRow extends IntegrationAccount {
   statusLabel: string

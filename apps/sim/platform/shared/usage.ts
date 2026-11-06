@@ -1,5 +1,4 @@
-import { formatChartCompactNumber } from '@sim/emcn'
-import { formatDuration } from '@sim/utils/formatting'
+import { formatCompactNumber, formatDuration } from '@sim/utils/formatting'
 import {
   ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
   type OrganizationUsageBreakdown,
@@ -69,7 +68,7 @@ export function toCreditChart(overview: OrganizationUsageOverview | undefined, f
     seriesTotals: Object.fromEntries(
       USAGE_SOURCE_CATEGORIES.map((category) => [
         category.label,
-        formatChartCompactNumber(
+        formatCompactNumber(
           (present.get(category.id) ?? []).reduce((sum, value) => sum + value, 0)
         ),
       ])

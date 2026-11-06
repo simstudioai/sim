@@ -1,9 +1,4 @@
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-
-interface ShellItem {
-  id: string
-  title: string
-}
+import type { ShellDestination, ShellItem, ShellQueryStatus } from '@/platform/shared/shell'
 
 export interface ShellWorkspace {
   id: string
@@ -21,15 +16,6 @@ export interface ShellChat extends ShellItem {
   isUnread: boolean
   isPinned: boolean
 }
-
-export interface ShellDestination {
-  id: string
-  label: string
-  icon: IconName
-  value: string
-}
-
-export type ShellQueryStatus = 'pending' | 'error' | 'success'
 
 export interface ShellData {
   organization: { id: string; name: string; memberCount: number; logo: string | null }

@@ -27,15 +27,8 @@ import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
 import type {
   AttentionItem,
   EmailItem,
-  HomeAccountView,
   HomeActions,
-  HomeActivityState,
-  HomeCalendarDay,
-  HomeGetStartedStep,
-  HomeListState,
   HomeView,
-  HomeWidgetActions,
-  HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
 import { useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
@@ -64,6 +57,15 @@ import {
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
 import { toast } from '@/platform/lib/data/toast'
+import type {
+  HomeAccountView,
+  HomeActivityState,
+  HomeCalendarDay,
+  HomeGetStartedStep,
+  HomeListState,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/shared/home'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { MINUTE_MS } from '@/platform/shared/time'

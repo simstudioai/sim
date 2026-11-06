@@ -20,11 +20,8 @@ import {
   toOrganizationIntegrations,
   toToolPermissions,
 } from '@/platform/embedded/lib/data/integrations-model'
-import type {
-  OrganizationIntegration,
-  ToolPermissionChange,
-} from '@/platform/embedded/lib/integrations/model'
 import { usePlatformNotices } from '@/platform/embedded/lib/notices'
+import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 

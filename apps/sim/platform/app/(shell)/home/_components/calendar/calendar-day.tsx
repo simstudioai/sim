@@ -2,10 +2,6 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/calendar/calendar-day.module.css'
-import type {
-  CalendarMeeting,
-  HomeCalendarDay,
-} from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
@@ -16,6 +12,7 @@ import {
   OverflowText,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import type { CalendarMeeting, HomeCalendarDay } from '@/platform/shared/home'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 
 interface CalendarDayProps {

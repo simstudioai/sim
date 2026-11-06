@@ -17,7 +17,7 @@ import {
   integrationSegment,
   type OrganizationIntegration,
   type ToolPermissionsModel,
-} from '@/platform/embedded/lib/integrations/model'
+} from '@/platform/shared/integrations'
 import { plural } from '@/platform/shared/plural'
 
 const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`

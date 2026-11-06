@@ -58,19 +58,21 @@ import {
   type ActivityWindowDays,
   type AttentionItem,
   type EmailItem,
-  type HomeAccountView,
   type HomeActions,
-  type HomeActivityState,
-  type HomeCalendarDay,
-  type HomeListState,
   type HomeRecentItem,
   type HomeView,
-  type HomeWidgetActions,
-  type HomeWidgetState,
   type HomeWorkspaceItem,
 } from '@/platform/embedded/lib/data/home-view'
 import { useIntegrationActions } from '@/platform/embedded/lib/data/integrations'
 import { workspaceHref } from '@/platform/embedded/lib/data/workspaces'
+import type {
+  HomeAccountView,
+  HomeActivityState,
+  HomeCalendarDay,
+  HomeListState,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/shared/home'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { currentMinute, MINUTE_MS } from '@/platform/shared/time'

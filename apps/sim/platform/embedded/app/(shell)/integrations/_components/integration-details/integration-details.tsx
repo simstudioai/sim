@@ -7,11 +7,8 @@ import { EmptyState } from '@/platform/design-system/components/empty-state/empt
 import { ConnectedCredential } from '@/platform/embedded/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/embedded/app/(shell)/integrations/_components/connection-access/connection-access'
 import { ProviderHeading } from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import {
-  accountStatus,
-  isConnectable,
-  type OrganizationIntegration,
-} from '@/platform/embedded/lib/integrations/model'
+import { accountStatus } from '@/platform/embedded/lib/integrations/model'
+import { isConnectable, type OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration

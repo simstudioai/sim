@@ -8,15 +8,16 @@ import {
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import {
-  type GenericSecrets,
-  integrationSegment,
-  type OrganizationIntegration,
-  type ToolPermissionsModel,
-} from '@/platform/lib/data/integrations-types'
-import {
   memberSecretMetadata,
   providerMetadata,
 } from '@/platform/lib/integrations/metadata.generated'
+import {
+  type GenericSecrets,
+  type IntegrationAccount,
+  integrationSegment,
+  type OrganizationIntegration,
+  type ToolPermissionsModel,
+} from '@/platform/shared/integrations'
 
 const CONNECT_ACCOUNT_GUIDE = `${SIM_DOCS_URL}/search/connect-your-account`
 
@@ -98,4 +99,9 @@ export function toToolPermissions(data: AssistantToolPermissionsResponse): ToolP
       inherited: tool.inherited,
     })),
   }
+}
+
+export function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
+  if (account.status === 'needs_reauth') return 'Reconnect needed'
+  return integration.availability === 'blocked' ? integration.status : 'Connected'
 }

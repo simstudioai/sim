@@ -83,8 +83,3 @@ export function integrationSegment(inventoryId: string): string {
 export function isConnectable(integration: OrganizationIntegration) {
   return integration.availability === 'ready' && Boolean(integration.connectionTarget)
 }
-
-export function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
-  if (account.status === 'needs_reauth') return 'Reconnect needed'
-  return integration.availability === 'blocked' ? integration.status : 'Connected'
-}

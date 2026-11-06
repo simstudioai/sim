@@ -10,15 +10,17 @@ import { ZoneHomeDashboard } from '@/platform/app/(shell)/home/_components/home-
 import type {
   EmailItem,
   HomeActions,
-  HomeCalendarDay,
-  HomeConnectOption,
   HomeData,
   HomeView,
-  HomeWidgetActions,
-  HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import { platformHref } from '@/platform/design-system/navigation'
+import type {
+  HomeCalendarDay,
+  HomeConnectOption,
+  HomeWidgetActions,
+  HomeWidgetState,
+} from '@/platform/shared/home'
 
 const NO_ACTIVITY = { status: 'ready', points: [] } as const
 

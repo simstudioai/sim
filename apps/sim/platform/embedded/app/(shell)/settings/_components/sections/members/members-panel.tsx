@@ -32,7 +32,7 @@ import {
 import { SeatsOverview } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/seats-overview'
 import { TransferOwnershipModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/members/transfer-ownership-modal'
 import { useMembers } from '@/platform/embedded/lib/data/members'
-import { filterRoster, type MemberRowModel } from '@/platform/embedded/lib/data/members-model'
+import { filterRoster, type MemberRowModel } from '@/platform/shared/members'
 
 interface MembersPanelProps {
   organization: OrganizationSurfaceContext

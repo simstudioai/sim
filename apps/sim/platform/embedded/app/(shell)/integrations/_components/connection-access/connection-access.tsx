@@ -4,7 +4,7 @@ import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/embedded/app/(shell)/integrations/_components/connection-access/scope-groups'
-import type { OrganizationIntegration } from '@/platform/embedded/lib/integrations/model'
+import type { OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface AccessGroupProps {
   title: string

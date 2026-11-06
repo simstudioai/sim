@@ -6,11 +6,8 @@ import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_component
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { Chip, EmptyState } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
-import {
-  accountStatus,
-  isConnectable,
-  type OrganizationIntegration,
-} from '@/platform/lib/data/integrations-types'
+import { accountStatus } from '@/platform/lib/data/integrations-model'
+import { isConnectable, type OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration

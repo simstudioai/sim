@@ -11,10 +11,9 @@ import styles from '@/platform/embedded/app/(shell)/home/_components/activity-ch
 import { SkeletonBlock } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import {
   ACTIVITY_WINDOW_DAYS,
-  type ActivityPoint,
   type ActivityWindowDays,
-  type HomeActivityState,
 } from '@/platform/embedded/lib/data/home-view'
+import type { ActivityPoint, HomeActivityState } from '@/platform/shared/home'
 import { formatCalendarDate } from '@/platform/shared/time'
 
 interface HomeActivityChartProps {

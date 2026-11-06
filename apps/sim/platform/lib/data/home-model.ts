@@ -15,18 +15,17 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import type { AttentionItem, EmailItem } from '@/platform/app/(shell)/home/_components/model'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import type {
-  AttentionItem,
   CalendarMeeting,
-  EmailItem,
   HomeAccountView,
   HomeCalendarDay,
   HomeConnectOption,
   HomeWidgetState,
-} from '@/platform/app/(shell)/home/_components/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+} from '@/platform/shared/home'
 import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {

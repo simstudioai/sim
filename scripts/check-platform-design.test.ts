@@ -613,6 +613,8 @@ it.each([
   ],
   ['zone-embedded', 'platform/embedded/lib/data/reach.ts', `import '@/platform/lib/data/home'`],
   ['zone-embedded', 'platform/embedded/lib/data/reach2.ts', `import '../../../app/page'`],
+  ['zone-embedded', 'platform/shared/reach.ts', `import '@/platform/design-system/navigation'`],
+  ['zone-embedded', 'platform/shared/reach2.ts', `import type {} from '@/platform/lib/data/home'`],
   ['legacy-import', 'app/o/[organizationId]/reach.ts', `import '@/platform/lib/data/home'`],
   ['legacy-import', 'app/workspace/reach.tsx', `import '@/platform/embedded/lib/time'`],
   [
@@ -640,6 +642,20 @@ it.each([
   },
   30_000
 )
+
+it('lets a shared model name a design-system type and an organization route import it', () => {
+  const { root, put, run } = embeddedFixture()
+  try {
+    put(
+      'platform/shared/model.ts',
+      `import type { IconName } from '@/platform/design-system/catalog/icon-geometry'\nexport type Row = IconName\n`
+    )
+    put('app/o/[organizationId]/model-reader.ts', `import '@/platform/shared/model'\n`)
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
 
 it('counts a variant only an organization route mounts through a dynamic section table', () => {
   const { root, put, run } = embeddedFixture()

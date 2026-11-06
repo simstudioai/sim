@@ -18,8 +18,9 @@ import {
 import { SectionStatus } from '@/platform/embedded/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useChatListActions } from '@/platform/embedded/lib/data/chat-list'
-import type { ShellChat, ShellQueryStatus } from '@/platform/embedded/lib/data/shell-view'
+import type { ShellChat } from '@/platform/embedded/lib/data/shell-view'
 import { copyLinkAction, openInNewTabAction } from '@/platform/embedded/lib/row-links'
+import type { ShellQueryStatus } from '@/platform/shared/shell'
 import { useFolderStore } from '@/stores/folders/store'
 
 const CHAT_TITLE_MAX_LENGTH = 200
