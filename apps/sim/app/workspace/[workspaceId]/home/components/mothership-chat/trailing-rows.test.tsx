@@ -76,7 +76,6 @@ afterEach(async () => {
   await act(async () => root.unmount())
   client.clear()
   container.remove()
-  vi.restoreAllMocks()
 })
 
 async function renderChat(messages: ChatMessage[], isSending: boolean) {
