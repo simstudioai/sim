@@ -656,6 +656,9 @@ type Bindings = Map<string, Node[]>
 
 class MessageResolver {
   private readonly bindings = new Map<Node, Bindings>()
+  /** `let` bindings by function; one reassigned anywhere in the file has no single value to follow. */
+  private readonly lets = new Map<Node, Set<string>>()
+  private readonly reassigned = new Set<string>()
 
   constructor(program: Node) {
     this.collect(program, program)
@@ -686,9 +689,16 @@ class MessageResolver {
         const id = declarator.id as Node
         if (id.type === 'Identifier') {
           this.declare(scope, id.name as string, (declarator.init as Node | null) ?? undefined)
+          if (current.kind === 'let') {
+            this.lets.set(scope, (this.lets.get(scope) ?? new Set()).add(id.name as string))
+          }
         }
       }
     }
+    const target = (current.type === 'AssignmentExpression' ? current.left : undefined) as
+      | Node
+      | undefined
+    if (target?.type === 'Identifier') this.reassigned.add(target.name as string)
     for (const [key, value] of Object.entries(current)) {
       if (key === 'loc' || key === 'start' || key === 'end' || key === 'extra') continue
       this.collect(value, inner)
@@ -699,7 +709,8 @@ class MessageResolver {
   private resolve(name: string, scopes: Node[]): Node[] {
     for (let index = scopes.length - 1; index >= 0; index--) {
       const values = this.bindings.get(scopes[index])?.get(name)
-      if (values) return values
+      if (!values) continue
+      return this.lets.get(scopes[index])?.has(name) && this.reassigned.has(name) ? [] : values
     }
     return []
   }
@@ -805,7 +816,7 @@ export function findViolations(file: string, source: string): Violation[] {
   const wantsDb = isApi && source.includes('@sim/db')
   const wantsRoute = isApi && /(?:^|\/)route\.ts$/.test(file)
   const wantsLogTag =
-    !test && source.includes('@sim/logger') && /\[(?:\$\{|['"`]\s*\+)|requestId/i.test(source)
+    !test && source.includes('@sim/logger') && /\[(?:\$\{|['"`]\s*\+)|req(?:uest)?Id/i.test(source)
   if (!(wantsRelative || wantsTextSize || wantsStyle || wantsDb || wantsRoute || wantsLogTag)) {
     return []
   }

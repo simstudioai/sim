@@ -423,6 +423,20 @@ describe('log-message-tag', () => {
     expect(lines(MODULE, source, 'log-message-tag')).toEqual([5])
   })
 
+  it('checks a module whose only request id is a reqId', () => {
+    const source = withLogger(`log.info(\`Retry for \${reqId}\`)`)
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3])
+  })
+
+  it('stops following a let binding that is reassigned before it is logged', () => {
+    const source = withLogger(
+      `let message = \`[\${requestId}] Failed\``,
+      "message = 'Started'",
+      'logger.info(message)'
+    )
+    expect(hits(MODULE, source, 'log-message-tag')).toEqual([])
+  })
+
   it('does not treat other uses of request ids or loggers as a tagged message', () => {
     const source = withLogger(
       `logger.info(\`Kept \${rows.filter((row) => row.requestId).length} rows\`)`,
