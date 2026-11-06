@@ -184,7 +184,7 @@ describe('package boundary command', () => {
         const cases = [
           ["import { Row } from '@/app/o/[organizationId]/row'", false],
           ["import type { Row } from '@/app/o/[organizationId]/model'", false],
-          ["export { Row } from '../../../app/o/[organizationId]/row'", false],
+          ["export { Row } from '../../../../app/o/[organizationId]/row'", false],
           ["const row = import('@/app/o/[organizationId]/row')", false],
           ["import { value } from '@/app/other/value'", true],
           ["import { value } from '@/lib/organizations/value'", true],
@@ -249,7 +249,7 @@ describe('package boundary command', () => {
           ["import { useDeep } from '@/ee/widgets/parts/hooks/deep'", false],
           ["import { useFlat } from '@/ee/hooks'", false],
           ["const widgets = import('@/hooks/queries/widgets')", false],
-          ["import { useWidgets } from '../../../../hooks/queries/widgets'", false],
+          ["import { useWidgets } from '../../../../../hooks/queries/widgets'", false],
           ["import type { Widget } from '@/hooks/queries/widgets'", true],
           ["import { useWidgets } from '@/platform/embedded/lib/data/widgets'", true],
           ["import { useDebounce } from '@/hooks/use-debounce'", true],

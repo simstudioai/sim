@@ -1,14 +1,14 @@
 ---
 description: One pattern per job across the organization views (Settings, People, Integrations, Links, Home)
 paths:
-  - "apps/sim/platform/app/(shell)/{settings,people,integrations,links,home}/**"
+  - "apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**"
   - "apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
   - "apps/sim/app/o/*/**"
 ---
 
 # Organization Views
 
-The organization views live in `apps/sim/platform/app/(shell)/` and take everything shared from
+The organization views live in `apps/sim/platform/embedded/app/(shell)/` and take everything shared from
 `@/platform/design-system/components`. Each job below has one pattern. A view that differs needs a
 reason written where it differs; "it was already like that" is not one.
 
