@@ -296,7 +296,7 @@ export const FEATURE_PERMISSION_GRIDS = {
 /** Sentinel for "no default chosen" in the Agent default picker. */
 export const PLATFORM_DEFAULT_MODEL = '__platform-default__'
 
-function agentDefaultModelId(provider: string, model: string): string {
+export function agentDefaultModelId(provider: string, model: string): string {
   return provider === 'ollama' && !model.toLowerCase().startsWith('ollama/')
     ? `ollama/${model}`
     : model

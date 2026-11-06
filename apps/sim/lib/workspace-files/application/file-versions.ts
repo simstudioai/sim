@@ -28,7 +28,7 @@ import {
   type WorkspaceFileVersionRecord,
 } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { formatFileSize } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import {
   requireAdmittedWorkspaceFile,
   workspaceFileProvenanceIdentity,

@@ -12,11 +12,11 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
-  formatFileSize,
   getFileExtension,
   MAX_TEXT_EXTRACTION_BYTES,
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file'
+import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import {
   requireAdmittedContributors,
   requireAdmittedWorkspaceFile,

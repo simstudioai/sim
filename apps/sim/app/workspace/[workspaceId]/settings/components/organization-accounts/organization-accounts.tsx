@@ -11,6 +11,10 @@ import {
   isManagedMcpConnectorId,
 } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import {
+  groupByOrganization,
+  PERSONAL_ACCOUNT_STATUS_LABELS,
+} from '@/lib/organizations/personal-accounts'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
   SettingsEmptyState,
@@ -27,12 +31,6 @@ import {
   usePersonalOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
 
-const STATUS_LABELS = {
-  active: null,
-  needs_reauth: 'Reconnect needed',
-  revoked: 'Disconnected',
-} as const satisfies Record<PersonalOrganizationAccount['status'], string | null>
-
 const LOAD_ERROR = 'Failed to load connected accounts'
 
 interface OrganizationAccountsProps {
@@ -48,16 +46,6 @@ function accountService(account: PersonalOrganizationAccount) {
     }
   }
   return getServiceConfigByProviderId(account.providerId)
-}
-
-function groupByOrganization(accounts: PersonalOrganizationAccount[]) {
-  const groups = new Map<string, { name: string; accounts: PersonalOrganizationAccount[] }>()
-  for (const account of accounts) {
-    const group = groups.get(account.organizationId)
-    if (group) group.accounts.push(account)
-    else groups.set(account.organizationId, { name: account.organizationName, accounts: [account] })
-  }
-  return [...groups.entries()].sort(([, left], [, right]) => left.name.localeCompare(right.name))
 }
 
 /**
@@ -114,7 +102,7 @@ export function OrganizationAccounts({ onBack }: OrganizationAccountsProps) {
                 <div className={RESOURCE_LIST_STACK}>
                   {group.accounts.map((account) => {
                     const service = accountService(account)
-                    const statusLabel = STATUS_LABELS[account.status]
+                    const statusLabel = PERSONAL_ACCOUNT_STATUS_LABELS[account.status]
                     return (
                       <SettingsResourceRow
                         key={account.credentialId}

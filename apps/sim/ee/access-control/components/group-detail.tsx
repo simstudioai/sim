@@ -28,7 +28,6 @@ import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
-import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import {
@@ -76,6 +75,15 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import {
+  CHAT_DEPLOY_AUTH_TYPE_OPTIONS,
+  compareEditorBlocks,
+  FILE_SHARE_AUTH_TYPE_OPTIONS,
+  hasPermissionConfigChanges,
+  matchesStatusFilter,
+  type PermissionStatusFilter,
+  statusFilterOptions,
+} from '@/ee/access-control/lib/editor'
 import { withPermissionGroupAccessState } from '@/ee/access-control/utils/access-state'
 import {
   type AccessRequestTarget,
@@ -97,25 +105,6 @@ const logger = createLogger('AccessControlGroupDetail')
 
 type ConfigTab = 'general' | 'providers' | 'blocks' | 'platform'
 
-/** Hoisted: rebuilding this per comparison allocated once per sort step. */
-const BLOCK_CATEGORY_ORDER: Record<string, number> = { triggers: 0, blocks: 1, tools: 2 }
-
-/** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
-const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
-  { value: 'public', label: 'Anyone with link' },
-  { value: 'password', label: 'Password' },
-  { value: 'email', label: 'Email' },
-  { value: 'sso', label: 'SSO' },
-]
-
-/** Chat-deployment auth modes an admin can allow/disallow. `null` config = all allowed. */
-const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
-  { value: 'public', label: 'Public' },
-  { value: 'password', label: 'Password' },
-  { value: 'email', label: 'Email' },
-  { value: 'sso', label: 'SSO' },
-]
-
 /**
  * Knowledge base connectors an admin can allow or disallow. `null` config = all
  * allowed. Sorted by display name because the picker is read alphabetically,
@@ -129,41 +118,17 @@ const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.v
   .map((meta) => ({ value: meta.id, label: meta.name }))
   .sort((a, b) => a.label.localeCompare(b.label))
 
-type StatusFilter = 'all' | 'enabled' | 'disabled' | 'requestable' | 'unavailable'
-
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'Show all' },
-  { value: 'enabled', label: 'Allowed' },
-  { value: 'requestable', label: 'Can request' },
-  { value: 'unavailable', label: 'Unavailable' },
-]
-
-function matchesStatusFilter(filter: StatusFilter, state: PermissionGroupAccessState) {
-  return (
-    filter === 'all' ||
-    (filter === 'enabled'
-      ? state === 'allowed'
-      : filter === 'disabled'
-        ? state !== 'allowed'
-        : state === filter)
-  )
-}
-
 interface StatusFilterChipProps {
-  value: StatusFilter
-  onChange: (value: StatusFilter) => void
+  value: PermissionStatusFilter
+  onChange: (value: PermissionStatusFilter) => void
 }
 
 function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
     <ChipDropdown
       value={value}
-      onChange={(next) => onChange(next as StatusFilter)}
-      options={
-        value === 'disabled'
-          ? [...STATUS_FILTER_OPTIONS, { value: 'disabled', label: 'Restricted' }]
-          : STATUS_FILTER_OPTIONS
-      }
+      onChange={(next) => onChange(next as PermissionStatusFilter)}
+      options={statusFilterOptions(value)}
       matchTriggerWidth={false}
       className='w-[140px] shrink-0 max-sm:min-w-0 max-sm:flex-1'
     />
@@ -444,12 +409,7 @@ export function GroupDetail({
    */
   const allBlocks = useMemo(() => {
     const blocks = getAllBlocks().filter((b) => isAccessControlAllowlistRow(b.type))
-    return blocks.sort((a, b) => {
-      const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
-      const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
-      if (catA !== catB) return catA - catB
-      return a.name.localeCompare(b.name)
-    })
+    return blocks.sort(compareEditorBlocks)
   }, [customBlockOverlayVersion])
 
   /**
@@ -594,19 +554,7 @@ export function GroupDetail({
     }))
   }, [platformCategories])
 
-  const hasConfigChanges = (Object.keys(editingConfig) as (keyof PermissionGroupConfig)[]).some(
-    (key) => {
-      const saved = viewingGroup.config[key]
-      const edited = editingConfig[key]
-      if (!Array.isArray(saved) || !Array.isArray(edited)) return saved !== edited
-      const savedMembers = new Set(saved)
-      const editedMembers = new Set(edited)
-      return (
-        savedMembers.size !== editedMembers.size ||
-        [...savedMembers].some((member) => !editedMembers.has(member))
-      )
-    }
-  )
+  const hasConfigChanges = hasPermissionConfigChanges(viewingGroup.config, editingConfig)
 
   // Both buffers are seeded trimmed and compared against a trimmed baseline. The
   // contract trims name and description on write, but a row stored before those
