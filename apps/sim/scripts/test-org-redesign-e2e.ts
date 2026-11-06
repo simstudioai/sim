@@ -609,6 +609,19 @@ async function pageTurn(page: Page) {
   )
 }
 
+/**
+ * Runs a real navigation and returns a test that it stayed in the document: a full load drops the
+ * mark, and these checks are about what a client navigation carries over.
+ */
+async function navigateWithinDocument(page: Page, navigate: () => Promise<unknown>) {
+  await page.evaluate(() => {
+    ;(window as unknown as { sameDocumentMark: boolean }).sameDocumentMark = true
+  })
+  await navigate()
+  return () =>
+    page.evaluate(() => (window as unknown as { sameDocumentMark?: boolean }).sameDocumentMark)
+}
+
 async function assertNoHorizontalOverflow(page: Page, label: string) {
   const { scrollWidth, width } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -970,15 +983,8 @@ async function sidebarChecks() {
   await check(
     'the rail opens at its design width and moves to and from /workspace with no frame between',
     async () => {
-      const workspaceHome = `/workspace/${MEMBER_ADMIN_WORKSPACE.id}/home`
       const railWidths = (page: Page) =>
         page.evaluate(() => (window as unknown as { railWidths: string[] }).railWidths)
-      const pushRoute = (page: Page, href: string) =>
-        page.evaluate((target) => {
-          ;(
-            window as unknown as { next: { router: { push: (href: string) => void } } }
-          ).next.router.push(target)
-        }, href)
       await withSession(ADMIN, async ({ page }) => {
         await page.addInitScript(() => {
           const seen = new Set<string>()
@@ -994,12 +1000,16 @@ async function sidebarChecks() {
         })
         await page.goto(orgUrl('/home'))
         await expect(sidebar(page)).toBeVisible()
-        await pushRoute(page, workspaceHome)
+        const inDocument = await navigateWithinDocument(page, () =>
+          railLink(page, MEMBER_ADMIN_WORKSPACE.name).click()
+        )
         await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).toBeVisible({
           timeout: 45_000,
         })
-        await pushRoute(page, `${root}/home`)
+        assert(await inDocument(), 'The move to /workspace reloaded the page')
+        await page.goBack()
         await expect(sidebar(page)).toBeVisible({ timeout: 45_000 })
+        assert(await inDocument(), 'The move back to /o reloaded the page')
         await sleep(250)
         assert.deepEqual((await railWidths(page)).sort(), [
           `Organization sidebar:${SIDEBAR_WIDTH.ORGANIZATION_DEFAULT}`,
@@ -4196,15 +4206,14 @@ async function blastRadiusChecks() {
               await page.goto(orgUrl(`/${path}`))
               await session.settle()
             }
-            await page.evaluate((href) => {
-              ;(
-                window as unknown as { next: { router: { push: (href: string) => void } } }
-              ).next.router.push(href)
-            }, workspaceHome)
+            const inDocument = await navigateWithinDocument(page, () =>
+              railLink(page, MEMBER_ADMIN_WORKSPACE.name).click()
+            )
             await expect(page).toHaveURL(url(workspaceHome), { timeout: 45_000 })
             await expect(
               page.getByRole('complementary', { name: 'Workspace sidebar' })
             ).toBeVisible()
+            assert(await inDocument(), 'The move to /workspace reloaded the page')
             await session.settle()
             await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
             const carried = await sample(page)
