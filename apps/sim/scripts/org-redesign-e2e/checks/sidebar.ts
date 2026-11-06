@@ -226,8 +226,7 @@ export async function sidebarChecks() {
   await check(
     'the rail opens at its design width and moves to and from /workspace with no frame between',
     async () => {
-      const railWidths = (page: Page) =>
-        page.evaluate(() => (window as unknown as { railWidths: string[] }).railWidths)
+      const railWidths = (page: Page) => page.evaluate(() => window.railWidths ?? [])
       await withSession(ADMIN, async ({ page }) => {
         await page.addInitScript(() => {
           const seen = new Set<string>()
@@ -236,7 +235,7 @@ export async function sidebarChecks() {
               const width = Math.round(rail.getBoundingClientRect().width)
               if (width > 0) seen.add(`${rail.getAttribute('aria-label')}:${width}`)
             }
-            ;(window as unknown as { railWidths: string[] }).railWidths = [...seen]
+            window.railWidths = [...seen]
             requestAnimationFrame(record)
           }
           requestAnimationFrame(record)

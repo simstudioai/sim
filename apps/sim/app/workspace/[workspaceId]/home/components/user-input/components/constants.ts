@@ -59,7 +59,7 @@ export interface PlusMenuHandle {
  * Shared draft typography for Build and Search composers. A host's frame retunes it through these
  * variables, which reach the field and its mirror overlay alike; unset, it is the default type.
  */
-export const PROMPT_TEXT_CLASSES =
+const PROMPT_TEXT_CLASSES =
   '[font-family:var(--prompt-font-family,theme(--font-body))] text-md leading-[var(--prompt-leading,24px)] tracking-[var(--prompt-tracking,-0.015em)] md:pointer-fine:text-sm'
 
 /**

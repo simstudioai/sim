@@ -487,7 +487,7 @@ export async function homeChecks() {
         ).toBeVisible({ timeout: 30_000 })
         await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
         fail = false
-        await region.getByRole('button', { name: 'Try again' }).click()
+        await region.getByRole('button', { name: 'Retry' }).click()
         await expect(
           region.getByText('What these workspaces are doing could not load.')
         ).toHaveCount(0, { timeout: 30_000 })
@@ -819,12 +819,12 @@ export async function homeFailureChecks() {
       await expect(email.getByText(EMAIL_THREAD().subject)).toBeVisible()
       await expect(email.getByText(`${SECOND_ACCOUNT} could not be reached.`)).toBeVisible()
       const before = reads
-      await email.getByRole('button', { name: 'Try again', exact: true }).click()
+      await email.getByRole('button', { name: 'Retry', exact: true }).click()
       await expect.poll(() => reads).toBeGreaterThan(before)
     })
   })
   await check(
-    'a failed email read says so, and Try again recovers it',
+    'a failed email read says so, and Retry recovers it',
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
         await stubConnectedHome(page)
@@ -836,14 +836,14 @@ export async function homeFailureChecks() {
         const email = homeRegion(page, 'Email')
         await expect(email.getByText('Your email could not load.')).toBeVisible({ timeout: 40_000 })
         failing = false
-        await email.getByRole('button', { name: 'Try again', exact: true }).click()
+        await email.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(email.getByText(EMAIL_THREAD().subject)).toBeVisible()
       })
     },
     { allow: [refusedRead('email')] }
   )
   await check(
-    'a failed calendar read fails its day alone, and Try again recovers it',
+    'a failed calendar read fails its day alone, and Retry recovers it',
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
         await stubConnectedHome(page)
@@ -858,7 +858,7 @@ export async function homeFailureChecks() {
         })
         await expect(homeRegion(page, 'Email').getByText(EMAIL_THREAD().subject)).toBeVisible()
         failing = false
-        await calendar.getByRole('button', { name: 'Try again', exact: true }).click()
+        await calendar.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(calendar.getByText(/^Standup /)).toBeVisible()
       })
     },

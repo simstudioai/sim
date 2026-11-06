@@ -2,6 +2,13 @@ import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
 import { expect } from '@/scripts/org-redesign-e2e/harness'
 
+declare global {
+  interface Window {
+    railWidths?: string[]
+    sameDocumentMark?: boolean
+  }
+}
+
 export const menuEntry = (page: Page, name: string | RegExp) =>
   page.getByRole('menuitem', { name, exact: typeof name === 'string' })
 
@@ -74,11 +81,10 @@ export async function pageTurn(page: Page) {
  */
 export async function navigateWithinDocument(page: Page, navigate: () => Promise<unknown>) {
   await page.evaluate(() => {
-    ;(window as unknown as { sameDocumentMark: boolean }).sameDocumentMark = true
+    window.sameDocumentMark = true
   })
   await navigate()
-  return () =>
-    page.evaluate(() => (window as unknown as { sameDocumentMark?: boolean }).sameDocumentMark)
+  return () => page.evaluate(() => window.sameDocumentMark)
 }
 
 export async function assertNoHorizontalOverflow(page: Page, label: string) {

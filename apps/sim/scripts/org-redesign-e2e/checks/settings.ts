@@ -468,9 +468,14 @@ export async function settingsChecks() {
           await modal.getByRole('button', { name: 'Ban', exact: true }).click()
           await expect.poll(() => banRequests).toBe(1)
           await expect(modal, 'Starting the ban closed the dialog').toBeVisible()
-          await page.keyboard.press('Escape')
-          await pageTurn(page)
-          await expect(modal, 'Escape dismissed a running ban').toHaveJSProperty('open', true)
+          for (const press of ['first', 'second']) {
+            await page.keyboard.press('Escape')
+            await pageTurn(page)
+            await expect(modal, `The ${press} Escape dismissed a running ban`).toHaveJSProperty(
+              'open',
+              true
+            )
+          }
           await expect(modal.getByRole('button', { name: 'Cancel' })).toBeDisabled()
           held.resolve()
           await expect(modal.getByText('Ban refused')).toBeVisible()
@@ -672,13 +677,19 @@ export async function settingsChecks() {
       () =>
         withSession(ADMIN, async ({ page }) => {
           await page.goto(orgUrl('/settings/data-retention'))
-          await page
-            .getByRole('button', { name: /Organization/ })
-            .first()
-            .click()
-          const picker = page.getByRole('combobox', { name: 'Log retention' })
-          const original = (await picker.textContent())?.trim() ?? ''
-          for (const name of ['5 years', original]) {
+          const openPolicy = async () => {
+            await page
+              .getByRole('button', { name: /Organization/ })
+              .first()
+              .click()
+            return page.getByRole('combobox', { name: 'Log retention' })
+          }
+          const original = (await (await openPolicy()).textContent())?.trim() ?? ''
+          for (const [index, name] of ['5 years', original].entries()) {
+            const picker =
+              index === 0
+                ? page.getByRole('combobox', { name: 'Log retention' })
+                : await openPolicy()
             await picker.click()
             await page.getByRole('option', { name, exact: true }).click()
             const write = page.waitForResponse(
@@ -689,7 +700,7 @@ export async function settingsChecks() {
             const save = page.getByRole('button', { name: 'Save', exact: true })
             await save.click()
             assert.ok((await write).ok(), 'The policy did not save')
-            await expect(save).toBeDisabled()
+            await expect(page.getByRole('combobox', { name: 'Log retention' })).toBeHidden()
           }
         })
     )

@@ -102,8 +102,8 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
   function returnToNow() {
     focusOnReturn.current = true
     onReturnToToday()
-    // Remounting the viewport is the only thing that stops iOS momentum: assigning scrollTop or an
-    // instant scrollTo while it runs is overridden by the momentum's next frame.
+    // Remounting the viewport cancels iOS momentum, which can otherwise override a position assigned
+    // while it runs. Not tested on a device.
     setReturnCount((count) => count + 1)
   }
 
