@@ -2,9 +2,7 @@
 
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { canMakeProviderPrimary, nextSignInProvider } from '@/ee/sso/lib/provider-form'
-import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import {
   ActivityRow,
   Button,
@@ -29,15 +27,17 @@ import { ProviderForm } from '@/platform/embedded/app/(shell)/settings/_componen
 import { RequireSso } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/require-sso'
 import { ScimPanel } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/scim-panel'
 import { useSsoSettingsParams } from '@/platform/embedded/lib/data/sso/params'
-import { toast } from '@/platform/shared/toast'
+import { useSsoProviderSettings } from '@/platform/embedded/lib/data/sso-settings'
 
 export default function SsoSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const { billingEnabled, features } = organization.deployment
   const [{ tab: requestedTab, provider: requestedProvider, createProvider }, setParams] =
     useSsoSettingsParams()
-  const billing = useOrganizationPlanSeats(organizationId, { enabled: billingEnabled })
-  const providers = useSSOProviders({ organizationId })
+  const { billing, providers, removeProvider, makePrimary } = useSsoProviderSettings(
+    organizationId,
+    billingEnabled
+  )
   const provisioningAvailable = features.scim
   const tab = requestedTab === 'provisioning' && !provisioningAvailable ? 'sign-in' : requestedTab
   const providerList = providers.data?.providers ?? []
@@ -49,8 +49,6 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
   /** Opening pushed a history entry; closing must not push another. */
   const showList = () =>
     void setParams({ provider: null, createProvider: null }, { history: 'replace' })
-  const deleteProvider = useDeleteSSOProvider()
-  const setPrimaryProvider = useSetPrimarySSOProvider()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [pendingPrimaryId, setPendingPrimaryId] = useState<string | null>(null)
   const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
@@ -198,8 +196,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
         pendingLabel='Switching…'
         onConfirm={async () => {
           if (!pendingPrimary?.providerId) return
-          await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
-          toast.success(`${pendingPrimary.providerId} is now the primary provider`)
+          await makePrimary(pendingPrimary.providerId)
         }}
         safe
       />
@@ -216,8 +213,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
         pendingLabel='Deleting…'
         onConfirm={async () => {
           if (!pendingDelete?.providerId) return
-          await deleteProvider.mutateAsync(pendingDelete.providerId)
-          toast.success('Identity provider deleted')
+          await removeProvider(pendingDelete.providerId)
           if (selectedProvider?.providerId === pendingDelete.providerId) showList()
         }}
       />
