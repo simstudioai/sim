@@ -9,6 +9,7 @@ import {
 import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standalone-general'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { resolveOrganizationSurfaceSection } from '@/lib/organizations/settings-sections'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -17,7 +18,6 @@ import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigatio
 import { isPlatformSettingsSection } from '@/platform/embedded/app/(shell)/settings/_components/platform-sections'
 import { PlatformSettingsSectionHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-section-host'
 import { prefetchPermissionEditorCatalog } from '@/platform/embedded/lib/data/prefetch-permission-editor'
-import { resolveOrganizationSurfaceSection } from '@/platform/embedded/lib/data/settings-sections'
 
 interface OrganizationSettingsSectionPageProps {
   params: Promise<{ organizationId: string; section: string }>

@@ -6,15 +6,15 @@ import {
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
-import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
-import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
 import {
   loadIntegrationConnectionParams,
   loadIntegrationView,
   serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
+} from '@/lib/organizations/integrations-search-params'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
+import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
+import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
 import {
   GENERIC_SECRETS_SEGMENT,
   integrationPath,

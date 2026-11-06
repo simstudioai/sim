@@ -4,6 +4,7 @@ import type { ComponentType } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useOrganization } from '@/lib/organizations/provider'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
 import { LoadingRows } from '@/platform/design-system/components'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import type { PlatformSettingsSection } from '@/platform/embedded/app/(shell)/settings/_components/platform-sections'
@@ -11,7 +12,6 @@ import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/setti
 import hostStyles from '@/platform/embedded/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/embedded/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { useSettingRowReveal } from '@/platform/embedded/lib/data/settings-search'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/platform/embedded/lib/data/settings-sections'
 
 /** A tab with its own guide, in the section's one Docs position. */
 const TAB_DOCS: Partial<Record<PlatformSettingsSection, Readonly<Record<string, string>>>> = {

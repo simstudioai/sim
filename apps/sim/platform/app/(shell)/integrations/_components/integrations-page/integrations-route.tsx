@@ -23,27 +23,6 @@ import { GENERIC_SECRETS_SEGMENT } from '@/platform/lib/data/integrations-types'
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'
 
-interface IntegrationsRouteFallbackProps {
-  /** A provider's page, which has no index heading to hold. */
-  detail: boolean
-}
-
-/** Holds the page's place while its prefetch settles, in the words its reads use once mounted. */
-export function IntegrationsRouteFallback({ detail }: IntegrationsRouteFallbackProps) {
-  return (
-    <IntegrationsPage>
-      {detail ? (
-        <InlineNotice message={LOADING_CONNECTION} />
-      ) : (
-        <>
-          <IntegrationsHeading />
-          <InlineNotice message={LOADING_CONNECTIONS} />
-        </>
-      )}
-    </IntegrationsPage>
-  )
-}
-
 export interface IntegrationsRouteProps {
   organizationId: string
   /** The `/integrations/[provider]` segment; absent on the index. */

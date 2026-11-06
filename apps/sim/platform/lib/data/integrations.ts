@@ -7,7 +7,7 @@ import {
   integrationSearchUrlKeys,
   integrationViewParsers,
   serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
+} from '@/lib/organizations/integrations-search-params'
 import {
   useAssistantToolPermissions,
   useUpdateAssistantToolPermissions,

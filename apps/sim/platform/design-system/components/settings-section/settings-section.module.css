@@ -129,7 +129,6 @@
 }
 
 .rowList[data-dividers] {
-  --ui-row-block: var(--spacing-8);
   gap: 0;
 }
 

@@ -27,7 +27,7 @@ export const loadIntegrationView = createLoader({
   ...integrationViewParsers,
 })
 
-export const integrationConnectionParams = {
+const integrationConnectionParams = {
   connectorType: parseAsString.withDefault(''),
   connectionMode: parseAsString.withDefault(''),
   optionId: parseAsString.withDefault(''),

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/platform/embedded/lib/data/settings-sections'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
 
 interface OrganizationSettingsSectionLayoutProps {
   children: ReactNode

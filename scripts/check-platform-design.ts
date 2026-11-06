@@ -130,6 +130,10 @@ const dataSeam = 'platform/lib/data/'
  * allowed across: `check:platform-css` holds every other entry out of `platform/`.
  */
 const embeddedHost = 'app/o/[organizationId]/'
+/** The organization surface's own views and data, which this check does not walk. */
+const embeddedViews = 'platform/embedded/'
+/** The one table cell whose width is a caller's value, carried to its CSS as a custom property. */
+const COLUMN_WIDTH_OWNER = 'platform/design-system/components/data-display/data-display'
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
@@ -142,6 +146,12 @@ const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
 ])
 /** The org chart's canvas, whose nodes and edges are styled through React Flow's own props. */
 const FLOW_CANVAS = 'platform/app/(shell)/people/_components/org-chart/chart-canvas.tsx'
+/** Variants only the organization surface's embedded views use, which this check does not walk. */
+const EMBEDDED_ONLY_VARIANTS: ReadonlySet<string> = new Set([
+  'ActivityRow.density=comfortable',
+  'MultiSelect.variant=quiet',
+  'SearchableSelect.variant=quiet',
+])
 const seamRoots = ['hooks/queries', 'lib/api']
 /**
  * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
@@ -150,7 +160,8 @@ const seamRoots = ['hooks/queries', 'lib/api']
 const seamHelpers = new Set([
   'lib/slack-search/manifest',
   'lib/integrations/slack-manifest',
-  'app/o/[organizationId]/search/search-params',
+  'lib/organizations/search-params',
+  'lib/organizations/integrations-search-params',
   'app/workspace/[workspaceId]/home/components/knowledge-search-results/utils',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity',
@@ -366,7 +377,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Render an EMCN component; static Paper specimens belong in the workbench'
     )
   const targetOwner = target && privateRouteOwner(target)
-  const embedded = file.startsWith(embeddedHost)
+  const embedded = file.startsWith(embeddedHost) || Boolean(target?.startsWith(embeddedViews))
   if (
     !embedded &&
     target?.endsWith('.module.css') &&
@@ -599,7 +610,9 @@ function checkCss(file: string, sheet: postcss.Root) {
     for (const [, token] of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
       const positioned =
         file.startsWith(`${system}components/`) && positionerMeasurements.has(token)
-      if (!tokens.has(token) && !positioned) report('unknown-token', location, token)
+      const columnWidth = token === '--column-width' && file.startsWith(COLUMN_WIDTH_OWNER)
+      if (!tokens.has(token) && !positioned && !columnWidth)
+        report('unknown-token', location, token)
     }
     if (base) return
     if (
@@ -1064,6 +1077,7 @@ function checkJs(file: string, content: string) {
           if (
             !calendarPlacement &&
             !(file === FLOW_CANVAS && attr === 'className' && localClass) &&
+            !(file.startsWith(COLUMN_WIDTH_OWNER) && attr === 'style') &&
             !(native && attr === 'className' && (owner || preview) && localClass)
           ) {
             report('consumer-style', location(prop), `${tag}.${attr}: pass a named variant`)
@@ -1157,7 +1171,11 @@ for (const [name, props] of Object.entries(variants)) {
   for (const [prop, choices] of Object.entries(props)) {
     for (const [value, ids] of Object.entries(choices)) {
       const id = `${name}.${prop}=${value}`
-      if (!usage.variants.has(id) && !ids.some((key) => usage.recipes.has(key))) {
+      if (
+        !usage.variants.has(id) &&
+        !ids.some((key) => usage.recipes.has(key)) &&
+        !EMBEDDED_ONLY_VARIANTS.has(id)
+      ) {
         report('code-use', variantsPath, `${id}: no consumer reachable from a product page`)
       }
     }

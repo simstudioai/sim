@@ -1,25 +1,17 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useDeferredValue, useEffect, useMemo } from 'react'
+import { useDeferredValue, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/client'
+import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import {
   type AppSession,
   extractSessionDataFromAuthClientResult,
   getActiveOrganizationId,
 } from '@/lib/auth/session-response'
 import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
-
-export type SessionHookResult = {
-  data: AppSession
-  isPending: boolean
-  error: Error | null
-  refetch: () => Promise<void>
-}
-
-export const SessionContext = createContext<SessionHookResult | null>(null)
 
 const logger = createLogger('SessionProvider')
 

@@ -14,12 +14,12 @@ import { connectToastSink } from '@/platform/lib/data/toast'
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
 
 /** What a view raises. The icon follows from the variant unless the notice names its own. */
-export type NoticeInput = Omit<Notice, 'icon'> & {
+type NoticeInput = Omit<Notice, 'icon'> & {
   icon?: Notice['icon']
   variant?: 'success' | 'error'
 }
 
-/** Where a view's notices go: this shell's tray, or a host's own toast stack. */
+/** Where a view's notices go: this shell's tray. */
 export interface PlatformNotices {
   notify: (notice: NoticeInput) => void
   dismiss: (id: string) => void
@@ -44,15 +44,9 @@ function useNoticeState() {
 }
 
 const Notices = createContext<ReturnType<typeof useNoticeState> | null>(null)
-const HostNotices = createContext<PlatformNotices | null>(null)
-
-/** Hands every view under it to a host's own notices, in place of the Platform shell's tray. */
-export const HostNoticesProvider = HostNotices.Provider
 
 export function usePlatformNotices(): PlatformNotices {
-  const host = useContext(HostNotices)
-  const shell = useContext(Notices)
-  const notices = host ?? shell
+  const notices = useContext(Notices)
   if (!notices) throw new Error('Notifications need a product shell')
   return notices
 }

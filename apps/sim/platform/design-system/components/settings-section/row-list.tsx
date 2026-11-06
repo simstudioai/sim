@@ -14,7 +14,12 @@ interface RowListProps {
  */
 export function RowList({ children, dividers, label }: RowListProps) {
   return (
-    <ul className={styles.rowList} data-dividers={dividers || undefined} aria-label={label}>
+    <ul
+      className={styles.rowList}
+      data-dividers={dividers || undefined}
+      data-row-rhythm={dividers ? 'dividers' : undefined}
+      aria-label={label}
+    >
       {children}
     </ul>
   )

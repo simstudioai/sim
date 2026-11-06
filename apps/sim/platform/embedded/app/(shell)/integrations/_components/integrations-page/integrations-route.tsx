@@ -8,7 +8,7 @@ import {
   integrationSearchUrlKeys,
   integrationViewParsers,
   serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
+} from '@/lib/organizations/integrations-search-params'
 import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'

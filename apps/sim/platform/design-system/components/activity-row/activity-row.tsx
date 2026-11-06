@@ -31,12 +31,15 @@ type ActivityTarget =
 
 interface RenderedRowProps {
   render: ReactElement
-  density: ActivityRowProps['density']
+  rowDensity: ActivityRowProps['density']
   children: ReactNode
 }
 
-function RenderedRow({ render, density, children }: RenderedRowProps) {
-  return useRender({ render, props: { className: styles.row, 'data-density': density, children } })
+function RenderedRow({ render, rowDensity, children }: RenderedRowProps) {
+  return useRender({
+    render,
+    props: { className: styles.row, 'data-density': rowDensity, children },
+  })
 }
 
 export function ActivityRow({
@@ -88,7 +91,7 @@ export function ActivityRow({
   return (
     <li className={styles.entry}>
       {render ? (
-        <RenderedRow render={render} density={density}>
+        <RenderedRow render={render} rowDensity={density}>
           {content}
         </RenderedRow>
       ) : href !== undefined ? (

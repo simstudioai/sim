@@ -64,10 +64,10 @@
   flex: none;
   inline-size: var(--ui-icon-size);
   block-size: var(--ui-icon-size);
-  border: 1.5px solid currentcolor;
+  border: var(--spacing-stroke-focus) solid currentcolor;
   border-inline-end-color: transparent;
   border-radius: var(--radius-full);
-  animation: spinner-turn 1s linear infinite;
+  animation: spinner-turn var(--ui-motion-spinner) linear infinite;
 }
 @keyframes spinner-turn {
   to {

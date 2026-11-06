@@ -3,7 +3,7 @@ import type { OrganizationSettingsFeatures } from '@/components/settings/navigat
 import {
   organizationSettingsNavigation,
   resolveOrganizationSettingsSection,
-} from '@/platform/embedded/lib/data/settings-sections'
+} from '@/lib/organizations/settings-sections'
 
 const enterprise: OrganizationSettingsFeatures = {
   billingEnabled: true,

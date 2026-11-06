@@ -154,7 +154,7 @@ textarea.input[data-density="expanded"] {
 
 .autofillDecoys {
   position: absolute;
-  inset-inline-start: -9999px;
+  inset-inline-start: -100vw;
   opacity: 0;
   pointer-events: none;
 }

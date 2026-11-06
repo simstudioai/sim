@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
 import { Surface } from '@/platform/design-system/components/surface/surface'
 import hostStyles from '@/platform/embedded/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/embedded/app/(shell)/settings/_components/settings-screen/settings-screen'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/platform/embedded/lib/data/settings-sections'
 
 interface SettingsSubpageHostProps {
   /** The section this page belongs to, whose heading it keeps. */

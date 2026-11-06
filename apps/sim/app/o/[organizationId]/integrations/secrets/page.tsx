@@ -4,7 +4,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   integrationSearchParsers,
   serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
+} from '@/lib/organizations/integrations-search-params'
 import { OrganizationSecretsPage } from '@/app/o/[organizationId]/integrations/secrets/organization-secrets-page'
 
 export const metadata: Metadata = { title: 'Generic Secrets' }
