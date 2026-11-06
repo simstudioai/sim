@@ -63,7 +63,7 @@ import { ToastProvider } from '@sim/emcn';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop';
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider';
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context';
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header';
 import { SettingsSectionProvider } from '@/components/settings/settings-panel';
 const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () => history.forward(), refresh: () => location.reload(), push: url => location.assign(url), replace: url => location.replace(url), prefetch: () => {} };
