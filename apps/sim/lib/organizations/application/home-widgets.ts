@@ -131,9 +131,12 @@ async function readViewerAccounts<T>(
   // The member Integrations page's rule, less what the use case established before running this.
   if (!memberScoped || !canConnectSearchIntegrations(config))
     throw new OrchestrationError('forbidden', 'Integrations are not available to you here')
-  const [accounts, owned] = await Promise.all([
+  // The boundary the assistant's direct tools answer to, which a widget must not sidestep. Read
+  // fresh on each widget read, so a revoked approval or a tightened policy applies on the next one.
+  const [accounts, owned, isProviderContentReadable] = await Promise.all([
     listViewerOrganizationAccounts({ organizationId, userId }),
     getOwnOrganizationManagedOAuthCredentials({ organizationId, userId }),
+    loadAssistantProviderAccess(organizationId),
   ])
   const candidates = accounts
     .flatMap((account) => {
@@ -144,9 +147,6 @@ async function readViewerAccounts<T>(
     .sort((left, right) => compareStrings(left.credentialId, right.credentialId))
   if (candidates.length === 0) return { accounts: [], rows: [] }
   const ownedIds = new Set(owned.map((credential) => credential.id))
-  // The boundary the assistant's direct tools answer to, which a widget must not sidestep. Read
-  // fresh on each widget read, so a revoked approval or a tightened policy applies on the next one.
-  const isProviderContentReadable = await loadAssistantProviderAccess(organizationId)
   const readable = new Map(
     [...new Set(candidates.map((candidate) => candidate.providerId))].map((providerId) => [
       providerId,
