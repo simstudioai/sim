@@ -1,12 +1,11 @@
 import { HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { notFound } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { RedesignPageSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { loadSimLinksListView } from '@/app/o/[organizationId]/links/search-params'
+import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
 import { LinksPage } from '@/platform/app/(shell)/links/_components/links-page/links-page'
 import { prefetchSimLinks } from '@/platform/lib/data/prefetch'
 
@@ -19,20 +18,12 @@ interface SimLinksPageProps {
 
 export default async function SimLinksPage({ params, searchParams }: SimLinksPageProps) {
   const [{ organizationId }, query] = await Promise.all([params, searchParams])
-  const session = await getSession()
-  if (!session?.user)
-    redirect(
-      buildAuthCrossLink('/login', {
-        callbackUrl: organizationRoutes(organizationId).simLinks,
-        isInviteFlow: false,
-      })
-    )
-  if (!(await isSimLinksEnabled(organizationId))) notFound()
-  const state = await prefetchSimLinks(
+  const { principal } = await requireOrganizationViewer(
     organizationId,
-    { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-    loadSimLinksListView(query)
+    organizationRoutes(organizationId).simLinks
   )
+  if (!(await isSimLinksEnabled(organizationId))) notFound()
+  const state = await prefetchSimLinks(organizationId, principal, loadSimLinksListView(query))
   return (
     <RedesignPageSurface>
       <HydrationBoundary state={state}>
