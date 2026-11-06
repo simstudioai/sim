@@ -836,41 +836,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             "Ordered list of 1–8 fields with unique elementId refs from the current top page's latest snapshot. Supply exactly one matching value parameter per kind.",
           items: {
-            oneOf: [
-              {
-                additionalProperties: false,
-                properties: {
-                  elementId: {},
-                  kind: {
-                    enum: ['text'],
-                  },
-                  text: {},
-                },
-                required: ['text'],
-              },
-              {
-                additionalProperties: false,
-                properties: {
-                  elementId: {},
-                  kind: {
-                    enum: ['select'],
-                  },
-                  value: {},
-                },
-                required: ['value'],
-              },
-              {
-                additionalProperties: false,
-                properties: {
-                  checked: {},
-                  elementId: {},
-                  kind: {
-                    enum: ['checked'],
-                  },
-                },
-                required: ['checked'],
-              },
-            ],
             properties: {
               checked: {
                 description:
@@ -1888,14 +1853,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   browser_select_option: {
     parameters: {
-      oneOf: [
-        {
-          required: ['value'],
-        },
-        {
-          required: ['values'],
-        },
-      ],
       properties: {
         elementId: {
           description:
@@ -6062,6 +6019,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'jira',
                   'confluence',
                   'github',
+                  'jama',
+                  'flow',
                   'gitlab',
                   'linear',
                   'lucid',
@@ -7822,6 +7781,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  list_user_projects: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        cursor: {
+          type: 'string',
+          minLength: 1,
+        },
+        limit: {
+          default: 50,
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
   list_workspaces: {
     parameters: {
       $schema: 'http://json-schema.org/draft-07/schema#',
@@ -7891,6 +7869,319 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           minLength: 1,
           maxLength: 256,
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
+  tests: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'create',
+            },
+            {
+              type: 'string',
+              const: 'update',
+            },
+            {
+              type: 'string',
+              const: 'list',
+            },
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'run',
+            },
+            {
+              type: 'string',
+              const: 'delete',
+            },
+          ],
+        },
+        name: {
+          description:
+            'Test file name: tests/<name>.test.js, lowercase letters, numbers, and dashes. Required for action: create, update, get, delete. Only used for action: create, update, get, delete. Omit for other actions.',
+          type: 'string',
+          pattern: '^(?!run$)[a-z0-9][a-z0-9-]{0,79}$',
+        },
+        title: {
+          description:
+            'Required for action: create. Only used for action: create, update. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+              description: 'The concern this file tests, in one line.',
+            },
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+            },
+          ],
+        },
+        description: {
+          description: 'Only used for action: create, update. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              maxLength: 2000,
+            },
+            {
+              anyOf: [
+                {
+                  type: 'string',
+                  maxLength: 2000,
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
+          ],
+        },
+        version: {
+          description:
+            'Which version of the workflows to test: draft while editing, deployed before shipping. Required for action: list, get, run. Only used for action: list, get, run. Omit for other actions.',
+          type: 'string',
+          enum: ['draft', 'deployed'],
+        },
+        names: {
+          description:
+            'Omit to run every test file. Only used for action: run. Omit for other actions.',
+          minItems: 1,
+          maxItems: 100,
+          type: 'array',
+          items: {
+            type: 'string',
+            pattern: '^(?!run$)[a-z0-9][a-z0-9-]{0,79}$',
+            description:
+              'Test file name: tests/<name>.test.js, lowercase letters, numbers, and dashes.',
+          },
+        },
+        only: {
+          description:
+            'With exactly one name: the "describe > it" test names to run in it. Only used for action: run. Omit for other actions.',
+          minItems: 1,
+          maxItems: 100,
+          type: 'array',
+          items: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 500,
+          },
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
+  changelog: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'list',
+            },
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'publish',
+            },
+            {
+              type: 'string',
+              const: 'update',
+            },
+          ],
+        },
+        cursor: {
+          description:
+            'nextCursor from the previous list. Only used for action: list. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+        },
+        releaseId: {
+          description:
+            'The release id from list or publish. Required for action: get, update. Only used for action: get, update. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 128,
+        },
+        title: {
+          description:
+            'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+              description: 'The release headline: what people get, not how.',
+            },
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+            },
+          ],
+        },
+        body: {
+          description:
+            'Markdown body: a short summary, then evidence (```dashboard embeds for impact charts and stats). Required for action: publish. Only used for action: publish. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 262144,
+        },
+        bump: {
+          description:
+            'How significant the release is. The server computes the version from the highest one. Required for action: publish. Only used for action: publish. Omit for other actions.',
+          type: 'string',
+          enum: ['major', 'minor', 'patch'],
+        },
+        bumpReason: {
+          description:
+            'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 500,
+              description: 'Why this release is a major, minor, or patch release, in one line.',
+            },
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 500,
+              description: 'Why this release is a major, minor, or patch release, in one line.',
+            },
+          ],
+        },
+        changes: {
+          description:
+            'Required for action: publish. Only used for action: publish, update. Omit for other actions.',
+          anyOf: [
+            {
+              minItems: 1,
+              maxItems: 50,
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 500,
+                    description: 'What changed, in one line a user reads.',
+                  },
+                  workflowId: {
+                    description: 'The workflow it changed.',
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 128,
+                  },
+                  deploymentVersionId: {
+                    description:
+                      'The deployment it shipped in; requires workflowId of that workflow.',
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 128,
+                  },
+                  chatId: {
+                    description:
+                      'The chat where the change was made; defaults to the chat publishing it.',
+                    type: 'string',
+                    format: 'uuid',
+                    pattern:
+                      '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+                  },
+                },
+                required: ['text'],
+                additionalProperties: false,
+              },
+            },
+            {
+              description: 'Replaces every change line of the release.',
+              maxItems: 50,
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 500,
+                    description: 'What changed, in one line a user reads.',
+                  },
+                  workflowId: {
+                    description: 'The workflow it changed.',
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 128,
+                  },
+                  deploymentVersionId: {
+                    description:
+                      'The deployment it shipped in; requires workflowId of that workflow.',
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 128,
+                  },
+                  chatId: {
+                    description:
+                      'The chat where the change was made; defaults to the chat publishing it.',
+                    type: 'string',
+                    format: 'uuid',
+                    pattern:
+                      '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+                  },
+                },
+                required: ['text'],
+                additionalProperties: false,
+              },
+            },
+          ],
+        },
+        expectedRevision: {
+          description:
+            'The revision from get, list, or publish. Required for action: update. Only used for action: update. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 32,
+        },
+        version: {
+          description: 'Only used for action: update. Omit for other actions.',
+          type: 'string',
+          minLength: 5,
+          maxLength: 40,
         },
       },
       required: ['action'],
@@ -8091,25 +8382,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['action'],
       additionalProperties: false,
-    },
-    resultSchema: undefined,
-  },
-  list_user_projects: {
-    parameters: {
-      $schema: 'http://json-schema.org/draft-07/schema#',
-      type: 'object',
-      properties: {
-        cursor: {
-          type: 'string',
-          minLength: 1,
-        },
-        limit: {
-          default: 50,
-          type: 'integer',
-          minimum: 1,
-          maximum: 100,
-        },
-      },
     },
     resultSchema: undefined,
   },

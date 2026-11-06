@@ -183,6 +183,7 @@ export type GenerationType =
   | 'json-schema'
   | 'json-object'
   | 'json-array'
+  | 'json-value'
   | 'table-schema'
   | 'system-prompt'
   | 'custom-tool-schema'

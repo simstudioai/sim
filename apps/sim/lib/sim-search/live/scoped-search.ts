@@ -136,7 +136,13 @@ export async function searchWithinPolicy(
     )
     return { ...result, partial: result.partial || targets.length > 6 }
   }
-  if (provider === 'gitlab' || provider === 'google_calendar' || provider === 'coda') {
+  if (
+    provider === 'gitlab' ||
+    provider === 'google_calendar' ||
+    provider === 'coda' ||
+    provider === 'jama' ||
+    provider === 'flow'
+  ) {
     const canonical = (id: string) => (provider === 'coda' ? `superhuman://docs/${id}` : id)
     const requested =
       provider === 'coda' && input.native?.project

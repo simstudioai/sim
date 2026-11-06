@@ -115,9 +115,13 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
   )
 }
 
-/** The name a connector shows, from its registry entry. */
+/** The registered display name for a connector or native Search service. */
 export function connectorDisplayName(connectorType: string): string {
-  return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
+  return (
+    CONNECTOR_META_REGISTRY[connectorType]?.name ??
+    getServiceConfigByServiceId(connectorType)?.name ??
+    connectorType
+  )
 }
 
 export interface OAuthServiceAvailabilityContext {

@@ -82,6 +82,7 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'botToken',
   'apiToken',
   'domain',
+  'providerWorkspaceId',
   'atlassianProduct',
   'clientId',
   'clientSecret',
@@ -200,6 +201,7 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Atlassian service-account secret rotation (reconnect). */
   apiToken?: string
   domain?: string
+  providerWorkspaceId?: string
   atlassianProduct?: AtlassianProduct
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
@@ -404,6 +406,7 @@ export async function updateCredentialRecord(
           botToken: params.botToken,
           apiToken: params.apiToken,
           domain: params.domain,
+          providerWorkspaceId: params.providerWorkspaceId,
           atlassianProduct: needsStoredAtlassianProduct
             ? readStoredField(storedBlob, 'atlassianProduct') === 'confluence'
               ? 'confluence'

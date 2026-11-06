@@ -1,6 +1,7 @@
 'use client'
 
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
+import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 import { Button, FailureNotice } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
@@ -26,6 +27,14 @@ export function SearchConnectionRequest({
   const { action, label, disabled } = connection
   return (
     <>
+      {connection.savedConnection && (
+        <SavedSearchCredentialModal
+          organizationId={organizationId}
+          connection={connection.savedConnection}
+          onClose={connection.closeSavedConnection}
+          onCreated={connection.completeSavedConnection}
+        />
+      )}
       <ConnectionPrompt
         title={label}
         options={

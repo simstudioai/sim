@@ -498,6 +498,7 @@ export interface ServiceAccountTokenResult {
   cloudId?: string
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
+  providerWorkspaceId?: string
   /** Salesforce or NetSuite — the provider origin the token must be used against. */
   instanceUrl?: string
   /**
@@ -819,6 +820,7 @@ export async function resolveServiceAccountToken(
     return {
       accessToken: secret.apiToken,
       domain: secret.domain,
+      providerWorkspaceId: secret.providerWorkspaceId,
       ...(descriptorAuthStyle === 'x-api-token' ? { authStyle: descriptorAuthStyle } : {}),
     }
   }

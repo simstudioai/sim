@@ -3,6 +3,7 @@ import '@sim/testing/mocks/executor'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { BufferBlock } from '@/blocks/blocks/buffer'
+import { FlowBlock } from '@/blocks/blocks/flow'
 import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/index'
@@ -15,6 +16,18 @@ import bufferPostFixture from '@/tools/buffer/__fixtures__/post.json'
 import { bufferCreatePostTool } from '@/tools/buffer/create_post'
 import { bufferEditPostTool } from '@/tools/buffer/edit_post'
 import type { BufferCreatePostParams, BufferEditPostParams } from '@/tools/buffer/types'
+import { flowCreateBranchTool } from '@/tools/flow/create-branch'
+import { flowListCommentsTool } from '@/tools/flow/list-comments'
+import { flowListEntitiesTool } from '@/tools/flow/list-entities'
+import { flowSetValueTool } from '@/tools/flow/set-value'
+import type {
+  FlowCreateBranchParams,
+  FlowListCommentsParams,
+  FlowListEntitiesParams,
+  FlowSetValueParams,
+  FlowUpdateCommentParams,
+} from '@/tools/flow/types'
+import { flowUpdateCommentTool } from '@/tools/flow/update-comment'
 import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -81,6 +94,177 @@ describe('GenericBlockHandler', () => {
     // Default mock implementations
     mockExecuteTool.mockResolvedValue({ success: true, output: { customResult: 'OK' } })
   })
+
+  describe('Flow field values', () => {
+    const writes: unknown[] = []
+
+    beforeEach(async () => {
+      writes.length = 0
+      mockGetBlock.mockReturnValue(FlowBlock)
+      mockGetTool.mockReturnValue(flowSetValueTool)
+      mockBlock.metadata = { id: 'flow', name: 'Flow' }
+      mockBlock.config = { tool: 'flow_set_value', params: {} }
+      const { validateRequiredParametersAfterMerge } =
+        await vi.importActual<typeof import('@/tools/utils')>('@/tools/utils')
+      mockExecuteTool.mockImplementation(async (toolId: string, params: FlowSetValueParams) => {
+        validateRequiredParametersAfterMerge(toolId, flowSetValueTool, params)
+        writes.push(await Response.json(flowSetValueTool.request.body?.(params)).json())
+        return { success: true, output: {} }
+      })
+    })
+
+    const values = ['123', 'true', '{"key":1}', '', null, 123, false, [1, '2'], { key: 1 }]
+    it.each(values.map((value) => ({ value, encoded: JSON.stringify(value) })))(
+      'preserves the JSON value $encoded on the provider wire',
+      async ({ value, encoded }) => {
+        await handler.execute(mockContext, mockBlock, {
+          operation: 'set_value',
+          projectId: 'project',
+          entityId: 'entity',
+          fieldKey: 'name',
+          value: encoded,
+        })
+        expect(writes).toEqual([{ key: 'name', value }])
+      }
+    )
+
+    it.each([undefined, '', '{"broken":', 'unquoted text'])(
+      'rejects omitted or malformed JSON before sending a field write (%s)',
+      async (value) => {
+        await expect(
+          handler.execute(mockContext, mockBlock, {
+            operation: 'set_value',
+            projectId: 'project',
+            entityId: 'entity',
+            fieldKey: 'name',
+            value,
+          })
+        ).rejects.toThrow()
+        expect(writes).toEqual([])
+      }
+    )
+
+    it('rejects a whitespace-only field key before sending a write', async () => {
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          operation: 'set_value',
+          projectId: 'project',
+          entityId: 'entity',
+          fieldKey: ' \t ',
+          value: '"updated"',
+        })
+      ).rejects.toThrow('Field key is required')
+      expect(writes).toEqual([])
+    })
+  })
+
+  describe('Flow list limits', () => {
+    const requests: string[] = []
+
+    beforeEach(() => {
+      requests.length = 0
+      mockGetBlock.mockReturnValue(FlowBlock)
+      mockGetTool.mockReturnValue(flowListEntitiesTool)
+      mockExecuteTool.mockImplementation(
+        async (_toolId: string, params: FlowListEntitiesParams) => {
+          const url = flowListEntitiesTool.request.url
+          requests.push(typeof url === 'function' ? url(params) : url)
+          return { success: true, output: {} }
+        }
+      )
+      mockBlock.metadata = { id: 'flow', name: 'Flow' }
+      mockBlock.config = { tool: 'flow_list_entities', params: {} }
+    })
+
+    it.each([
+      { limit: null, expected: '50' },
+      { limit: '', expected: '50' },
+      { limit: '  ', expected: '50' },
+      { limit: '25', expected: '25' },
+    ])('sends page size $expected when the Limit input is $limit', async ({ limit, expected }) => {
+      await handler.execute(mockContext, mockBlock, {
+        operation: 'list_entities',
+        domain: 'https://api.example.com',
+        projectId: 'project',
+        limit,
+      })
+      expect(requests.map((url) => new URL(url).searchParams.get('limit'))).toEqual([expected])
+    })
+
+    it('rejects an explicit zero instead of silently replacing it with the default', async () => {
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          operation: 'list_entities',
+          domain: 'https://api.example.com',
+          projectId: 'project',
+          limit: '0',
+        })
+      ).rejects.toThrow('Limit must be an integer between 1 and 1000')
+      expect(requests).toEqual([])
+    })
+  })
+
+  it.each([
+    { selection: 'untouched', value: null, expected: undefined },
+    { selection: 'cleared', value: '', expected: undefined },
+    { selection: 'No', value: 'false', expected: false },
+    { selection: 'Yes', value: true, expected: true },
+  ])(
+    'sends optional Flow booleans correctly for $selection dropdowns',
+    async ({ value, expected }) => {
+      const requests: { includeResolved: string | null; body: unknown }[] = []
+      mockGetBlock.mockReturnValue(FlowBlock)
+      mockBlock.metadata = { id: 'flow', name: 'Flow' }
+
+      for (const tool of [flowListCommentsTool, flowUpdateCommentTool, flowCreateBranchTool]) {
+        mockGetTool.mockReturnValue(tool)
+        mockBlock.config = { tool: tool.id, params: {} }
+        mockExecuteTool.mockImplementation(
+          async (
+            _toolId: string,
+            params: FlowListCommentsParams & FlowUpdateCommentParams & FlowCreateBranchParams
+          ) => {
+            const url = tool.request.url
+            requests.push({
+              includeResolved: new URL(
+                typeof url === 'function' ? url(params) : url
+              ).searchParams.get('include_resolved'),
+              body: await Response.json(tool.request.body?.(params) ?? null).json(),
+            })
+            return { success: true, output: {} }
+          }
+        )
+        await handler.execute(mockContext, mockBlock, {
+          operation: tool.id.replace('flow_', ''),
+          domain: 'https://api.example.com',
+          projectId: 'project',
+          entityId: 'entity',
+          commentId: 'comment',
+          text: 'Updated comment',
+          branchName: 'Pilot',
+          includeResolved: value,
+          resolved: value,
+          isVariant: value,
+        })
+      }
+
+      expect(requests).toEqual([
+        { includeResolved: expected === undefined ? null : String(expected), body: null },
+        {
+          includeResolved: null,
+          body:
+            expected === undefined
+              ? { text: 'Updated comment' }
+              : { text: 'Updated comment', resolved: expected },
+        },
+        {
+          includeResolved: null,
+          body:
+            expected === undefined ? { name: 'Pilot' } : { name: 'Pilot', is_variant: expected },
+        },
+      ])
+    }
+  )
 
   it.each([
     {

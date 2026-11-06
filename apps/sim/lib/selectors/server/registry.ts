@@ -11,12 +11,14 @@ import { cloudWatchSelectorAttachments } from '@/lib/selectors/server/providers/
 import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
 import { fivetranSelectorAttachments } from '@/lib/selectors/server/providers/fivetran'
+import { flowSelectorAttachments } from '@/lib/selectors/server/providers/flow'
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
 import { helpScoutSelectorAttachments } from '@/lib/selectors/server/providers/helpscout'
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
 import { imapSelectorAttachments } from '@/lib/selectors/server/providers/imap'
+import { jamaSelectorAttachments } from '@/lib/selectors/server/providers/jama'
 import { jiraSelectorAttachments } from '@/lib/selectors/server/providers/jira'
 import { jsmSelectorAttachments } from '@/lib/selectors/server/providers/jsm'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
@@ -40,6 +42,8 @@ import { zoomSelectorAttachments } from '@/lib/selectors/server/providers/zoom'
 import type { ServerSelectorAttachment } from '@/lib/selectors/server/types'
 
 export const serverSelectorRegistry = {
+  ...flowSelectorAttachments,
+  ...jamaSelectorAttachments,
   ...internalSelectorAttachments,
   ...mcpSelectorAttachments,
   ...airtableSelectorAttachments,

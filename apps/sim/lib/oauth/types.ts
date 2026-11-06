@@ -118,6 +118,8 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'jama'
+  | 'flow'
   | 'oracledb'
   | 'oracle-epm'
   | 'oracle-fusion'
