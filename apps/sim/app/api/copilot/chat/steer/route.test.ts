@@ -51,7 +51,8 @@ const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizatio
 
 const mockAuthenticate = authMockFns.mockGetSession
 const mockGetLatestRunForStream = mothershipAsyncRunsMockFns.mockGetLatestRunForStream
-const mockAppend = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
+const mockAppend = mothershipChatMessagesMockFns.mockAppendSteeringMessageIfAbsent
+const mockRecordDisposition = mothershipChatMessagesMockFns.mockRecordSteeringDisposition
 
 const WORKER = 'https://worker.test'
 const STREAM_ID = '7f3c2b6e-1d4a-4c8b-9e2f-3a5b6c7d8e9f'
@@ -107,7 +108,8 @@ describe('POST /api/copilot/chat/steer', () => {
     mockAuthorize.mockResolvedValue(undefined)
     mockAuthenticate.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockGetLatestRunForStream.mockResolvedValue({ chatId: 'chat-1', workspaceId: 'workspace-1' })
-    mockAppend.mockResolvedValue(undefined)
+    mockAppend.mockResolvedValue(true)
+    mockRecordDisposition.mockResolvedValue(undefined)
   })
 
   it('records the message with the exact input it sends before asking the worker', async () => {
@@ -115,6 +117,7 @@ describe('POST /api/copilot/chat/steer', () => {
     let callsWhenRecorded: string[] | undefined
     mockAppend.mockImplementationOnce(async () => {
       callsWhenRecorded = [...worker.calls]
+      return true
     })
 
     const response = await POST(steerRequest())
@@ -128,13 +131,11 @@ describe('POST /api/copilot/chat/steer', () => {
     })
     expect(mockAppend).toHaveBeenCalledWith(
       'chat-1',
-      [
-        expect.objectContaining({
-          id: STEERING_ID,
-          content: 'focus on the tests',
-          steering: { streamId: STREAM_ID, input: { context: [] } },
-        }),
-      ],
+      expect.objectContaining({
+        id: STEERING_ID,
+        content: 'focus on the tests',
+        steering: { streamId: STREAM_ID, input: { context: [] } },
+      }),
       { streamId: STREAM_ID }
     )
     expect(callsWhenRecorded).toEqual([])
@@ -158,6 +159,76 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(missingRoute.status).toBe(409)
     expect(wrongMethod.status).toBe(409)
     expect(worker.calls).toEqual(['/api/streams/steer/v2', '/api/streams/steer/v2'])
+  })
+
+  it.each([
+    ['a body that is no disposition', () => Response.json({ settled: true })],
+    ['a body that is not JSON', () => new Response('ok')],
+    [
+      "another message's disposition",
+      () => Response.json({ steeringId: STREAM_ID, status: 'queued' }),
+    ],
+  ])('refuses, never fails, on a success carrying %s', async (_name, reply) => {
+    worker.v2.push(reply())
+
+    const response = await POST(steerRequest())
+
+    expect(response.status).toBe(409)
+    expect(worker.calls).toEqual(['/api/streams/steer/v2'])
+  })
+
+  it('never steers a turn into itself, and asks the worker nothing', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        streamId: STEERING_ID,
+        chatId: 'chat-1',
+        steeringId: STEERING_ID,
+        content: 'focus on the tests',
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(mockAppend).not.toHaveBeenCalled()
+    expect(worker.calls).toEqual([])
+  })
+
+  it('refuses an id that names a turn of its own, without asking the worker', async () => {
+    mockAppend.mockResolvedValueOnce(false)
+
+    const response = await POST(steerRequest())
+
+    expect(response.status).toBe(409)
+    expect(worker.calls).toEqual([])
+  })
+
+  it('reads a queued message as not applied once Sim recorded its run as over', async () => {
+    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+    mockGetLatestRunForStream.mockResolvedValue({
+      chatId: 'chat-1',
+      workspaceId: 'workspace-1',
+      status: 'cancelled',
+    })
+
+    const response = await POST(steerRequest())
+
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'not_applied' })
+    expect(mockRecordDisposition).toHaveBeenCalledWith('chat-1', [STEERING_ID], {
+      status: 'not_applied',
+    })
+  })
+
+  it('keeps reading a queued message while its run runs, keeping its input', async () => {
+    worker.v2.push(Response.json({ steeringId: STEERING_ID, status: 'queued' }))
+    mockGetLatestRunForStream.mockResolvedValue({
+      chatId: 'chat-1',
+      workspaceId: 'workspace-1',
+      status: 'active',
+    })
+
+    const response = await POST(steerRequest())
+
+    expect(await response.json()).toEqual({ steeringId: STEERING_ID, status: 'queued' })
+    expect(mockRecordDisposition).not.toHaveBeenCalled()
   })
 
   it('refuses a run the worker never learns of', async () => {
@@ -235,8 +306,8 @@ describe('POST /api/copilot/chat/steer', () => {
     expect(response.status).toBe(200)
     const sent = worker.bodies[0] as { context: Array<{ type: string }> }
     expect(sent.context.map((item) => item.type)).toEqual(['workflow', 'uploaded_file'])
-    const recorded = mockAppend.mock.calls[0][1] as Array<{ steering: { input: unknown } }>
-    expect(recorded[0].steering.input).toEqual({ context: sent.context })
+    const recorded = mockAppend.mock.calls[0][1] as { steering: { input: unknown } }
+    expect(recorded.steering.input).toEqual({ context: sent.context })
   })
 
   it('re-sends the recorded input on a retry, even if its mentions would now render differently', async () => {

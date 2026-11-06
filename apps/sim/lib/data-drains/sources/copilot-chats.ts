@@ -13,7 +13,10 @@ import {
 } from '@/lib/data-drains/sources/cursor'
 import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
-import { stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import {
+  stripToolResultOutput,
+  withoutSteeringInput,
+} from '@/lib/mothership/chat/persisted-message'
 
 /**
  * The transcript no longer lives on `copilot_chats.messages` — it is assembled
@@ -101,7 +104,10 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
         const transcriptSizes = await tx
           .select({
             chatId: copilotMessages.chatId,
-            bytes: sql<number>`sum(octet_length(${copilotMessages.content}::text))`.mapWith(Number),
+            bytes:
+              sql<number>`sum(octet_length((${copilotMessages.content} #- '{steering,input}')::text))`.mapWith(
+                Number
+              ),
           })
           .from(copilotMessages)
           .where(messageCondition)
@@ -155,8 +161,9 @@ function projectLegacyToolCall(call: unknown): unknown {
 }
 
 /** Tool payloads can contain private notes even when their mutation failed or targeted a shared note. */
-function projectExportMessage(message: unknown): unknown {
-  if (!isRecordLike(message)) return message
+function projectExportMessage(stored: unknown): unknown {
+  if (!isRecordLike(stored)) return stored
+  const message = withoutSteeringInput(stored)
   const projected = Array.isArray(message.toolCalls)
     ? { ...message, toolCalls: message.toolCalls.map(projectLegacyToolCall) }
     : message

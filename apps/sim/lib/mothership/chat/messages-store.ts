@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   displayContentOf,
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import type { SteeringFinalDisposition } from '@/lib/mothership/chat/steering'
 
 /**
  * Keep the first occurrence of each message id. A single `INSERT ... ON
@@ -84,6 +85,58 @@ export async function appendCopilotChatMessages(
         updatedAt: sql`now()`,
       },
     })
+}
+
+/**
+ * Records a message sent into a running turn, unless the chat already holds a row
+ * under its id: a steering id can name a turn's own message (a stale tab, a send
+ * the server admitted without answering), which must keep its place and content.
+ * Returns whether it stored this one.
+ */
+export async function appendSteeringMessageIfAbsent(
+  chatId: string,
+  message: PersistedMessage,
+  options: { streamId: string },
+  executor: DbOrTx = db
+): Promise<boolean> {
+  const [maxRow] = await executor
+    .select({ maxSeq: sql<number | null>`max(${copilotMessages.seq})` })
+    .from(copilotMessages)
+    .where(eq(copilotMessages.chatId, chatId))
+  const inserted = await executor
+    .insert(copilotMessages)
+    .values(toRow(chatId, message, (maxRow?.maxSeq ?? -1) + 1, options))
+    .onConflictDoNothing({ target: [copilotMessages.chatId, copilotMessages.messageId] })
+    .returning({ messageId: copilotMessages.messageId })
+  return inserted.length > 0
+}
+
+/**
+ * Stores steering messages' final dispositions and drops the input kept to read
+ * them, which nothing needs after this. The first final answer stands: a later,
+ * less specific one (a turn's end has no offset) does not replace it.
+ */
+export async function recordSteeringDisposition(
+  chatId: string,
+  messageIds: string[],
+  disposition: SteeringFinalDisposition,
+  executor: DbOrTx = db
+): Promise<void> {
+  if (messageIds.length === 0) return
+  await executor
+    .update(copilotMessages)
+    .set({
+      content: sql`jsonb_set(${copilotMessages.content} #- '{steering,input}', '{steering,disposition}', ${JSON.stringify(disposition)}::jsonb)`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(copilotMessages.chatId, chatId),
+        inArray(copilotMessages.messageId, messageIds),
+        sql`${copilotMessages.content} ? 'steering'`,
+        sql`${copilotMessages.content} #> '{steering,disposition}' is null`
+      )
+    )
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotMessages } from '@sim/db/schema'
-import { toRecord } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -11,20 +11,23 @@ import {
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { recordSteeringDisposition } from '@/lib/mothership/chat/messages-store'
+import type { SteeringFinalDisposition } from '@/lib/mothership/chat/steering'
 import type { SteerV2Request } from '@/lib/mothership/generated/protocol'
 import type { PreparedSteeringInput } from '@/lib/mothership/request/application/steering-input'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
 
 /**
  * A steering message as Sim recorded it before asking the worker: the run it was
- * sent into, its text, and the exact input the worker was sent, so every later
- * read of its disposition re-sends identical bytes (the worker refuses a retry
- * whose input differs).
+ * sent into, its text, and the exact input the worker was sent, so a read of its
+ * disposition re-sends identical bytes (the worker refuses a retry whose input
+ * differs). Once the disposition is final it is recorded here and the input is gone.
  */
 export interface SteeringRecord {
   streamId: string
   content: string
   input: Pick<PreparedSteeringInput, 'context' | 'assistantImages'>
+  disposition?: SteeringFinalDisposition
 }
 
 /**
@@ -57,6 +60,9 @@ export async function loadSteeringRecord(
   const message = toRecord(row.content)
   const steering = toRecord(message.steering)
   if (typeof steering.streamId !== 'string' || typeof message.content !== 'string') return undefined
+  /* Re-marked after the worker refused its turn as already applied: it is that turn's
+     own message, not a record anything still delivers. */
+  if (steering.streamId === messageId) return undefined
   const input = toRecord(steering.input)
   return {
     streamId: steering.streamId,
@@ -69,7 +75,20 @@ export async function loadSteeringRecord(
         ? { assistantImages: input.assistantImages as SteerV2Request['assistantImages'] }
         : {}),
     },
+    ...(isRecordLike(steering.disposition)
+      ? { disposition: steering.disposition as unknown as SteeringFinalDisposition }
+      : {}),
   }
+}
+
+/**
+ * Whether Sim recorded a steered run as over. A worker can keep answering `queued`
+ * for a run whose owner died, which will never apply it, and waiting on that would
+ * hold the message forever.
+ */
+export async function steeredRunHasEnded(streamId: string, userId: string): Promise<boolean> {
+  const run = await getLatestRunForStream(streamId, userId)
+  return !run || TERMINAL_RUN_STATUSES.includes(run.status)
 }
 
 /**
@@ -91,26 +110,27 @@ export async function resolveSteeringFallback(params: {
   const { chatId, messageId, userId } = params
   const record = await loadSteeringRecord(chatId, messageId)
   if (!record) return { kind: 'send' }
-  const disposition = await requestStreamSteering({
-    streamId: record.streamId,
-    userId,
-    chatId,
-    steeringId: messageId,
-    content: record.content,
-    ...record.input,
-  })
-  if (disposition.status === 'applied') return { kind: 'applied' }
-  if (disposition.status === 'queued') {
-    const run = await getLatestRunForStream(record.streamId, userId)
-    if (run && !TERMINAL_RUN_STATUSES.includes(run.status)) {
+  if (record.disposition?.status === 'applied') return { kind: 'applied' }
+  if (!record.disposition) {
+    const disposition = await requestStreamSteering({
+      streamId: record.streamId,
+      userId,
+      chatId,
+      steeringId: messageId,
+      content: record.content,
+      ...record.input,
+    })
+    if (disposition.status === 'applied') {
+      await recordSteeringDisposition(chatId, [messageId], disposition)
+      return { kind: 'applied' }
+    }
+    if (disposition.status === 'queued' && !(await steeredRunHasEnded(record.streamId, userId))) {
       return { kind: 'busy', streamId: record.streamId }
     }
   }
   await db.delete(copilotMessages).where(steeringRow(chatId, messageId))
   return { kind: 'send' }
 }
-
-const SETTLE_STEERING_FALLBACK_ID = 'mothership.chats.settle_steering_fallback'
 
 /**
  * Decides whether a turn the client marked as a steering message going out on its
@@ -119,14 +139,14 @@ const SETTLE_STEERING_FALLBACK_ID = 'mothership.chats.settle_steering_fallback'
  */
 export const settleSteeringFallback = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
-    id: SETTLE_STEERING_FALLBACK_ID,
+    id: 'mothership.chats.settle_steering_fallback',
     capability: 'copilot.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
   organizationOperation: defineOrganizationOperation({
-    id: SETTLE_STEERING_FALLBACK_ID,
+    id: 'mothership.chats.settle_steering_fallback',
     capability: 'copilot.use',
     minimumRole: 'member',
     principalKinds: ['session'],
@@ -145,4 +165,43 @@ export const settleSteeringFallback = defineAuthorizedChatUseCase({
       messageId: input.messageId,
       userId: context.userId,
     }),
+})
+
+/**
+ * Drops a steering message the user gave up on (a Not delivered message's Dismiss).
+ * The same reading decides as for a turn going out under its id, so a message a
+ * run applied, or may yet apply, stays where it is. Anything else loses its record,
+ * and a row that is a turn's own message is never touched.
+ */
+export const dismissSteeringMessage = defineAuthorizedChatUseCase({
+  operation: defineWorkspaceOperation({
+    id: 'mothership.chats.dismiss_steering',
+    capability: 'copilot.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  organizationOperation: defineOrganizationOperation({
+    id: 'mothership.chats.dismiss_steering',
+    capability: 'copilot.use',
+    minimumRole: 'member',
+    principalKinds: ['session'],
+  }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: SessionPrincipal
+    input: { chatId: string; messageId: string }
+  }) => resolveOwnedChatContext(principal, input.chatId),
+  authorizationOptions: {},
+  async execute({ input, context }) {
+    const fallback = await resolveSteeringFallback({
+      chatId: context.chatId,
+      messageId: input.messageId,
+      userId: context.userId,
+    })
+    if (fallback.kind === 'busy') return { status: 'busy' as const, streamId: fallback.streamId }
+    return { status: fallback.kind === 'applied' ? ('applied' as const) : ('dismissed' as const) }
+  },
 })

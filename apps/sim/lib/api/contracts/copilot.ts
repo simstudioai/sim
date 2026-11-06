@@ -576,6 +576,28 @@ const copilotChatSteerDispositionSchema = z.discriminatedUnion('status', [
   z.object({ steeringId: z.string(), status: z.literal('not_applied') }),
 ])
 
+/**
+ * Drops a steering message the user gave up on. `dismissed`: nothing holds it any
+ * more. `applied`: a run already applied it, so it stays in the conversation.
+ * `busy`: the running turn `streamId` still holds it and may yet apply it.
+ */
+export const copilotChatDismissSteeringContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/steer/dismiss',
+  body: z.object({
+    chatId: z.string().min(1, 'chatId is required'),
+    steeringId: z.string().uuid(),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('dismissed') }),
+      z.object({ status: z.literal('applied') }),
+      z.object({ status: z.literal('busy'), streamId: z.string() }),
+    ]),
+  },
+})
+
 export const copilotChatSteerContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/steer',

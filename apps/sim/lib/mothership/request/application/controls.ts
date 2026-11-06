@@ -1,7 +1,6 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { CopilotChatSteerInput } from '@/lib/api/contracts/copilot'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -16,19 +15,10 @@ import {
   type OwnedChatContextOptions,
   resolveOwnedChatContext,
 } from '@/lib/mothership/chat/application/context'
-import { loadSteeringRecord } from '@/lib/mothership/chat/application/steering-fallback'
-import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import { normalizeContexts } from '@/lib/mothership/chat/normalize-contexts'
-import {
-  buildPersistedUserMessage,
-  type PersistedMessageContext,
-} from '@/lib/mothership/chat/persisted-message'
-import { prepareSteeringInput } from '@/lib/mothership/request/application/steering-input'
 import {
   deliverRunStop,
   readStoppedRunWork,
 } from '@/lib/mothership/request/application/stop-delivery'
-import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('MothershipRunControls')
@@ -57,7 +47,7 @@ interface RunControlInput {
   workspaceId?: string
   organizationId?: string
 }
-async function resolveRunContext({
+export async function resolveRunContext({
   principal,
   input,
 }: {
@@ -182,83 +172,5 @@ export const abortRun = defineAuthorizedChatUseCase({
       return false
     })
     return { aborted: true, settled: workerSettled && toolsSettled }
-  },
-})
-
-export class SteeringNotQueuedError extends Error {
-  constructor(readonly goStatus: number) {
-    super('Steering was not queued')
-  }
-}
-
-export const steerRun = defineAuthorizedChatUseCase({
-  operation: runControlOperations.steer,
-  organizationOperation: defineOrganizationOperation({
-    id: runControlOperations.steer.id,
-    minimumRole: 'member',
-    capability: runControlOperations.steer.capability,
-    principalKinds: ['session'],
-  }),
-  resolveContext: (args: { principal: SessionPrincipal; input: CopilotChatSteerInput }) =>
-    resolveRunContext(args),
-  authorizationOptions: {},
-  /**
-   * Returns the worker's disposition of the steering id. The message is recorded
-   * (as steering of its turn, with the exact input it sends) before the worker is
-   * asked, so a retry of the same id re-sends identical input and reads the same
-   * disposition even after the first answer was lost: the sender does that when
-   * its turn ended without the `steering_applied` frame. A worker that refuses it
-   * leaves the record to be cleared when the message goes out as a turn.
-   */
-  async execute({ principal, input, context }) {
-    const { streamId, steeringId, content } = input
-    const { userId, chatId } = context
-    const recorded = await loadSteeringRecord(chatId, steeringId)
-    if (recorded && recorded.content !== content) {
-      throw new OrchestrationError(
-        'conflict',
-        'This steering id was already used for other content.'
-      )
-    }
-    let sent = recorded?.input
-    if (!sent) {
-      const prepared = await prepareSteeringInput({ principal, chat: context, input })
-      sent = {
-        context: prepared.context,
-        ...(prepared.assistantImages ? { assistantImages: prepared.assistantImages } : {}),
-      }
-      await appendCopilotChatMessages(
-        chatId,
-        [
-          {
-            ...buildPersistedUserMessage({
-              id: steeringId,
-              content,
-              ...(context.mode === 'assistant' ||
-              context.mode === 'plan' ||
-              context.mode === 'agent'
-                ? { requestMode: context.mode }
-                : {}),
-              ...(prepared.fileAttachments ? { fileAttachments: prepared.fileAttachments } : {}),
-              ...(input.contexts?.length
-                ? { contexts: normalizeContexts(input.contexts) as PersistedMessageContext[] }
-                : {}),
-            }),
-            steering: { streamId, input: sent },
-          },
-        ],
-        { streamId }
-      )
-    }
-    const result = await requestStreamSteering({
-      streamId: recorded?.streamId ?? streamId,
-      userId,
-      chatId,
-      steeringId,
-      content,
-      ...sent,
-    })
-    if (result.status === 'refused') throw new SteeringNotQueuedError(result.goStatus)
-    return { steeringId, ...result }
   },
 })

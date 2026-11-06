@@ -295,13 +295,14 @@ export function displayContentOf(content: PersistedMessage): PersistedMessage | 
 }
 
 /**
- * A steering record keeps the exact input it sent the worker (`steering.input`)
- * so a disposition read re-sends it unchanged; nothing renders it, so transcript
- * reads leave it out.
+ * A message as every reader outside the steering path sees it: a steering record's
+ * outbox (the exact input sent to the worker, `steering.input`) and its delivery
+ * bookkeeping stay out of transcripts, exports and forks.
  */
-function withoutSteeringInput(message: PersistedMessage): PersistedMessage {
+export function withoutSteeringInput<M extends { steering?: unknown }>(message: M): M {
   const steering = toRecord(message.steering)
-  if (!('input' in steering) || typeof steering.streamId !== 'string') return message
+  if (typeof steering.streamId !== 'string') return message
+  if (!('input' in steering) && !('disposition' in steering)) return message
   return { ...message, steering: { streamId: steering.streamId } }
 }
 

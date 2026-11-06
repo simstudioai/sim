@@ -8,11 +8,8 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import {
-  runControlOperations,
-  SteeringNotQueuedError,
-  steerRun,
-} from '@/lib/mothership/request/application/controls'
+import { runControlOperations } from '@/lib/mothership/request/application/controls'
+import { SteeringNotQueuedError, steerRun } from '@/lib/mothership/request/application/steer-run'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const handler = defineInternalJsonRoute({

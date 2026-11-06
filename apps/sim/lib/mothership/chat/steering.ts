@@ -11,12 +11,20 @@ import { MothershipStreamV1RunKind } from '@/lib/mothership/generated/mothership
 export interface SteeringMessageMarker {
   streamId: string
   /**
-   * The exact input Sim sent the worker for it, stored server-side so a later
-   * read of its disposition re-sends identical bytes. Never read back into a
-   * transcript (`normalizeMessage` keeps only `streamId`).
+   * The exact input Sim sent the worker for it, an outbox entry kept only until its
+   * disposition is final, so a read before then re-sends identical bytes. It can
+   * hold rendered mentions and base64 images, so no reader outside the steering
+   * path sees it (`withoutSteeringInput`).
    */
   input?: unknown
+  /** The worker's final answer for it, which later reads return without asking again. */
+  disposition?: SteeringFinalDisposition
 }
+
+/** A disposition no later read can change: the input is no longer needed once it is known. */
+export type SteeringFinalDisposition =
+  | { status: 'applied'; eventSeq?: number; textOffset?: number }
+  | { status: 'not_applied' }
 
 /** Where a turn applied a steering message: its assistant's `steering` block. */
 export interface SteeringBlockInfo {

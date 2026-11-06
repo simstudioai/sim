@@ -1,4 +1,5 @@
 import type { Context } from '@opentelemetry/api'
+import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { toRecord } from '@sim/utils/object'
 import type { z } from 'zod'
@@ -12,6 +13,8 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+
+const logger = createLogger('MothershipSteer')
 
 const DEFAULT_STEER_TIMEOUT_MS = 3000
 /**
@@ -33,7 +36,8 @@ const CAPACITY_RETRY_DELAYS_MS = [250, 500, 1000]
  * - `not_applied`: the run closed before applying it, and never will;
  * - `refused`: no run holds it: the worker does not know the run, stayed at its
  *   pending-input capacity, reached the run's image limit, cannot take its
- *   context (`steering_scope`), or has no durable steering (`goStatus`).
+ *   context (`steering_scope`), has no durable steering, or answered outside
+ *   the contract (`goStatus`).
  */
 type StreamSteeringResult =
   | { status: 'queued' }
@@ -63,8 +67,9 @@ interface SteeringRequest {
  * Steering goes through v2 only. A worker without it (the route answers a bare
  * 404/405) refuses: v1 keeps no record, so a sender that missed its
  * `steering_applied` frame could not tell an applied message from a lost one and
- * would send it twice. Refused, the message goes out as a turn once the running
- * one ends, as a follow-up always did.
+ * would send it twice. A success that is not a disposition of this message (an
+ * older or stand-in worker) refuses the same way. Refused, the message goes out as
+ * a turn once the running one ends, as a follow-up always did.
  *
  * A transport failure throws: the worker may hold the message, and only a retry
  * under the same id can say. `steering_target_missing` (a run it does not know,
@@ -74,12 +79,12 @@ interface SteeringRequest {
 export async function requestStreamSteering(
   params: SteeringRequest
 ): Promise<StreamSteeringResult> {
-  const baseUrl = await getMothershipBaseURL({ userId: params.userId })
-  let response = await postSteering(`${baseUrl}/api/streams/steer/v2`, params)
+  const url = `${await getMothershipBaseURL({ userId: params.userId })}/api/streams/steer/v2`
+  let response = await postSteering(url, params)
+  let code = await failureCode(response)
   let targetRetries = 0
   let capacityRetries = 0
   while (true) {
-    const code = await failureCode(response)
     const delayMs =
       code === 'steering_target_missing'
         ? TARGET_MISSING_RETRY_DELAYS_MS[targetRetries++]
@@ -88,15 +93,21 @@ export async function requestStreamSteering(
           : undefined
     if (delayMs === undefined) break
     await sleep(delayMs)
-    response = await postSteering(`${baseUrl}/api/streams/steer/v2`, params)
+    response = await postSteering(url, params)
+    code = await failureCode(response)
   }
   if (response.ok) {
     // boundary-raw-json: the worker's disposition is validated by its generated schema.
-    const body: unknown = await response.json()
-    const disposition = SteerV2Response.parse(body)
-    if (disposition.steeringId !== params.steeringId) {
-      throw new Error('Worker returned the disposition of another steering message')
+    const body: unknown = await response.json().catch(() => null)
+    const parsed = SteerV2Response.safeParse(body)
+    if (!parsed.success || parsed.data.steeringId !== params.steeringId) {
+      logger.warn('Worker answered a steering message outside its contract', {
+        streamId: params.streamId,
+        steeringId: params.steeringId,
+      })
+      return { status: 'refused', goStatus: response.status }
     }
+    const disposition = parsed.data
     if (disposition.status !== 'applied') return { status: disposition.status }
     return {
       status: 'applied',
@@ -104,7 +115,6 @@ export async function requestStreamSteering(
       textOffset: disposition.textOffset,
     }
   }
-  const code = await failureCode(response)
   if (response.status === 409) {
     throw new OrchestrationError('conflict', 'This steering id was already used for other content.')
   }
@@ -127,18 +137,13 @@ export async function requestStreamSteering(
   throw new Error(`Steering disposition unavailable (${response.status})`)
 }
 
-const failureCodes = new WeakMap<Response, string | undefined>()
-
-/** A failed answer's worker error code; reads the body once and remembers it. */
+/** A failed answer's worker error code; a success has none and keeps its body unread. */
 async function failureCode(response: Response): Promise<string | undefined> {
   if (response.ok) return undefined
-  if (failureCodes.has(response)) return failureCodes.get(response)
   // boundary-raw-json: only the worker's error code is read, to tell its refusals apart.
   const body: unknown = await response.json().catch(() => null)
   const code = toRecord(body).code
-  const known = typeof code === 'string' ? code : undefined
-  failureCodes.set(response, known)
-  return known
+  return typeof code === 'string' ? code : undefined
 }
 
 function postSteering(url: string, params: SteeringRequest): Promise<Response> {
