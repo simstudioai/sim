@@ -148,7 +148,9 @@
   .table [data-from="wide"] {
     display: none;
   }
-  .table th[data-width] {
+  /* A share only reads against other shares: with fixed columns beside it, the trailing one takes the rest. */
+  .table th[data-width],
+  .table [data-primary] {
     inline-size: auto;
   }
   .table [data-kind="number"] {

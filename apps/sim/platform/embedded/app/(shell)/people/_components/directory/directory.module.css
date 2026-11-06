@@ -31,6 +31,13 @@
   min-inline-size: var(--spacing-128);
 }
 
+@media (width < 30rem) {
+  .search,
+  .department {
+    flex-basis: 100%;
+  }
+}
+
 .scope {
   flex: 1;
   color: var(--ui-secondary);
