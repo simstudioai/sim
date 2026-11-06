@@ -118,7 +118,7 @@
     },
     "apps/extension": {
       // Chrome loads the manifest entrypoints; Bun runs packaging and browser verification scripts.
-      "entry": ["src/background.ts", "src/sidepanel.tsx", "scripts/*.ts"]
+      "entry": ["src/background.ts", "src/sidepanel.tsx", "src/recents-setup.tsx", "scripts/*.ts"]
     },
     "apps/desktop": {
       "includeEntryExports": false,

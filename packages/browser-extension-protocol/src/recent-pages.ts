@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const RECENT_PAGES_LIMIT = 20
-export const RECENT_PAGE_TITLE_MAX_LENGTH = 256
+const RECENT_PAGE_TITLE_MAX_LENGTH = 256
 export const RECENT_PAGE_ICON_MAX_LENGTH = 32_000
 
 const envelope = { channel: z.literal('sim-extension'), version: z.literal(1) }
@@ -29,7 +29,7 @@ const recentPageIconSchema = z
   .max(RECENT_PAGE_ICON_MAX_LENGTH)
   .regex(/^data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/]+=*$/)
 
-export const recentPageSchema = z.object({
+const recentPageSchema = z.object({
   url: z.string().max(4_096),
   title: z.string().max(RECENT_PAGE_TITLE_MAX_LENGTH),
   visitedAt: z.number(),
