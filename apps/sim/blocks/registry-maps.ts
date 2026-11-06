@@ -98,6 +98,7 @@ import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
 import { FlowBlock, FlowBlockMeta } from '@/blocks/blocks/flow'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
+import { GaugeBlock, GaugeBlockMeta } from '@/blocks/blocks/gauge'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import {
   GitHubBlock,
@@ -511,6 +512,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   flow: FlowBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
+  gauge: GaugeBlock,
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   github_v2: GitHubV2Block,
@@ -874,6 +876,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   flint: FlintBlockMeta,
   flow: FlowBlockMeta,
   gamma: GammaBlockMeta,
+  gauge: GaugeBlockMeta,
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,
   gitlab: GitLabBlockMeta,

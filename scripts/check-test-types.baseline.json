@@ -657,8 +657,7 @@
     "TS18048": 7
   },
   "apps/sim/blocks/blocks/google_drive.test.ts": {
-    "TS18048": 1,
-    "TS2554": 4
+    "TS18048": 1
   },
   "apps/sim/blocks/blocks/instagram.test.ts": {
     "TS18048": 1
