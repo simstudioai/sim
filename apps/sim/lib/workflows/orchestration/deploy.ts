@@ -173,7 +173,7 @@ export async function performFullDeploy(
       idempotencyKey,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Deployment preparation failed`, { workflowId, error })
+    logger.error('Deployment preparation failed', { requestId, workflowId, error })
     return {
       success: false,
       error: getErrorMessage(error, 'Failed to prepare workflow deployment'),
@@ -398,7 +398,8 @@ async function processStableDeploymentPreparationNow(
   try {
     return await processWorkflowDeploymentOutboxEvent(outboxEventId)
   } catch (error) {
-    logger.warn(`[${requestId}] Inline deployment preparation errored; outbox will retry`, {
+    logger.warn('Inline deployment preparation errored; outbox will retry', {
+      requestId,
       outboxEventId,
       error,
     })
@@ -602,7 +603,7 @@ export async function performFullUndeploy(
     return { success: false, error: result.error || 'Failed to undeploy workflow' }
   }
 
-  logger.info(`[${requestId}] Workflow undeployed successfully: ${workflowId}`)
+  logger.info(`Workflow undeployed successfully: ${workflowId}`, { requestId })
 
   try {
     const { PlatformEvents } = await import('@/lib/core/telemetry')
@@ -799,11 +800,7 @@ export async function performActivateVersion(
       idempotencyKey,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Version activation preparation failed`, {
-      workflowId,
-      version,
-      error,
-    })
+    logger.error('Version activation preparation failed', { requestId, workflowId, version, error })
     return {
       success: false,
       error: getErrorMessage(error, 'Failed to prepare version activation'),
@@ -918,23 +915,22 @@ async function processDeploymentSideEffectsNow(
     const result = await processWorkflowDeploymentOutboxEvent(outboxEventId)
     if (result === 'completed') return undefined
     if (result === 'dead_letter' || result === 'not_found') {
-      logger.error(`[${requestId}] Deployment side-effect sync cannot be retried automatically`, {
+      logger.error('Deployment side-effect sync cannot be retried automatically', {
+        requestId,
         outboxEventId,
         result,
       })
       return 'Deployment saved, but trigger, schedule, and MCP sync could not be queued. Redeploy if triggers or schedules look stale.'
     }
 
-    logger.warn(`[${requestId}] Deployment side-effect sync queued for retry`, {
+    logger.warn('Deployment side-effect sync queued for retry', {
+      requestId,
       outboxEventId,
       result,
     })
     return 'Deployment saved. Trigger, schedule, and MCP sync is queued and may finish shortly.'
   } catch (error) {
-    logger.warn(`[${requestId}] Deployment side-effect sync queued for retry`, {
-      outboxEventId,
-      error,
-    })
+    logger.warn('Deployment side-effect sync queued for retry', { requestId, outboxEventId, error })
     return 'Deployment saved. Trigger, schedule, and MCP sync is queued and may finish shortly.'
   }
 }

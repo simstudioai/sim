@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account, credential, user } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
+import { fingerprint } from '@/lib/api/cursor-binding'
 import {
   type ResourceOwner,
   type ResourceScope,
@@ -9,10 +10,12 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { ORGANIZATION_VIEWER_ACCOUNT_LIMIT } from '@/lib/credential-groups/limits'
 import { filterWorkspaceAccountCredentials } from '@/lib/credentials/application/workspace-account-visibility'
 import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
 import { getPersonalOAuthCredentials } from '@/lib/credentials/personal'
+import { flowHeaders, normalizeFlowOrigin } from '@/lib/flow/client'
 import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
@@ -23,7 +26,9 @@ import {
 import { createNativeClient, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { listManagedMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
 import {
+  LIVE_SEARCH_PROVIDER_CATALOG,
   liveSearchProviderForCredential,
+  SAVED_MEMBER_SEARCH_PROVIDER_IDS,
   supportsLiveSearchMode,
 } from '@/lib/sim-search/live/provider-catalog'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
@@ -41,7 +46,8 @@ async function listOAuthRows(scope: ResourceScope, userId: string) {
   return managed.map((row) => ({ ...row, type: 'managed_oauth' as const }))
 }
 
-async function listCodaTokenRows(scope: ResourceScope, userId: string) {
+/** Lists only credentials created by the acting person in the authorized resource scope. */
+export async function listSavedSearchCredentials(scope: ResourceScope, userId: string) {
   const rows = await db
     .select({
       id: credential.id,
@@ -53,14 +59,15 @@ async function listCodaTokenRows(scope: ResourceScope, userId: string) {
       and(
         resourceScopeCondition(credential, scope),
         eq(credential.type, 'service_account'),
-        eq(credential.providerId, 'coda-service-account'),
+        inArray(credential.providerId, SAVED_MEMBER_SEARCH_PROVIDER_IDS),
         eq(credential.createdBy, userId),
         isNull(credential.revokedAt)
       )
     )
+    .limit(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)
   return rows.map((row) => ({
     ...row,
-    providerId: 'coda-service-account',
+    providerId: row.providerId ?? '',
     type: 'service_account' as const,
   }))
 }
@@ -74,9 +81,9 @@ export async function listLiveAccounts(
   /** A workspace's organization is known only after its context loads; an organization's is not. */
   const loadApprovals = (organizationId?: string | null) =>
     organizationId ? listOrganizationSearchApprovals(organizationId) : null
-  const [oauth, coda, workspaceContext, organizationApprovals] = await Promise.all([
+  const [oauth, saved, workspaceContext, organizationApprovals] = await Promise.all([
     listOAuthRows(scope, userId),
-    listCodaTokenRows(scope, userId),
+    listSavedSearchCredentials(scope, userId),
     scope.kind === 'workspace'
       ? resolveKnowledgeWorkspaceContext({ workspaceId: scope.workspaceId })
       : undefined,
@@ -89,7 +96,7 @@ export async function listLiveAccounts(
       ? liveSearchProviderSchema.options.filter((provider) => approvals.get(provider) !== true)
       : []
   )
-  const candidates = [...oauth, ...coda].flatMap((row) => {
+  const candidates = [...oauth, ...saved].flatMap((row) => {
     const provider = liveSearchProviderForCredential(row.providerId)
     return provider && supportsLiveSearchMode(provider, 'member') && !denied.has(provider)
       ? [
@@ -192,6 +199,22 @@ export async function resolveListedLiveAccount(
     { signal }
   )
   if (!token) throw new NativeSearchError('reconnect', 'Reconnect your personal account.')
+  const origin =
+    current.provider === 'jama'
+      ? token.instanceUrl
+      : current.provider === 'flow'
+        ? token.domain && normalizeFlowOrigin(token.domain)
+        : LIVE_SEARCH_PROVIDER_CATALOG[current.provider].origin
+  if (!origin)
+    throw new NativeSearchError('reconnect', 'Reconnect this account to restore its API host.')
+  const credentialHeaders =
+    current.provider === 'flow'
+      ? flowHeaders({
+          accessToken: token.accessToken,
+          providerWorkspaceId: token.providerWorkspaceId ?? '',
+        })
+      : undefined
+  let connectionBinding: string | undefined
   if (current.type === 'service_account') {
     const [person] = await db
       .select({ email: user.email, verified: user.emailVerified })
@@ -199,21 +222,53 @@ export async function resolveListedLiveAccount(
       .where(eq(user.id, userId))
       .limit(1)
     const api = createNativeClient({
-      origin: 'https://coda.io',
+      origin,
+      credentialHeaders,
       accessToken: token.accessToken,
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
         : AbortSignal.timeout(10_000),
     })
-    const identity = object(await api.json('/apis/v1/whoami'))
+    const response = object(
+      await api.json(
+        current.provider === 'jama'
+          ? '/rest/v1/users/current'
+          : current.provider === 'flow'
+            ? '/users/me'
+            : '/apis/v1/whoami'
+      )
+    )
+    const identity = current.provider === 'jama' ? object(response.data) : response
+    if (current.provider === 'jama' || current.provider === 'flow') {
+      const subject = string(identity.id)
+      if (!subject)
+        throw new NativeSearchError('reconnect', 'The provider did not identify this account.')
+      connectionBinding = fingerprint(
+        JSON.stringify([current.provider, origin, token.providerWorkspaceId ?? '', subject])
+      )
+    }
+    const identityEmail = current.provider === 'coda' ? identity.loginId : identity.email
+    const inactive =
+      current.provider === 'jama'
+        ? identity.active !== true
+        : current.provider === 'flow'
+          ? identity.deactivated_at !== null || identity.is_bot === true
+          : false
     if (
       !person?.verified ||
-      string(identity.loginId).trim().toLowerCase() !== person.email.trim().toLowerCase()
+      inactive ||
+      string(identityEmail).trim().toLowerCase() !== person.email.trim().toLowerCase()
     )
       throw new NativeSearchError(
         'reconnect',
-        'Use a personal Coda token belonging to your verified Sim email. Shared service tokens cannot authorize personal search.'
+        'Use credentials for your own provider account with the same email as your verified Sim account.'
       )
   }
-  return { account: current, accessToken: token.accessToken }
+  return {
+    account: current,
+    accessToken: token.accessToken,
+    origin,
+    credentialHeaders,
+    connectionBinding,
+  }
 }

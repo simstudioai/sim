@@ -347,6 +347,133 @@ describe('bare-route-handler', () => {
   })
 })
 
+describe('log-message-tag', () => {
+  const MODULE = 'apps/sim/lib/feature/service.ts'
+  const withLogger = (...body: string[]) =>
+    [
+      "import { createLogger } from '@sim/logger'",
+      "const logger = createLogger('Feature')",
+      ...body,
+    ].join('\n')
+
+  it('flags a message that opens with an interpolated tag, also after static tags', () => {
+    const source = withLogger(
+      `logger.info(\`[\${requestId}] Started\`)`,
+      `logger.warn(\`[\${documentId}] Retrying\`, { attempt })`,
+      `logger.error(\`[Cascade] [\${dispatchId}] Failed\`)`,
+      `logger.debug(\`[\${label}/phase] Complete\`)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4, 5, 6])
+  })
+
+  it('flags a request id interpolated anywhere, through any receiver named like a logger', () => {
+    const source = withLogger(
+      `logger.error(\`Polling failed (\${requestId}):\`, error)`,
+      `this.logger.info(\`Done for \${ctx.requestId}\`)`,
+      `routeLogger.warn(\`Slow \${options?.requestId ?? "unknown"}\`)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4, 5])
+  })
+
+  it('follows the message through concatenation, a ternary, a local const and a prefix const', () => {
+    const source = withLogger(
+      "logger.info('[' + requestId + '] Started')",
+      `logger.info(done ? \`[\${id}] Done\` : \`Pending\`)`,
+      `const message = \`[\${requestId}] Could not refresh\``,
+      'logger.warn(message)',
+      `const logPrefix = requestId ? \`[\${requestId}] \` : ''`,
+      `logger.error(\`\${logPrefix}Failed to save\`)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4, 6, 8])
+  })
+
+  it('checks the message a helper logs for its caller', () => {
+    const source = withLogger(
+      `logFailureOnce(logger, \`[\${requestId}] Execution failed\`, error)`,
+      `logFn.call(logger, \`Run ended (\${requestId})\`, error)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4])
+  })
+
+  it('sees optional calls, computed levels, derived loggers and log-named receivers', () => {
+    const source = withLogger(
+      `logger?.warn(\`[\${requestId}] Skipped\`)`,
+      `logger[level](\`[\${requestId}] Done\`)`,
+      `logger.withMetadata({ a }).info(\`[\${requestId}] Bound\`)`,
+      `childLog.error(\`[\${requestId}] Child\`)`,
+      `log2.info(\`Retry for \${reqId}\`)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4, 5, 6, 7])
+  })
+
+  it('follows a let prefix but resolves each name in its own function', () => {
+    const source = withLogger(
+      'function first() {',
+      `  let prefix = \`[\${requestId}] \``,
+      `  logger.info(\`\${prefix}Saved\`)`,
+      '}',
+      'function second(message) {',
+      '  logger.info(message)',
+      '}',
+      'function third() {',
+      "  const prefix = 'Sync: '",
+      `  logger.info(\`\${prefix}done\`)`,
+      '}'
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([5])
+  })
+
+  it('checks a module whose only request id is a reqId', () => {
+    const source = withLogger(`log.info(\`Retry for \${reqId}\`)`)
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3])
+  })
+
+  it('stops following a let binding that is reassigned before it is logged', () => {
+    const source = withLogger(
+      `let message = \`[\${requestId}] Failed\``,
+      "message = 'Started'",
+      'logger.info(message)'
+    )
+    expect(hits(MODULE, source, 'log-message-tag')).toEqual([])
+  })
+
+  it('does not treat other uses of request ids or loggers as a tagged message', () => {
+    const source = withLogger(
+      `logger.info(\`Kept \${rows.filter((row) => row.requestId).length} rows\`)`,
+      `logger.info(\`Approved access request \${accessRequestId}\`)`,
+      `withSpan(logger, \`poll:\${requestId}\`, run)`
+    )
+    expect(hits(MODULE, source, 'log-message-tag')).toEqual([])
+  })
+
+  it('allows static messages, static tags, ids in metadata and bracketed lists mid-message', () => {
+    const source = withLogger(
+      "logger.info('Started', { requestId })",
+      "logger.info('[Cascade] dispatch started', { requestId, dispatchId })",
+      `logger.info(\`Updated columns [\${columnIds.join(", ")}] in \${tableId}\`)`,
+      `logger.warn(\`Retrying \${attempt} of \${max}\`, { requestId })`
+    )
+    expect(hits(MODULE, source, 'log-message-tag')).toEqual([])
+  })
+
+  it('ignores receivers that are not loggers, modules without @sim/logger, and tests', () => {
+    expect(
+      hits(MODULE, withLogger(`cache.info(\`[\${requestId}] hit\`)`), 'log-message-tag')
+    ).toEqual([])
+    const electronLog = `import log from 'electron-log'\nlog.info(\`[\${requestId}] Started\`)`
+    expect(hits('apps/desktop/src/main/window.ts', electronLog, 'log-message-tag')).toEqual([])
+    const tagged = withLogger(`logger.info(\`[\${requestId}] Started\`)`)
+    expect(hits('apps/sim/lib/feature/service.test.ts', tagged, 'log-message-tag')).toEqual([])
+  })
+
+  it('covers every app and package, while the apps/sim rules stay scoped to apps/sim', () => {
+    const tagged = withLogger("import { a } from './a'", `logger.info(\`[\${requestId}] Started\`)`)
+    expect(hits('packages/audit/src/log.ts', tagged, 'log-message-tag')).toHaveLength(1)
+    expect(hits('apps/realtime/src/handlers/rooms.ts', tagged, 'log-message-tag')).toHaveLength(1)
+    expect(hits('packages/audit/src/log.ts', tagged, 'relative-import')).toEqual([])
+  })
+})
+
 describe('baseline ratchet', () => {
   const EMPTY: CurrentCounts = {
     'relative-import': {},
@@ -354,6 +481,7 @@ describe('baseline ratchet', () => {
     'static-inline-style': {},
     'api-db-import': {},
     'bare-route-handler': {},
+    'log-message-tag': {},
   }
   const counts = (partial: Partial<CurrentCounts>): CurrentCounts => ({ ...EMPTY, ...partial })
   const BASELINE: Baseline = { ...EMPTY, 'relative-import': { 'a.ts': 2, 'b.ts': 1 } }
@@ -437,7 +565,7 @@ describe('baseline ratchet', () => {
   it('rejects an --init-rule that names no rule', () => {
     expect(nextBaseline(BASELINE, EMPTY, 'no-such-rule')).toEqual({
       errors: [
-        '--init-rule no-such-rule: not a rule in this script (relative-import, text-size-literal, static-inline-style, api-db-import, bare-route-handler)',
+        '--init-rule no-such-rule: not a rule in this script (relative-import, text-size-literal, static-inline-style, api-db-import, bare-route-handler, log-message-tag)',
       ],
     })
   })

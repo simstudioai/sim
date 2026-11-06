@@ -20,7 +20,7 @@ export const clerkHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(`[${requestId}] Clerk webhook missing signing secret in provider configuration`)
+      logger.warn('Clerk webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Clerk signing secret is required', { status: 401 })
     }
 
@@ -47,7 +47,8 @@ export const clerkHandler: WebhookProviderHandler = {
     if (!isClerkEventMatch(triggerId, body as Record<string, unknown>)) {
       const actualType = (body as Record<string, unknown>)?.type
       logger.debug(
-        `[${requestId}] Clerk event type mismatch for trigger ${triggerId}, got ${String(actualType)}. Skipping.`
+        `Clerk event type mismatch for trigger ${triggerId}, got ${String(actualType)}. Skipping.`,
+        { requestId }
       )
       return false
     }

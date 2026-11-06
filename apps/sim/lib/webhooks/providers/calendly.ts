@@ -35,7 +35,8 @@ export const calendlyHandler: WebhookProviderHandler = {
       }
 
       if (!apiKey) {
-        logger.warn(`[${ctx.requestId}] Missing apiKey for Calendly webhook creation.`, {
+        logger.warn('Missing apiKey for Calendly webhook creation.', {
+          requestId: ctx.requestId,
           webhookId: ctx.webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -44,7 +45,8 @@ export const calendlyHandler: WebhookProviderHandler = {
       }
 
       if (!organization) {
-        logger.warn(`[${ctx.requestId}] Missing organization URI for Calendly webhook creation.`, {
+        logger.warn('Missing organization URI for Calendly webhook creation.', {
+          requestId: ctx.requestId,
           webhookId: ctx.webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -53,7 +55,8 @@ export const calendlyHandler: WebhookProviderHandler = {
       }
 
       if (!triggerId) {
-        logger.warn(`[${ctx.requestId}] Missing triggerId for Calendly webhook creation.`, {
+        logger.warn('Missing triggerId for Calendly webhook creation.', {
+          requestId: ctx.requestId,
           webhookId: ctx.webhook.id,
         })
         throw new WebhookDeploymentConfigurationError(
@@ -101,8 +104,8 @@ export const calendlyHandler: WebhookProviderHandler = {
           (errorBody as Record<string, string>).title ||
           'Unknown Calendly API error'
         logger.error(
-          `[${ctx.requestId}] Failed to create webhook in Calendly for webhook ${ctx.webhook.id}. Status: ${calendlyResponse.status}`,
-          { response: errorBody }
+          `Failed to create webhook in Calendly for webhook ${ctx.webhook.id}. Status: ${calendlyResponse.status}`,
+          { requestId: ctx.requestId, response: errorBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Calendly'
@@ -128,8 +131,8 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       if (!webhookUri) {
         logger.error(
-          `[${ctx.requestId}] Calendly webhook created but no webhook URI returned for webhook ${ctx.webhook.id}`,
-          { response: responseBody }
+          `Calendly webhook created but no webhook URI returned for webhook ${ctx.webhook.id}`,
+          { requestId: ctx.requestId, response: responseBody }
         )
         throw new Error('Calendly webhook creation succeeded but no webhook URI was returned')
       }
@@ -137,33 +140,27 @@ export const calendlyHandler: WebhookProviderHandler = {
       const webhookId = webhookUri.split('/').pop()
 
       if (!webhookId) {
-        logger.error(
-          `[${ctx.requestId}] Could not extract webhook ID from Calendly URI: ${webhookUri}`,
-          {
-            response: responseBody,
-          }
-        )
+        logger.error(`Could not extract webhook ID from Calendly URI: ${webhookUri}`, {
+          requestId: ctx.requestId,
+          response: responseBody,
+        })
         throw new Error('Failed to extract webhook ID from Calendly response')
       }
 
-      logger.info(
-        `[${ctx.requestId}] Successfully created webhook in Calendly for webhook ${ctx.webhook.id}.`,
-        {
-          calendlyWebhookUri: webhookUri,
-          calendlyWebhookId: webhookId,
-        }
-      )
+      logger.info(`Successfully created webhook in Calendly for webhook ${ctx.webhook.id}.`, {
+        requestId: ctx.requestId,
+        calendlyWebhookUri: webhookUri,
+        calendlyWebhookId: webhookId,
+      })
       return { providerConfigUpdates: { externalId: webhookId } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${ctx.requestId}] Exception during Calendly webhook creation for webhook ${ctx.webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Calendly webhook creation for webhook ${ctx.webhook.id}.`, {
+        requestId: ctx.requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -176,7 +173,8 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       if (!apiKey) {
         logger.warn(
-          `[${ctx.requestId}] Missing apiKey for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing apiKey for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Calendly apiKey for webhook deletion')
         return
@@ -184,7 +182,8 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing externalId for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing externalId for Calendly webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Calendly externalId for webhook deletion')
         return
@@ -201,20 +200,22 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       if (!calendlyResponse.ok && calendlyResponse.status !== 404) {
         const responseBody = await calendlyResponse.json().catch(() => ({}))
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete Calendly webhook (non-fatal): ${calendlyResponse.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete Calendly webhook (non-fatal): ${calendlyResponse.status}`, {
+          requestId: ctx.requestId,
+          response: responseBody,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Calendly webhook: ${calendlyResponse.status}`)
         }
       } else {
-        logger.info(
-          `[${ctx.requestId}] Successfully deleted Calendly webhook subscription ${externalId}`
-        )
+        logger.info(`Successfully deleted Calendly webhook subscription ${externalId}`, {
+          requestId: ctx.requestId,
+        })
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Calendly webhook (non-fatal)`, error)
+      logger.warn('Error deleting Calendly webhook (non-fatal)', error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

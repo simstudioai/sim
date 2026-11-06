@@ -200,7 +200,7 @@ export const POST = withRouteHandler(
 
     const messageId = generateId()
     const requestId = generateId()
-    let reqLogger = logger.withMetadata({ messageId, requestId })
+    let reqLogger = logger.withMetadata({ messageId, simRequestId: requestId })
 
     try {
       const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
@@ -284,7 +284,7 @@ export const POST = withRouteHandler(
         return v2Error('INTERNAL_ERROR', 'Internal server error')
       }
       const chatId = resolvedChat.chatId
-      reqLogger = logger.withMetadata({ chatId, messageId, requestId })
+      reqLogger = logger.withMetadata({ chatId, messageId, simRequestId: requestId })
 
       /**
        * Write this turn's display copy to the conversation the route just

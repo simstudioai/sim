@@ -173,6 +173,13 @@ export function createPolicyVerifier(
       }
       return true
     }
+    if (provider === 'jama' || provider === 'flow') {
+      return (
+        Boolean(document.container) &&
+        siteAllowed(origin) &&
+        permitsResources(policy, [document.container ?? ''])
+      )
+    }
     if (provider === 'gitlab') {
       if (!siteAllowed(origin) || !document.container) return false
       if (!restricted && policy.includeArchived && !policy.pathPrefixes.length) return true

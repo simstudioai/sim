@@ -9,6 +9,7 @@ import {
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/app/o/[organizationId]/integrations/search-params'
+import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
@@ -180,44 +181,53 @@ export function IntegrationsRoute({
     )
 
   return (
-    <IntegrationsPage back={back}>
-      {inventoryStatus ?? (
-        <>
-          {readFailures}
-          {integration ? (
-            <IntegrationDetails
-              key={integration.id}
-              integration={integration}
-              accountId={account}
-              integrationHref={integrationHref(integration.id)}
-              accountHref={(credentialId) =>
-                serializeIntegrationView(integrationPath(organizationId, integration.id), {
-                  q: search,
-                  account: credentialId,
-                })
-              }
-              pending={actions.pending}
-              onConnect={() => {
-                if (integration.connectionTarget) actions.connect(integration.connectionTarget)
-              }}
-              onReconnect={actions.reconnect}
-              onDisconnect={async (credentialId) => {
-                await actions.disconnect(credentialId)
-                if (account === credentialId) void setParams({ account: null, tools: null })
-              }}
-              renderToolPermissions={(credentialId) => (
-                <ToolPermissionsPanel
-                  key={credentialId}
-                  organizationId={organizationId}
-                  credentialId={credentialId}
-                />
-              )}
-            />
-          ) : (
-            !policies.error && unavailable(policies.isPending)
-          )}
-        </>
+    <>
+      <IntegrationsPage back={back}>
+        {inventoryStatus ?? (
+          <>
+            {readFailures}
+            {integration ? (
+              <IntegrationDetails
+                key={integration.id}
+                integration={integration}
+                accountId={account}
+                integrationHref={integrationHref(integration.id)}
+                accountHref={(credentialId) =>
+                  serializeIntegrationView(integrationPath(organizationId, integration.id), {
+                    q: search,
+                    account: credentialId,
+                  })
+                }
+                pending={actions.pending}
+                onConnect={() => {
+                  if (integration.connectionTarget) actions.connect(integration.connectionTarget)
+                }}
+                onReconnect={actions.reconnect}
+                onDisconnect={async (credentialId) => {
+                  await actions.disconnect(credentialId)
+                  if (account === credentialId) void setParams({ account: null, tools: null })
+                }}
+                renderToolPermissions={(credentialId) => (
+                  <ToolPermissionsPanel
+                    key={credentialId}
+                    organizationId={organizationId}
+                    credentialId={credentialId}
+                  />
+                )}
+              />
+            ) : (
+              !policies.error && unavailable(policies.isPending)
+            )}
+          </>
+        )}
+      </IntegrationsPage>
+      {actions.savedConnection && (
+        <SavedSearchCredentialModal
+          organizationId={organizationId}
+          connection={actions.savedConnection}
+          onClose={actions.closeSavedConnection}
+        />
       )}
-    </IntegrationsPage>
+    </>
   )
 }

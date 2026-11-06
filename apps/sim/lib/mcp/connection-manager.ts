@@ -130,7 +130,9 @@ export class McpConnectionManager {
     const key = connectionKey(config)
 
     if (this.connections.has(key) || this.connectingServers.has(key)) {
-      logger.info(`[${config.name}] Already has a managed connection or is connecting, skipping`)
+      logger.info('Already has a managed connection or is connecting, skipping', {
+        serverName: config.name,
+      })
       const state = this.states.get(key)
       return { supportsListChanged: state?.supportsListChanged ?? false }
     }
@@ -157,7 +159,8 @@ export class McpConnectionManager {
           })
           if (!row.tokens) {
             logger.info(
-              `[${config.name}] OAuth server has no workspace tokens — skipping persistent connection until authorized`
+              'OAuth server has no workspace tokens — skipping persistent connection until authorized',
+              { serverName: config.name }
             )
             return { supportsListChanged: false }
           }
@@ -200,16 +203,18 @@ export class McpConnectionManager {
         try {
           await withConnectTimeout(client, config.name)
         } catch (error) {
-          logger.error(`[${config.name}] Failed to connect for persistent monitoring:`, error)
+          logger.error('Failed to connect for persistent monitoring:', error, {
+            serverName: config.name,
+          })
           return { supportsListChanged: false }
         }
 
         const supportsListChanged = client.hasListChangedCapability()
 
         if (!supportsListChanged) {
-          logger.info(
-            `[${config.name}] Server does not support listChanged — disconnecting (fallback to cache)`
-          )
+          logger.info('Server does not support listChanged — disconnecting (fallback to cache)', {
+            serverName: config.name,
+          })
           await client.disconnect()
           return { supportsListChanged: false }
         }
@@ -234,7 +239,9 @@ export class McpConnectionManager {
 
         this.ensureIdleCheck()
 
-        logger.info(`[${config.name}] Persistent connection established (listChanged supported)`)
+        logger.info('Persistent connection established (listChanged supported)', {
+          serverName: config.name,
+        })
         return { supportsListChanged: true }
       })
     } finally {
@@ -359,7 +366,7 @@ export class McpConnectionManager {
       timestamp: Date.now(),
     }
 
-    logger.info(`[${state.serverName}] Tools changed — publishing to pub/sub`)
+    logger.info('Tools changed — publishing to pub/sub', { serverName: state.serverName })
 
     mcpPubSub?.publishToolsChanged(event)
   }
@@ -373,7 +380,7 @@ export class McpConnectionManager {
     state.connected = false
     this.connections.delete(key)
 
-    logger.warn(`[${config.name}] Persistent connection lost, scheduling reconnect`)
+    logger.warn('Persistent connection lost, scheduling reconnect', { serverName: config.name })
 
     this.scheduleReconnect(config, userId, workspaceId)
   }
@@ -385,9 +392,9 @@ export class McpConnectionManager {
     if (!state || this.disposed) return
 
     if (state.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      logger.error(
-        `[${config.name}] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached — giving up`
-      )
+      logger.error(`Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached — giving up`, {
+        serverName: config.name,
+      })
       this.states.delete(key)
       return
     }
@@ -399,7 +406,8 @@ export class McpConnectionManager {
     })
 
     logger.info(
-      `[${config.name}] Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
+      `Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
+      { serverName: config.name }
     )
 
     this.clearReconnectTimer(key)
@@ -411,9 +419,9 @@ export class McpConnectionManager {
 
       const currentState = this.states.get(key)
       if (currentState?.connected) {
-        logger.info(
-          `[${config.name}] Connection already re-established externally, skipping reconnect`
-        )
+        logger.info('Connection already re-established externally, skipping reconnect', {
+          serverName: config.name,
+        })
         return
       }
 
@@ -424,13 +432,13 @@ export class McpConnectionManager {
       try {
         const result = await this.connect(config, userId, workspaceId)
         if (result.supportsListChanged) {
-          logger.info(`[${config.name}] Reconnected successfully`)
+          logger.info('Reconnected successfully', { serverName: config.name })
         } else {
           this.restoreReconnectState(config, userId, workspaceId, attempts)
           this.scheduleReconnect(config, userId, workspaceId)
         }
       } catch (error) {
-        logger.error(`[${config.name}] Reconnect failed:`, error)
+        logger.error('Reconnect failed:', error, { serverName: config.name })
         this.restoreReconnectState(config, userId, workspaceId, attempts)
         this.scheduleReconnect(config, userId, workspaceId)
       }
@@ -478,9 +486,9 @@ export class McpConnectionManager {
       const now = Date.now()
       for (const [key, state] of this.states) {
         if (now - state.lastActivity > IDLE_TIMEOUT_MS) {
-          logger.info(
-            `[${state.serverName}] Idle timeout reached, disconnecting managed connection`
-          )
+          logger.info('Idle timeout reached, disconnecting managed connection', {
+            serverName: state.serverName,
+          })
           this.disconnectByKey(key)
         }
       }

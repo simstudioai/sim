@@ -78,7 +78,7 @@ export async function performRestoreKnowledgeBase(
     return classifyKnowledgeFailure(error, requestId, `Restore knowledge base ${knowledgeBaseId}`)
   }
 
-  logger.info(`[${requestId}] Restored knowledge base ${knowledgeBaseId}`)
+  logger.info(`Restored knowledge base ${knowledgeBaseId}`, { requestId })
 
   if (params.recordSemanticAudit !== false) {
     recordAudit({

@@ -416,9 +416,7 @@ async function secureFetch(
     })
   } catch (error: unknown) {
     const normalizedError = toError(error)
-    logger.warn(`[${requestId}] Isolated fetch failed`, {
-      errorName: normalizedError.name,
-    })
+    logger.warn('Isolated fetch failed', { requestId, errorName: normalizedError.name })
     return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
 }

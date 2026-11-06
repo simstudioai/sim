@@ -44,9 +44,9 @@ export const incidentioHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(
-        `[${requestId}] incident.io webhook missing signing secret in provider configuration`
-      )
+      logger.warn('incident.io webhook missing signing secret in provider configuration', {
+        requestId,
+      })
       return new NextResponse('Unauthorized - incident.io signing secret is required', {
         status: 401,
       })
@@ -75,7 +75,8 @@ export const incidentioHandler: WebhookProviderHandler = {
 
     if (!isIncidentioEventMatch(triggerId, eventType || '')) {
       logger.debug(
-        `[${requestId}] incident.io event mismatch for trigger ${triggerId}. event_type: ${eventType}. Skipping.`
+        `incident.io event mismatch for trigger ${triggerId}. event_type: ${eventType}. Skipping.`,
+        { requestId }
       )
       return false
     }

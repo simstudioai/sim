@@ -58,16 +58,16 @@ export async function dispatchSimEvent(
 
     if (!result.success) {
       logger.error(
-        `[${requestId}] Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
+        `Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
         result.statusCode,
-        result.error
+        result.error,
+        { requestId }
       )
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Error firing sim trigger for workflow ${subscription.workflow.id}:`,
-      error
-    )
+    logger.error(`Error firing sim trigger for workflow ${subscription.workflow.id}:`, error, {
+      requestId,
+    })
   }
 }
 

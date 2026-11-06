@@ -81,7 +81,7 @@ export async function executeImageGeneration(
 ): Promise<Response> {
   const { requestId } = context
   let undeliveredFalCost: FalAICostMetadata | undefined
-  logger.info(`[${requestId}] Image generation request started`)
+  logger.info('Image generation request started', { requestId })
 
   try {
     context.signal?.throwIfAborted()
@@ -95,7 +95,7 @@ export async function executeImageGeneration(
       return Response.json({ error: getErrorMessage(error) }, { status: 400 })
     }
 
-    logger.info(`[${requestId}] Generating image with ${provider}, model: ${model || 'default'}`)
+    logger.info(`Generating image with ${provider}, model: ${model || 'default'}`, { requestId })
 
     let imageResult: GeneratedImageResult
     if (provider === 'openai') {
@@ -120,7 +120,8 @@ export async function executeImageGeneration(
 
     const storedImage = await storeGeneratedImage(imageResult, context)
 
-    logger.info(`[${requestId}] Image generation completed successfully`, {
+    logger.info('Image generation completed successfully', {
+      requestId,
       provider,
       model: storedImage.model,
       contentType: storedImage.contentType,
@@ -144,7 +145,7 @@ export async function executeImageGeneration(
       })
     }
     context.signal?.throwIfAborted()
-    logger.error(`[${requestId}] Image generation operation error:`, error)
+    logger.error('Image generation operation error:', error, { requestId })
     const errorMessage = getUserFacingErrorMessage(error, 'Unknown error')
     return Response.json(
       { error: errorMessage },
@@ -291,7 +292,7 @@ async function generateWithOpenAI(
     buffer = downloaded.buffer
     contentType = downloaded.contentType
   } else {
-    logger.error(`[${requestId}] OpenAI response missing image payload`)
+    logger.error('OpenAI response missing image payload', { requestId })
     throw new Error('No image data found in OpenAI response')
   }
 
@@ -353,7 +354,7 @@ async function generateWithGemini(
   })
 
   if (!isRecordLike(imagePart)) {
-    logger.error(`[${requestId}] Gemini response missing image part`)
+    logger.error('Gemini response missing image part', { requestId })
     throw new Error('No image data found in Gemini response')
   }
 
@@ -464,7 +465,7 @@ async function generateWithFalAI(
       buildFalAIQueueUrl(endpoint, falRequestId, 'response')
   )
 
-  logger.info(`[${requestId}] Fal.ai image request created: ${falRequestId}`)
+  logger.info('Fal.ai image request created', { requestId, falRequestId })
 
   const statusValidation = await validateUrlWithDNS(statusUrl, 'statusUrl', 'contentFetch')
   if (!statusValidation.isValid) {

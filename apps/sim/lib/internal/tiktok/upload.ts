@@ -256,7 +256,8 @@ async function uploadChunk(options: {
     const retryable = response.status >= 500 && response.status <= 599
 
     if (retryable && attempt < MAX_UPLOAD_ATTEMPTS) {
-      logger.warn(`[${options.requestId}] Retrying TikTok video chunk`, {
+      logger.warn('Retrying TikTok video chunk', {
+        requestId: options.requestId,
         chunkIndex: options.chunkIndex,
         attempt,
         status: response.status,

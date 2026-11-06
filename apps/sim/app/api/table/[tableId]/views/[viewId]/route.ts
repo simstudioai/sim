@@ -64,7 +64,7 @@ export const PATCH = withRouteHandler(
       if (error instanceof TableViewValidationError) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
-      logger.error(`[${requestId}] Error updating table view:`, error)
+      logger.error('Error updating table view:', error)
       return NextResponse.json({ error: 'Failed to update view' }, { status: 500 })
     }
   }
@@ -110,7 +110,7 @@ export const DELETE = withRouteHandler(
       if (error instanceof TableViewValidationError) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
-      logger.error(`[${requestId}] Error deleting table view:`, error)
+      logger.error('Error deleting table view:', error)
       return NextResponse.json({ error: 'Failed to delete view' }, { status: 500 })
     }
   }

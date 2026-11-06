@@ -218,6 +218,19 @@ export const selectorManifest = {
     readiness: { all: ['oauthCredential', 'spreadsheetId'] },
   }),
   'harmonic.savedSearches': providerSelector([], { detail: true, unknownDetail: true }),
+  'jama.projects': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'jama.itemTypes': providerSelector(['projectId'], { listMode: 'paginated' }),
+  'flow.projects': providerSelector(),
+  'flow.categories': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+  }),
+  'flow.branches': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+  }),
   'helpscout.mailboxes': providerSelector([], { listMode: 'paginated', detail: true }),
   'helpscout.assignees': providerSelector([], { listMode: 'paginated', detail: true }),
   'hubspot.lists': providerSelector([], { listMode: 'paginated', search: true, detail: true }),

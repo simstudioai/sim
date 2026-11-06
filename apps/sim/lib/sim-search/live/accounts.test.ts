@@ -55,7 +55,7 @@ const owner = { workspaceId: 'workspace' }
 const account = { id: 'mine', providerId: 'google-drive', displayName: 'My Drive', type: 'oauth' }
 function metadata(revokedAt: Date | null = null) {
   mockListOrganizationSearchApprovals.mockResolvedValue(new Map([['google_drive', true]]))
-  queueTableRows(schemaMock.credential, []) // Coda discovery
+  queueTableRows(schemaMock.credential, [])
   queueTableRows(schemaMock.credential, [
     { id: 'mine', scope: 'drive.readonly', grantedScopes: null, revokedAt },
   ])
@@ -136,18 +136,19 @@ describe('live account discovery boundaries', () => {
       { id: 'enrolled', providerId: 'jira', displayName: 'Enrolled Jira' },
     ])
     const legacy = { id: 'legacy', providerId: 'jira', displayName: 'Legacy Jira' }
+    mocks.personal.mockResolvedValue([legacy])
     const metadata = ['enrolled', 'legacy'].map((id) => ({
       id,
       scope: 'read:jira-work',
       grantedScopes: null,
       revokedAt: null,
     }))
-    queueTableRows(schemaMock.credential, [legacy])
-    queueTableRows(schemaMock.credential, metadata)
+    queueTableRows(schemaMock.credential, [])
     queueTableRows(schemaMock.credential, metadata)
     expect(
       (await listLiveAccounts({ organizationId: 'org' }, 'reader')).map((row) => row.id)
     ).toEqual(['enrolled'])
+    expect(mocks.personal).not.toHaveBeenCalled()
   })
   it('does not resolve another account even when the caller knows its ID', async () => {
     metadata()

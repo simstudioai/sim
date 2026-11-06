@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { getExecutionKeyParts } from '@/lib/execution/payloads/access-keys'
@@ -398,7 +399,7 @@ export async function readUserFileContentWithContributors(
   let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   let renderedContributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
-  const requestId = options.requestId ?? 'unknown'
+  const requestId = options.requestId ?? generateRequestId()
 
   try {
     const servable = await downloadServableFileFromStorage(file, requestId, log, {

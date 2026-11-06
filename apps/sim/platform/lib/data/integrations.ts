@@ -1,4 +1,6 @@
+import { useCallback, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { SaveSearchPersonalCredentialBody } from '@/lib/api/contracts/search-personal-credentials'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import {
   useAssistantToolPermissions,
@@ -11,6 +13,7 @@ import {
   useReconnectPersonalOrganizationAccount,
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
+import { useRemovePersonalSearchCredential } from '@/hooks/queries/personal-search-integrations'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import {
   toGenericSecrets,
@@ -52,18 +55,44 @@ export function useMemberIntegrations(organizationId: string) {
 }
 
 export function useIntegrationActions(organizationId: string) {
+  const [savedConnection, setSavedConnection] = useState<{
+    providerId: SaveSearchPersonalCredentialBody['providerId']
+    credentialId?: string
+    displayName?: string
+  } | null>(null)
+  const inventory = useOrganizationAccounts(organizationId)
+  const savedAccounts = inventory.data?.viewerSavedAccounts ?? []
+  const removeSaved = useRemovePersonalSearchCredential()
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const disconnect = useDisconnectPersonalOrganizationAccount()
   const onError = useActionFailureNotice()
   const connecting = connect.isPending || reconnect.isPending
+  const closeSavedConnection = useCallback(() => setSavedConnection(null), [])
   return {
     connecting,
-    pending: connecting || disconnect.isPending,
-    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) =>
-      connect.mutate({ organizationId, ...target }, { onError }),
-    reconnect: (credentialId: string) => reconnect.mutate(credentialId, { onError }),
-    disconnect: (credentialId: string) => disconnect.mutateAsync({ credentialId, organizationId }),
+    pending: connecting || disconnect.isPending || removeSaved.isPending,
+    savedConnection,
+    closeSavedConnection,
+    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
+      if ('savedProviderId' in target) setSavedConnection({ providerId: target.savedProviderId })
+      else connect.mutate({ organizationId, ...target }, { onError })
+    },
+    reconnect: (credentialId: string) => {
+      const saved = savedAccounts.find((account) => account.credentialId === credentialId)
+      if (saved)
+        setSavedConnection({
+          providerId: saved.providerId,
+          credentialId,
+          displayName: saved.displayName,
+        })
+      else reconnect.mutate(credentialId, { onError })
+    },
+    disconnect: async (credentialId: string) => {
+      if (savedAccounts.some((account) => account.credentialId === credentialId))
+        await removeSaved.mutateAsync({ organizationId, credentialId })
+      else await disconnect.mutateAsync({ credentialId, organizationId })
+    },
   }
 }
 

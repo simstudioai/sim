@@ -74,14 +74,18 @@ export const typeformHandler: WebhookProviderHandler = {
     const secret = config.secret as string | undefined
 
     if (!formId) {
-      logger.warn(`[${ctx.requestId}] Missing formId for Typeform webhook ${ctx.webhook.id}`)
+      logger.warn(`Missing formId for Typeform webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       throw new WebhookDeploymentConfigurationError(
         'Form ID is required to create a Typeform webhook. Please provide a valid form ID.'
       )
     }
 
     if (!apiKey) {
-      logger.warn(`[${ctx.requestId}] Missing apiKey for Typeform webhook ${ctx.webhook.id}`)
+      logger.warn(`Missing apiKey for Typeform webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       throw new WebhookDeploymentConfigurationError(
         'Personal Access Token is required to create a Typeform webhook. Please provide your Typeform API key.'
       )
@@ -122,7 +126,8 @@ export const typeformHandler: WebhookProviderHandler = {
           (responseBody as Record<string, string>).message ||
           'Unknown error'
 
-        logger.error(`[${ctx.requestId}] Typeform API error: ${errorMessage}`, {
+        logger.error(`Typeform API error: ${errorMessage}`, {
+          requestId: ctx.requestId,
           status: typeformResponse.status,
           response: responseBody,
         })
@@ -148,8 +153,8 @@ export const typeformHandler: WebhookProviderHandler = {
 
       const responseBody = await typeformResponse.json()
       logger.info(
-        `[${ctx.requestId}] Successfully created Typeform webhook for webhook ${ctx.webhook.id} with tag ${tag}`,
-        { webhookId: (responseBody as Record<string, unknown>).id }
+        `Successfully created Typeform webhook for webhook ${ctx.webhook.id} with tag ${tag}`,
+        { requestId: ctx.requestId, webhookId: (responseBody as Record<string, unknown>).id }
       )
 
       if (!webhookTag && tag) {
@@ -166,10 +171,9 @@ export const typeformHandler: WebhookProviderHandler = {
         throw error
       }
 
-      logger.error(
-        `[${ctx.requestId}] Error creating Typeform webhook for webhook ${ctx.webhook.id}`,
-        error
-      )
+      logger.error(`Error creating Typeform webhook for webhook ${ctx.webhook.id}`, error, {
+        requestId: ctx.requestId,
+      })
       throw new Error(
         getErrorMessage(error, 'Failed to create Typeform webhook. Please try again.')
       )
@@ -185,7 +189,8 @@ export const typeformHandler: WebhookProviderHandler = {
 
       if (!formId || !apiKey) {
         logger.warn(
-          `[${ctx.requestId}] Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Typeform webhook deletion credentials')
         return
@@ -202,17 +207,21 @@ export const typeformHandler: WebhookProviderHandler = {
       })
 
       if (!typeformResponse.ok && typeformResponse.status !== 404) {
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`
-        )
+        logger.warn(`Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Typeform webhook: ${typeformResponse.status}`)
         }
       } else {
-        logger.info(`[${ctx.requestId}] Successfully deleted Typeform webhook with tag ${tag}`)
+        logger.info(`Successfully deleted Typeform webhook with tag ${tag}`, {
+          requestId: ctx.requestId,
+        })
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Typeform webhook (non-fatal)`, error)
+      logger.warn('Error deleting Typeform webhook (non-fatal)', error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

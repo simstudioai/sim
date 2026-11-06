@@ -32,7 +32,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized schedule query attempt`)
+      logger.warn('Unauthorized schedule query attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -64,7 +64,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    logger.info(`[${requestId}] Getting schedule for workflow ${workflowId}`)
+    logger.info(`Getting schedule for workflow ${workflowId}`)
 
     const conditions = [eq(workflowSchedule.workflowId, workflowId)]
     if (blockId) {
@@ -114,7 +114,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
       { headers }
     )
   } catch (error) {
-    logger.error(`[${requestId}] Error retrieving workflow schedule`, error)
+    logger.error('Error retrieving workflow schedule', error)
     return NextResponse.json({ error: 'Failed to retrieve workflow schedule' }, { status: 500 })
   }
 })
@@ -125,7 +125,7 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
-  logger.info(`[${requestId}] Getting all schedules for workspace ${workspaceId}`)
+  logger.info(`Getting all schedules for workspace ${workspaceId}`, { requestId })
 
   const workflowRows = await db
     .select({

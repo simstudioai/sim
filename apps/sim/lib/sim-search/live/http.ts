@@ -34,6 +34,8 @@ export const NATIVE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 export function createNativeClient(input: {
   origin: string
   accessToken: string
+  /** Credential-bound provider headers; never taken from search arguments. */
+  credentialHeaders?: Readonly<Record<string, string>>
   signal: AbortSignal
   /** Reuses connections across this client's requests; the caller owns its lifetime. */
   pool?: PinnedConnectionPool
@@ -73,7 +75,7 @@ export function createNativeClient(input: {
         }
         if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\'))
           throw new Error('Invalid provider path')
-        url.pathname = path
+        url.pathname = `${url.pathname.replace(/\/$/, '')}${path}`
         for (const [key, value] of Object.entries(options?.query ?? {})) {
           for (const item of Array.isArray(value) ? value : [value])
             url.searchParams.append(key, item)
@@ -81,7 +83,7 @@ export function createNativeClient(input: {
         const response = await secureFetchWithValidation(url.toString(), {
           profile: 'configuredEndpoint',
           headers: {
-            Authorization: `Bearer ${input.accessToken}`,
+            ...(input.credentialHeaders ?? { Authorization: `Bearer ${input.accessToken}` }),
             Accept:
               url.hostname === 'api.github.com'
                 ? 'application/vnd.github.text-match+json'

@@ -37,7 +37,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized column creation attempt`)
+      logger.warn('Unauthorized column creation attempt')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -84,7 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       return NextResponse.json({ error: msg }, { status: 404 })
     }
 
-    logger.error(`[${requestId}] Error adding column to table ${tableId}:`, error)
+    logger.error(`Error adding column to table ${tableId}:`, error)
     return NextResponse.json({ error: 'Failed to add column' }, { status: 500 })
   }
 })
@@ -97,7 +97,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized column update attempt`)
+      logger.warn('Unauthorized column update attempt')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -140,7 +140,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    logger.error(`[${requestId}] Error updating column in table ${tableId}:`, error)
+    logger.error(`Error updating column in table ${tableId}:`, error)
     return NextResponse.json({ error: 'Failed to update column' }, { status: 500 })
   }
 })
@@ -154,7 +154,7 @@ export const DELETE = withRouteHandler(
     try {
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!authResult.success || !authResult.userId) {
-        logger.warn(`[${requestId}] Unauthorized column deletion attempt`)
+        logger.warn('Unauthorized column deletion attempt')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
@@ -202,7 +202,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
-      logger.error(`[${requestId}] Error deleting column from table ${tableId}:`, error)
+      logger.error(`Error deleting column from table ${tableId}:`, error)
       return NextResponse.json({ error: 'Failed to delete column' }, { status: 500 })
     }
   }

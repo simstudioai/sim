@@ -183,7 +183,7 @@ async function validateMcpAuth(
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
-      logger.warn(`[${requestId}] Authentication failed: ${auth.error}`)
+      logger.warn(`Authentication failed: ${auth.error}`, { requestId })
       return {
         success: false,
         errorResponse: createMcpErrorResponse(
@@ -270,7 +270,7 @@ async function validateMcpAuth(
       },
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error during MCP auth validation:`, error)
+    logger.error('Error during MCP auth validation:', error, { requestId })
     return {
       success: false,
       errorResponse: createMcpErrorResponse(
@@ -336,10 +336,9 @@ export function withMcpAuth<TParams = Record<string, string>>(
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(
-          `[${(authResult as AuthResult).context.requestId}] Error in MCP route handler:`,
-          error
-        )
+        logger.error('Error in MCP route handler:', error, {
+          requestId: (authResult as AuthResult).context.requestId,
+        })
         return createMcpErrorResponse(toError(error), 'Internal server error', 500)
       }
     }

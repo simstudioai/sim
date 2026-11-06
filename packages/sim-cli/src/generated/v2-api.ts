@@ -7201,6 +7201,11 @@ export type GetSelectorBody = {
     | 'google.drive'
     | 'google.sheets'
     | 'harmonic.savedSearches'
+    | 'jama.projects'
+    | 'jama.itemTypes'
+    | 'flow.projects'
+    | 'flow.categories'
+    | 'flow.branches'
     | 'helpscout.mailboxes'
     | 'helpscout.assignees'
     | 'hubspot.lists'
@@ -10229,6 +10234,11 @@ export type ListSelectorBody = {
     | 'google.drive'
     | 'google.sheets'
     | 'harmonic.savedSearches'
+    | 'jama.projects'
+    | 'jama.itemTypes'
+    | 'flow.projects'
+    | 'flow.categories'
+    | 'flow.branches'
     | 'helpscout.mailboxes'
     | 'helpscout.assignees'
     | 'hubspot.lists'
@@ -14278,6 +14288,7 @@ export type UpdateCredentialBody = {
   serviceAccountJson?: string
   apiToken?: string
   domain?: string
+  providerWorkspaceId?: string
   atlassianProduct?: 'jira' | 'confluence'
   signingSecret?: string
   botToken?: string
@@ -19288,6 +19299,11 @@ export const V2_OPERATIONS = {
           'google.drive',
           'google.sheets',
           'harmonic.savedSearches',
+          'jama.projects',
+          'jama.itemTypes',
+          'flow.projects',
+          'flow.categories',
+          'flow.branches',
           'helpscout.mailboxes',
           'helpscout.assignees',
           'hubspot.lists',
@@ -21614,6 +21630,11 @@ export const V2_OPERATIONS = {
           'google.drive',
           'google.sheets',
           'harmonic.savedSearches',
+          'jama.projects',
+          'jama.itemTypes',
+          'flow.projects',
+          'flow.categories',
+          'flow.branches',
           'helpscout.mailboxes',
           'helpscout.assignees',
           'hubspot.lists',
@@ -24091,6 +24112,10 @@ export const V2_OPERATIONS = {
       },
       apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
       domain: { kind: 'string', describe: 'Provider account domain.' },
+      providerWorkspaceId: {
+        kind: 'string',
+        describe: 'Provider workspace identifier, separate from the Sim workspace.',
+      },
       atlassianProduct: {
         kind: 'enum',
         values: ['jira', 'confluence'] as const,

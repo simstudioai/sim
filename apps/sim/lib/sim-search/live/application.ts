@@ -151,6 +151,7 @@ const referenceSchema = z
     container: z.string().max(500).optional(),
     kind: z.string().max(200).optional(),
     revision: z.string().max(200).optional(),
+    connectionBinding: z.string().min(1).max(128).optional(),
     threadId: z
       .string()
       .regex(/^\d+\.\d+$/)
@@ -245,6 +246,7 @@ function candidateFor(
       ...(document.container ? { container: document.container } : {}),
       ...(document.kind ? { kind: document.kind } : {}),
       ...(document.revision ? { revision: document.revision } : {}),
+      ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
       ...(document.threadId ? { threadId: document.threadId } : {}),
     }),
   }

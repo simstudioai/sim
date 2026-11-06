@@ -591,24 +591,24 @@ export function verifySlackRequestSignature(
   const timestamp = request.headers.get('x-slack-request-timestamp')
 
   if (!signature || !timestamp) {
-    logger.warn(`[${requestId}] Slack webhook missing signature or timestamp header`)
+    logger.warn('Slack webhook missing signature or timestamp header', { requestId })
     return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
   }
 
   const now = Math.floor(Date.now() / 1000)
   const parsedTimestamp = Number(timestamp)
   if (Number.isNaN(parsedTimestamp)) {
-    logger.warn(`[${requestId}] Slack webhook timestamp is not a valid number`, { timestamp })
+    logger.warn('Slack webhook timestamp is not a valid number', { requestId, timestamp })
     return new NextResponse('Unauthorized - Invalid timestamp', { status: 401 })
   }
   const skew = Math.abs(now - parsedTimestamp)
   if (skew > SLACK_TIMESTAMP_MAX_SKEW) {
-    logger.warn(`[${requestId}] Slack webhook timestamp too old`, { timestamp, now, skew })
+    logger.warn('Slack webhook timestamp too old', { requestId, timestamp, now, skew })
     return new NextResponse('Unauthorized - Request timestamp too old', { status: 401 })
   }
 
   if (!validateSlackSignature(signingSecret, signature, timestamp, rawBody)) {
-    logger.warn(`[${requestId}] Slack signature verification failed`)
+    logger.warn('Slack signature verification failed', { requestId })
     return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
   }
 
@@ -880,7 +880,7 @@ export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret) {
-      logger.warn(`[${requestId}] Slack webhook signing secret not configured`)
+      logger.warn('Slack webhook signing secret not configured', { requestId })
       return new NextResponse('Unauthorized - Missing Slack signing secret', { status: 401 })
     }
     return verifySlackRequestSignature(signingSecret, request, rawBody, requestId)

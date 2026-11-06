@@ -80,3 +80,15 @@ export function getServiceAccountConnectNoun(providerId: string): string {
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'
 }
+
+/** These provider credentials represent individual members in organization Search. */
+export const PERSONAL_ORGANIZATION_SERVICE_ACCOUNT_PROVIDER_IDS = [
+  'jama-service-account',
+  'flow-service-account',
+] as const
+
+export function isPersonalOrganizationServiceAccount(
+  providerId: string | null | undefined
+): boolean {
+  return PERSONAL_ORGANIZATION_SERVICE_ACCOUNT_PROVIDER_IDS.some((id) => id === providerId)
+}

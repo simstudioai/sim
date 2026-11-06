@@ -24,7 +24,6 @@ import { workspaceApiKeyErrorPolicy } from '@/lib/api-key/management-error-polic
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   capabilityRefusal,
@@ -68,13 +67,12 @@ export const GET = defineInternalJsonRoute({
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key creation attempt`)
+        logger.warn('Unauthorized workspace API key creation attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -117,13 +115,13 @@ export const POST = withRouteHandler(
         }
       )
 
-      logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
+      logger.info(`Created workspace API key: ${name} in workspace ${workspaceId}`)
 
       return NextResponse.json({
         key: result.key,
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key POST error`, error)
+      logger.error('Workspace API key POST error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to create workspace API key') },
         { status: 500 }
@@ -134,13 +132,12 @@ export const POST = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key deletion attempt`)
+        logger.warn('Unauthorized workspace API key deletion attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -183,9 +180,7 @@ export const DELETE = withRouteHandler(
         // Telemetry should not fail the operation
       }
 
-      logger.info(
-        `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`
-      )
+      logger.info(`Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`)
 
       recordAudit({
         workspaceId,
@@ -201,7 +196,7 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true, deletedCount })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key DELETE error`, error)
+      logger.error('Workspace API key DELETE error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to delete workspace API keys') },
         { status: 500 }

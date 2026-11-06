@@ -111,7 +111,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error getting row:`, error)
+    logger.error('Error getting row:', error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
 })
@@ -204,7 +204,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const classified = orchestrationErrorResponse(error)
     if (classified) return classified
 
-    logger.error(`[${requestId}] Error updating row:`, error)
+    logger.error('Error updating row:', error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
 })
@@ -257,7 +257,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     if (lockError) return lockError
     const classified = orchestrationErrorResponse(error)
     if (classified) return classified
-    logger.error(`[${requestId}] Error deleting row:`, error)
+    logger.error('Error deleting row:', error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
 })

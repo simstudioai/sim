@@ -58,7 +58,7 @@ export const POST = withRouteHandler(
 
       await assertWorkflowMutable(id)
 
-      logger.info(`[${requestId}] Deploying workflow ${id} via v1 API`, { userId })
+      logger.info(`Deploying workflow ${id} via v1 API`, { userId })
 
       const result = await performFullDeploy({
         workflowId: id,
@@ -100,7 +100,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow deploy error`, { error: message })
+      logger.error('Workflow deploy error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }
@@ -135,7 +135,7 @@ export const DELETE = withRouteHandler(
 
       await assertWorkflowMutable(id)
 
-      logger.info(`[${requestId}] Undeploying workflow ${id} via v1 API`, { userId })
+      logger.info(`Undeploying workflow ${id} via v1 API`, { userId })
 
       const result = await performFullUndeploy({ workflowId: id, userId, requestId })
       if (!result.success) {
@@ -172,7 +172,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow undeploy error`, { error: message })
+      logger.error('Workflow undeploy error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

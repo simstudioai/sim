@@ -153,10 +153,7 @@ export async function resolveDocumentInput(
         }
       }
     } else if (fileUrl.startsWith('/')) {
-      logger.warn(`[${requestId}] Invalid internal path`, {
-        userId,
-        path: fileUrl.substring(0, 50),
-      })
+      logger.warn('Invalid internal path', { requestId, userId, path: fileUrl.substring(0, 50) })
       return {
         ok: false,
         response: NextResponse.json(
@@ -170,7 +167,8 @@ export async function resolveDocumentInput(
     } else {
       const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL', 'contentFetch')
       if (!urlValidation.isValid) {
-        logger.warn(`[${requestId}] SSRF attempt blocked`, {
+        logger.warn('SSRF attempt blocked', {
+          requestId,
           userId,
           url: fileUrl.substring(0, 100),
           error: urlValidation.error,

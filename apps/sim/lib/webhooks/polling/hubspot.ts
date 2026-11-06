@@ -212,7 +212,7 @@ export const hubspotPollingHandler: PollingProviderHandler = {
       if (error instanceof PollAdmissionRefusedError) {
         return skipAdmissionRefusedPoll(logger, requestId, webhookId)
       }
-      logger.error(`[${requestId}] Error processing HubSpot webhook ${webhookId}:`, error)
+      logger.error(`Error processing HubSpot webhook ${webhookId}:`, error, { requestId })
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -265,7 +265,8 @@ async function pollSearchBased(
     )
     await markWebhookSuccess(webhookId, logger)
     logger.info(
-      `[${requestId}] Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`
+      `Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`,
+      { requestId }
     )
     return 'success'
   }
@@ -305,12 +306,13 @@ async function pollSearchBased(
       logger
     )
     await markWebhookSuccess(webhookId, logger)
-    logger.info(`[${requestId}] No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`)
+    logger.info(`No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`, { requestId })
     return 'success'
   }
 
   logger.info(
-    `[${requestId}] Found ${records.length} HubSpot ${objectType} ${eventType} candidates for webhook ${webhookId}`
+    `Found ${records.length} HubSpot ${objectType} ${eventType} candidates for webhook ${webhookId}`,
+    { requestId }
   )
 
   const targetProperty = config.targetPropertyName?.trim() || undefined
@@ -348,15 +350,16 @@ async function pollSearchBased(
 
   if (failedCount > 0 && processedCount === 0) {
     await markWebhookFailed(webhookId, logger)
-    logger.warn(
-      `[${requestId}] All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`
-    )
+    logger.warn(`All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`, {
+      requestId,
+    })
     return 'failure'
   }
 
   await markWebhookSuccess(webhookId, logger)
   logger.info(
-    `[${requestId}] Processed ${processedCount} HubSpot records${skippedCount ? `, skipped ${skippedCount} (no property change)` : ''}${failedCount ? `, ${failedCount} failed` : ''} for webhook ${webhookId}`
+    `Processed ${processedCount} HubSpot records${skippedCount ? `, skipped ${skippedCount} (no property change)` : ''}${failedCount ? `, ${failedCount} failed` : ''} for webhook ${webhookId}`,
+    { requestId }
   )
   return 'success'
 }
@@ -403,12 +406,13 @@ async function pollListMembership(
     }
     if (result.reachedEnd) {
       update.membershipSeedComplete = true
-      logger.info(
-        `[${requestId}] HubSpot list_membership ${webhookId} seed complete (list=${listId})`
-      )
+      logger.info(`HubSpot list_membership ${webhookId} seed complete (list=${listId})`, {
+        requestId,
+      })
     } else {
       logger.info(
-        `[${requestId}] HubSpot list_membership ${webhookId} seed in progress (list=${listId}, scanned ${result.scanned})`
+        `HubSpot list_membership ${webhookId} seed in progress (list=${listId}, scanned ${result.scanned})`,
+        { requestId }
       )
     }
     await updateWebhookProviderConfig(webhookId, update, logger)
@@ -429,9 +433,9 @@ async function pollListMembership(
     return 'success'
   }
 
-  logger.info(
-    `[${requestId}] Found ${result.records.length} HubSpot list memberships for webhook ${webhookId}`
-  )
+  logger.info(`Found ${result.records.length} HubSpot list memberships for webhook ${webhookId}`, {
+    requestId,
+  })
 
   let processedCount = 0
   let failedCount = 0
@@ -470,8 +474,9 @@ async function pollListMembership(
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       failedCount++
       logger.error(
-        `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
-        getErrorMessage(error, 'Unknown error')
+        `Error processing HubSpot list membership ${member.recordId}:`,
+        getErrorMessage(error, 'Unknown error'),
+        { requestId }
       )
     }
   }
@@ -585,10 +590,10 @@ export function buildUserFilters(
         }
       }
     } catch (error) {
-      logger?.warn(
-        `[${requestId ?? ''}] Could not parse user filters as JSON, ignoring:`,
-        getErrorMessage(error, 'parse error')
-      )
+      logger?.warn('Could not parse user filters as JSON, ignoring:', {
+        requestId,
+        error: getErrorMessage(error, 'parse error'),
+      })
     }
   }
 
@@ -702,7 +707,8 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '')
-      logger.error(`[${requestId}] HubSpot search API error:`, {
+      logger.error('HubSpot search API error:', {
+        requestId,
         status: response.status,
         objectType,
         error: errorBody,
@@ -719,7 +725,8 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     if (accumulated.length >= maxRecords) break
     if (pages >= MAX_PAGES_PER_POLL) {
       logger.warn(
-        `[${requestId}] HubSpot poll hit MAX_PAGES_PER_POLL=${MAX_PAGES_PER_POLL} — remaining records will roll over to next poll`
+        `HubSpot poll hit MAX_PAGES_PER_POLL=${MAX_PAGES_PER_POLL} — remaining records will roll over to next poll`,
+        { requestId }
       )
       break
     }
@@ -858,8 +865,9 @@ async function processRecords(
         failedCount++
         cursorFrozen = true
         logger.error(
-          `[${requestId}] Error processing HubSpot ${objectType} ${record.id}:`,
-          getErrorMessage(error, 'Unknown error')
+          `Error processing HubSpot ${objectType} ${record.id}:`,
+          getErrorMessage(error, 'Unknown error'),
+          { requestId }
         )
       }
     }
@@ -943,9 +951,9 @@ async function fetchListMembershipPages(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      logger.error(
-        `[${requestId}] HubSpot list memberships fetch failed ${response.status}: ${errorText}`
-      )
+      logger.error(`HubSpot list memberships fetch failed ${response.status}: ${errorText}`, {
+        requestId,
+      })
       throw new Error(
         `HubSpot list memberships fetch ${response.status}: ${errorText.slice(0, 500)}`
       )

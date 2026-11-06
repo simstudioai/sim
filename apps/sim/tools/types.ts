@@ -143,6 +143,7 @@ export interface OAuthConfig {
     | 'cloudId'
     | 'credentialType'
     | 'domain'
+    | 'providerWorkspaceId'
     | 'idToken'
     | 'instanceUrl'
     | 'realmId'

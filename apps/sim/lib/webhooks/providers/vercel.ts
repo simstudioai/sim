@@ -27,7 +27,7 @@ export const vercelHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secret = (providerConfig.webhookSecret as string | undefined)?.trim()
     if (!secret) {
-      logger.warn(`[${requestId}] Vercel webhook secret missing; rejecting delivery`)
+      logger.warn('Vercel webhook secret missing; rejecting delivery', { requestId })
       return new NextResponse(
         'Unauthorized - Vercel webhook signing secret is not configured. Re-save the trigger so a webhook can be registered.',
         { status: 401 }
@@ -36,12 +36,12 @@ export const vercelHandler: WebhookProviderHandler = {
 
     const signature = request.headers.get('x-vercel-signature')
     if (!signature) {
-      logger.warn(`[${requestId}] Vercel webhook missing x-vercel-signature header`)
+      logger.warn('Vercel webhook missing x-vercel-signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Vercel signature', { status: 401 })
     }
 
     if (!verifyVercelSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Vercel signature verification failed`)
+      logger.warn('Vercel signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Vercel signature', { status: 401 })
     }
 
@@ -56,7 +56,8 @@ export const vercelHandler: WebhookProviderHandler = {
     if (triggerId && triggerId !== 'vercel_webhook') {
       const { isVercelEventMatch } = await import('@/triggers/vercel/utils')
       if (!isVercelEventMatch(triggerId, eventType)) {
-        logger.debug(`[${requestId}] Vercel event mismatch for trigger ${triggerId}. Skipping.`, {
+        logger.debug(`Vercel event mismatch for trigger ${triggerId}. Skipping.`, {
+          requestId,
           webhookId: webhook.id,
           workflowId: workflow.id,
           triggerId,
@@ -112,7 +113,8 @@ export const vercelHandler: WebhookProviderHandler = {
           : undefined
       const notificationUrl = getNotificationUrl(webhook)
 
-      logger.info(`[${requestId}] Creating Vercel webhook`, {
+      logger.info('Creating Vercel webhook', {
+        requestId,
         triggerId,
         events,
         hasTeamId: !!teamId,
@@ -181,10 +183,10 @@ export const vercelHandler: WebhookProviderHandler = {
         throw new Error('Vercel webhook creation succeeded but no webhook ID was returned')
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Vercel for webhook ${webhook.id}.`,
-        { vercelWebhookId: externalId }
-      )
+      logger.info(`Successfully created webhook in Vercel for webhook ${webhook.id}.`, {
+        requestId,
+        vercelWebhookId: externalId,
+      })
 
       const signingSecret = responseBody.secret as string | undefined
       if (!signingSecret) {
@@ -202,10 +204,11 @@ export const vercelHandler: WebhookProviderHandler = {
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Vercel webhook creation for webhook ${webhook.id}.`,
-        { message: err.message, stack: err.stack }
-      )
+      logger.error(`Exception during Vercel webhook creation for webhook ${webhook.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -220,7 +223,8 @@ export const vercelHandler: WebhookProviderHandler = {
 
       if (!apiKey || !externalId) {
         logger.warn(
-          `[${requestId}] Missing apiKey or externalId for Vercel webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing apiKey or externalId for Vercel webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Missing Vercel webhook deletion credentials')
         return
@@ -238,16 +242,16 @@ export const vercelHandler: WebhookProviderHandler = {
       })
 
       if (!response.ok && response.status !== 404) {
-        logger.warn(
-          `[${requestId}] Failed to delete Vercel webhook (non-fatal): ${response.status}`
-        )
+        logger.warn(`Failed to delete Vercel webhook (non-fatal): ${response.status}`, {
+          requestId,
+        })
         if (ctx.strict) throw new Error(`Failed to delete Vercel webhook: ${response.status}`)
       } else {
         await response.body?.cancel()
-        logger.info(`[${requestId}] Successfully deleted Vercel webhook ${externalId}`)
+        logger.info(`Successfully deleted Vercel webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Vercel webhook (non-fatal)`, error)
+      logger.warn('Error deleting Vercel webhook (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },
