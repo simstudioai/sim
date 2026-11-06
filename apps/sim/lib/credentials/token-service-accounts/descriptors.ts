@@ -534,11 +534,12 @@ export function getTokenServiceAccountDescriptor(
  * given provider. Provider-specific copy is inherited from the descriptor
  * (token noun, service label, and the optional `invalidCredentialsHelp`
  * override) rather than hard-coded in the shared connect modal. An
- * unknown/absent code falls back to a generic retry message.
+ * unknown/absent code uses the caller's fallback or a generic retry message.
  */
 export function getTokenServiceAccountErrorMessage(
   descriptor: TokenServiceAccountDescriptor,
-  code: string | undefined
+  code: string | undefined,
+  fallbackMessage = "We couldn't add this credential. Try again in a moment."
 ): string {
   switch (code) {
     case 'invalid_credentials':
@@ -553,6 +554,6 @@ export function getTokenServiceAccountErrorMessage(
     case 'duplicate_display_name':
       return 'A credential with that name already exists in this workspace.'
     default:
-      return "We couldn't add this credential. Try again in a moment."
+      return fallbackMessage
   }
 }
