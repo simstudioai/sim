@@ -888,10 +888,15 @@ export const FlowBlock: BlockConfig = {
       tool: (params) => `flow_${params.operation || 'search_entities'}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
+        result.limit =
+          params.limit == null || (typeof params.limit === 'string' && !params.limit.trim())
+            ? undefined
+            : Number(params.limit)
         for (const key of ['includeResolved', 'resolved', 'isVariant']) {
-          if (params[key] != null && params[key] !== '')
-            result[key] = params[key] === true || params[key] === 'true'
+          result[key] =
+            params[key] == null || params[key] === ''
+              ? undefined
+              : params[key] === true || params[key] === 'true'
         }
         return result
       },

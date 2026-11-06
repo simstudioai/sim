@@ -70,7 +70,7 @@ export function useConnectPersonalSearchIntegration() {
   })
 }
 
-/** Saves a member-owned provider credential and refreshes both Search connection inventories. */
+/** Saves a member-owned provider credential and clears Search content fetched with prior access. */
 export function useSavePersonalSearchCredential() {
   const client = useQueryClient()
   return useMutation({
@@ -82,12 +82,7 @@ export function useSavePersonalSearchCredential() {
           queryKey: organizationAccountsKeys.detail(body.organizationId),
         }),
         client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
-        client.invalidateQueries({
-          queryKey: searchSourceKeys.list({
-            kind: 'organization',
-            organizationId: body.organizationId,
-          }),
-        }),
+        resetOrganizationSearchAccess(client, body.organizationId),
       ]),
   })
 }

@@ -54,6 +54,7 @@ describe('Flow live entity boundary', () => {
     })
     const page = await searchFlow(api, input, ORIGIN)
     expect(page.documents).toHaveLength(1)
+    expect(page.documents[0]?.title).toBe('REQ-1 · Operating temperature')
     expect(page.documents[0]?.content).toContain('Operate below 85 C.')
     expect(page.documents[0]?.modifiedAt).toBe(entity.updatedAt)
     expect(page.documents[0]?.url).toBe(`${ORIGIN}/project/${PROJECT_ID}/entities/${ENTITY_ID}`)

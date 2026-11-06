@@ -64,6 +64,8 @@ export const flowSetValueTool: ToolConfig<FlowSetValueParams, FlowSetValueRespon
     headers: flowHeaders,
     redirectPolicy: () => FLOW_REDIRECT_POLICY,
     body: (params) => {
+      const key = params.fieldKey.trim()
+      if (!key) throw new Error('Field key is required')
       if (typeof params.value !== 'string') throw new Error('Value must be JSON text')
       let value: unknown
       try {
@@ -72,7 +74,7 @@ export const flowSetValueTool: ToolConfig<FlowSetValueParams, FlowSetValueRespon
         throw new Error('Value must be valid JSON; wrap text values in double quotes')
       }
       return {
-        key: params.fieldKey.trim(),
+        key,
         value,
         branchId: params.branchId?.trim() || undefined,
       }

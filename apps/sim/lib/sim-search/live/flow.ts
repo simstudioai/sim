@@ -18,7 +18,7 @@ function itemDocument(
   row: Record<string, unknown>,
   origin: string,
   project?: string,
-  title?: string
+  humanId?: string
 ): NativeDocument | undefined {
   const id = string(row.id)
   if (!id || row.deleted === true || !isRecordLike(row.values)) return undefined
@@ -41,7 +41,7 @@ function itemDocument(
     id,
     container: project,
     kind: string(row.type) || 'item',
-    title: title || string(values.name) || `Item ${id}`,
+    title: [humanId, string(values.name) || `Item ${id}`].filter(Boolean).join(' · '),
     url: new URL(`/project/${segment(project ?? '')}/entities/${segment(id)}`, origin).toString(),
     content: truncate(
       [
@@ -86,14 +86,7 @@ async function searchProject(
   const byId = new Map(array(details).map((row) => [string(row.id), row]))
   const documents = hits.flatMap((hit) => {
     const row = byId.get(string(hit.entity_id))
-    const document =
-      row &&
-      itemDocument(
-        row,
-        origin,
-        project,
-        [string(hit.human_id), string(hit.name)].filter(Boolean).join(' · ')
-      )
+    const document = row && itemDocument(row, origin, project, string(hit.human_id))
     return document ? [document] : []
   })
   return {

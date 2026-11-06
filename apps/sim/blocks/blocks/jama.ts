@@ -708,12 +708,12 @@ export const JamaBlock: BlockConfig = {
     items: {
       type: 'json',
       description:
-        'List Items, Search Items, or List Baseline Items results (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
+        'Item list and search results (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
     },
     item: {
       type: 'json',
       description:
-        'Get Item Version result (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
+        'Get Item or Get Item Version result (id, documentKey, globalId, itemType, project, createdDate, modifiedDate, lastActivityDate, createdBy, modifiedBy, fields, version)',
     },
     id: { type: 'number', description: 'Created resource ID' },
     location: { type: 'string', description: 'Created resource API URL' },
