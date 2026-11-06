@@ -1,6 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { expect, test } from '@playwright/test'
-import { omit } from '@sim/utils/object'
 
 /**
  * Starts the zone's real production build as its own process, the way a container does, under the
@@ -27,7 +26,10 @@ function startZone(env: Record<string, string>) {
     ],
     {
       env: {
-        ...omit(process.env, ['SIM_PLATFORM_API_ORIGIN', 'SIM_PLATFORM_FIXTURES', 'NODE_ENV']),
+        ...process.env,
+        NODE_ENV: 'production',
+        SIM_PLATFORM_API_ORIGIN: undefined,
+        SIM_PLATFORM_FIXTURES: undefined,
         SIM_PLATFORM_BASE_PATH: '/org',
         ...env,
       },

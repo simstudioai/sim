@@ -352,7 +352,6 @@ describe('Platform zone outage', () => {
   })
 
   afterEach(async () => {
-    vi.unstubAllEnvs()
     setEnv({ SIM_PLATFORM_ORIGIN: undefined })
     answer = 404
     await Promise.all(

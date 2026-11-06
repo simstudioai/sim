@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveLiveLanding } from '@/platform/lib/data/landing'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
@@ -31,10 +31,6 @@ describe('resolveLiveLanding', () => {
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH', '/org')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', ORIGIN)
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
   })
 
   it('sends an organization outside the rollout back to the main app, out of the zone', async () => {
