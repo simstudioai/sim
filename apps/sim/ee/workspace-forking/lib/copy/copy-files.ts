@@ -9,6 +9,7 @@ import {
   lockWorkspaceStorageForMutationInTx,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   allocateUniqueWorkspaceFileName,
@@ -270,7 +271,7 @@ export async function planForkFileCopies(params: {
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
-  requestId = 'unknown',
+  requestId = generateRequestId(),
   contentRefMaps?: ForkContentRefMaps,
   control?: ForkCopyControl
 ): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {

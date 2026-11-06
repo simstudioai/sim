@@ -129,11 +129,21 @@ const TRANSPARENT_WRAPPERS = new Set([
 type Node = { type: string; loc?: { start: { line: number } }; [key: string]: unknown }
 
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error'])
-/** Names a logger is bound to: `logger`, `log`, `routeLogger`, `this.logger`. */
-const LOGGER_RECEIVER = /^(?:logger|log|[a-z][A-Za-z]*Logger)$/
+/** Names a logger is bound to: `logger`, `log`, `log2`, `routeLogger`, `childLog`, `this.logger`. */
+const LOGGER_NAME = /^(?:log|logger|[a-z][A-Za-z0-9]*(?:Log|Logger))\d*$/
+/** Helpers that log a message for their caller, handed its logger first: `logFailureOnce`. */
+const LOGGING_HELPER = /^log[A-Z]/
 /** Message text before its first interpolation that leaves a tag open: `[`, `[Cascade] [`. */
 const OPEN_TAG = /^(?:\[[^\]]*\]\s*)*\[$/
-const REQUEST_ID_NAME = /requestId$/i
+const REQUEST_ID_NAMES = new Set(['requestId', 'reqId'])
+const FUNCTION_NODES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+  'ClassPrivateMethod',
+])
 
 function walk(node: unknown, visit: (node: Node) => void): void {
   if (!node || typeof node !== 'object') return
@@ -551,46 +561,72 @@ function isContractCopy(file: string, source: string): boolean {
   return file.startsWith(CONTRACT_COPY_DIR) && source.startsWith(CONTRACT_COPY_HEADER)
 }
 
-/** `logger` for `logger` and `this.logger`; undefined for anything that is not a plain name. */
+function isMemberExpression(node: Node): boolean {
+  return node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
+}
+
+function isCallExpression(node: Node): boolean {
+  return node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
+}
+
+/** `logger` for `logger`, `this.logger` and `a?.logger`; undefined for anything else. */
 function boundName(node: Node): string | undefined {
   if (node.type === 'Identifier') return node.name as string
-  const member = node.property as Node | undefined
-  return node.type === 'MemberExpression' && !node.computed && member?.type === 'Identifier'
-    ? (member.name as string)
+  const property = node.property as Node | undefined
+  return isMemberExpression(node) && !node.computed && property?.type === 'Identifier'
+    ? (property.name as string)
     : undefined
 }
 
+/** A logger by name, or one derived from it with `withMetadata(…)`. */
 function isLogger(node: Node | undefined): boolean {
-  const name = node && boundName(node)
-  return name !== undefined && LOGGER_RECEIVER.test(name)
+  const current = unwrap(node)
+  if (!current) return false
+  if (isCallExpression(current)) {
+    const callee = unwrap(current.callee as Node)
+    return (
+      callee !== undefined &&
+      isMemberExpression(callee) &&
+      boundName(callee) === 'withMetadata' &&
+      isLogger(callee.object as Node)
+    )
+  }
+  const name = boundName(current)
+  return name !== undefined && LOGGER_NAME.test(name)
 }
 
 /**
- * The message a call logs: the first argument of `logger.info(…)` and its siblings, or the second
- * of a helper handed the caller's logger, such as `logFailureOnce(logger, message, error)`.
+ * The message a call logs: the first argument of `logger.info(…)`, `logger?.warn(…)` or
+ * `logger[level](…)`, or the second of `logFn.call(logger, message)` and of a `log*` helper handed
+ * the caller's logger, such as `logFailureOnce(logger, message, error)`.
  */
-function loggedMessage(node: Node): Node | undefined {
-  const callee = node.callee as Node
-  const args = node.arguments as Node[]
-  const level = callee.property as Node | undefined
-  if (
-    callee.type === 'MemberExpression' &&
-    !callee.computed &&
-    level?.type === 'Identifier' &&
-    LOG_LEVELS.has(level.name as string) &&
-    isLogger(callee.object as Node)
-  ) {
-    return args[0]
+function loggedMessage(call: Node): Node | undefined {
+  const callee = unwrap(call.callee as Node)
+  const args = call.arguments as Node[]
+  if (!callee) return undefined
+  if (isMemberExpression(callee) && isLogger(callee.object as Node)) {
+    const level = boundName(callee)
+    return callee.computed || (level !== undefined && LOG_LEVELS.has(level)) ? args[0] : undefined
   }
-  return isLogger(args[0]) ? args[1] : undefined
+  const handsLogger = isLogger(args[0])
+  if (isMemberExpression(callee) && boundName(callee) === 'call')
+    return handsLogger ? args[1] : undefined
+  return callee.type === 'Identifier' && LOGGING_HELPER.test(callee.name as string) && handsLogger
+    ? args[1]
+    : undefined
 }
 
-function mentionsRequestId(expression: Node): boolean {
-  let found = false
-  walk(expression, (node) => {
-    if (node.type === 'Identifier' && REQUEST_ID_NAME.test(node.name as string)) found = true
-  })
-  return found
+/** `${requestId}`, `${ctx.requestId}`, `${requestId ?? 'unknown'}`: an interpolated request id. */
+function isRequestIdReference(expression: Node): boolean {
+  let current = unwrap(expression)
+  while (
+    current?.type === 'LogicalExpression' &&
+    (current.operator === '??' || current.operator === '||')
+  ) {
+    current = unwrap(current.left as Node)
+  }
+  const name = current && boundName(current)
+  return name !== undefined && REQUEST_ID_NAMES.has(name)
 }
 
 /** A message's parts in order: static text as strings, interpolations as nodes. */
@@ -613,88 +649,139 @@ function messageParts(message: Node): Array<string | Node> | undefined {
 }
 
 /**
- * Whether a message opens with an interpolated tag or interpolates a request id anywhere. An
- * interpolated local `const` counts as what it holds, so `${logPrefix}Saved` is checked as the
- * `[${requestId}] ` it was built from.
+ * Local bindings by function, so a message or prefix built before the call is checked where it is
+ * logged. A parameter is recorded without a value: it shadows an outer binding of the same name.
  */
-function isTaggedMessage(message: Node, inits: Map<string, Node[]>, seen: Set<string>): boolean {
-  const parts = messageParts(message)
-  if (!parts) return false
-  const firstInterpolation = parts.findIndex((part) => typeof part !== 'string')
-  if (firstInterpolation === -1) return false
-  const lead = parts
-    .slice(0, firstInterpolation)
-    .filter((part): part is string => typeof part === 'string')
-    .join('')
-  if (OPEN_TAG.test(lead)) return true
-  return parts.some(
-    (part) =>
-      typeof part !== 'string' &&
-      (mentionsRequestId(part) ||
-        (part.type === 'Identifier' &&
-          messageCandidates(part, inits, seen).some(
-            (candidate) => candidate !== part && isTaggedMessage(candidate, inits, seen)
-          )))
-  )
-}
+type Bindings = Map<string, Node[]>
 
-/** `const` initializers by name, so a message built before the call is checked where it is logged. */
-function constInitializers(program: Node): Map<string, Node[]> {
-  const inits = new Map<string, Node[]>()
-  walk(program, (node) => {
-    if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
-    for (const declarator of node.declarations as Node[]) {
-      const id = declarator.id as Node
-      const init = declarator.init as Node | null
-      if (id.type !== 'Identifier' || !init) continue
-      inits.set(id.name as string, [...(inits.get(id.name as string) ?? []), init])
-    }
-  })
-  return inits
-}
+class MessageResolver {
+  private readonly bindings = new Map<Node, Bindings>()
 
-/** The message's possible values: both arms of a ternary, and a local `const` it names. */
-function messageCandidates(
-  message: Node,
-  inits: Map<string, Node[]>,
-  seen = new Set<string>()
-): Node[] {
-  const current = unwrap(message) ?? message
-  if (current.type === 'ConditionalExpression') {
-    return [
-      ...messageCandidates(current.consequent as Node, inits, seen),
-      ...messageCandidates(current.alternate as Node, inits, seen),
-    ]
+  constructor(program: Node) {
+    this.collect(program, program)
   }
-  if (current.type === 'Identifier' && !seen.has(current.name as string)) {
-    seen.add(current.name as string)
-    return (inits.get(current.name as string) ?? []).flatMap((init) =>
-      messageCandidates(init, inits, seen)
+
+  private declare(scope: Node, name: string, init?: Node): void {
+    const names = this.bindings.get(scope) ?? new Map<string, Node[]>()
+    names.set(name, [...(names.get(name) ?? []), ...(init ? [init] : [])])
+    this.bindings.set(scope, names)
+  }
+
+  private collect(node: unknown, scope: Node): void {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) this.collect(child, scope)
+      return
+    }
+    const current = node as Node
+    let inner = scope
+    if (FUNCTION_NODES.has(current.type)) {
+      inner = current
+      for (const param of (current.params as Node[]) ?? []) {
+        if (param.type === 'Identifier') this.declare(inner, param.name as string)
+      }
+    }
+    if (current.type === 'VariableDeclaration' && current.kind !== 'var') {
+      for (const declarator of current.declarations as Node[]) {
+        const id = declarator.id as Node
+        if (id.type === 'Identifier') {
+          this.declare(scope, id.name as string, (declarator.init as Node | null) ?? undefined)
+        }
+      }
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === 'loc' || key === 'start' || key === 'end' || key === 'extra') continue
+      this.collect(value, inner)
+    }
+  }
+
+  /** What `name` holds where it is used: the nearest enclosing function that declares it wins. */
+  private resolve(name: string, scopes: Node[]): Node[] {
+    for (let index = scopes.length - 1; index >= 0; index--) {
+      const values = this.bindings.get(scopes[index])?.get(name)
+      if (values) return values
+    }
+    return []
+  }
+
+  /** The message's possible values: both arms of a ternary, and the local binding it names. */
+  candidates(message: Node, scopes: Node[], seen = new Set<string>()): Node[] {
+    const current = unwrap(message) ?? message
+    if (current.type === 'ConditionalExpression') {
+      return [
+        ...this.candidates(current.consequent as Node, scopes, seen),
+        ...this.candidates(current.alternate as Node, scopes, seen),
+      ]
+    }
+    if (current.type === 'Identifier' && !seen.has(current.name as string)) {
+      seen.add(current.name as string)
+      return this.resolve(current.name as string, scopes).flatMap((init) =>
+        this.candidates(init, scopes, seen)
+      )
+    }
+    return [current]
+  }
+
+  /**
+   * Whether a message opens with an interpolated tag or interpolates a request id. An interpolated
+   * local binding counts as what it holds, so `${logPrefix}Saved` is checked as the
+   * `[${requestId}] ` it was built from.
+   */
+  isTagged(message: Node, scopes: Node[], seen: Set<string>): boolean {
+    const parts = messageParts(message)
+    if (!parts) return false
+    const firstInterpolation = parts.findIndex((part) => typeof part !== 'string')
+    if (firstInterpolation === -1) return false
+    const lead = parts
+      .slice(0, firstInterpolation)
+      .filter((part): part is string => typeof part === 'string')
+      .join('')
+    if (OPEN_TAG.test(lead)) return true
+    return parts.some(
+      (part) =>
+        typeof part !== 'string' &&
+        (isRequestIdReference(part) ||
+          (part.type === 'Identifier' &&
+            this.candidates(part, scopes, seen).some(
+              (candidate) => candidate !== part && this.isTagged(candidate, scopes, seen)
+            )))
     )
   }
-  return [current]
 }
 
 function findLogMessageTags(file: string, source: string, program: Node): Violation[] {
   const violations: Violation[] = []
-  const inits = constInitializers(program)
-  walk(program, (node) => {
-    if (node.type !== 'CallExpression') return
-    const message = loggedMessage(node)
-    if (!message) return
-    const seen = new Set<string>()
-    const tagged = messageCandidates(message, inits, seen).find((candidate) =>
-      isTaggedMessage(candidate, inits, seen)
-    )
-    if (!tagged) return
-    const text = source.slice(tagged.start as number, tagged.end as number).replace(/\s+/g, ' ')
-    violations.push({
-      rule: 'log-message-tag',
-      file,
-      line: lineOf(node),
-      detail: text.length > 80 ? `${text.slice(0, 77)}...` : text,
-    })
-  })
+  const resolver = new MessageResolver(program)
+  const visit = (node: unknown, scopes: Node[]): void => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child, scopes)
+      return
+    }
+    const current = node as Node
+    const inner = FUNCTION_NODES.has(current.type) ? [...scopes, current] : scopes
+    const message = isCallExpression(current) ? loggedMessage(current) : undefined
+    if (message) {
+      const seen = new Set<string>()
+      const tagged = resolver
+        .candidates(message, inner, seen)
+        .find((candidate) => resolver.isTagged(candidate, inner, seen))
+      if (tagged) {
+        const text = source.slice(tagged.start as number, tagged.end as number).replace(/\s+/g, ' ')
+        violations.push({
+          rule: 'log-message-tag',
+          file,
+          line: lineOf(current),
+          detail: text.length > 80 ? `${text.slice(0, 77)}...` : text,
+        })
+      }
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === 'loc' || key === 'start' || key === 'end' || key === 'extra') continue
+      visit(value, inner)
+    }
+  }
+  visit(program, [program])
   return violations
 }
 

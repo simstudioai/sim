@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
@@ -444,7 +445,7 @@ async function resolveBase64(
     return { base64: null }
   }
 
-  const requestId = options.requestId ?? 'unknown'
+  const requestId = options.requestId ?? generateRequestId()
   try {
     const result = await readUserFileContentWithContributors(file, {
       requestId,

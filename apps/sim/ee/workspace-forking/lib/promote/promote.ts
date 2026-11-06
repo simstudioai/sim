@@ -9,6 +9,7 @@ import type {
   ForkSyncBlocker,
   PromoteCopyResources,
 } from '@/lib/api/contracts/workspace-fork'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { isFolderPathEffectivelyLocked } from '@/lib/folders/paths'
@@ -510,7 +511,7 @@ function groupDependentOverrides(
  */
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
-  const requestId = params.requestId ?? 'unknown'
+  const requestId = params.requestId ?? generateRequestId()
   const admission = params.admission
   const revisionScope = { sourceWorkspaceId, targetWorkspaceId, edge }
   if (admission) {

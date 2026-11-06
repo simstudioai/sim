@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -146,7 +147,7 @@ const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType
  * all credential references) are cleared; env-var references are preserved.
  */
 export async function createFork(params: CreateForkParams): Promise<CreateForkResult> {
-  const { source, policy, userId, requestId = 'unknown' } = params
+  const { source, policy, userId, requestId = generateRequestId() } = params
   const admission = params.admission
   if (admission) {
     const receipt = await findWorkspaceOperationReceipt(

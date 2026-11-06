@@ -255,6 +255,8 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
       const source = arg as Record<string, unknown>
       for (const key of Object.keys(source)) {
         const value = source[key]
+        // An absent optional field must not erase one the line already carries, such as `requestId`.
+        if (value === undefined) continue
         if (value instanceof Error) {
           const logged = toLoggedError(value)
           entry[key] = logged.message
@@ -312,13 +314,17 @@ const tolerantReplacer = () => {
  * path — losing the line and aborting whatever was being logged about. A
  * logger must never be able to break its caller.
  */
-const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string => {
+const serializeEntry = (
+  base: Record<string, unknown>,
+  args: unknown[],
+  owned: Record<string, unknown>
+): string => {
   try {
-    return JSON.stringify(mergeArgs({ ...base }, args), errorReplacer(false))
+    return JSON.stringify({ ...mergeArgs({ ...base }, args), ...owned }, errorReplacer(false))
   } catch {}
 
   try {
-    return JSON.stringify(mergeArgs({ ...base }, args), tolerantReplacer())
+    return JSON.stringify({ ...mergeArgs({ ...base }, args), ...owned }, tolerantReplacer())
   } catch {}
 
   return minimalEntry(base)
@@ -442,7 +448,9 @@ export class Logger {
   /**
    * Creates a child logger with additional metadata merged in.
    * The child inherits this logger's module name, config, and existing metadata.
-   * New metadata keys override existing ones with the same name.
+   * New metadata keys override existing ones with the same name, except
+   * `requestId`: inside a request context the context's id is authoritative, so
+   * a bound or per-line `requestId` only names the request outside one.
    */
   withMetadata(metadata: LoggerMetadata): Logger {
     const child = Object.create(Logger.prototype) as Logger
@@ -491,8 +499,10 @@ export class Logger {
     const formattedArgs = this.formatArgs(args)
 
     const reqCtx = getRequestContext()
+    // The request context owns `requestId`: a per-line or bound one only names the request outside it.
+    const owned: LoggerMetadata = reqCtx ? { requestId: reqCtx.requestId } : {}
     const effectiveMetadata = reqCtx
-      ? { ...requestContextMetadata(reqCtx), ...this.metadata }
+      ? { ...requestContextMetadata(reqCtx), ...this.metadata, ...owned }
       : this.metadata
     emitOtelLogRecord(level, this.module, message, effectiveMetadata, args)
     const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
@@ -541,7 +551,7 @@ export class Logger {
         base[k] = v
       }
 
-      const line = serializeEntry(base, args)
+      const line = serializeEntry(base, args, owned)
       if (level === LogLevel.ERROR) {
         console.error(line)
       } else {

@@ -590,10 +590,10 @@ export function buildUserFilters(
         }
       }
     } catch (error) {
-      logger?.warn(
-        `[${requestId ?? ''}] Could not parse user filters as JSON, ignoring:`,
-        getErrorMessage(error, 'parse error')
-      )
+      logger?.warn('Could not parse user filters as JSON, ignoring:', {
+        requestId,
+        error: getErrorMessage(error, 'parse error'),
+      })
     }
   }
 

@@ -395,6 +395,43 @@ describe('log-message-tag', () => {
     expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4])
   })
 
+  it('sees optional calls, computed levels, derived loggers and log-named receivers', () => {
+    const source = withLogger(
+      `logger?.warn(\`[\${requestId}] Skipped\`)`,
+      `logger[level](\`[\${requestId}] Done\`)`,
+      `logger.withMetadata({ a }).info(\`[\${requestId}] Bound\`)`,
+      `childLog.error(\`[\${requestId}] Child\`)`,
+      `log2.info(\`Retry for \${reqId}\`)`
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([3, 4, 5, 6, 7])
+  })
+
+  it('follows a let prefix but resolves each name in its own function', () => {
+    const source = withLogger(
+      'function first() {',
+      `  let prefix = \`[\${requestId}] \``,
+      `  logger.info(\`\${prefix}Saved\`)`,
+      '}',
+      'function second(message) {',
+      '  logger.info(message)',
+      '}',
+      'function third() {',
+      "  const prefix = 'Sync: '",
+      `  logger.info(\`\${prefix}done\`)`,
+      '}'
+    )
+    expect(lines(MODULE, source, 'log-message-tag')).toEqual([5])
+  })
+
+  it('does not treat other uses of request ids or loggers as a tagged message', () => {
+    const source = withLogger(
+      `logger.info(\`Kept \${rows.filter((row) => row.requestId).length} rows\`)`,
+      `logger.info(\`Approved access request \${accessRequestId}\`)`,
+      `withSpan(logger, \`poll:\${requestId}\`, run)`
+    )
+    expect(hits(MODULE, source, 'log-message-tag')).toEqual([])
+  })
+
   it('allows static messages, static tags, ids in metadata and bracketed lists mid-message', () => {
     const source = withLogger(
       "logger.info('Started', { requestId })",

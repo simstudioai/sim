@@ -18,6 +18,7 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -117,7 +118,7 @@ export async function duplicateWorkflow(
     description,
     workspaceId,
     folderId,
-    requestId = 'unknown',
+    requestId = generateRequestId(),
     newWorkflowId: clientNewWorkflowId,
     tx: providedTx,
     workflowIdMap,

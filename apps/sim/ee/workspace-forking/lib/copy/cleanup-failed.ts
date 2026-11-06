@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
 import {
@@ -116,7 +117,7 @@ export async function clearFailedForkResourceReferences(params: {
   deployedTargetWorkflowIds?: string[]
   requestId?: string
 }): Promise<{ cleared: number; clearingFailed: boolean }> {
-  const { childWorkspaceId, failures, requestId = 'unknown' } = params
+  const { childWorkspaceId, failures, requestId = generateRequestId() } = params
   if (failures.length === 0) return { cleared: 0, clearingFailed: false }
 
   const failedKnowledgeBaseIds = failures.flatMap((failure) =>

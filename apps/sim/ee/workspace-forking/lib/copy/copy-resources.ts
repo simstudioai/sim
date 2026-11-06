@@ -42,6 +42,7 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type DurableSecretProvenance,
@@ -1113,7 +1114,7 @@ export async function copyForkResourceContent(params: {
   requestId?: string
   control?: ForkCopyControl
 }): Promise<{ copied: number; failed: number; failures: ForkFailedResource[] }> {
-  const { contentPlan, contentRefMaps, control, requestId = 'unknown' } = params
+  const { contentPlan, contentRefMaps, control, requestId = generateRequestId() } = params
   const { childWorkspaceId, userId } = contentPlan
 
   let copiedResources = 0
