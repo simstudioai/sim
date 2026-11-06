@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
@@ -47,8 +47,13 @@ export const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: stri
   { value: 'prod', label: 'Prod' },
 ]
 
+interface UseAdminConsoleOptions {
+  /** Told of a failed impersonation or workflow import, for a surface that reports them as events. */
+  onActionError?: (message: string) => void
+}
+
 /** Platform administration: settings, workflow import, and user management. */
-export function useAdminConsole() {
+export function useAdminConsole({ onActionError }: UseAdminConsoleOptions = {}) {
   const { data: session } = useSession()
 
   const { data: settings } = useGeneralSettings()
@@ -101,12 +106,11 @@ export function useAdminConsole() {
     setAdminParams({ q: trimmed.length > 0 ? trimmed : null, offset: null })
   }
 
-  const lastSyncedSearchRef = useRef(searchQuery)
-  useEffect(() => {
-    if (searchQuery === lastSyncedSearchRef.current) return
-    lastSyncedSearchRef.current = searchQuery
-    setSearchInput((current) => (current === searchQuery ? current : searchQuery))
-  }, [searchQuery])
+  const [syncedSearchQuery, setSyncedSearchQuery] = useState(searchQuery)
+  if (searchQuery !== syncedSearchQuery) {
+    setSyncedSearchQuery(searchQuery)
+    setSearchInput(searchQuery)
+  }
 
   const totalPages = Math.ceil((usersData?.total ?? 0) / PAGE_SIZE)
   const currentPage = Math.floor(usersOffset / PAGE_SIZE) + 1
@@ -132,6 +136,7 @@ export function useAdminConsole() {
     if (session?.user?.role !== 'admin') {
       setImpersonatingUserId(null)
       setImpersonationGuardError('Only admins can impersonate users.')
+      onActionError?.('Only admins can impersonate users.')
       return
     }
 
@@ -141,8 +146,9 @@ export function useAdminConsole() {
       impersonateUser.mutate(
         { userId },
         {
-          onError: () => {
+          onError: (error) => {
             setImpersonatingUserId(null)
+            onActionError?.(error.message)
           },
           onSuccess: async () => {
             recordImpersonation(email)
@@ -162,6 +168,7 @@ export function useAdminConsole() {
       { workflowId: sourceId, targetWorkspaceId: targetId },
       {
         onSuccess: discardImport,
+        onError: (error) => onActionError?.(error.message),
       }
     )
   }
