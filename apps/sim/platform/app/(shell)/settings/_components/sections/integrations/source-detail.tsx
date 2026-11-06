@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -44,7 +45,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 interface SourceDetailProps {
   connectorId: string

@@ -33,11 +33,11 @@ import {
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
-import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { queryView } from '@/platform/lib/data/query-view'
 import { reportFailure } from '@/platform/lib/notices'
 import { formatInstantDate } from '@/platform/lib/time'
@@ -131,7 +131,7 @@ function useUsageLimitDraft({
  * a plan: nothing here reports over-limit or blocked from a summary that did not load, so usage that
  * is merely unavailable never reads as usage that is over.
  */
-export function useBillingSection(organization: PlatformOrganization) {
+export function useBillingSection(organization: OrganizationSurfaceContext) {
   const organizationId = organization.organization.id
   const summary = useOrganizationBillingSummary(organizationId)
   const invoiceList = useInvoices({ context: 'organization', organizationId })

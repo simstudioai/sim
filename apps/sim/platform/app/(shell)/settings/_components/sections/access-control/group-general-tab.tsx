@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type {
+  PermissionGroup,
+  PermissionGroupWorkspaceRef,
+} from '@/ee/access-control/hooks/permission-groups'
 import { FieldStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { AddMembersModal } from '@/platform/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
@@ -21,8 +25,6 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  type PermissionGroup,
-  type PermissionGroupWorkspaceRef,
   useBulkAddPermissionGroupMembers,
   usePermissionGroupMembers,
   useRemovePermissionGroupMember,

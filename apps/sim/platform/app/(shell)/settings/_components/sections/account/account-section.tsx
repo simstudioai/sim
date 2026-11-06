@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { AuthorizedApps } from '@/platform/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/app/(shell)/settings/_components/sections/account/delete-account'
@@ -14,12 +15,11 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useAccountEmail, useResetPasswordAction } from '@/platform/lib/data/account'
-import type { PlatformOrganization } from '@/platform/lib/data/organization'
 import { useAnonymousViewer } from '@/platform/lib/data/organization'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface AccountSettingsRowsProps {
-  organization: PlatformOrganization
+  organization: OrganizationSurfaceContext
   privacyHref: string
   authorizedAppsHref: string
   organizationAccountsHref: string

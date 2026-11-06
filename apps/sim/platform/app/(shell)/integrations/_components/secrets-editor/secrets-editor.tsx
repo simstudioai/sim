@@ -14,6 +14,7 @@ import {
   updateEnvVarArray,
   validateEnvVarKey,
 } from '@/components/secrets/secret-rows'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
@@ -47,7 +48,6 @@ import {
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { useGenericSecrets } from '@/platform/lib/data/generic-secrets'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000

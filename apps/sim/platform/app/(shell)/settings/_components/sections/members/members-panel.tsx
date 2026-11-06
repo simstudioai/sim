@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
 import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
@@ -32,10 +33,9 @@ import {
 } from '@/platform/design-system/components/settings-section/settings-section'
 import { useMembers } from '@/platform/lib/data/members'
 import { filterRoster, type MemberRowModel } from '@/platform/lib/data/members-model'
-import type { PlatformOrganization } from '@/platform/lib/data/organization'
 
 interface MembersPanelProps {
-  organization: PlatformOrganization
+  organization: OrganizationSurfaceContext
 }
 
 const LOAD_FAILED = 'Failed to load organization members'

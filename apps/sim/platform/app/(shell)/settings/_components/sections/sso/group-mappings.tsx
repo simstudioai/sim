@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   useOrganizationWorkspaces,
@@ -42,7 +43,6 @@ import {
   Select,
 } from '@/platform/design-system/components'
 import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/lib/plural'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>

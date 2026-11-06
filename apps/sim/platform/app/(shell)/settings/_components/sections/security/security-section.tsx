@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import {
   useOrganizationSessionPolicy,
@@ -35,7 +36,6 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/lib/plural'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>

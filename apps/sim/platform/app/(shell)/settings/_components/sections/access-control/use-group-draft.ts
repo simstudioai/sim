@@ -3,13 +3,11 @@
 import { useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import type { PermissionGroup } from '@/ee/access-control/hooks/permission-groups'
+import { hasPermissionConfigChanges } from '@/ee/access-control/lib/editor'
 import { useServerDraft } from '@/platform/app/(shell)/_components/use-server-draft'
-import {
-  hasPermissionConfigChanges,
-  type PermissionGroup,
-  type PermissionGroupConfig,
-  useUpdatePermissionGroup,
-} from '@/platform/lib/data/access-control'
+import { useUpdatePermissionGroup } from '@/platform/lib/data/access-control'
 
 /** Every edit on the page, so one Save commits them together in one atomic request. */
 interface GroupDraft {

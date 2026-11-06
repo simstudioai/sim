@@ -5,7 +5,7 @@ import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PermissionGroup } from '@/platform/lib/data/access-control'
+import type { PermissionGroup } from '@/ee/access-control/hooks/permission-groups'
 
 const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),

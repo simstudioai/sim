@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { useConfigureSSO } from '@/ee/sso/hooks/sso'
@@ -40,7 +41,6 @@ import {
   TextField,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useSsoOrigin } from '@/platform/lib/data/sso/params'
 
 const PROVIDER_TYPE_OPTIONS: { value: SsoProviderForm['providerType']; label: string }[] = [

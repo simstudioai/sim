@@ -2,6 +2,22 @@
 
 import { useDeferredValue } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isFeatureInertForGroup } from '@/lib/permission-groups/features'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import {
+  agentDefaultModelIds,
+  CHAT_DEPLOY_AUTH_TYPE_OPTIONS,
+  FEATURE_PERMISSION_GRIDS,
+  FILE_SHARE_AUTH_TYPE_OPTIONS,
+  isAgentDefaultUsable,
+  matchesStatusFilter,
+  type PermissionStatusFilter,
+  PLATFORM_DEFAULT_MODEL,
+  platformFeatureSections,
+  searchPlatformFeatures,
+  statusFilterOptions,
+} from '@/ee/access-control/lib/editor'
+import type { AccessRequestTarget } from '@/ee/access-requests/lib/targets'
 import { ProviderMark } from '@/platform/app/(shell)/_components/provider-mark/provider-mark'
 import {
   FieldStack,
@@ -30,26 +46,12 @@ import {
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import {
-  type AccessRequestTarget,
-  agentDefaultModelIds,
-  CHAT_DEPLOY_AUTH_TYPE_OPTIONS,
   type EditorModel,
-  FEATURE_PERMISSION_GRIDS,
-  FILE_SHARE_AUTH_TYPE_OPTIONS,
-  isAgentDefaultUsable,
-  isFeatureInertForGroup,
-  matchesStatusFilter,
-  type PermissionGroupConfig,
-  type PermissionStatusFilter,
-  PLATFORM_DEFAULT_MODEL,
-  platformFeatureSections,
-  SIM_AUTO_MODEL_ID,
-  searchPlatformFeatures,
-  statusFilterOptions,
   type useGroupDetailParams,
   type usePermissionEditorModel,
   useProviderModelLists,
 } from '@/platform/lib/data/access-control'
+import { SIM_AUTO_MODEL_ID } from '@/providers/model-lookup'
 
 function StatusFilterSelect({
   value,

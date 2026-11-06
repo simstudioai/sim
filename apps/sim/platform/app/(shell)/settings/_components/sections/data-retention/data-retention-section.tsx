@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toError } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
   type DataRetentionResponse,
@@ -45,7 +46,6 @@ import {
   RowList,
 } from '@/platform/design-system/components'
 import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []

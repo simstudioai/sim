@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
@@ -45,10 +46,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@/platform/design-system/components/settings-section/settings-section'
-import {
-  useSettingsNavigationBlocked,
-  useSettingsUnsavedGuard,
-} from '@/platform/lib/data/settings-guard'
+import { useSettingsNavigationBlocked } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/lib/plural'
 import { formatRelativeTime } from '@/platform/lib/time'
 
