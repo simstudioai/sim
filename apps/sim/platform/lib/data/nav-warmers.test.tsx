@@ -31,6 +31,7 @@ import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 
 const mounted: Root[] = []
 const router = {
+  bfcacheId: 'test',
   back: vi.fn(),
   forward: vi.fn(),
   refresh: vi.fn(),

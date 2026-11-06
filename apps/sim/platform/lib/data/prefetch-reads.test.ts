@@ -12,6 +12,7 @@ import { listSearchHistoryContract } from '@/lib/api/contracts/knowledge/search-
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { getOrganizationAccountsContract } from '@/lib/api/contracts/organization-accounts'
 import { listSimLinksContract } from '@/lib/api/contracts/sim-links'
+import { getUserProfileContract } from '@/lib/api/contracts/user'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
@@ -31,7 +32,7 @@ function organization(memberScoped = true, canConnect = true) {
   return {
     organization: { id: 'org-1' },
     searchAccess: { memberScoped },
-    viewer: { userId: 'viewer', canConnectSearchIntegrations: canConnect },
+    viewer: { canConnectSearchIntegrations: canConnect },
     connectedAccountsAvailable: true,
     // double-cast-allowed: only the fields these reads gate on matter to what they seed
   } as unknown as PlatformOrganization
@@ -45,6 +46,7 @@ const seeded = (state: DehydratedState) => state.queries.map(({ queryKey }) => q
 
 beforeEach(() => {
   prefetchRequestJson.mockImplementation(async (contract: unknown) => {
+    if (contract === getUserProfileContract) return { user: { id: 'viewer' } }
     if (contract === listSearchHistoryContract) return { sources: [], queries: [] }
     if (contract === listSearchIntegrationsContract) return { data: [] }
     if (contract === getOrganizationAccountsContract) return { viewerAccounts: [] }
@@ -120,6 +122,7 @@ describe('a viewer the route would refuse', () => {
 describe('a failed read', () => {
   it('stays out of hydration for the client and leaves its neighbours seeded', async () => {
     prefetchRequestJson.mockImplementation(async (contract: unknown) => {
+      if (contract === getUserProfileContract) return { user: { id: 'viewer' } }
       if (contract === listSearchHistoryContract) throw new Error('budget spent')
       if (contract === listSearchIntegrationsContract) return { data: [] }
       return { viewerAccounts: [] }
@@ -127,6 +130,18 @@ describe('a failed read', () => {
     const keys = seeded(await prefetchHome(organization()))
     expect(keys).not.toContainEqual(HISTORY_KEY)
     expect(keys).toEqual(expect.arrayContaining([ACCOUNTS_KEY, INTEGRATIONS_KEY]))
+  })
+
+  it('skips the history when the viewer cannot be named, rather than keying it to nobody', async () => {
+    prefetchRequestJson.mockImplementation(async (contract: unknown) => {
+      if (contract === getUserProfileContract) throw new Error('budget spent')
+      throw new Error('unexpected read')
+    })
+    expect(seeded(await prefetchSearch(organization()))).toEqual([])
+    expect(prefetchRequestJson).not.toHaveBeenCalledWith(
+      listSearchHistoryContract,
+      expect.anything()
+    )
   })
 
   it('never fails the page', async () => {

@@ -33,7 +33,6 @@ function guideOf(provider: string) {
     ready: true,
   }
   entries.current = [entry]
-  // double-cast-allowed: the adapter reads the entries above, and this mock supplies them
   const [integration] = toOrganizationIntegrations({} as never, [])
   return { url: integration?.setupGuideUrl, resource: integration?.searchResource }
 }
