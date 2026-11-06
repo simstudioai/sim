@@ -33,7 +33,7 @@ const PAGE_CHAT_CHROME: ChatChrome = {
   fontClassName: styles.font,
   panelClassName: styles.panel,
   tabsClassName: cn(styles.tabs, styles.font),
-  sourcesClassName: cn(styles.palette, styles.font),
+  sourcesClassName: cn(hostBridge.palette, styles.font),
   userBubbleClassName: styles.userBubble,
   responseActionsClassName: styles.responseActions,
   sourcesPopoverClassName: hostBridge.tokens,
@@ -131,7 +131,7 @@ function PageConversationContent({
             <AssistantActionReviewProvider {...reviewProps}>
               <MothershipChat
                 {...threadProps}
-                className={cn(styles.palette, styles.thread)}
+                className={cn(hostBridge.palette, styles.thread)}
                 reserveResourceHeader={!header && threadProps.reserveResourceHeader}
                 SearchConnectionComponent={SearchIntegrationConnection}
                 composer={composer}

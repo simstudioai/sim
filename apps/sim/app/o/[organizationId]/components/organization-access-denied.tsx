@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
-import canvasStyles from '@/app/o/[organizationId]/organization-canvas.module.css'
 import { RouteStatus } from '@/platform/app/(shell)/_components/route-status/route-status'
 import { Button } from '@/platform/design-system/components/button/button'
+import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 export function OrganizationAccessDenied() {
   return (
-    <main className={`desktop-title-bar-page flex bg-[var(--bg)] ${canvasStyles.canvas}`}>
+    <main
+      className={`desktop-title-bar-page flex bg-[var(--bg)] ${hostBridge.tokens} ${hostBridge.canvas}`}
+    >
       <DesktopTitleBarLane />
       <RouteStatus
         title='Organization access denied'

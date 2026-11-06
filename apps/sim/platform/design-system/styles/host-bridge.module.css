@@ -8,6 +8,7 @@
  * compares them against the compiled design system and fails on drift.
  */
 .tokens {
+  --design-ui-canvas: rgb(255 255 255);
   --design-ui-ink: rgb(10 10 10 / 80%);
   --design-ui-secondary: rgb(10 10 10 / 60%);
   --design-ui-muted: rgb(10 10 10 / 60%);
@@ -37,40 +38,25 @@
   --design-container-chat: 44rem;
   --design-container-chat-message: 40rem;
   --design-ui-page-max-size: calc(75rem + 2 * 3rem);
-
-  /* How far both Search views' headings hang below the view switch, at every width. */
-  --landing-offset: var(--design-spacing-132);
-
-  /* The composer's box, shared by its frame and its placeholder so one cannot outgrow the other. */
-  --composer-inset-block-start: var(--design-spacing-16);
-  --composer-inset-inline: var(--design-spacing-12);
-  --composer-inset-block-end: var(--design-spacing-12);
-  --composer-field-block: var(--design-spacing-48);
-  --composer-gap: var(--design-spacing-16);
-  --composer-toolbar-block: var(--design-spacing-app-control-sm);
-  --composer-block: calc(
-    var(--composer-inset-block-start) +
-    var(--composer-field-block) +
-    var(--composer-gap) +
-    var(--composer-toolbar-block) +
-    var(--composer-inset-block-end)
-  );
 }
 html[class~="dark"] .tokens {
+  --design-ui-canvas: #141414;
   --design-ui-ink: #e6e6e6;
   --design-ui-secondary: #b0b0b0;
   --design-ui-muted: #a8a8a8;
   --design-ui-divider: #383838;
   --design-ui-hover: rgb(255 255 255 / 6%);
 }
-@media (pointer: coarse) {
-  .tokens {
-    --composer-toolbar-block: var(--design-spacing-app-touch-target);
-  }
+
+/* Legacy surfaces in this view paint `--bg`, so every page sits on the design system's canvas. */
+.canvas {
+  --bg: var(--design-ui-canvas);
 }
-@media (max-width: 40rem) {
-  .tokens {
-    --composer-field-block: var(--design-spacing-40);
-    --composer-gap: var(--design-spacing-12);
-  }
+
+/* The host tokens the legacy components between surfaces read, on the design's values. */
+.palette {
+  --text-primary: var(--design-ui-ink);
+  --text-muted: var(--design-ui-muted);
+  --text-icon: var(--design-ui-secondary);
+  --surface-hover: var(--design-ui-hover);
 }

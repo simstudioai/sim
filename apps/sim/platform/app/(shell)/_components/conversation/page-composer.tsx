@@ -20,6 +20,7 @@ import styles from '@/platform/app/(shell)/_components/conversation/page-compose
 import { SearchInputBar } from '@/platform/app/(shell)/_components/conversation/search-input-bar'
 import { IconButton } from '@/platform/design-system/components/button/button'
 import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
+import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 
 const PLAN_OPTIONS = [
   { value: 'build', label: 'Build' },
@@ -107,8 +108,9 @@ export function PageComposer(props: ConversationComposerProps) {
       {...composer.frameProps}
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat',
-        conversationStyles.palette,
+        hostBridge.palette,
         conversationStyles.font,
+        styles.box,
         styles.frame
       )}
     >

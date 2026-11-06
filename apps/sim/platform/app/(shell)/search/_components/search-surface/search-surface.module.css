@@ -158,7 +158,7 @@
   padding-block: var(--spacing-4) var(--spacing-24);
 }
 .landing {
-  padding-block: var(--landing-offset) var(--spacing-32);
+  padding-block: var(--spacing-132) var(--spacing-32);
 }
 .historyAnchor {
   position: relative;
