@@ -4215,6 +4215,23 @@ async function settingsChecks() {
       await expect(secret).toHaveJSProperty('readOnly', false)
     })
   })
+  await check(
+    'a member deep-linking to any admin section gets not found',
+    async () => {
+      await withSession(MEMBER, async ({ page }) => {
+        for (const adminSection of SETTINGS_FOR_ADMIN) {
+          await page.goto(orgUrl(`/settings/${adminSection}`))
+          await expectPageNotFound(page)
+        }
+      })
+    },
+    {
+      // The address of each section this check opens, which a member must not reach.
+      allow: SETTINGS_FOR_ADMIN.map((adminSection) =>
+        refused(404, 'GET', `${root}/settings/${adminSection}`)
+      ),
+    }
+  )
   await check('admin settings sections all open', async () => {
     await withSession(ADMIN, async ({ page }) => {
       for (const path of [...SETTINGS_FOR_ADMIN, 'search-mcp']) {
