@@ -7,7 +7,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
   AirtableIcon,
-  ApiIcon,
   AsanaIcon,
   AtlassianIcon,
   AttioIcon,
@@ -22,6 +21,7 @@ import {
   DocuSignIcon,
   DropboxIcon,
   FivetranIcon,
+  FlowIcon,
   GaugeIcon,
   GithubIcon,
   GmailIcon,
@@ -45,6 +45,7 @@ import {
   HubspotIcon,
   InstagramIcon,
   IntuneIcon,
+  JamaIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -1592,15 +1593,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
   jama: {
     name: 'Jama Connect',
-    icon: ApiIcon,
+    icon: JamaIcon,
     services: {
       jama: {
         name: 'Jama Connect',
         description: 'Connect your Jama Connect account.',
         providerId: 'jama',
         serviceAccountProviderId: 'jama-service-account',
-        icon: ApiIcon,
-        baseProviderIcon: ApiIcon,
+        icon: JamaIcon,
+        baseProviderIcon: JamaIcon,
         scopes: [],
         authType: 'service_account',
       },
@@ -1609,15 +1610,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   },
   flow: {
     name: 'Flow Engineering',
-    icon: ApiIcon,
+    icon: FlowIcon,
     services: {
       flow: {
         name: 'Flow Engineering',
         description: 'Connect your Flow Engineering account.',
         providerId: 'flow',
         serviceAccountProviderId: 'flow-service-account',
-        icon: ApiIcon,
-        baseProviderIcon: ApiIcon,
+        icon: FlowIcon,
+        baseProviderIcon: FlowIcon,
         scopes: [],
         authType: 'service_account',
       },
