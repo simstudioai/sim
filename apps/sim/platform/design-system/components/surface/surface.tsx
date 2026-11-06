@@ -3,6 +3,7 @@
 import '@/platform/design-system/styles/embedded.css'
 import type { ReactNode } from 'react'
 import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
+import styles from '@/platform/design-system/components/surface/surface.module.css'
 
 interface SurfaceProps {
   /** Paints the canvas, for a surface that fills a region. */
@@ -25,15 +26,10 @@ export function Surface({ canvas, children }: SurfaceProps) {
   )
 }
 
-/**
- * Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end.
- *
- * The host's Tailwind does not scan `platform/`, so these utilities exist only while a scanned file
- * also names them (`grid-cols-[minmax(0,1fr)]`: `settings-frame.tsx`).
- */
+/** Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end. */
 export function PageSurface({ children }: { children: ReactNode }) {
   return (
-    <div className='grid h-full min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-y-auto'>
+    <div className={styles.page}>
       <Surface canvas>{children}</Surface>
     </div>
   )
