@@ -39,8 +39,10 @@ import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  useChatFontClass,
+  useChatSurface,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {
   ExternalLink,
@@ -576,6 +578,7 @@ function ChatContentInner({
   linkSources,
 }: ChatContentProps) {
   const { chatId } = useChatSurface()
+  const fontClassName = useChatFontClass()
   const imageRehypePlugins = useMemo<
     NonNullable<ComponentPropsWithoutRef<typeof Streamdown>['rehypePlugins']>
   >(
@@ -779,7 +782,7 @@ function ChatContentInner({
         <WorkspaceRefsContext.Provider
           value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
         >
-          <div className={cn('space-y-4', inter.className)}>
+          <div className={cn('space-y-4', fontClassName)}>
             {groups.map((group, i) => {
               if (group.kind === 'inline') {
                 return (

@@ -29,12 +29,14 @@ import {
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
-import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  ChatSurfaceProvider,
+  useChatFontClass,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
 import {
   assistantMessageHasRenderableContent,
@@ -447,6 +449,7 @@ export function MothershipChat({
   loadingTranscript,
   loadingComposer,
 }: MothershipChatProps) {
+  const fontClassName = useChatFontClass()
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
@@ -950,7 +953,7 @@ export function MothershipChat({
           layout === 'mothership-view' &&
             reserveResourceHeader &&
             'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
-          inter.className,
+          fontClassName,
           className
         )}
       >

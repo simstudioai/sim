@@ -111,6 +111,7 @@ export function PageComposer(props: ConversationComposerProps) {
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat',
         conversationStyles.palette,
+        conversationStyles.font,
         styles.frame
       )}
     >

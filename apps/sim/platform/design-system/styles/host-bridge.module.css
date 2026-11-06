@@ -41,17 +41,13 @@
   /* How far both Search views' headings hang below the view switch, at every width. */
   --landing-offset: var(--design-spacing-132);
 
-  /*
-   * The composer's box, shared by its frame and its placeholder so one cannot outgrow the other. Its
-   * toolbar row holds 30px legacy controls around 28px design-system ones: the frame's insets and
-   * the gap each give back that row's 1px of centering.
-   */
-  --composer-inset-block-start: calc(var(--design-spacing-16) + 1px);
-  --composer-inset-inline: calc(var(--design-spacing-12) + 1px);
+  /* The composer's box, shared by its frame and its placeholder so one cannot outgrow the other. */
+  --composer-inset-block-start: var(--design-spacing-16);
+  --composer-inset-inline: var(--design-spacing-12);
   --composer-inset-block-end: var(--design-spacing-12);
   --composer-field-block: var(--design-spacing-48);
-  --composer-gap: calc(var(--design-spacing-16) - 1px);
-  --composer-toolbar-block: 1.875rem;
+  --composer-gap: var(--design-spacing-16);
+  --composer-toolbar-block: var(--design-spacing-app-control-sm);
   --composer-block: calc(
     var(--composer-inset-block-start) +
     var(--composer-field-block) +
@@ -75,6 +71,6 @@ html[class~="dark"] .tokens {
 @media (max-width: 40rem) {
   .tokens {
     --composer-field-block: var(--design-spacing-40);
-    --composer-gap: calc(var(--design-spacing-12) - 1px);
+    --composer-gap: var(--design-spacing-12);
   }
 }

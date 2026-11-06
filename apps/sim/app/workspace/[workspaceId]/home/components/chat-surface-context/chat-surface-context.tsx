@@ -11,11 +11,24 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
+
+const ChatFontContext = createContext(inter.className)
+
+/**
+ * Supplies the chat's typeface, in place of Inter. Context reaches what the chat portals out of its
+ * own tree, so this is the one place a host names it.
+ */
+export const ChatFontProvider = ChatFontContext.Provider
+
+export function useChatFontClass() {
+  return useContext(ChatFontContext)
+}
 
 /**
  * Identity and interaction callbacks shared across a Mothership chat surface
