@@ -888,7 +888,10 @@ export const glyphs = {
     label: 'key',
     viewBox: '0 0 24 24',
     draw: (): ReactNode => (
-      <path d='M15 4a5 5 0 1 1-3.4 8.6L5 19.2H2v-3l6.6-6.6A5 5 0 0 1 15 4ZM17 7h.01' />
+      <>
+        <circle cx='7' cy='10' r='4' />
+        <path d='M11 10h10m-6 0v4m4-4v3' />
+      </>
     ),
   },
   I138: {

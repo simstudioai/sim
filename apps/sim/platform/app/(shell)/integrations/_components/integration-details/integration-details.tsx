@@ -1,16 +1,18 @@
 'use client'
 
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
+import Link from 'next/link'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import { Chip, EmptyState } from '@/platform/design-system/components'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
+import { Button, Chip, EmptyState } from '@/platform/design-system/components'
 import {
   accountStatus,
   isConnectable,
   type OrganizationIntegration,
 } from '@/platform/lib/data/integrations-types'
+import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
@@ -22,6 +24,8 @@ interface IntegrationDetailsProps {
   onReconnect: (accountId: string) => void
   onDisconnect: (accountId: string) => Promise<unknown>
   renderToolPermissions: (accountId: string) => ReactNode
+  people?: readonly IntegrationPerson[]
+  peopleTotal?: number
 }
 
 export function IntegrationDetails({
@@ -34,6 +38,8 @@ export function IntegrationDetails({
   onReconnect,
   onDisconnect,
   renderToolPermissions,
+  people,
+  peopleTotal,
 }: IntegrationDetailsProps) {
   const { accounts, availability, connectionTarget, providerId, name } = integration
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -63,7 +69,33 @@ export function IntegrationDetails({
         description={integration.description}
         providerId={providerId}
         icon={integration.icon}
+        people={people}
+        peopleTotal={peopleTotal}
       />
+      <IntegrationControls
+        leading={
+          <Button
+            variant='quiet'
+            icon='I079'
+            render={
+              <Link
+                href={integration.setupGuideUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label='Docs (opens in a new tab)'
+              />
+            }
+          >
+            Docs
+          </Button>
+        }
+      >
+        {connectionTarget && (
+          <Button size='compact' icon='I074' disabled={pending || !canConnect} onClick={onConnect}>
+            Add credential
+          </Button>
+        )}
+      </IntegrationControls>
       {stale ? (
         <EmptyState
           title='This account is no longer connected.'
@@ -74,29 +106,17 @@ export function IntegrationDetails({
           integrationName={name}
           accounts={shown.map((account) => ({
             ...account,
-            statusLabel: accountStatus(integration, account),
+            statusLabel: accountStatus(integration),
             href: selected ? undefined : accountHref(account.id),
           }))}
           pending={pending}
-          addAccount={connectionTarget ? { disabled: !canConnect, onSelect: onConnect } : undefined}
           onReconnect={onReconnect}
           onDisconnect={onDisconnect}
         />
       ) : (
-        <ConnectionPrompt
-          title={canConnect ? `Connect your ${name} account` : reason}
-          setupGuideUrl={integration.setupGuideUrl}
-          options={
-            availability === 'managed'
-              ? []
-              : [
-                  {
-                    label: name,
-                    icon: { providerId },
-                    onConnect: canConnect && !pending ? onConnect : undefined,
-                  },
-                ]
-          }
+        <EmptyState
+          title='No connected credentials'
+          description={canConnect ? undefined : reason}
         />
       )}
       {selected?.hasToolPermissions && renderToolPermissions(selected.id)}

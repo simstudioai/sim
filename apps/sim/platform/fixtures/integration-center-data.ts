@@ -1,5 +1,8 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
+import ninaPhoto from '@/platform/fixtures/media/attendee-1.jpg'
+import alexPhoto from '@/platform/fixtures/media/attendee-2.jpg'
+import mayaPhoto from '@/platform/fixtures/media/attendee-3.jpg'
 import type {
   IntegrationCenterData,
   IntegrationPerson,
@@ -7,9 +10,9 @@ import type {
 } from '@/platform/lib/integrations/center-model'
 
 const emir: IntegrationPerson = { id: 'emir', name: 'Emir Karabeg' }
-const nina: IntegrationPerson = { id: 'nina', name: 'Nina Patel' }
-const alex: IntegrationPerson = { id: 'alex', name: 'Alex Chen' }
-const maya: IntegrationPerson = { id: 'maya', name: 'Maya Thompson' }
+const nina: IntegrationPerson = { id: 'nina', name: 'Nina Patel', src: ninaPhoto.src }
+const alex: IntegrationPerson = { id: 'alex', name: 'Alex Chen', src: alexPhoto.src }
+const maya: IntegrationPerson = { id: 'maya', name: 'Maya Thompson', src: mayaPhoto.src }
 const daniel: IntegrationPerson = { id: 'daniel', name: 'Daniel Kim' }
 const people = [emir, nina, alex, maya, daniel]
 
@@ -136,8 +139,18 @@ const resources: IntegrationResource[] = [
   },
 ]
 
+const workspaces = [
+  {
+    id: 'customer-operations',
+    name: 'Customer operations',
+    memberIds: ['emir', 'nina', 'alex', 'maya'],
+  },
+  { id: 'engineering', name: 'Engineering', memberIds: ['emir', 'alex', 'daniel'] },
+] as const
+
 export function integrationCenterData(scenario: Scenario): IntegrationCenterData {
-  if (scenario === 'empty') return { viewer: emir, people, appPeople: {}, resources: [] }
+  if (scenario === 'empty')
+    return { viewer: emir, people, workspaces, appPeople: {}, appUsageTotal: {}, resources: [] }
   const extra =
     scenario === 'stress'
       ? Array.from({ length: 60 }, (_, index): IntegrationResource => {
@@ -154,11 +167,13 @@ export function integrationCenterData(scenario: Scenario): IntegrationCenterData
       : []
   return {
     viewer: emir,
+    workspaces,
     people,
+    appUsageTotal: { gmail: scenario === 'stress' ? 1002 : 15, google_drive: 24 },
     appPeople: {
-      gmail: [emir, nina, alex, maya, daniel],
-      google_calendar: [emir, nina, alex, maya],
-      google_drive: [emir, nina, alex, maya, daniel],
+      gmail: [nina, alex, maya, emir, daniel],
+      google_calendar: [nina, alex, maya, emir],
+      google_drive: [nina, alex, maya, emir, daniel],
       github: [emir, alex, daniel],
       fireflies: [emir, nina, maya],
       hubspot: [nina, emir],

@@ -4,7 +4,6 @@ import type {
   OrganizationIntegration,
 } from '@/platform/lib/data/integrations-types'
 import type { AppSummary } from '@/platform/lib/integrations/center-model'
-import { appCategory } from '@/platform/lib/integrations/center-navigation'
 
 interface IntegrationListProps {
   integrations: readonly OrganizationIntegration[]
@@ -29,9 +28,8 @@ export function IntegrationList({
     href: integrationHref(item.id),
     name: item.name,
     description: item.description,
-    category: appCategory(item.providerId),
+    category: item.category,
     connected: item.accounts.length > 0 || item.availability === 'managed',
-    status: item.status,
     searchable: [item.providerId, ...item.accounts.map((account) => account.label)].join(' '),
   }))
   const credentials: AppSummary[] = secrets
@@ -44,7 +42,6 @@ export function IntegrationList({
           category: 'Credentials',
           scope: secrets.mode === 'organization' ? 'shared' : 'personal',
           connected: secrets.mode === 'organization',
-          status: secrets.mode === 'organization' ? 'Organization managed' : 'Personal secrets',
         },
       ]
     : []

@@ -1,36 +1,71 @@
 'use client'
 
+import { generateId } from '@sim/utils/id'
 import { useSearchParams } from 'next/navigation'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useIntegrationCenterResources } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { useOrganizationIntegrations } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/integration-details'
+import { serializeCredential } from '@/platform/app/(shell)/integrations/_components/fixtures/integration-details/search-params'
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/fixtures/member-secrets/member-secrets'
-import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/fixtures/provider-heading/provider-heading'
 import { IntegrationCenter } from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
 import {
   IntegrationsHeading,
   IntegrationsPage as PageFrame,
 } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
-import type { IntegrationCenterData } from '@/platform/lib/integrations/center-model'
-import { appCategory } from '@/platform/lib/integrations/center-navigation'
+import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
+import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
+import type { AppSummary, IntegrationCenterData } from '@/platform/lib/integrations/center-model'
+import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import {
   type IntegrationsData,
   memberIntegrationHref,
-  memberStatus,
 } from '@/platform/lib/integrations/fixture-model'
 
 interface IntegrationsPageProps {
   data: IntegrationsData | null
   center: IntegrationCenterData | null
   section?: string
+  catalog?: IntegrationCatalogEntry | null
 }
 
-export function IntegrationsPage({ data, center, section }: IntegrationsPageProps) {
+export function IntegrationsPage({ data, center, section, catalog }: IntegrationsPageProps) {
+  return (
+    <NuqsAdapter>
+      <IntegrationsContent data={data} center={center} section={section} catalog={catalog} />
+    </NuqsAdapter>
+  )
+}
+
+function IntegrationsContent({ data, center, section, catalog }: IntegrationsPageProps) {
   const search = useSearchParams()
   const { integrations, save } = useOrganizationIntegrations(data)
   const library = useIntegrationCenterResources(center)
   const item = integrations.find((entry) => entry.providerId === section)
   const secrets = section === 'secrets' ? data?.genericSecrets : null
+  const providerNames = new Map(
+    integrations.map((integration) => [integration.providerId, integration.name])
+  )
+  const credentialLinks: AppSummary[] = [
+    ...new Map(
+      integrations.flatMap((integration) =>
+        integration.credentials.map((credential) => [credential.id, credential] as const)
+      )
+    ).values(),
+  ].map((credential) => ({
+    id: credential.id,
+    providerId: credential.appId,
+    name: credential.displayName,
+    description: credentialDescription(credential, providerNames.get(credential.appId)),
+    category: 'Credentials',
+    connected: true,
+    scope: credential.scope.kind === 'personal' ? 'personal' : 'shared',
+    people: credential.members.filter((member) => member.status === 'active'),
+    href: serializeCredential(
+      memberIntegrationHref(`/integrations/${encodeURIComponent(credential.appId)}`, search),
+      { credential: credential.id }
+    ),
+  }))
   return (
     <PageFrame
       back={
@@ -41,7 +76,50 @@ export function IntegrationsPage({ data, center, section }: IntegrationsPageProp
     >
       {item || secrets ? (
         <>
-          {item && <IntegrationDetails key={item.providerId} integration={item} onChange={save} />}
+          {item && center && (
+            <IntegrationDetails
+              key={item.providerId}
+              integration={item}
+              onChange={save}
+              knownCredentials={integrations.flatMap((entry) => entry.credentials)}
+              viewer={center.viewer}
+              eligiblePeople={center.people}
+              workspaces={center.workspaces}
+              catalog={catalog}
+              people={center?.appPeople[item.providerId]}
+              peopleTotal={center?.appUsageTotal[item.providerId]}
+              addedSkills={catalog?.skills
+                .filter((skill) =>
+                  library.resources.some(
+                    (entry) => entry.kind === 'skill' && entry.instructions === skill.content
+                  )
+                )
+                .map((skill) => skill.name)}
+              onAddSkill={
+                center
+                  ? (skill) => {
+                      if (
+                        library.resources.some(
+                          (entry) => entry.kind === 'skill' && entry.instructions === skill.content
+                        )
+                      )
+                        return
+                      library.save({
+                        id: generateId(),
+                        kind: 'skill',
+                        name: skill.name,
+                        description: skill.description,
+                        instructions: skill.content,
+                        scope: 'personal',
+                        owner: center.viewer,
+                        people: [center.viewer],
+                        canEdit: true,
+                      })
+                    }
+                  : undefined
+              }
+            />
+          )}
           {secrets && (
             <>
               <ProviderHeading name={secrets.name} description={secrets.description} />
@@ -57,12 +135,14 @@ export function IntegrationsPage({ data, center, section }: IntegrationsPageProp
               id: integration.providerId,
               name: integration.name,
               description: integration.description,
-              category: appCategory(integration.providerId),
+              category: integration.category ?? 'Other',
               href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
-              connected: Boolean(integration.account),
-              status: memberStatus(integration),
-              searchable: integration.account?.label,
+              connected: integration.credentials.length > 0,
+              searchable: integration.credentials
+                .map((credential) => `${credential.displayName} ${credential.accountLabel ?? ''}`)
+                .join(' '),
               people: center?.appPeople[integration.providerId],
+              peopleTotal: center?.appUsageTotal[integration.providerId],
             }))}
             library={
               center
@@ -73,21 +153,25 @@ export function IntegrationsPage({ data, center, section }: IntegrationsPageProp
                   }
                 : undefined
             }
-            credentials={
-              data?.genericSecrets
+            credentials={[
+              ...credentialLinks,
+              ...(data?.genericSecrets
                 ? [
                     {
                       id: 'secrets',
                       name: data.genericSecrets.name,
                       description: data.genericSecrets.description,
                       category: 'Credentials',
-                      scope: data.genericSecrets.mode === 'organization' ? 'shared' : 'personal',
+                      scope:
+                        data.genericSecrets.mode === 'organization'
+                          ? ('shared' as const)
+                          : ('personal' as const),
                       connected: true,
                       href: memberIntegrationHref('/integrations/secrets', search),
                     },
                   ]
-                : []
-            }
+                : []),
+            ]}
           />
         </>
       )}

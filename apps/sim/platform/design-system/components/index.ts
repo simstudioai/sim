@@ -4,7 +4,6 @@ export {
   Avatar,
   AvatarGroup,
   AvatarImage,
-  AvatarOverflow,
   PeoplePopover,
   PersonRow,
 } from './avatar/avatar'
@@ -47,6 +46,7 @@ export { ScrollArea } from './scroll-area/scroll-area'
 export { MenuSearchField } from './search-field/menu-search-field'
 export { SearchField } from './search-field/search-field'
 export { SegmentedControl, SelectionItem } from './segmented-control/segmented-control'
+export { Stack } from './stack/stack'
 export { FailureNotice, InlineNotice, StatusTag } from './status/status'
 export { PlatformSurface } from './surface/platform-surface'
 export { Switch } from './switch/switch'

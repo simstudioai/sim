@@ -1,0 +1,22 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.review {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.permissions {
+  display: grid;
+  gap: var(--ui-row-block);
+}
+.permissions li {
+  display: grid;
+  gap: var(--ui-stack-gap);
+}
+.permissions p {
+  color: var(--ui-secondary);
+}

@@ -7,7 +7,6 @@ import {
   AttachmentGrid,
   Avatar,
   AvatarGroup,
-  AvatarOverflow,
   BarChart,
   BrowserActionsMenu,
   Button,
@@ -47,6 +46,7 @@ import {
   SelectField,
   SelectionItem,
   SidebarWorkspaceItems,
+  Stack,
   Switch,
   TextArea,
   TextAreaField,
@@ -381,8 +381,8 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return <PersonRow name={people[0]?.name ?? 'Person'} src={sample?.avatarSrc} />
     case 'AvatarGroup':
       return <AvatarGroup people={people} />
-    case 'AvatarOverflow':
-      return <AvatarOverflow people={people.slice(2)} />
+    case 'Stack':
+      return <Stack items={[]} total={people.length} label='Other people' />
     case 'Tooltip':
       return (
         <Tooltip label={value || 'Description'}>

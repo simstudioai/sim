@@ -37,11 +37,11 @@ export async function sourceSettings(scenario: Scenario): Promise<SourceSettings
     : []
   return {
     assistantApps: (inventory?.integrations ?? [])
-      .filter((entry) => entry.searchResource === null)
+      .filter((entry) => entry.searchResource === null && entry.availability !== 'catalog')
       .map((entry) => ({
         id: entry.providerId,
         name: entry.name,
-        account: entry.account?.label ?? null,
+        account: entry.credentials[0]?.accountLabel ?? null,
         approved: entry.availability !== 'unconfigured',
       })),
     sources,

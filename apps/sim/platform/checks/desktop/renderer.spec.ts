@@ -27,6 +27,10 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     const memberPage = page.getByRole('main')
     await memberPage.getByRole('searchbox', { name: 'Search apps' }).fill('Gmail')
     await memberPage.getByRole('link', { name: /^Gmail / }).click()
+    await memberPage
+      .getByRole('region', { name: 'Connected credentials', exact: true })
+      .getByRole('button', { name: /^emir@sim.ai / })
+      .click()
     const send = memberPage.getByRole('group', { name: 'Gmail Send permission' })
     await send.getByRole('radio', { name: 'Ask' }).press('ArrowRight')
     const blocked = send.getByRole('radio', { name: 'Block' })

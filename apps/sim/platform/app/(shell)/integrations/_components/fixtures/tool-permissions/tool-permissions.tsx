@@ -19,17 +19,23 @@ const GROUPS = [
 ] as const
 
 interface ToolPermissionsProps {
-  account: IntegrationAccount
+  account: Pick<IntegrationAccount, 'status'>
   permissions: Permissions
   onChange: (next: Permissions) => void
+  readOnly?: boolean
 }
 
-export function ToolPermissions({ account, permissions, onChange }: ToolPermissionsProps) {
+export function ToolPermissions({
+  account,
+  permissions,
+  onChange,
+  readOnly,
+}: ToolPermissionsProps) {
   const [query, setQuery] = useState('')
   const canAllow = permissions.canAutoApprove && account.status === 'active'
   const choices = ACTIONS.map((option) => ({
     ...option,
-    disabled: option.value === 'allow' && !canAllow,
+    disabled: readOnly || (option.value === 'allow' && !canAllow),
   }))
   const filter = query.trim().toLowerCase()
   const matches = permissions.tools.filter((tool) =>

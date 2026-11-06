@@ -44,19 +44,6 @@
   object-fit: cover;
 }
 
-.avatarGroup {
-  display: inline-flex;
-  align-items: center;
-}
-
-.avatarGroup > :nth-child(2) {
-  margin-inline-start: calc(-1 * var(--spacing-4));
-}
-
-.avatarGroup > :nth-child(3) {
-  margin-inline-start: var(--spacing-4);
-}
-
 .peoplePopover {
   display: flex;
   flex-direction: column;

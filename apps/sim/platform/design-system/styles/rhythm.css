@@ -6,6 +6,7 @@
   --ui-page-inset-block: var(--ui-product-section-gap);
   --ui-page-heading-inset: var(--spacing-64);
   --ui-motion-color: 120ms;
+  --ui-motion-position: var(--ui-motion-color);
   --ui-control-radius: var(--radius-control);
   --ui-stack-gap: var(--spacing-2);
   --ui-list-gap: var(--spacing-2);

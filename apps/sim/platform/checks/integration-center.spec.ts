@@ -26,19 +26,19 @@ test('directory filters and ordering survive app details and resource browser hi
   await page.goto(`${origin}/integrations?state=full`)
   const main = page.getByRole('main')
   await main.getByRole('button', { name: /^App category:/ }).click()
-  await page.getByRole('menuitemradio', { name: 'Communication', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Email', exact: true }).click()
   await main.getByRole('button', { name: 'Sort integrations', exact: true }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Name Z–A', exact: true }).click()
   await expect(
     main.getByRole('region', { name: 'Connected', exact: true }).getByRole('link').first()
-  ).toContainText('Google Calendar')
+  ).toContainText('Gmail')
   await main.getByRole('searchbox', { name: 'Search apps', exact: true }).fill('gmail')
   await main.getByRole('link', { name: /^Gmail / }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(main.getByRole('searchbox', { name: 'Search apps', exact: true })).toHaveValue(
     'gmail'
   )
-  await expect(main.getByRole('button', { name: /^App category:/ })).toContainText('Communication')
+  await expect(main.getByRole('button', { name: /^App category:/ })).toContainText('Email')
   await expect(page).toHaveURL(/order=desc/)
   await expect(main.getByRole('link', { name: /^Fireflies / })).toHaveCount(0)
 
@@ -58,6 +58,36 @@ test('directory filters and ordering survive app details and resource browser hi
   )
   await expect(main.getByRole('button', { name: /^Sharing:/ })).toContainText('Personal')
   await expect(main.getByRole('button', { name: /^Weekly customer review / })).toHaveCount(0)
+})
+
+test('app roster overflow stays passive while avatars explain people and the whole row opens details', async ({
+  page,
+}) => {
+  for (const [scenario, count, accessibleCount] of [
+    ['full', '+13', '13 others'],
+    ['stress', '+1k', '1000 others'],
+  ]) {
+    await page.goto(`${origin}/integrations?state=${scenario}`)
+    const gmail = page.getByRole('main').getByRole('link', { name: /^Gmail / })
+    const people = gmail.getByRole('group', { name: 'Used by', exact: true })
+    await expect(people.getByRole('button')).toHaveCount(0)
+    const overflow = people.getByLabel(accessibleCount, { exact: true })
+    await expect(overflow).toHaveText(count)
+    const nina = people.getByRole('img', { name: 'Nina Patel', exact: true })
+    await expect
+      .poll(() =>
+        nina
+          .locator('img')
+          .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)
+      )
+      .toBe(true)
+    await nina.hover()
+    await expect(page.getByRole('tooltip', { name: 'Nina Patel', exact: true })).toBeVisible()
+    await overflow.click()
+    await expect(page).toHaveURL(/\/integrations\/gmail/)
+    await expect(page.getByRole('heading', { name: 'Gmail', exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  }
 })
 
 test('editing a shared skill preserves its members and survives leaving the directory', async ({

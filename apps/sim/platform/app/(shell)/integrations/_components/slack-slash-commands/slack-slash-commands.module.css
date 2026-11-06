@@ -1,0 +1,15 @@
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+}
+.commands,
+.command {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-section-gap);
+}
+.commands:empty {
+  display: none;
+}

@@ -201,7 +201,7 @@ for (const [owner, keys] of Object.entries(nativeOwners))
 for (const row of registry.components) {
   const family = row.family.split('/')[0]
   if (family === 'Avatar' || family === 'AvatarGroup') {
-    owners.set(row.key, row.family.startsWith('AvatarGroup/Overflow') ? 'AvatarOverflow' : family)
+    owners.set(row.key, row.family.startsWith('AvatarGroup/Overflow') ? 'Stack' : family)
   }
 }
 

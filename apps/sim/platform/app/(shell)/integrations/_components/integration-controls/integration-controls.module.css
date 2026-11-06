@@ -1,0 +1,21 @@
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.leading {
+  flex: 1 1 var(--container-208);
+  max-inline-size: var(--container-440);
+  min-inline-size: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  max-inline-size: 100%;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}

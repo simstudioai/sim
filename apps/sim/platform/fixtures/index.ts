@@ -109,12 +109,14 @@ export const loadConversationData = fixture(
 )
 export const loadIntegrationsData = fixture(
   async (scenario, secrets?: string | string[]): Promise<IntegrationsData> => {
-    const [{ memberIntegrations }, { memberSecretSource }] = await Promise.all([
-      import('@/platform/fixtures/integration-data'),
-      import('@/platform/fixtures/member-secret-source'),
-    ])
+    const [{ memberIntegrations }, { memberSecretSource }, { integrationCenterData }] =
+      await Promise.all([
+        import('@/platform/fixtures/integration-data'),
+        import('@/platform/fixtures/member-secret-source'),
+        import('@/platform/fixtures/integration-center-data'),
+      ])
     return {
-      integrations: memberIntegrations(scenario),
+      integrations: memberIntegrations(scenario, integrationCenterData(scenario)),
       genericSecrets: memberSecretSource(scenario, secrets),
     }
   }
@@ -122,6 +124,11 @@ export const loadIntegrationsData = fixture(
 export const loadIntegrationCenterData = fixture(async (scenario) =>
   (await import('@/platform/fixtures/integration-center-data')).integrationCenterData(scenario)
 )
+export const loadIntegrationCatalogEntry = fixture(async (scenario, providerId?: string) => {
+  if (scenario === 'empty' || !providerId) return null
+  const { integrationCatalog } = await import('@/platform/lib/integrations/catalog.generated')
+  return integrationCatalog.find((entry) => entry.id === providerId) ?? null
+})
 export const loadPanelData = fixture(
   async (scenario) => (await import('@/platform/fixtures/panel-data')).panelScenarios[scenario]
 )

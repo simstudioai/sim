@@ -1,9 +1,8 @@
 'use client'
 
 import styles from '@/platform/design-system/components/avatar/avatar.module.css'
-import { IconButton } from '@/platform/design-system/components/button/button'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
+import { Stack } from '@/platform/design-system/components/stack/stack'
 
 interface AvatarImageProps {
   src: string
@@ -81,39 +80,22 @@ export function PeoplePopover({ title, people }: PeoplePopoverProps) {
   )
 }
 
-interface AvatarOverflowProps {
-  people: readonly Person[]
-  label?: string
-  visibleCount?: number
-}
-
-export function AvatarOverflow({
-  people,
-  label = 'People',
-  visibleCount = 0,
-}: AvatarOverflowProps) {
-  if (people.length <= visibleCount) return null
-  return (
-    <Tooltip label={label} panel={<PeoplePopover title={label} people={people} />}>
-      <IconButton label={`Show ${people.length - visibleCount} more people`} icon='I108' />
-    </Tooltip>
-  )
-}
-
 interface AvatarGroupProps {
   people: readonly Person[]
+  total?: number
   label?: string
 }
 
-export function AvatarGroup({ people, label }: AvatarGroupProps) {
+export function AvatarGroup({ people, total, label }: AvatarGroupProps) {
   return (
-    <span className={styles.avatarGroup}>
-      {people.slice(0, 2).map((person, index) => (
-        <Tooltip key={`${person.name}-${index}`} label={person.name}>
-          <Avatar name={person.name} src={person.src} />
-        </Tooltip>
-      ))}
-      <AvatarOverflow people={people} visibleCount={2} label={label} />
-    </span>
+    <Stack
+      items={people.map((person, index) => ({
+        id: `${person.name}-${index}`,
+        label: person.name,
+        content: <Avatar name={person.name} src={person.src} />,
+      }))}
+      total={total}
+      label={label}
+    />
   )
 }

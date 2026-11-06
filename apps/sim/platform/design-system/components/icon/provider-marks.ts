@@ -1,4 +1,5 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { providerMarkIds } from '@/platform/design-system/components/icon/provider-mark-ids.generated'
 import { publicAssetPath } from '@/platform/design-system/navigation'
 
 const SHARED_MARKS = new Map<string, IconName>([
@@ -25,9 +26,14 @@ const ASSET_MARKS = new Set([
   'zoom',
 ])
 
+const CATALOG_MARKS: ReadonlySet<string> = new Set(providerMarkIds)
+
 export function providerMark(providerId: string): IconName | { href: string } {
   const shared = SHARED_MARKS.get(providerId)
   if (shared) return shared
-  if (!ASSET_MARKS.has(providerId)) return 'I070'
-  return { href: publicAssetPath(`/provider-marks/${providerId.replaceAll('_', '-')}.svg#mark`) }
+  if (ASSET_MARKS.has(providerId))
+    return { href: publicAssetPath(`/provider-marks/${providerId.replaceAll('_', '-')}.svg#mark`) }
+  if (CATALOG_MARKS.has(providerId))
+    return { href: publicAssetPath(`/provider-marks/catalog.svg#${providerId}`) }
+  return 'I070'
 }

@@ -1,5 +1,8 @@
 import 'server-only'
 import type { Scenario } from '@/platform/fixtures'
+import { integrationCatalog } from '@/platform/lib/integrations/catalog.generated'
+import type { IntegrationCenterData } from '@/platform/lib/integrations/center-model'
+import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import type {
   AccountMethod,
   IntegrationAccount,
@@ -7,10 +10,10 @@ import type {
 } from '@/platform/lib/integrations/fixture-model'
 import { gmailToolMetadata, providerMetadata } from '@/platform/lib/integrations/metadata.generated'
 
-type Connection = Pick<
-  OrganizationIntegration,
-  'account' | 'availability' | 'connectableMethod'
-> & { accessDescription?: string }
+type Connection = Pick<OrganizationIntegration, 'availability' | 'connectableMethod'> & {
+  account: IntegrationAccount | null
+  accessDescription?: string
+}
 
 function account(id: string, label: string, method: AccountMethod): IntegrationAccount {
   return { id, label, method, status: 'active', canReconnect: true }
@@ -55,7 +58,10 @@ const full: Record<string, Connection> = {
   },
 }
 
-export function memberIntegrations(scenario: Scenario): OrganizationIntegration[] {
+export function memberIntegrations(
+  scenario: Scenario,
+  center: IntegrationCenterData
+): OrganizationIntegration[] {
   if (scenario === 'empty') return []
   const selected: Record<string, Connection> =
     scenario === 'full'
@@ -99,30 +105,158 @@ export function memberIntegrations(scenario: Scenario): OrganizationIntegration[
             accessDescription: 'Access follows project permissions',
           },
         }
-  return providerMetadata.flatMap(({ id, searchResource, ...metadata }) => {
-    const config = selected[id]
-    if (!config) return []
-    const candidate = config.connectableMethod
-      ? account(
-          `${id}-available`,
-          config.connectableMethod === 'mcp' ? metadata.name : 'emir@sim.ai',
-          config.connectableMethod
-        )
-      : undefined
-    return [
-      {
-        providerId: id,
-        searchResource,
-        ...metadata,
-        ...config,
-        accessDescription:
-          config.accessDescription ??
-          (searchResource
-            ? `All accessible ${searchResource === 'CRM records' ? searchResource : searchResource.toLowerCase()}`
-            : 'Access follows your account permissions'),
-        connectionCandidate: candidate,
+  const searchIntegrations: OrganizationIntegration[] = providerMetadata.flatMap(
+    ({ id, searchResource, ...metadata }) => {
+      const config = selected[id]
+      if (!config) return []
+      return [
+        {
+          providerId: id,
+          searchResource,
+          ...metadata,
+          availability: config.availability,
+          connectableMethod: config.connectableMethod,
+          credentials: credentialExamples(id, config.account, scenario, center),
+          accessDescription:
+            config.accessDescription ??
+            (searchResource
+              ? `All accessible ${searchResource === 'CRM records' ? searchResource : searchResource.toLowerCase()}`
+              : 'Access follows your account permissions'),
+          fixtureAuthorization: true,
+          canAddCredential: true,
+          credentialProviders: [],
+        },
+      ]
+    }
+  )
+  const searchById = new Map(
+    searchIntegrations.map((integration) => [integration.providerId, integration])
+  )
+  const catalogIds = new Set(integrationCatalog.map((integration) => integration.id))
+  return [
+    ...integrationCatalog.map((entry): OrganizationIntegration => {
+      const existing = searchById.get(entry.id)
+      const credentialProviders = [
+        ...new Set(entry.connections.map(({ providerId }) => providerId)),
+      ]
+      if (existing) return { ...existing, category: entry.category, credentialProviders }
+      return {
+        providerId: entry.id,
+        name: entry.name,
+        description: entry.description,
+        category: entry.category,
+        setupGuideUrl: entry.docsUrl,
+        searchResource: null,
+        searchReads: [],
+        requestedScopes: null,
+        accessDescription: '',
+        availability: 'catalog',
         fixtureAuthorization: true,
-      },
-    ]
-  })
+        canAddCredential: true,
+        credentialProviders,
+        connectableMethod: null,
+        credentials: [],
+      }
+    }),
+    ...searchIntegrations.filter((integration) => !catalogIds.has(integration.providerId)),
+  ]
+}
+
+function credentialExamples(
+  appId: string,
+  account: IntegrationAccount | null,
+  scenario: Scenario,
+  { viewer, people }: IntegrationCenterData
+): IntegrationCredential[] {
+  const member = (id: string, role: 'admin' | 'member', inherited = false) => {
+    const person = people.find((entry) => entry.id === id)
+    if (!person) throw new Error('Credential example member is missing')
+    return {
+      ...person,
+      userId: person.id,
+      role,
+      roleSource: inherited ? ('workspace-admin' as const) : ('explicit' as const),
+      explicitAdmin: !inherited && role === 'admin',
+      status: 'active' as const,
+    }
+  }
+  const scope = {
+    kind: 'workspace',
+    id: 'customer-operations',
+    name: 'Customer operations',
+  } as const
+  const credentials: IntegrationCredential[] = account
+    ? [
+        {
+          id: account.id,
+          appId,
+          providerId:
+            integrationCatalog
+              .find((entry) => entry.id === appId)
+              ?.connections.find((entry) => entry.kind === 'oauth')?.providerId ?? appId,
+          type: account.method,
+          displayName: account.label,
+          description: appId === 'gmail' ? 'Customer conversations and account updates.' : '',
+          accountLabel: account.label,
+          role: 'admin',
+          status: account.status,
+          canReconnect: account.canReconnect,
+          scope: account.method === 'oauth' ? scope : { kind: 'personal', ownerId: viewer.id },
+          members: [member(viewer.id, 'admin')],
+          permissions: account.permissions,
+        },
+      ]
+    : []
+  if (['gmail', 'google_calendar', 'google_drive'].includes(appId)) {
+    credentials.push({
+      id: 'google-team-service',
+      appId: 'gmail',
+      providerId: 'google-service-account',
+      type: 'service_account',
+      displayName: 'Customer operations service account',
+      description: 'Shared automation for the customer operations team.',
+      accountLabel: 'operations@customer-operations.iam.gserviceaccount.com',
+      role: 'admin',
+      status: 'active',
+      canReconnect: true,
+      scope,
+      members: [
+        member('nina', 'admin'),
+        member(viewer.id, 'admin', true),
+        member('alex', 'member'),
+      ],
+    })
+  }
+  if (scenario === 'stress' && appId === 'github') {
+    credentials.push({
+      id: 'github-engineering',
+      appId,
+      providerId: 'github-repo',
+      type: 'oauth',
+      displayName: 'Engineering repositories',
+      description: 'Repository access shared by the engineering team.',
+      role: 'member',
+      status: 'active',
+      canReconnect: false,
+      scope: { kind: 'workspace', id: 'engineering', name: 'Engineering' },
+      members: [member('alex', 'admin'), member(viewer.id, 'member')],
+    })
+  }
+  if (scenario === 'stress' && appId === 'gitlab') {
+    credentials.push({
+      id: 'gitlab-personal',
+      appId,
+      providerId: 'gitlab',
+      type: 'personal_token',
+      displayName: 'My GitLab account',
+      description: '',
+      instanceUrl: 'https://gitlab.com',
+      role: 'admin',
+      status: 'active',
+      canReconnect: true,
+      scope: { kind: 'personal', ownerId: viewer.id },
+      members: [member(viewer.id, 'admin')],
+    })
+  }
+  return credentials
 }

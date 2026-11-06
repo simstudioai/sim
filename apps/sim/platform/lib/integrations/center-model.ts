@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react'
+
 export type IntegrationTab = 'apps' | 'skills' | 'mcps' | 'credentials'
 type IntegrationScope = 'shared' | 'personal'
 
@@ -16,9 +18,9 @@ export interface AppSummary {
   category: string
   href: string
   connected: boolean
-  status?: string
   searchable?: string
   people?: readonly IntegrationPerson[]
+  peopleTotal?: number
   scope?: IntegrationScope
 }
 
@@ -41,9 +43,9 @@ export type IntegrationResource = ResourceIdentity &
 
 export interface IntegrationCenterData {
   viewer: IntegrationPerson
+  workspaces: readonly { id: string; name: string; memberIds: readonly string[] }[]
   people: IntegrationPerson[]
   appPeople: Record<string, IntegrationPerson[]>
+  appUsageTotal: Record<string, number>
   resources: IntegrationResource[]
 }
-
-import type { ComponentType } from 'react'

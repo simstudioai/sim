@@ -1,6 +1,8 @@
 import type { ComponentType, Ref } from 'react'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading.module.css'
+import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 
 interface ProviderHeadingProps {
   name: string
@@ -8,6 +10,8 @@ interface ProviderHeadingProps {
   providerId?: string
   icon?: ComponentType<{ className?: string }>
   titleRef?: Ref<HTMLHeadingElement>
+  people?: readonly IntegrationPerson[]
+  peopleTotal?: number
 }
 
 export function ProviderHeading({
@@ -16,6 +20,8 @@ export function ProviderHeading({
   providerId,
   icon,
   titleRef,
+  people,
+  peopleTotal,
 }: ProviderHeadingProps) {
   return (
     <header className={styles.header}>
@@ -27,6 +33,7 @@ export function ProviderHeading({
           {name}
         </h1>
         <p data-type='T048'>{description}</p>
+        {people && <IntegrationUsage people={people} total={peopleTotal} expanded />}
       </div>
     </header>
   )

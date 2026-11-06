@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
-import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
+import { ActionMenu, Modal } from '@/platform/design-system/components'
 import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
 
 interface CredentialRow extends IntegrationAccount {
@@ -16,8 +16,6 @@ interface ConnectedCredentialProps {
   integrationName: string
   accounts: readonly CredentialRow[]
   pending: boolean
-  /** Connects a further account into a free slot, when the organization offers one. */
-  addAccount?: { disabled: boolean; onSelect: () => void }
   onReconnect: (accountId: string) => void
   onDisconnect: (accountId: string) => Promise<unknown>
 }
@@ -26,7 +24,6 @@ export function ConnectedCredential({
   integrationName,
   accounts,
   pending,
-  addAccount,
   onReconnect,
   onDisconnect,
 }: ConnectedCredentialProps) {
@@ -75,13 +72,6 @@ export function ConnectedCredential({
           />
         </div>
       ))}
-      {addAccount && (
-        <div>
-          <Button disabled={pending || addAccount.disabled} onClick={addAccount.onSelect}>
-            Add account
-          </Button>
-        </div>
-      )}
       {confirming && (
         <Modal
           open

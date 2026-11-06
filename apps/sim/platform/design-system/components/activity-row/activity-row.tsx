@@ -13,7 +13,7 @@ interface ActivityRowProps {
   count?: number
   detail: string
   detailLead?: string
-  metadata?: string
+  metadata?: ReactNode
   showChevron?: boolean
   trailing?: ReactNode
 }
@@ -52,7 +52,11 @@ export function ActivityRow({
       </ActivityBody>
       {(metadata || showChevron) && (
         <span className={styles.meta} data-type='T052'>
-          {metadata && <span className={styles.metaLabel}>{metadata}</span>}
+          {typeof metadata === 'string' ? (
+            <span className={styles.metaLabel}>{metadata}</span>
+          ) : (
+            metadata
+          )}
           {showChevron && <Icon name='I032' />}
         </span>
       )}

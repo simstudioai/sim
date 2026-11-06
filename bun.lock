@@ -28,6 +28,7 @@
         "pdf-lib": "1.17.1",
         "postcss": "8.5.30",
         "react": "19.2.4",
+        "react-dom": "19.2.4",
         "remark-gfm": "4.0.1",
         "remark-parse": "11.0.0",
         "sharp": "0.35.5",

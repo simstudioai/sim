@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center.module.css'
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { ResourceDetails } from '@/platform/app/(shell)/integrations/_components/resource-details/resource-details'
 import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
 import {
@@ -16,7 +16,6 @@ import {
   Button,
   ChoiceMenu,
   DestinationTabs,
-  EmptyState,
   Modal,
   SearchField,
 } from '@/platform/design-system/components'
@@ -53,15 +52,7 @@ const CREATE_LABEL = {
 } as const
 
 /** The same directory receives authorized live summaries or server-gated example data. */
-export function IntegrationCenter({ apps, credentials, library, settled }: IntegrationCenterProps) {
-  return (
-    <NuqsAdapter>
-      <CenterContent apps={apps} credentials={credentials} library={library} settled={settled} />
-    </NuqsAdapter>
-  )
-}
-
-function CenterContent({
+export function IntegrationCenter({
   apps,
   credentials = [],
   library,
@@ -141,24 +132,25 @@ function CenterContent({
 
   return (
     <div className={styles.center}>
-      <div className={styles.navigation}>
-        <DestinationTabs
-          label='Integration categories'
-          destinations={destinations}
-          currentHref={currentHref}
-        />
-      </div>
-      <div className={styles.controls}>
-        <div className={styles.search}>
-          <SearchField
-            variant='quiet'
-            label={`Search ${current}`}
-            placeholder={`Search ${current === 'mcps' ? 'MCPs' : current}…`}
-            value={view.q}
-            onValueChange={(q) => void setView({ q })}
+      <div className={styles.toolbar}>
+        <div className={styles.navigation}>
+          <DestinationTabs
+            label='Integration categories'
+            destinations={destinations}
+            currentHref={currentHref}
           />
         </div>
-        <div className={styles.actions}>
+        <IntegrationControls
+          leading={
+            <SearchField
+              variant='quiet'
+              label={`Search ${current}`}
+              placeholder={`Search ${current === 'mcps' ? 'MCPs' : current}…`}
+              value={view.q}
+              onValueChange={(q) => void setView({ q })}
+            />
+          }
+        >
           {current === 'apps' ? (
             <ChoiceMenu
               label='App category'
@@ -218,7 +210,7 @@ function CenterContent({
               {CREATE_LABEL[current]}
             </Button>
           )}
-        </div>
+        </IntegrationControls>
       </div>
       <div className={styles.groups}>
         {current === 'apps' ? (
@@ -255,16 +247,18 @@ function CenterContent({
           </>
         )}
         {settled && empty && (
-          <EmptyState
-            title={term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
-            description={
-              term
+          <section className={styles.empty} aria-label='Search results'>
+            <h2 data-type='T059'>
+              {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
+            </h2>
+            <p data-type='T050'>
+              {term
                 ? 'Try a different name or clear your filters.'
                 : current === 'apps'
                   ? 'Apps available to your organization appear here.'
-                  : 'Your personal and shared connections appear here.'
-            }
-          />
+                  : 'Your personal and shared connections appear here.'}
+            </p>
+          </section>
         )}
       </div>
       {editing?.canEdit === false ? (

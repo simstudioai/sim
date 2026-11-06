@@ -30,7 +30,10 @@ function AccessGroup({ title, items }: AccessGroupProps) {
 }
 
 interface ConnectionAccessProps {
-  integration: OrganizationIntegration
+  integration: Pick<
+    OrganizationIntegration,
+    'searchReads' | 'searchResource' | 'requestedScopes' | 'accessDescription'
+  > & { availability: string }
 }
 
 export function ConnectionAccess({ integration }: ConnectionAccessProps) {

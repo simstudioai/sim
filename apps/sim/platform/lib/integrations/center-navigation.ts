@@ -18,39 +18,6 @@ export const centerParams = {
 
 export const serializeCenter = createSerializer(centerParams)
 
-/** Discovery categories describe providers, independently of their connection or sharing state. */
-export function appCategory(provider: string): string {
-  if (
-    [
-      'gmail',
-      'outlook',
-      'google_calendar',
-      'google-calendar',
-      'slack',
-      'microsoft_teams',
-      'fireflies',
-      'zoom',
-    ].includes(provider)
-  )
-    return 'Communication'
-  if (
-    [
-      'google_drive',
-      'google-drive',
-      'notion',
-      'confluence',
-      'coda',
-      'sharepoint',
-      'dropbox',
-    ].includes(provider)
-  )
-    return 'Knowledge'
-  if (['github', 'gitlab', 'linear', 'jira'].includes(provider)) return 'Development'
-  if (['hubspot', 'salesforce', 'attio', 'intercom', 'zendesk'].includes(provider))
-    return 'Customers'
-  return 'Productivity'
-}
-
 const loadCenter = createLoader(centerParams)
 
 /** Keep directory filters through a provider detail or credential round trip. */

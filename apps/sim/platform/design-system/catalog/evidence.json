@@ -247,7 +247,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "D",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SP-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4E-0"]
@@ -257,7 +257,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "L",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "X5-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YEZ-0"]
@@ -267,7 +267,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "L",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SP-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVQ-0"]

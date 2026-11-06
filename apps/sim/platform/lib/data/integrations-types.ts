@@ -25,6 +25,7 @@ export interface OrganizationIntegration {
   icon: ComponentType<{ className?: string }>
   name: string
   description: string
+  category: string
   setupGuideUrl: string
   searchResource: string | null
   searchReads: readonly { id: string; label: string }[]
@@ -88,7 +89,6 @@ export function isConnectable(integration: OrganizationIntegration) {
   return integration.availability === 'ready' && Boolean(integration.connectionTarget)
 }
 
-export function accountStatus(integration: OrganizationIntegration, account: IntegrationAccount) {
-  if (account.status === 'needs_reauth') return 'Reconnect needed'
+export function accountStatus(integration: OrganizationIntegration) {
   return integration.availability === 'blocked' ? integration.status : 'Connected'
 }

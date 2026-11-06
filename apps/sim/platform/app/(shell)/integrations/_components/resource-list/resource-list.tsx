@@ -1,6 +1,7 @@
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
-import { ActionMenu, ActivityRow, AvatarGroup, Icon } from '@/platform/design-system/components'
+import { ActionMenu, ActivityRow, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
 
 interface AppGroupProps {
@@ -39,14 +40,13 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
       leading={<IntegrationMark providerId={app.providerId ?? app.id} icon={app.icon} />}
       title={app.name}
       detail={app.description}
-      metadata={app.status}
-      showChevron={!app.people?.length}
-      trailing={
-        app.people?.length ? (
-          <span className={styles.people}>
-            <AvatarGroup people={app.people} label={`People using ${app.name}`} />
-            <span data-type='T052'>{app.people.length}</span>
-          </span>
+      metadata={
+        app.people?.length || app.peopleTotal ? (
+          <IntegrationUsage
+            people={app.people ?? []}
+            total={app.peopleTotal}
+            label={app.scope ? 'People with access' : undefined}
+          />
         ) : undefined
       }
     />
@@ -87,7 +87,7 @@ export function ResourceGroup({
               leading={
                 <Icon
                   name={
-                    resource.kind === 'skill' ? 'I015' : resource.kind === 'mcp' ? 'I126' : 'I137'
+                    resource.kind === 'skill' ? 'I044' : resource.kind === 'mcp' ? 'I126' : 'I137'
                   }
                 />
               }
@@ -95,14 +95,13 @@ export function ResourceGroup({
               detail={resource.description}
               showChevron={false}
               onOpen={() => onOpen(resource)}
+              metadata={
+                resource.scope === 'shared' ? (
+                  <IntegrationUsage people={resource.people} label='Shared with' />
+                ) : undefined
+              }
               trailing={
                 <>
-                  {resource.scope === 'shared' && (
-                    <AvatarGroup
-                      people={resource.people}
-                      label={`People with access to ${resource.name}`}
-                    />
-                  )}
                   {resource.canEdit && (
                     <ActionMenu
                       label={`Manage ${resource.name}`}

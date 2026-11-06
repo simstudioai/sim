@@ -1,5 +1,6 @@
 import { platformHref } from '@/platform/design-system/navigation'
 import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
+import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
 
 export type AccountMethod = 'oauth' | 'mcp' | 'slack'
@@ -30,16 +31,25 @@ export interface OrganizationIntegration {
   providerId: string
   name: string
   description: string
+  category?: string
   setupGuideUrl: string
   searchResource: string | null
   searchReads: readonly { id: string; label: string }[]
   requestedScopes: readonly { id: string; label: string }[] | null
   accessDescription: string
-  availability: 'ready' | 'managed' | 'unconfigured' | 'disabled' | 'paused' | 'unavailable'
+  availability:
+    | 'ready'
+    | 'managed'
+    | 'unconfigured'
+    | 'disabled'
+    | 'paused'
+    | 'unavailable'
+    | 'catalog'
   connectableMethod: AccountMethod | null
-  connectionCandidate?: IntegrationAccount
   fixtureAuthorization?: true
-  account: IntegrationAccount | null
+  canAddCredential: boolean
+  credentialProviders: readonly string[]
+  credentials: IntegrationCredential[]
 }
 
 export interface IntegrationsData {
@@ -53,21 +63,4 @@ export function memberIntegrationHref(
   query = search.get('q')
 ) {
   return integrationCenterHref(platformHref(path, search), search, query)
-}
-
-export function memberStatus(item: OrganizationIntegration) {
-  switch (item.availability) {
-    case 'managed':
-      return 'Organization managed'
-    case 'unconfigured':
-      return 'Not configured'
-    case 'disabled':
-      return 'Disabled by your organization'
-    case 'paused':
-      return 'Connections paused'
-    case 'unavailable':
-      return 'Currently unavailable'
-  }
-  if (item.account?.status === 'needs_reauth' && item.account.canReconnect)
-    return 'Reconnect needed'
 }

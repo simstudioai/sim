@@ -1,0 +1,13 @@
+.usage,
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+.usage {
+  flex-wrap: wrap;
+  color: var(--ui-secondary);
+}
+.person {
+  min-inline-size: 0;
+}
