@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -106,7 +107,8 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
               : own.length
                 ? ('connected' as const)
                 : ('not_connected' as const),
-          action: ready ? target : null,
+          action:
+            ready && own.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT ? target : null,
         },
       ]
     })

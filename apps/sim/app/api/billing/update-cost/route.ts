@@ -196,7 +196,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
   const startTime = Date.now()
 
   try {
-    logger.info(`[${requestId}] Update cost request started`)
+    logger.debug(`[${requestId}] Update cost request started`)
 
     // Check authentication (internal API key)
     const authResult = checkInternalApiKey(req)
@@ -324,7 +324,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
     })
 
-    logger.info(`[${requestId}] Processing cost update`, {
+    logger.debug(`[${requestId}] Processing cost update`, {
       userId,
       cost,
       model,
@@ -408,7 +408,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           }
         : undefined
 
-    logger.info(`[${requestId}] Billing payer resolved`, {
+    logger.debug(`[${requestId}] Billing payer resolved`, {
       userId,
       billingProtocol: protocol,
       billingResolution: getBillingResolution(isMarkerlessLegacy, billingAttribution),
@@ -443,7 +443,10 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const billed = result.billed
     logger.info(`[${requestId}] Cumulative cost top-up`, {
       userId,
+      billingPayer: billingContext?.billingEntity ?? { type: 'user', id: userId },
+      workspaceId: resolvedWorkspaceId,
       source,
+      model,
       cumulativeCost: cost,
       billedDelta: result.delta,
       newTotal: result.total,

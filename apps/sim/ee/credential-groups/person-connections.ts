@@ -35,7 +35,7 @@ export function personConnectionSummaries(person: CredentialGroupEnrollmentDetai
         key: `mcp:${connection.mcpServerId}`,
         providerId: undefined,
         name: connection.name,
-        count: 1,
+        count: connection.count,
         icon: undefined,
       })),
   ]

@@ -23,6 +23,8 @@ interface ButtonProps {
   icon?: IconName | { providerId: string }
   trailingIcon?: IconName
   disabled?: boolean
+  /** Names the action when several identical buttons sit side by side. */
+  'aria-label'?: string
   onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
@@ -37,6 +39,7 @@ export function Button({
   icon,
   trailingIcon,
   disabled,
+  'aria-label': ariaLabel,
   onClick,
 }: ButtonProps) {
   return useRender({
@@ -51,6 +54,7 @@ export function Button({
       'data-elevation': variant === 'secondary' ? 'control' : undefined,
       'data-type': 'T060',
       disabled,
+      'aria-label': ariaLabel,
       onClick,
       children: (
         <>

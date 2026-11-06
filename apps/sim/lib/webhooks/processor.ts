@@ -648,7 +648,7 @@ export async function checkWebhookPreprocessing(
       const error = preprocessResult.error
       const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
       const admissionRejectionCode = getDeterministicAdmissionRejectionCode(error)
-      logger.warn(`[${requestId}] Webhook preprocessing failed`, {
+      logger.debug(`[${requestId}] Webhook preprocessing failed`, {
         provider: foundWebhook.provider,
         error: error.message,
         statusCode: error.statusCode,

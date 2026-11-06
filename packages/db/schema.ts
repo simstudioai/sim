@@ -6448,11 +6448,23 @@ export const credential = pgTable(
       table.credentialGroupEnrollmentId
     ),
     mcpServerIdx: index('credential_mcp_server_idx').on(table.mcpServerId),
-    credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
-      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+    credentialGroupOptionIdentityUnique: uniqueIndex('credential_group_option_identity_unique')
+      .on(
+        table.credentialGroupEnrollmentId,
+        table.credentialGroupOptionId,
+        table.providerSubjectId,
+        sql`coalesce(${table.providerTenantId}, '')`
+      )
       .where(sql`${table.type} = 'managed_oauth'`),
-    managedMcpEnrollmentServerUnique: uniqueIndex('credential_managed_mcp_enrollment_server_unique')
-      .on(table.credentialGroupEnrollmentId, table.mcpServerId)
+    managedMcpEnrollmentServerIdentityUnique: uniqueIndex(
+      'credential_managed_mcp_enrollment_server_identity_unique'
+    )
+      .on(
+        table.credentialGroupEnrollmentId,
+        table.mcpServerId,
+        sql`coalesce(${table.providerSubjectId}, '')`,
+        sql`coalesce(${table.providerTenantId}, '')`
+      )
       .where(sql`${table.type} = 'managed_mcp'`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
@@ -6535,8 +6547,6 @@ export const credential = pgTable(
         ))
         AND granted_at IS NOT NULL
         AND managed_oauth_scope_version IS NULL
-        AND provider_subject_id IS NULL
-        AND provider_tenant_id IS NULL
         AND granted_scopes IS NULL
         AND provider_metadata IS NULL
         AND created_by IS NULL

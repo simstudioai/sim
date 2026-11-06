@@ -362,6 +362,12 @@ function startAdmissionReads(params: {
   }
 }
 
+/** A gate refusal's warning, emitted alongside its error row so both share the throttle window. */
+interface GateWarning {
+  message: string
+  fields: Record<string, unknown>
+}
+
 export async function preprocessExecution(
   options: PreprocessExecutionOptions
 ): Promise<PreprocessExecutionResult> {
@@ -401,11 +407,15 @@ export async function preprocessExecution(
   const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
     suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
-  /** Records an admission gate's error row, at most once per gate and outcome per window when throttled. */
+  /**
+   * Records an admission gate's warning and error row, at most once per gate and outcome per window
+   * when throttled, so a sender redelivering into a refusal does not log every attempt.
+   */
   const recordGateFailure = async (
     gate: 'ban' | 'usage' | 'rate-limit' | 'reservation',
     failure: PreprocessExecutionError,
-    record: Parameters<typeof logPreprocessingError>[0]
+    record: Parameters<typeof logPreprocessingError>[0],
+    warning?: GateWarning
   ): Promise<void> => {
     if (isFailureLogSuppressed(failure)) return
     if (
@@ -416,10 +426,12 @@ export async function preprocessExecution(
     ) {
       return
     }
+    if (warning)
+      logger.warn(warning.message, { requestId, workflowId, triggerType, ...warning.fields })
     await recordPreprocessingError(record)
   }
 
-  logger.info(`[${requestId}] Starting execution preprocessing`, {
+  logger.debug(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
     userId,
     triggerType,
@@ -577,7 +589,7 @@ export async function preprocessExecution(
       }
       actorUserId = validatedAttribution.actorUserId
       billingAttribution = validatedAttribution
-      logger.info(`[${requestId}] Reusing serialized billing attribution`, {
+      logger.debug(`[${requestId}] Reusing serialized billing attribution`, {
         actorUserId,
         billingEntity: billingAttribution.billingEntity,
       })
@@ -585,13 +597,13 @@ export async function preprocessExecution(
 
     if (!actorUserId && useAuthenticatedUserAsActor && userId) {
       actorUserId = userId
-      logger.info(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
+      logger.debug(`[${requestId}] Using authenticated user as actor: ${actorUserId}`)
     }
 
     if (!actorUserId) {
       billingAttribution = await admission.attributionFor(workspaceId)
       actorUserId = billingAttribution.actorUserId
-      logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
+      logger.debug(`[${requestId}] Using atomically resolved system actor and payer`, {
         actorUserId,
         billingEntity: billingAttribution.billingEntity,
       })
@@ -672,6 +684,7 @@ export async function preprocessExecution(
   interface GateFailure {
     response: PreprocessExecutionFailure
     recordError?: Parameters<typeof recordPreprocessingError>[0]
+    warning?: GateWarning
   }
 
   /** Usage figures captured by the read gate and reused by the atomic reservation. */
@@ -690,13 +703,8 @@ export async function preprocessExecution(
     try {
       const bannedUserIds = await gateReads.bannedUserIds
       if (bannedUserIds.length > 0) {
-        logger.warn(`[${requestId}] Execution blocked: banned account`, {
-          workflowId,
-          bannedUserIds,
-          triggerType,
-        })
-
         return {
+          warning: { message: 'Execution blocked: banned account', fields: { bannedUserIds } },
           response: {
             success: false,
             error: {
@@ -774,16 +782,17 @@ export async function preprocessExecution(
           }
         : null
       if (usageCheck.isExceeded) {
-        logger.warn(`[${requestId}] Attributed usage gate blocked actor ${actorUserId}.`, {
-          currentUsage: snapshot?.currentUsage,
-          limit: snapshot?.limit,
-          scope: usageCheck.scope,
-          workflowId,
-          triggerType,
-        })
-
         return {
           failure: {
+            warning: {
+              message: 'Attributed usage gate blocked actor',
+              fields: {
+                actorUserId,
+                currentUsage: snapshot?.currentUsage,
+                limit: snapshot?.limit,
+                scope: usageCheck.scope,
+              },
+            },
             response: {
               success: false,
               error: {
@@ -876,13 +885,11 @@ export async function preprocessExecution(
       )
 
       if (!info.allowed) {
-        logger.warn(`[${requestId}] Rate limit exceeded for user ${actorUserId}`, {
-          triggerType,
-          remaining: info.remaining,
-          resetAt: info.resetAt,
-        })
-
         return {
+          warning: {
+            message: 'Rate limit exceeded',
+            fields: { actorUserId, remaining: info.remaining, resetAt: info.resetAt },
+          },
           response: {
             success: false,
             error: {
@@ -947,7 +954,8 @@ export async function preprocessExecution(
       await recordGateFailure(
         banFailure ? 'ban' : 'usage',
         readGateFailure.response.error,
-        readGateFailure.recordError
+        readGateFailure.recordError,
+        readGateFailure.warning
       )
     }
     return readGateFailure.response
@@ -959,7 +967,8 @@ export async function preprocessExecution(
       await recordGateFailure(
         'rate-limit',
         rateLimitFailure.response.error,
-        rateLimitFailure.recordError
+        rateLimitFailure.recordError,
+        rateLimitFailure.warning
       )
     }
     return rateLimitFailure.response
@@ -1009,12 +1018,6 @@ export async function preprocessExecution(
           reservation.reason
         )
         const message = RESERVATION_DENIAL_MESSAGE[reservation.reason]
-        logger.warn(`[${requestId}] Admission reservation full for user ${actorUserId}`, {
-          workflowId,
-          triggerType,
-          constraint: reservation.reason,
-        })
-
         const failure: PreprocessExecutionError = {
           message,
           statusCode: descriptor.statusCode,
@@ -1026,17 +1029,25 @@ export async function preprocessExecution(
             constraint: reservation.reason,
           },
         }
-        await recordGateFailure('reservation', failure, {
-          workflowId,
-          executionId,
-          triggerType,
-          requestId,
-          userId: actorUserId,
-          workspaceId,
-          errorMessage: message,
-          loggingSession: providedLoggingSession,
-          triggerData,
-        })
+        await recordGateFailure(
+          'reservation',
+          failure,
+          {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage: message,
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
+          {
+            message: 'Admission reservation full',
+            fields: { actorUserId, constraint: reservation.reason },
+          }
+        )
 
         return { success: false, error: failure }
       }
@@ -1068,7 +1079,7 @@ export async function preprocessExecution(
     }
   }
 
-  logger.info(`[${requestId}] All preprocessing checks passed`, {
+  logger.debug(`[${requestId}] All preprocessing checks passed`, {
     workflowId,
     actorUserId,
     triggerType,

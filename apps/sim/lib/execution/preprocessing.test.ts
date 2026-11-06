@@ -15,6 +15,7 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { executionLimitsMock } from '@sim/testing/mocks/execution-limits.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
@@ -1121,6 +1122,22 @@ describe('preprocessExecution admission rejection codes and blocked-run log thro
     }
 
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs one warning for repeated refusals of a workflow by the same gate', async () => {
+    const workflowId = 'workflow-1'
+    const logger = getMockLogger('ExecutionPreprocessing')
+    logger.warn.mockClear()
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await refuse(workflowId, { throttleErrorLogs: true })
+    }
+
+    expect(logger.warn).toHaveBeenCalledOnce()
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Attributed usage gate blocked actor',
+      expect.objectContaining({ workflowId })
+    )
   })
 
   it('writes a row for a different gate refusing the same workflow inside the window', async () => {

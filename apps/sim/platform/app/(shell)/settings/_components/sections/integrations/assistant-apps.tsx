@@ -7,6 +7,7 @@ import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/co
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
 import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
 import {
   getCredentialGroupProviderId,
@@ -93,7 +94,7 @@ export function AssistantApps({ organizationId, search, data, policies }: Assist
               integrationName={service.name}
               accounts={accounts}
               onConnect={
-                accounts.length === 0
+                accounts.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
                   ? () => connect.mutate({ organizationId, optionId: option.id }, { onError })
                   : undefined
               }
@@ -247,7 +248,7 @@ function AccountActions({
           }}
         >
           <Muted>
-            {`Disconnect ${selected.displayName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+            {`Disconnect ${selected.displayName} from this organization. Workflows using this account will also lose access. You can reconnect later.`}
           </Muted>
         </ConfirmDialog>
       )}
