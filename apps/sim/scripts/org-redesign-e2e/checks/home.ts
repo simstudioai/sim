@@ -523,7 +523,7 @@ export async function homeChecks() {
     })
   })
   await check(
-    'Workspaces holds its rows while its read is out, and keeps them if it fails',
+    'Workspaces shows its rows while their activity is out, and keeps them if it fails',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         const release = createDeferred<void>()
@@ -535,10 +535,10 @@ export async function homeChecks() {
         })
         await page.goto(orgUrl('/home'))
         const region = homeRegion(page, 'Workspaces')
-        await expect(region.getByRole('status', { name: 'Loading workspaces' })).toBeVisible()
-        await expect(
-          region.getByRole('status', { name: 'Loading workspaces' }).locator('> span')
-        ).toHaveCount(2)
+        // The names are already known, so the rows paint at once, with what they report still out.
+        await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
+        await expect(region.getByText('…', { exact: true }).first()).toBeVisible()
+        await expect(region.getByText('Up to date')).toHaveCount(0)
         release.resolve()
         await expect(
           region.getByText('What these workspaces are doing could not load.')
@@ -553,6 +553,82 @@ export async function homeChecks() {
     },
     { allow: [/500 GET .*workspace-activity/] }
   )
+  for (const [persona, viewer] of [
+    ['member', MEMBER],
+    ['builder', ADMIN],
+  ] as const) {
+    await check(`a ${persona}'s Home does not jump from its skeleton to its content`, async () => {
+      await withSession(viewer, async (session) => {
+        const { page } = session
+        await page.addInitScript(() => {
+          let shift = 0
+          new PerformanceObserver((entries) => {
+            for (const entry of entries.getEntries() as (PerformanceEntry & {
+              value: number
+              hadRecentInput: boolean
+            })[]) {
+              if (!entry.hadRecentInput) shift += entry.value
+            }
+          }).observe({ type: 'layout-shift', buffered: true })
+          ;(window as Window & { homeLayoutShift?: () => number }).homeLayoutShift = () => shift
+        })
+        await page.goto(orgUrl('/home'))
+        await expect(page.getByRole('main')).toBeVisible()
+        await session.settle()
+        const shift = await page.evaluate(() =>
+          (window as Window & { homeLayoutShift?: () => number }).homeLayoutShift?.()
+        )
+        // 0.25 is where Core Web Vitals calls a page's shift poor.
+        assert.ok((shift ?? 0) < 0.25, `Home shifted by ${shift} as it loaded`)
+      })
+    })
+  }
+  await check("Home's sections stack without overlapping on a phone", async () => {
+    await withSession(
+      ADMIN,
+      async (session) => {
+        const { page } = session
+        await page.goto(orgUrl('/home'))
+        await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+        await session.settle()
+        const seeMore = homeRegion(page, 'Workspaces').getByRole('button', { name: 'See more' })
+        if ((await seeMore.count()) > 0) await seeMore.click()
+        const boxes = await page
+          .getByRole('main')
+          .getByRole('region')
+          .evaluateAll((regions) =>
+            regions
+              .filter((region) => region.matches('section'))
+              .map((region) => {
+                const { top, bottom } = region.getBoundingClientRect()
+                const contentBottom = Math.max(
+                  bottom,
+                  ...[...region.children].map((child) => child.getBoundingClientRect().bottom)
+                )
+                return { name: region.getAttribute('aria-label'), top, bottom: contentBottom }
+              })
+              .sort((a, b) => a.top - b.top)
+          )
+        assert.ok(boxes.length > 1, 'Home has no sections to compare')
+        for (const [index, box] of boxes.slice(1).entries()) {
+          const above = boxes[index]
+          assert.ok(
+            above.bottom <= box.top + 1,
+            `${above.name} runs ${Math.round(above.bottom - box.top)}px into ${box.name}`
+          )
+        }
+      },
+      { viewport: PHONE }
+    )
+  })
+  await check('Home, Search and Settings each name one main region', async () => {
+    await withSession(ADMIN, async ({ page }) => {
+      for (const path of ['/home', '/search', '/settings/general']) {
+        await page.goto(orgUrl(path))
+        await expect(page.getByRole('main')).toHaveCount(1)
+      }
+    })
+  })
   await check('Customize Home hides Workspaces across a reload, and stops its read', async () => {
     await onHome(MEMBER, async (session) => {
       const { page } = session
