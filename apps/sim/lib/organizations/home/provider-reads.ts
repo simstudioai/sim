@@ -217,13 +217,15 @@ export async function readGmailThreads({
   threads: HomeEmailThread[]
   cursor: GmailThreadCursor
 }> {
-  const list = await runTool(
-    gmailListThreadsV2Tool,
-    { accessToken, labelIds: 'INBOX', maxResults: HOME_EMAIL_THREAD_LIMIT },
-    signal
-  )
+  const [list, mailbox] = await Promise.all([
+    runTool(
+      gmailListThreadsV2Tool,
+      { accessToken, labelIds: 'INBOX', maxResults: HOME_EMAIL_THREAD_LIMIT },
+      signal
+    ),
+    readGmailMailbox({ accessToken, signal, credentialId, accountId }),
+  ])
   if (!list.success) throw new HomeProviderReadError('unavailable')
-  const mailbox = await readGmailMailbox({ accessToken, signal, credentialId, accountId })
   const cursor: GmailThreadCursor = {
     mailbox,
     unreadThreadIds: list.output.threads
