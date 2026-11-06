@@ -18,8 +18,8 @@ faq:
     a: "Sim fits cross-system Microsoft Teams agents, while Microsoft Copilot Studio fits organizations that prioritize Microsoft-native administration."
   - q: "What is the best AI agent for Microsoft 365?"
     a: "Sim fits teams that need one workspace for Outlook, Teams, SharePoint, OneDrive, Excel, Intune, model choice, and external business tools."
-  - q: "Can an AI agent triage a shared Outlook inbox?"
-    a: "Sim can triage a shared Outlook inbox by classifying messages, retrieving approved context, drafting replies, routing uncertain cases, and requiring human approval before sensitive messages are sent."
+  - q: "Can an AI agent triage a connected Outlook inbox?"
+    a: "Sim can triage a connected Outlook inbox by classifying messages, retrieving approved context, drafting replies, routing uncertain cases, and requiring human approval before sensitive messages are sent."
   - q: "Can an AI agent send Outlook emails automatically?"
     a: "Sim can send Outlook emails as part of a workflow, but consequential or uncertain messages should pass through a Human in the Loop step and a downstream Condition before the send action runs."
   - q: "Can an AI agent post approvals to Microsoft Teams?"
@@ -115,13 +115,13 @@ The six products can be distinguished by license, deployment, and billing unit.
 - **n8n:** n8n offers cloud and self-hosted deployment under its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved open source. Its [cloud pricing](https://n8n.io/pricing/) is based on workflow executions.
 - **Lindy:** Lindy is a proprietary hosted assistant with [per-user, credit-based plans](https://www.lindy.ai/pricing) and Outlook actions.
 
-## How do you build an AI agent that triages a shared Outlook inbox and drafts replies?
+## How do you build an AI agent that triages a connected Outlook inbox and drafts replies?
 
-Sim can triage a shared Outlook inbox by combining Outlook events and actions with classification, retrieval, reply drafting, approval, and escalation steps.
+Sim can triage the connected account's Outlook inbox by combining Outlook events and actions with classification, retrieval, reply drafting, approval, and escalation steps.
 
 A practical workflow is:
 
-1. Trigger the workflow when a new message reaches the shared mailbox.
+1. Trigger the workflow when a new message reaches the connected account's inbox.
 2. Extract the sender, subject, body, attachments, thread context, and mailbox metadata needed for the decision.
 3. Classify the message by intent, urgency, account, and required team.
 4. Retrieve approved context from SharePoint, OneDrive, a CRM, or another source.
@@ -204,7 +204,7 @@ As of November 2026, buyers should calculate:
 
 Request a workload-based estimate using real message volume. A useful pilot records messages per user, percentage requiring AI, average model tokens, tool calls per run, approval rate, retries, and retention volume. This estimate is more reliable than multiplying a public entry price by 500.
 
-Sim Cloud customers can use workspace BYOK on any plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. The [Sim cost documentation](https://docs.sim.ai/platform/costs) explains how provider billing changes when customers use their own keys. [Self-hosted Sim deployments](https://docs.sim.ai/platform/self-hosting) can connect local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise solely for local-model support.
+Teams using Sim Cloud can use workspace BYOK on any plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. The [Sim cost documentation](https://docs.sim.ai/platform/costs) explains how provider billing changes when teams use their own keys. [Self-hosted Sim deployments](https://docs.sim.ai/platform/self-hosting) can connect local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise solely for local-model support.
 
 ## What administration and security controls should a Microsoft 365 AI agent have?
 
