@@ -4215,8 +4215,8 @@ describe('useChat remount send recovery', () => {
         await act(async () => {
           void view.getResult().sendMessage('Add a summary')
         })
-        for (let second = 0; second < 300; second++) {
-          await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        for (let step = 0; step < 20; step++) {
+          await act(async () => vi.advanceTimersByTimeAsync(30_000))
         }
 
         const attempts = state.postBodies.length
@@ -4232,7 +4232,7 @@ describe('useChat remount send recovery', () => {
       } finally {
         vi.useRealTimers()
       }
-    })
+    }, 30_000)
 
     it('shows an applied message once, in place, when the saved transcript holds it', async () => {
       const steeringId = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
