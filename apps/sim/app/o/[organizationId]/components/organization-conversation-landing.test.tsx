@@ -94,7 +94,7 @@ beforeEach(() => {
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
     canBuild: false,
-    viewer: { isAdmin: false, canUseSearchMcp: true },
+    viewer: { userId: 'reader', isAdmin: false, canUseSearchMcp: true },
   })
   mockUseChat.mockReturnValue({ messages: [], resources: [], sendMessage: vi.fn() })
   mocks.composer.mockReturnValue(<div>Question composer</div>)
@@ -110,8 +110,8 @@ afterEach(async () => {
 })
 
 describe('an Assistant conversation on a surface with its own landing', () => {
-  it('holds the surface’s fallback until the session arrives', async () => {
-    authClientMockFns.mockUseSession.mockReturnValue({ data: null })
+  it('mounts on the viewer the layout authorized, without a round trip for the client session', async () => {
+    authClientMockFns.mockUseSession.mockReturnValue({ data: null, isPending: true })
     await render(
       <PageConversation
         requestMode='assistant'
@@ -119,7 +119,7 @@ describe('an Assistant conversation on a surface with its own landing', () => {
         landing={landing}
       />
     )
-    expect(container.textContent).toBe('Dashboard skeleton')
+    expect(container.textContent).not.toContain('Dashboard skeleton')
   })
 
   it('shows no dashboard while a restored chat entry hands itself back to the router', async () => {

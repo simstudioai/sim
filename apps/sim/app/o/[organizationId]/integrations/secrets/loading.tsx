@@ -1,4 +1,4 @@
-import { LoadingRows } from '@/platform/design-system/components'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { IntegrationsPage } from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page'
 

@@ -6,7 +6,7 @@ import { readOrganizationSecretSource } from '@/lib/organization-secrets/applica
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { LoadingRows } from '@/platform/design-system/components'
+import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { IntegrationsPage } from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { SecretsEditor } from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor'

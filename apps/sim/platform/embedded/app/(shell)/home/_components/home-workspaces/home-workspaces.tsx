@@ -2,11 +2,10 @@
 
 import { useState } from 'react'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import { FailureNotice } from '@/platform/design-system/components'
 import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
 import { Chip } from '@/platform/design-system/components/button/button'
 import { RowList } from '@/platform/design-system/components/settings-section/row-list'
-import { Spinner } from '@/platform/design-system/components/status/status'
+import { FailureNotice, Spinner } from '@/platform/design-system/components/status/status'
 import { HomeSection } from '@/platform/embedded/app/(shell)/home/_components/home-section/home-section'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-workspaces/home-workspaces.module.css'
 import { WidgetSkeleton } from '@/platform/embedded/app/(shell)/home/_components/widget-skeleton/widget-skeleton'

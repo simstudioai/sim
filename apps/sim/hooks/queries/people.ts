@@ -1,5 +1,11 @@
 import { useRef } from 'react'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  infiniteQueryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -42,13 +48,18 @@ export const peopleKeys = {
     [...peopleKeys.organization(organizationId), 'person', memberId] as const,
 }
 
-export function usePeople(
+interface PeopleListOptions {
+  scope?: 'roots' | 'members'
+  departmentKey?: string
+}
+
+export function peopleListQueryOptions(
   organizationId: string,
   search: string,
   department: string,
-  options: { scope?: 'roots' | 'members'; enabled?: boolean; departmentKey?: string } = {}
+  options: PeopleListOptions = {}
 ) {
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: peopleKeys.list(
       organizationId,
       search,
@@ -56,7 +67,6 @@ export function usePeople(
       options.scope,
       options.departmentKey
     ),
-    enabled: options.enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ signal, pageParam }) =>
       requestJson(listPeopleContract, {
@@ -72,6 +82,18 @@ export function usePeople(
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: PEOPLE_STALE_TIME,
+  })
+}
+
+export function usePeople(
+  organizationId: string,
+  search: string,
+  department: string,
+  { enabled, ...options }: PeopleListOptions & { enabled?: boolean } = {}
+) {
+  return useInfiniteQuery({
+    ...peopleListQueryOptions(organizationId, search, department, options),
+    enabled,
     placeholderData: (previous, query) =>
       query?.queryKey[1] === organizationId && query.queryKey[3] === options.scope
         ? previous

@@ -8,6 +8,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import { simLinksSortParams } from '@/lib/sim-links/search-params'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
+import { peopleListQueryOptions } from '@/hooks/queries/people'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import {
@@ -40,6 +41,12 @@ export function useNavWarmers() {
     if (destination === 'integrations' && canReadMemberIntegrations(context)) {
       prefetchQueryOnIntent(queryClient, organizationAccountsQueryOptions(organizationId))
       prefetchQueryOnIntent(queryClient, searchIntegrationsQueryOptions(organizationId))
+    }
+    if (destination === 'people' && context.viewer.isAdmin) {
+      const options = peopleListQueryOptions(organizationId, '', '', { scope: 'roots' })
+      void queryClient
+        .prefetchInfiniteQuery(options)
+        .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
     }
     if (destination === 'sim-links') {
       const { column, direction } = simLinksSortParams.default
