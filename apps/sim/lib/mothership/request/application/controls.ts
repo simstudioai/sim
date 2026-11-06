@@ -195,31 +195,40 @@ export const steerRun = defineAuthorizedChatUseCase({
   resolveContext: (args: { principal: SessionPrincipal; input: CopilotChatSteerBody }) =>
     resolveRunContext(args),
   authorizationOptions: {},
+  /**
+   * Returns the worker's disposition of the steering id. The sender re-sends the
+   * same id and content to read it again after it lost track (its turn ended
+   * without the `steering_applied` frame): v2 answers from its durable record,
+   * and v1, which keeps none, refuses once the run has closed, which the sender
+   * takes as not applied.
+   */
   async execute({ input, context }) {
     const { streamId, steeringId, content } = input
     const { userId, chatId } = context
-    let queued = false
-    let goStatus = 0
-    try {
-      const result = await requestStreamSteering({ streamId, userId, chatId, steeringId, content })
-      queued = result.queued
-      goStatus = result.status
-    } catch (error) {
-      logger.warn('Steering could not reach worker', { streamId, error: getErrorMessage(error) })
+    const result = await requestStreamSteering({ streamId, userId, chatId, steeringId, content })
+    if (result.status === 'refused') throw new SteeringNotQueuedError(result.goStatus)
+    if (result.status !== 'not_applied') {
+      try {
+        await appendCopilotChatMessages(
+          chatId,
+          [
+            {
+              id: steeringId,
+              role: 'user',
+              content,
+              timestamp: new Date().toISOString(),
+              steering: { streamId },
+            },
+          ],
+          { streamId }
+        )
+      } catch (error) {
+        logger.warn('Steering could not be saved to display history', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+      }
     }
-    if (!queued) throw new SteeringNotQueuedError(goStatus)
-    try {
-      await appendCopilotChatMessages(
-        chatId,
-        [{ id: steeringId, role: 'user', content, timestamp: new Date().toISOString() }],
-        { streamId }
-      )
-    } catch (error) {
-      logger.warn('Queued steering could not be saved to display history', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-    }
-    return { ok: true, queued: true }
+    return { steeringId, ...result }
   },
 })

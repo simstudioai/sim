@@ -5,9 +5,23 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
  * every real boundary of the app and only the model's words are scripted. A message containing
  * `Count slowly` streams until the app hangs up, which is what Stop needs; anything else answers at
  * once. Same wire format as the desktop suite's `ScriptedAgent`.
+ *
+ * Steering follows the worker's v2 contract (`/api/streams/steer/v2`): a message steered into a
+ * running count is applied at its next number, with a `run`/`steering_applied` frame and a reply
+ * that quotes it. A count asked to `ignore steering` finishes without applying any, so each one it
+ * held is `not_applied`. Every disposition is durable: re-sending a steering id reads it again.
  */
 const port = Number(process.argv[2])
 if (!port) throw new Error('usage: scripted-agent.ts <port>')
+
+interface Steering {
+  streamId: string
+  content: string
+  status: 'queued' | 'applied' | 'not_applied'
+}
+
+const steerings = new Map<string, Steering>()
+const openStreams = new Set<string>()
 
 async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = []
@@ -40,6 +54,7 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
     if (!open) return
     emit('complete', { status: 'complete' })
     open = false
+    closeSteerings()
     response.end()
   }
   response.writeHead(200, {
@@ -47,8 +62,28 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   })
+  openStreams.add(streamId)
+  const ignoresSteering = /ignore steering/i.test(message)
+  const closeSteerings = () => {
+    openStreams.delete(streamId)
+    for (const steering of steerings.values()) {
+      if (steering.streamId === streamId && steering.status === 'queued') {
+        steering.status = 'not_applied'
+      }
+    }
+  }
+  const applySteerings = () => {
+    if (ignoresSteering) return
+    for (const [steeringId, steering] of steerings) {
+      if (steering.streamId !== streamId || steering.status !== 'queued') continue
+      steering.status = 'applied'
+      emit('run', { kind: 'steering_applied', steeringId })
+      emit('text', { channel: 'assistant', text: `Applied: ${steering.content}\n` })
+    }
+  }
   response.on('close', () => {
     open = false
+    closeSteerings()
   })
   emit('session', { kind: 'start' })
   if (!message.includes('Count slowly')) {
@@ -56,14 +91,16 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
     finish()
     return
   }
+  const last = Number(/to (\d+)/.exec(message)?.[1] ?? 50)
   let count = 0
   const timer = setInterval(() => {
     count += 1
-    if (!open || count > 50) {
+    if (!open || count > last) {
       clearInterval(timer)
       finish()
       return
     }
+    applySteerings()
     emit('text', { channel: 'assistant', text: `${count}\n` })
   }, 500)
 }
@@ -74,6 +111,28 @@ createServer((request, response) => {
       const path = new URL(request.url ?? '/', 'http://agent').pathname
       if (path === '/api/mothership' || path === '/api/copilot') {
         streamTurn(body, response)
+        return
+      }
+      if (path === '/api/streams/steer/v2') {
+        const steeringId = String(body.steeringId)
+        const content = String(body.content)
+        const streamId = String(body.messageId)
+        let steering = steerings.get(steeringId)
+        if (steering && steering.content !== content) {
+          response.writeHead(409)
+          response.end()
+          return
+        }
+        if (!steering) {
+          steering = {
+            streamId,
+            content,
+            status: openStreams.has(streamId) ? 'queued' : 'not_applied',
+          }
+          steerings.set(steeringId, steering)
+        }
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ steeringId, status: steering.status }))
         return
       }
       response.writeHead(200, { 'Content-Type': 'application/json' })

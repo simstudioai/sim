@@ -12,10 +12,6 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
 import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import {
-  getMothershipAttachmentPreviewUrl,
-  getMothershipAttachmentUrl,
-} from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
@@ -453,30 +449,6 @@ function OrganizationConversationContent({
       : commit({ message: text.trim(), contexts })
   }
 
-  const editQueuedMessage = (id: string) => {
-    const queued = chat.editQueuedMessage(id)
-    if (queued) {
-      setDraft(queued.content, queued.contexts)
-      setRestoredContexts(queued.contexts ?? [])
-      files.restoreAttachedFiles(
-        (queued.fileAttachments ?? []).map((file) => ({
-          id: file.id,
-          key: file.key,
-          name: file.filename,
-          type: file.media_type,
-          size: file.size,
-          path:
-            file.path ||
-            getMothershipAttachmentPreviewUrl(file) ||
-            getMothershipAttachmentUrl(file),
-          previewUrl: getMothershipAttachmentPreviewUrl(file),
-          uploading: false,
-        }))
-      )
-    }
-    return queued
-  }
-
   const composer = (
     <Composer
       requestMode={requestMode}
@@ -494,18 +466,11 @@ function OrganizationConversationContent({
       value={draft}
       restoredContexts={restoredContexts}
       messages={chat.messages}
-      onEditQueuedTail={() => {
-        const tail = chat.messageQueue.at(-1)
-        return tail ? Boolean(editQueuedMessage(tail.id)) : false
-      }}
       files={files}
       isInitialView={!hasChat}
       isSending={chat.isSending || chat.isReconnecting}
       onChange={setDraft}
       onSubmit={submit}
-      onSendQueuedHead={() => {
-        void chat.sendNow()
-      }}
       onStop={() => {
         void chat.stopGeneration()
       }}
@@ -558,13 +523,6 @@ function OrganizationConversationContent({
             onStopGeneration={() => {
               void chat.stopGeneration()
             }}
-            messageQueue={chat.messageQueue}
-            editingQueuedId={chat.editingQueuedId}
-            dispatchingHeadId={chat.dispatchingHeadId}
-            onRemoveQueuedMessage={chat.removeFromQueue}
-            onSendQueuedMessage={chat.sendNow}
-            onEditQueuedMessage={editQueuedMessage}
-            onCancelQueueEdit={chat.cancelQueueEdit}
             userId={session?.user?.id}
             chatId={chat.resolvedChatId}
             composer={composer}

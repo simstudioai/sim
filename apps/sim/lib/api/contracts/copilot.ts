@@ -543,12 +543,26 @@ export const copilotChatAbortContract = defineRouteContract({
     }),
   },
 })
+/**
+ * What became of a steering message, keyed by its `steeringId`. Re-sending the
+ * same id and content reads it again. `not_applied` (the run closed first), like
+ * a 409 (no live run to steer, or a worker that refused it), means the sender
+ * delivers the message as its own turn instead.
+ */
+const copilotChatSteerDispositionSchema = z.discriminatedUnion('status', [
+  z.object({ steeringId: z.string(), status: z.literal('queued') }),
+  z.object({
+    steeringId: z.string(),
+    status: z.literal('applied'),
+    eventSeq: z.number().int().nonnegative().optional(),
+    textOffset: z.number().int().nonnegative().optional(),
+  }),
+  z.object({ steeringId: z.string(), status: z.literal('not_applied') }),
+])
+
 export const copilotChatSteerContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/steer',
   body: copilotChatSteerBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({ ok: z.boolean(), queued: z.boolean(), goStatus: z.number().optional() }),
-  },
+  response: { mode: 'json', schema: copilotChatSteerDispositionSchema },
 })

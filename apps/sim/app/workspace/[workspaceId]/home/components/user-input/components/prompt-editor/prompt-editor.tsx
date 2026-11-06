@@ -72,7 +72,6 @@ export function PromptEditor({
   className,
   'aria-label': ariaLabel,
   onSubmit,
-  onArrowUpOnEmpty,
   onNavigateHistory,
 }: PromptEditorProps) {
   const { textareaRef, value } = editor
@@ -201,9 +200,7 @@ export function PromptEditor({
           readOnly={readOnly}
           onChange={readOnly ? undefined : editor.handleInputChange}
           onKeyDown={
-            readOnly
-              ? undefined
-              : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty, onNavigateHistory })
+            readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onNavigateHistory })
           }
           onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}

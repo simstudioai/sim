@@ -44,7 +44,8 @@ export type PersistedToolCall = z.infer<typeof persistedToolCallSchema>
 
 /** Canonical persisted blocks shared by display projection and partial-response HTTP writes. */
 export const persistedContentBlockSchema = z.object({
-  type: z.union([z.enum(MothershipStreamV1EventType), z.literal('task')]),
+  type: z.union([z.enum(MothershipStreamV1EventType), z.literal('task'), z.literal('steering')]),
+  steering: z.object({ steeringId: z.string() }).optional(),
   lane: z.enum(['main', 'subagent']).optional(),
   agent: z.string().optional(),
   channel: z.enum(MothershipStreamV1TextChannel).optional(),

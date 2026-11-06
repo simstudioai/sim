@@ -190,6 +190,11 @@ export function modelToContentBlocks(
       continue
     }
 
+    if (node.kind === 'steering') {
+      entries.push({ seq: node.seq, block: { type: 'steering', steering: node.steering } })
+      continue
+    }
+
     if (node.kind === 'task') {
       entries.push({
         seq: node.seq,
@@ -305,6 +310,12 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
   }
 
   for (const block of blocks) {
+    if (block.type === 'steering') {
+      if (block.steering) {
+        reduceEvent(model, synth('run', { kind: 'steering_applied', ...block.steering }))
+      }
+      continue
+    }
     if (block.type === 'task') {
       if (!block.task) continue
       reduceEvent(

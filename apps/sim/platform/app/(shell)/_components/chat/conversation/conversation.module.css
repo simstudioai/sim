@@ -53,30 +53,6 @@
   inline-size: max-content;
   margin-inline: auto;
 }
-.queue {
-  display: grid;
-  gap: var(--ui-stack-gap);
-  margin-block-end: var(--ui-row-gap);
-}
-.queued {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-row-gap);
-  min-inline-size: 0;
-}
-.queuedText {
-  flex: 1;
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.queuedActions {
-  display: flex;
-  flex: none;
-  gap: var(--ui-action-gap);
-}
 .automated {
   justify-self: center;
   color: var(--ui-secondary);

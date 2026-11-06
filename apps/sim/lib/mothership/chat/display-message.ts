@@ -85,6 +85,10 @@ function toDisplayBlockBody(
   switch (block.type) {
     case 'task':
       return block.task ? { type: ContentBlockType.task, task: block.task } : undefined
+    case 'steering':
+      return block.steering
+        ? { type: ContentBlockType.steering, steering: block.steering }
+        : undefined
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
         if (block.channel === 'thinking') {
@@ -209,6 +213,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
     ...(msg.streamId ? { streamId: msg.streamId } : {}),
     role: msg.role,
     ...(msg.origin ? { origin: msg.origin } : {}),
+    ...(msg.steering ? { steering: msg.steering } : {}),
     content: msg.content,
     ...(msg.requestMode ? { requestMode: msg.requestMode } : {}),
   }

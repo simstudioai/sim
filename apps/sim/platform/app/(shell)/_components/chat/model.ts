@@ -152,16 +152,6 @@ export type PlatformTurn =
 
 type ChatRuntimeStatus = 'idle' | 'loading' | 'sending' | 'reconnecting'
 
-export interface PlatformQueuedMessage {
-  id: string
-  text: string
-  attachmentCount: number
-  /** Recovery dropped a reference it could no longer resolve. */
-  needsReview?: boolean
-  /** An earlier attempt may have reached the server, so it can only go out as written. */
-  locked?: boolean
-}
-
 export type ToolDecision = 'allow' | 'allow_chat' | 'always_allow' | 'skip'
 
 export interface PlatformResource {
@@ -218,21 +208,13 @@ export interface ChatRuntime {
   /** Set when no history could load; distinct from an empty new chat. */
   loadFailed?: boolean
   turns: readonly PlatformTurn[]
-  queue: readonly PlatformQueuedMessage[]
-  editingQueuedId?: string | null
-  dispatchingQueuedId?: string | null
-  /** False keeps the draft: nothing was sent. */
+  /** False keeps the draft: nothing was sent. A send while a turn runs steers that turn. */
   send: (draft: ComposerDraft) => false | undefined
   stop: () => void
   /** Sends the message as written by the user, for question answers and option picks. */
   sendText: (text: string) => void
   /** Runs a failed turn again. Absent when this chat has no failed-turn state to recover. */
   retry?: (turnId: string) => void
-  removeQueued: (id: string) => void
-  sendQueuedNow: (id?: string) => void
-  /** Moves a queued message back into the composer. */
-  editQueued: (id: string) => void
-  cancelQueueEdit: () => void
   approvals: ToolApprovalProgress
   registerApproval: (toolCallId: string) => () => void
   decideTools: (ids: readonly string[], decision: ToolDecision) => Promise<'ok' | 'gone'>

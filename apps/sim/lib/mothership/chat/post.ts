@@ -51,6 +51,7 @@ import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-ch
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
+import { resolveSteeringFallback } from '@/lib/mothership/chat/steering-fallback'
 import {
   COPILOT_REQUEST_MODES,
   MOTHERSHIP_CHAT_ID_HEADER,
@@ -988,6 +989,33 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             body.mode === 'plan'
           )
         )
+
+      /* A turn under a steering message's id is that message going out on its own
+         after its run did not apply it. The worker's disposition settles it first,
+         so the message never runs twice. */
+      if (actualChatId && !body.createNewChat) {
+        const fallback = await resolveSteeringFallback({
+          chatId: actualChatId,
+          messageId: userMessageId,
+          userId: authenticatedUserId,
+          content: body.message,
+        })
+        if (fallback.kind !== 'send') {
+          activeOtelRoot.finish('success')
+          return NextResponse.json(
+            fallback.kind === 'applied'
+              ? {
+                  error: 'This message was already included in the response it steered.',
+                  code: 'input_applied',
+                }
+              : {
+                  error: 'A response is already in progress for this chat.',
+                  activeStreamId: fallback.streamId,
+                },
+            { status: 409 }
+          )
+        }
+      }
 
       let pendingStreamWaitMs = 0
       if (actualChatId) {

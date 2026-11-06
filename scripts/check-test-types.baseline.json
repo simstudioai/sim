@@ -538,7 +538,7 @@
   },
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
-    "TS2322": 4,
+    "TS2322": 2,
     "TS2353": 1,
     "TS2550": 1
   },

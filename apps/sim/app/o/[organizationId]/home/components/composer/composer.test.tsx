@@ -196,10 +196,9 @@ async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
   requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
-  controls: Pick<
-    ComponentProps<typeof Composer>,
-    'isSending' | 'restoredContexts' | 'onSendQueuedHead'
-  > = { isSending: false }
+  controls: Pick<ComponentProps<typeof Composer>, 'isSending' | 'restoredContexts'> = {
+    isSending: false,
+  }
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
@@ -221,7 +220,6 @@ async function render(
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
-        onSendQueuedHead={controls.onSendQueuedHead}
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
           mocks.contexts(contexts)
@@ -377,23 +375,19 @@ it.each([
   ['agent', true],
   ['assistant', true],
 ] as const)(
-  'queues once then sends immediately on rapid double Enter (%s, attachment: %s)',
+  'sends once on a rapid double Enter while a turn runs (%s, attachment: %s)',
   async (mode, withAttachment) => {
-    const sendHead = vi.fn()
     await render(false, withAttachment ? '' : 'Use the latest report', mode, {
       isSending: true,
-      onSendQueuedHead: sendHead,
     })
     if (withAttachment) await paste([new File(['image'], 'follow-up.png', { type: 'image/png' })])
     const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
     await act(async () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       expect(mocks.submit).toHaveBeenCalledTimes(1)
-      expect(sendHead).not.toHaveBeenCalled()
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     })
     expect(mocks.submit).toHaveBeenCalledTimes(1)
-    expect(sendHead).toHaveBeenCalledExactlyOnceWith()
     expect(input.value).toBe('')
   }
 )

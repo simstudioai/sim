@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetQueryClient,
-  mockMothershipQueueReset,
   mockMothershipDraftsReset,
   mockOperationQueueReset,
   mockResetRegisteredUserData,
@@ -16,7 +15,6 @@ const {
   mockWorkflowSetState,
 } = vi.hoisted(() => ({
   mockGetQueryClient: vi.fn(),
-  mockMothershipQueueReset: vi.fn(),
   mockMothershipDraftsReset: vi.fn(),
   mockOperationQueueReset: vi.fn(),
   mockResetRegisteredUserData: vi.fn(),
@@ -35,9 +33,6 @@ vi.mock('@/stores/execution', () => ({
 }))
 vi.mock('@/stores/mothership-drafts/store', () => ({
   useMothershipDraftsStore: { getState: () => ({ reset: mockMothershipDraftsReset }) },
-}))
-vi.mock('@/stores/mothership-queue/store', () => ({
-  useMothershipQueueStore: { getState: () => ({ reset: mockMothershipQueueReset }) },
 }))
 vi.mock('@/stores/operation-queue/store', () => ({
   useOperationQueueStore: { getState: () => ({ reset: mockOperationQueueReset }) },
@@ -95,7 +90,6 @@ describe('resetAllStores', () => {
     expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     expect(mockConsoleReset).toHaveBeenCalledOnce()
     expect(mockClearAllExecutionPointers).toHaveBeenCalledOnce()
-    expect(mockMothershipQueueReset).toHaveBeenCalledOnce()
     expect(mockMothershipDraftsReset).toHaveBeenCalledOnce()
     expect(mockConsolePersist).toHaveBeenCalledWith({ merge: false })
   })

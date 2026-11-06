@@ -26,7 +26,10 @@ const handler = defineInternalJsonRoute({
   errorPolicy: {
     project: (error) =>
       error instanceof SteeringNotQueuedError
-        ? internalErrorResponse(409, { ok: false, queued: false, goStatus: error.goStatus })
+        ? internalErrorResponse(409, {
+            error: 'No running turn accepted this message.',
+            goStatus: error.goStatus,
+          })
         : internalOrchestrationErrorPolicy.project(error),
   },
   mapInput: ({ body }) => body,

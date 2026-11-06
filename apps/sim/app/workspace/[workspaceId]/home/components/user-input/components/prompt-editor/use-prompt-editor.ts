@@ -114,12 +114,6 @@ export interface PromptEditorKeyPolicy {
    * Enter inserts a newline. Omit to keep native newline insertion everywhere.
    */
   onSubmit?: () => void
-  /**
-   * Plain ArrowUp while the editor text is empty. Return `true` when handled
-   * to consume the event (e.g. chat recalls the queued tail message); return
-   * `false` to fall through to native caret movement.
-   */
-  onArrowUpOnEmpty?: () => boolean
   /** Plain arrows at a collapsed start/end caret; menus keep priority. */
   onNavigateHistory?: (direction: -1 | 1) => boolean
 }
@@ -1020,11 +1014,6 @@ export function usePromptEditor({
         !e.defaultPrevented &&
         e.currentTarget.selectionStart === e.currentTarget.selectionEnd
       ) {
-        if (e.key === 'ArrowUp' && valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
-          e.preventDefault()
-          return
-        }
-
         const direction = e.key === 'ArrowUp' ? -1 : 1
         const boundary = direction === -1 ? 0 : valueRef.current.length
         if (e.currentTarget.selectionStart === boundary && policy?.onNavigateHistory?.(direction)) {

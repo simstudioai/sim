@@ -56,7 +56,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { useChatFind } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/use-chat-find'
-import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
   type UserInputHandle,
@@ -73,7 +72,6 @@ import type {
   ChatMessageContext,
   ContentBlock,
   FileAttachmentForApi,
-  QueuedMessage,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -102,13 +100,6 @@ interface MothershipChatProps {
     contexts?: ChatContext[]
   ) => unknown
   onStopGeneration: () => void
-  messageQueue: QueuedMessage[]
-  editingQueuedId: string | null
-  dispatchingHeadId: string | null
-  onRemoveQueuedMessage: (id: string) => void
-  onSendQueuedMessage: (id?: string) => Promise<void>
-  onEditQueuedMessage: (id: string) => QueuedMessage | undefined
-  onCancelQueueEdit: () => void
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
@@ -405,13 +396,6 @@ export function MothershipChat({
   onSubmit,
   onComposerSubmit,
   onStopGeneration,
-  messageQueue,
-  editingQueuedId,
-  dispatchingHeadId,
-  onRemoveQueuedMessage,
-  onSendQueuedMessage,
-  onEditQueuedMessage,
-  onCancelQueueEdit,
   userId,
   chatId,
   onContextAdd,
@@ -800,10 +784,6 @@ export function MothershipChat({
 
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
-  const messageQueueRef = useRef(messageQueue)
-  useEffect(() => {
-    messageQueueRef.current = messageQueue
-  }, [messageQueue])
 
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
@@ -812,27 +792,6 @@ export function MothershipChat({
   const stableOnOptionSelect = useCallback((id: string) => {
     onSubmitRef.current(id)
   }, [])
-
-  const handleSendQueuedHead = useCallback(() => {
-    /** The first Enter can enqueue before this component has rendered the new queue. */
-    void onSendQueuedMessage()
-  }, [onSendQueuedMessage])
-
-  const handleEditQueued = useCallback(
-    (id: string) => {
-      const msg = onEditQueuedMessage(id)
-      if (!msg || !userInputRef.current) return false
-      userInputRef.current.loadQueuedMessage(msg)
-      return true
-    },
-    [onEditQueuedMessage, userInputRef]
-  )
-
-  const handleEditQueuedTail = useCallback(() => {
-    const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
-    if (!tail) return false
-    return handleEditQueued(tail.id)
-  }, [handleEditQueued])
 
   /**
    * A drag-selection that overshoots a message's last line crosses the row
@@ -1040,15 +999,6 @@ export function MothershipChat({
         >
           <div className={styles.footerInner}>
             <ComputerUseActivity />
-            <QueuedMessages
-              messageQueue={messageQueue}
-              editingQueuedId={editingQueuedId}
-              dispatchingHeadId={dispatchingHeadId}
-              onRemove={onRemoveQueuedMessage}
-              onSendNow={onSendQueuedMessage}
-              onEdit={handleEditQueued}
-              onCancelEdit={onCancelQueueEdit}
-            />
             {!isLoading &&
               (composer ?? (
                 <UserInput
@@ -1063,8 +1013,6 @@ export function MothershipChat({
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}
-                  onSendQueuedHead={handleSendQueuedHead}
-                  onEditQueuedTail={handleEditQueuedTail}
                   draftScopeKey={draftScopeKey}
                   getMessages={getHistoryMessages}
                 />

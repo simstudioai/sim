@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   LiveCredentialCard,
   LiveUsageNotice,
@@ -16,7 +16,7 @@ import { ResourcePanels } from '@/platform/app/(shell)/_components/chat/panel/re
 import { LiveSearchTab } from '@/platform/app/(shell)/_components/search/live-search-tab'
 import { SearchTabProvider } from '@/platform/app/(shell)/_components/search/search-results-host'
 import { useLiveChatRuntime } from '@/platform/lib/data/chat'
-import { type LiveComposer, useLiveComposer } from '@/platform/lib/data/chat-composer'
+import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
 import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
 import { useOrganization } from '@/platform/lib/data/organization'
@@ -39,12 +39,10 @@ interface LiveChatProps {
 function LiveConversation({ chatId, destination, header, chatPath }: LiveChatProps) {
   const [planning, setPlanning] = useState(false)
   const requestMode = destination === 'agent' && !chatId && planning ? 'plan' : destination
-  const restore = useRef<LiveComposer['restore']>(() => {})
   const { runtime, chat, panel, controller } = useLiveChatRuntime({
     chatId,
     requestMode,
     chatPath,
-    onRestoreQueued: (draft) => restore.current(draft),
   })
   const composer = useLiveComposer({
     draftKey:
@@ -53,7 +51,6 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
     chatId: chat.resolvedChatId,
     onPlanChange: destination === 'agent' ? setPlanning : undefined,
   })
-  restore.current = composer.restore
   const resources = usePanelResources({ chat, panel, controller })
   return (
     <ChatCardsProvider value={CARDS}>

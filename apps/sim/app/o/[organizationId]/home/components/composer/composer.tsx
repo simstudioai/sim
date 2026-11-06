@@ -60,8 +60,6 @@ interface ComposerProps {
     text: string,
     contexts?: ChatContext[]
   ) => undefined | false | PendingComposerSubmission
-  onSendQueuedHead?: () => void
-  onEditQueuedTail?: () => boolean
   messages?: readonly ChatMessage[]
   onStop: () => void
   compact?: boolean
@@ -82,8 +80,6 @@ export function Composer({
   isSending,
   onChange,
   onSubmit,
-  onSendQueuedHead,
-  onEditQueuedTail,
   messages,
   restoredContexts,
   onStop,
@@ -183,10 +179,7 @@ export function Composer({
       editor.getValue().trim().length > 0 ||
       attachedFilesRef.current.some((file) => file.key) ||
       hasAdditionalAttachments
-    if (!hasPayload) {
-      if (isSending) onSendQueuedHead?.()
-      return
-    }
+    if (!hasPayload) return
     const contexts = imagesOnly
       ? filterContextsPresentInMessage(
           editor.contexts.filter((context) => context.kind === 'browser_page'),
@@ -228,10 +221,6 @@ export function Composer({
     </Tooltip.Root>
   )
 
-  const recallQueuedTail = () => {
-    if (hasAdditionalAttachments || attachedFilesRef.current.length > 0) return false
-    return onEditQueuedTail?.() ?? false
-  }
   const promptEditor = (
     <PromptEditor
       editor={editor}
@@ -240,7 +229,6 @@ export function Composer({
       aria-label='Ask Sim'
       onSubmit={submit}
       onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
-      onArrowUpOnEmpty={recallQueuedTail}
       className={cn(
         'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
         isInitialView && !compact && 'min-h-[56px] max-md:min-h-0'
@@ -354,7 +342,6 @@ export function Composer({
           onKeyDown={(event) =>
             editor.handleKeyDown(event, {
               onNavigateHistory: hasAdditionalAttachments ? undefined : history.navigate,
-              onArrowUpOnEmpty: recallQueuedTail,
             })
           }
           placeholder={isInitialView ? 'Ask about your sources' : 'Ask a follow-up'}

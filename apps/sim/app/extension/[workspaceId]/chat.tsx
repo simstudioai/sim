@@ -162,13 +162,6 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
           onSubmit={(message, files, contexts) => submit(message, files, contexts, false)}
           onComposerSubmit={submit}
           onStopGeneration={stop}
-          messageQueue={chat.messageQueue}
-          editingQueuedId={chat.editingQueuedId}
-          dispatchingHeadId={chat.dispatchingHeadId}
-          onRemoveQueuedMessage={chat.removeFromQueue}
-          onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={chat.editQueuedMessage}
-          onCancelQueueEdit={chat.cancelQueueEdit}
           onViewSources={(messageId, requestId) =>
             void setSourceParams(
               { 'source-message': messageId, 'source-request': requestId ?? null },

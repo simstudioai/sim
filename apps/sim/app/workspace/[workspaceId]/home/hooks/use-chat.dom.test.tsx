@@ -73,7 +73,8 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
   return {
     ...actual,
     requestJson<C extends AnyApiRouteContract>(contract: C, input: ApiClientRequest<C>) {
-      return contract.path === '/api/copilot/chat/abort'
+      return contract.path === '/api/copilot/chat/abort' ||
+        contract.path === '/api/copilot/chat/steer'
         ? actual.requestJson(contract, input)
         : mockRequestJson(contract, input)
     },
@@ -83,7 +84,11 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
 import { ToastProvider } from '@sim/emcn'
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
+import type {
+  CopilotChatAbortBody,
+  CopilotChatSteerBody,
+  CopilotChatStopBody,
+} from '@/lib/api/contracts/copilot'
 import {
   resetDeploymentShape,
   resolveDeploymentShape,
@@ -91,10 +96,7 @@ import {
 } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
-import {
-  MothershipStreamV1CompletionStatus,
-  type MothershipStreamV1EventEnvelope,
-} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   getChatResourceSelectionId,
@@ -103,16 +105,11 @@ import {
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
-import {
-  readQueuedSendHandoffState,
-  writeQueuedSendHandoffState,
-} from '@/app/workspace/[workspaceId]/home/hooks/send-handoff'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 /** Captured before any test fakes timers, so the act budget below runs in real time. */
 const realSetTimeout = globalThis.setTimeout
@@ -175,6 +172,12 @@ interface NetworkState {
   stopBodies: CopilotChatStopBody[]
   toolInputPadding?: string
   abortTraceparents: Array<string | null>
+  steerBodies: CopilotChatSteerBody[]
+  /**
+   * How the steer route answers, one per request: a disposition status, or
+   * `409` (no live run took it). Once spent, it answers `409`.
+   */
+  steerDispositions: Array<'queued' | 'applied' | 'not_applied' | 409>
 }
 
 const state: NetworkState = {
@@ -185,6 +188,8 @@ const state: NetworkState = {
   abortBodies: [],
   stopBodies: [],
   abortTraceparents: [],
+  steerBodies: [],
+  steerDispositions: [],
 }
 
 /** An SSE response whose stream ends immediately without a terminal event. */
@@ -206,6 +211,14 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     if (body.streamId) state.pendingAdmissions.get(body.streamId)?.()
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
     return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
+  }
+  if (url.includes('/api/copilot/chat/steer')) {
+    const body: CopilotChatSteerBody = JSON.parse(String(init?.body))
+    state.steerBodies.push(body)
+    const disposition = state.steerDispositions.shift() ?? 409
+    return disposition === 409
+      ? Response.json({ error: 'No running turn accepted this message.' }, { status: 409 })
+      : Response.json({ steeringId: body.steeringId, status: disposition })
   }
   if (url.includes('/api/mothership/chat/stop')) {
     state.stopBodies.push(JSON.parse(String(init?.body)))
@@ -614,9 +627,9 @@ function renderStrictModeHandoffConsumer(): void {
   })
 }
 
-/** Every queued message across all chat keys, flattened. */
-function allQueuedMessages() {
-  return Object.values(useMothershipQueueStore.getState().queues).flat()
+/** The user messages the transcript shows, in order. */
+function userMessages(result: ReturnType<typeof useChat>): string[] {
+  return result.messages.filter((message) => message.role === 'user').map((m) => m.content)
 }
 
 async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void> {
@@ -642,7 +655,8 @@ describe('useChat remount send recovery', () => {
     state.stopBodies = []
     state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
-    useMothershipQueueStore.setState({ queues: {}, editing: {}, cleared: {} })
+    state.steerBodies = []
+    state.steerDispositions = []
     useExecutionStore.setState({ workflowExecutions: new Map() })
     window.sessionStorage.clear()
     window.localStorage.clear()
@@ -1078,35 +1092,6 @@ describe('useChat remount send recovery', () => {
     expect(getResult().activeResourceId).toBe(selected)
   })
 
-  it.each(['workspace', 'organization'] as const)(
-    'preserves a %s send stopped during preparation and keeps the next send in that chat',
-    async (scope) => {
-      if (scope === 'organization') mockUsePathname.mockReturnValue('/o/org-1/home')
-      const owner = scope === 'organization' ? { organizationId: 'org-1' } : 'ws-1'
-      const { getResult } = renderUseChat(owner, 'agent')
-      await act(async () => {
-        const sent = getResult().sendMessage('Keep this message even if I stop immediately')
-        const stopped = getResult().stopGeneration()
-        await Promise.all([sent, stopped])
-      })
-      expect(state.postBodies).toHaveLength(1)
-      expect(state.abortBodies[0]).toMatchObject({
-        streamId: state.postBodies[0].userMessageId,
-        ...(scope === 'organization' ? { organizationId: 'org-1' } : { workspaceId: 'ws-1' }),
-      })
-      expect(state.stopBodies[0]).toMatchObject({
-        chatId: DEDUPED_CHAT_ID,
-        streamId: state.postBodies[0].userMessageId,
-      })
-      await act(async () => {
-        void getResult().sendMessage('Continue in the same chat')
-      })
-      await waitFor(() => state.postBodies.length === 2)
-      expect(state.postBodies[1]).toMatchObject({ chatId: DEDUPED_CHAT_ID, createNewChat: false })
-      expect(allQueuedMessages()).toHaveLength(0)
-    }
-  )
-
   it.each([
     { surface: 'a new chat', newChatPick: null, storedPick: null, sends: undefined },
     { surface: 'a new chat', newChatPick: 'medium', storedPick: null, sends: 'medium' },
@@ -1256,7 +1241,7 @@ describe('useChat remount send recovery', () => {
         await getResult().sendMessage('Keep another follow-up here too')
       })
       expect(state.postBodies).toHaveLength(1)
-      expect(allQueuedMessages()[0]?.content).toBe('Do not create a second chat')
+      expect(userMessages(getResult())).toContain('Do not create a second chat')
       await act(async () => {
         admit(new Response(null, { headers: { 'x-mothership-chat-id': DEDUPED_CHAT_ID } }))
         await vi.advanceTimersByTimeAsync(1)
@@ -1267,134 +1252,6 @@ describe('useChat remount send recovery', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it.each([false, true])(
-    'does not interrupt or send a queued edit before submission (explicit ID: %s)',
-    async (explicitId) => {
-      state.postBehavior = 'task'
-      const { getResult } = renderUseChatInChat('chat-a')
-      await act(async () => {
-        void getResult().sendMessage('Original request')
-      })
-      await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-      const beforeRender = getResult()
-      let queuedId = ''
-      await act(async () => {
-        void beforeRender.sendMessage('Unfinished correction')
-        queuedId = allQueuedMessages()[0].id
-        beforeRender.editQueuedMessage(queuedId)
-        void beforeRender.sendNow(explicitId ? queuedId : undefined)
-      })
-      expect(state.abortBodies).toHaveLength(0)
-      expect(state.postBodies).toHaveLength(1)
-      expect(allQueuedMessages()).toEqual([
-        expect.objectContaining({ id: queuedId, content: 'Unfinished correction' }),
-      ])
-      expect(useMothershipQueueStore.getState().editing['chat-a']).toBe(queuedId)
-      state.postBehavior = 'hang'
-      await act(async () => {
-        void getResult().sendMessage('Finished correction')
-        void getResult().sendNow()
-      })
-      await waitFor(() => state.postBodies.length === 2)
-      expect(state.postBodies[1].message).toBe('Finished correction')
-      expect(state.abortBodies).toHaveLength(1)
-      expect(allQueuedMessages()).toHaveLength(0)
-    }
-  )
-
-  it('sends the live queue head once without waiting for a render, after Stop settles', async () => {
-    state.postBehavior = 'task'
-    const { getResult } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    let releaseStop = () => {}
-    const stopGate = new Promise<void>((resolve) => {
-      releaseStop = resolve
-    })
-    let stopRequested = false
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/copilot/chat/abort')) {
-        stopRequested = true
-        await stopGate
-      }
-      return fetchStub(input, init)
-    })
-    state.postBehavior = 'hang'
-    const beforeRender = getResult()
-    await act(async () => {
-      void beforeRender.sendMessage('Use the latest report')
-      void beforeRender.sendNow()
-      void beforeRender.sendNow()
-    })
-    try {
-      await waitFor(() => stopRequested)
-      expect(state.postBodies).toHaveLength(1)
-    } finally {
-      await act(async () => {
-        releaseStop()
-      })
-    }
-    await waitFor(() => state.postBodies.length === 2)
-    expect(state.postBodies[1].message).toBe('Use the latest report')
-    expect(allQueuedMessages()).toHaveLength(0)
-    expect(state.abortBodies).toHaveLength(1)
-  })
-
-  /**
-   * "Send now" on a queued message stops the running turn first. If the user
-   * switches chats while that Stop settles, the message is not sent into the
-   * other chat; it must go back to its own chat's queue, not vanish.
-   */
-  it('keeps a send-now message in its chat when the user switches chats during the Stop', async () => {
-    state.postBehavior = 'task'
-    const { getResult, navigate } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    let releaseStop = () => {}
-    const stopGate = new Promise<void>((resolve) => {
-      releaseStop = resolve
-    })
-    let stopRequested = false
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/copilot/chat/abort')) {
-        stopRequested = true
-        await stopGate
-      }
-      return fetchStub(input, init)
-    })
-    state.postBehavior = 'hang'
-    await act(async () => {
-      void getResult().sendMessage('Use the latest report')
-    })
-    await waitFor(() => useMothershipQueueStore.getState().queues['chat-a']?.length === 1)
-    await act(async () => {
-      void getResult().sendNow()
-    })
-    await waitFor(() => stopRequested)
-
-    navigate('chat-b', {
-      id: 'chat-b',
-      mode: 'agent',
-      title: 'Other chat',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    })
-    await act(async () => {
-      releaseStop()
-      await sleep(200)
-    })
-
-    expect(state.postBodies).toHaveLength(1)
-    expect(
-      (useMothershipQueueStore.getState().queues['chat-a'] ?? []).map((message) => message.content)
-    ).toEqual(['Use the latest report'])
   })
 
   it('surfaces an explicit admission rejection without reconnecting or marking the user turn stopped', async () => {
@@ -1999,35 +1856,6 @@ describe('useChat remount send recovery', () => {
     }
   })
 
-  it('sends a queued correction after stopping with more than 10 MiB of tool input', async () => {
-    state.postBehavior = 'tool'
-    state.toolInputPadding = 'x'.repeat(11 * 1024 * 1024)
-    const { getResult } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Start working')
-    })
-    await waitFor(() =>
-      expect(
-        getResult().messages.some((message) =>
-          message.contentBlocks?.some((block) => block.toolCall?.id === 'this-chat-tool')
-        )
-      ).toBe(true)
-    )
-    state.postBehavior = 'hang'
-    await act(async () => {
-      await getResult().sendMessage('Use the correction')
-      void getResult().sendNow()
-    })
-    await waitFor(() => expect(state.postBodies).toHaveLength(2))
-    expect(state.postBodies[1].message).toBe('Use the correction')
-    expect(state.stopBodies).toHaveLength(1)
-    expect(state.stopBodies[0]).not.toHaveProperty('content')
-    expect(state.stopBodies[0]).not.toHaveProperty('contentBlocks')
-    expect(new TextEncoder().encode(JSON.stringify(state.stopBodies[0])).length).toBeLessThan(1024)
-    expect(allQueuedMessages()).toHaveLength(0)
-    expect(getResult().error).toBeNull()
-  })
-
   it.each([false, true])(
     'owns an early abort failure while partial persistence is pending (retry fails: %s)',
     async (retryFails) => {
@@ -2097,469 +1925,6 @@ describe('useChat remount send recovery', () => {
     }
   )
 
-  it.each([
-    [false, 'send-now'],
-    [true, 'send-now'],
-    [false, 'during-stop'],
-    [true, 'during-stop'],
-  ] as const)(
-    'keeps a queued correction behind Stop settlement (retry settles: %s, mode: %s)',
-    async (retrySettles, mode) => {
-      state.postBehavior = 'task'
-      state.abortSettlements = [false, retrySettles]
-      let releasePersistence = () => {}
-      const persistenceGate = new Promise<void>((resolve) => {
-        releasePersistence = resolve
-      })
-      let persistenceStarted = false
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input instanceof Request ? input.url : input)
-        if (url.includes('/api/mothership/chat/stop')) {
-          persistenceStarted = true
-          await persistenceGate
-        }
-        return fetchStub(input, init)
-      })
-      const { getResult, unmount } = renderUseChatInChat('chat-a')
-      await act(async () => {
-        void getResult().sendMessage('watch the invoice run')
-      })
-      await waitFor(() =>
-        getResult().messages.some((message) =>
-          message.contentBlocks?.some((block) => block.type === 'task')
-        )
-      )
-      let sending: Promise<void> = Promise.resolve()
-      if (mode === 'during-stop') {
-        await act(async () => {
-          sending = getResult()
-            .stopGeneration()
-            .catch(() => {})
-        })
-      }
-      await act(async () => {
-        await getResult().sendMessage('inspect the second invoice instead')
-      })
-      const pendingHandoff = readQueuedSendHandoffState()
-      const queued =
-        allQueuedMessages()[0] ??
-        (pendingHandoff ? { id: pendingHandoff.id, content: pendingHandoff.message } : undefined)
-      expect(queued?.content).toBe('inspect the second invoice instead')
-      if (!queued) throw new Error('The queued correction is missing')
-      state.postBehavior = 'hang'
-      if (mode === 'send-now') {
-        await act(async () => {
-          sending = getResult().sendNow(queued.id)
-        })
-      }
-      try {
-        await waitFor(() => persistenceStarted && state.abortBodies.length === 1)
-        expect(state.postBodies).toHaveLength(1)
-      } finally {
-        await act(async () => {
-          releasePersistence()
-        })
-      }
-      if (retrySettles) {
-        await waitFor(() => state.postBodies.length === 2)
-        expect(state.postBodies[1].message).toBe('inspect the second invoice instead')
-        expect(allQueuedMessages()).toHaveLength(0)
-      } else {
-        await act(async () => {
-          await sending
-        })
-        await waitFor(() => allQueuedMessages().some((message) => message.hold === 'user'))
-        expect(state.postBodies).toHaveLength(1)
-        expect(allQueuedMessages()).toEqual([
-          expect.objectContaining({ id: queued.id, content: queued.content }),
-        ])
-        expect(getResult().error).toBe('Previous response is still shutting down.')
-        const failed = allQueuedMessages()[0]
-        expect(failed).toMatchObject({
-          hold: 'user',
-          queuedSendHandoff: {
-            stopRequired: true,
-            supersededStreamId: state.postBodies[0].userMessageId,
-          },
-        })
-        const stored = window.sessionStorage.getItem('mothership-queue')
-        expect(stored).not.toBeNull()
-        await act(async () => {
-          unmount()
-          useMothershipQueueStore.setState({ queues: {}, editing: {} })
-          window.sessionStorage.setItem('mothership-queue', stored ?? '')
-          await useMothershipQueueStore.persist.rehydrate()
-        })
-        const recovered = renderUseChatInChat('chat-a')
-        await act(async () => {
-          await sleep(20)
-        })
-        expect(state.postBodies).toHaveLength(1)
-        expect(allQueuedMessages()[0]).toEqual(failed)
-        state.abortSettlements = [false]
-        await act(async () => {
-          await recovered.getResult().sendNow(queued.id)
-        })
-        expect(state.postBodies).toHaveLength(1)
-        expect(state.abortBodies).toHaveLength(3)
-        expect(state.abortBodies[2]).toEqual(state.abortBodies[0])
-        state.abortSettlements = [true]
-        await act(async () => {
-          void recovered.getResult().sendNow(queued.id)
-        })
-        await waitFor(() => state.postBodies.length === 2)
-        expect(state.postBodies[1]).toMatchObject({
-          message: queued.content,
-          userMessageId: failed.resumeUserMessageId,
-        })
-        expect(state.abortBodies).toHaveLength(4)
-        expect(state.abortBodies[3]).toEqual(state.abortBodies[0])
-        expect(allQueuedMessages()).toHaveLength(0)
-      }
-      expect(state.abortBodies).toHaveLength(retrySettles ? 2 : 4)
-    }
-  )
-
-  it('retains the handoff if the surface unmounts before Stop settles', async () => {
-    state.postBehavior = 'task'
-    state.abortSettlements = [false, false]
-    let releasePersistence = () => {}
-    const persistenceGate = new Promise<void>((resolve) => {
-      releasePersistence = resolve
-    })
-    let persistenceStarted = false
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input instanceof Request ? input.url : input)
-      if (url.includes('/api/mothership/chat/stop')) {
-        persistenceStarted = true
-        await persistenceGate
-      }
-      return fetchStub(input, init)
-    })
-    const { getResult, unmount } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('watch the invoice run')
-    })
-    await waitFor(() =>
-      getResult().messages.some((message) =>
-        message.contentBlocks?.some((block) => block.type === 'task')
-      )
-    )
-    await act(async () => {
-      await getResult().sendMessage('inspect the second invoice instead')
-    })
-    const queued = allQueuedMessages()[0]
-    let sending: Promise<void> = Promise.resolve()
-    await act(async () => {
-      sending = getResult().sendNow(queued.id)
-    })
-    await waitFor(() => persistenceStarted)
-    const prepared = readQueuedSendHandoffState()
-    await act(async () => {
-      unmount()
-      releasePersistence()
-      await sending
-    })
-    expect(state.postBodies).toHaveLength(1)
-    expect(readQueuedSendHandoffState()).toMatchObject({
-      id: queued.id,
-      message: queued.content,
-      supersededStreamId: state.postBodies[0].userMessageId,
-      userMessageId: prepared?.userMessageId,
-      stopRequired: true,
-    })
-  })
-
-  /**
-   * A handoff stored before the flag existed cannot say whether its id was ever
-   * sent, so it is checked against the chat's history before it goes out again.
-   */
-  it('checks a flagless stored handoff against history before resending it', async () => {
-    const order: string[] = []
-    const history: MothershipChatHistory = {
-      id: 'chat-a',
-      mode: 'agent',
-      title: 'Invoice inspection',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => {
-      order.push('history')
-      return Promise.resolve({ chat: history })
-    })
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input instanceof Request ? input.url : input)
-      if (url.includes('/api/copilot/chat/abort')) {
-        state.abortBodies.push(JSON.parse(String(init?.body)))
-        return Response.json({ aborted: true, settled: true })
-      }
-      if (url === '/api/mothership/chat' && init?.method === 'POST') order.push('post')
-      return fetchStub(input, init)
-    })
-    writeQueuedSendHandoffState({
-      id: 'queued-correction',
-      chatId: 'chat-a',
-      workspaceId: 'ws-1',
-      supersededStreamId: 'previous-response',
-      userMessageId: 'prepared-correction-request',
-      message: 'inspect the second invoice instead',
-      stopRequired: true,
-      requestedAt: Date.now(),
-    })
-    renderUseChatInChat('chat-a', history)
-    await waitFor(() => state.postBodies.length === 1, 4_000)
-
-    expect(state.postBodies[0].userMessageId).toBe('prepared-correction-request')
-    expect(order.indexOf('history')).toBeGreaterThanOrEqual(0)
-    expect(order.indexOf('history')).toBeLessThan(order.indexOf('post'))
-  })
-
-  it.each([false, undefined])(
-    'holds a recovered send with lost context without weakening admission protection (%s)',
-    async (admissionUnknown) => {
-      vi.stubGlobal(
-        'ResizeObserver',
-        class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        }
-      )
-      writeQueuedSendHandoffState({
-        id: 'queued-selection',
-        chatId: 'chat-a',
-        workspaceId: 'ws-1',
-        supersededStreamId: 'previous-response',
-        userMessageId: 'prepared-selection-request',
-        message: 'Explain @Browser with @Docs',
-        contexts: [
-          { kind: 'docs', label: 'Docs' },
-          {
-            kind: 'browser_tab',
-            tabId: 'tab-a',
-            label: 'Browser',
-            selection: { text: 'Selected passage', title: 'x'.repeat(513) },
-          },
-        ],
-        stopRequired: true,
-        admissionUnknown,
-        requestedAt: Date.now(),
-      })
-      const history: MothershipChatHistory = {
-        id: 'chat-a',
-        title: 'Selection review',
-        messages: [],
-        activeStreamId: null,
-        resources: [],
-      }
-      mockRequestJson.mockResolvedValue({ chat: history })
-      const { getResult } = renderUseChatInChat('chat-a', history)
-      await waitFor(() => readQueuedSendHandoffState() === null)
-      expect(allQueuedMessages()).toEqual([
-        expect.objectContaining({
-          id: 'queued-selection',
-          content: 'Explain @Browser with @Docs',
-          contexts: [{ kind: 'docs', label: 'Docs' }],
-          hold: 'user',
-          hasUnavailableContexts: true,
-          resumeUserMessageId: 'prepared-selection-request',
-          admissionUnknown: admissionUnknown !== false,
-        }),
-      ])
-      expect(document.body.textContent).toContain('Edit or remove it before sending.')
-      expect(document.querySelectorAll('[aria-label="Notifications"] li')).toHaveLength(1)
-      await act(async () => {
-        void getResult().sendNow('queued-selection')
-      })
-      expect(state.abortBodies).toHaveLength(0)
-      expect(state.postBodies).toHaveLength(0)
-      expect(document.querySelectorAll('[aria-label="Notifications"] li')).toHaveLength(2)
-      await act(() => {
-        void getResult().sendNow('queued-selection')
-      })
-      expect(document.querySelectorAll('[aria-label="Notifications"] li')).toHaveLength(3)
-
-      await act(async () => {
-        const edited = getResult().editQueuedMessage('queued-selection')
-        if (admissionUnknown === false) {
-          expect(edited?.content).toBe('Explain @Browser with @Docs')
-          await getResult().sendMessage('Explain @Docs', undefined, [
-            { kind: 'docs', label: 'Docs' },
-          ])
-        } else {
-          expect(edited).toBeUndefined()
-        }
-      })
-      if (admissionUnknown === false) {
-        expect(document.body.textContent).toContain('Reattach it before sending.')
-        await waitFor(() => state.postBodies.length === 1)
-        expect(state.abortBodies).toEqual([
-          { streamId: 'previous-response', workspaceId: 'ws-1', chatId: 'chat-a' },
-        ])
-        expect(state.postBodies[0]).toMatchObject({
-          message: 'Explain @Docs',
-          contexts: [{ kind: 'docs', label: 'Docs' }],
-        })
-        expect(state.postBodies[0].userMessageId).not.toBe('prepared-selection-request')
-      } else {
-        expect(allQueuedMessages()[0]).toMatchObject({
-          resumeUserMessageId: 'prepared-selection-request',
-          admissionUnknown: true,
-        })
-        expect(state.postBodies).toHaveLength(0)
-      }
-    }
-  )
-
-  it.each([false, true])(
-    'the remounted handoff reader requires Stop settlement (settled: %s)',
-    async (settled) => {
-      let settleResponse = settled
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input instanceof Request ? input.url : input)
-        if (url.includes('/api/copilot/chat/abort')) {
-          state.abortBodies.push(JSON.parse(String(init?.body)))
-          return Response.json({ aborted: true, settled: settleResponse })
-        }
-        return fetchStub(input, init)
-      })
-      writeQueuedSendHandoffState({
-        id: 'queued-correction',
-        chatId: 'chat-a',
-        workspaceId: 'ws-1',
-        supersededStreamId: 'previous-response',
-        userMessageId: 'prepared-correction-request',
-        message: 'inspect the second invoice instead',
-        requestMode: 'assistant',
-        stopRequired: true,
-        /** A fresh id still waiting on its Stop, as the hook records it. */
-        admissionUnknown: false,
-        requestedAt: Date.now(),
-      })
-      const { getResult } = renderUseChatInChat('chat-a', {
-        id: 'chat-a',
-        title: 'Invoice inspection',
-        messages: [],
-        activeStreamId: null,
-        resources: [],
-      })
-      await waitFor(() => state.abortBodies.length > 0)
-      if (settled) {
-        await waitFor(() => state.postBodies.length === 1)
-        expect(state.postBodies[0]).toMatchObject({
-          userMessageId: 'prepared-correction-request',
-          message: 'inspect the second invoice instead',
-          mode: 'assistant',
-        })
-      } else {
-        await act(async () => {
-          await sleep(40)
-        })
-        expect(state.postBodies).toHaveLength(0)
-        expect(getResult().error).toBe('Previous response is still shutting down.')
-        expect(readQueuedSendHandoffState()).toBeNull()
-        expect(allQueuedMessages()).toEqual([
-          expect.objectContaining({
-            id: 'queued-correction',
-            hold: 'user',
-            resumeUserMessageId: 'prepared-correction-request',
-            queuedSendHandoff: expect.objectContaining({
-              supersededStreamId: 'previous-response',
-              stopRequired: true,
-            }),
-          }),
-        ])
-      }
-      expect(state.abortBodies).toEqual([
-        { streamId: 'previous-response', workspaceId: 'ws-1', chatId: 'chat-a' },
-      ])
-      if (!settled) {
-        settleResponse = true
-        await act(async () => {
-          void getResult().sendNow('queued-correction')
-        })
-        await waitFor(() => state.postBodies.length === 1)
-        expect(state.postBodies[0]).toMatchObject({
-          userMessageId: 'prepared-correction-request',
-          message: 'inspect the second invoice instead',
-        })
-        expect(state.abortBodies).toHaveLength(2)
-        expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
-      }
-    }
-  )
-
-  it('binds a retried correction to the response being stopped now', async () => {
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'earlier-correction',
-      content: 'inspect the second invoice instead',
-      hold: 'user',
-      resumeUserMessageId: 'prepared-correction',
-      queuedSendHandoff: {
-        id: 'earlier-correction',
-        chatId: 'chat-a',
-        supersededStreamId: 'earlier-response',
-        stopRequired: true,
-      },
-    })
-    state.postBehavior = 'task'
-    const { getResult } = renderUseChatInChat('chat-a', {
-      id: 'chat-a',
-      title: 'Invoice inspection',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    })
-    await act(async () => {
-      await getResult().sendMessage('inspect a different invoice first')
-    })
-    const newer = allQueuedMessages().find(
-      (message) => message.content === 'inspect a different invoice first'
-    )
-    if (!newer) throw new Error('The newer request is missing')
-    await act(async () => {
-      void getResult().sendNow(newer.id)
-    })
-    await waitFor(() =>
-      getResult().messages.some((message) =>
-        message.contentBlocks?.some((block) => block.type === 'task')
-      )
-    )
-    const newerStreamId = state.postBodies[0].userMessageId
-    state.abortSettlements = [false, false]
-    await act(async () => {
-      await getResult().sendNow('earlier-correction')
-    })
-    expect(state.abortBodies[0]?.streamId).toBe(newerStreamId)
-    expect(state.postBodies).toHaveLength(1)
-    expect(allQueuedMessages()[0]).toMatchObject({
-      hold: 'user',
-      resumeUserMessageId: 'prepared-correction',
-      queuedSendHandoff: {
-        supersededStreamId: newerStreamId,
-        stopRequired: true,
-      },
-    })
-    state.abortSettlements = [false]
-    await act(async () => {
-      await getResult().sendNow('earlier-correction')
-    })
-    expect(state.postBodies).toHaveLength(1)
-    expect(state.abortBodies[2]?.streamId).toBe(newerStreamId)
-    state.abortSettlements = [true]
-    state.postBehavior = 'hang'
-    await act(async () => {
-      void getResult().sendNow('earlier-correction')
-    })
-    await waitFor(() => state.postBodies.length === 2)
-    expect(state.postBodies[1]).toMatchObject({
-      message: 'inspect the second invoice instead',
-      userMessageId: 'prepared-correction',
-    })
-    expect(state.abortBodies[3]?.streamId).toBe(newerStreamId)
-  })
-
   it('does not certify an unsettled Stop before the chat ID arrives', async () => {
     state.abortSettlements = [false, false]
     const { getResult } = renderUseChat()
@@ -2596,1026 +1961,10 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * The first POST on the new-chat surface reaches the server, which admits it,
-   * but its answer never arrives. A resend under that id gets the server's
-   * dedupe answer naming the chat it opened; any other POST opens a turn in
-   * that chat. Until the remount, the abort endpoint and the stream lookup
-   * fail, as they would for a Stop that cannot reach the server.
-   */
-  function stubFirstPostPendingThenAdmitted() {
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url === '/api/mothership/chat' && init?.method === 'POST') {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        if (state.postBodies.length === 1) {
-          return new Promise<Response>((_, reject) => {
-            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
-              once: true,
-            })
-          })
-        }
-        const firstId = state.postBodies[0].userMessageId
-        if (state.postBodies.at(-1)?.userMessageId === firstId) {
-          return Response.json(
-            {
-              error: 'This message was already sent.',
-              activeStreamId: firstId,
-              chatId: DEDUPED_CHAT_ID,
-            },
-            { status: 409 }
-          )
-        }
-        return new Response(
-          new ReadableStream<Uint8Array>({
-            start(controller) {
-              controller.close()
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'x-mothership-chat-id': DEDUPED_CHAT_ID,
-            },
-          }
-        )
-      }
-      if (url.includes('/api/copilot/chat/abort')) {
-        state.abortBodies.push(JSON.parse(String(init?.body)))
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }
-      if (url.includes('/api/mothership/chat/stream') && state.postBodies.length === 1) {
-        return Response.json({ error: 'Internal error' }, { status: 500 })
-      }
-      return fetchStub(input, init)
-    })
-  }
-
-  /**
-   * A follow-up typed on the new-chat surface while the first message waits for
-   * the server is queued behind it. If the surface remounts then, the first
-   * message is withdrawn and both must reach the next mount in the order they
-   * were written: the first message (under its own id), then the follow-up.
-   */
-  it('sends a withdrawn first message before its follow-up when the new-chat surface remounts', async () => {
-    stubFirstPostPendingThenAdmitted()
-    const first = renderHomeLikeSurface()
-    await act(async () => {
-      void first.getResult().sendMessage('inspect the workspace')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-    await act(async () => {
-      void first.getResult().sendMessage('follow-up while admission pending')
-    })
-    await waitFor(() => allQueuedMessages().length === 1)
-    first.unmount()
-    /** Held first, as written: the server may already have it under its id. */
-    expect(
-      allQueuedMessages().map((message) => [message.content, message.admissionUnknown])
-    ).toEqual([
-      ['inspect the workspace', true],
-      ['follow-up while admission pending', undefined],
-    ])
-
-    const second = renderHomeLikeSurface()
-    await waitFor(() => state.postBodies.length >= 3, 4_000)
-    await act(async () => {
-      await sleep(300)
-    })
-
-    const afterRemount = state.postBodies.slice(1)
-    expect(afterRemount.map((body) => body.message)).toEqual([
-      'inspect the workspace',
-      'follow-up while admission pending',
-    ])
-    expect(afterRemount[0].userMessageId).toBe(state.postBodies[0].userMessageId)
-    expect(afterRemount[1].chatId).toBe(DEDUPED_CHAT_ID)
-    expect(second.claimedByOwnListener()).toBe(0)
-    expect(allQueuedMessages()).toHaveLength(0)
-  })
-
-  /**
-   * A first message held at the queue head after a remount may already be a
-   * turn on the server. Editing it would send different text under a new id,
-   * a second message the user never meant to send.
-   */
-  it('does not let a withdrawn first message held at the queue head be edited', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-running-while-held',
-      mode: 'agent',
-      title: 'Held',
-      messages: [],
-      activeStreamId: 'turn-still-running',
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/mothership/chat/stream')) {
-        if (String(input).includes('batch=true')) {
-          return Response.json({ success: true, events: [], status: 'streaming' })
-        }
-        return new Response(new ReadableStream<Uint8Array>(), {
-          headers: { 'Content-Type': 'text/event-stream' },
-        })
-      }
-      return fetchStub(input, init)
-    })
-    useMothershipQueueStore.getState().enqueue(history.id, {
-      id: 'held-first',
-      content: 'inspect the workspace',
-      resumeUserMessageId: 'first-attempt',
-      admissionUnknown: true,
-    })
-    const { getResult } = renderUseChatInChat(history.id, history)
-    await waitFor(() => getResult().isSending)
-
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage('held-first')
-    })
-
-    expect(edited).toBeUndefined()
-    expect(getResult().editingQueuedId).toBeNull()
-    expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
-      content: 'inspect the workspace',
-      resumeUserMessageId: 'first-attempt',
-    })
-  })
-
-  /** A chat with a turn running, so anything sent to it waits in its queue. */
-  function renderBusyChat(id: string) {
-    const history: MothershipChatHistory = {
-      id,
-      mode: 'agent',
-      title: 'Busy',
-      messages: [],
-      activeStreamId: 'turn-still-running',
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/mothership/chat/stream')) {
-        if (String(input).includes('batch=true')) {
-          return Response.json({ success: true, events: [], status: 'streaming' })
-        }
-        return new Response(new ReadableStream<Uint8Array>(), {
-          headers: { 'Content-Type': 'text/event-stream' },
-        })
-      }
-      return fetchStub(input, init)
-    })
-    return { history, ...renderUseChatInChat(id, history) }
-  }
-
-  /**
-   * A send another surface withdrew arrives here under its original id, through
-   * the send event or the stored handoff. Queued behind a running turn, it may
-   * already be a turn on the server, so it can't be edited either.
-   */
-  it('does not let a withdrawn send handed to a busy chat be edited', async () => {
-    const { history, getResult } = renderBusyChat('chat-busy-on-handoff')
-    await waitFor(() => getResult().isSending)
-    await act(async () => {
-      await getResult().sendMessage('handed over from another surface', undefined, undefined, {
-        resumeUserMessageId: 'withdrawn-attempt',
-      })
-    })
-    const queued = useMothershipQueueStore.getState().queues[history.id]?.[0]
-    expect(queued?.resumeUserMessageId).toBe('withdrawn-attempt')
-
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage(queued?.id ?? '')
-    })
-
-    expect(edited).toBeUndefined()
-    expect(getResult().editingQueuedId).toBeNull()
-  })
-
-  /** A follow-up whose dispatch got no answer may have reached the server too. */
-  it('does not let a queued follow-up be edited after its send got no answer', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-follow-up-unanswered',
-      mode: 'agent',
-      title: 'Unanswered',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        throw new TypeError('Failed to fetch')
-      }
-      return fetchStub(input, init)
-    })
-    useMothershipQueueStore
-      .getState()
-      .enqueue(history.id, { id: 'follow-up', content: 'and the second invoice' })
-    const { getResult } = renderUseChatInChat(history.id, history)
-    await waitFor(
-      () =>
-        useMothershipQueueStore.getState().queues[history.id]?.[0]?.resumeUserMessageId !==
-        undefined
-    )
-
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage('follow-up')
-    })
-
-    expect(edited).toBeUndefined()
-    expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
-      content: 'and the second invoice',
-      resumeUserMessageId: state.postBodies[0].userMessageId,
-    })
-  })
-
-  /**
    * Send-now on a resumed message whose Stop of the running turn does not
    * settle sends nothing. That says nothing about the earlier attempt the
    * message resumes, so it must stay uneditable.
    */
-  /**
-   * A message held for the network that the user then sends by hand, over a turn
-   * whose Stop does not settle, goes back waiting for the user. The hold it had
-   * before must not outlive that: the browser coming online must not send it.
-   */
-  it('keeps a Send-now whose Stop failed waiting for the user when the browser comes online', async () => {
-    state.abortSettlements = [false, false, false, false]
-    const { getResult } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'held-offline',
-      content: 'written while offline',
-      resumeUserMessageId: 'offline-attempt',
-      admissionUnknown: true,
-      hold: 'online',
-    })
-
-    await act(async () => {
-      await getResult()
-        .sendNow('held-offline')
-        .catch(() => {})
-      await sleep(200)
-    })
-    await act(async () => {
-      window.dispatchEvent(new Event('online'))
-      await sleep(100)
-    })
-
-    expect(state.postBodies).toHaveLength(1)
-    const queued = useMothershipQueueStore.getState().queues['chat-a']?.[0]
-    expect(queued).toMatchObject({ id: 'held-offline', hold: 'user' })
-  })
-
-  it('keeps a resumed message uneditable when its Send-now Stop does not settle', async () => {
-    state.abortSettlements = [false, false, false, false]
-    const { getResult } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    await act(async () => {
-      await getResult().sendMessage('handed over from another surface', undefined, undefined, {
-        resumeUserMessageId: 'withdrawn-attempt',
-      })
-    })
-    await waitFor(() => useMothershipQueueStore.getState().queues['chat-a']?.length === 1)
-
-    await act(async () => {
-      await getResult()
-        .sendNow()
-        .catch(() => {})
-      await sleep(200)
-    })
-    const queued = useMothershipQueueStore.getState().queues['chat-a']?.[0]
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage(queued?.id ?? '')
-    })
-
-    expect(state.postBodies).toHaveLength(1)
-    expect(queued).toMatchObject({
-      content: 'handed over from another surface',
-      resumeUserMessageId: 'withdrawn-attempt',
-      admissionUnknown: true,
-    })
-    expect(edited).toBeUndefined()
-  })
-
-  /**
-   * A Send-now whose Stop settled has its POST out under the id its stored
-   * handoff carries. Reloaded before the answer, the handoff comes back into the
-   * queue; the server may already have admitted that id, so the restored entry
-   * must not be editable into a second message.
-   */
-  it.each([
-    { stopRequired: false, admissionUnknown: true, editable: false },
-    { stopRequired: true, admissionUnknown: false, editable: true },
-  ])(
-    'guards a Send-now restored from its stored handoff (possibly sent: $admissionUnknown)',
-    async ({ stopRequired, admissionUnknown, editable }) => {
-      const history: MothershipChatHistory = {
-        id: 'chat-a',
-        mode: 'agent',
-        title: 'Restored handoff',
-        messages: [],
-        activeStreamId: null,
-        resources: [],
-      }
-      let loadHistory: (() => void) | undefined
-      mockRequestJson.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            loadHistory = () => resolve({ chat: history })
-          })
-      )
-      writeQueuedSendHandoffState({
-        id: 'restored-send-now',
-        chatId: 'chat-a',
-        workspaceId: 'ws-1',
-        supersededStreamId: 'previous-response',
-        userMessageId: 'send-now-request',
-        message: 'inspect the second invoice instead',
-        ...(stopRequired ? { stopRequired: true } : {}),
-        admissionUnknown,
-        requestedAt: Date.now(),
-      })
-      const { getResult } = renderUseChatInChat('chat-a')
-      /** The first moment a user could act on the restored entry, before dispatch. */
-      const editAtRestore: Array<ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>> = []
-      let tried = false
-      const unsubscribe = useMothershipQueueStore.subscribe((queueState) => {
-        if (tried) return
-        if (!queueState.queues['chat-a']?.some((message) => message.id === 'restored-send-now'))
-          return
-        /** Set first: opening the entry for editing writes the store and re-enters here. */
-        tried = true
-        editAtRestore.push(getResult().editQueuedMessage('restored-send-now'))
-      })
-      try {
-        await waitFor(() => loadHistory !== undefined)
-        await act(async () => {
-          loadHistory?.()
-          await sleep(50)
-        })
-        await waitFor(() => editAtRestore.length === 1)
-      } finally {
-        unsubscribe()
-      }
-
-      expect(editAtRestore[0] !== undefined).toBe(editable)
-    }
-  )
-
-  /**
-   * The id a Send-now stores is not always fresh: a re-queued message reuses its
-   * earlier attempt's id, which may already be on the server. Reloaded while the
-   * Stop is still pending, the restored entry must stay uneditable.
-   */
-  it('keeps a resumed Send-now uneditable when the page reloads before its Stop settles', async () => {
-    const first = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void first.getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && first.getResult().isSending)
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      /** The Stop never settles before the reload. */
-      if (String(input).includes('/api/copilot/chat/abort')) return new Promise<Response>(() => {})
-      return fetchStub(input, init)
-    })
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'unanswered-attempt',
-      admissionUnknown: true,
-    })
-    await act(async () => {
-      void first.getResult().sendNow('resumed')
-    })
-    await waitFor(() => readQueuedSendHandoffState()?.userMessageId === 'unanswered-attempt')
-    first.unmount()
-
-    /** After the reload: the previous turn is over and the stored handoff comes back. */
-    const history: MothershipChatHistory = {
-      id: 'chat-a',
-      mode: 'agent',
-      title: 'Reloaded',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    let loadHistory: (() => void) | undefined
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          loadHistory = () => resolve({ chat: history })
-        })
-    )
-    const reloaded = renderUseChatInChat('chat-a')
-    const editAtRestore: Array<ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>> = []
-    let tried = false
-    const unsubscribe = useMothershipQueueStore.subscribe((queueState) => {
-      if (tried) return
-      const restored = queueState.queues['chat-a']?.find(
-        (message) => message.content === 'sent earlier with no answer'
-      )
-      if (!restored) return
-      tried = true
-      editAtRestore.push(reloaded.getResult().editQueuedMessage(restored.id))
-    })
-    try {
-      await waitFor(() => loadHistory !== undefined)
-      await act(async () => {
-        loadHistory?.()
-        await sleep(50)
-      })
-      await waitFor(() => tried)
-    } finally {
-      unsubscribe()
-    }
-
-    expect(editAtRestore[0]).toBeUndefined()
-  })
-
-  /**
-   * A send superseded at admission is answered like a duplicate, naming its own
-   * id with no stream yet: another attempt holding that id may still admit it.
-   * The message waits uneditable, then goes out again under the same id.
-   */
-  it('keeps a send answered as a duplicate with no stream uneditable, then retries it', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-superseded-send',
-      mode: 'agent',
-      title: 'Superseded',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url === '/api/mothership/chat' && init?.method === 'POST') {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        if (state.postBodies.length === 1) {
-          return Response.json(
-            {
-              error: 'This message was already sent.',
-              activeStreamId: state.postBodies[0].userMessageId,
-            },
-            { status: 409 }
-          )
-        }
-        return emptySseResponse()
-      }
-      if (url.includes('/api/mothership/chat/stream') && state.postBodies.length === 1) {
-        return Response.json({ error: 'Stream not found' }, { status: 404 })
-      }
-      return fetchStub(input, init)
-    })
-    const { getResult } = renderUseChatInChat(history.id, history)
-    await act(async () => {
-      await getResult().sendMessage('Superseded at admission')
-    })
-    const waiting = useMothershipQueueStore.getState().queues[history.id]?.[0]
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage(waiting?.id ?? '')
-    })
-
-    expect(waiting?.admissionUnknown).toBe(true)
-    expect(edited).toBeUndefined()
-    await waitFor(() => state.postBodies.length === 2, 5_000)
-    expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-  })
-
-  /**
-   * A fresh-id Send-now is unsent while it waits on its Stop. Once its POST goes
-   * out the server may hold it, even before the chat's history shows it, so a
-   * reload with that POST unanswered must restore it uneditable.
-   */
-  it('keeps a fresh Send-now uneditable when the page reloads with its POST unanswered', async () => {
-    const first = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void first.getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && first.getResult().isSending)
-    await act(async () => {
-      void first.getResult().sendMessage('Use the latest report')
-    })
-    await waitFor(() => useMothershipQueueStore.getState().queues['chat-a']?.length === 1)
-    await act(async () => {
-      void first.getResult().sendNow()
-    })
-    /** The Send-now POST is out, and held open. */
-    await waitFor(() => state.postBodies.length === 2)
-    const storedAtReload = readQueuedSendHandoffState()
-    expect(storedAtReload?.userMessageId).toBe(state.postBodies[1].userMessageId)
-    first.unmount()
-    await act(async () => {
-      await sleep(50)
-    })
-    /* A reload runs no cleanup: the queue comes back as the session saved it (the
-       dispatched entry had left it) and the handoff as it was stored. */
-    useMothershipQueueStore.getState().reset()
-    if (storedAtReload) writeQueuedSendHandoffState(storedAtReload)
-
-    const history: MothershipChatHistory = {
-      id: 'chat-a',
-      mode: 'agent',
-      title: 'Reloaded',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    let loadHistory: (() => void) | undefined
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          loadHistory = () => resolve({ chat: history })
-        })
-    )
-    const reloaded = renderUseChatInChat('chat-a')
-    const editAtRestore: Array<ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>> = []
-    let tried = false
-    const unsubscribe = useMothershipQueueStore.subscribe((queueState) => {
-      if (tried) return
-      const restored = queueState.queues['chat-a']?.find(
-        (message) => message.content === 'Use the latest report'
-      )
-      if (!restored) return
-      tried = true
-      editAtRestore.push(reloaded.getResult().editQueuedMessage(restored.id))
-    })
-    try {
-      await waitFor(() => loadHistory !== undefined)
-      await act(async () => {
-        loadHistory?.()
-        await sleep(50)
-      })
-      await waitFor(() => tried)
-    } finally {
-      unsubscribe()
-    }
-
-    expect(editAtRestore[0]).toBeUndefined()
-  })
-
-  /**
-   * A Send-now restored after a reload, whose earlier attempt is the very turn it
-   * was stopping: its Stop and its resend share one id, and the server answers
-   * the resend as a duplicate of that turn. That is not a refusal, so the message
-   * must never come back editable.
-   */
-  it('never treats a conflict naming the resent id itself as a refusal', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-own-id',
-      mode: 'agent',
-      title: 'Own id',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    /** Neither the cache nor a fresh read shows the earlier attempt yet. */
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/api/copilot/chat/abort')) {
-        state.abortBodies.push(JSON.parse(String(init?.body)))
-        return Response.json({ aborted: true, settled: true })
-      }
-      if (url === '/api/mothership/chat' && init?.method === 'POST') {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        return Response.json(
-          { error: 'This message was already sent.', activeStreamId: 'earlier-attempt' },
-          { status: 409 }
-        )
-      }
-      if (url.includes('/api/mothership/chat/stream')) {
-        if (url.includes('batch=true')) {
-          return Response.json({ success: true, events: [], status: 'streaming' })
-        }
-        return new Response(new ReadableStream<Uint8Array>(), {
-          headers: { 'Content-Type': 'text/event-stream' },
-        })
-      }
-      return fetchStub(input, init)
-    })
-    writeQueuedSendHandoffState({
-      id: 'resumed',
-      chatId: history.id,
-      workspaceId: 'ws-1',
-      supersededStreamId: 'earlier-attempt',
-      userMessageId: 'earlier-attempt',
-      message: 'sent earlier with no answer',
-      stopRequired: true,
-      admissionUnknown: true,
-      requestedAt: Date.now(),
-    })
-    renderUseChatInChat(history.id, history)
-
-    await waitFor(() => state.postBodies.length === 1)
-    await act(async () => {
-      await sleep(300)
-    })
-
-    expect(state.abortBodies.map((body) => body.streamId)).toEqual(['earlier-attempt'])
-    expect(state.postBodies.map((body) => body.userMessageId)).toEqual(['earlier-attempt'])
-    const requeued = useMothershipQueueStore
-      .getState()
-      .queues[history.id]?.find((message) => message.content === 'sent earlier with no answer')
-    expect(requeued === undefined || requeued.admissionUnknown === true).toBe(true)
-  })
-
-  /**
-   * A held message the server then refuses as busy is known not to be a turn
-   * there: the server answers a retry of an admitted id as a duplicate, never
-   * as busy. The user can edit it again.
-   */
-  it('lets a held message be edited again once the server refuses it as busy', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-held-then-refused',
-      mode: 'agent',
-      title: 'Refused',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url === '/api/mothership/chat' && init?.method === 'POST') {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        return Response.json(
-          {
-            error: 'A response is already in progress for this chat.',
-            activeStreamId: 'turn-from-another-tab',
-          },
-          { status: 409 }
-        )
-      }
-      if (url.includes('/api/mothership/chat/stream')) {
-        if (url.includes('batch=true')) {
-          return Response.json({ success: true, events: [], status: 'streaming' })
-        }
-        return new Response(new ReadableStream<Uint8Array>(), {
-          headers: { 'Content-Type': 'text/event-stream' },
-        })
-      }
-      return fetchStub(input, init)
-    })
-    useMothershipQueueStore.getState().enqueue(history.id, {
-      id: 'held-first',
-      content: 'inspect the workspace',
-      resumeUserMessageId: 'first-attempt',
-      admissionUnknown: true,
-    })
-    const { getResult } = renderUseChatInChat(history.id, history)
-    await waitFor(() => state.postBodies.length === 1)
-    await waitFor(
-      () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.id === 'held-first'
-    )
-
-    let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-    await act(async () => {
-      edited = getResult().editQueuedMessage('held-first')
-    })
-
-    expect(edited?.content).toBe('inspect the workspace')
-    expect(getResult().editingQueuedId).toBe('held-first')
-  })
-
-  /**
-   * After a Stop of the first message, only the follow-up was the user's
-   * intent: the Stop's POST is left to the server, nothing withdraws it, and the
-   * next mount sends just the follow-up, once.
-   */
-  it('sends only the follow-up after a failed Stop when the new-chat surface remounts', async () => {
-    stubFirstPostPendingThenAdmitted()
-    const first = renderHomeLikeSurface()
-    await act(async () => {
-      void first.getResult().sendMessage('inspect the workspace')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-    await act(async () => {
-      void first
-        .getResult()
-        .stopGeneration()
-        .catch(() => {})
-      void first.getResult().sendMessage('Sent while the Stop was failing')
-      await sleep(1_000)
-    })
-    first.unmount()
-
-    renderHomeLikeSurface()
-    await waitFor(() => state.postBodies.length >= 2, 4_000)
-    await act(async () => {
-      await sleep(500)
-    })
-
-    expect(state.postBodies.slice(1).map((body) => body.message)).toEqual([
-      'Sent while the Stop was failing',
-    ])
-    expect(allQueuedMessages()).toHaveLength(0)
-  })
-
-  /**
-   * Send-now on the new-chat surface stops the first message, which the Stop sees
-   * admitted into a chat: the surface moves to that chat and its queue moves with
-   * it. A busy refusal of the follow-up arriving after that must go back to the
-   * chat's queue, where the surface shows and retries it, not to the dead
-   * new-chat key it was dispatched from.
-   */
-  it('re-queues a Send-now refused as busy in the chat the new-chat surface moved to', async () => {
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (
-        url === '/api/mothership/chat' &&
-        init?.method === 'POST' &&
-        state.postBodies.length > 0
-      ) {
-        state.postBodies.push(JSON.parse(String(init.body)))
-        return Response.json(
-          { error: 'A response is already in progress for this chat.' },
-          { status: 409 }
-        )
-      }
-      return fetchStub(input, init)
-    })
-    const { getResult } = renderUseChat()
-    await act(async () => {
-      void getResult().sendMessage('inspect the workspace')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-    await act(async () => {
-      void getResult().sendMessage('Follow-up')
-    })
-    await waitFor(() => allQueuedMessages().length === 1)
-
-    await act(async () => {
-      void getResult()
-        .sendNow()
-        .catch(() => {})
-    })
-    await waitFor(() => state.postBodies.length === 2)
-    /** The refusal goes back to a queue; the assertions below say which one. */
-    await waitFor(() =>
-      Object.values(useMothershipQueueStore.getState().queues).some((queue) =>
-        queue.some((message) => message.content === 'Follow-up')
-      )
-    )
-
-    const queues = useMothershipQueueStore.getState().queues
-    expect(queues[DEDUPED_CHAT_ID]?.map((message) => message.content)).toEqual(['Follow-up'])
-    expect(
-      Object.entries(queues).filter(([key, queue]) => key.startsWith('pending::') && queue.length)
-    ).toEqual([])
-    expect(getResult().messageQueue.map((message) => message.content)).toEqual(['Follow-up'])
-  })
-
-  /**
-   * Send-now reads the history before it stops the running turn. A message the
-   * user removes during that read is no longer theirs to send, so the running
-   * turn must not be stopped for it.
-   */
-  it('does not stop the running turn for a Send-now removed while its history is read', async () => {
-    const { getResult } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    let answerHistory: (() => void) | undefined
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          answerHistory = () =>
-            resolve({
-              chat: {
-                id: 'chat-a',
-                mode: 'agent',
-                title: 'A',
-                messages: [],
-                activeStreamId: null,
-                resources: [],
-              },
-            })
-        })
-    )
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
-      admissionUnknown: true,
-    })
-
-    await act(async () => {
-      void getResult().sendNow('resumed')
-    })
-    await waitFor(() => answerHistory !== undefined)
-    await act(async () => {
-      getResult().removeFromQueue('resumed')
-      answerHistory?.()
-      await sleep(100)
-    })
-
-    expect(state.abortBodies).toHaveLength(0)
-    expect(state.postBodies).toHaveLength(1)
-    expect(getResult().isSending).toBe(true)
-  })
-
-  /**
-   * The drain may already be reading the history for the message the user then
-   * sends by hand. When the drain's read lands first it dispatches the message,
-   * and Send-now must leave that dispatch alone rather than stop the turn it
-   * just started.
-   */
-  it('does not stop the turn the drain started for a Send-now waiting on the same history read', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-a',
-      mode: 'agent',
-      title: 'A',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    const answers: Array<() => void> = []
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          answers.push(() => resolve({ chat: history }))
-        })
-    )
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
-      admissionUnknown: true,
-    })
-    const { getResult } = renderUseChatInChat('chat-a', history)
-    await waitFor(() => answers.length > 0)
-
-    await act(async () => {
-      void getResult().sendNow('resumed')
-    })
-    await act(async () => {
-      for (const answer of answers) answer()
-      await sleep(100)
-    })
-
-    expect(state.abortBodies).toHaveLength(0)
-    expect(state.postBodies).toHaveLength(1)
-    expect(state.postBodies[0]).toMatchObject({ userMessageId: 'earlier-attempt' })
-    expect(getResult().isSending).toBe(true)
-  })
-
-  /**
-   * A Send-now belongs to the chat it was pressed in. If the user moves to
-   * another chat during its history read (which the move may cancel), the turn
-   * running there is not the one it was meant to stop.
-   */
-  it("does not stop another chat's turn for a Send-now whose chat was left during its history read", async () => {
-    const chat = (id: string): MothershipChatHistory => ({
-      id,
-      mode: 'agent',
-      title: id,
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    })
-    let answerHistory: (() => void) | undefined
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          answerHistory = () => resolve({ chat: chat('chat-a') })
-        })
-    )
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
-      admissionUnknown: true,
-      hold: 'user',
-    })
-    const { getResult, navigate } = renderUseChatInChat('chat-a', chat('chat-a'))
-    await act(async () => {
-      void getResult().sendNow('resumed')
-    })
-    await waitFor(() => answerHistory !== undefined)
-    const answerChatA = answerHistory
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: chat('chat-b') }))
-
-    navigate('chat-b', chat('chat-b'))
-    await act(async () => {
-      void getResult().sendMessage('Chat B request')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-    await act(async () => {
-      answerChatA?.()
-      await sleep(100)
-    })
-
-    expect(state.abortBodies).toHaveLength(0)
-    expect(state.postBodies).toHaveLength(1)
-    expect(getResult().isSending).toBe(true)
-    expect(useMothershipQueueStore.getState().queues['chat-a']?.map((queued) => queued.id)).toEqual(
-      ['resumed']
-    )
-  })
-
-  /** A surface that unmounts during the read leaves the running turn to whoever owns it next. */
-  it('does not stop the running turn for a Send-now whose surface unmounted during its history read', async () => {
-    const { getResult, unmount } = renderUseChatInChat('chat-a')
-    await act(async () => {
-      void getResult().sendMessage('Original request')
-    })
-    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
-    let answerHistory: (() => void) | undefined
-    mockRequestJson.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          answerHistory = () =>
-            resolve({
-              chat: {
-                id: 'chat-a',
-                mode: 'agent',
-                title: 'A',
-                messages: [],
-                activeStreamId: null,
-                resources: [],
-              },
-            })
-        })
-    )
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
-      admissionUnknown: true,
-    })
-    await act(async () => {
-      void getResult().sendNow('resumed')
-    })
-    await waitFor(() => answerHistory !== undefined)
-    const abortsBeforeUnmount = state.abortBodies.length
-
-    unmount()
-    await act(async () => {
-      answerHistory?.()
-      await sleep(100)
-    })
-
-    expect(state.abortBodies).toHaveLength(abortsBeforeUnmount)
-    expect(state.postBodies).toHaveLength(1)
-  })
-
-  /**
-   * Send-now on a message that may already be a turn checks the chat's history
-   * first, as the queue drain does: if the server shows the id accepted, the
-   * message is already in the chat and sending it again could run a second turn.
-   */
-  it('drops a Send-now whose id the server already accepted instead of resending it', async () => {
-    const cached: MothershipChatHistory = {
-      id: 'chat-send-now-accepted',
-      mode: 'agent',
-      title: 'Accepted',
-      messages: [],
-      activeStreamId: null,
-      resources: [],
-    }
-    const fresh: MothershipChatHistory = {
-      ...cached,
-      messages: [
-        {
-          id: 'earlier-attempt',
-          role: 'user',
-          content: 'sent earlier with no answer',
-          timestamp: new Date().toISOString(),
-        },
-      ],
-    }
-    mockRequestJson.mockImplementation(() => Promise.resolve({ chat: fresh }))
-    useMothershipQueueStore.getState().enqueue(cached.id, {
-      id: 'resumed',
-      content: 'sent earlier with no answer',
-      resumeUserMessageId: 'earlier-attempt',
-      admissionUnknown: true,
-      hold: 'user',
-    })
-    const { getResult } = renderUseChatInChat(cached.id, cached)
-
-    await act(async () => {
-      void getResult().sendNow('resumed')
-      await sleep(200)
-    })
-
-    expect(state.postBodies).toHaveLength(0)
-    expect(useMothershipQueueStore.getState().queues[cached.id]).toBeUndefined()
-  })
 
   it('stopping a chat preserves an unrelated manual workflow execution', async () => {
     const executionStore = useExecutionStore.getState()
@@ -3654,7 +2003,6 @@ describe('useChat remount send recovery', () => {
     await waitFor(
       () =>
         window.localStorage.getItem('sim_mothership_handoff') !== null ||
-        allQueuedMessages().length > 0 ||
         state.postBodies.length > 1
     )
   })
@@ -3713,13 +2061,9 @@ describe('useChat remount send recovery', () => {
     })
     await waitFor(() => state.postBodies.length === 1)
 
-    // An idle send goes straight out — it never occupies the queue.
-    expect(allQueuedMessages()).toHaveLength(0)
-
     unmount()
     await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
 
-    expect(allQueuedMessages()).toHaveLength(0)
     const handoff = MothershipHandoffStorage.consume('ws-1')
     expect(handoff?.message).toBe('hello from the palette')
     expect(handoff?.fileAttachments).toEqual([attachment])
@@ -3740,7 +2084,6 @@ describe('useChat remount send recovery', () => {
       await sleep(50)
     })
 
-    expect(allQueuedMessages()).toHaveLength(0)
     expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
   })
 
@@ -3855,12 +2198,12 @@ describe('useChat remount send recovery', () => {
     }
 
     /**
-     * A follow-up typed while a direct send waits on its POST queues behind it.
-     * If that send then fails it goes back to the queue ahead of the follow-up:
-     * it was written first, and must still go out first.
+     * A follow-up typed while a direct send waits on its POST waits for that
+     * admission (it would steer the turn). If the send then fails it stays ahead
+     * of the follow-up: it was written first, and must still go out first.
      */
     it.each(['offline', 'blip', 'busy'] as const)(
-      'keeps a failed direct send ahead of a follow-up queued during its POST (%s)',
+      'keeps a failed direct send ahead of a follow-up written during its POST (%s)',
       async (outcome) => {
         const history = idleHistory(`chat-requeue-order-${outcome}`)
         mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
@@ -3895,24 +2238,18 @@ describe('useChat remount send recovery', () => {
         await act(async () => {
           await getResult().sendMessage('Follow-up, written while the first was out')
         })
-        await waitFor(
-          () => (useMothershipQueueStore.getState().queues[history.id]?.length ?? 0) === 1
-        )
 
         await act(async () => {
           failFirstPost?.()
           await sleep(100)
         })
 
-        expect(
-          (useMothershipQueueStore.getState().queues[history.id] ?? []).map(
-            (message) => message.content
-          )
-        ).toEqual([
+        expect(userMessages(getResult())).toEqual([
           'First, written before the follow-up',
           'Follow-up, written while the first was out',
         ])
         expect(state.postBodies).toHaveLength(1)
+        expect(state.steerBodies).toHaveLength(0)
       }
     )
 
@@ -3927,10 +2264,7 @@ describe('useChat remount send recovery', () => {
       })
       await waitFor(() => !getResult().isSending)
 
-      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
-      expect(queued.map((message) => message.content)).toEqual(['Written while offline'])
-      expect(queued[0].hold).toBe('online')
-      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+      expect(userMessages(getResult())).toEqual(['Written while offline'])
       expect(getResult().error).not.toBeNull()
       expect(state.postBodies).toHaveLength(1)
 
@@ -3970,7 +2304,6 @@ describe('useChat remount send recovery', () => {
         'Sent after it',
       ])
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
     })
 
     /** Sim stays unreachable while the browser reports itself online: retried on a growing delay. */
@@ -4002,334 +2335,6 @@ describe('useChat remount send recovery', () => {
       } finally {
         vi.useRealTimers()
       }
-    })
-
-    /**
-     * A retried send may already be a turn on the server, whichever path sent it.
-     * Retrying must keep it uneditable, under the id the server deduplicates.
-     */
-    it.each(['a direct send', 'a queued dispatch'] as const)(
-      'keeps %s retried while online uneditable under one id',
-      async (path) => {
-        const history = idleHistory(`chat-retried-online-${path.replace(/ /g, '-')}`)
-        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-        stubUnreachableSend({ browserStaysOnline: true })
-        if (path === 'a queued dispatch') {
-          useMothershipQueueStore
-            .getState()
-            .enqueue(history.id, { id: 'queued-retried', content: 'Retried while online' })
-        }
-        const { getResult } = renderUseChatInChat(history.id, history)
-        if (path === 'a direct send') {
-          await act(async () => {
-            await getResult().sendMessage('Retried while online')
-          })
-        }
-        await waitFor(() => state.postBodies.length >= 2, 5000)
-        await waitFor(() => !getResult().isSending)
-
-        const [queued] = useMothershipQueueStore.getState().queues[history.id] ?? []
-        expect(queued).toMatchObject({ content: 'Retried while online', admissionUnknown: true })
-        useMothershipQueueStore.getState().replaceAt(history.id, queued.id, {
-          content: 'Edited after the retry',
-          fileAttachments: undefined,
-          contexts: undefined,
-          requestMode: undefined,
-          assistantSearch: undefined,
-          assistantSearchLevel: undefined,
-        })
-        let edited: ReturnType<ReturnType<typeof useChat>['editQueuedMessage']>
-        await act(async () => {
-          edited = getResult().editQueuedMessage(queued.id)
-        })
-
-        expect(edited).toBeUndefined()
-        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
-          'Retried while online'
-        )
-        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
-      }
-    )
-
-    /**
-     * Only the POST failing at the network layer is retried on a timer. An error
-     * before it goes out (here, reading the desktop's capabilities) would fail the
-     * same way each time, so the message is held for the user, as before.
-     */
-    it.each([
-      ['an Error', Error],
-      ['a TypeError', TypeError],
-    ] as const)(
-      'holds a send whose preparation threw %s instead of retrying it',
-      async (_kind, ErrorType) => {
-        const history = idleHistory(`chat-prepare-failed-${ErrorType.name}`)
-        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-        libDesktopMockFns.mockGetDesktopChatCapabilities.mockRejectedValueOnce(
-          new ErrorType('preferences unavailable')
-        )
-        const { getResult } = renderUseChatInChat(history.id, history)
-
-        await act(async () => {
-          await getResult().sendMessage('Never prepared')
-        })
-        await act(async () => {
-          await sleep(2500)
-        })
-
-        expect(libDesktopMockFns.mockGetDesktopChatCapabilities).toHaveBeenCalledTimes(1)
-        expect(state.postBodies).toHaveLength(0)
-        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]).toMatchObject({
-          content: 'Never prepared',
-          hold: 'online',
-        })
-      }
-    )
-
-    /**
-     * The POST was admitted but its answer lost, and the outage outlasted the
-     * server's claim on the id, which then no longer deduplicates a resend. The
-     * chat's history shows the turn, so the resend is dropped, whether it waited
-     * on a timer (online) or for the `online` event (offline).
-     */
-    it.each([
-      ['online', true],
-      ['offline', false],
-    ] as const)(
-      'drops a resend the chat history shows was accepted, after an outage while %s',
-      async (_state, browserStaysOnline) => {
-        const history = idleHistory(`chat-admitted-answer-lost-${browserStaysOnline}`)
-        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-        stubUnreachableSend({ browserStaysOnline })
-        const { getResult } = renderUseChatInChat(history.id, history)
-        await act(async () => {
-          await getResult().sendMessage('Admitted, answer lost')
-        })
-        const admittedId = state.postBodies[0].userMessageId
-        mockRequestJson.mockImplementation(() =>
-          Promise.resolve({
-            chat: {
-              ...history,
-              messages: [
-                { id: admittedId, role: 'user', content: 'Admitted, answer lost', timestamp: '' },
-                { id: 'its-answer', role: 'assistant', content: 'Done.', timestamp: '' },
-              ],
-            },
-          })
-        )
-        network.online = true
-        /* Only a browser that went offline sees `online`; the event also makes
-           React Query refetch the chat, which would drop the entry by itself. */
-        if (!browserStaysOnline) {
-          await act(async () => {
-            window.dispatchEvent(new Event('online'))
-          })
-        }
-
-        await waitFor(() => !useMothershipQueueStore.getState().queues[history.id], 5000)
-        await act(async () => {
-          await sleep(1500)
-        })
-
-        expect(state.postBodies).toHaveLength(1)
-        expect(network.acceptedPosts).toBe(0)
-      }
-    )
-
-    /** A history read that fails proves nothing, so the resend waits for one that works. */
-    it('does not resend a message that may have been admitted while its chat history is unreadable', async () => {
-      const history = idleHistory('chat-history-unreadable')
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      stubUnreachableSend({ browserStaysOnline: true })
-      const { getResult } = renderUseChatInChat(history.id, history)
-      await act(async () => {
-        await getResult().sendMessage('Sent before the history broke')
-      })
-      mockRequestJson.mockImplementation(() => Promise.reject(new Error('Service unavailable')))
-      network.online = true
-      await act(async () => {
-        await sleep(4000)
-      })
-
-      expect(state.postBodies).toHaveLength(1)
-      expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
-        'Sent before the history broke'
-      )
-
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      await waitFor(() => network.acceptedPosts === 1, 20000)
-      expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
-    }, 30000)
-
-    it('keeps a queued follow-up whose dispatch could not reach the server', async () => {
-      const history = idleHistory('chat-offline-queue')
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      stubUnreachableSend()
-      useMothershipQueueStore
-        .getState()
-        .enqueue(history.id, { id: 'queued-follow-up', content: 'Queued before the drop' })
-      renderUseChatInChat(history.id, history)
-
-      await waitFor(() => state.postBodies.length === 1)
-      await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold === 'online'
-      )
-
-      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
-      expect(queued.map((message) => message.content)).toEqual(['Queued before the drop'])
-      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-      expect(state.postBodies).toHaveLength(1)
-    })
-
-    /**
-     * Another tab's turn holds the chat (this one missed its start). The server
-     * refuses the send, naming that turn or, when its stream id is unreadable,
-     * nothing. The message must go out exactly once, under its id, after that turn
-     * ends: never rendered under the other turn's answer, never lost, never resent
-     * while the turn still runs.
-     */
-    it.each([
-      ['names', 'turn-from-another-tab'],
-      ['does not name', undefined],
-    ] as const)(
-      'sends a message once, after the turn that held the chat ends, when the refusal %s it',
-      async (_names, refusalStreamId) => {
-        const history = idleHistory(`chat-busy-${refusalStreamId ?? 'unnamed'}`)
-        let otherTurnRunning = true
-        mockRequestJson.mockImplementation(() =>
-          Promise.resolve({
-            chat: {
-              ...history,
-              activeStreamId: otherTurnRunning ? 'turn-from-another-tab' : null,
-            },
-          })
-        )
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-          const url = String(input)
-          if (url === '/api/mothership/chat' && init?.method === 'POST') {
-            state.postBodies.push(JSON.parse(String(init.body)))
-            if (otherTurnRunning) {
-              return Response.json(
-                {
-                  error: 'A response is already in progress for this chat.',
-                  ...(refusalStreamId ? { activeStreamId: refusalStreamId } : {}),
-                },
-                { status: 409 }
-              )
-            }
-            return emptySseResponse()
-          }
-          if (url.includes('/api/mothership/chat/stream')) {
-            if (url.includes('batch=true')) {
-              return Response.json({
-                success: true,
-                events: [],
-                status: otherTurnRunning ? 'streaming' : 'complete',
-              })
-            }
-            return emptySseResponse()
-          }
-          return fetchStub(input, init)
-        })
-        const { getResult } = renderUseChatInChat(history.id, history)
-
-        await act(async () => {
-          await getResult().sendMessage('Sent from the second tab')
-        })
-        await act(async () => {
-          await sleep(1500)
-        })
-        expect(state.postBodies).toHaveLength(1)
-        expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
-          'Sent from the second tab'
-        )
-
-        otherTurnRunning = false
-        await waitFor(() => state.postBodies.length === 2, 5000)
-        await act(async () => {
-          await sleep(500)
-        })
-
-        expect(state.postBodies).toHaveLength(2)
-        expect(state.postBodies[1].message).toBe('Sent from the second tab')
-        expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-      }
-    )
-
-    /**
-     * A chatless surface keys its queue by mount, so a held first message would
-     * be stranded by a reload or remount before the network returns. The next
-     * chatless mount of the same surface adopts it.
-     */
-    it('carries a first message held offline over to the next new-chat surface', async () => {
-      stubUnreachableSend()
-      const first = renderUseChat()
-      await act(async () => {
-        await first.getResult().sendMessage('First message, sent offline')
-      })
-      await waitFor(() => allQueuedMessages().some((message) => message.hold === 'online'))
-      first.unmount()
-
-      const second = renderUseChat()
-      await waitFor(() =>
-        second
-          .getResult()
-          .messageQueue.some((message) => message.content === 'First message, sent offline')
-      )
-
-      network.online = true
-      await act(async () => {
-        window.dispatchEvent(new Event('online'))
-      })
-      await waitFor(() => network.acceptedPosts === 1)
-      await act(async () => {
-        await sleep(300)
-      })
-
-      expect(network.acceptedPosts).toBe(1)
-      expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
-      expect(state.postBodies.at(-1)?.message).toBe('First message, sent offline')
-    })
-
-    /**
-     * Releasing held sends on mount must not bypass the queue's own rules: a
-     * follow-up queued behind a turn that is still running (here, restored after a
-     * reload) waits for that turn instead of being sent into a busy chat.
-     */
-    it('keeps a queued follow-up waiting on mount while the chat is still running', async () => {
-      const history: MothershipChatHistory = {
-        ...idleHistory('chat-still-running'),
-        activeStreamId: 'turn-still-running',
-      }
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          return emptySseResponse()
-        }
-        if (url.includes('/api/mothership/chat/stream')) {
-          if (url.includes('batch=true')) {
-            return Response.json({ success: true, events: [], status: 'streaming' })
-          }
-          return new Response(new ReadableStream<Uint8Array>(), {
-            headers: { 'Content-Type': 'text/event-stream' },
-          })
-        }
-        return fetchStub(input, init)
-      })
-      useMothershipQueueStore
-        .getState()
-        .enqueue(history.id, { id: 'queued-before-reload', content: 'Queued before the reload' })
-      renderUseChatInChat(history.id)
-
-      await act(async () => {
-        await sleep(1000)
-      })
-
-      expect(state.postBodies).toHaveLength(0)
-      expect(useMothershipQueueStore.getState().queues[history.id]?.[0]?.content).toBe(
-        'Queued before the reload'
-      )
     })
 
     /**
@@ -4371,274 +2376,6 @@ describe('useChat remount send recovery', () => {
 
       expect(state.postBodies[1].message).toBe('Sent as the network came back')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-    })
-
-    /** Switching chats while a queued send is failing must not drop it from its own chat. */
-    it('keeps a queued send that failed after the user switched chats', async () => {
-      const history = idleHistory('chat-left-mid-dispatch')
-      const other = idleHistory('chat-switched-to')
-      mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
-        Promise.resolve({
-          chat: JSON.stringify(input).includes(other.id) ? other : history,
-        })
-      )
-      let failPost: (() => void) | undefined
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          return new Promise<Response>((_, reject) => {
-            failPost = () => reject(new TypeError('Failed to fetch'))
-          })
-        }
-        return fetchStub(input, init)
-      })
-      useMothershipQueueStore
-        .getState()
-        .enqueue(history.id, { id: 'queued-then-left', content: 'Sent as I switched chats' })
-      const { navigate } = renderUseChatInChat(history.id, history)
-      await waitFor(() => failPost !== undefined)
-
-      navigate(other.id, other)
-      await act(async () => {
-        failPost?.()
-        await sleep(100)
-      })
-
-      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
-      expect(queued.map((message) => message.content)).toEqual(['Sent as I switched chats'])
-      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-    })
-
-    /**
-     * A send can wait on the chat lock while the user switches chats. The switch
-     * detaches the view but leaves the POST running, so the busy refusal that
-     * answers it must still put the message back in its own chat's queue.
-     */
-    it.each(['direct', 'queued'] as const)(
-      'keeps a %s send refused as busy after the user switched chats',
-      async (origin) => {
-        const history = idleHistory(`chat-busy-after-switch-${origin}`)
-        const other = idleHistory(`chat-switched-to-during-lock-${origin}`)
-        mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
-          Promise.resolve({
-            chat: JSON.stringify(input).includes(other.id) ? other : history,
-          })
-        )
-        let answerPost: (() => void) | undefined
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-            state.postBodies.push(JSON.parse(String(init.body)))
-            return new Promise<Response>((resolve) => {
-              answerPost = () =>
-                resolve(
-                  Response.json(
-                    {
-                      error: 'A response is already in progress for this chat.',
-                      activeStreamId: 'turn-from-another-tab',
-                    },
-                    { status: 409 }
-                  )
-                )
-            })
-          }
-          if (String(input).includes('/api/mothership/chat/stream')) {
-            return new Response(new ReadableStream<Uint8Array>(), {
-              headers: { 'Content-Type': 'text/event-stream' },
-            })
-          }
-          return fetchStub(input, init)
-        })
-        if (origin === 'queued') {
-          useMothershipQueueStore
-            .getState()
-            .enqueue(history.id, { id: 'queued-on-lock', content: 'Waiting on the lock' })
-        }
-        const { getResult, navigate } = renderUseChatInChat(history.id, history)
-        if (origin === 'direct') {
-          await act(async () => {
-            void getResult().sendMessage('Waiting on the lock')
-          })
-        }
-        await waitFor(() => answerPost !== undefined)
-
-        navigate(other.id, other)
-        await act(async () => {
-          answerPost?.()
-          await sleep(300)
-        })
-
-        const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
-        expect(queued.map((message) => message.content)).toEqual(['Waiting on the lock'])
-        expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-        expect(useMothershipQueueStore.getState().queues[other.id]).toBeUndefined()
-        expect(state.postBodies).toHaveLength(1)
-      }
-    )
-
-    /** A chat deleted while its queued send was failing must not get that send back. */
-    it('does not recreate the queue of a chat deleted while its queued send was failing', async () => {
-      const history = idleHistory('chat-deleted-mid-dispatch')
-      const other = idleHistory('chat-open-after-delete')
-      mockRequestJson.mockImplementation((_contract: AnyApiRouteContract, input: unknown) =>
-        Promise.resolve({
-          chat: JSON.stringify(input).includes(other.id) ? other : history,
-        })
-      )
-      let failPost: (() => void) | undefined
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          return new Promise<Response>((_, reject) => {
-            failPost = () => reject(new TypeError('Failed to fetch'))
-          })
-        }
-        return fetchStub(input, init)
-      })
-      useMothershipQueueStore
-        .getState()
-        .enqueue(history.id, { id: 'queued-then-deleted', content: 'In a chat I deleted' })
-      const { navigate } = renderUseChatInChat(history.id, history)
-      await waitFor(() => failPost !== undefined)
-
-      navigate(other.id, other)
-      useMothershipQueueStore.getState().clearChat(history.id)
-      await act(async () => {
-        failPost?.()
-        await sleep(100)
-      })
-
-      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
-    })
-
-    /**
-     * A direct send to a chat that is deleted while its POST is failing must not
-     * bring the chat's queue back: nothing would show the message, and it would
-     * go out by itself if the chat were ever restored.
-     */
-    it.each(['unreachable', 'busy'] as const)(
-      'does not recreate a deleted chat through a %s direct send',
-      async (outcome) => {
-        const history = idleHistory(`chat-deleted-direct-${outcome}`)
-        mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-        let answerPost: (() => void) | undefined
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-            state.postBodies.push(JSON.parse(String(init.body)))
-            return new Promise<Response>((resolve, reject) => {
-              answerPost = () =>
-                outcome === 'unreachable'
-                  ? reject(new TypeError('Failed to fetch'))
-                  : resolve(
-                      Response.json(
-                        { error: 'A response is already in progress for this chat.' },
-                        { status: 409 }
-                      )
-                    )
-            })
-          }
-          if (String(input).includes('/api/mothership/chat/stream')) {
-            return Response.json({ error: 'Stream not found' }, { status: 404 })
-          }
-          return fetchStub(input, init)
-        })
-        const { getResult } = renderUseChatInChat(history.id, history)
-        await act(async () => {
-          void getResult().sendMessage('Sent to a chat I then deleted')
-        })
-        await waitFor(() => answerPost !== undefined)
-
-        useMothershipQueueStore.getState().clearChat(history.id)
-        /** The server no longer returns a deleted chat. */
-        mockRequestJson.mockImplementation(() => Promise.reject(new Error('Chat not found')))
-        await act(async () => {
-          answerPost?.()
-          await sleep(300)
-        })
-
-        expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
-        expect(state.postBodies).toHaveLength(1)
-      }
-    )
-
-    /** The same holds when the server read is the one a return to the tab makes. */
-    it('queues a follow-up after a return to the tab finds a chat this tab saw deleted', async () => {
-      const history = idleHistory('chat-restored-while-away')
-      const running: MothershipChatHistory = { ...history, activeStreamId: 'turn-after-restore' }
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: running }))
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).includes('/api/mothership/chat/stream')) {
-          if (String(input).includes('batch=true')) {
-            return Response.json({ success: true, events: [], status: 'streaming' })
-          }
-          return new Response(new ReadableStream<Uint8Array>(), {
-            headers: { 'Content-Type': 'text/event-stream' },
-          })
-        }
-        return fetchStub(input, init)
-      })
-      const { getResult } = renderUseChatInChat(history.id, history)
-      useMothershipQueueStore.getState().clearChat(history.id)
-
-      await act(async () => {
-        window.dispatchEvent(new Event('pageshow'))
-      })
-      await waitFor(() => getResult().isSending)
-      await act(async () => {
-        await getResult().sendMessage('Follow-up after coming back')
-      })
-
-      expect(
-        useMothershipQueueStore.getState().queues[history.id]?.map((message) => message.content)
-      ).toEqual(['Follow-up after coming back'])
-    })
-
-    /**
-     * Another tab deletes the chat while this tab's send waits on the lock. The
-     * busy refusal then rewrites the chat's history locally; that is not the
-     * server returning the chat, so the delete must still hold.
-     */
-    it('keeps a chat deleted in another tab empty when a pending send there is refused as busy', async () => {
-      const history = idleHistory('chat-deleted-in-other-tab')
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      let answerPost: (() => void) | undefined
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          return new Promise<Response>((resolve) => {
-            answerPost = () =>
-              resolve(
-                Response.json(
-                  { error: 'A response is already in progress for this chat.' },
-                  { status: 409 }
-                )
-              )
-          })
-        }
-        if (String(input).includes('/api/mothership/chat')) {
-          return Response.json({ error: 'Chat not found' }, { status: 404 })
-        }
-        return fetchStub(input, init)
-      })
-      const { getResult } = renderUseChatInChat(history.id, history)
-      await act(async () => {
-        void getResult().sendMessage('Sent as another tab deleted the chat')
-      })
-      await waitFor(() => answerPost !== undefined)
-
-      mockRequestJson.mockImplementation(() => Promise.reject(new Error('Chat not found')))
-      handleMothershipChatStatusEvent(
-        queryClient,
-        'ws-1',
-        JSON.stringify({ chatId: history.id, type: 'deleted', timestamp: Date.now() })
-      )
-      await act(async () => {
-        answerPost?.()
-        await sleep(300)
-      })
-      useMothershipQueueStore.getState().enqueue(history.id, { id: 'later', content: 'Later' })
-
-      expect(useMothershipQueueStore.getState().queues[history.id]).toBeUndefined()
-      expect(state.postBodies).toHaveLength(1)
     })
 
     /**
@@ -4695,82 +2432,6 @@ describe('useChat remount send recovery', () => {
     })
 
     /**
-     * A send can wait several seconds on the server's chat lock behind another
-     * tab's turn. Returning to the tab in that window must not abort it: when
-     * the refusal arrives, the chat shows that turn running and the message
-     * waits in the queue behind it.
-     */
-    it('keeps a send waiting on the chat lock when the user returns to the tab', async () => {
-      const history: MothershipChatHistory = {
-        ...idleHistory('chat-lock-wait-return'),
-        activeStreamId: 'turn-from-another-tab',
-      }
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      let answerPost: (() => void) | undefined
-      let answered = false
-      const tailsAfterRefusal: string[] = []
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url === '/api/mothership/chat' && init?.method === 'POST') {
-          state.postBodies.push(JSON.parse(String(init.body)))
-          return new Promise<Response>((resolve, reject) => {
-            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
-              once: true,
-            })
-            answerPost = () =>
-              resolve(
-                Response.json(
-                  {
-                    error: 'A response is already in progress for this chat.',
-                    activeStreamId: 'turn-from-another-tab',
-                  },
-                  { status: 409 }
-                )
-              )
-          })
-        }
-        if (url.includes('/api/mothership/chat/stream')) {
-          if (url.includes('batch=true')) {
-            return Response.json({ success: true, events: [], status: 'streaming' })
-          }
-          if (answered) {
-            tailsAfterRefusal.push(
-              new URL(url, 'http://localhost').searchParams.get('streamId') ?? ''
-            )
-          }
-          return new Response(new ReadableStream<Uint8Array>(), {
-            headers: { 'Content-Type': 'text/event-stream' },
-          })
-        }
-        return fetchStub(input, init)
-      })
-      const { getResult } = renderUseChatInChat(history.id, {
-        ...history,
-        activeStreamId: null,
-      })
-      await act(async () => {
-        void getResult().sendMessage('Waiting on the lock')
-      })
-      await waitFor(() => answerPost !== undefined)
-
-      await act(async () => {
-        window.dispatchEvent(new Event('pageshow'))
-        await sleep(100)
-      })
-      await act(async () => {
-        answered = true
-        answerPost?.()
-        await sleep(300)
-      })
-
-      const queued = useMothershipQueueStore.getState().queues[history.id] ?? []
-      expect(queued.map((message) => message.content)).toEqual(['Waiting on the lock'])
-      expect(queued[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-      expect(tailsAfterRefusal).toContain('turn-from-another-tab')
-      expect(getResult().isSending).toBe(true)
-    })
-
-    /**
      * A retry can be told "already sent" while the server's earlier attempt with
      * that id is still in flight and has opened no stream. The message must be
      * retried once that attempt settles, not read as a finished turn and dropped.
@@ -4809,47 +2470,6 @@ describe('useChat remount send recovery', () => {
 
       expect(state.postBodies[1].message).toBe('Told it was already sent')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-    })
-
-    /**
-     * A first message from the new-chat surface can be refused as busy with no
-     * turn to wait for (Redis down). It must wait out the same growing delay
-     * there, not be handed to the surface's own send listener and resent at once.
-     */
-    it('backs off a busy refusal of a first message on the new-chat surface', async () => {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
-      try {
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
-            state.postBodies.push(JSON.parse(String(init.body)))
-            /** Caps a hot loop so it fails the count below instead of starving the test. */
-            if (state.postBodies.length > 20) return new Promise<Response>(() => {})
-            return Response.json(
-              { error: 'A response is already in progress for this chat.' },
-              { status: 409 }
-            )
-          }
-          return fetchStub(input, init)
-        })
-        const { getResult } = renderHomeLikeSurface()
-        await act(async () => {
-          void getResult().sendMessage('First message while Redis is down')
-          await vi.advanceTimersByTimeAsync(50)
-        })
-        for (let second = 0; second < 10; second++) {
-          await act(async () => vi.advanceTimersByTimeAsync(1_000))
-        }
-
-        /** 1s, 2s, 4s, 8s of backoff fit at most 4 attempts in 10s. */
-        expect(state.postBodies.length).toBeGreaterThan(1)
-        expect(state.postBodies.length).toBeLessThanOrEqual(4)
-        expect(new Set(state.postBodies.map((body) => body.userMessageId)).size).toBe(1)
-        expect(allQueuedMessages().map((message) => message.content)).toEqual([
-          'First message while Redis is down',
-        ])
-      } finally {
-        vi.useRealTimers()
-      }
     })
 
     /**
@@ -4916,42 +2536,6 @@ describe('useChat remount send recovery', () => {
       expect(state.abortBodies.map((body) => body.streamId)).not.toContain(
         state.postBodies[0].userMessageId
       )
-    })
-
-    /**
-     * A chat this tab saw deleted can be restored from another tab without this
-     * tab hearing of it. Once the chat loads, it exists, so a follow-up queued
-     * behind its running turn must be kept.
-     */
-    it('queues a follow-up in a chat that loads after this tab saw it deleted', async () => {
-      const history: MothershipChatHistory = {
-        ...idleHistory('chat-restored-elsewhere'),
-        activeStreamId: 'turn-still-running',
-      }
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).includes('/api/mothership/chat/stream')) {
-          if (String(input).includes('batch=true')) {
-            return Response.json({ success: true, events: [], status: 'streaming' })
-          }
-          return new Response(new ReadableStream<Uint8Array>(), {
-            headers: { 'Content-Type': 'text/event-stream' },
-          })
-        }
-        return fetchStub(input, init)
-      })
-      useMothershipQueueStore.getState().clearChat(history.id)
-      /** Loaded from the server, not seeded: only a server read confirms the chat exists. */
-      const { getResult } = renderUseChatInChat(history.id)
-      await waitFor(() => getResult().isSending)
-
-      await act(async () => {
-        await getResult().sendMessage('Follow-up after the restore')
-      })
-
-      expect(
-        useMothershipQueueStore.getState().queues[history.id]?.map((message) => message.content)
-      ).toEqual(['Follow-up after the restore'])
     })
 
     /** A stream lookup that fails for another reason does not prove a turn ran either. */
@@ -5032,129 +2616,6 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies[1].message).toBe('First message, told it was already sent')
       expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
     })
-
-    /** The `online` event can fire while no surface for the chat is mounted. */
-    it('sends a held message when its chat mounts after the network came back', async () => {
-      const history = idleHistory('chat-held-while-away')
-      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
-      stubUnreachableSend()
-      const first = renderUseChatInChat(history.id, history)
-      await act(async () => {
-        await first.getResult().sendMessage('Held while I was elsewhere')
-      })
-      await waitFor(
-        () => useMothershipQueueStore.getState().queues[history.id]?.[0]?.hold === 'online'
-      )
-      first.unmount()
-
-      network.online = true
-      renderUseChatInChat(history.id, history)
-      await waitFor(() => state.postBodies.length === 2)
-
-      expect(state.postBodies[1].message).toBe('Held while I was elsewhere')
-      expect(state.postBodies[1].userMessageId).toBe(state.postBodies[0].userMessageId)
-    })
-  })
-
-  /**
-   * A withdrawn send belongs to the chat it was sent to. The cross-surface
-   * lanes deliver to whatever chat is mounted next, so routing a chat-bound
-   * send through them would drop the message into a different conversation —
-   * exactly what happens if the user switches chats mid-send. Its key is the
-   * stable chat id, so re-queueing under that key is the durable retry.
-   */
-  it('re-queues a withdrawn chat-bound send instead of following the user', async () => {
-    const { getResult, unmount } = renderUseChatInChat('chat-a')
-
-    await act(async () => {
-      void getResult().sendMessage('belongs to chat-a')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-
-    unmount()
-    await waitFor(() => allQueuedMessages().length === 1)
-
-    const queues = useMothershipQueueStore.getState().queues
-    expect(Object.keys(queues)).toEqual(['chat-a'])
-    expect(queues['chat-a'][0].content).toBe('belongs to chat-a')
-    // Reused on the retry so the server deduplicates it.
-    expect(queues['chat-a'][0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-    // Must NOT have gone to the cross-surface handoff.
-    expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
-  })
-
-  it.each(['active', 'complete', 'cancelled'] as const)(
-    'removes a recovered queue entry already accepted by the server (%s)',
-    async (status) => {
-      useMothershipQueueStore.getState().enqueue('chat-a', {
-        id: 'withdrawn-entry',
-        content: 'check the trace for this req',
-        resumeUserMessageId: 'accepted-request',
-        hold: 'user',
-      })
-      const { getResult } = renderUseChatInChat('chat-a', {
-        id: 'chat-a',
-        title: 'Trace inspection',
-        activeStreamId: status === 'active' ? 'accepted-request' : null,
-        messages: [
-          {
-            id: 'accepted-request',
-            role: 'user',
-            content: 'check the trace for this req',
-            timestamp: '',
-          },
-          ...(status === 'active'
-            ? []
-            : [
-                {
-                  id: 'accepted-answer',
-                  role: 'assistant' as const,
-                  content: '',
-                  timestamp: '',
-                  contentBlocks: [
-                    {
-                      type: 'complete' as const,
-                      status:
-                        status === 'cancelled'
-                          ? MothershipStreamV1CompletionStatus.cancelled
-                          : MothershipStreamV1CompletionStatus.complete,
-                    },
-                  ],
-                },
-              ]),
-        ],
-        resources: [],
-      })
-      await waitFor(() => getResult().messageQueue.length === 0)
-      expect(state.postBodies).toHaveLength(0)
-      expect(state.abortBodies).toHaveLength(0)
-    }
-  )
-
-  it('keeps an unsent correction with matching text queued', async () => {
-    useMothershipQueueStore.getState().enqueue('chat-a', {
-      id: 'unsent-entry',
-      content: 'check the trace for this req',
-      hold: 'user',
-      resumeUserMessageId: 'unsent-request',
-    })
-    const { getResult } = renderUseChatInChat('chat-a', {
-      id: 'chat-a',
-      title: 'Trace inspection',
-      activeStreamId: null,
-      messages: [
-        {
-          id: 'different-request',
-          role: 'user',
-          content: 'check the trace for this req',
-          timestamp: '',
-        },
-      ],
-      resources: [],
-    })
-    await act(async () => {})
-    expect(getResult().messageQueue.map((entry) => entry.id)).toEqual(['unsent-entry'])
-    expect(state.postBodies).toHaveLength(0)
   })
 
   it.each([
@@ -5227,7 +2688,9 @@ describe('useChat remount send recovery', () => {
     await act(async () => {
       post.reject(new TypeError('Failed to fetch'))
     })
-    await waitFor(() => surface.container.querySelector('main') !== null)
+    /* The unsent message stays in the transcript, waiting to go out again. */
+    await waitFor(() => !surface.getResult().isSending)
+    expect(userMessages(surface.getResult())).toEqual(['Plan the launch'])
 
     expect(useMothershipEffortStore.getState().newChatEffort).toBe('low')
     expect(surface.shownEffort()).toBe('Low')
@@ -5246,7 +2709,9 @@ describe('useChat remount send recovery', () => {
     await act(async () => {
       post.reject(new TypeError('Failed to fetch'))
     })
-    await waitFor(() => surface.container.querySelector('main') !== null)
+    /* The unsent message stays in the transcript, waiting to go out again. */
+    await waitFor(() => !surface.getResult().isSending)
+    expect(userMessages(surface.getResult())).toEqual(['Plan the launch'])
 
     expect(surface.shownEffort()).toBe('Medium')
   })
@@ -5504,135 +2969,6 @@ describe('useChat remount send recovery', () => {
   })
 
   /**
-   * The tab finalizes on the `complete` event, which reaches it before the server
-   * saves the turn. A transcript read in that gap is the server's in-flight copy;
-   * the tab must read again rather than keep it (live ids, the finished stream
-   * still listed as running) until something else happens to refetch. That holds
-   * when the save is slow, and when a follow-up is queued but not yet sent. While
-   * it waits it polls only the stream status, so however slow the save, the
-   * transcript is read twice: the in-flight copy and the saved one.
-   */
-  it.each([
-    { label: 'right after the first read', unsavedReads: 1, heldFollowUp: false },
-    { label: 'only after a slow save', unsavedReads: 9, heldFollowUp: false },
-    { label: 'with a follow-up queued but held', unsavedReads: 1, heldFollowUp: true },
-  ])(
-    're-reads a transcript fetched before the server saved the finished turn ($label)',
-    async ({ unsavedReads, heldFollowUp }) => {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      try {
-        const chatId = `chat-saved-after-complete-${unsavedReads}-${heldFollowUp}`
-        const history: MothershipChatHistory = {
-          id: chatId,
-          mode: 'agent',
-          title: 'Saved late',
-          messages: [],
-          activeStreamId: null,
-          resources: [],
-        }
-        let streamId: string | undefined
-        let completed = false
-        let detailReads = 0
-        /** Reads of either kind the server answers before the save lands. */
-        let readsBeforeSave = unsavedReads
-        const isSaved = () => readsBeforeSave-- <= 0
-        mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
-          if (contract.path === '/api/mothership/chats/[chatId]/stream-status') {
-            return Promise.resolve({
-              success: true,
-              activeStreamId: completed && !isSaved() ? (streamId ?? null) : null,
-            })
-          }
-          if (contract.path !== '/api/mothership/chats/[chatId]') {
-            return Promise.resolve({ chats: [] })
-          }
-          if (!completed) return Promise.resolve({ chat: history })
-          detailReads++
-          if (!isSaved() && streamId) {
-            return Promise.resolve({
-              chat: {
-                ...history,
-                activeStreamId: streamId,
-                messages: [
-                  { id: streamId, role: 'user', content: 'Summarize the run' },
-                  { id: `live-assistant:${streamId}`, role: 'assistant', content: 'Done.' },
-                ],
-              },
-            })
-          }
-          return Promise.resolve({
-            chat: {
-              ...history,
-              messages: [
-                { id: streamId, role: 'user', content: 'Summarize the run' },
-                { id: 'saved-assistant', role: 'assistant', content: 'Done.' },
-              ],
-            },
-          })
-        })
-        let stream: ReadableStreamDefaultController<Uint8Array> | undefined
-        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-          if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
-            return fetchStub(input, init)
-          }
-          streamId = JSON.parse(String(init.body)).userMessageId
-          return new Response(
-            new ReadableStream<Uint8Array>({
-              start(controller) {
-                stream = controller
-              },
-            }),
-            { headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId } }
-          )
-        })
-        const { getResult } = renderUseChatInChat(chatId, history)
-
-        await act(async () => {
-          void getResult().sendMessage('Summarize the run')
-          await vi.advanceTimersByTimeAsync(50)
-        })
-        expect(stream).toBeDefined()
-        if (heldFollowUp) {
-          useMothershipQueueStore
-            .getState()
-            .enqueue(chatId, { id: 'held-follow-up', content: 'And the next one' })
-          useMothershipQueueStore.getState().setEditing(chatId, 'held-follow-up')
-        }
-        const emit = (event: Omit<MothershipStreamV1EventEnvelope, 'v' | 'ts' | 'stream'>) =>
-          stream?.enqueue(
-            new TextEncoder().encode(
-              `data: ${JSON.stringify({ v: 1, ts: '', stream: { streamId }, ...event })}\n\n`
-            )
-          )
-        const saved = () =>
-          queryClient
-            .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
-            ?.messages.some((message) => message.id === 'saved-assistant') === true
-        await act(async () => {
-          emit({ seq: 1, type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
-          completed = true
-          emit({ seq: 2, type: 'complete', payload: { status: 'complete' } })
-          stream?.close()
-          await vi.advanceTimersByTimeAsync(50)
-        })
-        for (let second = 0; second < 90 && !saved(); second++) {
-          await act(async () => vi.advanceTimersByTimeAsync(1_000))
-        }
-
-        expect(saved()).toBe(true)
-        expect(
-          queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
-            ?.activeStreamId
-        ).toBeNull()
-        expect(detailReads).toBe(2)
-        expect(getResult().isSending).toBe(false)
-      } finally {
-        vi.useRealTimers()
-      }
-    }
-  )
-
-  /**
    * The saved-turn re-read belongs to the chat view: once it unmounts, nothing
    * renders that chat, so the re-read must stop instead of refetching it for
    * minutes.
@@ -5880,6 +3216,321 @@ describe('useChat remount send recovery', () => {
       })
 
       expect(toolSignal.aborted).toBe(true)
+    })
+  })
+  /**
+   * A message sent while a turn runs steers that turn. Failure modes, each one
+   * test: it is queued or sent as a turn of its own while the turn runs; it is not
+   * visible until the turn ends; it is not placed where the turn applied it; a turn
+   * that ends without applying it loses it; one that did apply it sends it again;
+   * a refused steer is retried into the same turn; one that cannot be steered
+   * (files) is steered anyway; a Stop strands it; the fallback a run already
+   * applied shows as an error.
+   */
+  describe('steering a running turn', () => {
+    const chatId = 'chat-steered'
+    const history: MothershipChatHistory = {
+      id: chatId,
+      mode: 'agent',
+      title: 'Steered',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const encoder = new TextEncoder()
+
+    /**
+     * The first turn streams until the test ends it; every later turn answers at
+     * once. `fallbackStatus` is what a later turn's POST answers instead.
+     */
+    function stubRunningTurn(options: { fallback?: Response } = {}) {
+      let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+      let seq = 0
+      const firstStreamId = () => state.postBodies[0]?.userMessageId ?? ''
+      const frame = (streamId: string, type: string, payload: Record<string, unknown>) =>
+        encoder.encode(
+          `data: ${JSON.stringify({
+            v: 1,
+            seq: ++seq,
+            ts: new Date().toISOString(),
+            type,
+            stream: { streamId, cursor: String(seq) },
+            payload,
+          })}\n\n`
+        )
+      mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const body = JSON.parse(String(init.body))
+        state.postBodies.push(body)
+        const headers = { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId }
+        if (state.postBodies.length === 1) {
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(streamController) {
+                controller = streamController
+              },
+            }),
+            { headers }
+          )
+        }
+        if (options.fallback) return options.fallback
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(streamController) {
+              streamController.enqueue(
+                frame(body.userMessageId, 'text', { channel: 'assistant', text: 'Next answer' })
+              )
+              streamController.enqueue(
+                frame(body.userMessageId, 'complete', { status: 'complete' })
+              )
+              streamController.close()
+            },
+          }),
+          { headers }
+        )
+      })
+      const emit = async (type: string, payload: Record<string, unknown>) => {
+        await act(async () => {
+          controller?.enqueue(frame(firstStreamId(), type, payload))
+          await sleep(100)
+        })
+      }
+      return {
+        firstStreamId,
+        emit,
+        text: (text: string) => emit('text', { channel: 'assistant', text }),
+        applied: (steeringId: string) => emit('run', { kind: 'steering_applied', steeringId }),
+        end: async () => {
+          await emit('complete', { status: 'complete' })
+          await act(async () => {
+            controller?.close()
+            await sleep(30)
+          })
+        },
+      }
+    }
+
+    async function startTurn() {
+      const turn = stubRunningTurn()
+      const view = renderUseChatInChat(chatId, history)
+      await act(async () => {
+        void view.getResult().sendMessage('Count to fifty')
+      })
+      await waitFor(() => view.getResult().isSending && state.postBodies.length === 1)
+      await turn.text('1\n')
+      return { turn, view }
+    }
+
+    it('steers the running turn instead of sending a turn of its own, and shows it at once', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued']
+
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      expect(state.steerBodies[0]).toMatchObject({
+        streamId: turn.firstStreamId(),
+        chatId,
+        content: 'Stop at ten',
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(view.getResult().messages.map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+        'user',
+      ])
+      expect(userMessages(view.getResult())).toEqual(['Count to fifty', 'Stop at ten'])
+    })
+
+    it('places the steered message where the turn applied it, and never sends it again', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued']
+      await act(async () => {
+        await view.getResult().sendMessage('Stop at ten')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      const steeringId = state.steerBodies[0].steeringId
+
+      await turn.applied(steeringId)
+      await turn.text('Stopping at ten.')
+
+      const shown = view.getResult().messages
+      expect(shown.map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+        'user',
+        'assistant',
+      ])
+      expect(shown[1].content).toBe('1\n')
+      expect(shown[2].content).toBe('Stop at ten')
+      expect(shown[3].content).toBe('Stopping at ten.')
+
+      await turn.end()
+      await act(async () => {
+        await sleep(100)
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(state.steerBodies).toHaveLength(1)
+    })
+
+    it('sends a message the turn ended without applying as the next turn, once, under its steering id', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      const steeringId = state.steerBodies[0].steeringId
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      await waitFor(() => !view.getResult().isSending)
+      await act(async () => {
+        await sleep(100)
+      })
+
+      expect(state.steerBodies.map((body) => body.steeringId)).toEqual([steeringId, steeringId])
+      expect(state.steerBodies[1].content).toBe('Then summarize')
+      expect(state.postBodies).toHaveLength(2)
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Then summarize',
+        userMessageId: steeringId,
+        chatId,
+      })
+      expect(
+        userMessages(view.getResult()).filter((text) => text === 'Then summarize')
+      ).toHaveLength(1)
+    })
+
+    it('does not send a message the worker reports applied after the turn ended', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = ['queued', 'applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await turn.end()
+      await waitFor(() => state.steerBodies.length === 2)
+      await act(async () => {
+        await sleep(100)
+      })
+
+      expect(state.postBodies).toHaveLength(1)
+    })
+
+    it('waits for the end of a turn that refused the steer, then sends it as the next turn', async () => {
+      const { turn, view } = await startTurn()
+      state.steerDispositions = [409]
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+      await turn.text('2\n')
+      await act(async () => {
+        await sleep(50)
+      })
+      expect(state.steerBodies).toHaveLength(1)
+      expect(state.postBodies).toHaveLength(1)
+      expect(userMessages(view.getResult())).toEqual(['Count to fifty', 'Then summarize'])
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.steerBodies).toHaveLength(1)
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Then summarize',
+        userMessageId: state.steerBodies[0].steeringId,
+      })
+    })
+
+    it('sends a message with files as the next turn instead of steering', async () => {
+      const { turn, view } = await startTurn()
+      const attachment = {
+        id: 'file-1',
+        key: 'uploads/file-1',
+        filename: 'notes.pdf',
+        media_type: 'application/pdf',
+        size: 10,
+      }
+      await act(async () => {
+        await view.getResult().sendMessage('Use these notes', [attachment])
+      })
+      await act(async () => {
+        await sleep(50)
+      })
+      expect(state.steerBodies).toHaveLength(0)
+      expect(state.postBodies).toHaveLength(1)
+      expect(userMessages(view.getResult())).toEqual(['Count to fifty', 'Use these notes'])
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Use these notes',
+        fileAttachments: [attachment],
+      })
+    })
+
+    it('sends a message still unapplied when the user stops the turn as the next turn', async () => {
+      const { view } = await startTurn()
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await act(async () => {
+        await view.getResult().stopGeneration()
+      })
+      await waitFor(() => state.postBodies.length === 2)
+
+      expect(state.postBodies[1]).toMatchObject({
+        message: 'Then summarize',
+        userMessageId: state.steerBodies[0].steeringId,
+      })
+    })
+
+    it('treats a fallback the worker says was already applied as delivered, not as an error', async () => {
+      const turn = stubRunningTurn({
+        fallback: Response.json(
+          {
+            error: 'This message was already included in the response it steered.',
+            code: 'input_applied',
+          },
+          { status: 409 }
+        ),
+      })
+      const view = renderUseChatInChat(chatId, history)
+      await act(async () => {
+        void view.getResult().sendMessage('Count to fifty')
+      })
+      await waitFor(() => view.getResult().isSending)
+      state.steerDispositions = ['queued', 'not_applied']
+      await act(async () => {
+        await view.getResult().sendMessage('Then summarize')
+      })
+      await waitFor(() => state.steerBodies.length === 1)
+
+      await turn.end()
+      await waitFor(() => state.postBodies.length === 2)
+      await waitFor(() => !view.getResult().isSending)
+
+      /** Nothing is left to retry: a later attempt would only be refused the same way. */
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      try {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5_000)
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+      expect(view.getResult().error).toBeNull()
+      expect(state.postBodies).toHaveLength(2)
     })
   })
 })

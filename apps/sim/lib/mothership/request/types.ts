@@ -1,4 +1,5 @@
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
+import type { SteeringBlockInfo } from '@/lib/mothership/chat/steering'
 import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -95,6 +96,7 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
   task: 'task',
+  steering: 'steering',
 } as const
 
 /**
@@ -141,6 +143,8 @@ export interface ContentBlock {
   parentSpanId?: string
   /** The background task this block announces (task blocks only). */
   task?: TaskBlockInfo
+  /** The steering message the turn applied at this point (steering blocks only). */
+  steering?: SteeringBlockInfo
 }
 
 export interface ActiveFileIntent {

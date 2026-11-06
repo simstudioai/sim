@@ -426,13 +426,6 @@ export const Panel = memo(function Panel() {
     sendMessage: copilotSendMessage,
     stopGeneration: copilotStopGeneration,
     resolvedChatId: copilotResolvedChatId,
-    messageQueue: copilotMessageQueue,
-    removeFromQueue: copilotRemoveFromQueue,
-    sendNow: copilotSendNow,
-    editQueuedMessage: copilotEditQueuedMessage,
-    cancelQueueEdit: copilotCancelQueueEdit,
-    editingQueuedId: copilotEditingQueuedId,
-    dispatchingHeadId: copilotDispatchingHeadId,
   } = useChat(
     workspaceId,
     copilotChatId,
@@ -1070,13 +1063,6 @@ export const Panel = memo(function Panel() {
                   isReconnecting={copilotIsReconnecting}
                   onSubmit={handleCopilotSubmit}
                   onStopGeneration={handleCopilotStopGeneration}
-                  messageQueue={copilotMessageQueue}
-                  editingQueuedId={copilotEditingQueuedId}
-                  dispatchingHeadId={copilotDispatchingHeadId}
-                  onRemoveQueuedMessage={copilotRemoveFromQueue}
-                  onSendQueuedMessage={copilotSendNow}
-                  onEditQueuedMessage={copilotEditQueuedMessage}
-                  onCancelQueueEdit={copilotCancelQueueEdit}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
                   draftScopeKey={copilotDraftScopeKey}

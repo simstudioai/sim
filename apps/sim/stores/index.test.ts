@@ -67,7 +67,7 @@ describe('clearUserData', () => {
     localStorage.setItem('sim-landing-theme', 'dark')
     localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, '["user-a"]')
     localStorage.setItem('private-cache', 'remove-me')
-    sessionStorage.setItem('mothership-queue', 'private-queued-message')
+    sessionStorage.setItem('private-session-item', 'remove-me')
 
     const inMemoryResetSucceeded = await clearUserData()
 
@@ -78,7 +78,7 @@ describe('clearUserData', () => {
     expect(localStorage.getItem('sim-landing-theme')).toBe('dark')
     expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBeNull()
     expect(localStorage.getItem('private-cache')).toBeNull()
-    expect(sessionStorage.getItem('mothership-queue')).toBeNull()
+    expect(sessionStorage.getItem('private-session-item')).toBeNull()
     let left = false
     useSettingsDirtyStore.getState().requestLeave(() => {
       left = true
