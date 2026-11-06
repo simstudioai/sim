@@ -1,21 +1,20 @@
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolve: vi.fn(),
-  reject: vi.fn(),
-  recordAccess: vi.fn(),
-}))
+const mocks = vi.hoisted(() => ({ recordAccess: vi.fn() }))
 
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mocks.resolve,
-  rejectManagedOAuthToken: mocks.reject,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 vi.mock('@/lib/oauth/token-resolution', () => ({ recordCredentialAccess: mocks.recordAccess }))
 
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { createAccountTokenRead } from '@/lib/organizations/home/account-token'
 import { HomeProviderReadError } from '@/lib/organizations/home/provider-reads'
 
+const mockResolve = credentialsManagedOauthMockFns.mockResolveManagedOAuthToken
+const mockReject = credentialsManagedOauthMockFns.mockRejectManagedOAuthToken
 const input = {
   context: { organizationId: 'org', userId: 'viewer' } as OrganizationMembershipContext,
   credentialId: 'credential',
@@ -26,11 +25,11 @@ const refused = () => new HomeProviderReadError('token_rejected', 401)
 describe('one request reading an account several times', () => {
   beforeEach(() => {
     let issued = 0
-    mocks.resolve.mockReset().mockImplementation(async () => {
+    mockResolve.mockReset().mockImplementation(async () => {
       issued += 1
       return { accessToken: `token-${issued}` }
     })
-    mocks.reject.mockReset().mockResolvedValue(false)
+    mockReject.mockReset().mockResolvedValue(false)
     mocks.recordAccess.mockReset()
   })
 
@@ -38,7 +37,7 @@ describe('one request reading an account several times', () => {
     const withToken = createAccountTokenRead(input)
     const used = [await withToken(async (token) => token), await withToken(async (token) => token)]
     expect(used).toEqual(['token-1', 'token-1'])
-    expect(mocks.resolve).toHaveBeenCalledOnce()
+    expect(mockResolve).toHaveBeenCalledOnce()
     expect(mocks.recordAccess).toHaveBeenCalledOnce()
   })
 
@@ -53,11 +52,11 @@ describe('one request reading an account several times', () => {
     })
     expect(seen).toEqual(['token-1', 'token-2'])
     expect(retried).toBe('token-2')
-    expect(mocks.reject).toHaveBeenCalledWith(
+    expect(mockReject).toHaveBeenCalledWith(
       expect.objectContaining({ rejectedAccessToken: 'token-1' })
     )
     await expect(withToken(async (token) => token)).resolves.toBe('token-2')
-    expect(mocks.resolve).toHaveBeenCalledTimes(2)
+    expect(mockResolve).toHaveBeenCalledTimes(2)
   })
 
   it('asks to reconnect when the fresh token is refused too', async () => {
@@ -77,7 +76,7 @@ describe('one request reading an account several times', () => {
         throw failure
       })
     ).rejects.toBe(failure)
-    expect(mocks.reject).not.toHaveBeenCalled()
+    expect(mockReject).not.toHaveBeenCalled()
     await expect(withToken(async (token) => token)).resolves.toBe('token-1')
   })
 

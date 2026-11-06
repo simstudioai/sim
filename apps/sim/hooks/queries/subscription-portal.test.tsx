@@ -1,20 +1,23 @@
 /** @vitest-environment jsdom */
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderDataHook, unmountDataHooks } from '@/platform/lib/render-hook.test-support'
 
-const mocks = vi.hoisted(() => ({ requestJson: vi.fn() }))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 const BODY = { context: 'user' } as const
 const PORTAL_URL = 'https://billing.example.test/session'
 
 function deferredPortal() {
   let resolve: (value: { url: string }) => void = () => {}
   let reject: (error: Error) => void = () => {}
-  mocks.requestJson.mockReturnValueOnce(
+  mockRequestJson.mockReturnValueOnce(
     new Promise((res, rej) => {
       resolve = res
       reject = rej
@@ -24,7 +27,7 @@ function deferredPortal() {
 }
 
 async function settle() {
-  await vi.waitFor(() => expect(mocks.requestJson).toHaveBeenCalled())
+  await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalled())
 }
 
 /**
@@ -36,7 +39,7 @@ describe('useOpenBillingPortal after the page that asked has gone', () => {
   const openTab = vi.fn()
 
   beforeEach(() => {
-    mocks.requestJson.mockReset()
+    mockRequestJson.mockReset()
     portalTab.location.href = ''
     portalTab.close.mockReset()
     openTab.mockReset().mockReturnValue(portalTab)
@@ -45,7 +48,6 @@ describe('useOpenBillingPortal after the page that asked has gone', () => {
 
   afterEach(async () => {
     await unmountDataHooks()
-    vi.unstubAllGlobals()
   })
 
   it('still sends the opened tab to the portal', async () => {
