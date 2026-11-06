@@ -11,7 +11,7 @@ interface ConversationLandingProps {
 /** A conversation's first view, on the same lines as the Search view beside it. */
 export function ConversationLanding({ heading, children }: ConversationLandingProps) {
   return (
-    <div className={styles.landingScroll}>
+    <main className={styles.landingScroll}>
       <div className={styles.landing}>
         <Surface>
           <h1 className={styles.landingHeading} data-type='T076'>
@@ -20,6 +20,6 @@ export function ConversationLanding({ heading, children }: ConversationLandingPr
         </Surface>
         <div className={styles.landingField}>{children}</div>
       </div>
-    </div>
+    </main>
   )
 }

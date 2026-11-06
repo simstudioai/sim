@@ -21,9 +21,12 @@ export function HomeDashboardSkeleton() {
     searchAccess.memberScoped &&
     ((viewer.canConnectSearchIntegrations && connectedAccountsAvailable) || viewer.canUseSearchMcp)
   return (
-    <div className={styles.scroller} aria-busy='true'>
+    <div className={styles.scroller}>
       <div className={styles.dashboard}>
         <Surface>
+          <span role='status' data-visually-hidden>
+            Loading Home
+          </span>
           <div className={styles.lead}>
             <div className={styles.placeholderGreeting} />
             <div className={styles.placeholderWordmark} />
@@ -36,17 +39,17 @@ export function HomeDashboardSkeleton() {
         </Surface>
         <Surface>
           <div className={styles.sections}>
-            {searchAccess.memberScoped && <SkeletonLane label='Loading recents' />}
+            {searchAccess.memberScoped && <SkeletonLane label='Loading recents' silent />}
             {showsGetStarted && <div className={styles.placeholderGetStarted} />}
             <div className={styles.columns}>
               <div className={styles.column}>
-                {canBuild && <SkeletonBlock label='Loading activity' />}
-                <SkeletonBlock label='Loading what needs your attention' />
-                {canBuild && <WidgetSkeleton label='Loading workspaces' glyph={false} />}
+                {canBuild && <SkeletonBlock label='Loading activity' silent />}
+                <SkeletonBlock label='Loading what needs your attention' silent />
+                {canBuild && <WidgetSkeleton label='Loading workspaces' glyph={false} silent />}
               </div>
               <div className={styles.column}>
-                <SkeletonBlock label='Loading email' />
-                <SkeletonBlock label='Loading your calendar' />
+                <SkeletonBlock label='Loading email' silent />
+                <SkeletonBlock label='Loading your calendar' silent />
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ interface LoadingRowsProps {
 export function LoadingRows({ label, rows = 3 }: LoadingRowsProps) {
   return (
     <div className={styles.loadingRows} role='status' aria-label={label}>
+      <span data-visually-hidden>{label}</span>
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className={styles.loadingRow} aria-hidden='true'>
           <span className={styles.loadingLabel} />

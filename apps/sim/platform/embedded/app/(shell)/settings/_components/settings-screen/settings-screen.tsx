@@ -40,7 +40,7 @@ interface SettingsScreenProps {
 /** A section's scrolling page: heading, description, docs link, then its cards. */
 export function SettingsScreen({ title, description, docsHref, children }: SettingsScreenProps) {
   return (
-    <div className={styles.body}>
+    <main className={styles.body}>
       <div className={styles.content}>
         <header className={styles.heading}>
           <div className={styles.title}>
@@ -65,6 +65,6 @@ export function SettingsScreen({ title, description, docsHref, children }: Setti
         </header>
         {children}
       </div>
-    </div>
+    </main>
   )
 }
