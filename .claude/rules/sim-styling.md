@@ -3,6 +3,8 @@ description: Tailwind CSS and styling conventions
 paths:
   - "apps/sim/**/*.tsx"
   - "apps/sim/**/*.css"
+  - "packages/workflow-renderer/**/*.tsx"
+  - "packages/auth-ui/**/*.tsx"
 ---
 
 # Styling Rules
