@@ -41,10 +41,7 @@ function ownerSegment(owner: WorkloadIdentityOwner): string {
 }
 
 /** `sim:workspace:<id>:credential:<subjectId>` (or `sim:organization:…`). */
-export function buildWorkloadIdentitySubject(
-  owner: WorkloadIdentityOwner,
-  subjectId: string
-): string {
+function buildWorkloadIdentitySubject(owner: WorkloadIdentityOwner, subjectId: string): string {
   if (!SUBJECT_ID_PATTERN.test(subjectId)) {
     throw new WorkloadIdentitySubjectError('Invalid workload identity subject')
   }

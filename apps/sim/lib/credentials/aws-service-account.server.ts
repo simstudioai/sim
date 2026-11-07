@@ -37,8 +37,8 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  *   this credential's subject and exchanges it with STS for the customer's role.
  */
 
-export const AWS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.aws
-export const AWS_CREDENTIAL_SECRET_TYPE = 'aws_credential_v1' as const
+const AWS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.aws
+const AWS_CREDENTIAL_SECRET_TYPE = 'aws_credential_v1' as const
 
 const ROLE_ARN_PATTERN =
   /^arn:aws(?:-cn|-us-gov|-iso[a-z-]*)?:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/

@@ -31,8 +31,8 @@ import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * which reach the tools as `accessToken` and `domain`.
  */
 
-export const DATABRICKS_CREDENTIAL_SECRET_TYPE = 'databricks_credential_v1' as const
-export const DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.databricks
+const DATABRICKS_CREDENTIAL_SECRET_TYPE = 'databricks_credential_v1' as const
+const DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.databricks
 
 const REQUEST_TIMEOUT_MS = 15_000
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9-]{8,128}$/
@@ -92,7 +92,7 @@ const storedConfigSchema = z.discriminatedUnion('authType', [
   z.object(oidcShape).strict(),
 ])
 
-export type DatabricksCredentialConfig = z.infer<typeof storedConfigSchema>
+type DatabricksCredentialConfig = z.infer<typeof storedConfigSchema>
 
 const submittedConfigSchema = z.discriminatedUnion('authType', [
   patSchema,
@@ -142,7 +142,7 @@ async function requestWorkspaceToken(
 }
 
 /** A bearer token for the configured workspace. */
-export async function resolveDatabricksAccessToken(
+async function resolveDatabricksAccessToken(
   config: DatabricksCredentialConfig,
   owner: WorkloadIdentityOwner
 ): Promise<string> {

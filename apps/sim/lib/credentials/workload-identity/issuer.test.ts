@@ -6,7 +6,10 @@ import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 
-const mutableEnv = env as Record<string, string | undefined>
+/** The shared env mock is mutable at runtime; its declared type is the real readonly env. */
+function setEnv(key: string, value: string | undefined) {
+  Reflect.set(env, key, value)
+}
 
 function rsaPem() {
   return generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({
@@ -22,13 +25,13 @@ async function loadIssuer() {
 
 describe('workload identity issuer', () => {
   beforeEach(() => {
-    mutableEnv.WORKLOAD_IDENTITY_SIGNING_KEY = rsaPem()
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', rsaPem())
   })
 
   afterEach(() => {
-    mutableEnv.WORKLOAD_IDENTITY_SIGNING_KEY = undefined
-    mutableEnv.WORKLOAD_IDENTITY_PREVIOUS_KEY = undefined
-    mutableEnv.WORKLOAD_IDENTITY_ISSUER = undefined
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', undefined)
+    setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', undefined)
+    setEnv('WORKLOAD_IDENTITY_ISSUER', undefined)
   })
 
   it('mints a token a relying party verifies with the published JWKS and discovery document', async () => {
@@ -67,7 +70,7 @@ describe('workload identity issuer', () => {
 
   it('keeps verifying tokens signed by the previous key during rotation', async () => {
     const previousKey = rsaPem()
-    mutableEnv.WORKLOAD_IDENTITY_SIGNING_KEY = previousKey
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', previousKey)
     const before = await loadIssuer()
     const oldToken = await before.mintWorkloadIdentityToken({
       subject: 'sim:workspace:ws-1:credential:abc123def456',
@@ -75,8 +78,8 @@ describe('workload identity issuer', () => {
       owner: { workspaceId: 'ws-1' },
     })
 
-    mutableEnv.WORKLOAD_IDENTITY_SIGNING_KEY = rsaPem()
-    mutableEnv.WORKLOAD_IDENTITY_PREVIOUS_KEY = previousKey
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', rsaPem())
+    setEnv('WORKLOAD_IDENTITY_PREVIOUS_KEY', previousKey)
     const after = await loadIssuer()
     const jwks = await after.getWorkloadIdentityJwks()
 
@@ -87,7 +90,7 @@ describe('workload identity issuer', () => {
   })
 
   it('publishes nothing and refuses to sign when no signing key is configured', async () => {
-    mutableEnv.WORKLOAD_IDENTITY_SIGNING_KEY = undefined
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', undefined)
     const issuer = await loadIssuer()
     const { workloadIdentityDiscoveryResponse, workloadIdentityJwksResponse } = await import(
       '@/lib/credentials/workload-identity/responses'
@@ -106,7 +109,7 @@ describe('workload identity issuer', () => {
   })
 
   it('uses the pinned issuer URL when one is configured', async () => {
-    mutableEnv.WORKLOAD_IDENTITY_ISSUER = 'https://oidc.example.com/workload/'
+    setEnv('WORKLOAD_IDENTITY_ISSUER', 'https://oidc.example.com/workload/')
     const issuer = await loadIssuer()
 
     expect(issuer.getWorkloadIdentityIssuer()).toBe('https://oidc.example.com/workload')

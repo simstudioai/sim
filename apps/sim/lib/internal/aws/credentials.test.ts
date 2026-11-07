@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
 const { mockGetAwsCredentialConfig, mockResolveAwsSessionCredentials } = vi.hoisted(() => ({
@@ -29,10 +29,6 @@ function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolO
 }
 
 describe('withAwsCredential', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('hands an inline-key call to the family handler untouched', async () => {
     const request = call()
     const handler = vi.fn(async (received: InternalToolOperationCall) => {
