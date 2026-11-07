@@ -16,6 +16,7 @@ import {
   publicShare,
   subscription,
   user,
+  verification,
   workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -574,7 +575,14 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       await (
         await requestPublicFileShareOtp({ token: share.token, email: 'outsider@shared.invalid' })
       ).deliver()
-      expect(await otpStore.getOTP('file', share.id, 'outsider@shared.invalid')).toBeNull()
+      const storedCode = async (address: string) => {
+        const [row] = await db
+          .select({ value: verification.value })
+          .from(verification)
+          .where(eq(verification.identifier, `file-otp:${share.id}:${address}`))
+        return row?.value.split(':')[0]
+      }
+      expect(await storedCode('outsider@shared.invalid')).toBeUndefined()
       const failure = { authorized: false, status: 400, error: 'Invalid verification code' }
       expect(
         await verifyPublicFileShareOtp({
@@ -587,9 +595,8 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         failure
       )
       await (await requestPublicFileShareOtp({ token: share.token, email })).deliver()
-      const stored = await otpStore.getOTP('file', share.id, email)
-      if (!stored) throw new Error('Allowed email received no code')
-      const { otp } = otpStore.decodeOTPValue(stored)
+      const otp = await storedCode(email)
+      if (!otp) throw new Error('Allowed email received no code')
       expect(
         await verifyPublicFileShareOtp({ token: share.token, email, otp: '000000' })
       ).toMatchObject({ authorized: false, status: 400 })
@@ -606,9 +613,9 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         status: 400,
       })
       await otpStore.storeOTP('file', share.id, email, '123456')
-      const get = otpStore.getOTP
-      const spy = vi.spyOn(otpStore, 'getOTP').mockImplementation(async (...args) => {
-        const result = await get(...args)
+      const verifyCode = otpStore.verifyOTP
+      const spy = vi.spyOn(otpStore, 'verifyOTP').mockImplementation(async (...args) => {
+        const result = await verifyCode(...args)
         await db
           .update(publicShare)
           .set({ allowedEmails: ['replacement@shared.invalid'] })
@@ -619,7 +626,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         verifyPublicFileShareOtp({ token: share.token, email, otp: '123456' })
       ).rejects.toMatchObject({ code: 'not_found' })
       spy.mockRestore()
-      await otpStore.deleteOTP('file', share.id, email)
+      expect(await storedCode(email)).toBeUndefined()
     }
   )
 
