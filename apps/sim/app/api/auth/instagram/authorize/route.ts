@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -41,6 +42,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let credentialDraftId = draftId
 
     if (workspaceId && !draftId) {
+      // The query alone picks the workspace, so a cross-site page must not be
+      // able to start this launch with the viewer's session cookie.
+      if (isCrossSiteSessionRequest(request)) {
+        logger.warn('Rejected cross-site Instagram workspace launch', { userId: session.user.id })
+        return NextResponse.json({ error: 'Cross-site launch refused' }, { status: 403 })
+      }
       try {
         const connection = await createCredentialConnection.execute({
           principal: { kind: 'session', userId: session.user.id, sessionId },
