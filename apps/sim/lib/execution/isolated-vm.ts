@@ -1233,6 +1233,15 @@ function spawnWorker(): Promise<WorkerInfo> {
  * Returns the ready worker with the fewest active executions that still
  * has capacity, or null if none available.
  */
+/** Asks the worker to dispose an execution's isolate, sweeping its timers and pending calls. */
+function sendCancel(workerInfo: WorkerInfo, executionId: number) {
+  try {
+    workerInfo.process.send({ type: 'cancel', executionId })
+  } catch (err) {
+    logger.warn('Failed to send cancel to worker', { err, workerId: workerInfo.id })
+  }
+}
+
 function selectWorker(): WorkerInfo | null {
   let best: WorkerInfo | null = null
   for (const w of workers.values()) {
@@ -1311,11 +1320,7 @@ function dispatchToWorker(
     workerInfo.pendingExecutions.delete(execId)
     // A never-settling promise escapes the isolate's own script timeout, so the worker
     // would otherwise keep the isolate and its timers alive until the worker retires.
-    try {
-      workerInfo.process.send({ type: 'cancel', executionId: execId })
-    } catch (err) {
-      logger.warn('Failed to send timeout cancel to worker', { err, workerId: workerInfo.id })
-    }
+    sendCancel(workerInfo, execId)
     workerInfo.activeExecutions--
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
@@ -1689,13 +1694,7 @@ export async function executeInIsolatedVM(
           const wi = workers.get(state.workerId)
           const pending = wi?.pendingExecutions.get(state.execId)
           if (pending) pending.cancelled = true
-          if (wi) {
-            try {
-              wi.process.send({ type: 'cancel', executionId: state.execId })
-            } catch (err) {
-              logger.warn('Failed to send cancel to worker', { err, workerId: state.workerId })
-            }
-          }
+          if (wi) sendCancel(wi, state.execId)
         }
         resolveWithRelease({
           result: null,

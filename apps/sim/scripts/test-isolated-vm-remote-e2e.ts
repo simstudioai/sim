@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateRandomBytes, generateRandomHex } from '@sim/utils/random'
+import type { IsolatedVMExecutionRequest } from '@/lib/execution/isolated-vm'
 
 /**
  * Runs the isolated-vm pool against a real `isolated-vm-host.cjs` over real
@@ -383,7 +384,14 @@ async function run() {
   const slowFetch = (ms: number) =>
     `const r = await fetch('http://127.0.0.1:${slowAddress.port}/?ms=${ms}'); return await r.text()`
 
-  const execute = (code: string, extra: { timeoutMs?: number; signal?: AbortSignal } = {}) =>
+  const execute = (
+    code: string,
+    extra: {
+      timeoutMs?: number
+      signal?: AbortSignal
+      task?: IsolatedVMExecutionRequest['task']
+    } = {}
+  ) =>
     executeInIsolatedVM(
       {
         code,
@@ -393,6 +401,7 @@ async function run() {
         timeoutMs: extra.timeoutMs ?? 10000,
         requestId: `e2e-${generateRandomHex(4)}`,
         ownerKey: 'e2e-owner',
+        task: extra.task,
       },
       { signal: extra.signal }
     )
@@ -500,14 +509,7 @@ async function run() {
   })
 
   const runTask = (code: string) =>
-    executeInIsolatedVM({
-      code,
-      params: {},
-      envVars: {},
-      contextVariables: {},
-      timeoutMs: 10000,
-      requestId: `e2e-${generateRandomHex(4)}`,
-      ownerKey: 'e2e-owner',
+    execute(code, {
       task: {
         id: 'e2e-timers',
         bundles: [],

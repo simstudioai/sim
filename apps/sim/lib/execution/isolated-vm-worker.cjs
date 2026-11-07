@@ -670,7 +670,6 @@ async function executeTask(request, executionId) {
   // sweep regardless of where execution throws.
   let nextTimerId = 1
   const timers = new Map()
-  let activeIntervals = 0
   const cleanupTimers = () => {
     for (const entry of timers.values()) {
       try {
@@ -682,7 +681,6 @@ async function executeTask(request, executionId) {
       } catch {}
     }
     timers.clear()
-    activeIntervals = 0
   }
 
   // Phase timings (ms). Populated inline during execution; returned in
@@ -768,19 +766,35 @@ async function executeTask(request, executionId) {
     }
 
     // Thrown into the isolate, so the stack must not carry worker host frames.
-    const rejectTimer = (fnRef, message) => {
+    const timerLimitError = (fnRef, message) => {
       try {
         fnRef.release()
       } catch {}
       const error = new RangeError(message)
       error.stack = `RangeError: ${message}`
-      throw error
+      return error
+    }
+    const admitTimer = (fnRef, recurring) => {
+      if (timers.size >= MAX_PENDING_TIMERS) {
+        throw timerLimitError(
+          fnRef,
+          `Too many pending timers (limit ${MAX_PENDING_TIMERS} per execution)`
+        )
+      }
+      if (!recurring) return
+      let activeIntervals = 0
+      for (const entry of timers.values()) {
+        if (entry.recurring && ++activeIntervals >= MAX_ACTIVE_INTERVALS) {
+          throw timerLimitError(
+            fnRef,
+            `Too many active intervals (limit ${MAX_ACTIVE_INTERVALS} per execution)`
+          )
+        }
+      }
     }
 
     const setTimeoutRef = new ivm.Reference((fnRef, msRef) => {
-      if (timers.size >= MAX_PENDING_TIMERS) {
-        rejectTimer(fnRef, `Too many pending timers (limit ${MAX_PENDING_TIMERS} per execution)`)
-      }
+      admitTimer(fnRef, false)
       const id = nextTimerId++
       const delay = Math.max(0, Math.min(Number(unwrapPrimitive(msRef)) || 0, timeoutMs))
       const nodeTimer = setTimeout(() => {
@@ -815,21 +829,12 @@ async function executeTask(request, executionId) {
         entry.fnRef.release()
       } catch {}
       timers.delete(key)
-      if (entry.recurring) activeIntervals--
     })
     releaseables.push(clearTimeoutRef)
     await jail.set('__clearTimeoutRef', clearTimeoutRef)
 
     const setIntervalRef = new ivm.Reference((fnRef, msRef) => {
-      if (timers.size >= MAX_PENDING_TIMERS) {
-        rejectTimer(fnRef, `Too many pending timers (limit ${MAX_PENDING_TIMERS} per execution)`)
-      }
-      if (activeIntervals >= MAX_ACTIVE_INTERVALS) {
-        rejectTimer(
-          fnRef,
-          `Too many active intervals (limit ${MAX_ACTIVE_INTERVALS} per execution)`
-        )
-      }
+      admitTimer(fnRef, true)
       const id = nextTimerId++
       const delay = Math.max(1, Math.min(Number(unwrapPrimitive(msRef)) || 1, timeoutMs))
       const nodeTimer = setInterval(() => {
@@ -843,7 +848,6 @@ async function executeTask(request, executionId) {
         }
       }, delay)
       timers.set(id, { nodeTimer, fnRef, recurring: true })
-      activeIntervals++
       return id
     })
     releaseables.push(setIntervalRef)
