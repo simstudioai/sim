@@ -4,7 +4,12 @@ import {
   directVideoModels,
   getDirectVideoModel,
 } from '@/lib/media/direct-video-catalog'
-import { falVideoModels, getFalVideoModel } from '@/lib/media/fal-video-catalog'
+import {
+  type FalVideoSettings,
+  falVideoModels,
+  getFalVideoModel,
+  getFalVideoVariant,
+} from '@/lib/media/fal-video-catalog'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
 
@@ -42,40 +47,55 @@ const FALAI_AUDIO_DEFAULT_OFF_MODELS = ['kling-o3-pro', 'kling-o3-4k']
 const FAL_MODEL_DEFAULT = { id: 'default', label: 'Model default' } as const
 const endpointModels = falVideoModels.filter((model) => !model.legacyId)
 
-function tuningField(
-  id: string,
-  title: string,
-  key: 'durations' | 'aspectRatios' | 'resolutions' | 'audioField' | 'promptOptimizer'
-): SubBlockConfig {
+const START_FRAME_FIELDS = ['visualReferenceInput', 'visualReferenceUpload']
+const HIDDEN = { field: 'provider', value: [] }
+
+function hasStartFrame(values?: Record<string, unknown>) {
+  return [
+    values?.visualReference,
+    values?.visualReferenceInput,
+    values?.visualReferenceUpload,
+  ].some((reference) => (Array.isArray(reference) ? reference.length > 0 : Boolean(reference)))
+}
+
+/** Settings of the endpoint a fal run will call: image-to-video once a start frame is attached. */
+function selectedFalSettings(values?: Record<string, unknown>) {
+  const model = getFalVideoModel(values?.model)
+  return getFalVideoVariant(values?.model, Boolean(model?.image) && hasStartFrame(values))
+}
+
+type FalSettingKey = 'durations' | 'aspectRatios' | 'resolutions' | 'audioField' | 'promptOptimizer'
+
+function tuningField(id: string, title: string, key: FalSettingKey): SubBlockConfig {
   return {
     id,
     title,
     type: 'dropdown',
     value: () => FAL_MODEL_DEFAULT.id,
-    condition: {
-      field: 'provider',
-      value: 'falai',
-      and: {
-        field: 'model',
-        value: endpointModels.filter((model) => model[key]).map((model) => model.modelId),
-      },
+    condition: (values) => {
+      const model = getFalVideoModel(values?.model)
+      return model && !model.legacyId && selectedFalSettings(values)?.[key]
+        ? { field: 'provider', value: 'falai' }
+        : HIDDEN
     },
-    dependsOn: ['model'],
+    dependsOn: ['model', ...START_FRAME_FIELDS],
     options: (params) => {
       if (!params) {
-        const values = endpointModels.flatMap((model) => {
-          const choices = model[key]
-          return Array.isArray(choices)
-            ? choices.map((value) =>
-                key === 'durations' ? String(Number.parseFloat(String(value))) : String(value)
-              )
-            : choices
-              ? ['true', 'false']
-              : []
-        })
+        const values = endpointModels.flatMap((model) =>
+          [model, model.image].flatMap((settings) => {
+            const choices = settings?.[key]
+            return Array.isArray(choices)
+              ? choices.map((value) =>
+                  key === 'durations' ? String(Number.parseFloat(String(value))) : String(value)
+                )
+              : choices
+                ? ['true', 'false']
+                : []
+          })
+        )
         return [FAL_MODEL_DEFAULT, ...[...new Set(values)].map((id) => ({ id, label: id }))]
       }
-      const model = getFalVideoModel(params?.values.model)
+      const model = selectedFalSettings(params?.values)
       if (!model?.[key]) return []
       if (key === 'audioField' || key === 'promptOptimizer') {
         return [FAL_MODEL_DEFAULT, { id: 'true', label: 'On' }, { id: 'false', label: 'Off' }]
@@ -109,6 +129,15 @@ const falVideoFields = [
   tuningField('falPromptOptimizer', 'Prompt Optimizer', 'promptOptimizer'),
 ]
 
+/** Settings fields that models with a legacy ID keep, and the catalog setting each one sets. */
+const LEGACY_FAL_SETTING_KEYS: Record<string, keyof FalVideoSettings> = {
+  duration: 'durations',
+  aspectRatio: 'aspectRatios',
+  resolution: 'resolutions',
+  generateAudio: 'audioField',
+  promptOptimizer: 'promptOptimizer',
+}
+
 function withFalVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
   return subBlocks.flatMap((subBlock) => {
     const condition = subBlock.condition
@@ -141,17 +170,27 @@ function withFalVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
       ]
     }
     if (subBlock.id === 'apiKey' && !condition.not) return [...falVideoFields, subBlock]
+    const key = LEGACY_FAL_SETTING_KEYS[subBlock.id]
+    if (key)
+      return [
+        {
+          ...subBlock,
+          condition: (values) => {
+            const image = getFalVideoModel(values?.model)?.image
+            return image && !image[key] && hasStartFrame(values) ? HIDDEN : condition
+          },
+          dependsOn: [
+            ...(Array.isArray(subBlock.dependsOn) ? subBlock.dependsOn : []),
+            ...START_FRAME_FIELDS,
+          ],
+        },
+      ]
     return [subBlock]
   })
 }
 
 function selectedDirectModel(values?: Record<string, unknown>) {
-  const withImage = [
-    values?.visualReference,
-    values?.visualReferenceInput,
-    values?.visualReferenceUpload,
-  ].some((reference) => (Array.isArray(reference) ? reference.length > 0 : Boolean(reference)))
-  return getDirectVideoModel(values?.provider, values?.model, withImage)
+  return getDirectVideoModel(values?.provider, values?.model, hasStartFrame(values))
 }
 
 const directVideoFields = (
@@ -168,7 +207,7 @@ const directVideoFields = (
     title,
     type: key === 'promptOptimizer' ? 'switch' : 'dropdown',
     value: key === 'promptOptimizer' ? undefined : () => FAL_MODEL_DEFAULT.id,
-    dependsOn: ['provider', 'model', 'visualReferenceInput', 'visualReferenceUpload'],
+    dependsOn: ['provider', 'model', ...START_FRAME_FIELDS],
     condition: (values) => ({
       field: 'provider',
       value: selectedDirectModel(values)?.settings?.[key] ? [String(values?.provider)] : [],
@@ -302,9 +341,18 @@ function withDirectVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
           dependsOn: ['provider', 'model'],
         },
       ]
-    if (field.id === 'visualReferenceUpload' || field.id === 'visualReferenceInput')
+    if (START_FRAME_FIELDS.includes(field.id))
       return [
-        { ...field, required: { field: 'model', value: ['gen4_turbo', 'gen-4', 'gen-4-turbo'] } },
+        {
+          ...field,
+          condition: (values) =>
+            values?.provider === 'runway' ||
+            (values?.provider === 'falai' && getFalVideoModel(values.model)?.image)
+              ? { field: 'provider', value: ['runway', 'falai'] }
+              : HIDDEN,
+          dependsOn: ['provider', 'model'],
+          required: { field: 'model', value: ['gen4_turbo', 'gen-4', 'gen-4-turbo'] },
+        },
       ]
     return [field]
   })
@@ -1950,8 +1998,20 @@ export const VideoGeneratorV3Block: BlockConfig = {
           ? 'video_higgsfield'
           : (VideoGeneratorV2Block.tools.config?.tool(params) ?? 'video_runway'),
       params: (params) => {
-        if (params.provider === 'falai')
-          return VideoGeneratorV2Block.tools.config?.params?.(params) ?? params
+        if (params.provider === 'falai') {
+          const falParams = VideoGeneratorV2Block.tools.config?.params?.(params) ?? params
+          if (!getFalVideoModel(params.model)?.image || !falParams.visualReference)
+            return { ...falParams, visualReference: undefined }
+          const image = getFalVideoVariant(params.model, true)
+          return {
+            ...falParams,
+            duration: image?.durations ? falParams.duration : undefined,
+            aspectRatio: image?.aspectRatios ? falParams.aspectRatio : undefined,
+            resolution: image?.resolutions ? falParams.resolution : undefined,
+            generateAudio: image?.audioField ? falParams.generateAudio : undefined,
+            promptOptimizer: image?.promptOptimizer ? falParams.promptOptimizer : undefined,
+          }
+        }
         const visualReference =
           params.provider === 'runway'
             ? normalizeFileInput(params.visualReference, { single: true })

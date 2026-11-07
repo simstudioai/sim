@@ -4,6 +4,10 @@ import {
   executionLimitsMockFns,
 } from '@sim/testing/mocks/execution-limits.mock'
 import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
@@ -14,8 +18,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
-import { generateVideo } from '@/lib/internal/video/client'
+import { generateVideo, getVideoInputValidationError } from '@/lib/internal/video/client'
 import { executeVideoOperation } from '@/lib/internal/video/operations'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
@@ -470,6 +475,55 @@ describe('Video provider client', () => {
       )
     ).rejects.toThrow('Camera controls must be an array of concept keys')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      model: 'kling-v3-pro',
+      endpoint: 'fal-ai/kling-video/v3/pro/image-to-video',
+      imageField: 'start_image_url',
+    },
+    {
+      model: 'veo-3.1',
+      endpoint: 'fal-ai/veo3.1/image-to-video',
+      imageField: 'image_url',
+    },
+  ])('sends a start frame to $endpoint as $imageField', async ({ model, endpoint, imageField }) => {
+    fileUtilsServerMockFns.mockDownloadFileFromStorage.mockResolvedValueOnce(Buffer.from('png'))
+    const mockFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ request_id: 'fal-1' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonResponse({ video: { url: 'data:video/mp4;base64,dmlkZW8=' } }))
+    vi.stubGlobal('fetch', mockFetch)
+    const frame = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
+
+    const result = generateVideo(
+      { provider: 'falai', apiKey: 'key', model, prompt: 'Pan left', visualReference: frame },
+      { requestId: 'request-1' }
+    )
+    await Promise.all([result, vi.advanceTimersByTimeAsync(5000)])
+
+    expect(String(mockFetch.mock.calls[0]?.[0])).toBe(`https://queue.fal.run/${endpoint}`)
+    expect(JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        prompt: 'Pan left',
+        [imageField]: `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+      })
+    )
+  })
+
+  it('rejects a start frame for a fal model without an image-to-video endpoint', () => {
+    const frame = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
+    expect(
+      getVideoInputValidationError({
+        provider: 'falai',
+        apiKey: 'key',
+        model: 'minimax/h3-max/styles/vhs',
+        prompt: 'Pan left',
+        visualReference: frame,
+      })
+    ).toBe('Fal.ai model minimax/h3-max/styles/vhs does not accept a start frame image')
   })
 
   it('retrieves a nested endpoint result when fal omits the queue URLs', async () => {

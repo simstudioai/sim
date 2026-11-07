@@ -90,7 +90,9 @@ function getNumber(value: unknown): number | undefined {
 function getFalAIFallbackProviderCostDollars(endpointId: string): number {
   const normalizedEndpointId = endpointId.toLowerCase()
 
-  if (normalizedEndpointId.split('/').includes('text-to-video')) {
+  // Checked before the image match below, which every image-to-video endpoint id also contains.
+  const segments = normalizedEndpointId.split('/')
+  if (segments.includes('text-to-video') || segments.includes('image-to-video')) {
     return FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
   }
 
