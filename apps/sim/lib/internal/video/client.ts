@@ -127,12 +127,13 @@ const MAX_REFERENCE_IMAGE_BYTES = Math.floor(((5 * 1024 * 1024 - 512) * 3) / 4)
 
 async function readReferenceImageDataUri(
   file: UserFile,
-  requestId: string,
+  { requestId, signal }: VideoGenerationContext,
   label: string
 ): Promise<string> {
   assertKnownSizeWithinLimit(file.size, MAX_REFERENCE_IMAGE_BYTES, label)
   const buffer = await downloadFileFromStorage(file, requestId, logger, {
     maxBytes: MAX_REFERENCE_IMAGE_BYTES,
+    signal,
   })
   assertKnownSizeWithinLimit(buffer.length, MAX_REFERENCE_IMAGE_BYTES, label)
   return `data:${file.type};base64,${buffer.toString('base64')}`
@@ -144,7 +145,7 @@ async function generateWithDirectProvider(
 ): Promise<VideoGenerationResult> {
   const prepared = buildDirectVideoRequest(input)
   const { protocol } = prepared.model
-  const { signal, requestId } = context
+  const { signal } = context
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (protocol === 'gemini') {
     headers['x-goog-api-key'] = input.apiKey
@@ -156,7 +157,7 @@ async function generateWithDirectProvider(
   if (input.visualReference) {
     prepared.body.promptImage = await readReferenceImageDataUri(
       input.visualReference,
-      requestId,
+      context,
       'Runway reference image'
     )
   }
@@ -402,7 +403,7 @@ async function generateWithFalAI(
   if (input.visualReference && imageField) {
     body[imageField] = await readReferenceImageDataUri(
       input.visualReference,
-      requestId,
+      context,
       'Fal.ai start frame image'
     )
     signal?.throwIfAborted()

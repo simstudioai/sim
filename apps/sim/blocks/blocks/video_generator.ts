@@ -47,6 +47,8 @@ const FALAI_AUDIO_DEFAULT_OFF_MODELS = ['kling-o3-pro', 'kling-o3-4k']
 const FAL_MODEL_DEFAULT = { id: 'default', label: 'Model default' } as const
 const endpointModels = falVideoModels.filter((model) => !model.legacyId)
 
+// Never list these optional fields in `dependsOn`: an array there disables the field until every
+// entry has a value. Options and conditions already re-read all block values on any change.
 const START_FRAME_FIELDS = ['visualReferenceInput', 'visualReferenceUpload']
 const HIDDEN = { field: 'provider', value: [] }
 
@@ -78,7 +80,7 @@ function tuningField(id: string, title: string, key: FalSettingKey): SubBlockCon
         ? { field: 'provider', value: 'falai' }
         : HIDDEN
     },
-    dependsOn: ['model', ...START_FRAME_FIELDS],
+    dependsOn: ['model'],
     options: (params) => {
       if (!params) {
         const values = endpointModels.flatMap((model) =>
@@ -179,10 +181,6 @@ function withFalVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
             const image = getFalVideoModel(values?.model)?.image
             return image && !image[key] && hasStartFrame(values) ? HIDDEN : condition
           },
-          dependsOn: [
-            ...(Array.isArray(subBlock.dependsOn) ? subBlock.dependsOn : []),
-            ...START_FRAME_FIELDS,
-          ],
         },
       ]
     return [subBlock]
@@ -207,7 +205,7 @@ const directVideoFields = (
     title,
     type: key === 'promptOptimizer' ? 'switch' : 'dropdown',
     value: key === 'promptOptimizer' ? undefined : () => FAL_MODEL_DEFAULT.id,
-    dependsOn: ['provider', 'model', ...START_FRAME_FIELDS],
+    dependsOn: ['provider', 'model'],
     condition: (values) => ({
       field: 'provider',
       value: selectedDirectModel(values)?.settings?.[key] ? [String(values?.provider)] : [],
