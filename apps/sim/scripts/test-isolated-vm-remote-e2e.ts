@@ -541,33 +541,42 @@ async function run() {
 
   const checkFetchDropped = (
     name: string,
-    endExecution: (server: StalledServer) => Promise<void>
+    endExecution: (server: StalledServer) => Promise<void>,
+    withinMs?: number
   ) =>
     check(name, async () => {
       const server = await stalledServer()
       try {
         await endExecution(server)
-        assert(await server.droppedSoon(), 'The app kept the fetch open')
+        assert(await server.droppedSoon(withinMs), 'The app kept the fetch open')
       } finally {
         server.close()
       }
     })
 
-  await check('drops the in-flight fetch of a timed-out execution at the timeout', async () => {
-    const server = await stalledServer()
-    try {
+  await checkFetchDropped(
+    'drops the in-flight fetch of an execution the app timed out',
+    async (server) => {
       // Started late in the run, so only dropping it at the timeout, not at its own time
-      // budget, closes it promptly.
+      // budget, closes it within the grace period.
       const result = await execute(
-        `await fetch('http://127.0.0.1:${slowAddress.port}/?ms=800'); await fetch('${server.url}')`,
+        `await fetch('http://127.0.0.1:${slowAddress.port}/?ms=800'); fetch('${server.url}'); await new Promise(() => {})`,
         { timeoutMs: 1000 }
       )
       assert.equal(result.termination, 'timeout', result.error?.message)
-      assert(await server.droppedSoon(400), 'The timed-out execution kept its fetch open')
-    } finally {
-      server.close()
-    }
-  })
+    },
+    400
+  )
+
+  await checkFetchDropped(
+    'drops the in-flight fetch of an execution the isolate timed out',
+    async (server) => {
+      // The isolate's own timeout ends a synchronous spin a second before the pool would.
+      const result = await execute(`fetch('${server.url}'); for (;;) {}`, { timeoutMs: 1000 })
+      assert.equal(result.termination, 'timeout', result.error?.message)
+    },
+    400
+  )
 
   await checkFetchDropped('drops the in-flight fetch of a cancelled execution', async (server) => {
     const controller = new AbortController()

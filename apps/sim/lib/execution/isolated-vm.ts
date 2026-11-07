@@ -871,9 +871,12 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       // If the caller aborted, the outer Promise is already resolved with
       // AbortError. Still run all the bookkeeping above so pool counters stay
       // accurate; just skip re-resolving.
+      const result = msg.result as IsolatedVMExecutionResult
       if (!pending.abort.signal.aborted) {
-        pending.resolve(msg.result as IsolatedVMExecutionResult)
+        pending.resolve(result)
       }
+      // The isolate's own timeout gives up on the execution just as the pool's does.
+      if (result.termination === 'timeout') pending.abort.abort()
       drainQueue()
     }
     return
