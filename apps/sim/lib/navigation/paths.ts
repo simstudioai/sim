@@ -61,15 +61,21 @@ export function organizationRoutes(organizationId: string) {
 
 interface WorkspaceIntegrationContext {
   hostOrganizationId: string | null
-  features?: { organizationSearch?: boolean }
+  features?: { organizationSearch?: boolean; platformOrgUi?: boolean }
 }
 
-/** Organization members use the center; standalone workspaces retain their credential routes. */
+/**
+ * Members of an organization on the Platform use its integration center, which replaces the
+ * workspace's. Everyone else keeps the workspace credential routes: the organization surface lists
+ * only Search connections, so sending them there would hide their workspace credentials.
+ */
 export function workspaceIntegrationsPath(
   workspaceId: string,
   context: WorkspaceIntegrationContext | null
 ) {
-  return context?.features?.organizationSearch && context.hostOrganizationId
+  return context?.features?.organizationSearch &&
+    context.features.platformOrgUi &&
+    context.hostOrganizationId
     ? organizationRoutes(context.hostOrganizationId).integrations
     : `/workspace/${workspaceId}/integrations`
 }
