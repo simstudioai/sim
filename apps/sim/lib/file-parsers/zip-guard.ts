@@ -113,69 +113,135 @@ export function findEocdOffset(buffer: Buffer): number {
   return -1
 }
 
-const EOCD_SIGNATURE_BYTES = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+function signatureBytes(signature: number): Buffer {
+  const bytes = Buffer.alloc(4)
+  bytes.writeUInt32LE(signature)
+  return bytes
+}
+
+const EOCD_SIGNATURE_BYTES = signatureBytes(EOCD_SIGNATURE)
+const ZIP64_EOCD_LOCATOR_SIGNATURE_BYTES = signatureBytes(ZIP64_EOCD_LOCATOR_SIGNATURE)
+const ZIP64_EOCD_SIGNATURE_BYTES = signatureBytes(ZIP64_EOCD_SIGNATURE)
+
+function hasSignatureAt(buffer: Buffer, offset: number, signature: number): boolean {
+  return offset >= 0 && offset + 4 <= buffer.length && buffer.readUInt32LE(offset) === signature
+}
 
 /**
- * Whether JSZip (which mammoth and the Word document helpers parse through)
- * would read central-directory records from a different place than the guard
- * inspects. JSZip does not anchor on the buffer tail: it takes the LAST EOCD
- * signature anywhere in the buffer, and treats any gap between that record and
- * the end of the central directory it declares as prepended data, rebasing
- * every offset past it. A buffer the guard reads as "not a ZIP" (or as a
- * different ZIP) can therefore still be inflated in full downstream.
- *
- * Returns `false` when JSZip would refuse the buffer or find no records — a
- * non-ZIP file that merely contains the EOCD bytes is not flagged.
+ * Whether the EOCD defers to the ZIP64 record. JSZip (and the spec) switch on
+ * ANY saturated field, not just the count and offset — so must the guard, or a
+ * lone saturated disk field sends JSZip down a chain the guard never follows.
  */
-function zipParserReadsDifferentArchive(buffer: Buffer): boolean {
-  const parserEocdOffset = buffer.lastIndexOf(EOCD_SIGNATURE_BYTES)
-  if (parserEocdOffset < 0 || parserEocdOffset + EOCD_MIN_SIZE > buffer.length) {
-    return false
+function eocdUsesZip64(buffer: Buffer, eocdOffset: number): boolean {
+  return (
+    buffer.readUInt16LE(eocdOffset + 4) === UINT16_SENTINEL ||
+    buffer.readUInt16LE(eocdOffset + 6) === UINT16_SENTINEL ||
+    buffer.readUInt16LE(eocdOffset + 8) === UINT16_SENTINEL ||
+    buffer.readUInt16LE(eocdOffset + 10) === UINT16_SENTINEL ||
+    buffer.readUInt32LE(eocdOffset + 12) === UINT32_SENTINEL ||
+    buffer.readUInt32LE(eocdOffset + 16) === UINT32_SENTINEL
+  )
+}
+
+interface Zip64EocdRecord {
+  entryCount: number
+  centralDirectorySize: number
+  centralDirectoryOffset: number
+  /** Bytes from the record's signature through its last field. */
+  recordLength: number
+}
+
+function readZip64EocdRecord(buffer: Buffer, recordOffset: number): Zip64EocdRecord | null {
+  if (
+    recordOffset + 56 > buffer.length ||
+    !hasSignatureAt(buffer, recordOffset, ZIP64_EOCD_SIGNATURE)
+  ) {
+    return null
+  }
+  return {
+    entryCount: Number(buffer.readBigUInt64LE(recordOffset + 32)),
+    centralDirectorySize: Number(buffer.readBigUInt64LE(recordOffset + 40)),
+    centralDirectoryOffset: Number(buffer.readBigUInt64LE(recordOffset + 48)),
+    // The size field excludes the leading signature (4) and itself (8).
+    recordLength: 12 + Number(buffer.readBigUInt64LE(recordOffset + 4)),
+  }
+}
+
+interface ZipParserView {
+  eocdOffset: number
+  /** Bytes JSZip treats as prepended data and rebases every offset past. */
+  baseOffset: number
+  /** Absolute offset JSZip starts reading central-directory records from. */
+  centralDirectoryStart: number
+}
+
+/**
+ * Where JSZip — which mammoth and the Word document helpers parse through —
+ * reads the archive from, mirroring `readEndOfCentral` in jszip 3.10. Unlike
+ * the guard it does not anchor on the buffer tail: it takes the LAST EOCD
+ * signature anywhere, the last ZIP64 locator signature anywhere (and the last
+ * ZIP64 record signature if the locator's pointer misses), and treats any gap
+ * before the central directory as prepended data. Returns `null` when JSZip
+ * would refuse the buffer.
+ */
+function locateAsZipParser(buffer: Buffer): ZipParserView | null {
+  const eocdOffset = buffer.lastIndexOf(EOCD_SIGNATURE_BYTES)
+  if (eocdOffset < 0 || eocdOffset + EOCD_MIN_SIZE > buffer.length) {
+    return null
   }
 
-  let centralDirectorySize = buffer.readUInt32LE(parserEocdOffset + 12)
-  let centralDirectoryOffset = buffer.readUInt32LE(parserEocdOffset + 16)
-  let expectedEocdOffset = centralDirectoryOffset + centralDirectorySize
-  const usesZip64 =
-    buffer.readUInt16LE(parserEocdOffset + 10) === UINT16_SENTINEL ||
-    centralDirectorySize === UINT32_SENTINEL ||
-    centralDirectoryOffset === UINT32_SENTINEL
-  if (usesZip64) {
-    // JSZip falls back to a signature scan when the locator does not resolve,
-    // so a ZIP64 chain the guard cannot follow from offset 0 is unverifiable.
-    const locatorOffset = parserEocdOffset - ZIP64_EOCD_LOCATOR_SIZE
-    if (locatorOffset < 0 || buffer.readUInt32LE(locatorOffset) !== ZIP64_EOCD_LOCATOR_SIGNATURE) {
-      return true
+  let centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16)
+  let expectedEocdOffset = centralDirectoryOffset + buffer.readUInt32LE(eocdOffset + 12)
+  if (eocdUsesZip64(buffer, eocdOffset)) {
+    const locatorOffset = buffer.lastIndexOf(ZIP64_EOCD_LOCATOR_SIGNATURE_BYTES)
+    if (locatorOffset < 0 || locatorOffset + ZIP64_EOCD_LOCATOR_SIZE > buffer.length) {
+      return null
     }
-    const zip64EocdOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
-    if (
-      zip64EocdOffset + 56 > buffer.length ||
-      buffer.readUInt32LE(zip64EocdOffset) !== ZIP64_EOCD_SIGNATURE
-    ) {
-      return true
+    const pointedRecordOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
+    const record =
+      readZip64EocdRecord(buffer, pointedRecordOffset) ??
+      readZip64EocdRecord(buffer, buffer.lastIndexOf(ZIP64_EOCD_SIGNATURE_BYTES))
+    if (!record) {
+      return null
     }
-    centralDirectorySize = Number(buffer.readBigUInt64LE(zip64EocdOffset + 40))
-    centralDirectoryOffset = Number(buffer.readBigUInt64LE(zip64EocdOffset + 48))
+    centralDirectoryOffset = record.centralDirectoryOffset
     expectedEocdOffset =
       centralDirectoryOffset +
-      centralDirectorySize +
-      ZIP64_EOCD_LOCATOR_SIZE +
-      12 +
-      Number(buffer.readBigUInt64LE(zip64EocdOffset + 4))
+      record.centralDirectorySize +
+      record.recordLength +
+      ZIP64_EOCD_LOCATOR_SIZE
   }
 
-  const prependedBytes = parserEocdOffset - expectedEocdOffset
-  if (prependedBytes < 0) {
-    return false
+  const baseOffset = eocdOffset - expectedEocdOffset
+  if (baseOffset < 0) {
+    return null
   }
-  if (prependedBytes === 0 && parserEocdOffset === findEocdOffset(buffer)) {
+  return { eocdOffset, baseOffset, centralDirectoryStart: baseOffset + centralDirectoryOffset }
+}
+
+/**
+ * Whether JSZip would read central-directory records from a different place
+ * than the guard inspects — prepended data, a later EOCD signature, or a
+ * diverging ZIP64 chain — so a buffer the guard reads as "not a ZIP" (or as a
+ * different ZIP) would still be inflated in full downstream. A buffer JSZip
+ * would refuse, or in which it finds no records, is not flagged, so a non-ZIP
+ * file that merely contains EOCD-like bytes keeps the no-op path.
+ */
+function zipParserReadsDifferentArchive(buffer: Buffer): boolean {
+  const parser = locateAsZipParser(buffer)
+  if (
+    !parser ||
+    !hasSignatureAt(buffer, parser.centralDirectoryStart, CENTRAL_DIRECTORY_HEADER_SIGNATURE)
+  ) {
     return false
   }
 
-  const parserCentralDirectoryStart = prependedBytes + centralDirectoryOffset
-  return (
-    parserCentralDirectoryStart + 4 <= buffer.length &&
-    buffer.readUInt32LE(parserCentralDirectoryStart) === CENTRAL_DIRECTORY_HEADER_SIGNATURE
+  const guardEocdOffset = findEocdOffset(buffer)
+  const guardLocation = guardEocdOffset < 0 ? null : locateCentralDirectory(buffer, guardEocdOffset)
+  return !(
+    parser.baseOffset === 0 &&
+    parser.eocdOffset === guardEocdOffset &&
+    guardLocation?.offset === parser.centralDirectoryStart
   )
 }
 
@@ -186,7 +252,7 @@ export interface CentralDirectoryLocation {
 
 /**
  * Resolve the central directory offset and entry count, following the ZIP64
- * end-of-central-directory chain when the 32-bit fields are saturated.
+ * end-of-central-directory chain when any EOCD field is saturated.
  */
 export function locateCentralDirectory(
   buffer: Buffer,
@@ -195,24 +261,19 @@ export function locateCentralDirectory(
   let entryCount = buffer.readUInt16LE(eocdOffset + 10)
   let cdOffset = buffer.readUInt32LE(eocdOffset + 16)
 
-  const needsZip64 = entryCount === UINT16_SENTINEL || cdOffset === UINT32_SENTINEL
-  if (needsZip64) {
+  if (eocdUsesZip64(buffer, eocdOffset)) {
     const locatorOffset = eocdOffset - ZIP64_EOCD_LOCATOR_SIZE
-    if (locatorOffset < 0 || buffer.readUInt32LE(locatorOffset) !== ZIP64_EOCD_LOCATOR_SIGNATURE) {
+    if (!hasSignatureAt(buffer, locatorOffset, ZIP64_EOCD_LOCATOR_SIGNATURE)) {
       return null
     }
 
-    const zip64EocdOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
-    if (
-      zip64EocdOffset < 0 ||
-      zip64EocdOffset + 56 > buffer.length ||
-      buffer.readUInt32LE(zip64EocdOffset) !== ZIP64_EOCD_SIGNATURE
-    ) {
+    const record = readZip64EocdRecord(buffer, Number(buffer.readBigUInt64LE(locatorOffset + 8)))
+    if (!record) {
       return null
     }
 
-    entryCount = Number(buffer.readBigUInt64LE(zip64EocdOffset + 32))
-    cdOffset = Number(buffer.readBigUInt64LE(zip64EocdOffset + 48))
+    entryCount = record.entryCount
+    cdOffset = record.centralDirectoryOffset
   }
 
   if (cdOffset < 0 || cdOffset > buffer.length) {
@@ -514,10 +575,11 @@ export interface ZipCentralDirectoryStats {
  * per — a lied count can neither hide records nor inflate the tally. Unlike a
  * raw whole-buffer signature scan, STORED entry payloads (e.g. a nested `.zip`
  * archived without recompression) are never miscounted as records. Returns
- * `null` when the buffer is not a parseable ZIP, so callers can fail closed.
+ * `null` when the buffer is not a parseable ZIP, or when JSZip would read its
+ * records from somewhere else, so callers can fail closed.
  */
 export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirectoryStats | null {
-  if (buffer.length < EOCD_MIN_SIZE) {
+  if (buffer.length < EOCD_MIN_SIZE || zipParserReadsDifferentArchive(buffer)) {
     return null
   }
 
