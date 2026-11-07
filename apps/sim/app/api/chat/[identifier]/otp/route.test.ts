@@ -24,9 +24,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRedisSet,
-  mockRedisGet,
-  mockRedisDel,
-  mockRedisTtl,
   mockRedisEval,
   mockRedisClient,
   mockSetChatAuthCookie,
@@ -36,15 +33,9 @@ const {
   mockAfterResponse,
 } = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
-  const mockRedisGet = vi.fn()
-  const mockRedisDel = vi.fn()
-  const mockRedisTtl = vi.fn()
   const mockRedisEval = vi.fn()
   const mockRedisClient = {
     set: mockRedisSet,
-    get: mockRedisGet,
-    del: mockRedisDel,
-    ttl: mockRedisTtl,
     eval: mockRedisEval,
   }
   const mockSetChatAuthCookie = vi.fn()
@@ -59,9 +50,6 @@ const {
 
   return {
     mockRedisSet,
-    mockRedisGet,
-    mockRedisDel,
-    mockRedisTtl,
     mockRedisEval,
     mockRedisClient,
     mockSetChatAuthCookie,
@@ -183,9 +171,6 @@ describe('Chat OTP API Route', () => {
 
     mockGetRedisClient.mockReturnValue(mockRedisClient)
     mockRedisSet.mockResolvedValue('OK')
-    mockRedisGet.mockResolvedValue(null)
-    mockRedisDel.mockResolvedValue(1)
-    mockRedisTtl.mockResolvedValue(600)
 
     mockGetStorageMethod.mockReturnValue('redis')
 

@@ -3,10 +3,10 @@ import { chat, user, verification, workflow, workspace } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, like } from 'drizzle-orm'
 import Redis from 'ioredis'
-import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { storage, redisClient } = vi.hoisted(() => ({
@@ -35,10 +35,10 @@ const INVALID = 'Invalid verification code'
 const LOCKED = 'Too many failed attempts. Please request a new code.'
 
 async function verify(otp: string) {
-  const request = new NextRequest(`http://localhost:3000/api/chat/${identifier}/otp`, {
+  const request = createMockRequest({
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, otp }),
+    url: `/api/chat/${identifier}/otp`,
+    body: { email, otp },
   })
   const response = await PUT(request, createRouteContext({ identifier }))
   const body = (await response.json()) as { error?: string; message?: string }
@@ -99,8 +99,8 @@ afterAll(async () => {
 describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backend) => {
   describe.runIf(backend === 'database' || Boolean(redisUrl))('real storage', () => {
     beforeAll(async () => {
-      if (backend === 'redis' && !redisClient.current) {
-        redisClient.current = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+      if (backend === 'redis' && redisUrl && !redisClient.current) {
+        redisClient.current = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
         await redisClient.current.connect()
       }
     })
@@ -132,20 +132,25 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
     })
 
     it('keeps the code expiry when a failed attempt is recorded', async () => {
+      if (backend === 'redis') {
+        const key = `otp:${email}:${chatId}`
+        await redisClient.current?.expire(key, 60)
+        expect(await verify('999999')).toMatchObject({ status: 400, error: INVALID })
+        const ttl = await redisClient.current?.ttl(key)
+        expect(ttl).toBeGreaterThan(55)
+        expect(ttl).toBeLessThanOrEqual(60)
+        return
+      }
       const readExpiry = async () =>
-        backend === 'redis'
-          ? redisClient.current?.ttl(`otp:${email}:${chatId}`)
-          : (
-              await db
-                .select({ expiresAt: verification.expiresAt })
-                .from(verification)
-                .where(eq(verification.identifier, `chat-otp:${chatId}:${email}`))
-            )[0]?.expiresAt.getTime()
+        (
+          await db
+            .select({ expiresAt: verification.expiresAt })
+            .from(verification)
+            .where(eq(verification.identifier, `chat-otp:${chatId}:${email}`))
+        )[0]?.expiresAt.getTime()
       const before = await readExpiry()
       expect(await verify('999999')).toMatchObject({ status: 400, error: INVALID })
-      const after = await readExpiry()
-      if (backend === 'redis') expect(after).toBeGreaterThan(0)
-      else expect(after).toBe(before)
+      expect(await readExpiry()).toBe(before)
     })
 
     it.runIf(backend === 'database')('rejects an expired code', async () => {

@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -11,14 +10,12 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import {
-  deleteOTP,
   generateOTP,
-  MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
-  reserveOTPAttempt,
   storeOTP,
+  verifyOTP,
 } from '@/lib/core/security/otp'
 import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
@@ -195,23 +192,17 @@ export const PUT = withRouteHandler(
         return createCodedErrorResponse('Email not authorized', 403)
       }
 
-      const reserved = await reserveOTPAttempt('chat', deployment.id, email)
-      if (!reserved) {
+      const verification = await verifyOTP('chat', deployment.id, email, otp)
+      if (verification === 'missing') {
         return createCodedErrorResponse('No verification code found, request a new one', 400)
       }
-
-      if (!safeCompare(reserved.otp, otp)) {
-        if (reserved.attempts >= MAX_OTP_ATTEMPTS) {
-          logger.warn(`OTP invalidated after max failed attempts for ${email}`)
-          return createCodedErrorResponse(
-            'Too many failed attempts. Please request a new code.',
-            429
-          )
-        }
+      if (verification === 'locked') {
+        logger.warn('OTP invalidated after max failed attempts', { chatId: deployment.id })
+        return createCodedErrorResponse('Too many failed attempts. Please request a new code.', 429)
+      }
+      if (verification === 'invalid') {
         return createCodedErrorResponse('Invalid verification code', 400)
       }
-
-      await deleteOTP('chat', deployment.id, email)
 
       const response = createSuccessResponse({
         id: deployment.id,

@@ -1,6 +1,7 @@
 import { randomInt } from 'crypto'
 import { db } from '@sim/db'
 import { verification } from '@sim/db/schema'
+import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, lt, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
@@ -70,7 +71,7 @@ function encodeOTPValue(otp: string, attempts: number): string {
   return `${otp}:${attempts}`
 }
 
-export function decodeOTPValue(value: string): { otp: string; attempts: number } {
+function decodeOTPValue(value: string): { otp: string; attempts: number } {
   const lastColon = value.lastIndexOf(':')
   if (lastColon === -1) return { otp: value, attempts: 0 }
   const attempts = Number.parseInt(value.slice(lastColon + 1), 10)
@@ -115,40 +116,9 @@ export async function storeOTP(
   })
 }
 
-export async function getOTP(
-  kind: DeploymentKind,
-  deploymentId: string,
-  email: string
-): Promise<string | null> {
-  const keys = OTP_KEYS[kind]
-  const storageMethod = getStorageMethod()
-
-  if (storageMethod === 'redis') {
-    const redis = getRedisClient()
-    if (!redis) throw new Error('Redis configured but client unavailable')
-    return redis.get(keys.redisKey(email, deploymentId))
-  }
-
-  const now = new Date()
-  const [record] = await db
-    .select({ value: verification.value })
-    .from(verification)
-    .where(
-      and(
-        eq(verification.identifier, keys.dbIdentifier(email, deploymentId)),
-        gt(verification.expiresAt, now)
-      )
-    )
-    .limit(1)
-
-  return record?.value ?? null
-}
-
 /**
  * Lua script that reserves one verification attempt in Redis. Returns the
- * code with the reserved attempt number, or nil when no code exists or every
- * attempt is already spent. The reservation that spends the last attempt
- * deletes the key, so later requests find no code.
+ * code with the reserved attempt number, or nil when no code exists.
  */
 const RESERVE_ATTEMPT_SCRIPT = `
 local val = redis.call('GET', KEYS[1])
@@ -163,13 +133,8 @@ else
   attempts = 0
 end
 attempts = attempts + 1
-local max = tonumber(ARGV[1])
-if attempts > max then
-  redis.call('DEL', KEYS[1])
-  return nil
-end
 local newVal = otp .. ':' .. attempts
-if attempts == max then
+if attempts >= tonumber(ARGV[1]) then
   redis.call('DEL', KEYS[1])
 else
   local ttl = redis.call('TTL', KEYS[1])
@@ -184,12 +149,11 @@ return newVal
 
 /**
  * Atomically spends one of the code's {@link MAX_OTP_ATTEMPTS} attempts and
- * returns the stored code for the caller to compare, or `null` when no live
- * code is left. Reserving before comparing bounds the guesses checked against
- * one code to the attempt limit however many requests run concurrently. The
- * reservation that spends the last attempt also deletes the code.
+ * returns the stored code with its reserved attempt count, or `null` when no
+ * live code is left. The reservation that spends the last attempt also
+ * deletes the code.
  */
-export async function reserveOTPAttempt(
+async function reserveOTPAttempt(
   kind: DeploymentKind,
   deploymentId: string,
   email: string
@@ -231,6 +195,29 @@ export async function reserveOTPAttempt(
       .where(and(eq(verification.identifier, identifier), eq(verification.value, reserved.value)))
   }
   return decoded
+}
+
+export type OTPVerification = 'valid' | 'invalid' | 'locked' | 'missing'
+
+/**
+ * Checks a submitted code and consumes it on a match. An attempt is reserved
+ * before the comparison, so at most {@link MAX_OTP_ATTEMPTS} guesses are ever
+ * compared against one code however many requests run concurrently.
+ * `'locked'` means this guess spent the last attempt and the code is gone.
+ */
+export async function verifyOTP(
+  kind: DeploymentKind,
+  deploymentId: string,
+  email: string,
+  code: string
+): Promise<OTPVerification> {
+  const reserved = await reserveOTPAttempt(kind, deploymentId, email)
+  if (!reserved) return 'missing'
+  if (safeCompare(reserved.otp, code)) {
+    await deleteOTP(kind, deploymentId, email)
+    return 'valid'
+  }
+  return reserved.attempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'invalid'
 }
 
 export async function deleteOTP(
