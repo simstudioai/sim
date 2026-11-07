@@ -272,10 +272,12 @@ export function getCredentialGroupProviderService(
   return service
 }
 
+/** Whether connecting the same login again refreshes its existing account, adding sites to it. */
 export function credentialGroupGrantSpansSites(provider: CredentialGroupProvider): boolean {
   return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].grantSpansSites === true
 }
 
+/** Whether an account saved without a tenant may take one on when the same person reconnects. */
 export function credentialGroupTenantRecordedLater(provider: CredentialGroupProvider): boolean {
   return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].tenantRecordedLater === true
 }

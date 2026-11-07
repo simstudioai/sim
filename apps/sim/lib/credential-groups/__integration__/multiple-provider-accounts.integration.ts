@@ -39,6 +39,9 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: async () => true,
 }))
 
+/** Each grant carries its own token, as a real exchange does, so a saved grant is identifiable. */
+let grants = 0
+
 vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
   const { getCredentialGroupProviderId } = await import('@/lib/credential-groups/providers')
   return {
@@ -61,7 +64,7 @@ vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
             providerTenantId: tenant || null,
             displayName: code,
             metadata: { email: code },
-            accessToken: `token-for-${code}`,
+            accessToken: `token-for-${code}-${(grants += 1)}`,
             grantedScopes: POLICY.requiredScopes,
             accessTokenExpiresAt: null,
             refreshTokenExpiresAt: null,
@@ -253,7 +256,7 @@ describe('connecting several accounts of one provider', () => {
       status: 'active',
     })
     expect(await decryptManagedOAuthTokenSet(stored?.tokens ?? '')).toMatchObject({
-      accessToken: 'token-for-work@second-tenant.test',
+      accessToken: expect.stringMatching(/^token-for-work@second-tenant\.test-/),
     })
   })
 
@@ -342,14 +345,16 @@ describe('reconnecting one of several accounts', () => {
 describe('adding another site to an Atlassian login', () => {
   it('keeps the new grant on the existing account instead of refusing it', async () => {
     const first = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
-    const [before] = await rows()
+    const saved = async () =>
+      (await decryptManagedOAuthTokenSet((await rows())[0]?.tokens ?? '')).accessToken
+    const firstToken = await saved()
 
     const added = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
 
     expect(added).toMatchObject({ created: false, credentialId: first.credentialId })
-    const after = await rows()
-    expect(after).toHaveLength(1)
-    expect(after[0]?.tokens).not.toBe(before?.tokens)
+    expect(await rows()).toHaveLength(1)
+    expect(await saved()).toMatch(/^token-for-person@atlassian-/)
+    expect(await saved()).not.toBe(firstToken)
   })
 
   it('still adds a different Atlassian login as its own account', async () => {
