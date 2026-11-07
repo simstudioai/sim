@@ -5,12 +5,15 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_QUERY_ATTACHMENT_PARAMS,
   GENIE_READ_RETRY,
   genieAttachmentPath,
   mapStatementResult,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetQueryResultTool: ToolConfig<
@@ -22,15 +25,17 @@ export const genieGetQueryResultTool: ToolConfig<
   description:
     'Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_QUERY_ATTACHMENT_PARAMS,
 
   request: {
-    url: (params) => databricksUrl(params.host, `${genieAttachmentPath(params)}/query-result`),
+    url: (params) =>
+      databricksUrl(databricksHost(params), `${genieAttachmentPath(params)}/query-result`),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

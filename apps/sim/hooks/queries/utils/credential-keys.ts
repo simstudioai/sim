@@ -23,6 +23,15 @@ export const workspaceCredentialKeys = {
     workspaceId
       ? ([...workspaceCredentialKeys.detail(credentialId), 'workspace', workspaceId] as const)
       : workspaceCredentialKeys.detail(credentialId),
+  /** One keyless cloud setup per connect-modal session (each fetch mints a new subject). */
+  workloadIdentity: (workspaceId: string | undefined, provider: string, sessionKey: string) =>
+    [
+      ...workspaceCredentialKeys.all,
+      'workloadIdentity',
+      workspaceId ?? 'none',
+      provider,
+      sessionKey,
+    ] as const,
   members: (credentialId?: string) =>
     [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
   /**

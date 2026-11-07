@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmDescribeInstancePatchesParams,
   SsmDescribeInstancePatchesResponse,
@@ -12,6 +13,7 @@ export const describeInstancePatchesTool: InternalToolConfig<
   name: 'SSM Describe Instance Patches',
   description: 'List the patches reported for one managed node',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

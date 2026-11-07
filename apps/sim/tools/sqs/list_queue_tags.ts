@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsListQueueTagsParams, SqsQueueTagsResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const listQueueTagsTool: InternalToolConfig<SqsListQueueTagsParams, SqsQu
   name: 'SQS List Queue Tags',
   description: 'List the cost-allocation tags attached to an Amazon SQS queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

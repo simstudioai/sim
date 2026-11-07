@@ -5,11 +5,14 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const editClusterTool: ToolConfig<DatabricksEditClusterParams, DatabricksSuccessResponse> = {
@@ -18,6 +21,7 @@ export const editClusterTool: ToolConfig<DatabricksEditClusterParams, Databricks
   description:
     'Replace a compute cluster configuration; a running cluster restarts to apply the changes.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     clusterId: {
@@ -239,10 +243,10 @@ export const editClusterTool: ToolConfig<DatabricksEditClusterParams, Databricks
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.1/clusters/edit`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.1/clusters/edit`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

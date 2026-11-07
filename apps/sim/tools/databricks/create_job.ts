@@ -5,11 +5,14 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCreateJobResponse> = {
@@ -18,6 +21,7 @@ export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCrea
   description:
     'Create a Databricks job with tasks, scheduling, execution identity, and notifications.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     accessControlList: {
@@ -204,10 +208,10 @@ export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCrea
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/create`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/create`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

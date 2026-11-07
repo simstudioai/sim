@@ -2,6 +2,7 @@ import type {
   CloudWatchDescribeLogGroupsParams,
   CloudWatchDescribeLogGroupsResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeLogGroupsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeLogGroupsTool: InternalToolConfig<
   name: 'CloudWatch Describe Log Groups',
   description: 'List available CloudWatch log groups',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

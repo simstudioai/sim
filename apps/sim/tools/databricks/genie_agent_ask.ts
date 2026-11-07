@@ -4,6 +4,8 @@ import {
   GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   genieAgentErrorMessage,
@@ -12,6 +14,7 @@ import {
   parseGenieAgentQuery,
   parseGenieAgentStream,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieAgentAskTool: ToolConfig<
@@ -23,6 +26,7 @@ export const genieAgentAskTool: ToolConfig<
   description:
     'Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,
@@ -55,12 +59,13 @@ export const genieAgentAskTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ content: params.content }),
     },
-    url: (params) => databricksUrl(params.host, `${genieAgentPath(params.spaceId)}/responses`),
+    url: (params) =>
+      databricksUrl(databricksHost(params), `${genieAgentPath(params.spaceId)}/responses`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: (params) => {
       const conversationId = params.conversationId?.trim()

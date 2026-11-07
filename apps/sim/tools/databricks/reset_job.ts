@@ -2,10 +2,13 @@ import { filterUndefined } from '@sim/utils/object'
 import type { DatabricksResetJobParams, DatabricksSuccessResponse } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSuccessResponse> = {
@@ -13,6 +16,7 @@ export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSucces
   name: 'Databricks Reset Job',
   description: 'Replace all settings of a Databricks job.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     jobId: {
@@ -30,10 +34,10 @@ export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSucces
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/reset`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/reset`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

@@ -20,6 +20,12 @@ export interface InternalToolOperationContext {
   executionId?: string
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /**
+   * A saved AWS credential the executor already authorized for this call.
+   * Set only from executor-resolved credential state, never from tool input;
+   * AWS operations resolve it to session credentials server-side.
+   */
+  authorizedAwsCredentialId?: string
   /** Trusted source block for saved MCP operation restrictions. */
   mcpBlockId?: string
   /**

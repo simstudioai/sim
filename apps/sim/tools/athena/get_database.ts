@@ -1,4 +1,5 @@
 import type { AthenaGetDatabaseParams, AthenaGetDatabaseResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getDatabaseTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const getDatabaseTool: InternalToolConfig<
   description:
     'Get a single database (name, description, and parameters) from an Athena data catalog',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

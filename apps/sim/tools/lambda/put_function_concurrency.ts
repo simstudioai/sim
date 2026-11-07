@@ -2,6 +2,7 @@ import type {
   LambdaPutFunctionConcurrencyParams,
   LambdaPutFunctionConcurrencyResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putFunctionConcurrencyTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const putFunctionConcurrencyTool: InternalToolConfig<
   name: 'Lambda Set Function Concurrency',
   description: 'Reserve a share of the account concurrency limit for a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

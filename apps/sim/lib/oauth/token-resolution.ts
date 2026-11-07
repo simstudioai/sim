@@ -292,7 +292,12 @@ function validateToolCredentialBinding(
   const policy = getToolMetadata(toolId)?.oauth
   const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
   if (kindError) return kindError
-  const service = policy?.required
+  /**
+   * A tool binds a credential through its declared provider. `required: false`
+   * marks a hybrid tool (inline keys or a saved credential) — the credential is
+   * optional, but when one is supplied it must still belong to that provider.
+   */
+  const service = policy
     ? (getServiceConfigByServiceId(policy.provider) ??
       getServiceConfigByProviderId(policy.provider))
     : undefined

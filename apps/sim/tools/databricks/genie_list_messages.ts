@@ -5,6 +5,8 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
@@ -12,6 +14,7 @@ import {
   genieConversationPath,
   mapGenieMessage,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieListMessagesTool: ToolConfig<
@@ -23,6 +26,7 @@ export const genieListMessagesTool: ToolConfig<
   description:
     'List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,
@@ -50,7 +54,7 @@ export const genieListMessagesTool: ToolConfig<
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          params.host,
+          databricksHost(params),
           `${genieConversationPath(params.spaceId, params.conversationId)}/messages`
         )
       )
@@ -61,7 +65,7 @@ export const genieListMessagesTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

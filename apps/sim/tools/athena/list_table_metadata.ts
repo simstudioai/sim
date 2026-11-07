@@ -2,6 +2,7 @@ import type {
   AthenaListTableMetadataParams,
   AthenaListTableMetadataResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listTableMetadataTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listTableMetadataTool: InternalToolConfig<
   name: 'Athena List Table Metadata',
   description: 'List tables and their column/partition metadata for an Athena database',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

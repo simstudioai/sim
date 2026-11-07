@@ -1,9 +1,12 @@
 import type { DatabricksRunJobParams, DatabricksRunJobResponse } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResponse> = {
@@ -12,6 +15,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   description:
     'Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     only: {
@@ -77,11 +81,11 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   },
 
   request: {
-    url: (params) => databricksUrl(params.host, '/api/2.2/jobs/run-now'),
+    url: (params) => databricksUrl(databricksHost(params), '/api/2.2/jobs/run-now'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

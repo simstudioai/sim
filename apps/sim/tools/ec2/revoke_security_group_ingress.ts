@@ -3,6 +3,7 @@ import type {
   Ec2RevokeSecurityGroupIngressResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const revokeSecurityGroupIngressTool: InternalToolConfig<
@@ -14,6 +15,7 @@ export const revokeSecurityGroupIngressTool: InternalToolConfig<
   description:
     'Remove inbound rules from a security group by rule ID or by matching protocol, ports, and source',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

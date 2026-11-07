@@ -2,6 +2,7 @@ import type {
   AppConfigCreateHostedConfigurationVersionParams,
   AppConfigCreateHostedConfigurationVersionResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createHostedConfigurationVersionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createHostedConfigurationVersionTool: InternalToolConfig<
   name: 'AppConfig Create Hosted Configuration Version',
   description: 'Create a new hosted configuration version for an AppConfig configuration profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

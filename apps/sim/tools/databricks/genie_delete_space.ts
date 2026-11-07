@@ -4,9 +4,12 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -18,6 +21,7 @@ export const genieDeleteSpaceTool: ToolConfig<
   name: 'Databricks Trash Genie Space',
   description: 'Move a Genie space to the trash.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     spaceId: {
@@ -30,12 +34,12 @@ export const genieDeleteSpaceTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        params.host,
+        databricksHost(params),
         `/api/2.0/genie/spaces/${safeUrlPathSegment(params.spaceId, 'spaceId')}`
       ),
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
   },

@@ -1,4 +1,5 @@
 import type { SESListTemplatesParams, SESListTemplatesResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listTemplatesTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const listTemplatesTool: InternalToolConfig<
   name: 'SES List Templates',
   description: 'List all SES email templates in your account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

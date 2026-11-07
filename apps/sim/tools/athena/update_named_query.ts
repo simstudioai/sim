@@ -2,6 +2,7 @@ import type {
   AthenaUpdateNamedQueryParams,
   AthenaUpdateNamedQueryResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateNamedQueryTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const updateNamedQueryTool: InternalToolConfig<
   description:
     'Update the name, description, or SQL of an existing Athena named query (database and workgroup cannot change)',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

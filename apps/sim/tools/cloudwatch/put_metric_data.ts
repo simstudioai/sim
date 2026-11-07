@@ -2,6 +2,7 @@ import type {
   CloudWatchPutMetricDataParams,
   CloudWatchPutMetricDataResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putMetricDataTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const putMetricDataTool: InternalToolConfig<
   name: 'CloudWatch Publish Metric',
   description: 'Publish a custom metric data point to CloudWatch',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

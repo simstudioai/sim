@@ -2,7 +2,8 @@ import type {
   DatabricksListClustersParams,
   DatabricksListClustersResponse,
 } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listClustersTool: ToolConfig<
@@ -14,6 +15,7 @@ export const listClustersTool: ToolConfig<
   description:
     'List a page of clusters in a Databricks workspace including their state, configuration, and resource details.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     pageSize: {
@@ -44,7 +46,7 @@ export const listClustersTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/list'))
+      const url = new URL(databricksUrl(databricksHost(params), '/api/2.1/clusters/list'))
       url.searchParams.set('page_size', String(params.pageSize ?? 20))
       if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       return url.toString()
@@ -52,7 +54,7 @@ export const listClustersTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
   },
 

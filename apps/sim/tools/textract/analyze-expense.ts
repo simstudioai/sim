@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TextractAnalyzeExpenseOutput,
   TextractAnalyzeExpenseV2Input,
@@ -67,6 +68,7 @@ export const textractAnalyzeExpenseTool: InternalToolConfig<
   name: 'AWS Textract Analyze Expense',
   description: 'Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

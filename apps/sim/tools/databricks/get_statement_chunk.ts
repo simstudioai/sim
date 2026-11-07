@@ -5,10 +5,13 @@ import type {
 import { STATEMENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -21,6 +24,7 @@ export const getStatementChunkTool: ToolConfig<
   description:
     'Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL or Get Statement.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     statementId: {
@@ -44,7 +48,7 @@ export const getStatementChunkTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      const origin = databricksUrl(params.host, '')
+      const origin = databricksUrl(databricksHost(params), '')
       if (!Number.isInteger(params.chunkIndex) || params.chunkIndex < 0)
         throw new Error('chunkIndex must be a nonnegative integer')
       const url = new URL(
@@ -55,7 +59,10 @@ export const getStatementChunkTool: ToolConfig<
       return url.toString()
     },
     method: 'GET',
-    headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
+    headers: (params) => ({
+      Authorization: `Bearer ${databricksToken(params)}`,
+      Accept: 'application/json',
+    }),
   },
   transformResponse: async (response) => {
     if (!response.ok)

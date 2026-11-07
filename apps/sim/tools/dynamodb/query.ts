@@ -1,4 +1,5 @@
 import type { DynamoDBQueryParams, DynamoDBQueryResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> = {
@@ -6,6 +7,7 @@ export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryRes
   name: 'DynamoDB Query',
   description: 'Query items from a DynamoDB table using key conditions',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -2,6 +2,7 @@ import type {
   CloudWatchMuteAlarmParams,
   CloudWatchMuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const muteAlarmTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const muteAlarmTool: InternalToolConfig<
   name: 'CloudWatch Mute Alarm',
   description: 'Create a CloudWatch alarm mute rule that suppresses alarms for a fixed duration',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -2,6 +2,7 @@ import type {
   CloudWatchFilterLogEventsParams,
   CloudWatchFilterLogEventsResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const filterLogEventsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const filterLogEventsTool: InternalToolConfig<
   description:
     'Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

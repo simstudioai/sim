@@ -2,6 +2,8 @@ import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/cli
 import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -47,6 +49,8 @@ export type ServiceAccountFieldId =
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],

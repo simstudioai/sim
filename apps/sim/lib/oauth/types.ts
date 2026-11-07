@@ -42,7 +42,15 @@ export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export const ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID = 'oracledb-service-account' as const
 
+/** Saved AWS identity (access keys, an assumed role, or a keyless OIDC role) shared by every AWS block. */
+export const AWS_SERVICE_ACCOUNT_PROVIDER_ID = 'aws-service-account' as const
+
+/** Saved Databricks connection (PAT, service-principal secret, or keyless OIDC federation). */
+export const DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID = 'databricks-service-account' as const
+
 export type OAuthProvider =
+  | 'aws'
+  | 'databricks'
   | 'oracledb'
   | 'oracle-epm'
   | 'oracle-fusion'
@@ -120,6 +128,8 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'aws'
+  | 'databricks'
   | 'jama'
   | 'flow'
   | 'oracledb'

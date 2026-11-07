@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TextractParserInput,
   TextractParserOutput,
@@ -35,6 +36,7 @@ export const textractParserTool: InternalToolConfig<TextractParserInput, Textrac
   name: 'AWS Textract Parser',
   description: 'Parse documents using AWS Textract OCR and document analysis',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

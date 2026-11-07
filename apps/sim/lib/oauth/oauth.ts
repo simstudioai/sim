@@ -18,6 +18,7 @@ import {
   ClickUpIcon,
   CodaIcon,
   ConfluenceIcon,
+  DatabricksIcon,
   DocuSignIcon,
   DropboxIcon,
   FivetranIcon,
@@ -44,6 +45,7 @@ import {
   HelpScoutIcon,
   HiggsfieldIcon,
   HubspotIcon,
+  IAMIcon,
   InstagramIcon,
   IntuneIcon,
   JamaIcon,
@@ -1179,6 +1181,42 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'netsuite',
+  },
+  aws: {
+    name: 'AWS',
+    icon: IAMIcon,
+    services: {
+      aws: {
+        name: 'AWS',
+        description:
+          'Use AWS services with saved access keys, an assumed IAM role, or a keyless role trusted through Sim OIDC.',
+        providerId: 'aws',
+        serviceAccountProviderId: 'aws-service-account',
+        authType: 'service_account',
+        icon: IAMIcon,
+        baseProviderIcon: IAMIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'aws',
+  },
+  databricks: {
+    name: 'Databricks',
+    icon: DatabricksIcon,
+    services: {
+      databricks: {
+        name: 'Databricks',
+        description:
+          'Use Databricks with a personal access token, a service principal secret, or a keyless service principal trusted through Sim OIDC.',
+        providerId: 'databricks',
+        serviceAccountProviderId: 'databricks-service-account',
+        authType: 'service_account',
+        icon: DatabricksIcon,
+        baseProviderIcon: DatabricksIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'databricks',
   },
   oracledb: {
     name: 'Oracle Database',

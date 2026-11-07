@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmStopAutomationExecutionParams,
   SsmStopAutomationExecutionResponse,
@@ -12,6 +13,7 @@ export const stopAutomationExecutionTool: InternalToolConfig<
   name: 'SSM Stop Automation Execution',
   description: 'Stop a running AWS Systems Manager Automation execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

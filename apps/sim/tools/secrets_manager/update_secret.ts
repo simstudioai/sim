@@ -2,6 +2,7 @@ import type {
   SecretsManagerUpdateSecretParams,
   SecretsManagerUpdateSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const updateSecretTool: InternalToolConfig<
   name: 'Secrets Manager Update Secret',
   description: 'Update the value of an existing secret in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -5,11 +5,14 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWarehouseTool: ToolConfig<
@@ -20,6 +23,7 @@ export const createWarehouseTool: ToolConfig<
   name: 'Databricks Create Warehouse',
   description: 'Create a SQL warehouse with sizing, autoscaling, and serverless settings.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     name: {
@@ -102,10 +106,10 @@ export const createWarehouseTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.0/sql/warehouses`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.0/sql/warehouses`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

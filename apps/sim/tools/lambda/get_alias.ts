@@ -1,4 +1,5 @@
 import type { LambdaGetAliasParams, LambdaGetAliasResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getAliasTool: InternalToolConfig<LambdaGetAliasParams, LambdaGetAliasResponse> = {
@@ -6,6 +7,7 @@ export const getAliasTool: InternalToolConfig<LambdaGetAliasParams, LambdaGetAli
   name: 'Lambda Get Alias',
   description: 'Get details about a Lambda function alias',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

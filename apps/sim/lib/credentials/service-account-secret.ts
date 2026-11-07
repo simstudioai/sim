@@ -7,6 +7,10 @@ import {
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
 import {
+  AwsCredentialError,
+  verifyAndEncryptAwsCredential,
+} from '@/lib/credentials/aws-service-account.server'
+import {
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountFieldId,
   getClientCredentialAccountDescriptor,
@@ -19,6 +23,10 @@ import {
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
+import {
+  DatabricksCredentialError,
+  verifyAndEncryptDatabricksCredential,
+} from '@/lib/credentials/databricks-service-account.server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
@@ -36,10 +44,13 @@ import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import type { WorkloadIdentityCredentialOwner } from '@/lib/credentials/workload-identity/subject'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -71,6 +82,12 @@ export interface ServiceAccountSecretFields {
   fingerprint?: string
   privateKeyPassphrase?: string
   region?: string
+  /**
+   * Who owns the credential and who is saving it. Only providers whose secret
+   * is bound to its owner read it (an AWS OIDC role subject is bound to the
+   * workspace and the person who prepared it); every other builder ignores it.
+   */
+  owner?: WorkloadIdentityCredentialOwner
 }
 
 export interface ServiceAccountSecretResult {
@@ -229,6 +246,58 @@ async function buildGoogleServiceAccountSecret(
       googleProjectId: projectId,
       ...serviceAccountPrincipalMetadata(principal),
     },
+    principal,
+  }
+}
+
+async function buildAwsServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('AWS credential configuration is required')
+  if (!fields.owner) throw new ServiceAccountSecretError('AWS credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptAwsCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    if (error instanceof AwsCredentialError) throw new ServiceAccountSecretError(error.message)
+    throw new ServiceAccountSecretError(
+      `Could not verify the AWS credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.callerArn }
+  return {
+    providerId: AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.callerArn,
+    auditMetadata: serviceAccountPrincipalMetadata(principal),
+    principal,
+  }
+}
+
+async function buildDatabricksServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Databricks credential configuration is required')
+  if (!fields.owner) throw new ServiceAccountSecretError('Databricks credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptDatabricksCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    if (error instanceof DatabricksCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw new ServiceAccountSecretError(
+      `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.identity }
+  return {
+    providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.identity,
+    auditMetadata: serviceAccountPrincipalMetadata(principal),
     principal,
   }
 }
@@ -427,6 +496,8 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciApiKeyServiceAccountSecret,
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: buildAwsServiceAccountSecret,
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
 }
 
 /**

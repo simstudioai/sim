@@ -2,6 +2,7 @@ import type {
   CloudFormationDescribeStackEventsParams,
   CloudFormationDescribeStackEventsResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeStackEventsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeStackEventsTool: InternalToolConfig<
   name: 'CloudFormation Describe Stack Events',
   description: 'Get the event history for a CloudFormation stack',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

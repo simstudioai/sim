@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaInvokeParams, LambdaInvokeResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResponse> = {
@@ -8,6 +9,7 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
   description:
     'Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

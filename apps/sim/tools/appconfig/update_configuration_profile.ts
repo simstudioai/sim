@@ -2,6 +2,7 @@ import type {
   AppConfigUpdateConfigurationProfileParams,
   AppConfigUpdateConfigurationProfileResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateConfigurationProfileTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const updateConfigurationProfileTool: InternalToolConfig<
   description:
     'Update the name, description, or retrieval role of an AppConfig configuration profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

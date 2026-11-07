@@ -4,12 +4,15 @@ import type {
 } from '@/tools/databricks/types'
 import { GENIE_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   genieAgentPath,
   mapGenieMessage,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +25,7 @@ export const genieAgentCancelTool: ToolConfig<
   description:
     'Cancel an in-flight Genie agent response using the response ID returned by the agent stream.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...GENIE_SPACE_PARAMS,
     conversationId: {
@@ -40,12 +44,12 @@ export const genieAgentCancelTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        params.host,
+        databricksHost(params),
         `${genieAgentPath(params.spaceId)}/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/responses/${safeUrlPathSegment(params.responseId, 'responseId')}/cancel`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: () => ({}),

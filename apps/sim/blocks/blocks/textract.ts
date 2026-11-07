@@ -6,7 +6,12 @@ import {
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  AWS_CREDENTIAL_SUBBLOCKS,
+  hasSavedCredential,
+  normalizeFileInput,
+  withoutSavedCredential,
+} from '@/blocks/utils'
 
 const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
@@ -95,12 +100,14 @@ export const TextractBlock: BlockConfig = {
       placeholder: 'e.g., us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input' as SubBlockType,
       placeholder: 'Enter your AWS Access Key ID',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -109,6 +116,7 @@ export const TextractBlock: BlockConfig = {
       type: 'short-input' as SubBlockType,
       placeholder: 'Enter your AWS Secret Access Key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -137,11 +145,13 @@ export const TextractBlock: BlockConfig = {
     config: {
       tool: () => 'textract_parser',
       params: (params) => {
-        if (!params.accessKeyId || params.accessKeyId.trim() === '') {
-          throw new Error('AWS Access Key ID is required')
-        }
-        if (!params.secretAccessKey || params.secretAccessKey.trim() === '') {
-          throw new Error('AWS Secret Access Key is required')
+        if (!hasSavedCredential(params)) {
+          if (!params.accessKeyId || params.accessKeyId.trim() === '') {
+            throw new Error('AWS Access Key ID is required')
+          }
+          if (!params.secretAccessKey || params.secretAccessKey.trim() === '') {
+            throw new Error('AWS Secret Access Key is required')
+          }
         }
         if (!params.region || params.region.trim() === '') {
           throw new Error('AWS Region is required')
@@ -196,6 +206,10 @@ export const TextractBlock: BlockConfig = {
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },
     analyzeLayout: { type: 'boolean', description: 'Analyze document layout' },
     region: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS Access Key ID' },
     secretAccessKey: { type: 'string', description: 'AWS Secret Access Key' },
   },
@@ -245,8 +259,11 @@ function requireAwsCredentials(params: Record<string, unknown>) {
     typeof params.secretAccessKey === 'string' ? params.secretAccessKey.trim() : ''
   const region = typeof params.region === 'string' ? params.region.trim() : ''
 
-  if (!accessKeyId) throw new Error('AWS Access Key ID is required')
-  if (!secretAccessKey) throw new Error('AWS Secret Access Key is required')
+  // A saved AWS credential supplies the keys server-side instead.
+  if (!hasSavedCredential(params)) {
+    if (!accessKeyId) throw new Error('AWS Access Key ID is required')
+    if (!secretAccessKey) throw new Error('AWS Secret Access Key is required')
+  }
   if (!region) throw new Error('AWS Region is required')
 
   return { accessKeyId, secretAccessKey, region }
@@ -368,12 +385,14 @@ export const TextractV2Block: BlockConfig = {
       placeholder: 'e.g., us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input' as SubBlockType,
       placeholder: 'Enter your AWS Access Key ID',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -382,6 +401,7 @@ export const TextractV2Block: BlockConfig = {
       type: 'short-input' as SubBlockType,
       placeholder: 'Enter your AWS Secret Access Key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -491,6 +511,10 @@ export const TextractV2Block: BlockConfig = {
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },
     analyzeLayout: { type: 'boolean', description: 'Analyze document layout' },
     region: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS Access Key ID' },
     secretAccessKey: { type: 'string', description: 'AWS Secret Access Key' },
   },

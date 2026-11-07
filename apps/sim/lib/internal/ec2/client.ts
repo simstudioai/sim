@@ -1,4 +1,5 @@
 import { EC2Client, type Tag } from '@aws-sdk/client-ec2'
+import { awsClientCredentials } from '@/lib/internal/aws/credentials'
 
 interface Ec2ConnectionConfig {
   region: string
@@ -13,10 +14,7 @@ export function createEc2Client(
   return new EC2Client({
     region: config.region,
     ...(options?.maxAttempts !== undefined && { maxAttempts: options.maxAttempts }),
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
   })
 }
 

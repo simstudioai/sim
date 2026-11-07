@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSGetCallerIdentityParams, STSGetCallerIdentityResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getCallerIdentityTool: InternalToolConfig<
   name: 'STS Get Caller Identity',
   description: 'Get details about the IAM user or role whose credentials are used to call the API',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

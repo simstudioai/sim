@@ -1,6 +1,7 @@
 import type { DatabricksGetJobParams, DatabricksGetJobResponse } from '@/tools/databricks/types'
 import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResponse> = {
@@ -8,6 +9,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
   name: 'Databricks Get Job',
   description: 'Get the full definition and settings of a single Databricks job by its job ID.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     includeTriggerState: {
@@ -44,7 +46,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(params.host, '/api/2.2/jobs/get'))
+      const url = new URL(databricksUrl(databricksHost(params), '/api/2.2/jobs/get'))
       url.searchParams.set('job_id', String(params.jobId))
       if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       if (params.includeTriggerState != null)
@@ -54,7 +56,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
   },
 

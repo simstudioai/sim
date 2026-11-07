@@ -1,4 +1,5 @@
 import type { DynamoDBDeleteParams, DynamoDBDeleteResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse> = {
@@ -6,6 +7,7 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
   name: 'DynamoDB Delete',
   description: 'Delete an item from a DynamoDB table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

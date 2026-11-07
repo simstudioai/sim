@@ -1,4 +1,5 @@
 import type { IAMGetUserParams, IAMGetUserResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getUserTool: InternalToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
@@ -6,6 +7,7 @@ export const getUserTool: InternalToolConfig<IAMGetUserParams, IAMGetUserRespons
   name: 'IAM Get User',
   description: 'Get detailed information about an IAM user',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

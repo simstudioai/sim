@@ -1,4 +1,5 @@
 import type { RdsUpdateParams, RdsUpdateResponse } from '@/tools/rds/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<RdsUpdateParams, RdsUpdateResponse> 
   name: 'RDS Update',
   description: 'Update data in an Amazon RDS table using the Data API',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

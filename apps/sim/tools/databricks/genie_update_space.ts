@@ -6,11 +6,14 @@ import type {
 import { GENIE_SPACE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   mapGenieSpace,
   optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +25,7 @@ export const genieUpdateSpaceTool: ToolConfig<
   name: 'Databricks Update Genie Space',
   description: 'Update a Genie space, optionally protecting the change with its current ETag.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     spaceId: {
@@ -75,12 +79,12 @@ export const genieUpdateSpaceTool: ToolConfig<
     },
     url: (params) =>
       databricksUrl(
-        params.host,
+        databricksHost(params),
         `/api/2.0/genie/spaces/${safeUrlPathSegment(params.spaceId, 'spaceId')}`
       ),
     method: 'PATCH',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

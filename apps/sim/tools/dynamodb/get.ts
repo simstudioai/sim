@@ -1,4 +1,5 @@
 import type { DynamoDBGetParams, DynamoDBGetResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
@@ -6,6 +7,7 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
   name: 'DynamoDB Get',
   description: 'Get an item from a DynamoDB table by primary key',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

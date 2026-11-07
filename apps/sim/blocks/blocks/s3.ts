@@ -1,7 +1,12 @@
 import { S3Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  AWS_CREDENTIAL_SUBBLOCKS,
+  hasSavedCredential,
+  normalizeFileInput,
+  withoutSavedCredential,
+} from '@/blocks/utils'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -116,12 +121,14 @@ export const S3Block: BlockConfig = {
       value: () => 'get_object',
     },
     // AWS Credentials
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'Access Key ID',
       type: 'short-input',
       placeholder: 'Enter your AWS Access Key ID',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -130,6 +137,7 @@ export const S3Block: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter your AWS Secret Access Key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -474,12 +482,14 @@ export const S3Block: BlockConfig = {
         }
       },
       params: (params) => {
-        // Validate required fields (common to all operations)
-        if (!params.accessKeyId) {
-          throw new Error('Access Key ID is required')
-        }
-        if (!params.secretAccessKey) {
-          throw new Error('Secret Access Key is required')
+        // Inline keys are required unless a saved AWS credential supplies them.
+        if (!hasSavedCredential(params)) {
+          if (!params.accessKeyId) {
+            throw new Error('Access Key ID is required')
+          }
+          if (!params.secretAccessKey) {
+            throw new Error('Secret Access Key is required')
+          }
         }
 
         // Default to get_object for backward compatibility with existing workflows
@@ -704,6 +714,10 @@ export const S3Block: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     region: { type: 'string', description: 'AWS region' },

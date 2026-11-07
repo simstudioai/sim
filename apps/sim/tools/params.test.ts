@@ -1123,3 +1123,47 @@ describe('getSubBlocksForToolInput synthesis', () => {
     expect(getSubBlocksForToolInput('non_existent_tool', 'test_block')).toBeNull()
   })
 })
+
+describe('hybrid saved-credential tools', () => {
+  const hybridTool = {
+    id: 'dynamodb_get',
+    name: 'DynamoDB Get',
+    description: 'Get an item',
+    version: '1.0.0',
+    oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
+    params: {
+      accessKeyId: { type: 'string', required: true, visibility: 'user-only' },
+      secretAccessKey: { type: 'string', required: true, visibility: 'user-only' },
+      tableName: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
+    operation: { input: (params: Record<string, unknown>) => params },
+  } as never
+
+  it('never lets a model pick the saved credential or the values derived from it', async () => {
+    const { modelBlockedParams } = await createLLMToolSchema(hybridTool, {})
+
+    expect(modelBlockedParams).toEqual(
+      expect.arrayContaining([
+        'credential',
+        'credentialId',
+        'oauthCredential',
+        'manualCredential',
+        'accessToken',
+        'sessionToken',
+        'domain',
+      ])
+    )
+  })
+
+  it('leaves a required-OAuth tool’s model-blocked params exactly as declared', async () => {
+    const oauthTool = {
+      ...(hybridTool as object),
+      id: 'fixture_oauth',
+      oauth: { required: true, provider: 'slack' },
+    } as never
+
+    const { modelBlockedParams } = await createLLMToolSchema(oauthTool, {})
+
+    expect(modelBlockedParams).toEqual(['accessKeyId', 'secretAccessKey'])
+  })
+})

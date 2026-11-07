@@ -1,6 +1,7 @@
 import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -15,6 +16,7 @@ const LOG_STREAM_FIELD = ['logStreamNameSelector', 'logStreamNameInput'] as cons
 export const CloudWatchBlock: BlockConfig = {
   type: 'cloudwatch',
   name: 'CloudWatch',
+  authMode: AuthMode.ApiKey,
   description: 'Query and monitor AWS CloudWatch logs, metrics, and alarms',
   longDescription:
     'Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
@@ -117,12 +119,14 @@ export const CloudWatchBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -131,6 +135,7 @@ export const CloudWatchBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -1045,6 +1050,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'CloudWatch operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     logGroupNames: { type: 'string', description: 'Log group name(s) for query' },

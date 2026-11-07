@@ -1994,6 +1994,8 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
+    /** A saved AWS credential this executor authorized; set only by credential resolution below. */
+    let authorizedAwsCredentialId: string | undefined
     if (contextParams.credential) {
       logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
@@ -2090,6 +2092,10 @@ async function executeToolImplementation(
               data.idToken,
             ])
           }
+          authorizedAwsCredentialId =
+            credentialTool.oauth?.provider === 'aws' && data.credentialType === 'service_account'
+              ? data.accessToken
+              : undefined
           for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
             contextParams[paramId] = undefined
           }
@@ -2170,6 +2176,26 @@ async function executeToolImplementation(
         }
         throw error
       }
+    }
+
+    if (authorizedAwsCredentialId && !tool.operation) {
+      // AWS tools that sign their own HTTP request need the session keys themselves.
+      if (typeof window !== 'undefined') {
+        throw new Error('Saved AWS credentials can only be used on the server')
+      }
+      const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
+      const session = await resolveAuthorizedAwsCredential(
+        authorizedAwsCredentialId,
+        {
+          workspaceId: operationContext?.workspaceId ?? scope.workspaceId,
+          organizationId: operationContext?.organizationId,
+          executionId: scope.executionId,
+        },
+        effectiveSignal
+      )
+      contextParams.accessKeyId = session.accessKeyId
+      contextParams.secretAccessKey = session.secretAccessKey
+      contextParams.sessionToken = session.sessionToken
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
@@ -2286,6 +2312,7 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
+        authorizedAwsCredentialId,
       })
 
       let finalResult = result
@@ -2709,6 +2736,8 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
+  /** Saved AWS credential the executor authorized for this call (never from tool params). */
+  authorizedAwsCredentialId?: string
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2757,6 +2786,7 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
+  authorizedAwsCredentialId,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2894,7 +2924,7 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context,
+        context: authorizedAwsCredentialId ? { ...context, authorizedAwsCredentialId } : context,
         requestId,
         signal: operationController.signal,
       })
@@ -2913,6 +2943,7 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
+          authorizedAwsCredentialId,
         })
       }
       response = await presentInternalToolOperationResult(

@@ -3,11 +3,14 @@ import type {
   DatabricksGenieSuccessResponse,
 } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   genieMessagePath,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieSendFeedbackTool: ToolConfig<
@@ -19,6 +22,7 @@ export const genieSendFeedbackTool: ToolConfig<
   description:
     "Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_MESSAGE_PARAMS,
@@ -37,12 +41,12 @@ export const genieSendFeedbackTool: ToolConfig<
   },
 
   request: {
-    url: (params) => databricksUrl(params.host, `${genieMessagePath(params)}/feedback`),
+    url: (params) => databricksUrl(databricksHost(params), `${genieMessagePath(params)}/feedback`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: (params) => ({
       rating: params.rating,

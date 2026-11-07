@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaUpdateAliasParams, LambdaUpdateAliasResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateAliasTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const updateAliasTool: InternalToolConfig<
   name: 'Lambda Update Alias',
   description: 'Update the target version, description, or traffic weights of an alias',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

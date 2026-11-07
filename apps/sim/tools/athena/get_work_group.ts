@@ -1,4 +1,5 @@
 import type { AthenaGetWorkGroupParams, AthenaGetWorkGroupResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getWorkGroupTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const getWorkGroupTool: InternalToolConfig<
   description:
     'Get the configuration of an Athena workgroup, including its result location, encryption, and limits',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

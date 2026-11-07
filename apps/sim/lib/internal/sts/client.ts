@@ -9,15 +9,13 @@ import {
   STSClient,
   type Tag,
 } from '@aws-sdk/client-sts'
+import { awsClientCredentials } from '@/lib/internal/aws/credentials'
 import type { STSConnectionConfig } from '@/tools/sts/types'
 
 export function createSTSClient(config: STSConnectionConfig): STSClient {
   return new STSClient({
     region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
   })
 }
 
