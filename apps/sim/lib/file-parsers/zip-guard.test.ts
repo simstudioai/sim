@@ -322,4 +322,51 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const plaintext = Buffer.from('this is just plain text, not a zip archive at all')
     expect(() => assertOoxmlArchiveWithinLimits(plaintext)).not.toThrow()
   })
+
+  describe('archives JSZip reads from a different place than the guard inspects', () => {
+    const PER_ENTRY_LIMITS: OoxmlSizeLimits = { ...HIGH_LIMITS, maxEntryUncompressedBytes: 100_000 }
+    const oversizedEntry = () => buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+
+    async function expectJsZipReadsOversizedEntry(buffer: Buffer) {
+      const zip = await JSZip.loadAsync(buffer)
+      expect(await zip.file('word/document.xml')?.async('string')).toHaveLength(200_000)
+    }
+
+    it.each([
+      ['prepended bytes', Buffer.from('JUNKJUNK'), Buffer.alloc(0)],
+      ['prepended and trailing bytes', Buffer.from('JUNKJUNK'), Buffer.from('TRAILER')],
+    ])('rejects an archive with %s that JSZip still opens', async (_, prefix, suffix) => {
+      const wrapped = Buffer.concat([prefix, await oversizedEntry(), suffix])
+      await expectJsZipReadsOversizedEntry(wrapped)
+
+      expect(() => assertOoxmlArchiveWithinLimits(wrapped, PER_ENTRY_LIMITS)).toThrow(
+        ArchiveIntegrityError
+      )
+    })
+
+    it('treats any saturated EOCD field as ZIP64, as JSZip does', async () => {
+      const buffer = await buildZip({ 'word/document.xml': '<xml>hello</xml>' })
+      buffer.writeUInt16LE(0xffff, buffer.length - 22 + 8) // entries on this disk
+      await expect(JSZip.loadAsync(buffer)).rejects.toThrow(/ZIP64/)
+
+      expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).toThrow(
+        ArchiveIntegrityError
+      )
+    })
+
+    it.each([
+      ['an EOCD signature', 0],
+      ['an EOCD signature with a saturated ZIP64 field', 0xffff],
+    ])('still no-ops for a non-ZIP buffer that merely contains %s', async (_, entryCount) => {
+      const eocd = buildCentralDirectoryOnly(0)
+      eocd.writeUInt16LE(entryCount, 10)
+      const buffer = Buffer.concat([
+        Buffer.from('%PDF-1.7 binary body '),
+        eocd,
+        Buffer.from('tail'),
+      ])
+
+      expect(() => assertOoxmlArchiveWithinLimits(buffer)).not.toThrow()
+    })
+  })
 })
