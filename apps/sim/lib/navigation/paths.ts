@@ -59,6 +59,21 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
+interface WorkspaceIntegrationContext {
+  hostOrganizationId: string | null
+  features?: { organizationSearch?: boolean }
+}
+
+/** Organization members use the center; standalone workspaces retain their credential routes. */
+export function workspaceIntegrationsPath(
+  workspaceId: string,
+  context: WorkspaceIntegrationContext | null
+) {
+  return context?.features?.organizationSearch && context.hostOrganizationId
+    ? organizationRoutes(context.hostOrganizationId).integrations
+    : `/workspace/${workspaceId}/integrations`
+}
+
 /** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
 export function simLinkPath(...segments: string[]): string {
   return ['/sim', ...segments.map(encodeURIComponent)].join('/')

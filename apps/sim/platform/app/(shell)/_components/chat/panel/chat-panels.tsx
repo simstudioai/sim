@@ -12,6 +12,7 @@ import { useRecentHistory } from '@/platform/app/(shell)/_components/session/int
 import { IconButton } from '@/platform/design-system/components/button/button'
 import type { TabItem } from '@/platform/design-system/components/tabs/tabs'
 import { platformHref } from '@/platform/design-system/navigation'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 export type PanelDestination = 'start' | 'workspaces' | 'terminal' | 'file' | 'website'
 interface PanelTab {
@@ -94,11 +95,11 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
   function visit(view: PanelDestination, resource?: PanelRecent) {
     setItems((list) => list.map((tab) => (tab.id === current ? { ...tab, view, resource } : tab)))
   }
-  function home() {
-    router.push(platformHref('/home', search))
+  function openWorkspace(id: string) {
+    router.push(platformHref(workspaceEntry(id), search))
   }
   function recent(item: PanelRecent) {
-    if (item.destination === 'workspace') home()
+    if (item.destination === 'workspace') openWorkspace(item.id)
     else visit(item.destination, item)
   }
   const tabViews = items.map((tab) => {
@@ -114,7 +115,7 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
           data={data}
           recents={recents}
           workspaces={workspaces}
-          onHome={home}
+          onWorkspace={openWorkspace}
           onVisit={visit}
           onRecent={recent}
           onRemove={removeRecent}

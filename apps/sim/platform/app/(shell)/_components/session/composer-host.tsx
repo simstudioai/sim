@@ -7,19 +7,20 @@ import type {
   ChatAttachment,
   ComposerController,
   ComposerDraft,
-  ComposerReferences,
+  ComposerInventory,
 } from '@/platform/app/(shell)/_components/composer/model'
 import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
+import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerDraft } from '@/platform/app/(shell)/_components/session/composer-drafts'
+import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { platformHref } from '@/platform/design-system/navigation'
 
-export interface ComposerOptions {
+export interface ComposerOptions extends Partial<ComposerInventory> {
   draftKey: string
-  /** Agent, assistant or plan; a fixture session ignores it. */
+  /** Assistant mode accepts images instead of workspace references. */
   requestMode?: 'agent' | 'assistant' | 'plan'
   chatId?: string
-  references?: ComposerReferences
   initialAttachments?: ChatAttachment[]
 }
 
@@ -33,6 +34,7 @@ export interface ComposerHost {
   useStartChat: () => (draft: ComposerDraft) => undefined | false
   /** Opens Search with a query, where Home's Search segment leads; null when the viewer can't. */
   useStartSearch: () => ((query: string) => void) | null
+  useAppendHomePrompt: () => ((prompt: string) => void) | null
 }
 
 function attachmentFor(file: File): ChatAttachment {
@@ -50,8 +52,12 @@ function attachmentFor(file: File): ChatAttachment {
 function useMemoryComposer({
   draftKey,
   references = [],
+  skills,
+  tools,
+  requestMode,
   initialAttachments = [],
 }: ComposerOptions): ComposerController {
+  const desktop = useDesktopHost()
   const [draft, updateDraft] = useComposerDraft(draftKey, {
     text: '',
     attachments: initialAttachments,
@@ -59,7 +65,25 @@ function useMemoryComposer({
   return {
     draft,
     references,
-    setText: (text) => updateDraft((current) => ({ ...current, text })),
+    skills,
+    tools: desktop ? tools : undefined,
+    referencesDisabled: requestMode === 'assistant',
+    setText: (text, changes) =>
+      updateDraft((current) => {
+        if (!changes?.add?.length && !changes?.remove?.length) return { ...current, text }
+        const removed = new Set(changes.remove)
+        const added: ChatAttachment[] = (changes.add ?? []).map((item) => ({
+          id: generateId(),
+          referenceId: item.id,
+          kind: 'reference',
+          name: item.name,
+          metadata: item.group,
+        }))
+        return {
+          text,
+          attachments: [...current.attachments.filter((item) => !removed.has(item.id)), ...added],
+        }
+      }),
     addFiles: (files) => {
       const added = files.map(attachmentFor)
       updateDraft((current) => ({ ...current, attachments: [...current.attachments, ...added] }))
@@ -79,23 +103,7 @@ function useMemoryComposer({
         ...current,
         attachments: current.attachments.filter((file) => file.id !== id),
       })),
-    addReference: (group, item) => {
-      const reference: ChatAttachment = {
-        id: generateId(),
-        kind: 'reference',
-        name: item.name,
-        metadata: group,
-      }
-      updateDraft((current) => ({
-        text: current.text === '/' ? '' : current.text,
-        attachments: [...current.attachments, reference],
-      }))
-    },
     clear: () => updateDraft(() => ({ text: '', attachments: [] })),
-    tools: [
-      { id: 'browser', label: 'Browser' },
-      { id: 'terminal', label: 'Terminal' },
-    ],
   }
 }
 
@@ -109,13 +117,33 @@ function useMemoryStartChat() {
   }
 }
 
+function useMemoryAppendHomePrompt() {
+  const [, updateDraft] = useComposerDraft('home', { text: '', attachments: [] })
+  return (prompt: string) =>
+    updateDraft((draft) => ({
+      ...draft,
+      text: draft.text ? `${draft.text}\n\n${prompt}` : prompt,
+    }))
+}
+
 const MEMORY_HOST: ComposerHost = {
   useComposer: useMemoryComposer,
   useStartChat: useMemoryStartChat,
   useStartSearch: () => null,
+  useAppendHomePrompt: useMemoryAppendHomePrompt,
 }
 
-const HostContext = createContext<ComposerHost>(MEMORY_HOST)
+const HostContext = createContext<ComposerHost | null>(null)
+
+interface ComposerSessionProps {
+  children: ReactNode
+}
+
+/** Product sessions inherit their live host or own an in-memory fixture composer. */
+export function ComposerSession({ children }: ComposerSessionProps) {
+  const host = useContext(HostContext) ?? MEMORY_HOST
+  return <HostContext.Provider value={host}>{children}</HostContext.Provider>
+}
 
 export function ComposerHostProvider({
   host,
@@ -128,5 +156,24 @@ export function ComposerHostProvider({
 }
 
 export function useComposerHost(): ComposerHost {
-  return useContext(HostContext)
+  return useContext(HostContext) ?? MEMORY_HOST
+}
+
+function useUnavailableHomePrompt() {
+  return null
+}
+
+/** Prepare an editable Home draft without sending it or replacing existing work. */
+export function useHomePrompt() {
+  const useAppendPrompt = useContext(HostContext)?.useAppendHomePrompt ?? useUnavailableHomePrompt
+  const append = useAppendPrompt()
+  const preferences = useInterfacePreferences()
+  const router = useRouter()
+  const search = useSearchParams()
+  if (!append) return null
+  return (prompt: string) => {
+    append(prompt)
+    preferences?.setHomeMode('Build')
+    router.push(platformHref('/home', search))
+  }
 }

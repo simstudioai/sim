@@ -46,7 +46,7 @@ export function HelpMenu() {
     {
       id: 'documentation',
       label: 'Documentation',
-      icon: 'I079',
+      icon: 'I082',
       trailingIcon: 'I030',
       onSelect: help.openDocumentation,
     },

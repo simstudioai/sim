@@ -1,0 +1,19 @@
+.usage {
+  display: block;
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  vertical-align: middle;
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+.person > [aria-hidden] {
+  display: inline-flex;
+}
+.remaining {
+  white-space: nowrap;
+}

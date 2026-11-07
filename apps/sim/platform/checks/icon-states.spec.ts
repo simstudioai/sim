@@ -1,5 +1,7 @@
 import { expect, type Locator, test } from '@playwright/test'
 
+const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+
 function paint(control: Locator) {
   return control.evaluate((element) => {
     const mark = element.querySelector<SVGGraphicsElement>(
@@ -27,12 +29,12 @@ test('quiet actions and menu rows preserve optical weight and distinguish their 
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   for (const theme of ['light', 'dark']) {
-    await page.goto(`http://127.0.0.1:3181/home?state=full&theme=${theme}`)
-    const add = page.getByRole('button', { name: 'Add workspace' })
+    await page.goto(`${origin}/home?state=full&theme=${theme}`)
+    const sort = page.getByRole('button', { name: 'Sort workspaces' })
     await page.mouse.move(0, 0)
-    const quiet = await paint(add)
-    await add.hover()
-    const hovered = await paint(add)
+    const quiet = await paint(sort)
+    await sort.hover()
+    const hovered = await paint(sort)
     expect(hovered.surface).not.toBe(quiet.surface)
     expect(hovered.stroke).toBe(quiet.stroke)
     await page.getByRole('button', { name: 'Help', exact: true }).click()

@@ -48,6 +48,7 @@ function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegr
     icon: entry.icon,
     name: entry.name,
     description: metadata?.description ?? `Connect your ${entry.name} account to use it here`,
+    category: metadata?.category ?? 'Other',
     ...integrationGuide(entry.provider, metadata),
     searchReads: metadata?.searchReads ?? [],
     requestedScopes: metadata?.requestedScopes ?? null,

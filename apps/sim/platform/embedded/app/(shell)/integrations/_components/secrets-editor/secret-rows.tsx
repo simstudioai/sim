@@ -13,7 +13,7 @@ interface NameInputProps {
   label: string
   name: string
   value: string
-  placeholder?: string
+  placeholder: string
   invalid?: boolean
   onChange: (value: string) => void
   onBlur?: () => void
@@ -54,7 +54,7 @@ interface SecretValueInputProps {
   label: string
   name: string
   value: string
-  placeholder?: string
+  placeholder: string
   onChange: (value: string) => void
   onPaste?: (event: ClipboardEvent<HTMLInputElement>) => void
 }
@@ -149,6 +149,7 @@ export function SavedRow({
       <NameInput
         label={`${envKey} name`}
         name={`workspace_env_key_${envKey}_${autofillSalt}`}
+        placeholder='API_KEY'
         value={renamingKey === envKey ? pendingKeyValue : envKey}
         onChange={(next) => {
           if (renamingKey !== envKey) onRenameStart(envKey)
@@ -159,6 +160,7 @@ export function SavedRow({
       <SecretValueInput
         label={`${envKey} value`}
         name={`workspace_env_value_${envKey}_${autofillSalt}`}
+        placeholder='Enter value'
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
       />

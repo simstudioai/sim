@@ -1,11 +1,12 @@
-import { type ReactNode, useId } from 'react'
-import styles from '@/platform/design-system/components/field/field.module.css'
+import { type ComponentProps, type ReactNode, useId } from 'react'
+import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import {
   Input,
   TextArea,
   type TextEntryProps,
   type TextValueProps,
 } from '@/platform/design-system/components/field/inputs'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { Select } from '@/platform/design-system/components/picker/select'
 
 interface FieldProps {
@@ -21,6 +22,7 @@ interface FieldProps {
 interface FieldFrameProps {
   id?: string
   label: string
+  count?: number
   optional?: boolean
   error?: string
   hint?: string
@@ -38,6 +40,7 @@ export function fieldDescription(id: string, error?: string, hint?: string) {
 export function FieldFrame({
   id,
   label,
+  count,
   optional,
   error,
   hint,
@@ -46,7 +49,7 @@ export function FieldFrame({
 }: FieldFrameProps) {
   const caption = (
     <>
-      {label}
+      {count === undefined ? label : <CountedLabel label={label} count={count} />}
       {optional && (
         <span className={styles.optional} data-type='T060'>
           {' '}
@@ -84,7 +87,7 @@ export function FieldFrame({
 interface TextFieldProps extends FieldProps, TextValueProps, TextEntryProps {
   required?: boolean
   pattern?: string
-  placeholder?: string
+  placeholder: string
 }
 
 export function TextField({
@@ -105,6 +108,7 @@ export function TextField({
   autoComplete,
   maxLength,
   readOnly,
+  viewOnly,
 }: TextFieldProps) {
   const id = useId()
   return (
@@ -116,6 +120,7 @@ export function TextField({
         autoComplete={autoComplete}
         maxLength={maxLength}
         readOnly={readOnly}
+        viewOnly={viewOnly}
         required={required}
         pattern={pattern}
         label={label}
@@ -133,10 +138,14 @@ export function TextField({
 }
 
 interface TextAreaFieldProps extends FieldProps, TextValueProps {
-  placeholder?: string
+  placeholder: string
+  autoComplete?: string
+  spellCheck?: boolean
   required?: boolean
   maxLength?: number
   readOnly?: boolean
+  viewOnly?: boolean
+  defaultSize?: ComponentProps<typeof TextArea>['defaultSize']
 }
 
 export function TextAreaField({
@@ -153,6 +162,10 @@ export function TextAreaField({
   required,
   maxLength,
   readOnly,
+  viewOnly,
+  defaultSize,
+  autoComplete,
+  spellCheck,
 }: TextAreaFieldProps) {
   const id = useId()
   return (
@@ -162,6 +175,10 @@ export function TextAreaField({
         required={required}
         maxLength={maxLength}
         readOnly={readOnly}
+        viewOnly={viewOnly}
+        defaultSize={defaultSize}
+        autoComplete={autoComplete}
+        spellCheck={spellCheck}
         label={label}
         name={name}
         defaultValue={defaultValue}

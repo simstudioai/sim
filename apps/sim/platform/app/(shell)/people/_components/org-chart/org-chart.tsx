@@ -16,6 +16,7 @@ import {
   FailureNotice,
   Icon,
   IconButton,
+  PageColumn,
   SearchableSelect,
   SearchCombobox,
 } from '@/platform/design-system/components'
@@ -164,78 +165,82 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
 
   if (noLines && firstUse)
     return (
-      <section className={styles.firstUse} aria-label='Org chart'>
-        <ReportingLinesGraphic />
-        <div className={styles.firstUseHeading}>
-          <h2 data-type='T076'>Bring your organization into view</h2>
-          <p className={styles.firstUseCopy} data-type='T043'>
-            Connect your identity provider to keep people and reporting lines current, including
-            people who haven’t joined Sim.
+      <PageColumn>
+        <section className={styles.firstUse} aria-label='Org chart'>
+          <ReportingLinesGraphic />
+          <div className={styles.firstUseHeading}>
+            <h2 data-type='T076'>Bring your organization into view</h2>
+            <p className={styles.firstUseCopy} data-type='T043'>
+              Connect your identity provider to keep people and reporting lines current, including
+              people who haven’t joined Sim.
+            </p>
+          </div>
+          <DirectorySources canProvision={canProvision} onConnect={onConnect} />
+          <ImportPrompt onImport={onImport} />
+          <p className={styles.secondary} data-type='T050'>
+            You can also edit an existing member’s profile to add their manager.
           </p>
-        </div>
-        <DirectorySources canProvision={canProvision} onConnect={onConnect} />
-        <ImportPrompt onImport={onImport} />
-        <p className={styles.secondary} data-type='T050'>
-          You can also edit an existing member’s profile to add their manager.
-        </p>
-      </section>
+        </section>
+      </PageColumn>
     )
 
   return (
     <section className={styles.chart} aria-label='Org chart'>
-      <div className={styles.toolbar}>
-        <div className={styles.search}>
-          <FindPerson organizationId={organizationId} onSelect={focusPerson} />
+      <PageColumn>
+        <div className={styles.toolbar}>
+          <div className={styles.search}>
+            <FindPerson organizationId={organizationId} onSelect={focusPerson} />
+          </div>
+          {branch && !noLines && (
+            <nav aria-label='Reporting path' className={styles.pathNav}>
+              <div ref={pathEdges} className={styles.path}>
+                <BrowseTeams
+                  organizationId={organizationId}
+                  organizationName={organizationName}
+                  onSelect={focusPerson}
+                />
+                {branch.chain
+                  .slice()
+                  .reverse()
+                  .map((manager) => (
+                    <Fragment key={manager.memberId}>
+                      <Icon name='I032' />
+                      <button
+                        type='button'
+                        className={styles.crumb}
+                        data-type='T043'
+                        onClick={(event) => focusPerson(manager.memberId, event)}
+                      >
+                        {manager.name}
+                      </button>
+                    </Fragment>
+                  ))}
+                <Icon name='I032' />
+                <h2
+                  ref={setCurrentPerson}
+                  className={styles.current}
+                  tabIndex={-1}
+                  aria-current='page'
+                  data-type='T043'
+                >
+                  {branch.person.name}
+                </h2>
+              </div>
+            </nav>
+          )}
+          <div className={styles.position}>
+            <Button
+              icon='I133'
+              disabled={!focus && page === 1}
+              onClick={(event) => focusPerson('', event)}
+            >
+              My position
+            </Button>
+          </div>
         </div>
-        {branch && !noLines && (
-          <nav aria-label='Reporting path' className={styles.pathNav}>
-            <div ref={pathEdges} className={styles.path}>
-              <BrowseTeams
-                organizationId={organizationId}
-                organizationName={organizationName}
-                onSelect={focusPerson}
-              />
-              {branch.chain
-                .slice()
-                .reverse()
-                .map((manager) => (
-                  <Fragment key={manager.memberId}>
-                    <Icon name='I032' />
-                    <button
-                      type='button'
-                      className={styles.crumb}
-                      data-type='T043'
-                      onClick={(event) => focusPerson(manager.memberId, event)}
-                    >
-                      {manager.name}
-                    </button>
-                  </Fragment>
-                ))}
-              <Icon name='I032' />
-              <h2
-                ref={setCurrentPerson}
-                className={styles.current}
-                tabIndex={-1}
-                aria-current='page'
-                data-type='T043'
-              >
-                {branch.person.name}
-              </h2>
-            </div>
-          </nav>
-        )}
-        <div className={styles.position}>
-          <Button
-            icon='I133'
-            disabled={!focus && page === 1}
-            onClick={(event) => focusPerson('', event)}
-          >
-            My position
-          </Button>
-        </div>
-      </div>
+      </PageColumn>
       {noLines ? (
-        <div className={styles.inset}>
+        <PageColumn>
           <ChartEmptyState
             organizationId={organizationId}
             person={branch.person}
@@ -245,7 +250,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
             currentPersonRef={setCurrentPerson}
             onSync={onSync}
           />
-        </div>
+        </PageColumn>
       ) : branch ? (
         <ChartCanvas
           key={`${branch.person.memberId}/${branch.page}/${size}`}
@@ -283,7 +288,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
           }
         />
       ) : chart.error ? (
-        <div className={styles.inset}>
+        <PageColumn>
           {isRefusal(chart.error) ? (
             <ProfileUnavailable
               action={
@@ -301,7 +306,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
               onRetry={chart.retry}
             />
           )}
-        </div>
+        </PageColumn>
       ) : (
         <PeopleStatus>Loading org chart…</PeopleStatus>
       )}

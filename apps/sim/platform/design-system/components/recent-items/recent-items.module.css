@@ -2,7 +2,7 @@
   display: grid;
   min-inline-size: 0;
   max-inline-size: 100%;
-  gap: var(--ui-row-gap);
+  gap: var(--ui-heading-gap);
   inline-size: 100%;
 }
 .heading {

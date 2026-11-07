@@ -1,26 +1,28 @@
 'use client'
 
-import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/platform/app/(shell)/_components/command-menu/command-menu'
 import {
   useDesktopCommands,
   useDesktopHost,
 } from '@/platform/app/(shell)/_components/desktop/desktop-host'
-import type { ShellChat, ShellData } from '@/platform/app/(shell)/_components/model'
+import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import { NotificationTray } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import styles from '@/platform/app/(shell)/_components/platform-shell/platform-shell.module.css'
 import { WindowHistoryButtons } from '@/platform/app/(shell)/_components/platform-shell/window-history'
-import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
-import { useSessionShellActions } from '@/platform/app/(shell)/_components/session/shell-actions'
+import { useSessionShell } from '@/platform/app/(shell)/_components/session/shell-actions'
+import { orderSidebarItems } from '@/platform/app/(shell)/_components/sidebar/collection-order'
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
+import { workspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/destinations'
 import { IconButton, OverflowText, ScrollArea, Tooltip } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { isAbsoluteHref, platformHref } from '@/platform/design-system/navigation'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
+import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return (
@@ -38,19 +40,20 @@ interface PlatformShellProps {
 }
 
 export function PlatformShell({ data, banner, children }: PlatformShellProps) {
-  const scrollEdges = useScrollEdges<HTMLDivElement>()
+  const content = useRef<HTMLDivElement>(null)
+  const scrollEdges = useScrollEdges<HTMLDivElement>('vertical', { viewport: content })
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
-  const { collapsed, setCollapsed, order } = useSidebarLayout()
+  const { collapsed, setCollapsed, chatOrder, workspaceOrder } = useSidebarLayout()
   const [drawer, setDrawer] = useState(false)
   const [command, setCommand] = useState(false)
   const compact = useCompactViewport('navigation')
   const desktop = useDesktopHost()
   const drawerRef = useRef<HTMLDialogElement>(null)
-  const chat = useChatChanges()
-  const sessionActions = useSessionShellActions()
-  const actions = useLiveShellActions() ?? sessionActions
+  const liveActions = useLiveShellActions()
+  const session = useSessionShell(liveActions ? null : data)
+  const actions = liveActions ?? session.actions
   const settingsEntry = useRef<string | null>(null)
   const settings = pathname.startsWith('/settings')
   const settingsDestinations: readonly { key: string; title: string }[] =
@@ -58,32 +61,57 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const section = settings
     ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'general'))
     : undefined
-  const conversation = pathname.startsWith('/chat')
-  const activeChat = conversation ? pathname.split('/')[2] : undefined
+  const location = workspaceLocation(pathname)
+  const workspaceChat = location?.section === 'chat'
+  const conversation = workspaceChat || pathname.startsWith('/chat')
+  const activeChat = workspaceChat
+    ? location.detail
+    : conversation
+      ? pathname.split('/')[2]
+      : undefined
   const home = pathname === '/home'
   const integrations = pathname === '/integrations' || pathname.startsWith('/integrations/')
-  const scrollingPage = home || integrations
   const people = pathname === '/people' || pathname.startsWith('/people/')
-  const chats = [...chat.created, ...(data?.chats ?? [])]
-    .filter((item) => !chat.isRemoved(item.id))
-    .map((item) => ({ ...item, title: chat.titleFor(item.id, item.title) }))
-  const pinnedFirst = (a: ShellChat, b: ShellChat) => Number(b.isPinned) - Number(a.isPinned)
-  if (order === 'Name (A–Z)')
-    chats.sort((a, b) => pinnedFirst(a, b) || a.title.localeCompare(b.title))
-  if (order === 'Name (Z–A)')
-    chats.sort((a, b) => pinnedFirst(a, b) || b.title.localeCompare(a.title))
+  const workspace = data?.workspaces.find((item) => item.id === location?.id)
+  const navigation = location ? workspaceNavigation(location.id, workspace?.workflows) : null
+  const workspaceItems = navigation && [
+    ...navigation.primary,
+    ...navigation.pages,
+    ...navigation.workflows,
+  ]
+  const directory = location?.section === 'integrations' || location?.section === 'skills'
+  const scrollingPage = home || integrations || directory
+  const chats = orderSidebarItems(
+    liveActions ? (data?.chats ?? []) : session.chats,
+    chatOrder,
+    (item) => item.title,
+    (left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '')
+  )
+  const workspaces = orderSidebarItems(
+    liveActions ? (data?.workspaces ?? []) : session.workspaces,
+    workspaceOrder,
+    (item) => item.name
+  )
+  const organizationChats = chats.filter((chat) => !chat.workspaceId)
+  const workspaceChats = location ? chats.filter((chat) => chat.workspaceId === location.id) : []
   const chatTitle = activeChat && (chats.find((item) => item.id === activeChat)?.title ?? 'Chat')
-  const pageTitle = settings
-    ? section
-      ? `Settings / ${section.title}`
-      : 'Settings'
-    : conversation
-      ? chatTitle || 'New chat'
-      : integrations
-        ? 'Integrations'
-        : pathname === '/people' || pathname.startsWith('/people/')
-          ? 'People'
-          : 'Home'
+  const workspaceTitle = workspaceItems?.find(
+    (item) =>
+      item.value === pathname || (item.id !== 'back' && pathname.startsWith(`${item.value}/`))
+  )?.label
+  const pageTitle =
+    workspaceTitle ??
+    (settings
+      ? section
+        ? `Settings / ${section.title}`
+        : 'Settings'
+      : conversation
+        ? chatTitle || 'New chat'
+        : integrations
+          ? 'Integrations'
+          : pathname === '/people' || pathname.startsWith('/people/')
+            ? 'People'
+            : 'Home')
   const drawerOpen = compact && drawer
 
   useEffect(() => {
@@ -96,6 +124,10 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     if (!settings)
       settingsEntry.current = `${pathname}${search.size ? `?${search}` : ''}${window.location.hash}`
   }, [settings, pathname, search])
+
+  useLayoutEffect(() => {
+    if (pathname.startsWith('/workspace/')) content.current?.scrollTo({ top: 0 })
+  }, [pathname])
 
   const toggleOnShortcut = useEffectEvent(() => toggle())
 
@@ -153,9 +185,10 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   )
   const sidebar = (
     <Sidebar
-      data={data}
+      data={data && { ...data, workspaces }}
       actions={actions}
-      chats={chats}
+      chats={organizationChats}
+      workspaceChats={workspaceChats}
       activeChat={activeChat}
       pathname={pathname}
       settingsSection={settings ? pathname.split('/')[2] || 'general' : undefined}
@@ -201,10 +234,20 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         {webOpener}
         <div
           ref={scrollEdges}
+          role={location ? 'region' : undefined}
+          aria-label={location ? `Workspace ${workspaceTitle ?? 'content'}` : undefined}
           className={styles.content}
-          data-page-opener={(scrollingPage || people) && webOpener ? true : undefined}
+          data-page-opener={
+            (scrollingPage || people || (location && !workspaceChat)) && webOpener
+              ? true
+              : undefined
+          }
         >
-          {scrollingPage ? (
+          {location && !workspaceChat ? (
+            <div className={styles.pageContent} data-workspace-pane={directory ? undefined : true}>
+              {children}
+            </div>
+          ) : scrollingPage ? (
             <ScrollArea
               key={pathname}
               label={home ? 'Home dashboard' : 'Organization integrations'}
@@ -233,9 +276,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
           open={command}
           onClose={() => setCommand(false)}
           navigate={navigate}
-          chats={chats}
-          workspaces={data?.workspaces ?? []}
-          destinations={data?.destinations}
+          chats={location ? workspaceChats : organizationChats}
+          workspaces={location ? [] : workspaces}
+          destinations={workspaceItems ?? data?.destinations}
         />
       </div>
       <NotificationTray history={data?.notifications ?? []} navigate={navigate} />

@@ -21,6 +21,7 @@ import styles from '@/platform/design-system/components/menu/menu.module.css'
 import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
 import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { MenuSearchField } from '@/platform/design-system/components/search-field/menu-search-field'
 
 interface InlineSelection {
   layout?: 'browser' | 'visibility'
@@ -29,12 +30,15 @@ interface InlineSelection {
 }
 const InlineMenu = createContext<InlineSelection | null>(null)
 const BrowserRows = createContext(false)
+const SearchableMenu = createContext(false)
 const FloatingMenu = createContext<RefObject<HTMLDivElement | null> | null>(null)
 
 export type MenuAction = {
   id: string
   label: string
   icon?: IconName
+  headingBefore?: string
+  detail?: string
   separatorBefore?: boolean
 } & (
   | { children: readonly [MenuAction, ...MenuAction[]]; onSelect?: never; trailingIcon?: never }
@@ -68,7 +72,9 @@ interface TriggeredMenuProps {
   onOpenChange?: (open: boolean) => void
   align?: 'start' | 'end'
   heading?: string
+  search?: { label: string; value: string; onValueChange: (value: string) => void }
   triggerSize?: 'small' | 'row' | 'compact'
+  triggerVariant?: 'secondary' | 'quiet'
   tooltip?: boolean
   /** A short visible trigger, such as a count, which `label` then names for assistive technology. */
   triggerText?: string
@@ -87,7 +93,9 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         onOpenChange={props.onOpenChange}
         align={props.align}
         heading={props.heading}
+        search={props.search}
         triggerSize={props.triggerSize}
+        triggerVariant={props.triggerVariant}
         tooltip={props.tooltip}
         triggerText={props.triggerText}
       />
@@ -103,8 +111,13 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
   return actions.map((action) => (
     <Fragment key={action.id}>
       {action.separatorBefore && <Menu.Separator className={styles.separator} />}
+      {action.headingBefore && (
+        <div className={popup.heading} role='presentation' data-type='T052'>
+          {action.headingBefore}
+        </div>
+      )}
       {action.children ? (
-        <SubmenuItem label={action.label} icon={action.icon}>
+        <SubmenuItem label={action.label} icon={action.icon} detail={action.detail}>
           {actionRows(action.children)}
         </SubmenuItem>
       ) : (
@@ -112,6 +125,7 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           label={action.label}
           icon={action.icon}
           trailingIcon={action.trailingIcon}
+          detail={action.detail}
           checked={action.checked}
           disabled={action.disabled}
           destructive={action.destructive}
@@ -136,13 +150,15 @@ function TriggeredMenu({
   onOpenChange,
   align,
   heading,
+  search,
   triggerSize = 'small',
+  triggerVariant = 'quiet',
   tooltip = true,
   triggerText,
 }: TriggeredMenuProps) {
   const { trigger, container, opener } = usePopoverContainer()
-  const disabled = typeof actions !== 'function' && !actions.length
-  return (
+  const disabled = typeof actions !== 'function' && !actions.length && !search
+  const menu = (
     <Menu.Root
       modal={false}
       open={open}
@@ -163,14 +179,19 @@ function TriggeredMenu({
       ) : (
         <Button
           render={<Menu.Trigger ref={trigger} aria-label={triggerText ? label : undefined} />}
-          variant='quiet'
-          size={triggerText ? 'compact' : undefined}
+          variant={triggerVariant}
+          size={triggerText || triggerSize === 'compact' ? 'compact' : 'regular'}
           disabled={disabled}
         >
           {triggerText ?? label}
         </Button>
       )}
-      <ActionMenuPopup label={label} container={container} align={align}>
+      <ActionMenuPopup
+        label={label}
+        container={container}
+        align={align}
+        searchLabel={search?.label}
+      >
         {heading && (
           <div className={popup.heading} data-type='T052'>
             {heading}
@@ -179,6 +200,19 @@ function TriggeredMenu({
         <MenuActionRows actions={actions} />
       </ActionMenuPopup>
     </Menu.Root>
+  )
+  if (!search) return menu
+  return (
+    <SearchableMenu.Provider value>
+      <Menu.FilterProvider
+        filter={null}
+        autoHighlight
+        value={search.value}
+        onValueChange={search.onValueChange}
+      >
+        {menu}
+      </Menu.FilterProvider>
+    </SearchableMenu.Provider>
   )
 }
 
@@ -214,6 +248,7 @@ interface ActionMenuPopupProps {
   container: HTMLElement | null
   submenu?: boolean
   browser?: boolean
+  searchLabel?: string
   align?: 'start' | 'end'
   children: ReactNode
 }
@@ -234,10 +269,13 @@ export function ActionMenuPopup({
   container,
   submenu,
   browser,
+  searchLabel,
   align = 'start',
   children,
 }: ActionMenuPopupProps) {
   const scrollEdges = useScrollEdges<HTMLDivElement>()
+  const searchEdges = useScrollEdges<HTMLInputElement>('horizontal')
+  const searchable = useContext(SearchableMenu)
   const parent = useContext(FloatingMenu)
   const browserRows = useContext(BrowserRows) || Boolean(browser)
   const panel = useRef<HTMLDivElement>(null)
@@ -247,7 +285,7 @@ export function ActionMenuPopup({
       <Menu.Portal container={container}>
         <Menu.Positioner
           className={popup.positioner}
-          side={submenu ? 'inline-end' : 'bottom'}
+          side={submenu ? 'inline-end' : searchable ? 'top' : 'bottom'}
           align={align}
           sideOffset={
             submenu
@@ -265,11 +303,29 @@ export function ActionMenuPopup({
           <Menu.Popup
             ref={panel}
             data-menu={browserRows ? (submenu ? 'zoom' : 'browser') : undefined}
+            data-searchable={searchable || undefined}
+            aria-label={searchLabel ? label : undefined}
             className={styles.menu}
             data-material='floating'
             data-elevation='menu'
           >
             <BrowserRows.Provider value={browserRows}>
+              {searchLabel && (
+                <>
+                  <MenuSearchField
+                    input={
+                      <Menu.Input
+                        ref={searchEdges}
+                        aria-label={searchLabel}
+                        placeholder={searchLabel}
+                      />
+                    }
+                  />
+                  <Menu.Empty className={popup.heading} data-type='T052'>
+                    No matches
+                  </Menu.Empty>
+                </>
+              )}
               <Menu.List ref={scrollEdges} className={popup.list} aria-label={label}>
                 {children}
               </Menu.List>
@@ -288,7 +344,7 @@ interface SubmenuItemProps {
   children: ReactNode
 }
 
-function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
+export function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
   const { trigger, container } = usePopoverContainer()
   return (
     <Menu.SubmenuRoot>

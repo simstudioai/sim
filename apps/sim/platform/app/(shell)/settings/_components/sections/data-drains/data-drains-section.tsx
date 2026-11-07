@@ -108,7 +108,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
                   key={drain.id}
                   title={drain.name}
                   detail={`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · ${drain.lastRunAt ? `Last run ${formatTimestamp(new Date(drain.lastRunAt).getTime())}` : 'Never run'}`}
-                  metadata={drain.enabled ? undefined : 'Disabled'}
+                  textMetadata={drain.enabled ? undefined : 'Disabled'}
                   onOpen={() => void setSelectedId(drain.id)}
                 />
               ))}

@@ -75,6 +75,7 @@ export function ProfileForm({
           <TextField
             name='name'
             label='Display name'
+            placeholder='Your name'
             defaultValue={name}
             maxLength={NAME_MAX_LENGTH}
             required

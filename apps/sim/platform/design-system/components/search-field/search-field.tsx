@@ -12,7 +12,7 @@ interface SearchFieldProps {
   defaultValue?: string
   value?: string
   shortcut?: '⌘K' | '/'
-  variant?: 'outlined' | 'sidebar'
+  variant?: 'outlined' | 'sidebar' | 'quiet'
   onValueChange?: (query: string) => void
   maxLength?: number
 }
@@ -76,21 +76,24 @@ export function SearchField({
   return (
     <div className={styles.search} data-variant={variant}>
       <Icon name='I089' />
-      <input
-        ref={queryEdges}
-        type='search'
-        aria-label={label}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        className={styles.query}
-        data-type='T043'
-        value={query}
-        onChange={(event) => change(event.currentTarget.value)}
-      />
+      <span className={styles.queryFrame}>
+        <input
+          ref={queryEdges}
+          type='search'
+          aria-label={label}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          className={styles.query}
+          data-type='T043'
+          value={query}
+          onChange={(event) => change(event.currentTarget.value)}
+        />
+      </span>
       {query ? (
         <IconButton
           label='Clear search'
           icon='I105'
+          size='compact'
           onClick={() => {
             change('')
             input.current?.focus()

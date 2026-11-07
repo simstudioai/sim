@@ -10,10 +10,11 @@
 .toolbar {
   flex: none;
   justify-content: space-between;
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
   color: var(--ui-secondary);
 }
 .dayControls {
+  block-size: 0;
   gap: var(--ui-stack-gap);
 }
 .dayControls [aria-label="Previous day"] svg {
@@ -24,7 +25,7 @@
   block-size: var(--ui-widget-max-size);
   min-block-size: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 .timeline {
   display: grid;

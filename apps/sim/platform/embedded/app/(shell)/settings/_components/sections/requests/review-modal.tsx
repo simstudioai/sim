@@ -143,6 +143,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
               {pending && !declining && (
                 <TextField
                   label='New member credit limit'
+                  placeholder='Enter a credit limit'
                   inputMode='numeric'
                   value={newLimit}
                   onChange={setNewLimit}
@@ -158,6 +159,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
           {pending && declining && (
             <TextAreaField
               label='Reason for declining'
+              placeholder='Explain why this request was declined'
               required
               maxLength={1000}
               value={decisionReason}

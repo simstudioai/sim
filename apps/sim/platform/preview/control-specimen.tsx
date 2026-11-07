@@ -7,11 +7,11 @@ import {
   AttachmentGrid,
   Avatar,
   AvatarGroup,
-  AvatarOverflow,
   BarChart,
   BrowserActionsMenu,
   Button,
   Chip,
+  ChoiceMenu,
   ComposerInput,
   DataTable,
   DestinationTabs,
@@ -22,7 +22,6 @@ import {
   FieldFrame,
   IconButton,
   Input,
-  LogoUploadField,
   MenuItem,
   MenuSearchField,
   MetricGroup,
@@ -35,7 +34,6 @@ import {
   PeoplePopover,
   PersonRow,
   PropertyList,
-  RangePicker,
   RecentItems,
   RecipientField,
   RecipientTag,
@@ -47,6 +45,7 @@ import {
   SelectField,
   SelectionItem,
   SidebarWorkspaceItems,
+  Stack,
   Switch,
   TextArea,
   TextAreaField,
@@ -63,6 +62,7 @@ import {
   SettingsSurface,
 } from '@/platform/design-system/components/settings-section/settings-section'
 import type { PreviewData } from '@/platform/fixtures'
+import { FileFieldSpecimen } from '@/platform/preview/file-field-specimen'
 import { HomeChartSpecimen } from '@/platform/preview/home-chart-specimen'
 import styles from '@/platform/preview/specimen.module.css'
 import { formatCalendarDate } from '@/platform/shared/time'
@@ -108,11 +108,11 @@ const views = [
 
 function AgentFilter({ data }: { data: PreviewData | null }) {
   const agents = (data?.dashboard.rows ?? []).map((row) => String(row.values.agent))
-  return <RangePicker label='Agents' options={['All agents', ...agents]} />
+  return <ChoiceMenu label='Agents' options={['All agents', ...agents]} />
 }
 
 const requestFilter = (
-  <RangePicker label='Requests' options={['All requests', 'Succeeded', 'Retried']} />
+  <ChoiceMenu label='Requests' options={['All requests', 'Succeeded', 'Retried']} />
 )
 
 function FeedbackFields({ notes }: { notes?: string }) {
@@ -123,7 +123,13 @@ function FeedbackFields({ notes }: { notes?: string }) {
         <SegmentedControl label='Response quality' options={ratings} defaultValue='bad' />
       </FieldFrame>
       <FieldFrame id={id} label='Details' optional>
-        <TextArea id={id} label='Details' defaultValue={notes} density='expanded' />
+        <TextArea
+          placeholder='Add details'
+          id={id}
+          label='Details'
+          defaultValue={notes}
+          defaultSize='expanded'
+        />
       </FieldFrame>
     </>
   )
@@ -381,8 +387,8 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return <PersonRow name={people[0]?.name ?? 'Person'} src={sample?.avatarSrc} />
     case 'AvatarGroup':
       return <AvatarGroup people={people} />
-    case 'AvatarOverflow':
-      return <AvatarOverflow people={people.slice(2)} />
+    case 'Stack':
+      return <Stack items={[]} total={people.length} label='Other people' />
     case 'Tooltip':
       return (
         <Tooltip label={value || 'Description'}>
@@ -392,7 +398,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'OverflowText':
       return <OverflowText text={value || label} />
     case 'Input':
-      return <Input label={label} defaultValue={value} />
+      return <Input placeholder={label} label={label} defaultValue={value} />
     case 'Select':
       return family.startsWith('Select/Theme') ? (
         <Select
@@ -407,17 +413,18 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
     case 'TextArea':
       return (
         <TextArea
+          placeholder={label}
           label={label}
-          density={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
+          defaultSize={key === 'C0350' || key === 'C0353' ? 'expanded' : undefined}
           defaultValue={sample?.notes}
         />
       )
     case 'TextField':
-      return <TextField label={label} defaultValue={value} />
+      return <TextField placeholder={label} label={label} defaultValue={value} />
     case 'SelectField':
       return <SelectField label={label} options={options} defaultValue={value} />
     case 'TextAreaField':
-      return <TextAreaField label={label} defaultValue={sample?.notes} />
+      return <TextAreaField placeholder={label} label={label} defaultValue={sample?.notes} />
     case 'MenuSearchField':
       return <MenuSearchField label='Search' />
     case 'SearchField':
@@ -446,8 +453,8 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           createLabel='Create permission group…'
         />
       )
-    case 'LogoUploadField':
-      return <LogoUploadField label='Logo' optional />
+    case 'FileField':
+      return <FileFieldSpecimen label='Logo' />
     case 'RecipientTag':
       return <RecipientTag address={sample?.recipients[0]?.address ?? 'Recipient'} />
     case 'RecipientField':
@@ -547,9 +554,9 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         </ActionMenu>
       )
     }
-    case 'RangePicker':
+    case 'ChoiceMenu':
       return (
-        <RangePicker
+        <ChoiceMenu
           label='Range'
           options={sample?.ranges ?? ['Option one', 'Option two']}
           defaultValue={sample?.ranges.at(-1)}
@@ -602,7 +609,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
         )
       return (
         <Modal variant='form' triggerLabel='Open dialog' title='Workspace' confirmLabel='Save'>
-          <TextField label='Name' defaultValue={value} />
+          <TextField placeholder='Name' label='Name' defaultValue={value} />
         </Modal>
       )
     }
@@ -613,8 +620,16 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           title='Create workspace'
           confirmLabel='Create'
           steps={[
-            { content: <TextField label='Workspace name' defaultValue={value} /> },
-            { content: <LogoUploadField label='Logo' optional /> },
+            {
+              content: (
+                <TextField
+                  placeholder='Workspace name'
+                  label='Workspace name'
+                  defaultValue={value}
+                />
+              ),
+            },
+            { content: <FileFieldSpecimen label='Logo' /> },
             {
               content: (
                 <SearchableSelect
@@ -627,7 +642,13 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
               ),
             },
             {
-              content: <RecipientField label='Recipients' defaultRecipients={sample?.recipients} />,
+              content: (
+                <RecipientField
+                  label='Recipients'
+                  placeholder='name@company.com'
+                  defaultRecipients={sample?.recipients}
+                />
+              ),
             },
           ]}
         />

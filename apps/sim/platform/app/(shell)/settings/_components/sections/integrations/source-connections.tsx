@@ -150,9 +150,15 @@ function ConnectionForm({
     >
       <FieldStack>
         {source.id === 'gitlab' || source.id === 'coda' ? (
-          <SecretField label='API token' value={credential} onChange={setCredential} />
+          <SecretField
+            placeholder='Enter an API token'
+            label='API token'
+            value={credential}
+            onChange={setCredential}
+          />
         ) : (
           <TextField
+            placeholder='Connection ID'
             label={
               source.id === 'github' ? 'GitHub App installation' : 'Service account connection'
             }
@@ -200,7 +206,7 @@ function ConfigFields({
         label={field.label}
         value={value}
         onChange={setValue}
-        placeholder={field.placeholder}
+        placeholder={field.placeholder ?? field.label}
         hint={field.hint}
         required={field.required}
       />

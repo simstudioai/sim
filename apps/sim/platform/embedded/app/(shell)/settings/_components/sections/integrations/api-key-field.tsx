@@ -11,7 +11,7 @@ interface ApiKeyFieldProps {
   label: string
   value: string
   onChange: (value: string) => void
-  placeholder?: string
+  placeholder: string
   workspaceId?: string
   disabled?: boolean
 }

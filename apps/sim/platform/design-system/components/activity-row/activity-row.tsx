@@ -1,26 +1,27 @@
 'use client'
 
-import type { ReactElement, ReactNode } from 'react'
+import type { ComponentProps, ReactElement, ReactNode } from 'react'
 import { useRender } from '@base-ui/react/use-render'
 import Link from 'next/link'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import styles from '@/platform/design-system/components/activity-row/activity-row.module.css'
+import { AvatarGroup } from '@/platform/design-system/components/avatar/avatar'
 import { Icon } from '@/platform/design-system/components/icon/icon'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 interface ActivityRowProps {
+  onNavigate?: ComponentProps<typeof Link>['onNavigate']
   leading?: ReactNode
   title: string
   count?: number
   detail?: string
+  detailContent?: ReactNode
   detailLead?: string
   /** Lets the detail take more lines, for a sentence a touch screen has no tooltip to finish. */
   wrapDetail?: boolean
-  metadata?: string
-  /** A glyph held beside `metadata`, such as a running spinner. */
-  metadataLeading?: ReactNode
   showChevron?: boolean
+  disabled?: boolean
   /** `comfortable` for a settings list, where each row is a resource rather than a line of activity. */
   density?: 'regular' | 'comfortable'
 }
@@ -32,6 +33,15 @@ type ActivityTarget =
   | { href?: never; onOpen?: never; render: ReactElement; readOnly?: never }
   /** A row in the same list that opens nothing, such as a source this deployment does not offer. */
   | { href?: never; onOpen?: never; render?: never; readOnly: true }
+
+type ActivityMetadata =
+  | {
+      textMetadata?: string
+      /** A glyph held beside `textMetadata`, such as a running spinner. */
+      metadataLeading?: ReactNode
+      people?: never
+    }
+  | { textMetadata?: never; metadataLeading?: never; people: ComponentProps<typeof AvatarGroup> }
 
 interface RenderedRowProps {
   render: ReactElement
@@ -47,53 +57,61 @@ function RenderedRow({ render, rowDensity, children }: RenderedRowProps) {
 }
 
 export function ActivityRow({
+  onNavigate,
   leading,
   title,
   count,
   detail,
+  detailContent,
   detailLead,
   wrapDetail,
-  metadata,
+  textMetadata,
   metadataLeading,
-  showChevron = true,
+  people,
+  disabled = false,
+  showChevron = !disabled,
   density = 'regular',
   onOpen,
   href,
   render,
   readOnly,
-}: ActivityRowProps & ActivityTarget) {
+}: ActivityRowProps & ActivityTarget & ActivityMetadata) {
+  const chevron = showChevron && !readOnly
   const content = (
     <>
-      <ActivityBody leading={leading} decorativeLeading>
+      <ActivityBody leading={leading}>
         <span data-type='T059'>
           <CountedLabel label={title} count={count} />
         </span>
-        {detail && (
+        {(detail || detailContent) && (
           <span className={styles.detail} data-type='T050'>
             {wrapDetail ? (
-              detail
+              (detailContent ?? detail)
             ) : (
-              <OverflowText text={detailLead ? `${detailLead} ${detail}` : detail}>
+              <OverflowText text={detailLead ? `${detailLead} ${detail ?? ''}` : (detail ?? '')}>
                 {detailLead && (
                   <>
                     <strong data-type='T051'>{detailLead}</strong>{' '}
                   </>
                 )}
-                {detail}
+                {detailContent ?? detail}
               </OverflowText>
             )}
           </span>
         )}
       </ActivityBody>
-      {(metadata || (showChevron && !readOnly)) && (
+      {(textMetadata || people || chevron) && (
         <span className={styles.meta} data-type='T052'>
-          {metadata && (
+          {textMetadata && (
             <span className={styles.metaLabel}>
               {metadataLeading}
-              {metadata}
+              {textMetadata}
             </span>
           )}
-          {showChevron && !readOnly && <Icon name='I032' />}
+          {people && (
+            <AvatarGroup people={people.people} total={people.total} label={people.label} />
+          )}
+          {chevron && <Icon name='I032' />}
         </span>
       )}
     </>
@@ -108,12 +126,18 @@ export function ActivityRow({
         <RenderedRow render={render} rowDensity={density}>
           {content}
         </RenderedRow>
-      ) : href !== undefined ? (
-        <Link href={href} className={styles.row} data-density={density}>
+      ) : href !== undefined && !disabled ? (
+        <Link href={href} className={styles.row} data-density={density} onNavigate={onNavigate}>
           {content}
         </Link>
       ) : (
-        <button type='button' className={styles.row} data-density={density} onClick={onOpen}>
+        <button
+          type='button'
+          className={styles.row}
+          data-density={density}
+          onClick={onOpen}
+          disabled={disabled}
+        >
           {content}
         </button>
       )}

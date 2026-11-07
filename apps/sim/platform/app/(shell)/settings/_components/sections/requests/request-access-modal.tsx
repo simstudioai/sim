@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
 import {
+  DetailsField,
   FailureNotice,
   InlineNotice,
   Modal,
@@ -48,7 +48,7 @@ export function RequestAccessModal({
             }
       }
     >
-      <RequestText label='Access'>{label}</RequestText>
+      <DetailsField label='Access'>{label}</DetailsField>
       {access.loadError && (
         <FailureNotice message={access.loadError.message} onRetry={access.retry} />
       )}

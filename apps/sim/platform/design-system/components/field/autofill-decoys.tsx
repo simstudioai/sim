@@ -2,7 +2,7 @@
  * Takes a password manager's autofill so it leaves a secret field alone. Offscreen rather than
  * hidden: managers skip hidden fields, and would fill the real one.
  */
-import styles from '@/platform/design-system/components/field/field.module.css'
+import styles from '@/platform/design-system/components/field/field.shared.module.css'
 
 export function AutofillDecoys() {
   return (

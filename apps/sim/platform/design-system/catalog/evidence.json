@@ -247,7 +247,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "D",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "SP-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y4E-0"]
@@ -257,7 +257,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "L",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "X5-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "YEZ-0"]
@@ -267,7 +267,7 @@
     "family": "AvatarGroup/Overflow/rest — tooltip on hover or focus",
     "theme": "L",
     "scope": "platform",
-    "owner": "AvatarOverflow",
+    "owner": "Stack",
     "icon": "I108",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "SP-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "XVQ-0"]
@@ -3519,7 +3519,7 @@
     "family": "RangeControl/default",
     "theme": "D",
     "scope": "shared",
-    "owner": "RangePicker",
+    "owner": "ChoiceMenu",
     "icon": "I080",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "C6-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2Y9T-0"]
@@ -3529,7 +3529,7 @@
     "family": "RangeControl/default",
     "theme": "D",
     "scope": "platform",
-    "owner": "RangePicker",
+    "owner": "ChoiceMenu",
     "icon": "I080",
     "base": ["01M6ASMG4R446K2Z96JZRXZFX7", "p-2-0", "218-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-17-0", "2XGG-0"]
@@ -3539,7 +3539,7 @@
     "family": "RangeControl/default",
     "theme": "L",
     "scope": "shared",
-    "owner": "RangePicker",
+    "owner": "ChoiceMenu",
     "icon": "I080",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "TD-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "2EIP-0"]
@@ -3549,7 +3549,7 @@
     "family": "RangeControl/default",
     "theme": "L",
     "scope": "platform",
-    "owner": "RangePicker",
+    "owner": "ChoiceMenu",
     "icon": "I080",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "1ZE-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1C60-0"]
@@ -3559,7 +3559,7 @@
     "family": "RangeControl/open",
     "theme": "L",
     "scope": "platform",
-    "owner": "RangePicker",
+    "owner": "ChoiceMenu",
     "icon": "I080",
     "base": ["01M6ASMDKJ81HACJGPNYCJQVVT", "p-2-0", "23T-0"],
     "use": ["01M6A91A32GBA6GTN4HASVG0ER", "p-L-0", "1DGU-0"]
@@ -5154,7 +5154,7 @@
     "family": "LogoUpload",
     "theme": "L",
     "scope": "shared",
-    "owner": "LogoUploadField",
+    "owner": "FileField",
     "icon": "I117",
     "base": ["01M6ASMJ22TS7WG8Q3P5YTHWWD", "p-8-0", "B79-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-2-0", "B87-0"]
@@ -5164,7 +5164,7 @@
     "family": "LogoUpload",
     "theme": "D",
     "scope": "shared",
-    "owner": "LogoUploadField",
+    "owner": "FileField",
     "icon": "I117",
     "base": ["01M6ASMN2120W3CEDT8FXWCTQX", "p-5-0", "9XL-0"],
     "use": ["01M6F0RKAQMZQJGC8PD5PR0SSE", "p-3-0", "B8E-0"]

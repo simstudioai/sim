@@ -268,7 +268,7 @@ function RetentionForm({
             title='Organization'
             detail={orgPolicySummary(snapshot)}
             wrapDetail
-            metadata='Default'
+            textMetadata='Default'
             onOpen={() => setSelection({ kind: 'organization' })}
           />
           {withOverrides.map((workspaceId) => (

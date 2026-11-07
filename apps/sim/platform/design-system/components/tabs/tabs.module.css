@@ -24,3 +24,11 @@
   min-inline-size: var(--spacing-64);
   flex: 0 1 var(--panel-tab-width);
 }
+.contentRoot {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+}
+.contentPane {
+  min-inline-size: 0;
+}

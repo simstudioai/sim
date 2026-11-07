@@ -166,7 +166,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                         key={provider.id ?? providerId}
                         title={providerId}
                         detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
-                        metadata={isMarkedPrimary ? 'Primary' : undefined}
+                        textMetadata={isMarkedPrimary ? 'Primary' : undefined}
                         onOpen={() =>
                           void setParams({ provider: providerId, createProvider: null })
                         }

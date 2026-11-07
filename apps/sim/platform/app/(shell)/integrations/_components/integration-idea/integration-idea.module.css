@@ -1,0 +1,55 @@
+.idea {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-192);
+  padding: var(--spacing-32) var(--spacing-24);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  overflow: clip;
+  border-radius: var(--radius-composer);
+  background: var(--ui-reading);
+}
+
+.artwork {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+
+.message {
+  max-inline-size: var(--container-chat-message);
+  min-inline-size: 0;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  inline-size: var(--ui-icon-size);
+  margin-inline-end: var(--ui-row-gap);
+  vertical-align: text-bottom;
+}
+
+[data-platform-ui][data-theme="dark"] .artwork {
+  filter: invert(0.92);
+  opacity: var(--opacity-0-6);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-platform-ui][data-theme="system"] .artwork {
+    filter: invert(0.92);
+    opacity: var(--opacity-0-6);
+  }
+}
+
+@media (max-width: 40rem) {
+  .idea {
+    padding-inline: var(--spacing-16);
+  }
+}

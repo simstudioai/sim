@@ -22,7 +22,7 @@ export function credentialGroupsData(scenario: Scenario): CredentialGroupsData {
           ? ['Customer operations', 'Engineering', 'Product']
           : ['Sim Enterprise'],
     workspaces: [
-      { id: 'operations', name: 'Customer operations' },
+      { id: 'operations', name: 'Workspace' },
       { id: 'revenue', name: 'Revenue operations' },
       { id: 'research', name: 'Research' },
     ],

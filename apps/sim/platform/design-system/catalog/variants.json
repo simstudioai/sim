@@ -73,15 +73,24 @@
       "floating": ["C0263", "C0264"]
     }
   },
+  "CopyButton": {
+    "size": {
+      "small": [],
+      "compact": []
+    }
+  },
   "SearchField": {
     "variant": {
       "outlined": ["C0925", "C0926", "C0928"],
+      "quiet": [],
       "sidebar": ["C1083", "C1084", "C1086", "C1088"]
     }
   },
   "TextArea": {
-    "density": {
-      "expanded": ["C0350", "C0353"]
+    "defaultSize": {
+      "regular": [],
+      "expanded": ["C0350", "C0353"],
+      "large": []
     }
   },
   "Modal": {
@@ -100,6 +109,8 @@
   "Disclosure": {
     "variant": {
       "section": ["C0422", "C0423", "C0424", "C0425"],
+      "navigation": [],
+      "folder": [],
       "activity": ["C0180", "C0181", "C0182"]
     }
   },

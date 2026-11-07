@@ -1,32 +1,35 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { type ComponentType, useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
-import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
+import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { ActionMenu, ActivityRow, Modal } from '@/platform/design-system/components'
+import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
+import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
+import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationAccount } from '@/platform/shared/integrations'
 
 interface CredentialRow extends IntegrationAccount {
-  statusLabel: string
   /** Opens this account's permissions when the integration lists several. */
   href?: string
 }
 
 interface ConnectedCredentialProps {
   integrationName: string
+  providerId: string
+  icon?: ComponentType<{ className?: string }>
   accounts: readonly CredentialRow[]
   pending: boolean
-  /** Connects a further account into a free slot, when the organization offers one. */
-  addAccount?: { disabled: boolean; onSelect: () => void }
   onReconnect: (accountId: string) => void
   onDisconnect: (accountId: string) => Promise<unknown>
 }
 
 export function ConnectedCredential({
   integrationName,
+  providerId,
+  icon,
   accounts,
   pending,
-  addAccount,
   onReconnect,
   onDisconnect,
 }: ConnectedCredentialProps) {
@@ -35,53 +38,57 @@ export function ConnectedCredential({
   const heading = accounts.length > 1 ? 'Connected credentials' : 'Connected credential'
   return (
     <section aria-label={heading} className={styles.section}>
-      <h2 data-type='T042'>{heading}</h2>
-      {accounts.map((account) => (
-        <div key={account.id} className={styles.row}>
-          <div className={styles.identity}>
-            {account.href ? (
-              <Link href={account.href} className={styles.link} data-type='T059'>
-                {account.label}
-              </Link>
-            ) : (
-              <p data-type='T059'>{account.label}</p>
-            )}
-            <p className={styles.muted} data-type='T050'>
-              {account.statusLabel}
-            </p>
-          </div>
-          <ActionMenu
-            label={`Manage ${account.label}`}
-            icon='I108'
-            triggerSize='row'
-            align='end'
-            tooltip={false}
-            actions={[
-              {
-                id: 'reconnect',
-                label: 'Reconnect account',
-                disabled: pending || !account.canReconnect,
-                onSelect: () => onReconnect(account.id),
-              },
-              {
-                id: 'disconnect',
-                label: 'Disconnect account',
-                destructive: true,
-                separatorBefore: true,
-                disabled: pending,
-                onSelect: () => setConfirmingId(account.id),
-              },
-            ]}
-          />
-        </div>
-      ))}
-      {addAccount && (
-        <div>
-          <Button disabled={pending || addAccount.disabled} onClick={addAccount.onSelect}>
-            Add account
-          </Button>
-        </div>
-      )}
+      <h2 data-type='T093'>
+        <CountedLabel label={heading} count={accounts.length} />
+      </h2>
+      <ul className={styles.rows}>
+        {accounts.map((account) => {
+          const action = (
+            <ActionMenu
+              label={`Manage ${account.label}`}
+              icon='I108'
+              triggerSize='row'
+              align='end'
+              tooltip={false}
+              actions={[
+                {
+                  id: 'reconnect',
+                  label: 'Reconnect account',
+                  disabled: pending || !account.canReconnect,
+                  onSelect: () => onReconnect(account.id),
+                },
+                {
+                  id: 'disconnect',
+                  label: 'Disconnect account',
+                  destructive: true,
+                  separatorBefore: true,
+                  disabled: pending,
+                  onSelect: () => setConfirmingId(account.id),
+                },
+              ]}
+            />
+          )
+          return account.href ? (
+            <ActivityRow
+              key={account.id}
+              href={account.href}
+              leading={<IntegrationMark providerId={providerId} icon={icon} />}
+              title={account.label}
+              detail={credentialDescription(account)}
+            />
+          ) : (
+            <li key={account.id} className={styles.row}>
+              <ActivityBody leading={<IntegrationMark providerId={providerId} icon={icon} />}>
+                <span data-type='T059'>{account.label}</span>
+                <span className={styles.muted} data-type='T050'>
+                  {credentialDescription(account)}
+                </span>
+              </ActivityBody>
+              {action}
+            </li>
+          )
+        })}
+      </ul>
       {confirming && (
         <Modal
           open

@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 
 interface IntegrationTabsHeaderProps {
   active: 'integrations' | 'skills'
@@ -17,9 +19,13 @@ export function IntegrationTabsHeader({
   workspaceId,
   rightSlot,
 }: IntegrationTabsHeaderProps) {
+  const host = useWorkspaceHostContext()
   return (
     <div className={cn(PAGE_HEADER_BAR, 'gap-1')}>
-      <ChipLink href={`/workspace/${workspaceId}/integrations`} active={active === 'integrations'}>
+      <ChipLink
+        href={workspaceIntegrationsPath(workspaceId, host)}
+        active={active === 'integrations'}
+      >
         Integrations
       </ChipLink>
       <ChipLink href={`/workspace/${workspaceId}/skills`} active={active === 'skills'}>

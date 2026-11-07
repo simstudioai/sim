@@ -25,6 +25,7 @@ export interface OrganizationIntegration {
   icon: ComponentType<{ className?: string }>
   name: string
   description: string
+  category: string
   setupGuideUrl: string
   searchResource: string | null
   searchReads: readonly { id: string; label: string }[]

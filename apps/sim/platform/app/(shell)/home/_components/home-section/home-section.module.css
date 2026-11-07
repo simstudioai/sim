@@ -2,8 +2,10 @@
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding-inline: var(--ui-row-inset);
   max-block-size: var(--ui-widget-max-size);
-  gap: var(--ui-popup-padding);
+  gap: var(--ui-widget-content-gap);
 }
 .heading,
 .heading h2 {
@@ -14,6 +16,12 @@
 .heading {
   flex: none;
   justify-content: space-between;
-  min-block-size: var(--spacing-28);
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+  min-block-size: var(--leading-app-control);
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  block-size: 0;
 }

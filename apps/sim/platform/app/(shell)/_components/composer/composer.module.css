@@ -6,10 +6,6 @@
   padding: var(--spacing-16) var(--spacing-12) var(--spacing-12);
   border-radius: var(--radius-composer);
 }
-.composer textarea {
-  max-block-size: min(24dvh, var(--container-208));
-  overflow-y: auto;
-}
 .toolbar,
 .actions,
 .batch {

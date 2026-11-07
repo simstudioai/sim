@@ -25,6 +25,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   /** `bun run type-check` proves this; a small runner spends its whole budget on it otherwise. */
   typescript: { ignoreBuildErrors: process.env.NEXT_BUILD_SKIP_TYPE_CHECK === '1' },
+  outputFileTracingIncludes: { '/preview-workspace/*': ['./dist/workspace-preview/**/*'] },
   ...(basePath && { basePath }),
   env: { NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH: basePath ?? '' },
   /** Published as ESM that only compiles through this list, as in the main app's config. */

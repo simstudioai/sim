@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
 import {
@@ -18,6 +19,7 @@ import {
   useIntegrationsView,
   useMemberIntegrations,
 } from '@/platform/lib/data/integrations'
+import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
@@ -45,16 +47,21 @@ export function IntegrationsRoute({
   connectionRequest,
   handoff,
 }: IntegrationsRouteProps) {
+  const params = useSearchParams()
   const { integrations, genericSecrets, inventory, policies, secrets } =
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
-  const { search, setSearch, account, clearAccount, serialize } = useIntegrationsView()
+  const { search, account, clearAccount, serialize } = useIntegrationsView()
   const defaults = defaultIntegrationPaths(organizationId)
   const indexPath = basePath ?? defaults.index
   const pathOf = (id: string) => `${indexPath}/${encodeURIComponent(id)}`
-  const integrationHref = (id: string) => serialize(pathOf(id), { q: search })
-  const indexHref = serialize(indexPath, { q: search })
-  const memberSecretsHref = serialize(memberSecretsPath ?? defaults.memberSecrets, { q: search })
+  const integrationHref = (id: string) =>
+    serialize(integrationCenterHref(pathOf(id), params), { q: search })
+  const indexHref = serialize(integrationCenterHref(indexPath, params), { q: search })
+  const memberSecretsHref = serialize(
+    integrationCenterHref(memberSecretsPath ?? defaults.memberSecrets, params),
+    { q: search }
+  )
 
   const inventoryStatus = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
@@ -83,8 +90,6 @@ export function IntegrationsRoute({
             <IntegrationList
               integrations={integrations}
               secrets={genericSecrets}
-              query={search}
-              onQueryChange={setSearch}
               integrationHref={integrationHref}
               secretsHref={
                 genericSecrets?.mode === 'member'
@@ -101,7 +106,7 @@ export function IntegrationsRoute({
   const integration = integrations.find((item) => item.id === section)
   const back =
     account && integration
-      ? { href: integrationHref(integration.id), label: integration.name }
+      ? { href: integrationHref(integration.id), label: `Back to ${integration.name}` }
       : { href: indexHref, label: 'Integrations' }
   const unavailable = (loading: boolean) =>
     loading ? (
@@ -138,7 +143,7 @@ export function IntegrationsRoute({
               accountId={account}
               integrationHref={integrationHref(integration.id)}
               accountHref={(credentialId) =>
-                serialize(pathOf(integration.id), {
+                serialize(integrationCenterHref(pathOf(integration.id), params), {
                   q: search,
                   account: credentialId,
                 })

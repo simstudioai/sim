@@ -307,6 +307,7 @@ function Licenses({ environment }: LicensesProps) {
           />
           <TextField
             label='Expiration'
+            placeholder='No expiration'
             optional
             type='date'
             disabled={generateLicense.isPending}

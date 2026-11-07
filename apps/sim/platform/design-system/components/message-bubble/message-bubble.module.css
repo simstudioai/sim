@@ -1,0 +1,31 @@
+.bubble {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+  color: var(--ui-ink);
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+button.bubble {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--control-muted-fill) var(--opacity-0-6), transparent);
+}
+
+button.bubble:hover {
+  background: color-mix(in srgb, var(--control-muted-hover) var(--opacity-0-6), transparent);
+}
+
+button.bubble:active {
+  background: color-mix(in srgb, var(--control-muted-pressed) var(--opacity-0-6), transparent);
+}
+
+.preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

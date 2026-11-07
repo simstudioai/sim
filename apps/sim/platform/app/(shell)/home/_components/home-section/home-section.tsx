@@ -18,7 +18,7 @@ export function HomeSection({ title, icon, actions, children }: HomeSectionProps
           {icon && <Icon name={icon} />}
           {title}
         </h2>
-        {actions}
+        {actions && <span className={styles.actions}>{actions}</span>}
       </header>
       {children}
     </section>

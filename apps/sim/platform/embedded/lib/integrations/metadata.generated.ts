@@ -4,6 +4,7 @@ export const providerMetadata = [
     id: 'coda',
     name: 'Coda',
     description: 'Read and write Coda docs, pages, tables, and rows',
+    category: 'Documents',
     setupGuideUrl: 'https://docs.sim.ai/search/coda',
     searchResource: 'Documents',
     searchReads: [
@@ -18,6 +19,7 @@ export const providerMetadata = [
     id: 'confluence',
     name: 'Confluence',
     description: 'Manage Confluence pages, comments, and attachments',
+    category: 'Documents',
     setupGuideUrl: 'https://docs.sim.ai/search/confluence',
     searchResource: 'Spaces',
     searchReads: [],
@@ -74,6 +76,7 @@ export const providerMetadata = [
     id: 'fireflies',
     name: 'Fireflies',
     description: 'Interact with Fireflies.ai meeting transcripts and recordings',
+    category: 'Productivity',
     setupGuideUrl: 'https://docs.sim.ai/search/fireflies',
     searchResource: 'Meetings',
     searchReads: [
@@ -84,9 +87,20 @@ export const providerMetadata = [
     requestedScopes: null,
   },
   {
+    id: 'flow',
+    name: 'Flow Engineering',
+    description: 'Manage engineering requirements and traceability',
+    category: 'DevOps',
+    setupGuideUrl: 'https://docs.sim.ai/search/flow',
+    searchResource: 'Engineering items',
+    searchReads: [],
+    requestedScopes: [],
+  },
+  {
     id: 'github',
     name: 'GitHub',
     description: 'Interact with GitHub or trigger workflows from GitHub events',
+    category: 'DevOps',
     setupGuideUrl: 'https://docs.sim.ai/search/github',
     searchResource: 'Repositories',
     searchReads: [],
@@ -96,6 +110,7 @@ export const providerMetadata = [
     id: 'gitlab',
     name: 'GitLab',
     description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
+    category: 'DevOps',
     setupGuideUrl: 'https://docs.sim.ai/search/gitlab',
     searchResource: 'Projects',
     searchReads: [],
@@ -106,6 +121,7 @@ export const providerMetadata = [
     name: 'Gmail',
     description:
       'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
+    category: 'Email',
     setupGuideUrl: 'https://docs.sim.ai/search/gmail',
     searchResource: 'Labels',
     searchReads: [],
@@ -125,6 +141,7 @@ export const providerMetadata = [
     id: 'google_calendar',
     name: 'Google Calendar',
     description: 'Manage Google Calendar events',
+    category: 'Productivity',
     setupGuideUrl: 'https://docs.sim.ai/search/google-calendar',
     searchResource: 'Calendars',
     searchReads: [],
@@ -139,6 +156,7 @@ export const providerMetadata = [
     id: 'google_drive',
     name: 'Google Drive',
     description: 'Manage files, folders, and permissions',
+    category: 'Documents',
     setupGuideUrl: 'https://docs.sim.ai/search/google-drive',
     searchResource: 'Folders and shared drives',
     searchReads: [],
@@ -160,6 +178,7 @@ export const providerMetadata = [
     id: 'google_meet',
     name: 'Google Meet',
     description: 'Create and manage Google Meet meetings',
+    category: 'Communication',
     setupGuideUrl: 'https://docs.sim.ai/search/google-meet',
     searchResource: 'Meetings',
     searchReads: [],
@@ -181,6 +200,7 @@ export const providerMetadata = [
     id: 'granola',
     name: 'Granola',
     description: 'Access meeting notes, transcripts, and audit events from Granola',
+    category: 'Productivity',
     setupGuideUrl: 'https://docs.sim.ai/search/granola',
     searchResource: 'Meetings',
     searchReads: [
@@ -195,6 +215,7 @@ export const providerMetadata = [
     id: 'hubspot',
     name: 'HubSpot',
     description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',
+    category: 'Sales',
     setupGuideUrl: 'https://docs.sim.ai/search/hubspot',
     searchResource: 'CRM records',
     searchReads: [
@@ -204,9 +225,20 @@ export const providerMetadata = [
     requestedScopes: null,
   },
   {
+    id: 'jama',
+    name: 'Jama Connect',
+    description: 'Manage requirements, traceability, and verification in Jama Connect',
+    category: 'DevOps',
+    setupGuideUrl: 'https://docs.sim.ai/search/jama',
+    searchResource: 'Items',
+    searchReads: [],
+    requestedScopes: [],
+  },
+  {
     id: 'jira',
     name: 'Jira',
     description: 'Manage Jira issues, comments, attachments, and worklogs',
+    category: 'Productivity',
     setupGuideUrl: 'https://docs.sim.ai/search/jira',
     searchResource: 'Projects',
     searchReads: [],
@@ -322,6 +354,7 @@ export const providerMetadata = [
     id: 'linear',
     name: 'Linear',
     description: 'Interact with Linear issues, projects, and more',
+    category: 'Productivity',
     setupGuideUrl: 'https://docs.sim.ai/search/linear',
     searchResource: 'Projects',
     searchReads: [],
@@ -337,6 +370,7 @@ export const providerMetadata = [
     id: 'lucid',
     name: 'Lucid',
     description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
+    category: 'Other',
     setupGuideUrl: 'https://docs.sim.ai/search/lucid',
     searchResource: 'Documents',
     searchReads: [
@@ -352,6 +386,7 @@ export const providerMetadata = [
     id: 'notion',
     name: 'Notion',
     description: 'Manage Notion pages',
+    category: 'Documents',
     setupGuideUrl: 'https://docs.sim.ai/search/notion',
     searchResource: 'Pages',
     searchReads: [
@@ -369,6 +404,7 @@ export const providerMetadata = [
     id: 'salesforce',
     name: 'Salesforce',
     description: 'Interact with Salesforce CRM',
+    category: 'Sales',
     setupGuideUrl: 'https://docs.sim.ai/search/connect-your-account',
     searchResource: null,
     searchReads: [],
@@ -383,6 +419,7 @@ export const providerMetadata = [
     name: 'Slack',
     description:
       'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
+    category: 'Communication',
     setupGuideUrl: 'https://docs.sim.ai/search/slack',
     searchResource: 'Channels',
     searchReads: [],
@@ -409,6 +446,7 @@ export const providerMetadata = [
     id: 'zoom',
     name: 'Zoom',
     description: 'Create and manage Zoom meetings and recordings',
+    category: 'Communication',
     setupGuideUrl: 'https://docs.sim.ai/search/zoom',
     searchResource: 'Meetings',
     searchReads: [
@@ -421,6 +459,7 @@ export const providerMetadata = [
     ],
   },
 ] as const
+
 export const memberSecretMetadata = {
   name: 'Generic Secrets',
   description: 'Store shared or personal secrets for organization Home conversations',

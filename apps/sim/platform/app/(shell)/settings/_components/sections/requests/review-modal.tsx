@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { RequestText } from '@/platform/app/(shell)/settings/_components/sections/requests/request-text'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import {
   Button,
+  DetailsField,
   Disclosure,
   FailureNotice,
   InlineNotice,
@@ -81,19 +81,21 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
       )}
       {model && (
         <>
-          <RequestText label='Requested by'>
+          <DetailsField label='Requested by'>
             {model.requesterName
               ? `${model.requesterName} · ${model.requesterEmail}`
               : model.requesterEmail}
-          </RequestText>
-          {model.reason && <RequestText label='Reason'>{model.reason}</RequestText>}
+          </DetailsField>
+          {model.reason && <DetailsField label='Reason'>{model.reason}</DetailsField>}
           {model.decided && model.permission && (
             <>
               {model.changes.length > 0 && (
-                <RequestText label='Permission group'>{model.groupName}</RequestText>
+                <DetailsField label='Permission group'>{model.groupName}</DetailsField>
               )}
               {pending && model.alreadyAvailable && (
-                <RequestText label='Current access'>This access is already available.</RequestText>
+                <DetailsField label='Current access'>
+                  This access is already available.
+                </DetailsField>
               )}
               {model.changes.length > 0 && (
                 <>
@@ -108,7 +110,7 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
                   <Disclosure label='Change details'>
                     <div className={styles.changeDetails}>
                       {model.workspaces && (
-                        <RequestText label='Workspaces'>{model.workspaces}</RequestText>
+                        <DetailsField label='Workspaces'>{model.workspaces}</DetailsField>
                       )}
                       {model.changes.map((change) => (
                         <PropertyList
@@ -128,18 +130,19 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
           )}
           {model.decided && model.usageLimit && (
             <>
-              <RequestText
+              <DetailsField
                 label={
                   model.fulfilled ? 'Previous member credit limit' : 'Current member credit limit'
                 }
               >
                 {model.currentLimit ?? 'No member limit'}
-              </RequestText>
+              </DetailsField>
               {model.fulfilled && model.newLimit !== null && (
-                <RequestText label='New member credit limit'>{model.newLimit}</RequestText>
+                <DetailsField label='New member credit limit'>{model.newLimit}</DetailsField>
               )}
               {pending && !declining && (
                 <TextField
+                  placeholder='Enter a credit limit'
                   label='New member credit limit'
                   inputMode='numeric'
                   value={newLimit}
@@ -152,9 +155,10 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
           {pending && model.unavailableReason && (
             <InlineNotice intent='warning' message={model.unavailableReason} />
           )}
-          {model.decision && <RequestText label='Decision'>{model.decision}</RequestText>}
+          {model.decision && <DetailsField label='Decision'>{model.decision}</DetailsField>}
           {pending && declining && (
             <TextAreaField
+              placeholder='Explain why this request was declined'
               label='Reason for declining'
               required
               maxLength={1000}

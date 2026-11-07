@@ -5,6 +5,7 @@ import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/
 import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
 import { Button } from '@/platform/design-system/components'
 import { CopyButton } from '@/platform/design-system/components/button/copy-button'
+import { MessageBubble } from '@/platform/design-system/components/message-bubble/message-bubble'
 
 const DELIVERY_LABELS = {
   sending: 'Sending',
@@ -20,11 +21,7 @@ export function UserMessage({ turn }: UserMessageProps) {
   return (
     <div className={styles.user}>
       <MessageAttachments items={turn.prompt.attachments} />
-      {turn.prompt.text && (
-        <p className={styles.bubble} data-type='T048'>
-          {turn.prompt.text}
-        </p>
-      )}
+      {turn.prompt.text && <MessageBubble>{turn.prompt.text}</MessageBubble>}
       {turn.delivery && (
         <div className={styles.userActions} data-type='T060' role='status'>
           {DELIVERY_LABELS[turn.delivery]}

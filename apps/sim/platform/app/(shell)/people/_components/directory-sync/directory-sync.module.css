@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   min-block-size: 100%;
-  padding: var(--shell-home-row-start) var(--ui-page-inline-gutter) var(--ui-page-inset-block);
+  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
   gap: var(--spacing-32);
 }
 

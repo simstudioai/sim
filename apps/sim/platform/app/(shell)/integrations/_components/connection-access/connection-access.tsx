@@ -1,64 +1,26 @@
-import styles from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access.module.css'
 import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { OrganizationIntegration } from '@/platform/shared/integrations'
-
-interface AccessGroupProps {
-  title: string
-  items: readonly { id: string; label: string }[]
-}
-
-function AccessGroup({ title, items }: AccessGroupProps) {
-  if (!items.length) return null
-  return (
-    <div className={styles.group}>
-      <h3 data-type='T059'>
-        <CountedLabel label={title} count={items.length} />
-      </h3>
-      <ul className={styles.items} aria-label={title}>
-        {items.map(({ id, label }) => (
-          <li data-type='T060' key={id}>
-            {label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
+import { ListField } from '@/platform/design-system/components'
 
 interface ConnectionAccessProps {
-  integration: OrganizationIntegration
+  permissions: readonly { id: string; label: string; description?: string }[]
+  title?: string
 }
 
-export function ConnectionAccess({ integration }: ConnectionAccessProps) {
-  const { searchReads, searchResource, requestedScopes, availability, accessDescription } =
-    integration
+export function ConnectionAccess({
+  permissions,
+  title = 'Requested permissions',
+}: ConnectionAccessProps) {
   return (
-    <>
-      {searchResource && availability === 'ready' && (
-        <section className={styles.section} aria-label='Search access'>
-          <header className={styles.heading}>
-            <h2 data-type='T093'>Search access</h2>
-            <p data-type='T060'>{accessDescription}</p>
-          </header>
-          <AccessGroup title='Read-only tools' items={searchReads} />
-        </section>
-      )}
-      {requestedScopes && requestedScopes.length > 0 && (
-        <section className={styles.section} aria-label='Requested permissions'>
-          <h2 data-type='T093'>Requested permissions</h2>
-          {SCOPE_GROUPS.map((group) => (
-            <AccessGroup
-              key={group}
-              title={group}
-              items={requestedScopes.filter(({ id }) => scopeGroup(id) === group)}
-            />
-          ))}
-        </section>
-      )}
-    </>
+    <ListField
+      label={title}
+      groups={SCOPE_GROUPS.map((group) => ({
+        id: group,
+        label: group,
+        items: permissions.filter(({ id }) => scopeGroup(id) === group),
+      }))}
+    />
   )
 }

@@ -47,6 +47,11 @@
 .pageContent {
   container-type: inline-size;
 }
+.pageContent[data-workspace-pane] {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+}
 .desktopBar {
   display: flex;
   align-items: center;

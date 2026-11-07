@@ -1,0 +1,29 @@
+.stack {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+.item {
+  display: inline-flex;
+  position: relative;
+}
+.item > * {
+  transition: transform var(--ui-motion-position) ease;
+}
+.item + .item {
+  margin-inline-start: calc(-1 * var(--spacing-4));
+}
+@media (hover: hover) {
+  .item:hover {
+    z-index: 1;
+  }
+  .item:hover > * {
+    transform: translateX(calc(-1 * var(--spacing-4)));
+  }
+}
+.count {
+  margin-inline-start: var(--ui-row-gap);
+  color: var(--ui-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

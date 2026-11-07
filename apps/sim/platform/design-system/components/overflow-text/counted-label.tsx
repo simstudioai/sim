@@ -10,10 +10,7 @@ export function CountedLabel({ label, count }: CountedLabelProps) {
   if (count === undefined) return <OverflowText text={label}>{label}</OverflowText>
   return (
     <OverflowText text={`${label} ${count}`}>
-      <span className={styles.counted}>
-        <span>{label}</span>
-        <small data-type='T036'>{count}</small>
-      </span>
+      {label} <span className={styles.count}>{count}</span>
     </OverflowText>
   )
 }

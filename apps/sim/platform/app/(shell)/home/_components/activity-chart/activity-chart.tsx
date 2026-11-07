@@ -9,7 +9,7 @@ import { InlineNotice } from '@/platform/design-system/components'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
-import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
+import { ChoiceMenu } from '@/platform/design-system/components/menu/choice-menu'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import type { ActivityPoint, HomeActivityState } from '@/platform/shared/home'
 import { DAY_MS, formatCalendarDate } from '@/platform/shared/time'
@@ -117,14 +117,13 @@ export function HomeActivityChart({
   initiallyOpen,
 }: HomeActivityChartProps) {
   const [range, setRange] = useState(RANGE_LABELS[0])
-  const scrollEdges = useScrollEdges<HTMLElement>('vertical', { tabStop: true })
   if (hidden || state.status === 'hidden') return null
   const ready = state.status === 'ready'
   const days = WINDOW_DAYS[RANGE_LABELS.indexOf(range)]
   const points = ready ? calendarWindow(state.points, days) : []
   const total = points.reduce((sum, point) => sum + point.value, 0)
   return (
-    <section ref={scrollEdges} className={styles.chart} aria-label={title}>
+    <section className={styles.chart} aria-label={title}>
       <header className={styles.header}>
         <div className={styles.heading}>
           <h2 data-type='T042'>{title}</h2>
@@ -135,7 +134,7 @@ export function HomeActivityChart({
           )}
         </div>
         {ready && (
-          <RangePicker
+          <ChoiceMenu
             label='Range'
             options={RANGE_LABELS}
             value={range}

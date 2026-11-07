@@ -57,7 +57,7 @@
 
 .item:is(:disabled, [data-disabled], [aria-disabled="true"]) {
   opacity: var(--opacity-disabled);
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .label {

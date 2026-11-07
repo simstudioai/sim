@@ -1,139 +1,408 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/fixtures/connected-credential/connected-credential'
-import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/fixtures/connection-access/connection-access'
-import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/fixtures/provider-heading/provider-heading'
-import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions'
-import { Chip, EmptyState } from '@/platform/design-system/components'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
+import { useState, useTransition } from 'react'
+import { generateId } from '@sim/utils/id'
+import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
+import { CredentialConnect } from '@/platform/app/(shell)/integrations/_components/credential-connect/credential-connect'
+import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
+import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
+import { CredentialList } from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list'
+import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities'
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
+import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
+import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
+import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
+import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
+import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
+import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
+import type {
+  IntegrationCenterData,
+  IntegrationPerson,
+  IntegrationResource,
+} from '@/platform/lib/integrations/center-model'
+import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
+import type {
+  CredentialConnection,
+  IntegrationCredential,
+} from '@/platform/lib/integrations/credential-model'
 import {
-  memberIntegrationHref,
-  memberStatus,
-  type OrganizationIntegration,
-} from '@/platform/lib/integrations/fixture-model'
+  clearCredentialView,
+  credentialParams,
+} from '@/platform/lib/integrations/credential-navigation'
+import type { OrganizationIntegration } from '@/platform/lib/integrations/fixture-model'
+import {
+  type ManualCredential,
+  manualCredentialAccess,
+} from '@/platform/lib/integrations/manual-secret'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
   onChange: (next: OrganizationIntegration) => void
+  knownCredentials: readonly IntegrationCredential[]
+  organization: { id: string; name: string }
+  viewer: IntegrationPerson
+  eligiblePeople: readonly IntegrationPerson[]
+  workspaces: readonly { id: string; name: string; memberIds: readonly string[] }[]
+  people?: readonly IntegrationPerson[]
+  peopleTotal?: number
+  catalog?: IntegrationCatalogEntry | null
+  addedSkills?: readonly string[]
+  onAddSkill?: (skill: IntegrationCatalogEntry['skills'][number]) => void
+  onRemoveSkill?: (name: string) => void
+  library: {
+    data: IntegrationCenterData
+    save: (resource: IntegrationResource) => void
+    remove: (id: string) => void
+    leave: (id: string) => void
+  }
 }
 
-export function IntegrationDetails({ integration, onChange }: IntegrationDetailsProps) {
-  const router = useRouter()
-  const search = useSearchParams()
-  const { account, providerId, connectableMethod, connectionCandidate } = integration
-  const titleRef = useRef<HTMLHeadingElement>(null)
-  const returnToTitle = useRef(false)
-  useLayoutEffect(() => {
-    if (returnToTitle.current) {
-      titleRef.current?.focus({ preventScroll: true })
-      returnToTitle.current = false
-    }
-  }, [account?.id])
-  const requested = search.get('account')
-  const staleCredential = Boolean(requested && requested !== account?.id)
-  const providerHref = memberIntegrationHref(
-    `/integrations/${encodeURIComponent(providerId)}`,
-    search
+export function IntegrationDetails({
+  integration,
+  onChange,
+  knownCredentials,
+  organization,
+  viewer,
+  eligiblePeople,
+  workspaces,
+  people,
+  peopleTotal,
+  catalog,
+  addedSkills,
+  onAddSkill,
+  onRemoveSkill,
+  library,
+}: IntegrationDetailsProps) {
+  const [view, setView] = useQueryStates(credentialParams)
+  const [isOpening, startOpening] = useTransition()
+  const [enrollment, setEnrollment] = useState<{
+    connection: CredentialConnection
+    credential?: IntegrationCredential
+  } | null>(null)
+  const [disconnecting, setDisconnecting] = useState<IntegrationCredential | null>(null)
+  const [creatingSecret, setCreatingSecret] = useState(false)
+  const manualCredentials = library.data.resources.filter(
+    (resource): resource is ManualCredential =>
+      resource.kind === 'credential' && resource.appId === integration.providerId
   )
-  const canConnect = !account && integration.availability === 'ready' && connectableMethod !== null
-  const canAuthorize = Boolean(integration.fixtureAuthorization)
-  const canAttach = canAuthorize && canConnect && connectionCandidate?.method === connectableMethod
-  const accessMessage =
-    integration.availability === 'managed'
-      ? `Managed by your organization. ${integration.accessDescription}`
-      : integration.accessDescription
-
-  function connect() {
-    if (!canAttach || !connectionCandidate) return
-    returnToTitle.current = true
-    onChange({
-      ...integration,
-      account: connectionCandidate,
-      connectableMethod: null,
-      connectionCandidate: undefined,
+  const selectedSecret = !isOpening
+    ? manualCredentials.find((resource) => resource.id === view.credential)
+    : undefined
+  const selected = isOpening
+    ? undefined
+    : integration.credentials.find((credential) => credential.id === view.credential)
+  const connections = catalog?.connections ?? []
+  const hasOAuth = connections.some(
+    (connection) => connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
+  )
+  const connectLabel = hasOAuth ? 'Connect integration' : 'Create credential'
+  const selectedScope = selected?.scope
+  const workspace =
+    selectedScope?.kind === 'workspace'
+      ? workspaces.find((entry) => entry.id === selectedScope.id)
+      : undefined
+  const allowedPeople = workspace
+    ? eligiblePeople.filter((person) => workspace.memberIds.includes(person.id))
+    : selectedScope?.kind === 'organization'
+      ? eligiblePeople
+      : []
+  function canReconnect(credential: IntegrationCredential) {
+    if (credential.providerId === 'microsoft-dataverse' && !credential.instanceUrl) return false
+    return (
+      credential.role === 'admin' &&
+      credential.scope.kind !== 'organization-managed' &&
+      credential.canReconnect &&
+      connections.some(
+        (entry) => entry.providerId === credential.providerId && entry.kind === credential.type
+      )
+    )
+  }
+  function open(credential: IntegrationCredential) {
+    startOpening(async () => {
+      await setView({})
+      await setView(
+        { ...clearCredentialView, credential: credential.id },
+        { history: 'push', scroll: false }
+      )
     })
   }
-
-  function disconnect() {
-    if (!account) return
-    returnToTitle.current = true
-    const restore = integration.availability === 'ready' && account.canReconnect
+  function save(credential: IntegrationCredential) {
+    const current = integration.credentials.find((entry) => entry.id === credential.id)
+    if (!current || current.role !== 'admin' || current.scope.kind === 'organization-managed')
+      return
+    if (!validCredentialMembers(current, credential.members)) return
+    if (current.displayName !== credential.displayName) assertAvailableName(credential)
     onChange({
       ...integration,
-      account: null,
-      connectableMethod: restore ? account.method : null,
-      connectionCandidate:
-        restore && canAuthorize
-          ? {
-              ...account,
-              status: 'active',
-              permissions: account.permissions && {
-                ...account.permissions,
-                read: account.permissions.canAutoApprove ? 'allow' : 'ask',
-                write: 'ask',
-                tools: account.permissions.tools.map((tool) => ({ ...tool, override: null })),
-              },
-            }
-          : undefined,
+      credentials: integration.credentials.map((entry) =>
+        entry.id === credential.id ? credential : entry
+      ),
     })
-    if (requested) router.replace(providerHref, { scroll: false })
   }
-
+  function assertAvailableName(credential: IntegrationCredential) {
+    const scope = credential.scope
+    if (
+      (credential.type !== 'oauth' && credential.type !== 'service_account') ||
+      (scope.kind !== 'workspace' && scope.kind !== 'organization')
+    )
+      return
+    if (
+      knownCredentials.some(
+        (entry) =>
+          entry.id !== credential.id &&
+          entry.type === credential.type &&
+          entry.scope.kind === scope.kind &&
+          entry.scope.id === scope.id &&
+          (credential.type === 'oauth'
+            ? entry.displayName.trim().toLowerCase() === credential.displayName.trim().toLowerCase()
+            : entry.providerId === credential.providerId &&
+              entry.displayName === credential.displayName)
+      )
+    )
+      throw new Error(`A credential with this display name already exists in this ${scope.kind}.`)
+  }
+  function remove(credential: IntegrationCredential) {
+    const current = integration.credentials.find((entry) => entry.id === credential.id)
+    if (!current || current.role !== 'admin' || current.scope.kind === 'organization-managed')
+      return
+    commitRemoval(current)
+  }
+  function commitRemoval(credential: IntegrationCredential) {
+    onChange({
+      ...integration,
+      credentials: integration.credentials.filter((entry) => entry.id !== credential.id),
+    })
+    if (selected?.id === credential.id) void setView({ ...clearCredentialView, credential: null })
+  }
+  function leave(credential: IntegrationCredential) {
+    const current = integration.credentials.find((entry) => entry.id === credential.id)
+    if (!current || (current.scope.kind !== 'workspace' && current.scope.kind !== 'organization'))
+      return
+    const members = current.members.filter((member) => member.status === 'active')
+    const member = members.find((entry) => entry.userId === viewer.id)
+    if (
+      !member ||
+      member.roleSource !== 'explicit' ||
+      (member.explicitAdmin && members.filter((entry) => entry.explicitAdmin).length <= 1)
+    )
+      return
+    commitRemoval(current)
+  }
+  function reconnect(credential: IntegrationCredential) {
+    if (!canReconnect(credential)) return
+    const connection = connections.find(
+      (entry) => entry.providerId === credential.providerId && entry.kind === credential.type
+    )
+    if (connection) setEnrollment({ connection, credential })
+  }
+  function connect(draft: CredentialDraft) {
+    if (!enrollment || (!enrollment.credential && !integration.canAddCredential)) return
+    if (enrollment.credential) {
+      const current = integration.credentials.find(
+        (entry) => entry.id === enrollment.credential?.id
+      )
+      if (!current) return
+      save({
+        ...current,
+        displayName: draft.displayName,
+        description: draft.description,
+        accountLabel: draft.accountLabel ?? current.accountLabel,
+        status: 'active',
+      })
+      setEnrollment(null)
+      return
+    }
+    const credential: IntegrationCredential = {
+      id: generateId(),
+      appId: integration.providerId,
+      providerId: enrollment.connection.providerId,
+      type: enrollment.connection.kind,
+      displayName: draft.displayName,
+      description: draft.description,
+      accountLabel: draft.accountLabel,
+      instanceUrl: draft.instanceUrl,
+      role: 'admin',
+      status: 'active',
+      canReconnect: true,
+      scope: enrollment.connection.personalOnly
+        ? { kind: 'personal', ownerId: viewer.id }
+        : { kind: 'organization', id: organization.id, name: organization.name },
+      members: [
+        {
+          ...viewer,
+          userId: viewer.id,
+          role: 'admin',
+          roleSource: 'explicit',
+          explicitAdmin: true,
+          status: 'active',
+        },
+      ],
+    }
+    assertAvailableName(credential)
+    onChange({ ...integration, credentials: [...integration.credentials, credential] })
+    setEnrollment(null)
+  }
   return (
     <>
-      <ProviderHeading
-        name={integration.name}
-        titleRef={titleRef}
-        description={integration.description}
-        providerId={providerId}
-      />
-      {account && !staleCredential && (
-        <ConnectedCredential
-          account={account}
-          status={memberStatus(integration)}
-          canAuthorize={canAuthorize}
-          onReconnect={() => {
-            if (canAuthorize && account.canReconnect)
-              onChange({ ...integration, account: { ...account, status: 'active' } })
+      {selectedSecret ? (
+        <ManualCredentialDetail
+          key={selectedSecret.id}
+          resource={selectedSecret}
+          data={library.data}
+          appName={integration.name}
+          onSave={library.save}
+          onRemove={() => {
+            library.remove(selectedSecret.id)
+            void setView({ ...clearCredentialView, credential: null })
           }}
-          onDisconnect={disconnect}
+          onLeave={() => {
+            library.leave(selectedSecret.id)
+            void setView({ ...clearCredentialView, credential: null })
+          }}
+        />
+      ) : selected ? (
+        <CredentialDetail
+          key={selected.id}
+          credential={selected}
+          integrationName={integration.name}
+          viewer={viewer}
+          people={allowedPeople}
+          onChange={save}
+          onReconnect={canReconnect(selected) ? () => reconnect(selected) : undefined}
+          onDisconnect={() => setDisconnecting(selected)}
+          onLeave={() => leave(selected)}
+        />
+      ) : (
+        <>
+          <ProviderHeading
+            name={integration.name}
+            description={integration.description}
+            providerId={integration.providerId}
+          />
+          <IntegrationIdea
+            providerId={integration.providerId}
+            name={integration.name}
+            example={
+              catalog?.example ??
+              `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
+            }
+          />
+          <IntegrationControls
+            leading={
+              !integration.credentials.length && !manualCredentials.length ? (
+                <IntegrationUsage people={people ?? []} total={peopleTotal} />
+              ) : undefined
+            }
+          >
+            <Button
+              variant='quiet'
+              size='compact'
+              icon='I082'
+              render={
+                <Link href={integration.setupGuideUrl} target='_blank' rel='noopener noreferrer' />
+              }
+            >
+              Docs
+            </Button>
+            {hasOAuth && integration.canAddCredential && (
+              <Button variant='quiet' size='compact' onClick={() => setCreatingSecret(true)}>
+                Create credential
+              </Button>
+            )}
+            {integration.canAddCredential && connections.length === 1 && hasOAuth ? (
+              <Button
+                icon='I074'
+                size='compact'
+                onClick={() => setEnrollment({ connection: connections[0] })}
+              >
+                {connectLabel}
+              </Button>
+            ) : integration.canAddCredential && connections.length > 0 ? (
+              <ActionMenu
+                label={connectLabel}
+                triggerSize='compact'
+                triggerVariant='secondary'
+                icon={null}
+                tooltip={false}
+                actions={[
+                  ...connections.map((connection) => ({
+                    id: connection.id,
+                    label: connection.label,
+                    onSelect: () => setEnrollment({ connection }),
+                  })),
+                  ...(!hasOAuth
+                    ? [
+                        {
+                          id: 'manual',
+                          label: 'Manual secret',
+                          onSelect: () => setCreatingSecret(true),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            ) : (
+              <Button size='compact' icon='I074' onClick={() => setCreatingSecret(true)}>
+                Create credential
+              </Button>
+            )}
+          </IntegrationControls>
+          <CredentialList
+            credentials={[
+              ...integration.credentials,
+              ...manualCredentials.map((resource) =>
+                manualCredentialAccess(resource, library.data)
+              ),
+            ]}
+            onOpen={open}
+          />
+          {catalog && (
+            <IntegrationCapabilities
+              catalog={catalog}
+              addedSkills={addedSkills}
+              onAddSkill={onAddSkill}
+              onRemoveSkill={onRemoveSkill}
+            />
+          )}
+        </>
+      )}
+      {creatingSecret && (
+        <ResourceEditor
+          kind='credential'
+          appId={integration.providerId}
+          apps={[{ id: integration.providerId, name: integration.name }]}
+          data={library.data}
+          onSave={library.save}
+          onClose={() => setCreatingSecret(false)}
         />
       )}
-      {staleCredential ? (
-        <EmptyState
-          title='This credential is no longer connected'
-          action={<Chip href={providerHref}>View integration</Chip>}
-        />
-      ) : !account ? (
-        <ConnectionPrompt
-          title={canConnect ? `Connect your ${integration.name} account` : accessMessage}
-          setupGuideUrl={integration.setupGuideUrl}
-          options={
-            canConnect
-              ? [
-                  {
-                    label: integration.name,
-                    icon: { providerId },
-                    onConnect: canAttach ? connect : undefined,
-                  },
-                ]
-              : []
-          }
-        />
-      ) : null}
-      {!staleCredential && account?.permissions && (
-        <ToolPermissions
-          key={account.id}
-          account={account}
-          permissions={account.permissions}
-          onChange={(permissions) =>
-            onChange({ ...integration, account: { ...account, permissions } })
-          }
+      {enrollment && (
+        <CredentialConnect
+          key={`connect:${enrollment.credential?.id ?? enrollment.connection.id}`}
+          integrationName={integration.name}
+          connection={enrollment.connection}
+          access={integration.searchReads}
+          initial={enrollment.credential}
+          onClose={() => setEnrollment(null)}
+          onSubmit={connect}
         />
       )}
-      {!staleCredential && <ConnectionAccess integration={integration} />}
+      {disconnecting && (
+        <Modal
+          open
+          title={`Disconnect ${disconnecting.displayName}?`}
+          description='People and workflows using this credential will lose access.'
+          variant='confirm'
+          destructive
+          confirmLabel='Disconnect'
+          onOpenChange={(open) => {
+            if (!open) setDisconnecting(null)
+          }}
+          onConfirm={() => remove(disconnecting)}
+        />
+      )}
     </>
   )
 }

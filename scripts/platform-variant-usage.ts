@@ -119,9 +119,8 @@ export function productUsage(app: string, program: ts.Program): Usage {
       if (inner && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner))) return inner
     }
   }
-  /** Resolve the default component actually rendered from a literal import or indexed lazy registry. */
-  function lazyEntries(decl: ts.Node | undefined): ts.SourceFile[] {
-    if (!decl || !ts.isBindingElement(decl) || decl.propertyName?.getText() !== 'default') return []
+  /** Resolve the component actually rendered from a literal import or indexed lazy registry. */
+  function lazyEntries(decl: ts.BindingElement): ts.SourceFile[] {
     const variable = decl.parent.parent
     if (
       !ts.isVariableDeclaration(variable) ||
@@ -298,8 +297,11 @@ export function productUsage(app: string, program: ts.Program): Usage {
         for (const flowNode of flowNodeComponents(node)) walkComponent(flowNode, {})
         const decl = declaration(node.tagName)
         const owner = decl && component(decl)
+        if (!owner && decl && ts.isBindingElement(decl)) {
+          const name = (decl.propertyName ?? decl.name).getText()
+          for (const module of lazyEntries(decl)) walkEntry(module.fileName, name)
+        }
         if (!owner) {
-          for (const module of lazyEntries(decl)) walkEntry(module.fileName)
           for (const loaded of dynamicRegistry(decl)) walkComponent(loaded, {})
         }
         if (decl && owner) {
@@ -353,10 +355,9 @@ export function productUsage(app: string, program: ts.Program): Usage {
     }
     visit(fn.body)
   }
-  function entry(sf: ts.SourceFile) {
+  function entry(sf: ts.SourceFile, name = 'default') {
     const module = checker.getSymbolAtLocation(sf)
-    const symbol =
-      module && checker.getExportsOfModule(module).find((item) => item.name === 'default')
+    const symbol = module && checker.getExportsOfModule(module).find((item) => item.name === name)
     if (!symbol) return
     const decl = (symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol)
       .valueDeclaration
@@ -364,9 +365,9 @@ export function productUsage(app: string, program: ts.Program): Usage {
       return component(decl.expression) ?? component(declaration(decl.expression))
     return component(decl)
   }
-  function walkEntry(file: string) {
+  function walkEntry(file: string, name = 'default') {
     const sf = program.getSourceFile(file)
-    const root = sf && entry(sf)
+    const root = sf && entry(sf, name)
     if (root) walkComponent(root, {})
   }
   const segments = new Set<string>()

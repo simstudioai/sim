@@ -1,0 +1,18 @@
+@import "../app/_styles/globals.css";
+@source "./";
+
+#root {
+  block-size: 100dvh;
+}
+
+@font-face {
+  font-family: "Workspace Season";
+  src: url("../app/_styles/fonts/season/SeasonSansUprightsVF.woff2") format("woff2");
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: block;
+}
+
+.workspace-root {
+  --font-season: "Workspace Season", system-ui, sans-serif;
+}

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
+import { PageColumn } from '@/platform/design-system/components'
 
 interface SettingsScreenProps {
   title: string
@@ -39,12 +40,14 @@ export function SettingsScreen({ title, children }: SettingsScreenProps) {
           {title}
         </span>
       </header>
-      <div className={styles.content}>
-        <header className={styles.heading}>
-          <h1 data-type='T076'>{title}</h1>
-        </header>
-        {children}
-      </div>
+      <PageColumn>
+        <div className={styles.content}>
+          <header className={styles.heading}>
+            <h1 data-type='T076'>{title}</h1>
+          </header>
+          {children}
+        </div>
+      </PageColumn>
     </>
   )
 }

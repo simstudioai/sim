@@ -217,7 +217,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
                 key={group.id}
                 title={group.name}
                 detail={groupSummary(group)}
-                metadata={group.isDefault ? 'Default' : undefined}
+                textMetadata={group.isDefault ? 'Default' : undefined}
                 onOpen={() => params.openGroup(group.id)}
               />
             ))}

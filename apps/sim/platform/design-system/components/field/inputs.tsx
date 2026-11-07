@@ -9,7 +9,8 @@ import type {
   UIEventHandler,
 } from 'react'
 import { useCallback } from 'react'
-import styles from '@/platform/design-system/components/field/field.module.css'
+import { CopyButton } from '@/platform/design-system/components/button/copy-button'
+import styles from '@/platform/design-system/components/field/field.shared.module.css'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 export interface ControlProps {
@@ -44,12 +45,13 @@ export interface TextEntryProps {
   autoComplete?: string
   maxLength?: number
   readOnly?: boolean
+  viewOnly?: boolean
 }
 
 interface InputProps extends ControlProps, TextValueProps, TextEntryProps {
   required?: boolean
   pattern?: string
-  placeholder?: string
+  placeholder: string
   spellCheck?: boolean
   /** An action inside the frame, after the text. */
   trailing?: ReactNode
@@ -84,6 +86,7 @@ export function Input({
   autoComplete,
   maxLength,
   readOnly,
+  viewOnly,
   spellCheck,
   trailing,
   masked,
@@ -111,7 +114,11 @@ export function Input({
     [scrollRef, inputRef]
   )
   return (
-    <span className={styles.inputFrame} data-trailing={trailing ? true : undefined}>
+    <span
+      className={styles.inputFrame}
+      data-view-only={viewOnly || undefined}
+      data-trailing={!viewOnly && trailing ? true : undefined}
+    >
       <input
         ref={elementRef}
         id={id}
@@ -119,7 +126,7 @@ export function Input({
         inputMode={inputMode}
         autoComplete={autoComplete}
         maxLength={maxLength}
-        readOnly={readOnly}
+        readOnly={readOnly || viewOnly}
         spellCheck={spellCheck}
         required={required}
         pattern={pattern}
@@ -143,14 +150,24 @@ export function Input({
         onSelect={onSelect}
         onScroll={onScroll}
       />
-      {trailing}
+      {viewOnly ? (
+        <span className={styles.copyAction}>
+          <CopyButton
+            label={`Copy ${label}`}
+            text={value ?? defaultValue ?? ''}
+            size='compact'
+            disabled={disabled}
+          />
+        </span>
+      ) : (
+        trailing && <span className={styles.trailing}>{trailing}</span>
+      )}
     </span>
   )
 }
 
-interface TextAreaProps
-  extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'spellCheck' | 'trailing'> {
-  density?: 'expanded'
+interface TextAreaProps extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'trailing'> {
+  defaultSize?: 'regular' | 'expanded' | 'large'
 }
 
 export function TextArea({
@@ -164,27 +181,33 @@ export function TextArea({
   invalid,
   describedBy,
   placeholder,
-  density,
+  defaultSize = 'regular',
   required,
   autoComplete,
+  spellCheck,
   maxLength,
   readOnly,
+  viewOnly,
 }: TextAreaProps) {
   const scrollRef = useScrollEdges<HTMLTextAreaElement>()
   return (
-    <span className={styles.inputFrame}>
+    <span
+      className={`${styles.inputFrame} ${styles.textareaFrame}`}
+      data-default-size={defaultSize}
+      data-view-only={viewOnly || undefined}
+    >
       <textarea
         ref={scrollRef}
         id={id}
         autoComplete={autoComplete}
+        spellCheck={spellCheck}
         maxLength={maxLength}
-        readOnly={readOnly}
+        readOnly={readOnly || viewOnly}
         required={required}
         aria-label={label}
         className={styles.input}
         data-type='T043'
         name={name}
-        data-density={density}
         defaultValue={defaultValue}
         value={value}
         onChange={onChange && ((event) => onChange(event.target.value))}
@@ -193,6 +216,16 @@ export function TextArea({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
       />
+      {viewOnly && (
+        <span className={styles.copyAction}>
+          <CopyButton
+            label={`Copy ${label}`}
+            text={value ?? defaultValue ?? ''}
+            size='compact'
+            disabled={disabled}
+          />
+        </span>
+      )}
     </span>
   )
 }

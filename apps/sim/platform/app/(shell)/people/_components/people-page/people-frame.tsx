@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
+import { PageColumn } from '@/platform/design-system/components'
 
 type PeopleView = 'chart' | 'directory'
 
@@ -21,25 +22,27 @@ interface PeopleFrameProps {
 export function PeopleFrame({ actions, view, onViewChange, children }: PeopleFrameProps) {
   return (
     <main className={styles.page}>
-      <header className={styles.header}>
-        <h1 data-type='T076'>People</h1>
-        {actions && <div className={styles.actions}>{actions}</div>}
-      </header>
-      <nav className={styles.tabs} aria-label='People view'>
-        {VIEWS.map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={styles.tab}
-            data-type={view === value ? 'T042' : 'T043'}
-            aria-current={view === value ? 'page' : undefined}
-            disabled={!onViewChange}
-            onClick={() => onViewChange?.(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      <PageColumn>
+        <header className={styles.header}>
+          <h1 data-type='T076'>People</h1>
+          {actions && <div className={styles.actions}>{actions}</div>}
+        </header>
+        <nav className={styles.tabs} aria-label='People view'>
+          {VIEWS.map(({ value, label }) => (
+            <button
+              key={value}
+              type='button'
+              className={styles.tab}
+              data-type={view === value ? 'T042' : 'T043'}
+              aria-current={view === value ? 'page' : undefined}
+              disabled={!onViewChange}
+              onClick={() => onViewChange?.(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </PageColumn>
       <div className={styles.body}>{children}</div>
     </main>
   )

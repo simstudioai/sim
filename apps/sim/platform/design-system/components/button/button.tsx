@@ -1,6 +1,6 @@
 'use client'
 
-import type { MouseEventHandler, ReactElement, ReactNode } from 'react'
+import type { ComponentProps, MouseEventHandler, ReactElement, ReactNode } from 'react'
 import { useRender } from '@base-ui/react/use-render'
 import Link from 'next/link'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
@@ -137,8 +137,22 @@ type ChipProps = {
   icon?: IconName
   selected?: boolean
 } & (
-  | { href: string; onClick?: never; action?: ReactNode; status?: ReactNode }
-  | { href?: never; onClick?: MouseEventHandler<HTMLButtonElement>; action?: never; status?: never }
+  | {
+      href: string
+      onNavigate?: ComponentProps<typeof Link>['onNavigate']
+      onClick?: never
+      action?: ReactNode
+      status?: ReactNode
+      replaceActionOnTouch?: boolean
+    }
+  | {
+      href?: never
+      onNavigate?: never
+      onClick?: MouseEventHandler<HTMLButtonElement>
+      action?: never
+      status?: never
+      replaceActionOnTouch?: never
+    }
 )
 
 export function Chip({
@@ -147,19 +161,31 @@ export function Chip({
   selected = false,
   onClick,
   href,
+  onNavigate,
   action,
   status,
+  replaceActionOnTouch,
 }: ChipProps) {
-  const LinkElement = href && isAbsoluteHref(href) ? 'a' : Link
   return (
     <ControlRow
       label={children}
       icon={icon}
       action={action}
       status={status}
+      replaceActionOnTouch={replaceActionOnTouch}
       render={
         href ? (
-          <LinkElement href={href} aria-current={selected ? 'page' : undefined} />
+          isAbsoluteHref(href) ? (
+            <a href={href} aria-current={selected ? 'page' : undefined}>
+              {children}
+            </a>
+          ) : (
+            <Link
+              href={href}
+              onNavigate={onNavigate}
+              aria-current={selected ? 'page' : undefined}
+            />
+          )
         ) : (
           <button type='button' aria-pressed={selected} onClick={onClick} />
         )

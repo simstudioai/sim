@@ -72,7 +72,6 @@ function useHelp(organization: PlatformOrganization): ShellHelp {
   return {
     documentationUrl: DOCS_URL,
     slackUrl: SLACK_COMMUNITY_URL,
-    changelogUrl: hosted ? `${organization.legacyOrigin}/changelog` : undefined,
     downloadUrl:
       hosted && !isDesktopApp()
         ? `${organization.legacyOrigin}/api/desktop/update/download`

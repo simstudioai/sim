@@ -4,7 +4,7 @@ import { TrendPlot } from '@/platform/design-system/catalog/plots'
 import { chartNumber, chartTick } from '@/platform/design-system/components/chart/chart-format'
 import { ChartTooltip } from '@/platform/design-system/components/chart/chart-tooltip'
 import { usePlotInspection } from '@/platform/design-system/components/chart/use-plot-inspection'
-import { RangePicker } from '@/platform/design-system/components/menu/range-picker'
+import { ChoiceMenu } from '@/platform/design-system/components/menu/choice-menu'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { FailureNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
@@ -115,7 +115,7 @@ export function HomeActivityChart({
           )}
         </div>
         {(state.status !== 'error' || days !== ACTIVITY_WINDOW_DAYS[0]) && (
-          <RangePicker
+          <ChoiceMenu
             label='Range'
             options={RANGE_LABELS}
             value={range}

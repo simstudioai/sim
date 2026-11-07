@@ -1,22 +1,14 @@
-/*
- * The composer between the surfaces cannot read design-system tokens, so the frame that shares a
- * column with it uses the values behind `--ui-page-max-size` and `--ui-page-inline-gutter`.
- */
 .scroller {
   flex: 1;
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding-inline: clamp(1rem, 4%, 3rem);
 }
 .dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  inline-size: 100%;
-  max-inline-size: 81rem;
-  margin-inline: auto;
-  padding-block: 4rem 1.5rem;
+  padding-block: var(--ui-page-heading-inset, 4rem) 1.5rem;
 }
 /* The host page's canvas shows through, so the composer's row does not read as a band. */
 .dashboard > [data-platform-ui] {
@@ -30,18 +22,28 @@
 .lead {
   display: grid;
   gap: var(--ui-product-section-gap);
-  margin-block-end: var(--ui-section-gap);
+  margin-block-end: var(--ui-content-gap);
 }
-.greeting {
+.greeting,
+.composerHeading {
   display: flex;
-  align-items: start;
   justify-content: space-between;
   gap: var(--ui-row-gap);
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
-.greeting > div {
+.composerHeading {
+  align-items: center;
+}
+.greeting {
+  align-items: start;
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
+}
+.greeting > div:first-child {
   display: grid;
-  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+  gap: var(--ui-heading-gap);
+}
+.greeting > :last-child {
+  flex: none;
 }
 .greeting p {
   color: var(--ui-secondary);
@@ -62,7 +64,7 @@
   position: relative;
   z-index: 1;
   min-inline-size: 0;
-  margin-block-end: 1.5rem;
+  margin-block-end: var(--ui-product-section-gap, 1.5rem);
 }
 /* The composer and its shortcuts cap at the chat column elsewhere; here they span Home's column. */
 .composer > * {
@@ -81,6 +83,7 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
   align-items: start;
   gap: var(--ui-product-section-gap);
+  column-gap: calc(var(--ui-product-section-gap) + 2 * var(--ui-row-inset));
 }
 .column {
   display: grid;

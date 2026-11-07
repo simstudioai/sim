@@ -24,12 +24,8 @@
   overflow: hidden;
 }
 
-.counted {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  vertical-align: top;
-}
-.counted small {
+.count {
+  margin-inline-start: var(--ui-action-gap);
   color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
 }

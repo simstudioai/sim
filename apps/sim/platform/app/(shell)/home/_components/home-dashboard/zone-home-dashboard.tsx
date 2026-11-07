@@ -5,6 +5,7 @@ import { useInterfacePreferences } from '@/platform/app/(shell)/_components/sess
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import { HomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard'
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
+import { SegmentedControl } from '@/platform/design-system/components'
 
 const PROMPTS: Record<HomeMode, string> = {
   Build: 'What should we get done?',
@@ -28,8 +29,17 @@ export function ZoneHomeDashboard({ view, actions }: ZoneHomeDashboardProps) {
       actions={actions}
       mode={homeMode}
       prompt={PROMPTS[homeMode]}
-      composer={
-        <HomeComposer mode={homeMode} onModeChange={setHomeMode} references={view.references} />
+      composer={<HomeComposer mode={homeMode} inventory={view.composerInventory} />}
+      composerActions={
+        <SegmentedControl
+          label='Mode'
+          options={[
+            { value: 'Build', label: 'Build' },
+            { value: 'Search', label: 'Search' },
+          ]}
+          value={homeMode}
+          onSelect={setHomeMode}
+        />
       }
       hiddenWidgets={hiddenWidgets}
       onWidgetHiddenChange={(widget, hidden) =>

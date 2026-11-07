@@ -128,6 +128,7 @@ export function OrganizationMenu({
                 >
                   <Input
                     label='Organization name'
+                    placeholder='Organization name'
                     value={draftName}
                     disabled={renaming}
                     invalid={Boolean(renameError)}

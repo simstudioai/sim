@@ -25,7 +25,7 @@ export function GetStarted({ steps }: GetStartedProps) {
             title={step.title}
             detail={step.detail}
             wrapDetail
-            metadata={step.complete ? 'Done' : undefined}
+            textMetadata={step.complete ? 'Done' : undefined}
             href={step.href}
           />
         ))}

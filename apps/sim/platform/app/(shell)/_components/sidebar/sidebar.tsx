@@ -13,6 +13,7 @@ import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
 import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/app/(shell)/_components/sidebar/workspaces-section'
+import { WorkspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/workspace-navigation'
 import {
   Avatar,
   AvatarImage,
@@ -23,12 +24,14 @@ import {
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { platformHref } from '@/platform/design-system/navigation'
+import { workspaceEntry, workspaceLocation } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
 interface SidebarProps {
   data: ShellData | null
   actions: ShellActions
   chats: readonly ShellChat[]
+  workspaceChats: readonly ShellChat[]
   activeChat?: string
   pathname: string
   settingsSection?: string
@@ -43,6 +46,7 @@ export function Sidebar({
   actions,
   chats,
   activeChat,
+  workspaceChats,
   pathname,
   settingsSection,
   toolbar,
@@ -51,10 +55,12 @@ export function Sidebar({
   onNavigate,
 }: SidebarProps) {
   const settings = Boolean(settingsSection)
+  const location = workspaceLocation(pathname)
   const search = useSearchParams()
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const sidebarFooter = useRef<HTMLElement>(null)
   const preferences = useInterfacePreferences()
+  const accountPhoto = preferences?.picture ?? data?.user.image
   const accountName = preferences?.profileName ?? data?.user.name ?? ''
   const destinations: readonly ShellDestination[] = data?.destinations ?? PLATFORM_DESTINATIONS
   return (
@@ -80,7 +86,7 @@ export function Sidebar({
           if (event.target instanceof Element && event.target.closest('a[href]')) onNavigate()
         }}
       >
-        <Activity mode={settings ? 'hidden' : 'visible'}>
+        <Activity mode={settings || location ? 'hidden' : 'visible'}>
           <ScrollArea label='Platform navigation' hideScrollbar>
             <nav className={styles.nav} aria-label='Main navigation'>
               <div className={styles.group}>
@@ -115,6 +121,26 @@ export function Sidebar({
             </nav>
           </ScrollArea>
         </Activity>
+        {location && (
+          <ScrollArea key={location.id} label='Workspace navigation' hideScrollbar>
+            <WorkspaceNavigation
+              workspace={data?.workspaces.find((item) => item.id === location.id)}
+              location={location}
+              chats={
+                data?.chatsAvailable !== false && (
+                  <ChatsSection
+                    chats={workspaceChats}
+                    status='success'
+                    activeChat={activeChat}
+                    actions={actions.chats}
+                    navigate={navigate}
+                    newChatHref={workspaceEntry(location.id)}
+                  />
+                )
+              }
+            />
+          </ScrollArea>
+        )}
         {settings && (
           <ScrollArea label='Settings navigation' hideScrollbar>
             <SettingsNavigation section={settingsSection} groups={data?.settingsNavigation} />
@@ -129,7 +155,7 @@ export function Sidebar({
             <AccountMenu
               anchor={sidebarFooter}
               name={accountName}
-              image={preferences?.picture ?? data.user.image}
+              image={accountPhoto}
               onSettings={() => navigate('/settings')}
               onSignOut={actions.signOut}
             />
@@ -137,9 +163,9 @@ export function Sidebar({
             <IdentityButton
               label={accountName}
               leading={
-                preferences?.picture ? (
+                accountPhoto ? (
                   <span className={styles.accountPhoto}>
-                    <AvatarImage src={preferences.picture} name={accountName} />
+                    <AvatarImage src={accountPhoto} name={accountName} />
                   </span>
                 ) : (
                   <Avatar name={accountName} size='inline' />

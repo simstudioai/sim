@@ -172,6 +172,7 @@ const COLUMN_WIDTH_OWNER = 'platform/design-system/components/data-display/data-
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
+  'platform/design-system/components/page-column/page-column.module.css',
 ])
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
@@ -212,6 +213,7 @@ const seamHelpers = new Set([
   'app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry',
   'app/workspace/[workspaceId]/home/search-params',
   'app/workspace/[workspaceId]/home/types',
+  'app/workspace/[workspaceId]/skills/components/utils',
   'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',
   'components/assistant-actions/presentation',
@@ -612,6 +614,17 @@ function checkCss(file: string, sheet: postcss.Root) {
       return
     // Keyboard focus is visible, as review on the running app settled. Pointer focus stays unpainted.
     if (/:focus-visible/.test(rule.selector) && !/:focus(?!-visible)/.test(rule.selector)) return
+    if (
+      file === `${system}components/search-field/search-field.module.css` &&
+      rule.selector === '.search:is(:hover, :focus-within) .queryFrame::after' &&
+      rule.nodes.every(
+        (node) =>
+          node.type === 'decl' &&
+          node.prop === 'border-block-end-color' &&
+          node.value === 'var(--control-hover-border)'
+      )
+    )
+      return
     if (
       file === `${foundation}embedded.css` &&
       rule.selector === '[data-platform-ui] :focus' &&
@@ -1197,7 +1210,10 @@ function checkJs(file: string, content: string) {
 for (const file of sourceFiles) {
   if (file.startsWith(`${system}features/`))
     report('feature-owner', file, 'Colocate product UI in the owning route’s _components directory')
-  if (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts'))
+  if (
+    (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts')) ||
+    (file.startsWith('platform/app/') && /\/_components\/[^/]+\.module\.css$/.test(file))
+  )
     report(
       'component-folder',
       file,

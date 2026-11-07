@@ -140,7 +140,7 @@ const nativeOwners = {
   OverflowText: ['C0806', 'C0807'],
   MenuSearchField: ['C1308', 'C1309'],
   SearchableSelect: ['C1294', 'C1295'],
-  LogoUploadField: ['C1298', 'C1299'],
+  FileField: ['C1298', 'C1299'],
   RecipientTag: ['C1304', 'C1305'],
   RecipientField: ['C1306', 'C1307'],
   Chip: ['C0332', 'C0333', 'C0338', 'C0340'],
@@ -190,7 +190,7 @@ const nativeOwners = {
     'C0656',
     'C0657',
   ],
-  RangePicker: ['C0845', 'C0846', 'C0847', 'C0848', 'C0854'],
+  ChoiceMenu: ['C0845', 'C0846', 'C0847', 'C0848', 'C0854'],
   SegmentedControl: ['C0967', 'C0968', 'C0969', 'C0970', 'C0979', 'C0980', 'C0981', 'C0982'],
   SelectionItem: ['C0955', 'C0956', 'C0957', 'C0958', 'C0963', 'C0964', 'C0965', 'C0966'],
   ScrollArea: ['C0922', 'C0924', 'C1082'],
@@ -201,7 +201,7 @@ for (const [owner, keys] of Object.entries(nativeOwners))
 for (const row of registry.components) {
   const family = row.family.split('/')[0]
   if (family === 'Avatar' || family === 'AvatarGroup') {
-    owners.set(row.key, row.family.startsWith('AvatarGroup/Overflow') ? 'AvatarOverflow' : family)
+    owners.set(row.key, row.family.startsWith('AvatarGroup/Overflow') ? 'Stack' : family)
   }
 }
 

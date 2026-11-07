@@ -1,14 +1,23 @@
 import 'server-only'
 import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 type ShellDetails = Omit<ShellData, 'chats'>
+
+const leadEnrichment = { id: 'lead-enrichment', name: 'Lead enrichment' }
+const accountReview = { id: 'account-review', name: 'Account review', folder: 'Operations' }
+const workflowsByWorkspace: Record<string, ShellData['workspaces'][number]['workflows']> = {
+  operations: [leadEnrichment, accountReview],
+  revenue: [leadEnrichment],
+  finance: [accountReview],
+}
 
 const full: ShellDetails = {
   organization: { name: 'Sim Enterprise', memberCount: 5 },
   user: { name: 'Emir Karabeg' },
   workspaces: [
-    ['operations', 'Customer operations'],
+    ['operations', 'Workspace'],
     ['revenue', 'Revenue operations'],
     ['finance', 'Finance'],
     ['marketing', 'Marketing'],
@@ -28,7 +37,12 @@ const full: ShellDetails = {
     ['executive', 'Executive office'],
     ['intelligence', 'Revenue intelligence'],
     ['tools', 'Internal tools'],
-  ].map(([id, name]) => ({ id, name })),
+  ].map(([id, name]) => ({
+    id,
+    name,
+    href: workspaceEntry(id),
+    workflows: workflowsByWorkspace[id] ?? [],
+  })),
   inbox: [
     {
       id: 'approval',
@@ -88,6 +102,8 @@ export const shellScenarios: Record<Scenario, ShellDetails> = {
     ...full,
     workspaces: Array.from({ length: 36 }, (_, index) => ({
       id: `workspace-${index}`,
+      href: workspaceEntry(`workspace-${index}`),
+      workflows: [leadEnrichment, accountReview],
       name: `International customer operations and onboarding ${index + 1}`,
     })),
     organization: { name: 'International customer operations and research', memberCount: 178 },

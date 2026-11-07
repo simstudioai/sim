@@ -35,7 +35,7 @@ export function EmailList({ items, asOf, onOpen }: EmailListProps) {
               count={mail.count}
               detailLead={mail.subject}
               detail={mail.excerpt}
-              metadata={relativeTime(mail.receivedAt, asOf)}
+              textMetadata={relativeTime(mail.receivedAt, asOf)}
               onOpen={() => onOpen(mail)}
             />
           ))}
@@ -53,7 +53,7 @@ function AttentionRow({ row, asOf }: { row: AttentionItem; asOf: number }) {
       leading={leading}
       title={row.title}
       detail={row.detail}
-      metadata={metadata}
+      textMetadata={metadata}
       onOpen={row.onOpen}
     />
   ) : (
@@ -61,7 +61,7 @@ function AttentionRow({ row, asOf }: { row: AttentionItem; asOf: number }) {
       leading={leading}
       title={row.title}
       detail={row.detail}
-      metadata={metadata}
+      textMetadata={metadata}
       href={row.href}
     />
   )

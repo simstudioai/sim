@@ -145,6 +145,7 @@ export function OrganizationMenu({
                   }}
                 >
                   <Input
+                    placeholder='Organization name'
                     label='Organization name'
                     value={draftName}
                     disabled={renaming}

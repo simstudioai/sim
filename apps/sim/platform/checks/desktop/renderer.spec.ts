@@ -2,10 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { _electron, expect, test } from '@playwright/test'
+import { checkCredentialFields } from '@/platform/checks/field-checks'
 
 test('the actual desktop renderer shares product routes, reserves native chrome and preserves panel tabs', async () => {
   const testInfo = test.info()
-  const origin = 'http://127.0.0.1:3182'
+  const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3182'
   const profile = await mkdtemp(path.join(tmpdir(), 'sim-platform-renderer-'))
   const app = await _electron.launch({
     cwd: path.resolve(__dirname, '../../../../desktop'),
@@ -17,6 +18,11 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
   try {
     await window.evaluate((native) => native.setContentSize(960, 720))
     await page.waitForURL((url) => url.origin === origin)
+    for (const theme of ['light', 'dark']) {
+      await checkCredentialFields(page, origin, theme, testInfo, () =>
+        app.evaluate(({ clipboard }) => clipboard.readText())
+      )
+    }
     await page.goto(`${origin}/home?theme=dark&state=full`)
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
     await expect(
@@ -25,8 +31,13 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     const nav = page.getByRole('region', { name: 'Platform navigation' })
     await nav.getByRole('link', { name: 'Integrations', exact: true }).click()
     const memberPage = page.getByRole('main')
-    await memberPage.getByRole('searchbox', { name: 'Search integrations' }).fill('Gmail')
+    await memberPage.getByRole('searchbox', { name: 'Search apps' }).fill('Gmail')
     await memberPage.getByRole('link', { name: /^Gmail / }).click()
+    await memberPage
+      .getByRole('region', { name: 'Connected credentials', exact: true })
+      .getByRole('button', { name: /^emir@sim.ai / })
+      .click()
+    await memberPage.getByRole('tab', { name: 'Permissions', exact: true }).click()
     const send = memberPage.getByRole('group', { name: 'Gmail Send permission' })
     await send.getByRole('radio', { name: 'Ask' }).press('ArrowRight')
     const blocked = send.getByRole('radio', { name: 'Block' })

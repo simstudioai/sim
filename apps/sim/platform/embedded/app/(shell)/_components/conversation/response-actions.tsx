@@ -86,7 +86,7 @@ export function ResponseActions(actions: MessageActionsModel) {
                 placeholder={
                   rating === 'up' ? 'Tell us what was helpful…' : 'Tell us what went wrong…'
                 }
-                density='expanded'
+                defaultSize='expanded'
                 name='details'
               />
             </FieldFrame>

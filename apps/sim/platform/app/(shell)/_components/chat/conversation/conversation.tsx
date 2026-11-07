@@ -14,6 +14,8 @@ import {
   IconButton,
   InlineNotice,
   OverflowText,
+  PageColumn,
+  PageOverflow,
   Tooltip,
 } from '@/platform/design-system/components'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
@@ -97,31 +99,33 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
             setEarlier(el.scrollHeight - el.clientHeight - el.scrollTop > FOLLOW_SLACK)
           }}
         >
-          <div className={styles.thread} ref={thread}>
-            {status === 'loading' && (
-              <p className={styles.turn} data-type='T048' role='status'>
-                Loading conversation
-              </p>
-            )}
-            {runtime.loadFailed && (
-              <InlineNotice
-                intent='danger'
-                message='This conversation could not load.'
-                action={
-                  <Button variant='muted' size='compact' onClick={() => window.location.reload()}>
-                    Reload
-                  </Button>
-                }
-              />
-            )}
-            {groupExchanges(turns).map((exchange) => (
-              <article key={exchange[0].id} className={styles.turn}>
-                {exchange.map((turn) => (
-                  <Turn key={turn.id} turn={turn} />
-                ))}
-              </article>
-            ))}
-          </div>
+          <PageColumn>
+            <div className={styles.thread} ref={thread}>
+              {status === 'loading' && (
+                <p className={styles.turn} data-type='T048' role='status'>
+                  Loading conversation
+                </p>
+              )}
+              {runtime.loadFailed && (
+                <InlineNotice
+                  intent='danger'
+                  message='This conversation could not load.'
+                  action={
+                    <Button variant='muted' size='compact' onClick={() => window.location.reload()}>
+                      Reload
+                    </Button>
+                  }
+                />
+              )}
+              {groupExchanges(turns).map((exchange) => (
+                <article key={exchange[0].id} className={styles.turn}>
+                  {exchange.map((turn) => (
+                    <Turn key={turn.id} turn={turn} />
+                  ))}
+                </article>
+              ))}
+            </div>
+          </PageColumn>
         </div>
         <div className={styles.dock}>
           {earlier && (
@@ -136,20 +140,22 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
               </Tooltip>
             </div>
           )}
-          <div className={styles.dockInner}>
-            <MessageComposer
-              composer={composer}
-              placeholder={
-                running
-                  ? placeholders.running
-                  : turns.length
-                    ? placeholders.followUp
-                    : placeholders.first
-              }
-              onSubmit={runtime.send}
-              onStop={running ? runtime.stop : undefined}
-            />
-          </div>
+          <PageColumn>
+            <PageOverflow>
+              <MessageComposer
+                composer={composer}
+                placeholder={
+                  running
+                    ? placeholders.running
+                    : turns.length
+                      ? placeholders.followUp
+                      : placeholders.first
+                }
+                onSubmit={runtime.send}
+                onStop={running ? runtime.stop : undefined}
+              />
+            </PageOverflow>
+          </PageColumn>
         </div>
       </div>
     </ChatRuntimeProvider>

@@ -36,7 +36,9 @@ describe('Input scroll measurement across renders', () => {
   it('keeps one measurement alive through re-renders, and none after unmount', () => {
     const root = createRoot(document.body.appendChild(document.createElement('div')))
     for (const value of ['a', 'ab', 'abc', 'abcd']) {
-      act(() => root.render(<Input label='Name' value={value} onChange={() => {}} />))
+      act(() =>
+        root.render(<Input label='Name' placeholder='Name' value={value} onChange={() => {}} />)
+      )
     }
     expect(live).toBe(1)
     act(() => root.unmount())
@@ -46,7 +48,11 @@ describe('Input scroll measurement across renders', () => {
   it('hands the element to a caller ref and clears it on unmount', () => {
     const inputRef = { current: null as HTMLInputElement | null }
     const root = createRoot(document.body.appendChild(document.createElement('div')))
-    act(() => root.render(<Input label='Name' value='a' onChange={() => {}} inputRef={inputRef} />))
+    act(() =>
+      root.render(
+        <Input label='Name' placeholder='Name' value='a' onChange={() => {}} inputRef={inputRef} />
+      )
+    )
     expect(inputRef.current).toBeInstanceOf(HTMLInputElement)
     act(() => root.unmount())
     expect(inputRef.current).toBeNull()

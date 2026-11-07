@@ -26,11 +26,6 @@
   min-inline-size: var(--spacing-128);
 }
 
-.text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .changes {
   display: grid;
   gap: var(--ui-list-gap);

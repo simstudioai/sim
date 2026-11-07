@@ -73,7 +73,14 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
       }}
     >
       <FieldStack>
-        <TextField label='Name' maxLength={100} required value={name} onChange={setName} />
+        <TextField
+          placeholder='Name'
+          label='Name'
+          maxLength={100}
+          required
+          value={name}
+          onChange={setName}
+        />
         <TextField
           label='MCP URL'
           maxLength={2048}
@@ -83,6 +90,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
           onChange={setUrl}
         />
         <TextField
+          placeholder='Enter the OAuth client ID'
           label='OAuth Client ID'
           maxLength={512}
           autoComplete='off'

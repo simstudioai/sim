@@ -22,9 +22,9 @@
   border-color: var(--control-danger);
 }
 
-.trigger:disabled {
+.trigger:is(:disabled, [data-disabled], [aria-disabled="true"]) {
   opacity: var(--opacity-disabled);
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .value {

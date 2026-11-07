@@ -16,7 +16,7 @@ const full: PanelData = {
       address: 'mail.google.com',
     },
     { id: 'renewal', label: 'Renewal brief', icon: 'I015', destination: 'file' },
-    { id: 'customer', label: 'Customer operations', destination: 'workspace' },
+    { id: 'operations', label: 'Workspace', destination: 'workspace' },
     {
       id: 'linear',
       label: 'Linear',

@@ -1,25 +1,22 @@
-import type { ReactNode } from 'react'
-import styles from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
-import { Chip } from '@/platform/design-system/components'
+import type { ComponentProps, ReactNode } from 'react'
+import {
+  DirectoryBack,
+  DirectoryHeading,
+  DirectoryPage,
+} from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 
 interface IntegrationsPageProps {
   /** A detail page's way back. The index has none. */
-  back?: { href: string; label: string }
+  back?: ComponentProps<typeof DirectoryBack>
   children: ReactNode
 }
 
 export function IntegrationsPage({ back, children }: IntegrationsPageProps) {
   return (
-    <main className={styles.page}>
-      {back && (
-        <nav aria-label='Integration navigation' className={styles.back}>
-          <Chip href={back.href} icon='I093'>
-            {back.label}
-          </Chip>
-        </nav>
-      )}
+    <DirectoryPage>
+      {back && <DirectoryBack href={back.href} label={back.label} onNavigate={back.onNavigate} />}
       {children}
-    </main>
+    </DirectoryPage>
   )
 }
 
@@ -30,10 +27,11 @@ interface IntegrationsHeadingProps {
 
 export function IntegrationsHeading({ handoff }: IntegrationsHeadingProps) {
   return (
-    <header className={styles.heading}>
-      <h1 data-type='T076'>Integrations</h1>
-      <p data-type='T048'>Connect your accounts to the apps your organization makes available.</p>
+    <DirectoryHeading
+      title='Integrations'
+      description='Connect your tools, share with your team, and bring everything into Sim.'
+    >
       {handoff}
-    </header>
+    </DirectoryHeading>
   )
 }

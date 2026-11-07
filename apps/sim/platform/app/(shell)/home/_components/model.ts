@@ -1,4 +1,4 @@
-import type { ComposerReferences } from '@/platform/app/(shell)/_components/composer/model'
+import type { ComposerInventory } from '@/platform/app/(shell)/_components/composer/model'
 import type { HomeMode } from '@/platform/app/(shell)/_components/model'
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
@@ -48,7 +48,7 @@ export interface HomeData {
     nowMinute: number
     meetings: CalendarMeeting[]
   }
-  references?: ComposerReferences
+  composerInventory?: ComposerInventory
   connected: boolean
 }
 
@@ -62,7 +62,7 @@ export interface HomeView {
   calendar: HomeWidgetState<HomeCalendarDay>
   recents: HomeListState<RecentItem>
   getStarted: readonly HomeGetStartedStep[]
-  references?: ComposerReferences
+  composerInventory?: ComposerInventory
 }
 
 export interface HomeActions {

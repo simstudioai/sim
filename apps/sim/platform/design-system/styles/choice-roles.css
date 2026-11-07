@@ -2,6 +2,7 @@
   --menu-zoom-width: 10.5rem;
   --menu-browser-width: 16.5rem;
   --menu-action-width: 13.75rem;
+  --menu-search-width: 22.5rem;
   --menu-choice-width: 10rem;
   --choice-track: var(--color-black-4);
   --choice-selected: var(--color-tooltip-text);

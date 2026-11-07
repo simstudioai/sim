@@ -1,21 +1,73 @@
-.composerInput {
+.viewport {
+  min-inline-size: 0;
+  max-block-size: min(24dvh, var(--container-208));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.field {
+  position: relative;
+}
+.composerInput,
+.mirror {
   display: block;
   inline-size: 100%;
   min-inline-size: 0;
-  min-block-size: var(--spacing-48);
   padding: 0 var(--spacing-4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ui-ink);
+}
+.composerInput {
+  position: relative;
+  min-block-size: var(--spacing-48);
   border: 0;
   background: transparent;
-  color: var(--ui-ink);
   field-sizing: content;
-  overflow-wrap: anywhere;
+  overflow: hidden;
 }
-
 .composerInput[data-density="compact"] {
   min-block-size: var(--spacing-40);
 }
-
+.composerInput[data-marked] {
+  color: transparent;
+  caret-color: var(--ui-ink);
+}
+.composerInput[data-marked]::selection {
+  color: transparent;
+  background-color: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
 .composerInput::placeholder {
   color: var(--ui-muted);
   opacity: 1;
+}
+.mirror {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.mirror[data-measuring],
+.hidden {
+  visibility: hidden;
+}
+.mark {
+  color: var(--ui-secondary);
+}
+.trigger {
+  position: relative;
+}
+.trigger svg {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: var(--spacing-2);
+  translate: 0 -50%;
+  width: var(--spacing-12);
+  height: var(--spacing-12);
+}
+.trigger[data-trigger="/"] svg {
+  width: var(--spacing-10);
+  height: var(--spacing-10);
+}
+.trigger[data-trigger="/"] svg[data-interface-icon] {
+  inset-inline-end: 0;
 }

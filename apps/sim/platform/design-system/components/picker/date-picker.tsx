@@ -310,12 +310,14 @@ export function DateRangePicker({
       {withTime && (
         <div className={styles.times}>
           <Input
+            placeholder='09:00'
             type='time'
             label='Start time'
             value={draft.start.time}
             onChange={(time) => setDraft((d) => ({ ...d, start: { ...d.start, time } }))}
           />
           <Input
+            placeholder='10:00'
             type='time'
             label='End time'
             value={draft.end.time}

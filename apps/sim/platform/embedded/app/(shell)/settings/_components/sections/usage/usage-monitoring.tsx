@@ -5,8 +5,8 @@ import Link from 'next/link'
 import type { UsageBreakdownDimension } from '@/lib/api/contracts/organization-usage'
 import {
   Button,
+  ChoiceMenu,
   DateRangePicker,
-  RangePicker,
   ScrollArea,
   SegmentedControl,
 } from '@/platform/design-system/components'
@@ -120,7 +120,7 @@ export function UsageMonitoring({ organization }: Pick<SettingsSectionProps, 'or
           />
         </ScrollArea>
         <div className={styles.actions}>
-          <RangePicker
+          <ChoiceMenu
             id={periodId}
             label='Period'
             options={view.periodOptions}

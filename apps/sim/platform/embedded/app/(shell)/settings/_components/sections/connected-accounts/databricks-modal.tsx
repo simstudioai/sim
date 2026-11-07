@@ -83,6 +83,7 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
         <>
           <TextField
             label='Name'
+            placeholder='Name'
             value={name}
             onChange={setNameInput}
             disabled={pending}
@@ -100,6 +101,7 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
           />
           <TextField
             label='OAuth Client ID'
+            placeholder='Enter the OAuth client ID'
             value={clientId}
             onChange={setClientIdInput}
             autoComplete='off'

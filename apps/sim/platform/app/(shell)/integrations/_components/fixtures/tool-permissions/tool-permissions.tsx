@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import styles from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions.module.css'
+import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/fixture-model'
@@ -19,17 +20,23 @@ const GROUPS = [
 ] as const
 
 interface ToolPermissionsProps {
-  account: IntegrationAccount
+  account: Pick<IntegrationAccount, 'status'>
   permissions: Permissions
   onChange: (next: Permissions) => void
+  readOnly?: boolean
 }
 
-export function ToolPermissions({ account, permissions, onChange }: ToolPermissionsProps) {
+export function ToolPermissions({
+  account,
+  permissions,
+  onChange,
+  readOnly,
+}: ToolPermissionsProps) {
   const [query, setQuery] = useState('')
   const canAllow = permissions.canAutoApprove && account.status === 'active'
   const choices = ACTIONS.map((option) => ({
     ...option,
-    disabled: option.value === 'allow' && !canAllow,
+    disabled: readOnly || (option.value === 'allow' && !canAllow),
   }))
   const filter = query.trim().toLowerCase()
   const matches = permissions.tools.filter((tool) =>
@@ -57,7 +64,16 @@ export function ToolPermissions({ account, permissions, onChange }: ToolPermissi
           </p>
         )}
       </div>
-      <SearchField label='Search tools' placeholder='Search tools…' onValueChange={setQuery} />
+      <IntegrationControls
+        leading={
+          <SearchField
+            variant='quiet'
+            label='Search tools'
+            placeholder='Search tools…'
+            onValueChange={setQuery}
+          />
+        }
+      />
       {GROUPS.map(({ kind, label }) => {
         const matching = matches.filter((tool) => tool.kind === kind)
         if (!matching.length) return null

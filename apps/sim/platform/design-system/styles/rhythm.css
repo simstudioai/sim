@@ -1,12 +1,17 @@
 [data-platform-ui] {
   --ui-page-max-size: calc(var(--container-app-dashboard) + 2 * var(--spacing-48));
-  --ui-page-inline-gutter: clamp(var(--spacing-16), 4cqi, var(--spacing-48));
+  --ui-page-inline-gutter: clamp(var(--spacing-16), 4%, var(--spacing-48));
   --ui-product-section-gap: var(--spacing-24);
   --ui-widget-max-size: var(--spacing-320);
   --ui-page-inset-block: var(--ui-product-section-gap);
+  --ui-page-heading-inset: var(--spacing-64);
   --ui-motion-color: 120ms;
+  --ui-motion-position: var(--ui-motion-color);
   --ui-control-radius: var(--radius-control);
   --ui-stack-gap: var(--spacing-2);
+  --ui-heading-gap: var(--spacing-3);
+  --ui-content-gap: var(--spacing-12);
+  --ui-widget-content-gap: var(--spacing-16);
   --ui-list-gap: var(--spacing-2);
   --ui-action-gap: var(--spacing-2);
   --ui-row-gap: var(--spacing-8);

@@ -3,19 +3,28 @@ import { defineConfig } from '@playwright/test'
 
 const appRoot = path.resolve(__dirname, '../..')
 const report = process.env.PLATFORM_REPORT_PATH ?? 'test-results/platform/report.json'
+const existingOrigin = process.env.PLATFORM_E2E_ORIGIN
 
 export default defineConfig({
   testDir: __dirname,
   testMatch: '*.spec.ts',
-  testIgnore: ['**/desktop/**', '**/live/**'],
+  testIgnore: [
+    '**/desktop/**',
+    '**/live/**',
+    ...(existingOrigin ? ['**/fixtures-off.spec.ts'] : []),
+  ],
   workers: 1,
+  timeout: existingOrigin ? 60_000 : 30_000,
+  expect: { timeout: existingOrigin ? 10_000 : 5_000 },
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),
   use: { screenshot: 'only-on-failure', trace: 'retain-on-failure' },
-  webServer: [0, 1].map((flag) => ({
-    command: `bunx --no-install next start platform -H 127.0.0.1 -p ${3180 + flag}`,
-    cwd: appRoot,
-    env: { SIM_PLATFORM_FIXTURES: String(flag) },
-    url: `http://127.0.0.1:${3180 + flag}`,
-  })),
+  webServer: existingOrigin
+    ? undefined
+    : [0, 1].map((flag) => ({
+        command: `bunx --no-install next start platform -H 127.0.0.1 -p ${3180 + flag}`,
+        cwd: appRoot,
+        env: { SIM_PLATFORM_FIXTURES: String(flag) },
+        url: `http://127.0.0.1:${3180 + flag}`,
+      })),
 })

@@ -92,7 +92,7 @@ export function IntegrationDetails({
           title={reason}
           action={
             integration.setupGuideUrl && (
-              <Chip href={integration.setupGuideUrl} icon='I079'>
+              <Chip href={integration.setupGuideUrl} icon='I082'>
                 Docs
               </Chip>
             )

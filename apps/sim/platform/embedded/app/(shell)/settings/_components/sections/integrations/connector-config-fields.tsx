@@ -210,7 +210,7 @@ export function ConnectorConfigFields({ config, isFieldVisible }: ConnectorField
                 disabled={disabled}
                 value={Array.isArray(raw) ? raw.join(', ') : raw || ''}
                 onChange={(value) => onFieldChange(field.id, value)}
-                placeholder={field.placeholder}
+                placeholder={field.placeholder || `Enter ${title.toLowerCase()}`}
               />
             )}
             {hasCanonicalPair && canonicalId && (

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { FixtureChat } from '@/platform/app/(shell)/_components/chat/conversation/fixture-chat'
-import { ChatPanels } from '@/platform/app/(shell)/_components/chat/panel/chat-panels'
+import { FixtureChatScreen } from '@/platform/app/(shell)/_components/chat/conversation/fixture-chat-screen'
 import { readScenario } from '@/platform/design-system/navigation'
-import { loadConversationData, loadPanelData, loadShellData } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export const metadata: Metadata = { title: 'Chat' }
@@ -18,15 +16,5 @@ export default async function Page({ searchParams, params }: PageProps<'/chat/[[
     )
     return <LiveChatRoute chatId={id?.[0]} />
   }
-  const scenario = readScenario(query.state)
-  const [data, panel, shell] = await Promise.all([
-    loadConversationData(scenario),
-    loadPanelData(scenario),
-    loadShellData(scenario),
-  ])
-  return (
-    <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={id?.[0] ?? 'new'}>
-      <FixtureChat data={data?.chat ?? null} chatId={id?.[0]} />
-    </ChatPanels>
-  )
+  return <FixtureChatScreen scenario={readScenario(query.state)} chatId={id?.[0]} />
 }

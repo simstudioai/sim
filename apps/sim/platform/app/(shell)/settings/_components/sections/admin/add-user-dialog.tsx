@@ -53,6 +53,7 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
     >
       <FieldStack>
         <TextField
+          placeholder='Name'
           label='Name'
           required
           maxLength={100}
@@ -61,6 +62,7 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
           autoComplete='off'
         />
         <TextField
+          placeholder='name@company.com'
           label='Email'
           type='email'
           required

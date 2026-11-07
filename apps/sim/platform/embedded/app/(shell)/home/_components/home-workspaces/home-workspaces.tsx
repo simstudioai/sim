@@ -74,7 +74,7 @@ export function HomeWorkspaces({ state, count, asOf, onRetry }: HomeWorkspacesPr
                   key={item.id}
                   title={item.name}
                   detail={state.settling ? SETTLING_DETAIL : item.detail}
-                  metadata={state.settling ? undefined : metadataOf(item, asOf)}
+                  textMetadata={state.settling ? undefined : metadataOf(item, asOf)}
                   metadataLeading={item.status === 'running' ? <Spinner /> : undefined}
                   render={<SettingsGuardedLink href={item.href} />}
                 />

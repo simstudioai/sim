@@ -39,6 +39,7 @@ export function ClientSecretField({
       <>
         <TextField
           label='Client secret'
+          placeholder='Saved client secret'
           value={maskedClientSecret(storedHint)}
           readOnly
           autoComplete='off'

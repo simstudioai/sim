@@ -36,6 +36,22 @@ export function platformHref(path: string, search: SearchValues) {
   return `${destination.pathname}${destination.search}${destination.hash}`
 }
 
+/** Keep the active directory filters on a result and its link back to the list. */
+export function directoryHref(
+  path: string,
+  search: SearchValues,
+  query = search.get('q'),
+  category = search.get('category')
+) {
+  const destination = platformHref(path, search)
+  const filters = new URLSearchParams()
+  if (query) filters.set('q', query)
+  if (category && category !== 'All') filters.set('category', category)
+  return filters.size
+    ? `${destination}${destination.includes('?') ? '&' : '?'}${filters}`
+    : destination
+}
+
 /** A file under `public/`: unlike `next/link` and the router, the browser adds no base path to it. */
 export function publicAssetPath(path: string) {
   return `${process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''}${path}`

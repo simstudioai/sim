@@ -9,6 +9,7 @@ import {
   DataTable,
   EmptyState,
   FailureNotice,
+  PageColumn,
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
@@ -55,65 +56,67 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
     [directory.rows, peoplePath, originQuery]
   )
   return (
-    <section className={styles.directory} aria-label='Directory'>
-      <div className={styles.filters}>
-        <div className={styles.search}>
-          <SearchField
-            label='Search people'
-            placeholder='Search name, role, or location'
-            value={directory.search}
-            onValueChange={directory.setSearch}
-          />
+    <PageColumn>
+      <section className={styles.directory} aria-label='Directory'>
+        <div className={styles.filters}>
+          <div className={styles.search}>
+            <SearchField
+              label='Search people'
+              placeholder='Search name, role, or location'
+              value={directory.search}
+              onValueChange={directory.setSearch}
+            />
+          </div>
+          <div className={styles.department}>
+            <SearchableSelect
+              label='Department'
+              labelHidden
+              searchLabel='Search departments'
+              options={departments.options}
+              value={departments.value}
+              selectedLabel={directory.departmentLabel || 'All departments'}
+              search={departments.search}
+              onOpenChange={departments.onOpenChange}
+              onValueChange={(next) => directory.setDepartment(departments.parse(next))}
+            />
+          </div>
+          <span className={styles.scope} data-type='T050'>
+            People in your organization
+          </span>
         </div>
-        <div className={styles.department}>
-          <SearchableSelect
-            label='Department'
-            labelHidden
-            searchLabel='Search departments'
-            options={departments.options}
-            value={departments.value}
-            selectedLabel={directory.departmentLabel || 'All departments'}
-            search={departments.search}
-            onOpenChange={departments.onOpenChange}
-            onValueChange={(next) => directory.setDepartment(departments.parse(next))}
+        {directory.loading ? (
+          <PeopleStatus>Loading people…</PeopleStatus>
+        ) : directory.error ? (
+          <FailureNotice
+            title='Could not load people'
+            message={directory.error.message}
+            onRetry={directory.retry}
           />
-        </div>
-        <span className={styles.scope} data-type='T050'>
-          People in your organization
-        </span>
-      </div>
-      {directory.loading ? (
-        <PeopleStatus>Loading people…</PeopleStatus>
-      ) : directory.error ? (
-        <FailureNotice
-          title='Could not load people'
-          message={directory.error.message}
-          onRetry={directory.retry}
-        />
-      ) : rows.length === 0 ? (
-        !directory.query && !directory.hasDepartment ? (
-          <EmptyState
-            title='No people to show'
-            description='Organization members and people from a connected directory appear here.'
-          />
+        ) : rows.length === 0 ? (
+          !directory.query && !directory.hasDepartment ? (
+            <EmptyState
+              title='No people to show'
+              description='Organization members and people from a connected directory appear here.'
+            />
+          ) : (
+            <EmptyState
+              title='No people found'
+              description='Try another name, title, email address, or department.'
+              action={<Button onClick={directory.clearFilters}>Clear search</Button>}
+            />
+          )
         ) : (
-          <EmptyState
-            title='No people found'
-            description='Try another name, title, email address, or department.'
-            action={<Button onClick={directory.clearFilters}>Clear search</Button>}
+          <DataTable
+            title='People'
+            titleHidden
+            virtualized
+            rowChevron
+            columns={COLUMNS}
+            rows={rows}
+            loadMore={directory.loadMore}
           />
-        )
-      ) : (
-        <DataTable
-          title='People'
-          titleHidden
-          virtualized
-          rowChevron
-          columns={COLUMNS}
-          rows={rows}
-          loadMore={directory.loadMore}
-        />
-      )}
-    </section>
+        )}
+      </section>
+    </PageColumn>
   )
 }

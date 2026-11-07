@@ -1,4 +1,5 @@
 import type { DragEvent } from 'react'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import type { ChatContext, FileAttachmentForApi } from '@/platform/lib/data/chat-types'
 
 export interface ChatAttachment {
@@ -11,6 +12,7 @@ export interface ChatAttachment {
   source?: string
   /** Still uploading; a draft holding one cannot be sent. */
   uploading?: boolean
+  referenceId?: string
   /** The context a reference attaches to the turn. */
   context?: ChatContext
   /** The stored upload a file attachment sends. */
@@ -45,10 +47,32 @@ export interface ChatTurn {
   }
 }
 
+export interface ComposerReference {
+  id: string
+  name: string
+  context?: ChatContext
+  icon?: IconName
+  providerId?: string
+  detail?: string
+  workspaceId?: string
+  workspaceName?: string
+  parentId?: string
+  /** Resource family whose browse tree contains this selectable folder. */
+  folderFor?: string
+  skillKind?: 'mcp'
+}
+
 export type ComposerReferences = {
   group: string
-  items: { id: string; name: string; context?: ChatContext }[]
+  items: ComposerReference[]
 }[]
+
+export interface ComposerInventory {
+  references: ComposerReferences
+  skills?: readonly ComposerReference[]
+  /** Open desktop pages and shells offered as context. */
+  tools?: readonly { id: string; label: string; context?: ChatContext }[]
+}
 
 interface ComposerChoice {
   id: string
@@ -81,26 +105,27 @@ interface ComposerVoice {
  * The draft a message composer edits, with whatever backs it. A fixture session holds the draft in
  * memory; a live one uploads files and keeps the draft through a reload.
  */
-export interface ComposerController {
+export interface ComposerController extends ComposerInventory {
   draft: ComposerDraft
-  setText: (text: string) => void
+  setText: (
+    text: string,
+    changes?: {
+      add?: readonly (ComposerReference & { group: string })[]
+      remove?: readonly string[]
+    }
+  ) => void
   addFiles: (files: File[]) => void
   addPastedText: (text: string) => void
   removeAttachment: (id: string) => void
-  addReference: (group: string, item: { id: string; name: string; context?: ChatContext }) => void
   clear: () => void
-  references: ComposerReferences
-  /** Reusable instructions the `/` menu lists, grouped like references. */
-  skills?: readonly { id: string; name: string; context?: ChatContext }[]
+  referencesDisabled?: boolean
+  referencesLoading?: boolean
+  skillsLoading?: boolean
   /** Tells the host a picker opened, which is when it reads the inventories behind them. */
   onPickerOpen?: () => void
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice
-  /** Whether Browser and Terminal can be attached in this host. */
-  tools?: readonly { id: string; label: string; context?: ChatContext }[]
-  /** A menu group with no rows is left out, rather than read as the viewer having none. */
-  listsOnlyLoadedGroups?: boolean
   /** Accepted file types, when a mode narrows them. */
   accept?: string
 }

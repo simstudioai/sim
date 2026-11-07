@@ -12,7 +12,7 @@ import {
   Search,
 } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
+import { redirect, useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
@@ -22,6 +22,7 @@ import {
   resolveCredentialDisplay,
 } from '@/lib/integrations'
 import { isIntegrationPermitted } from '@/lib/integrations/access'
+import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -34,6 +35,7 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -159,6 +161,10 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  const host = useWorkspaceHostContext()
+  const workspaceId = host.workspace.id
+  const destination = workspaceIntegrationsPath(workspaceId, host)
+  if (destination !== `/workspace/${workspaceId}/integrations`) redirect(destination)
   return (
     <PermissionAccessBoundary configKey='hideIntegrationsTab'>
       <IntegrationsContent />

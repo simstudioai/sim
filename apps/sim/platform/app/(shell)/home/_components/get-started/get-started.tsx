@@ -17,7 +17,7 @@ export function GetStarted({ steps }: GetStartedProps) {
             leading={<Icon name={step.complete ? 'I072' : 'I070'} />}
             title={step.title}
             detail={step.detail}
-            metadata={step.complete ? 'Done' : undefined}
+            textMetadata={step.complete ? 'Done' : undefined}
             href={step.href}
           />
         ))}

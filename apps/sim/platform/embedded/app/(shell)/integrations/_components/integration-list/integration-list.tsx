@@ -101,7 +101,7 @@ export function IntegrationList({
                   title={item.name}
                   detail={item.detail}
                   wrapDetail
-                  metadata={item.status}
+                  textMetadata={item.status}
                 />
               ))}
             </RowList>

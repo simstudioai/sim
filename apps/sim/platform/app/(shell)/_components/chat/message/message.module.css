@@ -7,7 +7,6 @@
   gap: var(--ui-section-gap);
 }
 .answer p,
-.bubble,
 .result code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -19,11 +18,6 @@
   justify-self: end;
   justify-items: end;
   max-inline-size: min(100%, var(--container-chat-message));
-}
-.bubble {
-  background: var(--control-avatar);
-  border-radius: var(--radius-dialog);
-  padding: var(--spacing-12) var(--spacing-16);
 }
 .responseActions,
 .userActions,

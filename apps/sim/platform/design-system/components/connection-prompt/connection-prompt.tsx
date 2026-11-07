@@ -22,7 +22,7 @@ export function ConnectionPrompt({ title, options, setupGuideUrl }: ConnectionPr
         {setupGuideUrl && (
           <ControlRow
             render={<Link href={setupGuideUrl} target='_blank' rel='noopener noreferrer' />}
-            icon='I079'
+            icon='I082'
             label='Docs'
             accessibleLabel='Docs (opens in a new tab)'
           />

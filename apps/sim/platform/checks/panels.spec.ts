@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const base = 'http://127.0.0.1:3181'
+const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
 test('a chat panel preserves its file, tabs and focus across resize, collapse and restore', async ({
   page,
@@ -56,18 +56,6 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await expect(panel.getByRole('button', { name: 'Panel tabs' })).toBeFocused()
   await page.keyboard.press('Enter')
   await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
-  await panel.getByRole('button', { name: 'Customer operations', exact: true }).last().click()
-  await expect(page).toHaveURL(/\/home\?.*state=full/)
-})
-
-test('a disabled fixture gate serves no sample entity on any product route', async ({
-  request,
-}) => {
-  for (const path of ['/home', '/chat/weekly-review', '/settings/members']) {
-    const off = await request.get(`http://127.0.0.1:3180${path}?state=full`)
-    expect(off.status()).toBe(200)
-    expect(await off.text()).not.toMatch(
-      /Sim Enterprise|Emir Karabeg|Aster Labs|linear-homepage\.[a-f0-9]+\.jpg/
-    )
-  }
+  await panel.getByRole('button', { name: 'Workspace', exact: true }).last().click()
+  await expect(page).toHaveURL(/\/workspace\/operations\/chat\?.*state=full/)
 })

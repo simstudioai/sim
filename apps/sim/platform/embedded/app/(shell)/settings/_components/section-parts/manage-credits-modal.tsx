@@ -53,12 +53,13 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
                 : 'Credits used'
             }
             value={usage?.creditsUsed.toLocaleString() ?? 'Loading…'}
+            placeholder='Credits used'
             readOnly
           />
           <TextField
             label='Credit limit'
             inputMode='numeric'
-            placeholder={usage ? 'No limit' : undefined}
+            placeholder='No limit'
             value={draft}
             onChange={setEdit}
             disabled={!usage}

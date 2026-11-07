@@ -227,6 +227,7 @@ export function useOwnershipTransfer() {
       else if (result.warning) toast.warning(`Ownership transferred. ${result.warning}`)
     },
     openBillingPortal: () => {
+      if (fixture || portal.isPending) return
       setPortalError(null)
       portal.open(
         {
