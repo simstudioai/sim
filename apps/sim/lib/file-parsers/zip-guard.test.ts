@@ -322,4 +322,49 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const plaintext = Buffer.from('this is just plain text, not a zip archive at all')
     expect(() => assertOoxmlArchiveWithinLimits(plaintext)).not.toThrow()
   })
+
+  describe('archives JSZip reads from a different place than the guard inspects', () => {
+    const PER_ENTRY_LIMITS: OoxmlSizeLimits = { ...HIGH_LIMITS, maxEntryUncompressedBytes: 100_000 }
+    const oversizedEntry = () => buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+
+    async function expectJsZipReadsOversizedEntry(buffer: Buffer) {
+      const zip = await JSZip.loadAsync(buffer)
+      expect(await zip.file('word/document.xml')?.async('string')).toHaveLength(200_000)
+    }
+
+    it('rejects an archive with bytes prepended before the first local header', async () => {
+      const prefixed = Buffer.concat([Buffer.from('JUNKJUNK'), await oversizedEntry()])
+      await expectJsZipReadsOversizedEntry(prefixed)
+
+      expect(() => assertOoxmlArchiveWithinLimits(prefixed, PER_ENTRY_LIMITS)).toThrow(
+        ArchiveIntegrityError
+      )
+    })
+
+    it('rejects a prepended archive that also carries trailing bytes', async () => {
+      const wrapped = Buffer.concat([
+        Buffer.from('JUNKJUNK'),
+        await oversizedEntry(),
+        Buffer.from('TRAILER'),
+      ])
+      await expectJsZipReadsOversizedEntry(wrapped)
+
+      expect(() => assertOoxmlArchiveWithinLimits(wrapped, PER_ENTRY_LIMITS)).toThrow(
+        ArchiveIntegrityError
+      )
+    })
+
+    it('still no-ops for a non-ZIP buffer that merely contains an EOCD signature', async () => {
+      const eocd = Buffer.alloc(22)
+      eocd.writeUInt32LE(0x06054b50, 0)
+      const buffer = Buffer.concat([
+        Buffer.from('%PDF-1.7 binary body '),
+        eocd,
+        Buffer.from('tail'),
+      ])
+      expect(Object.keys((await JSZip.loadAsync(buffer)).files)).toHaveLength(0)
+
+      expect(() => assertOoxmlArchiveWithinLimits(buffer)).not.toThrow()
+    })
+  })
 })

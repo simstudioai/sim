@@ -113,6 +113,72 @@ export function findEocdOffset(buffer: Buffer): number {
   return -1
 }
 
+const EOCD_SIGNATURE_BYTES = Buffer.from([0x50, 0x4b, 0x05, 0x06])
+
+/**
+ * Whether JSZip (which mammoth and the Word document helpers parse through)
+ * would read central-directory records from a different place than the guard
+ * inspects. JSZip does not anchor on the buffer tail: it takes the LAST EOCD
+ * signature anywhere in the buffer, and treats any gap between that record and
+ * the end of the central directory it declares as prepended data, rebasing
+ * every offset past it. A buffer the guard reads as "not a ZIP" (or as a
+ * different ZIP) can therefore still be inflated in full downstream.
+ *
+ * Returns `false` when JSZip would refuse the buffer or find no records — a
+ * non-ZIP file that merely contains the EOCD bytes is not flagged.
+ */
+function zipParserReadsDifferentArchive(buffer: Buffer): boolean {
+  const parserEocdOffset = buffer.lastIndexOf(EOCD_SIGNATURE_BYTES)
+  if (parserEocdOffset < 0 || parserEocdOffset + EOCD_MIN_SIZE > buffer.length) {
+    return false
+  }
+
+  let centralDirectorySize = buffer.readUInt32LE(parserEocdOffset + 12)
+  let centralDirectoryOffset = buffer.readUInt32LE(parserEocdOffset + 16)
+  let expectedEocdOffset = centralDirectoryOffset + centralDirectorySize
+  const usesZip64 =
+    buffer.readUInt16LE(parserEocdOffset + 10) === UINT16_SENTINEL ||
+    centralDirectorySize === UINT32_SENTINEL ||
+    centralDirectoryOffset === UINT32_SENTINEL
+  if (usesZip64) {
+    // JSZip falls back to a signature scan when the locator does not resolve,
+    // so a ZIP64 chain the guard cannot follow from offset 0 is unverifiable.
+    const locatorOffset = parserEocdOffset - ZIP64_EOCD_LOCATOR_SIZE
+    if (locatorOffset < 0 || buffer.readUInt32LE(locatorOffset) !== ZIP64_EOCD_LOCATOR_SIGNATURE) {
+      return true
+    }
+    const zip64EocdOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
+    if (
+      zip64EocdOffset + 56 > buffer.length ||
+      buffer.readUInt32LE(zip64EocdOffset) !== ZIP64_EOCD_SIGNATURE
+    ) {
+      return true
+    }
+    centralDirectorySize = Number(buffer.readBigUInt64LE(zip64EocdOffset + 40))
+    centralDirectoryOffset = Number(buffer.readBigUInt64LE(zip64EocdOffset + 48))
+    expectedEocdOffset =
+      centralDirectoryOffset +
+      centralDirectorySize +
+      ZIP64_EOCD_LOCATOR_SIZE +
+      12 +
+      Number(buffer.readBigUInt64LE(zip64EocdOffset + 4))
+  }
+
+  const prependedBytes = parserEocdOffset - expectedEocdOffset
+  if (prependedBytes < 0) {
+    return false
+  }
+  if (prependedBytes === 0 && parserEocdOffset === findEocdOffset(buffer)) {
+    return false
+  }
+
+  const parserCentralDirectoryStart = prependedBytes + centralDirectoryOffset
+  return (
+    parserCentralDirectoryStart + 4 <= buffer.length &&
+    buffer.readUInt32LE(parserCentralDirectoryStart) === CENTRAL_DIRECTORY_HEADER_SIGNATURE
+  )
+}
+
 export interface CentralDirectoryLocation {
   offset: number
   entryCount: number
@@ -503,12 +569,24 @@ export function readZipCentralDirectoryStats(buffer: Buffer): ZipCentralDirector
  * or whose entries cannot be verified, is rejected rather than passed through,
  * so a malformed archive that a downstream library still inflates cannot bypass
  * the guard. Genuinely non-ZIP inputs (legacy OLE `.xls`/`.doc`, misidentified
- * plaintext) no-op and defer to the downstream parser's own validation.
+ * plaintext) no-op and defer to the downstream parser's own validation. "Genuinely
+ * non-ZIP" is judged by what JSZip would open, not by the leading bytes: an
+ * archive with prepended data or a relocated EOCD is rejected, because JSZip
+ * reads it from a place this guard never inspected.
  */
 export function assertOoxmlArchiveWithinLimits(
   buffer: Buffer,
   limits: OoxmlSizeLimits = DEFAULT_OOXML_SIZE_LIMITS
 ): void {
+  if (zipParserReadsDifferentArchive(buffer)) {
+    logger.warn('Rejected ZIP archive: parser would read records the guard cannot inspect', {
+      compressedBytes: buffer.length,
+    })
+    throw new ArchiveIntegrityError(
+      'Archive has prepended data or a relocated end-of-central-directory record; refusing to parse an unverifiable ZIP archive'
+    )
+  }
+
   const declared = sumDeclaredUncompressedSize(buffer, limits)
   if (declared === null) {
     if (isZipShaped(buffer)) {
