@@ -510,21 +510,27 @@ async function run() {
 
   /** A server that never answers, so a fetch to it stays in flight until the app drops it. */
   const stalledServer = async () => {
-    const reached = Promise.withResolvers<void>()
-    const dropped = Promise.withResolvers<void>()
+    let markReached = () => {}
+    let markDropped = () => {}
+    const reached = new Promise<void>((resolve) => {
+      markReached = resolve
+    })
+    const dropped = new Promise<void>((resolve) => {
+      markDropped = resolve
+    })
     const server = createHttpServer((req) => {
-      req.socket.once('close', () => dropped.resolve())
-      reached.resolve()
+      req.socket.once('close', markDropped)
+      markReached()
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     assert(address && typeof address === 'object')
     return {
       url: `http://127.0.0.1:${address.port}/`,
-      reached: reached.promise,
+      reached,
       /** Whether the app closed the request within `withinMs`. */
       droppedSoon: (withinMs = 2000) =>
-        Promise.race([dropped.promise.then(() => true), sleep(withinMs).then(() => false)]),
+        Promise.race([dropped.then(() => true), sleep(withinMs).then(() => false)]),
       close: () => {
         server.closeAllConnections()
         server.close()
