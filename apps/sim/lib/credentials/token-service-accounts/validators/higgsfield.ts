@@ -7,13 +7,13 @@ import type {
   TokenServiceAccountFields,
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
+import { HIGGSFIELD_API_BASE, higgsfieldAuthHeaders } from '@/lib/media/higgsfield'
 
 /**
  * Higgsfield has no identity endpoint, so the key is checked against the documented request
  * status route with an ID no account owns: an accepted key gets 404, a rejected one gets 401.
  */
-const HIGGSFIELD_VERIFY_URL =
-  'https://api.higgsfield.ai/requests/00000000-0000-4000-8000-000000000000/status'
+const HIGGSFIELD_VERIFY_URL = `${HIGGSFIELD_API_BASE}/requests/00000000-0000-4000-8000-000000000000/status`
 const KEY_PATTERN = /^([^:\s]+):[^:\s]+$/
 
 /** Verifies a Higgsfield `KEY_ID:KEY_SECRET` pair. */
@@ -31,7 +31,7 @@ export async function validateHiggsfieldServiceAccount(
   const response = await fetchProvider(
     HIGGSFIELD_VERIFY_URL,
     {
-      headers: { Authorization: `Key ${fields.apiToken.trim()}`, Accept: 'application/json' },
+      headers: higgsfieldAuthHeaders(fields.apiToken),
       redirect: 'error',
     },
     'get_request_status'
