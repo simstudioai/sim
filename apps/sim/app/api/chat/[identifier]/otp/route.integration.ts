@@ -30,6 +30,7 @@ const chatId = generateId()
 const identifier = `otp-${chatId}`
 const email = `${generateId()}@otp.invalid`
 const CODE = '246810'
+const NEWER_CODE = '135791'
 const NO_CODE = 'No verification code found, request a new one'
 const INVALID = 'Invalid verification code'
 const LOCKED = 'Too many failed attempts. Please request a new code.'
@@ -109,6 +110,7 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
       await storeOTP('chat', chatId, email, CODE)
     })
     afterEach(async () => {
+      vi.restoreAllMocks()
       await db
         .update(chat)
         .set({ authType: 'email', allowedEmails: [email] })
@@ -157,6 +159,35 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
       expect(accepted).toHaveLength(1)
       expect(accepted[0].cookie).toContain(`chat_auth_${chatId}=`)
       expect(results.filter((result) => result.cookie !== null)).toHaveLength(1)
+    })
+
+    it('keeps a newer code issued while an older correct submission is in flight', async () => {
+      const replaceCode = () => storeOTP('chat', chatId, email, NEWER_CODE)
+      const client = redisClient.current
+      if (backend === 'redis' && client) {
+        const evaluate = client.eval.bind(client)
+        let calls = 0
+        vi.spyOn(client, 'eval').mockImplementation(async (...args) => {
+          calls += 1
+          if (calls === 2) await replaceCode()
+          return evaluate(...args)
+        })
+      } else {
+        const remove = db.delete.bind(db)
+        vi.spyOn(db, 'delete').mockImplementationOnce((table) => {
+          const query = remove(table)
+          return new Proxy(query, {
+            get(target, property, receiver) {
+              if (property !== 'then') return Reflect.get(target, property, receiver)
+              return (...settle: Parameters<typeof query.then>) =>
+                replaceCode().then(() => target.then(...settle))
+            },
+          })
+        })
+      }
+
+      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
+      expect(await verify(NEWER_CODE)).toMatchObject({ status: 200 })
     })
 
     it.runIf(backend === 'redis')('treats a code with no expiry as expired', async () => {
