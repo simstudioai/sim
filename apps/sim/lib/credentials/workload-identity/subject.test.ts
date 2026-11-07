@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  bindWorkloadIdentitySubject,
   issueWorkloadIdentitySubject,
   verifyWorkloadIdentitySubject,
   WorkloadIdentitySubjectError,
@@ -107,5 +108,65 @@ describe('workload identity subjects', () => {
         verifyWorkloadIdentitySubject('aws', owner, 'user-1', grant.subject, proof, now)
       ).toThrow(WorkloadIdentitySubjectError)
     }
+  })
+})
+
+describe('binding a subject to a saved credential', () => {
+  const actor = { ...owner, actorUserId: 'user-1' }
+
+  it('keeps the stored subject when a reconnect submits none', () => {
+    expect(
+      bindWorkloadIdentitySubject({
+        provider: 'aws',
+        owner: actor,
+        storedSubject: 'sim:workspace:ws-1:credential:stored123456',
+        subject: undefined,
+        subjectProof: undefined,
+      })
+    ).toBe('sim:workspace:ws-1:credential:stored123456')
+  })
+
+  it('refuses a keyless credential with neither a stored nor a proven subject', () => {
+    expect(() =>
+      bindWorkloadIdentitySubject({
+        provider: 'aws',
+        owner: actor,
+        storedSubject: undefined,
+        subject: undefined,
+        subjectProof: undefined,
+      })
+    ).toThrow(WorkloadIdentitySubjectError)
+  })
+
+  it('accepts a new subject only with a proof issued to the person saving it', () => {
+    const grant = issueWorkloadIdentitySubject('databricks', owner, 'user-1')
+
+    expect(
+      bindWorkloadIdentitySubject({
+        provider: 'databricks',
+        owner: actor,
+        storedSubject: 'sim:workspace:ws-1:credential:stored123456',
+        subject: grant.subject,
+        subjectProof: grant.subjectProof,
+      })
+    ).toBe(grant.subject)
+    expect(() =>
+      bindWorkloadIdentitySubject({
+        provider: 'databricks',
+        owner: { ...owner, actorUserId: 'user-2' },
+        storedSubject: undefined,
+        subject: grant.subject,
+        subjectProof: grant.subjectProof,
+      })
+    ).toThrow(WorkloadIdentitySubjectError)
+    expect(() =>
+      bindWorkloadIdentitySubject({
+        provider: 'databricks',
+        owner: actor,
+        storedSubject: undefined,
+        subject: grant.subject,
+        subjectProof: undefined,
+      })
+    ).toThrow(WorkloadIdentitySubjectError)
   })
 })

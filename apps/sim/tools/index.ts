@@ -88,7 +88,10 @@ import {
 } from '@/lib/internal/tool-operations/file-result.server'
 import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
-import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import type {
+  AuthorizedServiceAccountCredential,
+  InternalToolOperationContext,
+} from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import {
   assistantConnectedAccountTokenParam,
@@ -1994,8 +1997,8 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
-    /** A saved AWS credential this executor authorized; set only by credential resolution below. */
-    let authorizedAwsCredentialId: string | undefined
+    /** A service-account credential this executor authorized; set only by resolution below. */
+    let authorizedServiceAccountCredential: AuthorizedServiceAccountCredential | undefined
     if (contextParams.credential) {
       logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
@@ -2092,9 +2095,9 @@ async function executeToolImplementation(
               data.idToken,
             ])
           }
-          authorizedAwsCredentialId =
-            credentialTool.oauth?.provider === 'aws' && data.credentialType === 'service_account'
-              ? data.accessToken
+          authorizedServiceAccountCredential =
+            data.credentialType === 'service_account' && credentialTool.oauth
+              ? { credentialId, service: credentialTool.oauth.provider }
               : undefined
           for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
             contextParams[paramId] = undefined
@@ -2178,14 +2181,14 @@ async function executeToolImplementation(
       }
     }
 
-    if (authorizedAwsCredentialId && !tool.operation) {
+    if (authorizedServiceAccountCredential?.service === 'aws' && !tool.operation) {
       // AWS tools that sign their own HTTP request need the session keys themselves.
       if (typeof window !== 'undefined') {
         throw new Error('Saved AWS credentials can only be used on the server')
       }
       const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
       const session = await resolveAuthorizedAwsCredential(
-        authorizedAwsCredentialId,
+        authorizedServiceAccountCredential.credentialId,
         {
           workspaceId: operationContext?.workspaceId ?? scope.workspaceId,
           organizationId: operationContext?.organizationId,
@@ -2312,7 +2315,7 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
-        authorizedAwsCredentialId,
+        authorizedServiceAccountCredential,
       })
 
       let finalResult = result
@@ -2736,8 +2739,8 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
-  /** Saved AWS credential the executor authorized for this call (never from tool params). */
-  authorizedAwsCredentialId?: string
+  /** Service-account credential the executor authorized for this call (never from tool params). */
+  authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2786,7 +2789,7 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
-  authorizedAwsCredentialId,
+  authorizedServiceAccountCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2924,7 +2927,9 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context: authorizedAwsCredentialId ? { ...context, authorizedAwsCredentialId } : context,
+        context: authorizedServiceAccountCredential
+          ? { ...context, authorizedServiceAccountCredential }
+          : context,
         requestId,
         signal: operationController.signal,
       })
@@ -2943,7 +2948,7 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
-          authorizedAwsCredentialId,
+          authorizedServiceAccountCredential,
         })
       }
       response = await presentInternalToolOperationResult(

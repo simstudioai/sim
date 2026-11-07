@@ -566,17 +566,22 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
   }),
   response: {
     mode: 'json',
-    schema: z.object({
-      /** Register this URL as the OpenID Connect issuer the cloud trusts. */
-      issuer: z.string(),
-      /** The `aud` the cloud must accept (AWS client ID, Databricks policy audience). */
-      audience: z.string(),
-      /** The exact `sub` the role's trust policy must allow. */
-      subject: z.string(),
-      /** Opaque proof submitted with the credential; binds the subject to its creator. */
-      subjectProof: z.string(),
-      expiresAt: z.string(),
-    }),
+    schema: z.discriminatedUnion('available', [
+      /** This deployment has no workload-identity signing key; offer key-based modes only. */
+      z.object({ available: z.literal(false) }),
+      z.object({
+        available: z.literal(true),
+        /** Register this URL as the OpenID Connect issuer the cloud trusts. */
+        issuer: z.string(),
+        /** The `aud` the cloud must accept (AWS client ID, Databricks policy audience). */
+        audience: z.string(),
+        /** The exact `sub` the role's trust policy must allow. */
+        subject: z.string(),
+        /** Opaque proof submitted with the credential; binds the subject to its creator. */
+        subjectProof: z.string(),
+        expiresAt: z.string(),
+      }),
+    ]),
   },
 })
 

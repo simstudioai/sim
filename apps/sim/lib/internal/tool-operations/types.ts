@@ -12,6 +12,12 @@ export type InternalToolOperationImplementation<P> = (
   context?: InternalToolOperationContext
 ) => Promise<ToolResponse> | ToolResponse
 
+/** A service-account credential the executor authorized, and the tool service it was bound to. */
+export interface AuthorizedServiceAccountCredential {
+  credentialId: string
+  service: string
+}
+
 /** Trusted runtime scope shared by every in-process tool operation. */
 export interface InternalToolOperationContext {
   workflowId: string
@@ -21,11 +27,11 @@ export interface InternalToolOperationContext {
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
   /**
-   * A saved AWS credential the executor already authorized for this call.
-   * Set only from executor-resolved credential state, never from tool input;
-   * AWS operations resolve it to session credentials server-side.
+   * The saved service-account credential the executor authorized for this call,
+   * set only from its own credential resolution, never from tool input.
+   * Operations that resolve a credential server-side (AWS session keys) read it.
    */
-  authorizedAwsCredentialId?: string
+  authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
   /** Trusted source block for saved MCP operation restrictions. */
   mcpBlockId?: string
   /**

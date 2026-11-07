@@ -20,7 +20,7 @@ import type {
  * credential plugs in underneath without touching either:
  *
  * 1. The executor authorizes the credential and sets
- *    `context.authorizedAwsCredentialId` (trusted context, never tool input).
+ *    `context.authorizedServiceAccountCredential` (trusted context, never tool input).
  * 2. {@link withAwsCredential} resolves it to session credentials and
  *    substitutes them for `accessKeyId`/`secretAccessKey` before the contract parses.
  * 3. The family's client asks {@link awsClientCredentials} for its SDK
@@ -29,6 +29,11 @@ import type {
  * With no saved credential, step 2 calls the handler with the original request
  * object and step 3 returns the same `{ accessKeyId, secretAccessKey }` the
  * client always built, so inline-key behavior is unchanged.
+ *
+ * The session token is scoped to the handler's async context, so a client must
+ * be built while the handler runs (every family's `create*Client` is). A client
+ * cached across calls or built after the handler returns would sign without
+ * the token and AWS would reject it.
  */
 
 const sessionStorage = new AsyncLocalStorage<AwsSessionCredentials>()
@@ -70,8 +75,9 @@ export function withAwsCredential<Result>(
   handler: InternalToolOperationHandler<Result>
 ): InternalToolOperationHandler<Result | Response> {
   return async (request: InternalToolOperationCall) => {
-    const credentialId = request.context.authorizedAwsCredentialId
-    if (!credentialId) return handler(request)
+    const authorized = request.context.authorizedServiceAccountCredential
+    if (authorized?.service !== 'aws') return handler(request)
+    const { credentialId } = authorized
 
     if (!isRecordLike(request.input)) {
       return Response.json({ error: 'Invalid request data' }, { status: 400 })

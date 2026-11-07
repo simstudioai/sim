@@ -1150,9 +1150,26 @@ describe('hybrid saved-credential tools', () => {
         'manualCredential',
         'accessToken',
         'sessionToken',
-        'domain',
       ])
     )
+    expect(modelBlockedParams).not.toContain('domain')
+  })
+
+  it('also blocks the values a hybrid tool declares authoritative', async () => {
+    const databricksLike = {
+      ...(hybridTool as object),
+      id: 'databricks_list_jobs',
+      oauth: {
+        required: false,
+        provider: 'databricks',
+        credentialKind: 'service-account',
+        authoritativeParams: ['domain'],
+      },
+    } as never
+
+    const { modelBlockedParams } = await createLLMToolSchema(databricksLike, {})
+
+    expect(modelBlockedParams).toContain('domain')
   })
 
   it('leaves a required-OAuth tool’s model-blocked params exactly as declared', async () => {

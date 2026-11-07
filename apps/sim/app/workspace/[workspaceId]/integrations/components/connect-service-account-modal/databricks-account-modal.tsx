@@ -2,7 +2,6 @@
 
 import { type ComponentType, useState } from 'react'
 import {
-  ChipCopyInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -12,20 +11,15 @@ import {
   ChipTextarea,
   SecretInput,
 } from '@sim/emcn'
-import { generateShortId } from '@sim/utils/id'
-import { isApiClientError } from '@/lib/api/client/errors'
-import {
-  resourceScopeFields,
-  resourceScopeFromOwner,
-  resourceScopeKey,
-} from '@/lib/core/resource-scope'
+import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
-import { withBrandIcon } from '@/blocks/brand-icon'
 import {
-  useCreateScopedCredential,
-  useUpdateScopedCredential,
-  useWorkloadIdentitySetup,
-} from '@/hooks/queries/scoped-credentials'
+  KeylessTrustFields,
+  keylessSubjectFields,
+  useKeylessSetup,
+  useSavedConnectionSubmit,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
+import { withBrandIcon } from '@/blocks/brand-icon'
 
 interface DatabricksAccountModalProps {
   open: boolean
@@ -40,6 +34,14 @@ interface DatabricksAccountModalProps {
 }
 
 type DatabricksAuthType = 'oidc_federation' | 'service_principal' | 'personal_access_token'
+
+const AUTH_TYPE_HINTS: Record<DatabricksAuthType, string> = {
+  oidc_federation:
+    'No secret is stored. Sim signs a short-lived token your service principal trusts.',
+  service_principal:
+    'Sim exchanges the OAuth secret for a short-lived workspace token on each run.',
+  personal_access_token: 'Sim sends this token on every request.',
+}
 
 /** The account-level CLI command that makes the service principal trust this credential. */
 function buildFederationPolicyCommand(issuer: string, audience: string, subject: string) {
@@ -69,100 +71,67 @@ function DatabricksAccountForm({
   initialDescription,
   onCreated,
 }: DatabricksAccountModalProps) {
-  // Keyless principals bind their subject to a workspace; organization connections use secrets.
-  const supportsOidc = Boolean(workspaceId) && !organizationId
-  const [authType, setAuthType] = useState<DatabricksAuthType>(
-    supportsOidc ? 'oidc_federation' : 'service_principal'
-  )
+  const keyless = useKeylessSetup({
+    provider: 'databricks',
+    workspaceId,
+    organizationId,
+    credentialId,
+  })
+  const { submit, error, clearError, isPending } = useSavedConnectionSubmit({
+    providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+    workspaceId,
+    organizationId,
+    credentialId,
+    onCreated,
+    onClose: () => onOpenChange(false),
+  })
+  const [selectedAuthType, setSelectedAuthType] = useState<DatabricksAuthType | null>(null)
   const [host, setHost] = useState('')
   const [token, setToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
-  const [error, setError] = useState<string | null>(null)
-  const [sessionKey] = useState(() => generateShortId())
 
-  const setup = useWorkloadIdentitySetup({
-    workspaceId,
-    provider: 'databricks',
-    sessionKey,
-    enabled: authType === 'oidc_federation',
-  })
-  const trust = setup.data
-  const createCredential = useCreateScopedCredential()
-  const updateCredential = useUpdateScopedCredential()
-  const isPending = createCredential.isPending || updateCredential.isPending
-  const action = credentialId ? 'Reconnect' : 'Add'
-
+  // Keyless is the default wherever this deployment supports it.
+  const authType: DatabricksAuthType =
+    selectedAuthType ?? (keyless.available ? 'oidc_federation' : 'service_principal')
+  const usesServicePrincipal = authType === 'service_principal' || authType === 'oidc_federation'
   const disabled =
     isPending ||
     !host.trim() ||
     (authType === 'personal_access_token' && !token.trim()) ||
-    (authType === 'service_principal' && (!clientId.trim() || !clientSecret)) ||
-    (authType === 'oidc_federation' && (!clientId.trim() || !trust))
+    (usesServicePrincipal && !clientId.trim()) ||
+    (authType === 'service_principal' && !clientSecret) ||
+    (authType === 'oidc_federation' && !keyless.ready)
 
-  const clearError = () => setError(null)
+  const edit = (setter: (value: string) => void) => (value: string) => {
+    setter(value)
+    clearError()
+  }
 
-  const buildConfig = () => {
-    const base = { host: host.trim() }
-    if (authType === 'oidc_federation' && trust) {
-      return {
-        authType,
-        ...base,
-        clientId: clientId.trim(),
-        subject: trust.subject,
-        subjectProof: trust.subjectProof,
-      }
+  const buildConfig = (): Record<string, unknown> => {
+    const base = { authType, host: host.trim() }
+    if (authType === 'oidc_federation') {
+      return { ...base, clientId: clientId.trim(), ...keylessSubjectFields(keyless) }
     }
     if (authType === 'service_principal') {
-      return { authType, ...base, clientId: clientId.trim(), clientSecret }
+      return { ...base, clientId: clientId.trim(), clientSecret }
     }
-    return { authType: 'personal_access_token' as const, ...base, token: token.trim() }
+    return { ...base, token: token.trim() }
   }
 
-  const submit = async () => {
-    if (disabled) return
-    setError(null)
-    const input = {
-      ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
-      serviceAccountJson: JSON.stringify(buildConfig()),
-      displayName: displayName.trim() || undefined,
-      description: description.trim() || undefined,
-    }
-    try {
-      let connectedId = credentialId
-      if (credentialId)
-        await updateCredential.mutateAsync({
-          ...input,
-          credentialId,
-          description: description.trim() || null,
-        })
-      else {
-        const created = await createCredential.mutateAsync({
-          ...input,
-          type: 'service_account',
-          providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
-        })
-        connectedId = created.credential.id
-      }
-      if (connectedId) onCreated?.(connectedId)
-      onOpenChange(false)
-    } catch (error) {
-      if (isApiClientError(error) && error.code === 'duplicate_display_name') {
-        setError('A credential with that name already exists. Choose a different display name.')
-        return
-      }
-      setError(
-        isApiClientError(error) && error.message
-          ? error.message
-          : 'Could not verify the Databricks connection. Check the details and try again.'
-      )
-    }
-  }
-
+  const federationCommand =
+    authType === 'oidc_federation' && keyless.trust
+      ? buildFederationPolicyCommand(
+          keyless.trust.issuer,
+          keyless.trust.audience,
+          keyless.trust.subject
+        )
+      : null
+  const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
-    ...(supportsOidc
+    ...(keyless.available
       ? [{ value: 'oidc_federation', label: 'Service principal (keyless, via Sim OIDC)' }]
       : []),
     { value: 'service_principal', label: 'Service principal OAuth secret' },
@@ -180,28 +149,19 @@ function DatabricksAccountForm({
           title='Authentication'
           value={authType}
           onChange={(value) => {
-            setAuthType(value as DatabricksAuthType)
+            setSelectedAuthType(value as DatabricksAuthType)
             clearError()
           }}
           options={authOptions}
           placeholder='Choose how Sim signs in to Databricks'
           required
-          hint={
-            authType === 'oidc_federation'
-              ? 'No secret is stored. Sim signs a short-lived token your service principal trusts.'
-              : authType === 'service_principal'
-                ? 'Sim exchanges the OAuth secret for a short-lived workspace token on each run.'
-                : 'Sim sends this token on every request.'
-          }
+          hint={AUTH_TYPE_HINTS[authType]}
         />
         <ChipModalField
           type='input'
           title='Workspace host'
           value={host}
-          onChange={(value) => {
-            setHost(value)
-            clearError()
-          }}
+          onChange={edit(setHost)}
           placeholder='dbc-abc123.cloud.databricks.com'
           required
           autoComplete='off'
@@ -213,10 +173,7 @@ function DatabricksAccountForm({
               <SecretInput
                 {...aria}
                 value={token}
-                onChange={(value) => {
-                  setToken(value)
-                  clearError()
-                }}
+                onChange={edit(setToken)}
                 placeholder='dapi...'
                 autoComplete='new-password'
                 data-lpignore='true'
@@ -225,15 +182,12 @@ function DatabricksAccountForm({
           </ChipModalField>
         )}
 
-        {(authType === 'service_principal' || authType === 'oidc_federation') && (
+        {usesServicePrincipal && (
           <ChipModalField
             type='input'
             title='Service principal application ID'
             value={clientId}
-            onChange={(value) => {
-              setClientId(value)
-              clearError()
-            }}
+            onChange={edit(setClientId)}
             placeholder='7cb2f8a4-49a7-4147-83db-35cb69e5cede'
             required
             autoComplete='off'
@@ -246,10 +200,7 @@ function DatabricksAccountForm({
               <SecretInput
                 {...aria}
                 value={clientSecret}
-                onChange={(value) => {
-                  setClientSecret(value)
-                  clearError()
-                }}
+                onChange={edit(setClientSecret)}
                 placeholder='Enter the service principal OAuth secret'
                 autoComplete='new-password'
                 data-lpignore='true'
@@ -258,58 +209,24 @@ function DatabricksAccountForm({
           </ChipModalField>
         )}
 
-        {authType === 'oidc_federation' && (
-          <>
-            {setup.isError && (
-              <ChipModalError>
-                {isApiClientError(setup.error) && setup.error.message
-                  ? setup.error.message
-                  : 'Could not start a keyless connection. Use a service principal secret instead.'}
-              </ChipModalError>
+        {authType === 'oidc_federation' && <KeylessTrustFields setup={keyless} />}
+
+        {federationCommand && (
+          <ChipModalField
+            type='custom'
+            title='Federation policy'
+            hint='An account admin runs this once, with the service principal’s numeric ID, before you save.'
+          >
+            {(aria) => (
+              <ChipTextarea
+                {...aria}
+                readOnly
+                value={federationCommand}
+                className='min-h-[120px] font-mono text-xs'
+                spellCheck={false}
+              />
             )}
-            {trust && (
-              <>
-                <ChipModalField type='custom' title='Issuer'>
-                  {(aria) => (
-                    <ChipCopyInput {...aria} value={trust.issuer} copyLabel='Copy issuer' />
-                  )}
-                </ChipModalField>
-                <ChipModalField type='custom' title='Audience'>
-                  {(aria) => (
-                    <ChipCopyInput {...aria} value={trust.audience} copyLabel='Copy audience' />
-                  )}
-                </ChipModalField>
-                <ChipModalField
-                  type='custom'
-                  title='Subject'
-                  hint='Unique to this connection. Your service principal trusts only this subject.'
-                >
-                  {(aria) => (
-                    <ChipCopyInput {...aria} value={trust.subject} copyLabel='Copy subject' />
-                  )}
-                </ChipModalField>
-                <ChipModalField
-                  type='custom'
-                  title='Federation policy'
-                  hint='An account admin runs this once, with the service principal’s numeric ID, before you save.'
-                >
-                  {(aria) => (
-                    <ChipTextarea
-                      {...aria}
-                      readOnly
-                      value={buildFederationPolicyCommand(
-                        trust.issuer,
-                        trust.audience,
-                        trust.subject
-                      )}
-                      className='min-h-[120px] font-mono text-xs'
-                      spellCheck={false}
-                    />
-                  )}
-                </ChipModalField>
-              </>
-            )}
-          </>
+          </ChipModalField>
         )}
 
         <ChipModalField
@@ -345,7 +262,9 @@ function DatabricksAccountForm({
         ]}
         primaryAction={{
           label: isPending ? 'Verifying...' : `${action} connection`,
-          onClick: submit,
+          onClick: () => {
+            if (!disabled) void submit({ config: buildConfig(), displayName, description })
+          },
           disabled,
         }}
       />

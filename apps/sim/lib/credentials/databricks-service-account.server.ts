@@ -5,13 +5,14 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
+import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
 } from '@/lib/credentials/workload-identity/issuer'
 import {
-  verifyWorkloadIdentitySubject,
+  bindWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -97,7 +98,13 @@ type DatabricksCredentialConfig = z.infer<typeof storedConfigSchema>
 const submittedConfigSchema = z.discriminatedUnion('authType', [
   patSchema,
   servicePrincipalSchema,
-  z.object({ ...oidcShape, subjectProof: z.string().min(1).max(512).optional() }).strict(),
+  z
+    .object({
+      ...oidcShape,
+      subject: oidcShape.subject.optional(),
+      subjectProof: z.string().min(1).max(512).optional(),
+    })
+    .strict(),
 ])
 
 const storedSecretSchema = z
@@ -114,15 +121,17 @@ export class DatabricksCredentialError extends Error {
 async function requestWorkspaceToken(
   host: string,
   body: URLSearchParams,
+  signal: AbortSignal | undefined,
   headers: Record<string, string> = {}
 ): Promise<string> {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const response = await fetch(`${workspaceOrigin(host)}/oidc/v1/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body,
     // A secret or subject token must never follow a redirect off the workspace host.
     redirect: 'error',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   })
   const payload = (await response.json().catch(() => ({}))) as {
     access_token?: unknown
@@ -144,7 +153,8 @@ async function requestWorkspaceToken(
 /** A bearer token for the configured workspace. */
 async function resolveDatabricksAccessToken(
   config: DatabricksCredentialConfig,
-  owner: WorkloadIdentityOwner
+  owner: WorkloadIdentityOwner,
+  signal?: AbortSignal
 ): Promise<string> {
   if (config.authType === 'personal_access_token') return config.token
   if (config.authType === 'service_principal') {
@@ -152,6 +162,7 @@ async function resolveDatabricksAccessToken(
     return requestWorkspaceToken(
       config.host,
       new URLSearchParams({ grant_type: 'client_credentials', scope: 'all-apis' }),
+      signal,
       { Authorization: `Basic ${basic}` }
     )
   }
@@ -168,7 +179,8 @@ async function resolveDatabricksAccessToken(
       subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
       scope: 'all-apis',
-    })
+    }),
+    signal
   )
 }
 
@@ -180,23 +192,24 @@ function readStoredSubject(storedSecret: Record<string, unknown> | null | undefi
 }
 
 function bindSubject(
-  subject: string,
+  subject: string | undefined,
   subjectProof: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  if (subject === readStoredSubject(owner.storedSecret)) return subject
-  if (!subjectProof) {
-    throw new DatabricksCredentialError('Start a new keyless Databricks connection')
-  }
   try {
-    verifyWorkloadIdentitySubject('databricks', owner, owner.actorUserId, subject, subjectProof)
+    return bindWorkloadIdentitySubject({
+      provider: 'databricks',
+      owner,
+      storedSubject: readStoredSubject(owner.storedSecret),
+      subject,
+      subjectProof,
+    })
   } catch (error) {
     if (error instanceof WorkloadIdentitySubjectError) {
       throw new DatabricksCredentialError(error.message)
     }
     throw error
   }
-  return subject
 }
 
 /**
@@ -208,26 +221,17 @@ export async function verifyAndEncryptDatabricksCredential(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
 ): Promise<{ encryptedServiceAccountKey: string; identity: string }> {
-  if (Buffer.byteLength(serialized, 'utf8') > 64 * 1024) {
-    throw new DatabricksCredentialError('Databricks credential configuration is too large')
-  }
-  let raw: unknown
-  try {
-    raw = JSON.parse(serialized)
-  } catch {
-    throw new DatabricksCredentialError('Invalid Databricks credential configuration')
-  }
-  const parsed = submittedConfigSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new DatabricksCredentialError(
-      parsed.error.issues[0]?.message ?? 'Invalid Databricks credential'
-    )
-  }
+  const parsed = parseServiceAccountConfig(
+    serialized,
+    submittedConfigSchema,
+    'Databricks credential'
+  )
+  if (!parsed.success) throw new DatabricksCredentialError(parsed.message)
   const submitted = parsed.data
   let config: DatabricksCredentialConfig
   if (submitted.authType === 'oidc_federation') {
-    const { subjectProof, ...rest } = submitted
-    config = { ...rest, subject: bindSubject(rest.subject, subjectProof, owner) }
+    const { subject, subjectProof, ...rest } = submitted
+    config = { ...rest, subject: bindSubject(subject, subjectProof, owner) }
   } else {
     config = submitted
   }
@@ -266,12 +270,14 @@ export async function verifyAndEncryptDatabricksCredential(
  * checked the caller may use it) to a token and its workspace host.
  */
 export async function resolveDatabricksCredentialToken(
-  credentialId: string
+  credentialId: string,
+  signal?: AbortSignal
 ): Promise<{ accessToken: string; domain: string }> {
   const [row] = await db
     .select({
       workspaceId: credential.workspaceId,
       organizationId: credential.organizationId,
+      type: credential.type,
       providerId: credential.providerId,
       revokedAt: credential.revokedAt,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
@@ -281,6 +287,7 @@ export async function resolveDatabricksCredentialToken(
     .limit(1)
   if (
     !row ||
+    row.type !== 'service_account' ||
     row.providerId !== DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
     row.revokedAt !== null ||
     !row.encryptedServiceAccountKey
@@ -292,5 +299,8 @@ export async function resolveDatabricksCredentialToken(
   const owner: WorkloadIdentityOwner = row.workspaceId
     ? { workspaceId: row.workspaceId }
     : { organizationId: row.organizationId ?? undefined }
-  return { accessToken: await resolveDatabricksAccessToken(config, owner), domain: config.host }
+  return {
+    accessToken: await resolveDatabricksAccessToken(config, owner, signal),
+    domain: config.host,
+  }
 }

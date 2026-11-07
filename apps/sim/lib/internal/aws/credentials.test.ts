@@ -68,7 +68,7 @@ describe('withAwsCredential', () => {
           workflowId: 'wf-1',
           workspaceId: 'ws-1',
           executionId: 'exec-1',
-          authorizedAwsCredentialId: 'cred-1',
+          authorizedServiceAccountCredential: { credentialId: 'cred-1', service: 'aws' },
         },
       })
     )
@@ -90,6 +90,22 @@ describe('withAwsCredential', () => {
     })
   })
 
+  it('ignores a credential the executor authorized for another service', async () => {
+    const request = call({
+      context: {
+        workflowId: 'wf-1',
+        workspaceId: 'ws-1',
+        authorizedServiceAccountCredential: { credentialId: 'oracle-1', service: 'oracledb' },
+      },
+    })
+    const handler = vi.fn(async () => Response.json({}))
+
+    await withAwsCredential(handler)(request)
+
+    expect(handler.mock.calls[0][0]).toBe(request)
+    expect(mockGetAwsCredentialConfig).not.toHaveBeenCalled()
+  })
+
   it('never attaches a session token to keys other than the resolved pair', async () => {
     mockGetAwsCredentialConfig.mockResolvedValue({ config: {}, owner: { workspaceId: 'ws-1' } })
     mockResolveAwsSessionCredentials.mockResolvedValue({
@@ -102,7 +118,13 @@ describe('withAwsCredential', () => {
     )
 
     const response = await withAwsCredential(handler)(
-      call({ context: { workflowId: 'wf-1', workspaceId: 'ws-1', authorizedAwsCredentialId: 'c' } })
+      call({
+        context: {
+          workflowId: 'wf-1',
+          workspaceId: 'ws-1',
+          authorizedServiceAccountCredential: { credentialId: 'c', service: 'aws' },
+        },
+      })
     )
 
     expect(await (response as Response).json()).toStrictEqual({
@@ -117,7 +139,11 @@ describe('withAwsCredential', () => {
 
     const response = (await withAwsCredential(handler)(
       call({
-        context: { workflowId: 'wf-1', workspaceId: 'ws-2', authorizedAwsCredentialId: 'cred-1' },
+        context: {
+          workflowId: 'wf-1',
+          workspaceId: 'ws-2',
+          authorizedServiceAccountCredential: { credentialId: 'cred-1', service: 'aws' },
+        },
       })
     )) as Response
 

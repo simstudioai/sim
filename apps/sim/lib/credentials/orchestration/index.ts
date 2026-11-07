@@ -239,8 +239,8 @@ export type UpdateCredentialRecordParams = Omit<
   'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
 > & {
   credential: CredentialRow
-  /** The person saving the change; binds owner-scoped secrets such as an AWS OIDC subject. */
-  actorUserId?: string
+  /** The person saving the change; binds owner-scoped secrets such as a keyless subject. */
+  actorUserId: string
 }
 
 /** Updates one already-authorized credential without surface authorization or audit. */
@@ -446,7 +446,7 @@ export async function updateCredentialRecord(
             ...(params.credential.organizationId
               ? { organizationId: params.credential.organizationId }
               : { workspaceId: params.credential.workspaceId ?? undefined }),
-            actorUserId: params.actorUserId ?? '',
+            actorUserId: params.actorUserId,
             storedSecret: storedBlob,
           },
         })

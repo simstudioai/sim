@@ -11,13 +11,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
   mintWorkloadIdentityToken,
   type WorkloadIdentityOwner,
 } from '@/lib/credentials/workload-identity/issuer'
 import {
-  verifyWorkloadIdentitySubject,
+  bindWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -88,11 +89,20 @@ const storedConfigSchema = z.discriminatedUnion('authType', [
 
 export type AwsCredentialConfig = z.infer<typeof storedConfigSchema>
 
-/** What the connect modal submits: the stored shape plus a one-time subject proof for OIDC roles. */
+/**
+ * What the connect modal submits. A new keyless role carries the subject Sim
+ * issued and its proof; a reconnect that keeps the configured trust omits both.
+ */
 const submittedConfigSchema = z.discriminatedUnion('authType', [
   accessKeysSchema,
   assumeRoleSchema,
-  z.object({ ...oidcRoleShape, subjectProof: z.string().min(1).max(512).optional() }).strict(),
+  z
+    .object({
+      ...oidcRoleShape,
+      subject: oidcRoleShape.subject.optional(),
+      subjectProof: z.string().min(1).max(512).optional(),
+    })
+    .strict(),
 ])
 
 const storedSecretSchema = z
@@ -197,23 +207,6 @@ export async function resolveAwsSessionCredentials(
   return toSessionCredentials(response.Credentials)
 }
 
-function parseSubmittedConfig(serialized: string) {
-  if (Buffer.byteLength(serialized, 'utf8') > 64 * 1024) {
-    throw new AwsCredentialError('AWS credential configuration is too large')
-  }
-  let raw: unknown
-  try {
-    raw = JSON.parse(serialized)
-  } catch {
-    throw new AwsCredentialError('Invalid AWS credential configuration')
-  }
-  const parsed = submittedConfigSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new AwsCredentialError(parsed.error.issues[0]?.message ?? 'Invalid AWS credential')
-  }
-  return parsed.data
-}
-
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success && parsed.data.config.authType === 'oidc_role'
@@ -221,27 +214,24 @@ function readStoredSubject(storedSecret: Record<string, unknown> | null | undefi
     : undefined
 }
 
-/**
- * Binds an OIDC subject to the credential. A reconnect may keep the subject it
- * already has; any other subject needs a fresh, unexpired proof Sim issued to
- * this person for this owner.
- */
-function bindOidcSubject(
-  subject: string,
+function bindSubject(
+  subject: string | undefined,
   subjectProof: string | undefined,
+  storedSubject: string | undefined,
   owner: WorkloadIdentityCredentialOwner
 ): string {
-  if (subject === readStoredSubject(owner.storedSecret)) return subject
-  if (!subjectProof) {
-    throw new AwsCredentialError('Start a new AWS role connection to get a trust setup')
-  }
   try {
-    verifyWorkloadIdentitySubject('aws', owner, owner.actorUserId, subject, subjectProof)
+    return bindWorkloadIdentitySubject({
+      provider: 'aws',
+      owner,
+      storedSubject,
+      subject,
+      subjectProof,
+    })
   } catch (error) {
     if (error instanceof WorkloadIdentitySubjectError) throw new AwsCredentialError(error.message)
     throw error
   }
-  return subject
 }
 
 function verificationFailure(config: AwsCredentialConfig, error: unknown): AwsCredentialError {
@@ -268,11 +258,16 @@ export async function verifyAndEncryptAwsCredential(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
 ): Promise<{ encryptedServiceAccountKey: string; callerArn: string }> {
-  const submitted = parseSubmittedConfig(serialized)
+  const parsed = parseServiceAccountConfig(serialized, submittedConfigSchema, 'AWS credential')
+  if (!parsed.success) throw new AwsCredentialError(parsed.message)
+  const submitted = parsed.data
   let config: AwsCredentialConfig
   if (submitted.authType === 'oidc_role') {
-    const { subjectProof, ...rest } = submitted
-    config = { ...rest, subject: bindOidcSubject(rest.subject, subjectProof, owner) }
+    const { subject, subjectProof, ...rest } = submitted
+    config = {
+      ...rest,
+      subject: bindSubject(subject, subjectProof, readStoredSubject(owner.storedSecret), owner),
+    }
   } else {
     config = submitted
   }

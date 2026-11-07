@@ -79,16 +79,16 @@ type SubBlockConditionShape = Extract<NonNullable<SubBlockConfig['condition']>, 
  */
 export function withoutSavedCredential(base?: SubBlockConditionShape) {
   return (values?: Record<string, unknown>): SubBlockConditionShape => {
-    if (hasSavedCredential(values)) {
-      return { field: 'credential', value: '__saved_credential_selected__' }
-    }
+    // No field ever holds this value, so `value` never matches and `not` always does.
+    if (hasSavedCredential(values)) return { field: 'credential', value: NEVER_MATCHING_VALUE }
     if (base) return base
     // The catalog evaluates this with no values; publish "required while no credential is selected".
     if (!values) return { field: 'credential', value: '' }
-    // Matches itself whatever the empty value is (absent, null, or blank).
-    return { field: 'credential', value: values.credential as string }
+    return { field: 'credential', value: NEVER_MATCHING_VALUE, not: true }
   }
 }
+
+const NEVER_MATCHING_VALUE = '__no_field_holds_this_value__'
 
 /**
  * The optional saved-credential picker for a block whose inline secret fields

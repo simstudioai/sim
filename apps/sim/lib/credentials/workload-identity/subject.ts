@@ -102,7 +102,7 @@ export function verifyWorkloadIdentitySubject(
 ): void {
   const invalid = () =>
     new WorkloadIdentitySubjectError(
-      'This trust setup has expired or belongs to someone else. Start a new AWS role connection.'
+      'This trust setup has expired or belongs to someone else. Start the keyless connection again.'
     )
   const separator = subjectProof.indexOf('.')
   if (separator <= 0) throw invalid()
@@ -111,4 +111,32 @@ export function verifyWorkloadIdentitySubject(
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw invalid()
   if (!subject.startsWith(`sim:${ownerSegment(owner)}:credential:`)) throw invalid()
   if (!safeCompare(signature, sign(provider, owner, userId, subject, expiresAt))) throw invalid()
+}
+
+/**
+ * Decides which subject a keyless credential is saved with.
+ *
+ * - No subject submitted: a reconnect keeping the trust the customer already
+ *   configured — the stored subject is reused, and there must be one.
+ * - The stored subject resubmitted: kept as-is.
+ * - Any other subject: must carry a fresh proof Sim issued to this person, for
+ *   this owner and provider.
+ */
+export function bindWorkloadIdentitySubject(input: {
+  provider: WorkloadIdentityProvider
+  owner: WorkloadIdentityCredentialOwner
+  storedSubject: string | undefined
+  subject: string | undefined
+  subjectProof: string | undefined
+}): string {
+  const { provider, owner, storedSubject, subject, subjectProof } = input
+  if (!subject || subject === storedSubject) {
+    if (storedSubject) return storedSubject
+    throw new WorkloadIdentitySubjectError('Start a keyless connection to get a trust setup first.')
+  }
+  if (!subjectProof) {
+    throw new WorkloadIdentitySubjectError('Start a keyless connection to get a trust setup first.')
+  }
+  verifyWorkloadIdentitySubject(provider, owner, owner.actorUserId, subject, subjectProof)
+  return subject
 }

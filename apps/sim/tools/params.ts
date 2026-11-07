@@ -326,7 +326,8 @@ export function createUserToolSchema(
 /**
  * Undeclared params a model must not inject into a hybrid tool: the saved
  * credential selectors (which would swap the author's inline keys for another
- * workspace credential) and the executor-owned values resolved from one.
+ * workspace credential) and the values the executor resolves from one. A tool's
+ * own `authoritativeParams` (e.g. a Databricks connection's host) join these.
  */
 const HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS = [
   'credential',
@@ -335,7 +336,6 @@ const HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS = [
   'manualCredential',
   'accessToken',
   'sessionToken',
-  'domain',
 ]
 
 export async function createLLMToolSchema(
@@ -359,7 +359,10 @@ export async function createLLMToolSchema(
   // A hybrid tool (inline secrets or an optional saved credential) never takes its
   // credential selection, or the values the executor derives from it, from a model.
   if (toolConfig.oauth && toolConfig.oauth.required === false) {
-    modelBlockedParams.push(...HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS)
+    modelBlockedParams.push(
+      ...HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS,
+      ...(toolConfig.oauth.authoritativeParams ?? [])
+    )
   }
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {

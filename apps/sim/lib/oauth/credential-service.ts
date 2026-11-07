@@ -738,11 +738,11 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),
-  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
     const { resolveDatabricksCredentialToken } = await import(
       '@/lib/credentials/databricks-service-account.server'
     )
-    return resolveDatabricksCredentialToken(credentialId)
+    return resolveDatabricksCredentialToken(credentialId, options.signal)
   },
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
