@@ -945,7 +945,7 @@ async function handleExecutePost(
         ? false
         : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
-      useDraftState || workflowStateOverride || rawRunFromBlock
+      shouldUseDraftState || workflowStateOverride || rawRunFromBlock
     )
 
     if (req.signal.aborted) {
@@ -987,11 +987,14 @@ async function handleExecutePost(
     }
 
     /**
-     * Interactive sessions and personal keys preserve the authenticated human
-     * as actor. Preprocessing resolves the workspace payer independently.
+     * Sessions and personal keys preserve the authenticated human as actor.
+     * Preprocessing resolves the workspace payer independently. This follows
+     * the auth type, never the body's `isClientSession`: a session runs the
+     * draft it can edit, so letting it opt out would run that draft with the
+     * billing account's credentials.
      */
     const useAuthenticatedUserAsActor =
-      isClientSession ||
+      auth.authType === AuthType.SESSION ||
       (auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal') ||
       useMcpBridgeAuthenticatedUserAsActor
 
