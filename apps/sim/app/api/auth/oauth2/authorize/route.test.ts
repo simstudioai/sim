@@ -69,10 +69,10 @@ const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = 
 const BASE_URL = 'https://sim.test'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
-function request(query: Record<string, string>) {
+function request(query: Record<string, string>, headers: Record<string, string> = {}) {
   const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
-  return createMockRequest('GET', undefined, {}, url.toString())
+  return createMockRequest('GET', undefined, headers, url.toString())
 }
 
 function linkResponse(url = 'https://provider.example/authorize') {
@@ -437,6 +437,38 @@ describe('OAuth2 authorize route', () => {
     expect(location.searchParams.get('error')).toBe('unsupported_response_type')
     expect(location.searchParams.get('state')).toBe('state-1')
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cross-site workspace launch before creating a connection draft', async () => {
+    const response = await GET(
+      request(
+        { providerId: 'google-email', workspaceId: WORKSPACE_ID, credentialId: 'credential-1' },
+        { 'sec-fetch-site': 'cross-site' }
+      )
+    )
+
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_invalid`)
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+    expect(mocks.linkAccount).not.toHaveBeenCalled()
+  })
+
+  it.each([{ 'sec-fetch-site': 'none' }, { 'sec-fetch-site': 'same-site' }])(
+    'starts a workspace launch that is not cross-site: %o',
+    async (headers) => {
+      const response = await GET(
+        request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }, headers)
+      )
+
+      expect(mocks.createConnection).toHaveBeenCalledOnce()
+      expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+    }
+  )
+
+  it('starts a cross-site launch of the signed-in user’s own connection draft', async () => {
+    const response = await GET(request({ draftId: 'draft-1' }, { 'sec-fetch-site': 'cross-site' }))
+
+    expect(mocks.launchConnection).toHaveBeenCalledOnce()
+    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
   })
 
   it('requires a configured OAuth client before creating a legacy draft', async () => {
