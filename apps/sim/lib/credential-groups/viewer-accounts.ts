@@ -1,24 +1,10 @@
 import { db } from '@sim/db'
-import {
-  credential,
-  credentialGroup,
-  credentialGroupEnrollment,
-  type ManagedOAuthSite,
-} from '@sim/db/schema'
-import { toArray, toRecord } from '@sim/utils/object'
+import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { boundedAccountSites } from '@/lib/credential-groups/account-sites'
 import { ORGANIZATION_VIEWER_ACCOUNT_LIMIT } from '@/lib/credential-groups/limits'
-
-/** Stored metadata is provider-shaped JSON, so only well-formed entries are shown. */
-function recordedSites(metadata: unknown): ManagedOAuthSite[] {
-  return toArray(toRecord(metadata).sites).flatMap((entry) => {
-    const site = toRecord(entry)
-    return typeof site.name === 'string' && typeof site.url === 'string'
-      ? [{ name: site.name, url: site.url }]
-      : []
-  })
-}
 
 /** Own grant metadata remains manageable even while provider setup or enrollment is disabled. */
 export async function listViewerOrganizationAccounts(input: {
@@ -70,7 +56,7 @@ export async function listViewerOrganizationAccounts(input: {
       optionId: account.optionId,
       providerId: account.providerId,
       status: account.status,
-      sites: recordedSites(metadata),
+      sites: boundedAccountSites(toRecord(metadata).sites),
     }
   })
 }

@@ -7,6 +7,7 @@ import { OAuth2Client, type TokenPayload } from 'google-auth-library'
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { boundedAccountSites } from '@/lib/credential-groups/account-sites'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositories'
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
@@ -26,7 +27,6 @@ const ATLASSIAN_USER_INFO_URL = 'https://api.atlassian.com/me'
 const ATLASSIAN_USER_INFO_MAX_BYTES = 256 * 1024
 const ATLASSIAN_USER_INFO_TIMEOUT_MS = 10_000
 const ATLASSIAN_SITES_URL = 'https://api.atlassian.com/oauth/token/accessible-resources'
-const ATLASSIAN_SITE_LIMIT = 50
 const MICROSOFT_JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys'
 const MICROSOFT_OIDC_USER_INFO_URL = 'https://graph.microsoft.com/oidc/userinfo'
 const MICROSOFT_OIDC_USER_INFO_MAX_BYTES = 256 * 1024
@@ -216,14 +216,12 @@ async function listAtlassianSites(accessToken: string): Promise<ManagedOAuthSite
       label: 'Atlassian accessible resources response',
     })
     if (!response.ok || !Array.isArray(body)) return undefined
-    return body
-      .flatMap((entry) => {
+    return boundedAccountSites(
+      body.map((entry) => {
         const site = toRecord(entry)
-        const name = typeof site.name === 'string' ? site.name.trim() : ''
-        const url = typeof site.url === 'string' ? httpsOrigin(site.url) : null
-        return name && url ? [{ name, url }] : []
+        return { name: site.name, url: typeof site.url === 'string' ? httpsOrigin(site.url) : null }
       })
-      .slice(0, ATLASSIAN_SITE_LIMIT)
+    )
   } catch {
     return undefined
   }

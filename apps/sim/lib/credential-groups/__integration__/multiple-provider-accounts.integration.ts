@@ -42,6 +42,8 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 
 /** Each grant carries its own token, as a real exchange does, so a saved grant is identifiable. */
 let grants = 0
+/** Sites the next grant reports, or `undefined` when its site listing failed. */
+let grantSites: Array<{ name: string; url: string }> | undefined
 
 vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
   const { getCredentialGroupProviderId } = await import('@/lib/credential-groups/providers')
@@ -64,7 +66,7 @@ vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
             providerSubjectId: subject,
             providerTenantId: tenant || null,
             displayName: code,
-            metadata: { email: code },
+            metadata: { email: code, ...(grantSites ? { sites: grantSites } : {}) },
             accessToken: `token-for-${code}-${(grants += 1)}`,
             grantedScopes: POLICY.requiredScopes,
             accessTokenExpiresAt: null,
@@ -230,6 +232,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  grantSites = undefined
   await db.delete(credential).where(eq(credential.organizationId, organizationId))
 })
 
@@ -381,6 +384,52 @@ describe('adding another site to an Atlassian login', () => {
       .where(eq(credential.id, account.credentialId))
 
     expect((await viewer())?.sites).toEqual([{ name: 'Acme', url: 'https://acme.example.net' }])
+  })
+
+  it('never lets oversized stored sites break the account list', async () => {
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const site = (index: number) => ({
+      name: `Site ${index}`,
+      url: `https://s${index}.example.net`,
+    })
+    await db
+      .update(credential)
+      .set({
+        providerMetadata: sql`${JSON.stringify({
+          email: 'person@atlassian',
+          sites: [
+            { name: 'x'.repeat(600), url: 'https://long-name.example.net' },
+            { name: 'Long URL', url: `https://example.net/${'x'.repeat(2100)}` },
+            ...Array.from({ length: 60 }, (_, index) => site(index)),
+          ],
+        })}::jsonb`,
+      })
+      .where(eq(credential.id, account.credentialId))
+
+    const [viewer] = await listViewerOrganizationAccounts({ organizationId, userId })
+    expect(viewer?.sites).toHaveLength(50)
+    expect(viewer?.sites[0]).toEqual(site(0))
+  })
+
+  it('keeps the recorded sites when a reconnect cannot list them', async () => {
+    grantSites = [{ name: 'Acme', url: 'https://acme.example.net' }]
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const reconnect = () =>
+      connect(
+        'person@atlassian',
+        { kind: 'reconnect', credentialId: account.credentialId },
+        CONFLUENCE
+      )
+    const sites = async () =>
+      (await listViewerOrganizationAccounts({ organizationId, userId }))[0]?.sites
+
+    grantSites = undefined
+    await reconnect()
+    expect(await sites()).toEqual([{ name: 'Acme', url: 'https://acme.example.net' }])
+
+    grantSites = []
+    await reconnect()
+    expect(await sites()).toEqual([])
   })
 
   it('still adds a different Atlassian login as its own account', async () => {
