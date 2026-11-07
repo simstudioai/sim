@@ -9,11 +9,11 @@ import type {
 } from '@/lib/credentials/token-service-accounts/server'
 
 /**
- * Higgsfield has no identity endpoint, so the cheapest authenticated read — one page of the
- * account's Soul ID characters — proves the key ID and secret are accepted.
+ * Higgsfield has no identity endpoint, so the key is checked against the documented request
+ * status route with an ID no account owns: an accepted key gets 404, a rejected one gets 401.
  */
 const HIGGSFIELD_VERIFY_URL =
-  'https://api.higgsfield.ai/v1/custom-references/list?page=1&page_size=1'
+  'https://api.higgsfield.ai/requests/00000000-0000-4000-8000-000000000000/status'
 const KEY_PATTERN = /^([^:\s]+):[^:\s]+$/
 
 /** Verifies a Higgsfield `KEY_ID:KEY_SECRET` pair. */
@@ -34,9 +34,9 @@ export async function validateHiggsfieldServiceAccount(
       headers: { Authorization: `Key ${fields.apiToken.trim()}`, Accept: 'application/json' },
       redirect: 'error',
     },
-    'list_custom_references'
+    'get_request_status'
   )
-  await throwForProviderResponse(response, 'list_custom_references')
+  if (response.status !== 404) await throwForProviderResponse(response, 'get_request_status')
   await response.body?.cancel().catch(() => undefined)
 
   return {
