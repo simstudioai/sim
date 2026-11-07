@@ -49,6 +49,7 @@ vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 vi.mock('@/lib/table/cell-write', () => ({
   writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
+  writeWorkflowGroupStateDurably: hoisted.writeWorkflowGroupState,
   markWorkflowGroupPickedUp: hoisted.markWorkflowGroupPickedUp,
   createWorkflowCellProgressWriter: hoisted.createWorkflowCellProgressWriter,
   buildCancelledExecution: hoisted.buildCancelledExecution,

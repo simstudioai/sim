@@ -45,6 +45,7 @@ vi.mock('@/lib/table/cell-write', () => ({
   }),
   createWorkflowCellProgressWriter: mocks.createWorkflowCellProgressWriter,
   writeWorkflowGroupState: mocks.writeWorkflowGroupState,
+  writeWorkflowGroupStateDurably: mocks.writeWorkflowGroupState,
   markWorkflowGroupPickedUp: mocks.markWorkflowGroupPickedUp,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
@@ -121,7 +122,8 @@ describe('the cell guard on its owning dispatch', () => {
       expect.anything(),
       expect.objectContaining({
         executionState: expect.objectContaining({ status: 'cancelled' }),
-      })
+      }),
+      { claimed: false }
     )
   })
 })

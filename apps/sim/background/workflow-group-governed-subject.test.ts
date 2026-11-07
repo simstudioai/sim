@@ -57,6 +57,7 @@ vi.mock('@/lib/table/cell-write', () => ({
   }),
   createWorkflowCellProgressWriter: hoisted.createWorkflowCellProgressWriter,
   writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
+  writeWorkflowGroupStateDurably: hoisted.writeWorkflowGroupState,
   markWorkflowGroupPickedUp: hoisted.markWorkflowGroupPickedUp,
 }))
 vi.mock('@/lib/table/workflow-cell-result', () => ({
