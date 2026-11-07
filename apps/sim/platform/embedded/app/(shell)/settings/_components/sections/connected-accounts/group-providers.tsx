@@ -11,7 +11,6 @@ import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
-import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import {
@@ -22,11 +21,6 @@ import {
   type OrganizationAccountProviderChoice,
   organizationAccountProviderRows,
 } from '@/ee/credential-groups/provider-rows'
-import {
-  useAddOrganizationAccountMcpProvider,
-  useRemoveOrganizationAccountMcpProvider,
-  useUpdateOrganizationAccounts,
-} from '@/hooks/queries/organization-accounts'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
@@ -38,7 +32,7 @@ import {
 import { DatabricksModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal'
 import { ProviderCatalogModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
-import { toast } from '@/platform/shared/toast'
+import { useCredentialGroupProviders } from '@/platform/embedded/lib/data/credential-groups'
 
 interface GroupProvidersProps {
   organizationId: string
@@ -62,29 +56,8 @@ export function GroupProviders({
   const [removing, setRemoving] = useState<OrganizationAccountProviderChoice | null>(null)
   const [slackOpen, setSlackOpen] = useState(false)
   const [databricksOpen, setDatabricksOpen] = useState(false)
-  const update = useUpdateOrganizationAccounts()
-  const addMcp = useAddOrganizationAccountMcpProvider()
-  const removeMcp = useRemoveOrganizationAccountMcpProvider()
-  const pending = update.isPending || addMcp.isPending || removeMcp.isPending
-  const options = getOrganizationAccountUpdateOptions(group)
-  const error = update.error ?? addMcp.error ?? removeMcp.error
-
-  function resetMutations() {
-    update.reset()
-    addMcp.reset()
-    removeMcp.reset()
-  }
-
-  function updateConfigurations() {
-    if (pending) return
-    update.mutate(
-      { organizationId, groupId: group.id, update: { options } },
-      {
-        onSuccess: () => toast.success('Provider configurations updated'),
-        onError: (failure) => toast.error(failure.message),
-      }
-    )
-  }
+  const providers = useCredentialGroupProviders(organizationId, group)
+  const { pending, error } = providers
 
   function addProvider(choice: OrganizationAccountProviderChoice) {
     if (choice.kind === 'mcp') {
@@ -93,15 +66,7 @@ export function GroupProviders({
         setDatabricksOpen(true)
         return
       }
-      addMcp.mutate(
-        { organizationId, connectorId: choice.connectorId },
-        {
-          onSuccess: () => {
-            setCatalogOpen(false)
-            toast.success(`${MANAGED_MCP_CONNECTORS[choice.connectorId].name} added`)
-          },
-        }
-      )
+      providers.addMcpConnector(choice.connectorId, () => setCatalogOpen(false))
       return
     }
     const { provider } = choice
@@ -110,33 +75,12 @@ export function GroupProviders({
       setSlackOpen(true)
       return
     }
-    const service = getCredentialGroupProviderService(provider)
-    update.mutate(
-      {
-        organizationId,
-        groupId: group.id,
-        update: { options: [...options, { provider, label: service.name, required: false }] },
-      },
-      {
-        onSuccess: () => {
-          setCatalogOpen(false)
-          toast.success(`${service.name} added`)
-        },
-      }
-    )
+    providers.addOAuthProvider(provider, () => setCatalogOpen(false))
   }
 
   async function removeProvider() {
     if (!removing || pending) return false
-    if (removing.kind === 'mcp')
-      await removeMcp.mutateAsync({ organizationId, connectorId: removing.connectorId })
-    else
-      await update.mutateAsync({
-        organizationId,
-        groupId: group.id,
-        update: { options: options.filter((option) => option.provider !== removing.provider) },
-      })
-    toast.success('Provider removed')
+    await providers.remove(removing)
   }
 
   const rows = organizationAccountProviderRows(group)
@@ -161,7 +105,7 @@ export function GroupProviders({
           icon='I074'
           disabled={pending}
           onClick={() => {
-            resetMutations()
+            providers.reset()
             setCatalogOpen(true)
           }}
         >
@@ -199,7 +143,7 @@ export function GroupProviders({
                       destructive: true,
                       disabled: pending,
                       onSelect: () => {
-                        resetMutations()
+                        providers.reset()
                         setRemoving(choice)
                       },
                     },
@@ -218,12 +162,12 @@ export function GroupProviders({
             }
           />
         )}
-        {options.length > 0 && (
+        {providers.canUpdateConfigurations && (
           <SettingsRow
             label='Provider configurations'
             description='Apply the current app configuration. Accounts whose app configuration changed will need to reconnect.'
           >
-            <Button size='compact' disabled={pending} onClick={updateConfigurations}>
+            <Button size='compact' disabled={pending} onClick={providers.updateConfigurations}>
               Update configurations
             </Button>
           </SettingsRow>

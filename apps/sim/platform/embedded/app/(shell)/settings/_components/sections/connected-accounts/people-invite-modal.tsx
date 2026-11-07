@@ -4,10 +4,8 @@ import { useState } from 'react'
 import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
-import { getErrorMessage } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { useInviteOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'
-import { toast } from '@/platform/shared/toast'
+import { useConnectionRequestInvite } from '@/platform/embedded/lib/data/credential-groups'
 
 interface PeopleInviteModalProps {
   organizationId: string
@@ -20,41 +18,25 @@ interface Recipient {
 }
 
 export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModalProps) {
-  const invite = useInviteOrganizationAccountPeople()
+  const invite = useConnectionRequestInvite(organizationId)
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
   const emails = recipients.filter((recipient) => !recipient.invalid).map(({ address }) => address)
-  const message =
-    deliveryError ??
-    (invite.error ? getErrorMessage(invite.error, 'Failed to send invitations') : null)
+  const message = deliveryError ?? invite.error
 
   async function submit() {
-    if (!emails.length || invite.isPending) return false
+    if (!emails.length || invite.pending) return false
     setDeliveryError(null)
-    try {
-      const result = await invite.mutateAsync({ organizationId, emails })
-      const failures = result.results.filter((item) => !item.success)
-      if (failures.length === 0) {
-        toast.success(
-          result.sentCount === 1
-            ? 'Connection request sent'
-            : `${result.sentCount} connection requests sent`
-        )
-        const invalid = recipients.filter((recipient) => recipient.invalid)
-        if (invalid.length === 0) return
-        setRecipients(invalid)
-        return false
-      }
-      setRecipients([
-        ...failures.map((item) => ({ address: item.email })),
-        ...recipients.filter((recipient) => recipient.invalid),
-      ])
-      setDeliveryError(
-        result.sentCount > 0
-          ? `${result.sentCount} sent. ${failures.length} failed: ${failures.map((item) => item.email).join(', ')}`
-          : `No invitations were sent: ${failures.map((item) => `${item.email} (${item.error})`).join(', ')}`
-      )
-    } catch {}
+    const delivery = await invite.send(emails)
+    if (!delivery) return false
+    const invalid = recipients.filter((recipient) => recipient.invalid)
+    if (delivery.sent) {
+      if (invalid.length === 0) return
+      setRecipients(invalid)
+      return false
+    }
+    setRecipients([...delivery.failed.map((address) => ({ address })), ...invalid])
+    setDeliveryError(delivery.notice)
     return false
   }
 
@@ -65,8 +47,8 @@ export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModal
         if (!open) onClose()
       }}
       title='Request account connections'
-      confirmLabel={invite.isPending ? 'Sending…' : 'Send requests'}
-      confirmDisabled={!emails.length || invite.isPending}
+      confirmLabel={invite.pending ? 'Sending…' : 'Send requests'}
+      confirmDisabled={!emails.length || invite.pending}
       onConfirm={submit}
     >
       <RecipientField
@@ -83,7 +65,7 @@ export function PeopleInviteModal({ organizationId, onClose }: PeopleInviteModal
           .filter((recipient) => recipient.invalid)
           .map((recipient) => quickValidateEmail(recipient.address).reason)
           .find(Boolean)}
-        disabled={invite.isPending}
+        disabled={invite.pending}
       />
       {message && <InlineNotice intent='danger' message={message} />}
     </Modal>

@@ -11,16 +11,7 @@ import { SectionSearch } from '@sim/emcn/search-field/section-search'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
-import { getErrorMessage } from '@sim/utils/errors'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
-import {
-  useOrganizationAccountPeople,
-  useResendOrganizationAccountInvitation,
-  useRevokeOrganizationAccountEnrollment,
-} from '@/hooks/queries/organization-accounts'
-import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'
-import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   Muted,
@@ -29,7 +20,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.module.css'
 import { PeopleInviteModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal'
-import { toast } from '@/platform/shared/toast'
+import { useCredentialGroupPeople } from '@/platform/embedded/lib/data/credential-groups'
 
 interface PersonConnectionsProps {
   person: Parameters<typeof personConnectionSummaries>[0]
@@ -60,23 +51,20 @@ interface GroupPeopleProps {
 }
 
 export function GroupPeople({ organizationId }: GroupPeopleProps) {
-  const resend = useResendOrganizationAccountInvitation()
-  const revoke = useRevokeOrganizationAccountEnrollment()
-  const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
-  const search = useSearchFilterValue(peopleSearch, SEARCH_DEBOUNCE_MS).trim()
-  const people = useOrganizationAccountPeople(organizationId, search, { enabled: true })
+  const people = useCredentialGroupPeople(organizationId)
+  const { search, enrollments, more, pending, error } = people
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revoking, setRevoking] = useState<{ id: string; email: string } | null>(null)
-  const error = resend.error ?? revoke.error
-  const pending = resend.isPending || revoke.isPending
-  const enrollments = people.data?.pages.flatMap((page) => page.enrollments) ?? []
-  const listFailed = people.error && !people.isFetchNextPageError
 
   return (
     <SectionStack>
       <SectionToolbar
         grow={
-          <SectionSearch subject='people' value={peopleSearch} onValueChange={setPeopleSearch} />
+          <SectionSearch
+            subject='people'
+            value={people.searchInput}
+            onValueChange={people.setSearchInput}
+          />
         }
       >
         <Button
@@ -92,12 +80,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
       {error && !revoking && <InlineNotice intent='danger' message={error.message} />}
       <SettingsSection title='People'>
         <QueryBoundary
-          query={{
-            data: listFailed ? undefined : people.data,
-            error: people.error,
-            isFetching: people.isFetching,
-            refetch: people.refetch,
-          }}
+          query={people.list}
           failure={errorMessageOr('Could not load people')}
           loadingLabel='Loading people…'
           empty={() =>
@@ -124,11 +107,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
                       id: 'resend',
                       label: 'Resend',
                       disabled: pending || person.status === 'revoked',
-                      onSelect: () =>
-                        resend.mutate(
-                          { organizationId, enrollmentId: person.id },
-                          { onSuccess: () => toast.success('Invitation sent') }
-                        ),
+                      onSelect: () => people.resend(person.id),
                     },
                     {
                       id: 'revoke',
@@ -137,7 +116,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
                       separatorBefore: true,
                       disabled: pending || person.status === 'revoked',
                       onSelect: () => {
-                        revoke.reset()
+                        people.resetRevoke()
                         setRevoking({ id: person.id, email: person.email })
                       },
                     },
@@ -147,23 +126,15 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
             ))
           }
         </QueryBoundary>
-        {people.hasNextPage && !people.isFetchNextPageError && !listFailed && (
+        {more.available && (
           <SettingsRow label='More people'>
-            <Button
-              size='compact'
-              disabled={people.isFetchingNextPage}
-              onClick={() => void people.fetchNextPage()}
-            >
-              {people.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            <Button size='compact' disabled={more.loading} onClick={more.load}>
+              {more.loading ? 'Loading…' : 'Load more'}
             </Button>
           </SettingsRow>
         )}
-        {people.isFetchNextPageError && (
-          <FailureNotice
-            message={getErrorMessage(people.error, 'Could not load more people')}
-            retrying={people.isFetchingNextPage}
-            onRetry={() => void people.fetchNextPage()}
-          />
+        {more.failure && (
+          <FailureNotice message={more.failure} retrying={more.loading} onRetry={more.load} />
         )}
       </SettingsSection>
       {inviteOpen && (
@@ -176,10 +147,7 @@ export function GroupPeople({ organizationId }: GroupPeopleProps) {
           title={`Revoke ${revoking.email}`}
           confirmLabel='Revoke'
           pendingLabel='Revoking…'
-          onConfirm={async () => {
-            await revoke.mutateAsync({ organizationId, enrollmentId: revoking.id })
-            toast.success('Access revoked')
-          }}
+          onConfirm={() => people.revoke(revoking.id)}
         >
           <Muted>
             This removes all accounts contributed by this person from organization workflows and

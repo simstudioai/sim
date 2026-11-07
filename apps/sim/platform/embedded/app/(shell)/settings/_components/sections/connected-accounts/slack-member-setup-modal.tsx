@@ -5,9 +5,9 @@ import { FieldFrame } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { FailureNotice } from '@sim/emcn/status'
-import { useSlackManagedUsersSetup } from '@/ee/credential-groups/hooks/use-slack-managed-users-setup'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
+import { useSlackMemberSetup } from '@/platform/embedded/lib/data/credential-groups'
 
 interface SlackMemberSetupModalProps {
   organizationId: string
@@ -26,40 +26,35 @@ export function SlackMemberSetupModal({
   onOpenChange,
 }: SlackMemberSetupModalProps) {
   const {
-    apps,
+    appOptions,
     appSetupOpen,
-    availableApps,
     checkingSetup,
-    failedSetup,
+    dismissOnly,
+    failure,
     handleOpenChange,
     handleSubmit,
+    hidden,
     memberAccountsCopy,
     needsApp,
     pending,
     primaryDisabled,
     primaryLabel,
     selectedApp,
+    selectedBotName,
     setAppId,
     setAppSetupOpen,
-    sharedAppInstalled,
-    sharedAppNeedsUpdate,
-    sharedAppReady,
     sharedAppWithoutBot,
     title,
-  } = useSlackManagedUsersSetup({
-    open: true,
+  } = useSlackMemberSetup({
     organizationId,
     credentialGroupId,
-    bots: [],
-    isLoading: false,
     initialCredentialId,
     initialRequiredScopes,
     onOpenChange,
   })
 
-  if (sharedAppReady && !appSetupOpen) return null
+  if (hidden) return null
 
-  const dismissOnly = sharedAppInstalled && !sharedAppNeedsUpdate
   return (
     <>
       <Modal
@@ -87,12 +82,12 @@ export function SlackMemberSetupModal({
           <FieldFrame label='Sim Search app'>
             <Muted>Checking the installed Slack app…</Muted>
           </FieldFrame>
-        ) : failedSetup ? (
+        ) : failure ? (
           <FailureNotice
             title='Sim Search app'
-            message={failedSetup.error?.message ?? 'Could not check the Slack app'}
-            retrying={failedSetup.isFetching}
-            onRetry={() => void failedSetup.refetch()}
+            message={failure.message}
+            retrying={failure.retrying}
+            onRetry={failure.retry}
           />
         ) : sharedAppWithoutBot ? (
           <FieldFrame label='Member accounts'>
@@ -107,7 +102,7 @@ export function SlackMemberSetupModal({
           </FieldFrame>
         ) : (
           <>
-            {availableApps.length > 1 ? (
+            {appOptions.length > 1 ? (
               <SearchableSelect
                 label='Sim Search app'
                 searchLabel='Search Slack workspaces'
@@ -115,7 +110,7 @@ export function SlackMemberSetupModal({
                 value={selectedApp?.appId ?? null}
                 onValueChange={(value) => setAppId(value ?? '')}
                 disabled={pending}
-                options={availableApps.map((app) => ({ value: app.appId, label: app.teamName }))}
+                options={appOptions}
               />
             ) : (
               <FieldFrame label='Sim Search app'>
@@ -124,7 +119,7 @@ export function SlackMemberSetupModal({
             )}
             <FieldFrame label='Member accounts'>
               <Muted>
-                {sharedAppInstalled && !sharedAppNeedsUpdate
+                {dismissOnly
                   ? 'The Sim Search installation needs attention. Manage the app to finish setup.'
                   : 'Verify member permissions. Members will need to reconnect if their app or permissions change.'}
               </Muted>
@@ -144,9 +139,7 @@ export function SlackMemberSetupModal({
           organizationId={organizationId}
           installationId={selectedApp?.id}
           appId={selectedApp?.appId}
-          initialName={
-            apps.data?.bots.find((bot) => bot.id === selectedApp?.credentialId)?.displayName
-          }
+          initialName={selectedBotName}
           onClose={() => setAppSetupOpen(false)}
         />
       )}

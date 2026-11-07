@@ -6,15 +6,9 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { LoadingRows } from '@sim/emcn/status/query-boundary'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import {
-  useAddOrganizationAccountMcpProvider,
-  useConfigureOrganizationMcp,
-  useOrganizationDatabricksSetup,
-} from '@/hooks/queries/organization-accounts'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { toast } from '@/platform/shared/toast'
+import { useDatabricksConfiguration } from '@/platform/embedded/lib/data/credential-groups'
 
 interface DatabricksModalProps {
   organizationId: string
@@ -24,43 +18,26 @@ interface DatabricksModalProps {
   >['mcpServers'][number]
 }
 
-/** The stored client secret is never returned: only whether one exists. */
 export function DatabricksModal({ organizationId, onClose, existingServer }: DatabricksModalProps) {
-  const setup = useOrganizationDatabricksSetup(organizationId, Boolean(existingServer))
-  const add = useAddOrganizationAccountMcpProvider()
-  const configure = useConfigureOrganizationMcp()
+  const { adding, server, loading, fieldsAvailable, pending, error, save } =
+    useDatabricksConfiguration(organizationId, existingServer)
   const [nameInput, setNameInput] = useState<string | null>(null)
   const [urlInput, setUrlInput] = useState<string | null>(null)
   const [clientIdInput, setClientIdInput] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState('')
-  const server = existingServer ? setup.data?.server : undefined
-  const adding = !existingServer?.enabled
   const name = nameInput ?? server?.name ?? 'Databricks'
   const url = urlInput ?? server?.url ?? ''
   const clientId = clientIdInput ?? server?.oauthClientId ?? ''
-  const pending = configure.isPending || add.isPending
-  const setupError = existingServer ? setup.error : null
-  const error = add.error ?? configure.error ?? setupError
-  const fieldsAvailable = !existingServer || Boolean(server && !setupError)
   const canSave = fieldsAvailable && Boolean(name.trim() && url.trim() && clientId.trim())
 
   async function submit() {
     if (!canSave || pending) return false
-    try {
-      const configuration = {
-        organizationId,
-        name: name.trim(),
-        url: url.trim(),
-        oauthClientId: clientId.trim(),
-        ...(clientSecret.trim() ? { oauthClientSecret: clientSecret.trim() } : {}),
-      }
-      if (existingServer) await configure.mutateAsync(configuration)
-      else await add.mutateAsync({ ...configuration, connectorId: 'databricks' })
-      toast.success(adding ? 'Databricks added' : 'Databricks configuration saved')
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, 'Could not save Databricks'))
-      return false
-    }
+    return save({
+      name: name.trim(),
+      url: url.trim(),
+      oauthClientId: clientId.trim(),
+      ...(clientSecret.trim() ? { oauthClientSecret: clientSecret.trim() } : {}),
+    })
   }
 
   return (
@@ -74,9 +51,7 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
       confirmDisabled={pending || !canSave}
       onConfirm={submit}
     >
-      {existingServer && setup.isPending && (
-        <LoadingRows label='Loading Databricks configuration…' rows={2} />
-      )}
+      {loading && <LoadingRows label='Loading Databricks configuration…' rows={2} />}
       {fieldsAvailable && (
         <>
           <TextField
@@ -125,12 +100,7 @@ export function DatabricksModal({ organizationId, onClose, existingServer }: Dat
           )}
         </>
       )}
-      {error && (
-        <InlineNotice
-          intent='danger'
-          message={getErrorMessage(error, 'Could not save Databricks')}
-        />
-      )}
+      {error && <InlineNotice intent='danger' message={error} />}
     </Modal>
   )
 }

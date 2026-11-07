@@ -7,22 +7,17 @@ import { SectionSearch } from '@sim/emcn/search-field/section-search'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
 import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
-import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
-import { credentialGroupWorkspaceSearchParam } from '@/ee/credential-groups/search-params'
-import {
-  useOrganizationAccountWorkspaceAccess,
-  useUpdateOrganizationAccountWorkspaceAccess,
-} from '@/hooks/queries/organization-accounts'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   SectionStack,
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { WorkspaceGrantModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/workspace-grant-modal'
-import { toast } from '@/platform/shared/toast'
+import {
+  useCredentialGroupWorkspaceAccess,
+  useWorkspaceAccessUpdate,
+} from '@/platform/embedded/lib/data/credential-groups'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =
@@ -34,13 +29,7 @@ interface GroupAccessProps {
 }
 
 export function GroupAccess({ organizationId }: GroupAccessProps) {
-  const access = useOrganizationAccountWorkspaceAccess(organizationId)
-  const [searchTerm, setSearchParam] = useQueryState(credentialGroupWorkspaceSearchParam.key, {
-    ...credentialGroupWorkspaceSearchParam.parser,
-    history: 'replace',
-    clearOnDefault: true,
-  })
-  const setSearchTerm = useDebouncedSearchSetter(setSearchParam)
+  const { access, searchTerm, setSearchTerm } = useCredentialGroupWorkspaceAccess(organizationId)
   return (
     <SectionStack>
       <QueryBoundary
@@ -85,8 +74,8 @@ function WorkspaceAccessList({
   search,
   searchTerm,
 }: WorkspaceAccessListProps) {
-  const update = useUpdateOrganizationAccountWorkspaceAccess()
   const [editor, setEditor] = useState<GrantEditor | null>(null)
+  const update = useWorkspaceAccessUpdate(organizationId, () => setEditor(null))
   const byId = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
   const grantsById = new Map(access.grants.map((grant) => [grant.workspaceId, grant]))
   const typesById = new Map(access.credentialTypes.map((type) => [type.id, type.label]))
@@ -108,16 +97,6 @@ function WorkspaceAccessList({
   )
   const availableWorkspaces = access.workspaces.filter((workspace) => !grantsById.has(workspace.id))
 
-  async function save(grants: OrganizationAccountWorkspaceAccess['grants'], revision: number) {
-    try {
-      await update.mutateAsync({ organizationId, revision, grants })
-      setEditor(null)
-      toast.success('Workspace access updated')
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, 'Could not update workspace access'))
-    }
-  }
-
   function saveGrant(grant: Grant) {
     if (!editor) throw new Error('Workspace access editor is not open')
     if (!byId.has(grant.workspaceId)) throw new Error('Selected workspace is unavailable')
@@ -127,11 +106,11 @@ function WorkspaceAccessList({
         throw new Error(
           `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
         )
-      return save([...access.grants, grant], editor.revision)
+      return update.save([...access.grants, grant], editor.revision)
     }
     if (grant.workspaceId !== editor.grant.workspaceId)
       throw new Error('Cannot change the workspace of an existing grant')
-    return save(
+    return update.save(
       access.grants.map((existing) =>
         existing.workspaceId === grant.workspaceId ? grant : existing
       ),
@@ -147,7 +126,7 @@ function WorkspaceAccessList({
           size='compact'
           icon='I074'
           disabled={
-            update.isPending ||
+            update.pending ||
             !availableWorkspaces.length ||
             access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
           }
@@ -186,7 +165,7 @@ function WorkspaceAccessList({
               >
                 <Button
                   size='compact'
-                  disabled={update.isPending}
+                  disabled={update.pending}
                   onClick={() => {
                     update.reset()
                     setEditor({ mode: 'edit', grant, revision: access.revision })
@@ -209,7 +188,7 @@ function WorkspaceAccessList({
                   grant: editor.grant,
                   workspaceName: byId.get(editor.grant.workspaceId)?.name ?? '',
                   onRemove: () =>
-                    void save(
+                    void update.save(
                       access.grants.filter(
                         (grant) => grant.workspaceId !== editor.grant.workspaceId
                       ),
@@ -218,7 +197,7 @@ function WorkspaceAccessList({
                 }
           }
           credentialTypes={access.credentialTypes}
-          disabled={update.isPending}
+          disabled={update.pending}
           error={update.error?.message}
           onClose={() => setEditor(null)}
           onSave={saveGrant}

@@ -1,12 +1,5 @@
 {
   "viewDataHooks": {
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/connected-accounts-section.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-access.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-providers.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-retention/data-retention-section.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets.tsx": 1,
