@@ -60,15 +60,15 @@ export function useMemberIntegrations(organizationId: string) {
 /** A saved provider's id is its integration's URL segment plus this. */
 const SAVED_PROVIDER_SUFFIX = /-service-account$/
 
-/**
- * The zone has no dialog for an account the member saves by hand, so connecting one happens on the
- * legacy provider page, a route the legacy layout does not map back here.
- */
 /** Runs once a popup or desktop connection finishes, not when it merely opens. */
 interface ConnectionOptions {
   onSuccess?: () => void
 }
 
+/**
+ * The zone has no dialog for an account the member saves by hand, so connecting one happens on the
+ * legacy provider page, a route the legacy layout does not map back here.
+ */
 export function useIntegrationActions(organizationId: string) {
   const organization = useOrganization()
   const savedAccounts = useOrganizationAccounts(organizationId).data?.viewerSavedAccounts ?? []

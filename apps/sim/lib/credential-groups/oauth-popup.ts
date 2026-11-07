@@ -23,7 +23,8 @@ export async function connectCredentialGroupInPopup(
     const result = await start(signal)
     signal.throwIfAborted()
     window.location.assign(result.authorizationUrl ?? result.invitationLink)
-    return
+    // The connection finishes after the provider sends the browser back, so it never reports success here.
+    return new Promise<never>(() => {})
   }
   popup.opener = null
   return new Promise((resolve, reject) => {

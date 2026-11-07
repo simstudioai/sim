@@ -2,7 +2,7 @@
  * Generate the public provider metadata used by the isolated Platform from the workspace catalog
  * and credential enrollment definitions. Pass --check to detect upstream changes without writing.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createElement } from 'react'
 import catalog from '@sim/deployment-config/integrations.json'
@@ -380,6 +380,13 @@ export const providerMarkIds = ${JSON.stringify(integrationCatalog.map(({ id }) 
 for (const [path, source] of [
   [spriteOutput, sprite],
   [hostSpriteOutput, sprite],
+  // Hand-drawn provider marks, which the organization views also request from the main app.
+  ...readdirSync(resolve(root, 'apps/sim/platform/public/provider-marks'))
+    .filter((file) => file.endsWith('.svg') && file !== 'catalog.svg')
+    .map((file) => [
+      resolve(root, 'apps/sim/public/provider-marks', file),
+      readFileSync(resolve(root, 'apps/sim/platform/public/provider-marks', file), 'utf8'),
+    ]),
   [markIdsOutput, markIdsGenerated],
 ]) {
   if (process.argv.includes('--check')) {
