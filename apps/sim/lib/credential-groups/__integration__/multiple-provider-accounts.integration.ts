@@ -15,7 +15,7 @@ import {
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
@@ -24,6 +24,7 @@ import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
 import { persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
 import { decryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-search/identity'
@@ -355,6 +356,31 @@ describe('adding another site to an Atlassian login', () => {
     expect(await rows()).toHaveLength(1)
     expect(await saved()).toMatch(/^token-for-person@atlassian-/)
     expect(await saved()).not.toBe(firstToken)
+  })
+
+  it('shows the sites recorded for the account, ignoring anything unusable', async () => {
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const viewer = async () =>
+      (await listViewerOrganizationAccounts({ organizationId, userId })).find(
+        (row) => row.credentialId === account.credentialId
+      )
+    expect((await viewer())?.sites).toEqual([])
+
+    await db
+      .update(credential)
+      .set({
+        providerMetadata: sql`${JSON.stringify({
+          email: 'person@atlassian',
+          sites: [
+            { name: 'Acme', url: 'https://acme.example.net' },
+            { name: 42, url: 'https://broken.example.net' },
+            'not a site',
+          ],
+        })}::jsonb`,
+      })
+      .where(eq(credential.id, account.credentialId))
+
+    expect((await viewer())?.sites).toEqual([{ name: 'Acme', url: 'https://acme.example.net' }])
   })
 
   it('still adds a different Atlassian login as its own account', async () => {

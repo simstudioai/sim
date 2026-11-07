@@ -363,6 +363,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           email,
           ...(identity.displayName ? { displayName: identity.displayName } : {}),
           ...(identity.avatarUrl ? { avatarUrl: identity.avatarUrl } : {}),
+          ...(identity.sites ? { sites: identity.sites } : {}),
         },
         accessToken: tokens.accessToken,
         ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),

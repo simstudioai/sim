@@ -6408,12 +6408,19 @@ export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential
   'revoked',
 ])
 
+/** A site one grant reaches, recorded for display only; access is always rechecked live. */
+export interface ManagedOAuthSite {
+  name: string
+  url: string
+}
+
 export interface ManagedOAuthProviderMetadata {
   email: string
   displayName?: string
   avatarUrl?: string
   username?: string
   tenantDisplayName?: string
+  sites?: ManagedOAuthSite[]
 }
 
 export interface ManagedMcpToolSnapshot {

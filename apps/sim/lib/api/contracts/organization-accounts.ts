@@ -79,6 +79,9 @@ export const getOrganizationAccountsContract = defineRouteContract({
             groupId: z.string().min(1).max(128),
             optionId: z.string().min(1).max(128),
             status: z.enum(['active', 'needs_reauth']),
+            sites: z
+              .array(z.object({ name: z.string().max(512), url: z.string().max(2048) }))
+              .max(50),
           })
         )
         .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)

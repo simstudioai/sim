@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { ManagedOAuthSite } from '@sim/db/schema'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
@@ -24,6 +25,8 @@ const GMAIL_LABELS_SCOPE = 'https://www.googleapis.com/auth/gmail.labels'
 const ATLASSIAN_USER_INFO_URL = 'https://api.atlassian.com/me'
 const ATLASSIAN_USER_INFO_MAX_BYTES = 256 * 1024
 const ATLASSIAN_USER_INFO_TIMEOUT_MS = 10_000
+const ATLASSIAN_SITES_URL = 'https://api.atlassian.com/oauth/token/accessible-resources'
+const ATLASSIAN_SITE_LIMIT = 50
 const MICROSOFT_JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys'
 const MICROSOFT_OIDC_USER_INFO_URL = 'https://graph.microsoft.com/oidc/userinfo'
 const MICROSOFT_OIDC_USER_INFO_MAX_BYTES = 256 * 1024
@@ -49,6 +52,7 @@ export interface ManagedOAuthConnectorIdentity {
   avatarUrl?: string
   nonce?: string
   grantedScopes: string[]
+  sites?: ManagedOAuthSite[]
 }
 
 export interface ManagedOAuthConnectorConfig {
@@ -187,6 +191,44 @@ function requireAtlassianUserProfile(value: AtlassianUserProfile): {
   }
 }
 
+function httpsOrigin(value: string): string | null {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The sites one Atlassian grant reaches, shown so a person can see a site they added. Display only:
+ * Search lists sites again on every request, so a missing or stale list never changes access, and
+ * a failed listing never fails the connection.
+ */
+async function listAtlassianSites(accessToken: string): Promise<ManagedOAuthSite[] | undefined> {
+  try {
+    const response = await fetch(ATLASSIAN_SITES_URL, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(ATLASSIAN_USER_INFO_TIMEOUT_MS),
+    })
+    const body = await readResponseJsonWithLimit<unknown>(response, {
+      maxBytes: ATLASSIAN_USER_INFO_MAX_BYTES,
+      label: 'Atlassian accessible resources response',
+    })
+    if (!response.ok || !Array.isArray(body)) return undefined
+    return body
+      .flatMap((entry) => {
+        const site = toRecord(entry)
+        const name = typeof site.name === 'string' ? site.name.trim() : ''
+        const url = typeof site.url === 'string' ? httpsOrigin(site.url) : null
+        return name && url ? [{ name, url }] : []
+      })
+      .slice(0, ATLASSIAN_SITE_LIMIT)
+  } catch {
+    return undefined
+  }
+}
+
 /** Managed enrollment policy for Atlassian's Jira and Confluence 3LO clients. */
 export function createAtlassianManagedOAuthConnector(
   providerId: AtlassianManagedOAuthProviderId
@@ -205,6 +247,7 @@ export function createAtlassianManagedOAuthConnector(
       if (!tokens.accessToken || !tokens.scopes?.length) {
         throw new Error('Atlassian returned an incomplete authorization')
       }
+      const sites = listAtlassianSites(tokens.accessToken)
       const response = await fetch(ATLASSIAN_USER_INFO_URL, {
         headers: {
           Accept: 'application/json',
@@ -228,6 +271,7 @@ export function createAtlassianManagedOAuthConnector(
         ...(identity.name ? { displayName: identity.name } : {}),
         ...(identity.picture ? { avatarUrl: identity.picture } : {}),
         grantedScopes: [...new Set(tokens.scopes)],
+        ...(await sites.then((listed) => (listed ? { sites: listed } : {}))),
       }
     },
     hasRequiredScopes(grantedScopes, requiredScopes) {
