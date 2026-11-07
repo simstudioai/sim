@@ -138,6 +138,27 @@ describe('collectBlockFieldIssues', () => {
   })
 })
 
+const FRAME_FILE = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
+const FAL_VALUES = { provider: 'falai', apiKey: 'test-key', prompt: 'A cinematic sunrise' }
+
+/** Serializes a Video Generator block and maps its params to the video tool body. */
+function serializeVideoBlock(
+  values: Record<string, unknown>,
+  canonicalModes?: Record<string, string>
+) {
+  svcConfig.value = VideoGeneratorV3Block
+  const params = extractBlockParams(
+    block({
+      type: 'svc',
+      data: canonicalModes ? { canonicalModes } : {},
+      subBlocks: Object.fromEntries(
+        Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+      ),
+    })
+  )
+  return videoToolBodySchema.parse(VideoGeneratorV3Block.tools.config?.params?.(params))
+}
+
 describe('extractBlockParams', () => {
   it.each([
     {
@@ -191,19 +212,8 @@ describe('extractBlockParams', () => {
       },
     },
   ])('preserves $name through serialization into the provider request', ({ settings, payload }) => {
-    svcConfig.value = VideoGeneratorV3Block
-    const values = { apiKey: 'test-key', prompt: 'A cinematic sunrise', ...settings }
-    const params = extractBlockParams(
-      block({
-        type: 'svc',
-        subBlocks: Object.fromEntries(
-          Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
-        ),
-      })
-    )
-    const mapped = VideoGeneratorV3Block.tools.config?.params?.(params)
     const request = buildDirectVideoRequest({
-      ...videoToolBodySchema.parse(mapped),
+      ...serializeVideoBlock({ apiKey: 'test-key', prompt: 'A cinematic sunrise', ...settings }),
       provider: settings.provider,
     })
     expect(request.body).toMatchObject(payload)
@@ -227,34 +237,13 @@ describe('extractBlockParams', () => {
   ])(
     'sends the model default for a fal setting the endpoint rejects when $name',
     ({ model, aspectRatio, frame, endpoint }) => {
-      svcConfig.value = VideoGeneratorV3Block
-      const frameFile = {
-        id: 'f',
-        name: 'frame.png',
-        url: '',
-        size: 3,
-        type: 'image/png',
-        key: 'k',
-      }
-      const values = {
-        provider: 'falai',
-        apiKey: 'test-key',
-        model,
-        prompt: 'A cinematic sunrise',
-        falAspectRatio: aspectRatio,
-        ...(frame ? { visualReferenceInput: frameFile } : {}),
-      }
-      const params = extractBlockParams(
-        block({
-          type: 'svc',
-          subBlocks: Object.fromEntries(
-            Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
-          ),
-        })
-      )
-      const mapped = VideoGeneratorV3Block.tools.config?.params?.(params)
       const request = buildFalVideoRequest({
-        ...videoToolBodySchema.parse(mapped),
+        ...serializeVideoBlock({
+          ...FAL_VALUES,
+          model,
+          falAspectRatio: aspectRatio,
+          ...(frame ? { visualReferenceInput: FRAME_FILE } : {}),
+        }),
         provider: 'falai',
       })
       expect(request.endpoint).toBe(endpoint)
@@ -262,28 +251,44 @@ describe('extractBlockParams', () => {
     }
   )
 
+  it.each([
+    {
+      name: 'a frame left in the inactive upload',
+      mode: 'advanced',
+      frameField: 'visualReferenceUpload',
+    },
+    {
+      name: 'a frame left in the inactive reference input',
+      mode: 'basic',
+      frameField: 'visualReferenceInput',
+    },
+  ])('keeps a prompt-only fal setting with $name', ({ mode, frameField }) => {
+    const request = buildFalVideoRequest({
+      ...serializeVideoBlock(
+        {
+          ...FAL_VALUES,
+          model: 'alibaba/happy-horse/text-to-video',
+          falAspectRatio: '16:9',
+          [frameField]: FRAME_FILE,
+        },
+        { visualReference: mode }
+      ),
+      provider: 'falai',
+    })
+    expect(request.endpoint).toBe('alibaba/happy-horse/text-to-video')
+    expect(request.body).toMatchObject({ aspect_ratio: '16:9' })
+  })
+
   it('sends the model default for a Runway setting the start frame endpoint rejects', () => {
-    svcConfig.value = VideoGeneratorV3Block
-    const frameFile = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
-    const values = {
-      provider: 'runway',
-      apiKey: 'test-key',
-      model: 'kling_4',
-      prompt: 'A cinematic sunrise',
-      aspectRatio: '1920:1080',
-      visualReferenceInput: frameFile,
-    }
-    const params = extractBlockParams(
-      block({
-        type: 'svc',
-        subBlocks: Object.fromEntries(
-          Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
-        ),
-      })
-    )
-    const mapped = VideoGeneratorV3Block.tools.config?.params?.(params)
     const request = buildDirectVideoRequest({
-      ...videoToolBodySchema.parse(mapped),
+      ...serializeVideoBlock({
+        provider: 'runway',
+        apiKey: 'test-key',
+        model: 'kling_4',
+        prompt: 'A cinematic sunrise',
+        aspectRatio: '1920:1080',
+        visualReferenceInput: FRAME_FILE,
+      }),
       provider: 'runway',
     })
     expect(request.body).not.toHaveProperty('ratio')

@@ -95,6 +95,18 @@ export function buildSubBlockValues(
 }
 
 /**
+ * The values a block's sub-block conditions read: its values plus, when set, its canonical mode
+ * overrides under `__canonicalModes`, so a condition reads the active member of a basic/advanced
+ * pair instead of guessing it from which member holds a value.
+ */
+export function withCanonicalModes(
+  values: Record<string, unknown>,
+  canonicalModes: CanonicalModeOverrides | undefined
+): Record<string, unknown> {
+  return canonicalModes ? { ...values, __canonicalModes: canonicalModes } : values
+}
+
+/**
  * Build canonical group indices for a block's subblocks.
  */
 export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex {
