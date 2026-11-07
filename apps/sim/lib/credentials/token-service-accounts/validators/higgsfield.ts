@@ -36,6 +36,13 @@ export async function validateHiggsfieldServiceAccount(
     },
     'get_request_status'
   )
+  if (response.ok) {
+    await response.body?.cancel().catch(() => undefined)
+    throw new TokenServiceAccountValidationError('provider_unavailable', response.status, {
+      step: 'get_request_status',
+      reason: 'expected 404 for an unknown request',
+    })
+  }
   if (response.status !== 404) await throwForProviderResponse(response, 'get_request_status')
   await response.body?.cancel().catch(() => undefined)
 
