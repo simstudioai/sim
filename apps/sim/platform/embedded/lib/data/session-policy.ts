@@ -3,12 +3,33 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationSessionPolicy } from '@/lib/api/contracts/organization'
 import {
+  useOrganizationSessionPolicy,
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/ee/session-policy/hooks/session-policy'
 import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
 import { plural } from '@/platform/shared/plural'
 import { toast } from '@/platform/shared/toast'
+
+/**
+ * The organization's session policy as the section shows it: still loading, failed with its retry,
+ * outside the plan, or ready to edit.
+ */
+export function useSessionPolicy(organizationId: string, billingEnabled: boolean) {
+  const { data, error, isLoading, isFetching, refetch } =
+    useOrganizationSessionPolicy(organizationId)
+  if (isLoading) return { status: 'loading' as const }
+  if (!data) {
+    return {
+      status: 'failed' as const,
+      message: getErrorMessage(error, 'Failed to load session policy'),
+      retrying: isFetching,
+      retry: () => void refetch(),
+    }
+  }
+  if (billingEnabled && !data.isEnterprise) return { status: 'enterprise-only' as const }
+  return { status: 'ready' as const, policy: data }
+}
 
 export function useSessionPolicyWrites(organizationId: string) {
   const updatePolicy = useUpdateOrganizationSessionPolicy()

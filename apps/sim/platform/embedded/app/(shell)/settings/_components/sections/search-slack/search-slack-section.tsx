@@ -11,17 +11,13 @@ import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryState } from 'nuqs'
 import { slackSetupResultParam } from '@/app/o/[organizationId]/settings/components/search-params'
 import {
-  useConfigureSlackSearch,
-  useRemoveSlackSearch,
-  useSlackSearchInstallations,
-} from '@/hooks/queries/slack-search'
-import {
   ActionRow,
   Muted,
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
+import { useSlackSearchConnections } from '@/platform/embedded/lib/data/slack-search'
 import { toast } from '@/platform/shared/toast'
 
 interface WizardState {
@@ -37,9 +33,7 @@ const SLACK_MARK = <Icon providerId='slack' />
 export default function SearchSlackSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer } = context
   const setupToastShown = useRef(false)
-  const installations = useSlackSearchInstallations(viewer.isAdmin ? organization.id : undefined)
-  const configure = useConfigureSlackSearch()
-  const remove = useRemoveSlackSearch()
+  const connections = useSlackSearchConnections(organization.id, viewer.isAdmin)
   const [setupResult, setSetupResult] = useQueryState(
     slackSetupResultParam.key,
     slackSetupResultParam.parser
@@ -55,20 +49,13 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
   }, [viewer.isAdmin, setupResult, setSetupResult])
 
   if (!viewer.isAdmin) return null
-  const busy = configure.isPending || remove.isPending
-  const bots = installations.data?.bots ?? []
-  const canInstallSharedApp = !installations.error && installations.data?.sharedAppAvailable
-  const sharedTeams = new Set(
-    installations.data?.installations
-      .filter((installation) => installation.appKind === 'shared')
-      .map((installation) => installation.teamId)
-  )
+  const { busy, canInstallSharedApp } = connections
 
   return (
     <SectionStack>
       <SettingsSection title='Connection'>
         <QueryBoundary
-          query={installations}
+          query={connections.read}
           failure={errorMessageOr('Could not load Slack connections')}
           loadingLabel='Loading Slack connection'
           rows={1}
@@ -90,20 +77,8 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
               </SettingsRow>
             ) : (
               data.installations.map((installation) => {
-                const custom = installation.appKind === 'custom'
-                const name = custom ? 'Sim Search (custom bot)' : 'Sim Search'
-                const needsInstall =
-                  canInstallSharedApp && custom && !sharedTeams.has(installation.teamId)
-                const connectionError = needsInstall
-                  ? null
-                  : installation.needsValidation
-                    ? 'Reconnect to verify the app’s credentials and permissions.'
-                    : ['delivery_failed', 'assistant_or_delivery_failed'].includes(
-                          installation.lastOutcome ?? ''
-                        )
-                      ? 'The last reply failed. Check the Slack connection.'
-                      : null
-                const reconnectRequired = needsInstall || installation.needsValidation
+                const { custom, name, needsInstall, connectionError, reconnectRequired, botName } =
+                  connections.describe(installation)
                 return (
                   <SettingsRow
                     key={installation.id}
@@ -149,11 +124,7 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
                                 mode: needsInstall ? 'shared' : installation.appKind,
                                 installationId: installation.id,
                                 appId: installation.appId,
-                                initialName:
-                                  custom && !needsInstall
-                                    ? bots.find((bot) => bot.id === installation.credentialId)
-                                        ?.displayName
-                                    : undefined,
+                                initialName: custom && !needsInstall ? botName : undefined,
                               }),
                           },
                           {
@@ -165,12 +136,7 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
                                 : 'Enable',
                             disabled:
                               busy || (!installation.enabled && installation.needsValidation),
-                            onSelect: () =>
-                              configure.mutate({
-                                organizationId: organization.id,
-                                credentialId: installation.credentialId,
-                                enabled: !installation.enabled,
-                              }),
+                            onSelect: () => connections.toggleEnabled(installation),
                           },
                           {
                             id: 'remove',
@@ -179,7 +145,7 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
                             separatorBefore: true,
                             disabled: busy,
                             onSelect: () => {
-                              remove.reset()
+                              connections.resetRemove()
                               setRemoveTarget({ id: installation.id, name })
                             },
                           },
@@ -193,8 +159,10 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
           }
         </QueryBoundary>
       </SettingsSection>
-      {configure.error && <InlineNotice intent='danger' message={configure.error.message} />}
-      {configure.isPending && <Muted>Updating the Slack connection</Muted>}
+      {connections.updateError && (
+        <InlineNotice intent='danger' message={connections.updateError.message} />
+      )}
+      {connections.updating && <Muted>Updating the Slack connection</Muted>}
       {removeTarget && (
         <ConfirmDialog
           target
@@ -202,12 +170,7 @@ export default function SearchSlackSection({ organization: context }: SettingsSe
           title='Remove Slack Search'
           confirmLabel='Remove'
           pendingLabel='Removing'
-          onConfirm={async () => {
-            await remove.mutateAsync({
-              organizationId: organization.id,
-              installationId: removeTarget.id,
-            })
-          }}
+          onConfirm={() => connections.remove(removeTarget.id)}
           safe
         >
           <Muted>

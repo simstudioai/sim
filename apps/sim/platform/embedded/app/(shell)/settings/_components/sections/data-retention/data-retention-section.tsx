@@ -9,16 +9,8 @@ import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice } from '@sim/emcn/status'
 import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { toError } from '@sim/utils/errors'
-import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
-  type DataRetentionResponse,
-  useOrganizationRetention,
-  useUpdateOrganizationRetention,
-} from '@/ee/data-retention/hooks/data-retention'
-import {
-  buildRetentionUpdate,
   type EditingPolicy,
-  hoursToDisplayDays,
   newOverrideDraft,
   normalizePolicyDraft,
   orgPolicyDraft,
@@ -32,7 +24,6 @@ import {
   withOverridePolicy,
   withoutOverride,
 } from '@/ee/data-retention/lib/policy-draft'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
   DraftConflictNotice,
@@ -42,26 +33,11 @@ import {
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail'
+import {
+  useRetentionSettings,
+  useRetentionWrites,
+} from '@/platform/embedded/lib/data/data-retention'
 import { toast } from '@/platform/shared/toast'
-
-function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
-  const rules = data.configured.piiRedaction?.rules ?? []
-  const defaultRule = rules.find((rule) => rule.workspaceId === null)
-  return {
-    logDays: hoursToDisplayDays(data.effective.logRetentionHours),
-    softDeleteDays: hoursToDisplayDays(data.effective.softDeleteRetentionHours),
-    taskCleanupDays: hoursToDisplayDays(data.effective.taskCleanupHours),
-    defaultPii: defaultRule
-      ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) }
-      : null,
-    piiOverrides: rules.flatMap((rule) =>
-      rule.workspaceId === null
-        ? []
-        : [{ id: rule.id, workspaceId: rule.workspaceId, stages: normalizeRuleStages(rule) }]
-    ),
-    overrides: data.configured.retentionOverrides ?? [],
-  }
-}
 
 type PolicySelection =
   | { kind: 'organization' }
@@ -192,24 +168,20 @@ function PolicyEditor({
 }
 
 interface RetentionFormProps {
-  initialData: DataRetentionResponse
+  snapshot: RetentionSnapshot
   organizationId: string
   workspaceOptions: { value: string; label: string }[]
-  refetch: () => Promise<{ data?: DataRetentionResponse; isError: boolean }>
+  readLatest: () => Promise<RetentionSnapshot | null>
 }
 
-/**
- * The whole document is one save: the route replaces each key, so all of it is always sent. It holds
- * no copy of the document: the query cache does, and a save writes the route's answer there.
- */
+/** Holds no copy of the document: the query cache does, and a save writes the route's answer there. */
 function RetentionForm({
-  initialData,
+  snapshot,
   organizationId,
   workspaceOptions,
-  refetch,
+  readLatest,
 }: RetentionFormProps) {
-  const update = useUpdateOrganizationRetention()
-  const snapshot = snapshotFrom(initialData)
+  const writes = useRetentionWrites(organizationId)
   const [selection, setSelection] = useState<PolicySelection | null>(null)
   const workspaceName = (id: string) =>
     workspaceOptions.find((option) => option.value === id)?.label ?? 'Unknown workspace'
@@ -219,10 +191,6 @@ function RetentionForm({
   const taken = new Set(withOverrides)
   const freeWorkspaces = workspaceOptions.filter((option) => !taken.has(option.value))
 
-  async function persist(next: RetentionSnapshot) {
-    await update.mutateAsync({ orgId: organizationId, settings: buildRetentionUpdate(next) })
-  }
-
   if (selection) {
     return (
       <PolicyEditor
@@ -230,13 +198,9 @@ function RetentionForm({
         snapshot={snapshot}
         workspaceOptions={workspaceOptions}
         withOverrides={withOverrides}
-        isSaving={update.isPending}
-        readLatest={async () => {
-          // A failed refetch still resolves, carrying the last good document.
-          const { data, isError } = await refetch()
-          return data && !isError ? snapshotFrom(data) : null
-        }}
-        persist={persist}
+        isSaving={writes.saving}
+        readLatest={readLatest}
+        persist={writes.persist}
         onClose={() => setSelection(null)}
       />
     )
@@ -283,13 +247,12 @@ function RetentionForm({
 
 export default function DataRetentionSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
-  const retention = useOrganizationRetention(organizationId)
-  const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
+  const settings = useRetentionSettings(organizationId)
 
-  if (workspacesQuery.isPending) return <LoadingRows label='Loading data retention…' />
+  if (settings.workspacesPending) return <LoadingRows label='Loading data retention…' />
   return (
     <QueryBoundary
-      query={retention}
+      query={settings.read}
       failure={errorMessageOr('Failed to load data retention settings.')}
       loadingLabel='Loading data retention…'
       empty={(data) =>
@@ -301,21 +264,19 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
     >
       {(data) => (
         <>
-          {!workspacesQuery.data && (
+          {settings.workspacesFailed && (
             <FailureNotice
               message='Failed to load workspaces, so overrides cannot be added right now.'
-              retrying={workspacesQuery.isFetching}
-              onRetry={() => void workspacesQuery.refetch()}
+              retrying={settings.workspacesRetrying}
+              onRetry={settings.retryWorkspaces}
             />
           )}
           <RetentionForm
             key={organizationId}
-            initialData={data}
+            snapshot={data.snapshot}
             organizationId={organizationId}
-            refetch={retention.refetch}
-            workspaceOptions={(workspacesQuery.data ?? [])
-              .filter((workspace) => workspace.organizationId === organizationId)
-              .map((workspace) => ({ value: workspace.id, label: workspace.name }))}
+            readLatest={settings.readLatest}
+            workspaceOptions={settings.workspaceOptions}
           />
         </>
       )}

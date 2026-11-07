@@ -27,12 +27,7 @@ import {
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
 import { useLicenseForm } from '@/app/workspace/[workspaceId]/settings/components/mothership/use-license-form'
-import {
-  type MothershipEnv,
-  useMothershipLicenses,
-  useMothershipRequests,
-  useMothershipUserBreakdown,
-} from '@/hooks/queries/mothership-admin'
+import type { MothershipEnv } from '@/hooks/queries/mothership-admin'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {
   ActionRow,
@@ -41,9 +36,11 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import {
+  useMothershipLicenseList,
+  useMothershipOverview,
+} from '@/platform/embedded/lib/data/mothership'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-const REQUEST_LIMIT = 100
 
 export default function MothershipSection() {
   useCaptureWhenReady(
@@ -154,20 +151,8 @@ const REQUEST_COLUMNS = [
 ] as const
 
 function Overview({ environment, start, end }: OverviewProps) {
-  const { data: breakdown, isLoading: breakdownLoading } = useMothershipUserBreakdown(
-    environment,
-    start,
-    end
-  )
-  const { data: requests, isLoading: requestsLoading } = useMothershipRequests(
-    environment,
-    start,
-    end
-  )
-  const totalCost = breakdown?.users?.reduce(
-    (sum: number, user: { total_cost: number }) => sum + user.total_cost,
-    0
-  )
+  const { breakdown, breakdownLoading, totalCost, recentRequests, requestCount, requestsLoading } =
+    useMothershipOverview(environment, start, end)
   const metric = (value: string | number | undefined) => (breakdownLoading ? '…' : (value ?? '—'))
   return (
     <>
@@ -198,22 +183,15 @@ function Overview({ environment, start, end }: OverviewProps) {
         <DataTable
           title='User breakdown'
           columns={USER_COLUMNS}
-          rows={breakdown.users.map(
-            (user: {
-              user_id: string
-              request_count: number
-              total_cost: number
-              last_request: string
-            }) => ({
-              id: user.user_id,
-              values: {
-                user: user.user_id,
-                requests: user.request_count,
-                cost: formatCost(user.total_cost),
-                last: formatDate(user.last_request),
-              },
-            })
-          )}
+          rows={breakdown.users.map((user) => ({
+            id: user.user_id,
+            values: {
+              user: user.user_id,
+              requests: user.request_count,
+              cost: formatCost(user.total_cost),
+              last: formatDate(user.last_request),
+            },
+          }))}
         />
       )}
       {requestsLoading && (
@@ -221,46 +199,31 @@ function Overview({ environment, start, end }: OverviewProps) {
           <LoadingRows label='Loading recent requests' rows={5} />
         </SettingsSection>
       )}
-      {requests?.requests && (
+      {recentRequests && (
         <DataTable
-          title={`Recent requests (${requests.count ?? '…'})`}
+          title={`Recent requests (${requestCount ?? '…'})`}
           columns={REQUEST_COLUMNS}
-          rows={requests.requests
-            .slice(0, REQUEST_LIMIT)
-            .map(
-              (request: {
-                request_id: string
-                model: string
-                duration_ms: number
-                billed_total_cost: number
-                tool_call_count: number
-                error: boolean
-                aborted: boolean
-                created_at: string
-              }) => ({
-                id: request.request_id,
-                values: {
-                  id: request.request_id ?? '—',
-                  model: (request.model ?? '').replace('claude-', ''),
-                  duration: request.duration_ms
-                    ? `${(request.duration_ms / 1000).toFixed(1)}s`
-                    : '—',
-                  cost: formatCost(request.billed_total_cost ?? 0),
-                  tools: request.tool_call_count ?? 0,
-                  status: request.error ? 'Error' : request.aborted ? 'Abort' : 'OK',
-                  time: formatDate(request.created_at),
-                },
-                cells: {
-                  status: request.error ? (
-                    <StatusTag label='Error' intent='danger' />
-                  ) : request.aborted ? (
-                    <StatusTag label='Abort' intent='warning' />
-                  ) : (
-                    <StatusTag label='OK' intent='success' />
-                  ),
-                },
-              })
-            )}
+          rows={recentRequests.map((request) => ({
+            id: request.request_id,
+            values: {
+              id: request.request_id ?? '—',
+              model: (request.model ?? '').replace('claude-', ''),
+              duration: request.duration_ms ? `${(request.duration_ms / 1000).toFixed(1)}s` : '—',
+              cost: formatCost(request.billed_total_cost ?? 0),
+              tools: request.tool_call_count ?? 0,
+              status: request.error ? 'Error' : request.aborted ? 'Abort' : 'OK',
+              time: formatDate(request.created_at),
+            },
+            cells: {
+              status: request.error ? (
+                <StatusTag label='Error' intent='danger' />
+              ) : request.aborted ? (
+                <StatusTag label='Abort' intent='warning' />
+              ) : (
+                <StatusTag label='OK' intent='success' />
+              ),
+            },
+          }))}
         />
       )}
     </>
@@ -279,7 +242,7 @@ const LICENSE_COLUMNS = [
 ] as const
 
 function Licenses({ environment }: LicensesProps) {
-  const { data, isLoading } = useMothershipLicenses(environment)
+  const { licenses, isLoading } = useMothershipLicenseList(environment)
   const form = useLicenseForm(environment)
   const { generateLicense, generatedKey } = form
   return (
@@ -344,8 +307,8 @@ function Licenses({ environment }: LicensesProps) {
           <LoadingRows label='Loading licenses' />
         </SettingsSection>
       )}
-      {data?.licenses &&
-        (data.licenses.length === 0 ? (
+      {licenses &&
+        (licenses.length === 0 ? (
           <SettingsSection title='All licenses'>
             <EmptyState title='No licenses found.' />
           </SettingsSection>
@@ -353,25 +316,15 @@ function Licenses({ environment }: LicensesProps) {
           <DataTable
             title='All licenses'
             columns={LICENSE_COLUMNS}
-            rows={data.licenses.map(
-              (license: {
-                id: string
-                name: string
-                count: number
-                expiration_date?: string
-                created_at: string
-              }) => ({
-                id: license.id,
-                values: {
-                  name: license.name,
-                  validations: license.count,
-                  expiration: license.expiration_date
-                    ? formatDate(license.expiration_date)
-                    : 'Never',
-                  created: formatDate(license.created_at),
-                },
-              })
-            )}
+            rows={licenses.map((license) => ({
+              id: license.id,
+              values: {
+                name: license.name,
+                validations: license.count,
+                expiration: license.expiration_date ? formatDate(license.expiration_date) : 'Never',
+                created: formatDate(license.created_at),
+              },
+            }))}
           />
         ))}
     </>

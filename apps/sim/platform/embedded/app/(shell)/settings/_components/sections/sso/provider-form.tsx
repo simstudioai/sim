@@ -10,12 +10,9 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { SaveActions } from '@sim/emcn/settings-section/save-actions'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
-import { useConfigureSSO } from '@/ee/sso/hooks/sso'
 import {
-  buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
   hasSsoFormErrors,
   OIDC_DEFAULT_MAPPING,
@@ -37,7 +34,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ClientSecretField } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
-import { toast } from '@/platform/shared/toast'
+import { useSsoProviderSave } from '@/platform/embedded/lib/data/sso-settings'
 
 const PROVIDER_TYPE_OPTIONS: { value: SsoProviderForm['providerType']; label: string }[] = [
   { label: 'OIDC', value: 'oidc' },
@@ -62,7 +59,7 @@ export function ProviderForm({
   onSaved,
   onBack,
 }: ProviderFormProps) {
-  const configure = useConfigureSSO()
+  const provider = useSsoProviderSave(organizationId)
   const isEditing = Boolean(existingProvider)
   const original = initialForm ?? DEFAULT_SSO_FORM
   const baseUrl = useSsoOrigin()
@@ -102,12 +99,12 @@ export function ProviderForm({
   }
   const guard = useSettingsUnsavedGuard({
     isDirty: dirty,
-    navigationBlocked: configure.isPending,
+    navigationBlocked: provider.saving,
     onDiscard: discard,
   })
 
   function set<Key extends keyof SsoProviderForm>(key: Key, value: SsoProviderForm[Key]) {
-    if (configure.isPending) return
+    if (provider.saving) return
     setForm((current) => ({ ...current, [key]: value }))
   }
 
@@ -118,19 +115,13 @@ export function ProviderForm({
   }
 
   async function submit() {
-    if (configure.isPending) return
+    if (provider.saving) return
     setShowErrors(true)
     if (hasSsoFormErrors(errors)) {
       if (errors.scopes.length > 0) setShowAdvanced(true)
       return
     }
-    try {
-      await configure.mutateAsync(buildSsoRegistrationBody(form, organizationId, hasStoredSecret))
-      toast.success(isEditing ? 'Identity provider updated' : 'Identity provider added')
-      onSaved(form.providerId)
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Unknown error occurred'))
-    }
+    await provider.save(form, { hasStoredSecret, isEditing }, () => onSaved(form.providerId))
   }
 
   const isSaml = form.providerType === 'saml'
@@ -158,7 +149,7 @@ export function ProviderForm({
           void submit()
         }}
       >
-        <FormFieldset disabled={configure.isPending}>
+        <FormFieldset disabled={provider.saving}>
           {!existingProvider && (
             <ActionRow>
               <Muted>Use a verified email domain for this connection.</Muted>
@@ -427,7 +418,7 @@ export function ProviderForm({
             </FieldStack>
           </SettingsSection>
           {/* Enabled by an edit, never by validity: errors show only once a save is attempted. */}
-          <SaveActions dirty={dirty} saving={configure.isPending} onDiscard={discard} />
+          <SaveActions dirty={dirty} saving={provider.saving} onDiscard={discard} />
         </FormFieldset>
       </form>
     </SectionStack>

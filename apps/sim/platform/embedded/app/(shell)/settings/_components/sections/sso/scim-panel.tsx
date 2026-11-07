@@ -13,21 +13,12 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { Switch } from '@sim/emcn/switch'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
   type CredentialExpiry,
   SETTING_TOGGLES,
 } from '@/ee/scim/components/options'
-import {
-  useConfigureScimConnection,
-  useIssueScimCredential,
-  useReconcileScimConnection,
-  useRevokeScimCredential,
-  useScimActivity,
-  useScimConnection,
-} from '@/ee/scim/hooks/scim'
 import { formatRelative } from '@/ee/scim/lib/relative-time'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
@@ -38,20 +29,25 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { GroupMappings } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/group-mappings'
 import { useSettingsNavigationBlocked } from '@/platform/embedded/lib/data/settings-guard'
+import {
+  useScimActivityFeed,
+  useScimConnectionActions,
+  useScimProvisioning,
+} from '@/platform/embedded/lib/data/sso/scim'
 import { plural } from '@/platform/shared/plural'
 import { formatRelativeTime } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'
 }
 
 function ActivityList({ organizationId, active }: { organizationId: string; active: boolean }) {
-  const { data, isError, error, isFetching, refetch } = useScimActivity(organizationId, active)
+  const activity = useScimActivityFeed(organizationId, active)
+  const { data } = activity
   if (!data) {
     return (
       <QueryBoundary
-        query={{ data, error: isError ? error : undefined, isFetching, refetch }}
+        query={activity}
         failure={errorMessageOr('Failed to load directory activity')}
         loadingLabel='Loading activity…'
       >
@@ -99,10 +95,7 @@ function ConnectionDetails({
   expiry,
   setExpiry,
 }: ConnectionDetailsProps) {
-  const configure = useConfigureScimConnection()
-  const issueCredential = useIssueScimCredential()
-  const revokeCredential = useRevokeScimCredential()
-  const reconcile = useReconcileScimConnection()
+  const actions = useScimConnectionActions(organizationId)
   const [showRules, setShowRules] = useState(false)
   /** The one moment the token exists outside its digest. Held only in this state, never persisted. */
   const [issuedSecret, setIssuedSecret] = useState<string | null>(null)
@@ -111,48 +104,18 @@ function ConnectionDetails({
     connection.credentials.find((credential) => credential.id === pendingRevokeId) ?? null
   useSettingsUnsavedGuard({
     isDirty: expiry !== 'never' || issuedSecret !== null,
-    navigationBlocked: issueCredential.isPending,
+    navigationBlocked: actions.issuing,
     onDiscard: () => {
       setExpiry('never')
       setIssuedSecret(null)
     },
   })
 
-  async function toggleSetting(key: (typeof SETTING_TOGGLES)[number]['key'], value: boolean) {
-    try {
-      // Only the changed key is sent; the server merges it, so a concurrent edit is not reverted.
-      await configure.mutateAsync({ organizationId, settings: { [key]: value } })
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to update setting'))
-    }
-  }
-
-  async function issue() {
-    if (issueCredential.isPending) return
-    try {
-      const result = await issueCredential.mutateAsync({
-        organizationId,
-        ...(expiry === 'never' ? {} : { expiresInDays: Number(expiry) }),
-      })
-      setIssuedSecret(result.secret)
+  function issue() {
+    return actions.issue(expiry, (secret) => {
+      setIssuedSecret(secret)
       setExpiry('never')
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to issue token'))
-    }
-  }
-
-  async function runReconcile() {
-    try {
-      const report = await reconcile.mutateAsync(organizationId)
-      const corrections = report.grantsAdded + report.grantsRemoved
-      toast.success(
-        corrections === 0
-          ? `Checked ${report.reconciledUsers} members. Review Group mappings for assignment status.`
-          : `Checked ${report.reconciledUsers} members; corrected ${plural(corrections, 'grant')}`
-      )
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Reconciliation failed'))
-    }
+    })
   }
 
   const now = Date.now()
@@ -205,17 +168,17 @@ function ConnectionDetails({
           <ActionRow>
             <Select
               label='Token expiry'
-              disabled={issueCredential.isPending}
+              disabled={actions.issuing}
               options={CREDENTIAL_EXPIRY_OPTIONS}
               value={expiry}
               onValueChange={(value) => setExpiry(value as CredentialExpiry)}
             />
             <Button
               variant='primary'
-              disabled={issueCredential.isPending || connection.credentials.length >= 2}
+              disabled={actions.issuing || connection.credentials.length >= 2}
               onClick={() => void issue()}
             >
-              {issueCredential.isPending ? 'Issuing…' : 'Issue token'}
+              {actions.issuing ? 'Issuing…' : 'Issue token'}
             </Button>
           </ActionRow>
         </FieldStack>
@@ -232,8 +195,8 @@ function ConnectionDetails({
               <Switch
                 label={toggle.label}
                 checked={connection.settings[toggle.key] ?? false}
-                disabled={configure.isPending}
-                onCheckedChange={(checked) => void toggleSetting(toggle.key, checked)}
+                disabled={actions.updatingSetting}
+                onCheckedChange={(checked) => void actions.updateSetting(toggle.key, checked)}
               />
             </SettingsRow>
           ))}
@@ -250,8 +213,8 @@ function ConnectionDetails({
           organizationId={organizationId}
           active={active}
           autoMapByName={connection.settings.autoMapPermissionGroupsByName === true}
-          onReconcile={runReconcile}
-          reconciling={reconcile.isPending}
+          onReconcile={actions.reconcile}
+          reconciling={actions.reconciling}
         />
       </SettingsSection>
 
@@ -264,10 +227,10 @@ function ConnectionDetails({
           <ActionRow>
             <Button
               size='compact'
-              disabled={reconcile.isPending}
-              onClick={() => void runReconcile()}
+              disabled={actions.reconciling}
+              onClick={() => void actions.reconcile()}
             >
-              {reconcile.isPending ? 'Reconciling…' : 'Reconcile now'}
+              {actions.reconciling ? 'Reconciling…' : 'Reconcile now'}
             </Button>
           </ActionRow>
         </FieldStack>
@@ -297,8 +260,7 @@ function ConnectionDetails({
         pendingLabel='Revoking…'
         onConfirm={async () => {
           if (!pendingRevoke) return
-          await revokeCredential.mutateAsync({ organizationId, credentialId: pendingRevoke.id })
-          toast.success('Token revoked')
+          await actions.revoke(pendingRevoke.id)
         }}
       />
     </>
@@ -313,39 +275,25 @@ interface ScimPanelProps {
 
 /** The SCIM connection. The section renders this only with the deployment's `scim` feature on. */
 export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelProps) {
-  const { data, isLoading, isError, error, isFetching, refetch } = useScimConnection(
-    organizationId,
-    active
-  )
-  const configure = useConfigureScimConnection()
+  const provisioning = useScimProvisioning(organizationId, active)
   const navigationBlocked = useSettingsNavigationBlocked()
   const [expiry, setExpiry] = useState<CredentialExpiry>('never')
 
-  if (data === undefined && isError) {
+  if (provisioning.failure) {
     return (
       <SettingsSection title='Directory provisioning'>
         <FieldStack>
           <FailureNotice
-            message={getErrorMessage(error, 'Failed to load directory provisioning settings')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
+            message={provisioning.failure.message}
+            retrying={provisioning.failure.retrying}
+            onRetry={provisioning.failure.retry}
           />
         </FieldStack>
       </SettingsSection>
     )
   }
 
-  const connection = data?.connection ?? null
-  const enabled = connection?.status === 'active'
-
-  async function updateEnabled(next: boolean) {
-    try {
-      await configure.mutateAsync({ organizationId, status: next ? 'active' : 'disabled' })
-      toast.success(next ? 'Directory provisioning enabled' : 'Directory provisioning disabled')
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, 'Failed to update directory provisioning'))
-    }
-  }
+  const { connection, enabled, isLoading } = provisioning
 
   return (
     <SectionStack>
@@ -357,8 +305,8 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           <Switch
             label='Enable directory provisioning'
             checked={enabled}
-            disabled={isLoading || configure.isPending || navigationBlocked}
-            onCheckedChange={(checked) => void updateEnabled(checked)}
+            disabled={isLoading || provisioning.updating || navigationBlocked}
+            onCheckedChange={(checked) => void provisioning.setEnabled(checked)}
           />
         </SettingsRow>
         {!enabled && (

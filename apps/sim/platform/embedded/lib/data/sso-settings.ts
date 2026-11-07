@@ -8,8 +8,14 @@ import {
   useRemoveOrganizationDomain,
   useVerifyOrganizationDomain,
 } from '@/ee/sso/hooks/domains'
-import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
+import {
+  useConfigureSSO,
+  useDeleteSSOProvider,
+  useSetPrimarySSOProvider,
+  useSSOProviders,
+} from '@/ee/sso/hooks/sso'
 import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/sso/hooks/sso-policy'
+import { buildSsoRegistrationBody, type SsoProviderForm } from '@/ee/sso/lib/provider-form'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { toast } from '@/platform/shared/toast'
 
@@ -53,6 +59,28 @@ export function useSsoProviderSettings(organizationId: string, billingEnabled: b
     makePrimary: async (providerId: string) => {
       await setPrimaryProvider.mutateAsync(providerId)
       toast.success(`${providerId} is now the primary provider`)
+    },
+  }
+}
+
+/** Registers an identity provider, or replaces the one with the same provider ID. */
+export function useSsoProviderSave(organizationId: string) {
+  const configure = useConfigureSSO()
+  return {
+    saving: configure.isPending,
+    /** Reports its own outcome; `onSaved` runs only once the provider is stored. */
+    save: async (
+      form: SsoProviderForm,
+      { hasStoredSecret, isEditing }: { hasStoredSecret: boolean; isEditing: boolean },
+      onSaved: () => void
+    ) => {
+      try {
+        await configure.mutateAsync(buildSsoRegistrationBody(form, organizationId, hasStoredSecret))
+        toast.success(isEditing ? 'Identity provider updated' : 'Identity provider added')
+        onSaved()
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Unknown error occurred'))
+      }
     },
   }
 }

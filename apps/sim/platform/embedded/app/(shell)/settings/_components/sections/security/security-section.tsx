@@ -10,10 +10,10 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { FailureNotice } from '@sim/emcn/status'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
-import { getErrorMessage } from '@sim/utils/errors'
-import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import { useOrganizationSessionPolicy } from '@/ee/session-policy/hooks/session-policy'
-import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
+import {
+  MIN_IDLE_TIMEOUT_HOURS,
+  type OrganizationSessionPolicy,
+} from '@/lib/api/contracts/organization'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
   DraftConflictNotice,
@@ -24,11 +24,13 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
-import { useSessionPolicyWrites } from '@/platform/embedded/lib/data/session-policy'
+import { useOutboundAddresses } from '@/platform/embedded/lib/data/network'
+import {
+  useSessionPolicy,
+  useSessionPolicyWrites,
+} from '@/platform/embedded/lib/data/session-policy'
 
-type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
-
-function hoursOf(configured: SessionPolicy['configured']) {
+function hoursOf(configured: OrganizationSessionPolicy['configured']) {
   return {
     maxHours: configured.maxSessionHours?.toString() ?? '',
     idleHours: configured.idleTimeoutHours?.toString() ?? '',
@@ -40,7 +42,7 @@ const sameHours = (left: ReturnType<typeof hoursOf>, right: ReturnType<typeof ho
 
 interface SessionPolicyFormProps {
   organizationId: string
-  policy: SessionPolicy
+  policy: OrganizationSessionPolicy
 }
 
 function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
@@ -133,35 +135,30 @@ function SessionPolicySection({
   organizationId: string
   billingEnabled: boolean
 }) {
-  const { data, error, isLoading, isFetching, refetch } =
-    useOrganizationSessionPolicy(organizationId)
+  const read = useSessionPolicy(organizationId, billingEnabled)
   // Every state sits in the section's titled card, which a boundary around the read cannot hold.
-  if (isLoading) return <SectionSkeleton title='Session policies' rows={2} />
-  if (!data) {
+  if (read.status === 'loading') return <SectionSkeleton title='Session policies' rows={2} />
+  if (read.status === 'failed') {
     return (
       <SettingsSection title='Session policies'>
         <FieldStack>
-          <FailureNotice
-            message={getErrorMessage(error, 'Failed to load session policy')}
-            retrying={isFetching}
-            onRetry={() => void refetch()}
-          />
+          <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.retry} />
         </FieldStack>
       </SettingsSection>
     )
   }
-  if (billingEnabled && !data.isEnterprise) {
+  if (read.status === 'enterprise-only') {
     return (
       <SettingsSection title='Session policies'>
         <EmptyState title='Session policies are available on Enterprise plans only.' />
       </SettingsSection>
     )
   }
-  return <SessionPolicyForm organizationId={organizationId} policy={data} />
+  return <SessionPolicyForm organizationId={organizationId} policy={read.policy} />
 }
 
 function NetworkSection({ organizationId }: { organizationId: string }) {
-  const network = useOrganizationNetwork(organizationId)
+  const network = useOutboundAddresses(organizationId)
   return (
     <SettingsSection title='Outbound IP addresses'>
       <FieldStack>
@@ -171,13 +168,13 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
           loadingLabel='Loading network settings…'
         >
           {(data) =>
-            data.mode === 'unavailable' ? (
+            data.kind === 'unavailable' ? (
               <FailureNotice
                 message='Could not load network settings'
                 retrying={network.isFetching}
                 onRetry={() => void network.refetch()}
               />
-            ) : data.mode === 'gateway' && data.publicIps.length > 0 ? (
+            ) : data.kind === 'allowlist' ? (
               <>
                 <Muted>Allowlist every address below for supported HTTPS connections.</Muted>
                 {data.publicIps.map((ip) => (
@@ -185,13 +182,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
                 ))}
               </>
             ) : (
-              <Muted>
-                {data.mode === 'blocked'
-                  ? 'Supported HTTPS connections are paused.'
-                  : data.mode === 'gateway'
-                    ? 'Your outbound IP addresses aren’t available yet.'
-                    : 'Outbound IP addresses are not configured for this organization.'}
-              </Muted>
+              <Muted>{data.message}</Muted>
             )
           }
         </QueryBoundary>

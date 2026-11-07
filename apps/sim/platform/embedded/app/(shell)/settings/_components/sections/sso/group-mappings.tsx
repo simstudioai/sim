@@ -10,23 +10,16 @@ import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { LoadingRows } from '@sim/emcn/status/query-boundary'
-import { getErrorMessage } from '@sim/utils/errors'
-import { isApiClientError } from '@/lib/api/client/errors'
-import {
-  useOrganizationWorkspaces,
-  usePermissionGroups,
-} from '@/ee/access-control/hooks/permission-groups'
+import type {
+  PermissionGroup,
+  PermissionGroupWorkspaceRef,
+} from '@/lib/api/contracts/permission-groups'
 import {
   type MappingTargetKind,
   PERMISSION_OPTIONS,
   TARGET_KIND_OPTIONS,
   type WorkspacePermission,
 } from '@/ee/scim/components/options'
-import {
-  useDeleteScimGroupMapping,
-  useScimGroupMappings,
-  useUpsertScimGroupMapping,
-} from '@/ee/scim/hooks/scim'
 import {
   automaticMatchWouldRemain,
   buildScimMappingBody,
@@ -39,21 +32,18 @@ import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import { useScimGroupMappingList, useScimMappingAdd } from '@/platform/embedded/lib/data/sso/scim'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
-
-type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
-type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>
 
 interface AddMappingProps {
   organizationId: string
   groupId: string
-  permissionGroups: PermissionGroups
-  workspaces: Workspaces
+  permissionGroups: PermissionGroup[]
+  workspaces: PermissionGroupWorkspaceRef[]
 }
 
 function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: AddMappingProps) {
-  const upsertMapping = useUpsertScimGroupMapping()
+  const mapping = useScimMappingAdd(organizationId)
   const [targetKind, setTargetKind] = useState<MappingTargetKind>('permission_group')
   const [targetId, setTargetId] = useState('')
   const [permission, setPermission] = useState<WorkspacePermission>('read')
@@ -64,7 +54,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
   }
   useSettingsUnsavedGuard({
     isDirty: targetKind !== 'permission_group' || Boolean(targetId) || permission !== 'read',
-    navigationBlocked: upsertMapping.isPending,
+    navigationBlocked: mapping.adding,
     onDiscard: discard,
   })
   const body = buildScimMappingBody(groupId, targetKind, targetId, permission)
@@ -76,18 +66,8 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
   const targets = targetKind === 'permission_group' ? permissionGroups : workspaces
 
   async function add() {
-    if (!body || upsertMapping.isPending) return
-    try {
-      const result = await upsertMapping.mutateAsync({ organizationId, body })
-      discard()
-      if ((result.mapping.unassignedMemberCount ?? 0) > 0) {
-        toast.info('Mapping saved. Some permission-group memberships need attention below.')
-      } else {
-        toast.success(`Mapping saved. Checked ${plural(result.reconciledUsers, 'member')}.`)
-      }
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to add mapping'))
-    }
+    if (!body || mapping.adding) return
+    await mapping.add(body, discard)
   }
 
   return (
@@ -95,7 +75,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
       <ActionRow>
         <Select
           label='Mapping target type'
-          disabled={upsertMapping.isPending}
+          disabled={mapping.adding}
           options={TARGET_KIND_OPTIONS}
           value={targetKind}
           onValueChange={(next) => {
@@ -109,7 +89,7 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
             label={targetKind === 'workspace' ? 'Workspace' : 'Permission group'}
             labelHidden
             searchLabel={targetKind === 'workspace' ? 'Search workspaces' : 'Search groups'}
-            disabled={upsertMapping.isPending}
+            disabled={mapping.adding}
             placeholder={targetKind === 'workspace' ? 'Choose a workspace' : 'Choose a group'}
             options={targets.map((target) => ({ value: target.id, label: target.name }))}
             value={targetId || null}
@@ -119,18 +99,14 @@ function AddMapping({ organizationId, groupId, permissionGroups, workspaces }: A
         {targetKind === 'workspace' && (
           <Select
             label='Workspace permission'
-            disabled={upsertMapping.isPending}
+            disabled={mapping.adding}
             options={PERMISSION_OPTIONS}
             value={permission}
             onValueChange={(next) => setPermission(next as WorkspacePermission)}
           />
         )}
-        <Button
-          variant='primary'
-          disabled={!body || upsertMapping.isPending}
-          onClick={() => void add()}
-        >
-          {upsertMapping.isPending ? 'Adding…' : 'Add mapping'}
+        <Button variant='primary' disabled={!body || mapping.adding} onClick={() => void add()}>
+          {mapping.adding ? 'Adding…' : 'Add mapping'}
         </Button>
       </ActionRow>
       {changesAllMembersPolicy && (
@@ -158,22 +134,14 @@ export function GroupMappings({
   onReconcile,
   reconciling,
 }: GroupMappingsProps) {
-  const {
-    data: groups,
-    isLoading,
-    isError,
-    error,
-    isFetching,
-    refetch,
-  } = useScimGroupMappings(organizationId, active)
-  const permissionGroupsQuery = usePermissionGroups(organizationId, active)
-  const allPermissionGroups = permissionGroupsQuery.data ?? []
-  // The default group governs by having no members, so it cannot be a membership target.
-  const permissionGroups = allPermissionGroups.filter((group) => !group.isDefault)
-  const workspacesQuery = useOrganizationWorkspaces(organizationId, active)
-  const workspaces = workspacesQuery.data ?? []
-  const deleteMapping = useDeleteScimGroupMapping()
+  const list = useScimGroupMappingList(organizationId, active)
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
+
+  if (list.status === 'loading') return <LoadingRows label='Loading groups…' />
+  if (list.status === 'failed') {
+    return <FailureNotice message={list.message} retrying={list.retrying} onRetry={list.retry} />
+  }
+  const { groups, permissionGroups, workspaces, targetsFailure } = list
   const pendingRemove = groups
     ?.flatMap((group) => group.mappings)
     .find((mapping) => mapping.id === pendingRemoveId)
@@ -182,36 +150,11 @@ export function GroupMappings({
     workspaces: new Map(workspaces.map((workspace) => [workspace.id, workspace.name])),
   }
   const automaticMatchRemains = automaticMatchWouldRemain(pendingRemove, autoMapByName, names)
-
-  if (isLoading) return <LoadingRows label='Loading groups…' />
-  if (groups === undefined && isError) {
-    return (
-      <FailureNotice
-        message={getErrorMessage(error, 'Failed to load directory groups')}
-        retrying={isFetching}
-        onRetry={() => void refetch()}
-      />
-    )
-  }
-  if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
-    return <LoadingRows label='Loading groups…' />
-  }
-  /**
-   * Mappings stay manageable when a target list is missing. Permission groups refuse outright where
-   * access control is off, which is not a failure to report; anything else may look empty, so it says so.
-   */
-  const refused = (queryError: unknown) =>
-    isApiClientError(queryError) && [401, 403, 404].includes(queryError.status)
-  const targetsFailed =
-    (!permissionGroupsQuery.data && !refused(permissionGroupsQuery.error)) || !workspacesQuery.data
-  const targetsNotice = targetsFailed ? (
+  const targetsNotice = targetsFailure ? (
     <FailureNotice
       message='Failed to load mapping targets'
-      retrying={permissionGroupsQuery.isFetching || workspacesQuery.isFetching}
-      onRetry={() => {
-        void permissionGroupsQuery.refetch()
-        void workspacesQuery.refetch()
-      }}
+      retrying={targetsFailure.retrying}
+      onRetry={targetsFailure.retry}
     />
   ) : null
   if (!groups || groups.length === 0) {
@@ -255,7 +198,7 @@ export function GroupMappings({
                         id: 'remove',
                         label: 'Remove',
                         destructive: true,
-                        disabled: deleteMapping.isPending,
+                        disabled: list.removing,
                         onSelect: () => setPendingRemoveId(mapping.id),
                       },
                     ]}
@@ -299,8 +242,7 @@ export function GroupMappings({
         pendingLabel='Removing…'
         onConfirm={async () => {
           if (!pendingRemove) return
-          await deleteMapping.mutateAsync({ organizationId, mappingId: pendingRemove.id })
-          toast.success('Mapping removed')
+          await list.removeMapping(pendingRemove.id)
         }}
       />
     </>
