@@ -12,8 +12,8 @@ import {
   scrollFadeClass,
   Tooltip,
   useScrollEdges,
-} from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { BookOpen } from '@sim/emcn-legacy/icons'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'

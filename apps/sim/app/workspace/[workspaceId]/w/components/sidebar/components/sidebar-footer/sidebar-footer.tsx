@@ -16,8 +16,8 @@ import {
   DropdownMenuTrigger,
   OverflowText,
   Skeleton,
-} from '@sim/emcn'
-import { BookOpen, Download, HelpCircle, LogOut, Settings } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { BookOpen, Download, HelpCircle, LogOut, Settings } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'

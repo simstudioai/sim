@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
-import { CopyButton, CopyField, Select } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   FieldStack,
   Muted,
@@ -99,8 +98,7 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
       {organization.viewer.canUseSearchMcp ? (
         <>
           <SettingsRow label='App'>
-            <Select
-              variant='quiet'
+            <ChoiceMenu
               label={`MCP app: ${client.label}`}
               value={client.value}
               options={CLIENTS}

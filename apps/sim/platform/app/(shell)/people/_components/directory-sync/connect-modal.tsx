@@ -1,16 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
 import { ExternalLink } from '@/platform/app/(shell)/people/_components/external-link/external-link'
-import {
-  Button,
-  InlineNotice,
-  Modal,
-  SecretField,
-  TextField,
-} from '@/platform/design-system/components'
 import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,

@@ -13,7 +13,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowLeft,
@@ -28,7 +28,7 @@ import {
   Trash,
   Workflow,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import type { SortDirection, WorkflowGroupType } from '@/lib/table'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'

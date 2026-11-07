@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { useRouter } from 'next/navigation'
 import { ActionRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -8,18 +14,6 @@ import {
   type SetupTarget,
   SlackSetupDialog,
 } from '@/platform/app/(shell)/settings/_components/sections/search-slack/slack-setup-dialog'
-import {
-  ActionMenu,
-  Button,
-  FailureNotice,
-  Icon,
-  Modal,
-  StatusTag,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 import type {
   SlackSearchInstallationView,

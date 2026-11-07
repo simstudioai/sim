@@ -2,7 +2,7 @@
 
 import type { PointerEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { bindPreviewWheelZoom, cn } from '@sim/emcn'
+import { bindPreviewWheelZoom, cn } from '@sim/emcn-legacy'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 
 const ZOOM_MIN = 0.25

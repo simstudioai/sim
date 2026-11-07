@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
   TabStrip,
   Tooltip,
-} from '@sim/emcn'
-import { File } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { File } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'

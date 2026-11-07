@@ -1,4 +1,4 @@
-import { Split } from '@sim/emcn/icons'
+import { Split } from '@sim/emcn-legacy/icons'
 
 /**
  * Parallel tool configuration for the toolbar.

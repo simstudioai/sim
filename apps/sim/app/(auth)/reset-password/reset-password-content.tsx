@@ -62,7 +62,7 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className='au:space-y-[var(--auth-group-gap)]'>
+    <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
       <AuthHeader title='Reset your password' description='Enter a new password for your account' />
 
       <SetNewPasswordForm

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
+import { Icon } from '@sim/emcn/icon'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import {
   type SearchSource,
   sourceDescription,
 } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
-import { Icon } from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface SourceRowProps {
   source: SearchSource

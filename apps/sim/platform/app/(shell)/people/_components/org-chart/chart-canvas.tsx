@@ -1,6 +1,11 @@
 'use client'
 
 import { type MouseEvent, type ReactNode, useMemo } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { IconButton } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import {
   BaseEdge,
   type Edge,
@@ -16,13 +21,6 @@ import {
 } from '@xyflow/react'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
-import {
-  Avatar,
-  Icon,
-  IconButton,
-  OverflowText,
-  PageColumn,
-} from '@/platform/design-system/components'
 import { usePeoplePath } from '@/platform/lib/data/people'
 import { type ChartBranch, type PersonSummary, personHref } from '@/platform/shared/people'
 import { plural } from '@/platform/shared/plural'

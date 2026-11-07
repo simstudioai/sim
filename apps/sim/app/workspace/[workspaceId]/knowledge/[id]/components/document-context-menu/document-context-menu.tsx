@@ -6,8 +6,16 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Eye, Pencil, Plus, RefreshCw, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import {
+  Eye,
+  Pencil,
+  Plus,
+  RefreshCw,
+  SquareArrowUpRight,
+  TagIcon,
+  Trash,
+} from '@sim/emcn-legacy/icons'
 import {
   selectionActionLabel,
   selectionToggleActionLabel,

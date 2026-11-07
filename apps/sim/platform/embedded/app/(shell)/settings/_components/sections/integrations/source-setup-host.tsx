@@ -1,21 +1,18 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { useSearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/use-search-source-setup'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  InlineNotice,
-  LoadingRows,
-  Modal,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { SourceSetupForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup'
 

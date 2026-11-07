@@ -1,15 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { formatDateTime } from '@sim/utils/formatting'
-import {
-  Button,
-  FailureNotice,
-  InlineNotice,
-  LoadingRows,
-  Modal,
-  StatusTag,
-} from '@/platform/design-system/components'
 import {
   DirectorySources,
   ImportPrompt,

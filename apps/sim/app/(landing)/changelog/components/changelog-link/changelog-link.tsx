@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { blockTypeToIconMap, INTEGRATIONS } from '@/lib/integrations'

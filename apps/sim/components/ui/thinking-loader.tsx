@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import styles from '@/components/ui/thinking-loader.module.css'
 
 const VARIANTS = [

@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { Label } from '@sim/emcn'
+import { Label } from '@sim/emcn-legacy'
 
 /**
  * Field label with a trailing required marker, matching the sidebar field

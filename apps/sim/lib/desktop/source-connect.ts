@@ -1,5 +1,5 @@
 import type { DesktopOAuthConnectResult } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {

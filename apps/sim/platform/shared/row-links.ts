@@ -1,4 +1,4 @@
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { toast } from '@/platform/shared/toast'
 
 /**

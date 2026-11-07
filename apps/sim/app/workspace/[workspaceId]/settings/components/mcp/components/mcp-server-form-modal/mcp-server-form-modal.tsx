@@ -13,8 +13,8 @@ import {
   ChipModalHeader,
   cn,
   SecretInput,
-} from '@sim/emcn'
-import { ChevronDown, ChevronRight } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'

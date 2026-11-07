@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { SubflowNodeView } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
 import { type CanvasPort, getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'

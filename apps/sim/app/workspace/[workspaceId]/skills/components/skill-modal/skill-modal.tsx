@@ -11,7 +11,7 @@ import {
   ChipModalTabs,
   chipFieldSurfaceClass,
   cn,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import {

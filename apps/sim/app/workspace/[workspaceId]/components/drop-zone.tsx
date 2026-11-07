@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 interface DropZoneProps {
   onDrop: (e: React.DragEvent) => void

@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipDropdown, type ChipDropdownProps } from '@sim/emcn'
+import { ChipDropdown, type ChipDropdownProps } from '@sim/emcn-legacy'
 
 interface WorkspaceSelectProps
   extends Pick<

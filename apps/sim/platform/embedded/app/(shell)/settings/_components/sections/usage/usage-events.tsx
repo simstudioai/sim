@@ -1,11 +1,9 @@
 'use client'
 
-import {
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-} from '@/platform/design-system/components'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { DetailHeader } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import { useUsageEvents, useUsageView } from '@/platform/embedded/lib/data/usage'

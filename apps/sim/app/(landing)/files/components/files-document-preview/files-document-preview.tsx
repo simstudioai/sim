@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { ChevronRight, Download, Files, Send } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { ChevronRight, Download, Files, Send } from '@sim/emcn-legacy/icons'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { LibraryFileDetail } from '@/app/(landing)/files/components/files-library-preview/components/library-file-detail'
 import { FILES } from '@/app/(landing)/files/components/files-library-preview/data'

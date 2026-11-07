@@ -5,7 +5,7 @@ import {
   findPrecisionCandidates,
 } from './check-icon-path-precision'
 
-const FIXTURE_PATH = '/repo/packages/emcn/src/icons/fixture.tsx'
+const FIXTURE_PATH = '/repo/packages/emcn-legacy/src/icons/fixture.tsx'
 
 describe('icon path precision audit', () => {
   it('finds ordinary decimals and exponents finer than a thousandth', () => {

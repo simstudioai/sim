@@ -1,7 +1,7 @@
 'use client'
 
-import { DropdownMenuItem } from '@sim/emcn'
-import { Mail } from '@sim/emcn/icons'
+import { DropdownMenuItem } from '@sim/emcn-legacy'
+import { Mail } from '@sim/emcn-legacy/icons'
 import { useMyPendingInvitations } from '@/hooks/queries/invitations'
 
 interface ViewInvitationsMenuItemProps {

@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipInput, Combobox } from '@sim/emcn'
-import { Clock } from '@sim/emcn/icons'
+import { ChipInput, Combobox } from '@sim/emcn-legacy'
+import { Clock } from '@sim/emcn-legacy/icons'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 
 const FREQUENCIES = [

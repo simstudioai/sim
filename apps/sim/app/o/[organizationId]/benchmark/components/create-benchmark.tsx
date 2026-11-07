@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCombobox, ChipInput, ChipTextarea } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipInput, ChipTextarea } from '@sim/emcn-legacy'
 import { useBenchmarkWorkspaces, useCreateBenchmark } from '@/hooks/queries/benchmarks'
 import { useDebounce } from '@/hooks/use-debounce'
 

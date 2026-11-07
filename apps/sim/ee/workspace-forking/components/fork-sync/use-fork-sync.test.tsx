@@ -36,7 +36,7 @@ const {
   mockPromoteIsPending: vi.fn(() => false),
 }))
 
-vi.mock('@sim/emcn', () => ({ ...emcnMock, ChipConfirmModal: () => null }))
+vi.mock('@sim/emcn-legacy', () => ({ ...emcnMock, ChipConfirmModal: () => null }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/ee/workspace-forking/components/fork-sync/fork-sync-view', () => ({
   ForkSyncView: ({

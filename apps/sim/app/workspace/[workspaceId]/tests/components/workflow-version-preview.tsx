@@ -1,7 +1,7 @@
 'use client'
 
 import { useId } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn-legacy'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
 

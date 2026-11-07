@@ -13,7 +13,7 @@ paths:
 
 ```typescript
 // ✓ Good
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn/button'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // ✗ Bad

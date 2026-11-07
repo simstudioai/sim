@@ -22,7 +22,7 @@
  * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
  * none of the wrapped forms. Deliberate exceptions carry `// utils-lint-allow: <reason>`.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -313,11 +313,15 @@ function hasAllow(lines: string[], line: number): boolean {
 /** A `lib` entry at ES2023 or later, including its sub-libs (`ES2023.Array`) and `ESNext`. */
 const LIB_PAST_ES2022 = /^es(?:20(?:2[3-9]|[3-9]\d)|next)\b/i
 
-/** Tracked tsconfigs whose `lib` admits the ES2023 runtime methods `tsc` would otherwise reject. */
+/** Live repository tsconfigs whose `lib` admits unsupported ES2023 runtime methods. */
 function es2023LibViolations(): Violation[] {
-  const listed = Bun.spawnSync(['git', 'ls-files', '*tsconfig*.json'], { cwd: ROOT })
+  const listed = Bun.spawnSync(
+    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '*tsconfig*.json'],
+    { cwd: ROOT }
+  )
   const violations: Violation[] = []
-  for (const file of listed.stdout.toString().split('\n').filter(Boolean)) {
+  for (const file of new Set(listed.stdout.toString().split('\n').filter(Boolean))) {
+    if (!existsSync(path.join(ROOT, file))) continue
     const content = readFileSync(path.join(ROOT, file), 'utf8')
     const lib = /"lib"\s*:\s*\[([^\]]*)\]/.exec(content)
     const entries = lib?.[1]?.match(/"[^"]*"/g) ?? []

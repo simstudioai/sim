@@ -1,17 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { AttachmentGrid } from '@sim/emcn/attachments'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { Modal } from '@sim/emcn/modal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { ShellSupport } from '@/platform/app/(shell)/_components/model'
-import {
-  AttachmentGrid,
-  FileField,
-  Modal,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import { readFormText } from '@/platform/shared/row-links'
 
 interface SupportImage {

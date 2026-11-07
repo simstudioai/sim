@@ -1,7 +1,8 @@
-import { LoadingRows, SectionSearch } from '@/platform/design-system/components'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
 import type {
   ToolPermissionChange,

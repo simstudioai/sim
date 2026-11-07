@@ -1,4 +1,4 @@
-import { cn, SimWordmark } from '@sim/emcn'
+import { cn, SimWordmark } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { ConsentPreferencesTrigger } from '@/app/_shell/consent/consent-preferences-trigger'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'

@@ -1,16 +1,11 @@
-import {
-  Avatar,
-  AvatarGroup,
-  EmptyState,
-  Modal,
-  MultiStepModal,
-  PlatformSurface,
-  RecipientField,
-  ScrollArea,
-  SearchableSelect,
-  SelectField,
-  TextField,
-} from '@/platform/design-system/components'
+import { Avatar, AvatarGroup } from '@sim/emcn/avatar'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SelectField, TextField } from '@sim/emcn/field'
+import { Modal, MultiStepModal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
 import { FileFieldSpecimen } from '@/platform/preview/file-field-specimen'
 import { RecipeSpecimen } from '@/platform/preview/recipe-specimen'

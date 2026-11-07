@@ -1,6 +1,6 @@
 'use client'
 
-import { Workflow } from '@sim/emcn/icons'
+import { Workflow } from '@sim/emcn-legacy/icons'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
 interface HeroChatReplyProps {

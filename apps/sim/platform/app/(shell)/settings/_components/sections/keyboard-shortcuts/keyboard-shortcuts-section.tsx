@@ -1,7 +1,4 @@
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 
 export default function KeyboardShortcutsSection() {
   return (

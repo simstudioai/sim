@@ -13,8 +13,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   useFloatingTooltip,
-} from '@sim/emcn'
-import { ArrowRight, ChevronDown, CircleInfo } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowRight, ChevronDown, CircleInfo } from '@sim/emcn-legacy/icons'
 import { PROVIDER_ICONS } from '@/components/icons/providers'
 import type {
   OrganizationUsageBreakdown,

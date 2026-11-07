@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
+import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies, headers } from 'next/headers'
@@ -37,7 +38,6 @@ import {
 } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
-import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 import { Sidebar } from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar'
 
 const logger = createLogger('OrganizationLayout')

@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipSwitch, Label, toast } from '@sim/emcn'
+import { ChipSwitch, Label, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useUpdateForkSyncDefault } from '@/ee/workspace-forking/hooks/workspace-fork'
 

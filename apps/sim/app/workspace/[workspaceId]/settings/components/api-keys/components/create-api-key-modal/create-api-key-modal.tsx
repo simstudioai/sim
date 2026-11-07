@@ -11,7 +11,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretReveal,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'

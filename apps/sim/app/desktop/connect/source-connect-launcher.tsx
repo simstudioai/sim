@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AuthButton as Chip } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
 import { getErrorMessage } from '@sim/utils/errors'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'

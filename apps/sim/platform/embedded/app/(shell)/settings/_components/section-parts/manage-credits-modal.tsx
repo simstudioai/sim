@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { FailureNotice, Modal, TextField } from '@/platform/design-system/components'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice } from '@sim/emcn/status'
 import { useMemberCredits } from '@/platform/embedded/lib/data/members'
 
 export interface CreditsTarget {

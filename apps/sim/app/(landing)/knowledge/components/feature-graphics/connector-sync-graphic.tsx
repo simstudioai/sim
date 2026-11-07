@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import { ChipTag, cn } from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+import { ChipTag, cn } from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import {
   ConfluenceIcon,
   GithubIcon,

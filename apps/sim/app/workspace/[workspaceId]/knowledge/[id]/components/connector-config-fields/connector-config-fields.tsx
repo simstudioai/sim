@@ -1,7 +1,7 @@
 'use client'
 
-import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
+import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn-legacy'
+import { ArrowLeftRight, CircleInfo } from '@sim/emcn-legacy/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { Credential } from '@/lib/oauth/types'

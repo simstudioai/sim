@@ -1,4 +1,4 @@
-import { TypeBoolean } from '@sim/emcn/icons'
+import { TypeBoolean } from '@sim/emcn-legacy/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const booleanColumnType: ColumnTypeDefinition = {

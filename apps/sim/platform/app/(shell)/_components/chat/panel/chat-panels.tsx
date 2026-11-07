@@ -1,6 +1,8 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useRef, useState } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import type { TabItem } from '@sim/emcn/tabs'
 import { generateShortId } from '@sim/utils/id'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { PanelData, PanelRecent } from '@/platform/app/(shell)/_components/chat/panel/model'
@@ -9,9 +11,7 @@ import { PanelTabs } from '@/platform/app/(shell)/_components/chat/panel/panel-t
 import styles from '@/platform/app/(shell)/_components/chat/panel/panels.module.css'
 import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import { useRecentHistory } from '@/platform/app/(shell)/_components/session/interface-preferences'
-import { IconButton } from '@/platform/design-system/components/button/button'
-import type { TabItem } from '@/platform/design-system/components/tabs/tabs'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 export type PanelDestination = 'start' | 'workspaces' | 'terminal' | 'file' | 'website'

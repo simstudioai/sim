@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, type ComponentProps, useState } from 'react'
-import { ToastProvider, toast } from '@sim/emcn'
+import { ToastProvider, toast } from '@sim/emcn-legacy'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import {
   createMockDeploymentShape,

@@ -460,7 +460,7 @@ The integration's page must carry a `{/* MANUAL-CONTENT-START:intro */}` section
 `<BlockInfoCard />`. If it is missing, write one using the template in add-integration → Step 8, and
 check an existing intro against what the block actually ships (no removed or unshipped operations).
 
-If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
+If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
 
 ### Validation Output
 

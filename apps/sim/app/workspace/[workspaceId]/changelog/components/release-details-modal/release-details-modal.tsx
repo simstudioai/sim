@@ -8,7 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { useUpdateChangelogRelease } from '@/hooks/queries/changelog'
 

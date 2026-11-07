@@ -1,20 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal, MultiStepModal } from '@sim/emcn/modal'
 import {
   FieldStack,
   Muted,
   Preformatted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  CopyButton,
-  Disclosure,
-  Modal,
-  MultiStepModal,
-  SecretField,
-  TextField,
-} from '@/platform/design-system/components'
 import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
 
 export interface SetupTarget {

@@ -11,15 +11,15 @@ interface SearchProps {
   search: { onQueryChange: (query: string, details: { reason: string }) => void }
 }
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@/ee/sso/hooks/sso', () => ({
   useConfigureSSO: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 vi.mock('@/platform/embedded/lib/data/sso/params', () => ({
   useSsoOrigin: () => 'http://localhost',
 }))
-vi.mock('@/platform/design-system/components', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/design-system/components')>()),
+vi.mock('@sim/emcn/picker/searchable-select', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn/picker/searchable-select')>()),
   SearchableSelect: ({ value, search }: SearchProps): ReactNode => (
     <div>
       <output>{value ?? 'empty'}</output>

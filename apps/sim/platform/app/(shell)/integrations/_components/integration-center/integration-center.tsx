@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SearchField } from '@sim/emcn/search-field'
+import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { DirectoryBack } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
@@ -13,14 +18,6 @@ import {
   AppGroup,
   ResourceGroup,
 } from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list'
-import {
-  ActionMenu,
-  Button,
-  ChoiceMenu,
-  DestinationTabs,
-  Modal,
-  SearchField,
-} from '@/platform/design-system/components'
 import type {
   AppSummary,
   IntegrationCenterData,
@@ -30,6 +27,7 @@ import type {
 import {
   CENTER_TABS,
   centerParams,
+  resourceDetailParams,
   serializeCenter,
 } from '@/platform/lib/integrations/center-navigation'
 import {
@@ -71,12 +69,16 @@ export function IntegrationCenter({
   const router = useRouter()
   const search = useSearchParams()
   const [view, setView] = useQueryStates(
-    { ...centerParams, ...credentialDetailParams, ...credentialAccessParams },
+    {
+      ...centerParams,
+      ...resourceDetailParams,
+      ...credentialDetailParams,
+      ...credentialAccessParams,
+    },
     { history: 'replace', shallow: true }
   )
   const [isOpening, startOpening] = useTransition()
   const [creating, setCreating] = useState<IntegrationResource['kind'] | null>(null)
-  const [deleting, setDeleting] = useState<IntegrationResource | null>(null)
   const tabs = library
     ? CENTER_TABS
     : CENTER_TABS.filter((tab) => tab.id === 'apps' || tab.id === 'credentials')
@@ -91,6 +93,7 @@ export function IntegrationCenter({
       connection: null,
       scope: null,
       resource: null,
+      resourceTab: null,
     }),
   }))
   const currentHref = destinations[tabs.findIndex((tab) => tab.id === current)]?.href ?? pathname
@@ -140,7 +143,7 @@ export function IntegrationCenter({
     startOpening(async () => {
       await setView({})
       await setView(
-        { ...clearCredentialView, resource: resource.id },
+        { ...clearCredentialView, resource: resource.id, resourceTab: null },
         { history: 'push', scroll: false }
       )
     })
@@ -183,6 +186,32 @@ export function IntegrationCenter({
         />
       </>
     )
+
+  if (
+    library &&
+    (current === 'skills' || current === 'mcps') &&
+    (view.resource === 'new' || (editing && editing.kind !== 'credential'))
+  ) {
+    const resource = editing?.kind !== 'credential' ? editing : undefined
+    const kind = resource?.kind ?? (current === 'skills' ? 'skill' : 'mcp')
+    const close = () =>
+      void setView({ resource: null, resourceTab: null }, { history: 'push', scroll: false })
+    return (
+      <ResourceDetails
+        key={resource?.id ?? `new-${kind}`}
+        kind={kind}
+        resource={resource}
+        data={library.data}
+        backHref={serializeCenter(base, { resource: null, resourceTab: null })}
+        onBack={close}
+        onSave={(next) => {
+          library.save(next)
+          if (!resource) void setView({ resource: next.id }, { history: 'replace', scroll: false })
+        }}
+        onDelete={library.remove}
+      />
+    )
+  }
 
   return (
     <div className={styles.center}>
@@ -266,7 +295,14 @@ export function IntegrationCenter({
               variant='secondary'
               size='compact'
               icon='I074'
-              onClick={() => setCreating(RESOURCE_KIND[current])}
+              onClick={() => {
+                if (current === 'credentials') setCreating('credential')
+                else
+                  void setView(
+                    { resource: 'new', resourceTab: null },
+                    { history: 'push', scroll: false }
+                  )
+              }}
             >
               {CREATE_LABEL[current]}
             </Button>
@@ -302,6 +338,12 @@ export function IntegrationCenter({
                 order={view.order}
                 onNavigate={navigate}
                 onOpen={open}
+                resourceHref={(resource) =>
+                  serializeCredential(
+                    serializeCenter(base, { resource: resource.id, resourceTab: null }),
+                    clearCredentialView
+                  )
+                }
               />
             ))}
           </>
@@ -321,41 +363,13 @@ export function IntegrationCenter({
           </section>
         )}
       </div>
-      {editing?.canEdit === false && editing.kind !== 'credential' ? (
-        <ResourceDetails resource={editing} onClose={() => void setView({ resource: null })} />
-      ) : (
-        library &&
-        (creating || editing) && (
-          <ResourceEditor
-            key={editing?.id ?? creating}
-            resource={editing?.kind !== 'credential' ? editing : undefined}
-            kind={editing?.kind ?? creating ?? 'skill'}
-            data={library.data}
-            apps={apps}
-            onClose={() => {
-              setCreating(null)
-              void setView({ resource: null })
-            }}
-            onSave={library.save}
-            onDelete={editing ? () => setDeleting(editing) : undefined}
-          />
-        )
-      )}
-      {deleting && library && (
-        <Modal
-          open
-          title={`Delete ${deleting.name}?`}
-          description='This removes it from your integrations.'
-          confirmLabel='Delete'
-          destructive
-          onOpenChange={(open) => {
-            if (!open) setDeleting(null)
-          }}
-          onConfirm={() => {
-            library.remove(deleting.id)
-            setDeleting(null)
-            void setView({ resource: null })
-          }}
+      {creating === 'credential' && library && (
+        <ResourceEditor
+          kind='credential'
+          data={library.data}
+          apps={apps}
+          onClose={() => setCreating(null)}
+          onSave={library.save}
         />
       )}
     </div>

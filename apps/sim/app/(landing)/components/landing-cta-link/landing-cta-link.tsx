@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink, type ChipLinkProps, cn } from '@sim/emcn'
+import { ChipLink, type ChipLinkProps, cn } from '@sim/emcn-legacy'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { trackLandingCta } from '@/app/(landing)/track-landing-cta'

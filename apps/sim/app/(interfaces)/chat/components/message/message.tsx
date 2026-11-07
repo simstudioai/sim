@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Button, Check, cn, Duplicate, handleKeyboardActivation, Tooltip } from '@sim/emcn'
-import { File as FileIcon, FileText, ImageUp as ImageIcon } from '@sim/emcn/icons'
+import { Button, Check, cn, Duplicate, handleKeyboardActivation, Tooltip } from '@sim/emcn-legacy'
+import { File as FileIcon, FileText, ImageUp as ImageIcon } from '@sim/emcn-legacy/icons'
 import {
   AgentStreamThinkingChrome,
   AgentStreamToolCallsChrome,

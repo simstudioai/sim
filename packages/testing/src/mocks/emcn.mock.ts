@@ -30,7 +30,7 @@ const mockToast = Object.assign(vi.fn(nextToastId), {
 })
 
 /**
- * Controllable mock functions for the non-component surface of `@sim/emcn`.
+ * Controllable mock functions for the non-component surface of `@sim/emcn-legacy`.
  *
  * - `mockToast` is the imperative `toast`: a callable `vi.fn()` carrying `success`/`error`/
  *   `warning`/`info`/`dismiss`/`dismissAll` `vi.fn()`s (no provider needed). `toast()` and each
@@ -58,15 +58,15 @@ export const emcnMockFns = {
 }
 
 /**
- * Mock module for `@sim/emcn` covering ONLY its non-component surface: `toast`, `useToast`,
+ * Mock module for `@sim/emcn-legacy` covering ONLY its non-component surface: `toast`, `useToast`,
  * `ToastProvider` (renders `children`) and `cn`. Components are deliberately absent — the local
  * component shims differ per test (what each renders and which props it forwards), so a test that
  * renders emcn components spreads this object and adds its own shims.
  *
  * @example
  * ```ts
- * vi.mock('@sim/emcn', () => emcnMock)
- * vi.mock('@sim/emcn', () => ({ ...emcnMock, Button: ({ children }) => <button>{children}</button> }))
+ * vi.mock('@sim/emcn-legacy', () => emcnMock)
+ * vi.mock('@sim/emcn-legacy', () => ({ ...emcnMock, Button: ({ children }) => <button>{children}</button> }))
  * ```
  */
 export const emcnMock = {

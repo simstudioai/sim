@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AuthButton as Chip } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
 import { getErrorMessage } from '@sim/utils/errors'
 import { client } from '@/lib/auth/client'
 import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'

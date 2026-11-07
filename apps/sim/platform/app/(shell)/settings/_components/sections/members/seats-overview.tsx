@@ -1,12 +1,10 @@
+import { Button } from '@sim/emcn/button'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { Button, FailureNotice, StatusTag } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import type { useMembers } from '@/platform/lib/data/members'
 import { plural } from '@/platform/shared/plural'
 

@@ -1,6 +1,9 @@
 'use client'
 
 import { memo, type ReactNode, useState } from 'react'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
@@ -17,9 +20,6 @@ import {
 import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
 import { toast } from '@/platform/shared/toast'
 

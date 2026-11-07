@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 
 import { act, useRef, useState } from 'react'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import { useRemovedRowFocus } from '@/platform/shared/use-removed-row-focus'
 
 const previousFocus = new WeakMap<HTMLDialogElement, HTMLElement | null>()

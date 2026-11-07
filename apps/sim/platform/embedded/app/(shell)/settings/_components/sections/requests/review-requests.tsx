@@ -1,21 +1,15 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Pagination } from '@sim/emcn/pagination'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
+import { Switch } from '@sim/emcn/switch'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
-import {
-  Button,
-  EmptyState,
-  errorMessageOr,
-  Pagination,
-  QueryBoundary,
-  SectionSearch,
-  Select,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { HeadingRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/review-modal'
@@ -83,8 +77,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
       <HeadingRow>
         <h2 data-type='T042'>{list.count === undefined ? 'Requests' : `Requests ${list.count}`}</h2>
         <span className={styles.filter}>
-          <Select
-            variant='quiet'
+          <ChoiceMenu
             label='Filter request status'
             options={REQUEST_STATUS_OPTIONS}
             value={list.status}

@@ -1,7 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
+import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
 import type { OrganizationSummaryRequest } from '@/lib/organizations/search-params'
 import {
@@ -16,7 +17,6 @@ import {
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
-import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { PageContextDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 import { PageComposer } from '@/platform/embedded/app/(shell)/_components/conversation/page-composer'

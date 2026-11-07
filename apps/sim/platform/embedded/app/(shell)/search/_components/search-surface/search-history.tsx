@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button, Chip } from '@sim/emcn/button'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import { FailureNotice } from '@sim/emcn/status'
 import { useOrganization } from '@/lib/organizations/provider'
-import { Button, Chip } from '@/platform/design-system/components/button/button'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { FailureNotice } from '@/platform/design-system/components/status/status'
 import { CompactSourceRow } from '@/platform/embedded/app/(shell)/_components/search/source-row'
 import styles from '@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.module.css'
 import { useSearchLandingHistory } from '@/platform/embedded/lib/data/search-history'

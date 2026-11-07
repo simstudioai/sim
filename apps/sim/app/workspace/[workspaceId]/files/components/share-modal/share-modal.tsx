@@ -10,8 +10,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
-import { Check, Link, Send } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Link, Send } from '@sim/emcn-legacy/icons'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { SimLinkChip } from '@/app/o/[organizationId]/links/sim-link-shortcut'

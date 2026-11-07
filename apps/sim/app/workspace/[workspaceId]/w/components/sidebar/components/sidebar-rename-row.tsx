@@ -1,5 +1,5 @@
 import type { ComponentPropsWithRef, ReactNode } from 'react'
-import { chipVariants } from '@sim/emcn'
+import { chipVariants } from '@sim/emcn-legacy'
 
 interface SidebarRenameRowProps
   extends Omit<ComponentPropsWithRef<'input'>, 'children' | 'className' | 'type'> {

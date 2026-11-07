@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { StatusPage } from '@/components/status-page'
 

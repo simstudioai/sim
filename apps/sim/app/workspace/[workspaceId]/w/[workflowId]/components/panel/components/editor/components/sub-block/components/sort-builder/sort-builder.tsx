@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Button, type ComboboxOption } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Button, type ComboboxOption } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { generateId } from '@sim/utils/id'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTION_OPTIONS, type SortRule } from '@/lib/table/query-builder/constants'

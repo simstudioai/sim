@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { FailureNotice } from '@sim/emcn/status'
+import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { toError } from '@sim/utils/errors'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
 import {
@@ -27,17 +34,6 @@ import {
 } from '@/ee/data-retention/lib/policy-draft'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  ActivityRow,
-  Button,
-  EmptyState,
-  errorMessageOr,
-  FailureNotice,
-  LoadingRows,
-  QueryBoundary,
-  RowList,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   DraftConflictNotice,
   SectionStack,

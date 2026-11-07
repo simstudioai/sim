@@ -9,11 +9,12 @@
  * first paint, so the surface needs no JavaScript to match it and cannot flash the wrong theme before
  * hydration. `scripts/check-platform-css.ts` compiles the entry through this plugin and verifies it.
  */
-const EMBEDDED_ENTRY = 'platform/design-system/styles/embedded.css'
+const EMBEDDED_ENTRY = 'emcn-platform/src/styles/platform.css'
 const SCOPE = '[data-platform-ui]'
 const DARK_THEME = /^\[data-platform-ui\]\[data-theme=["']?dark["']?\]/
 
 function scopeSelector(selector) {
+  selector = selector.replaceAll('[data-emcn]', SCOPE)
   if (DARK_THEME.test(selector)) {
     const followsHost = selector.replace(
       DARK_THEME,

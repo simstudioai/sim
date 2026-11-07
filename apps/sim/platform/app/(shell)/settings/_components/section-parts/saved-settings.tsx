@@ -1,15 +1,15 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
+import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings.module.css'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { FailureNotice, IconButton, Switch, Tooltip } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import { publicAssetPath } from '@/platform/design-system/navigation'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
+import { publicAssetPath } from '@/platform/lib/navigation'
 
 interface SavedSettingsSectionProps {
   title: string

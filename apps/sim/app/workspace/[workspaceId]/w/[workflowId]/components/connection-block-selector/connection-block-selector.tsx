@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Button, cn } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { Command } from 'cmdk'

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import {
   LANDING_STAGE_WINDOW_RADIUS,
   LANDING_WINDOW_SHADOW,

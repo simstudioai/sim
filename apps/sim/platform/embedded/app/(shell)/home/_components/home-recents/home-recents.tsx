@@ -1,6 +1,6 @@
 'use client'
 
-import { RecentItems } from '@/platform/design-system/components/recent-items/recent-items'
+import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { SiteMark } from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark'
 import type { HomeRecentItem } from '@/platform/embedded/lib/data/home-view'
 

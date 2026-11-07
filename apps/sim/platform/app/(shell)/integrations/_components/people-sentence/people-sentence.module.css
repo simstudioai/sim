@@ -1,0 +1,32 @@
+.sentence,
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+}
+.sentence {
+  color: var(--ui-secondary);
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+@supports (text-box-trim: trim-both) {
+  .text {
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+    padding-block: calc((1lh - 1cap) / 2);
+  }
+}
+.segment {
+  max-inline-size: 100%;
+  white-space: nowrap;
+}
+.segment > [aria-hidden] {
+  display: inline-flex;
+  flex: none;
+}
+.segment[data-person] > :last-child {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

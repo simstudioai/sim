@@ -23,8 +23,8 @@ import {
   ChipSelect,
   type ChipSelectOption,
   Label,
-} from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { BrowserNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-notice'
 
 /** Keeps a click or keystroke aimed at the page from answering a prompt as it appears. */

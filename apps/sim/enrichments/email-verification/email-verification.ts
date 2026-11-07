@@ -1,4 +1,4 @@
-import { ShieldCheck } from '@sim/emcn/icons'
+import { ShieldCheck } from '@sim/emcn-legacy/icons'
 import { str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 

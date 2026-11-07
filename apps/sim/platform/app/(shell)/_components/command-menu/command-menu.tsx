@@ -1,7 +1,7 @@
+import { CommandPalette } from '@sim/emcn/command-palette'
+import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type { ShellChat, ShellData } from '@/platform/app/(shell)/_components/model'
-import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 

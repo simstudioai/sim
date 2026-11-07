@@ -1,0 +1,22 @@
+:global([data-auth-root]) .heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--emcn-space-6);
+}
+:global([data-auth-root]) .heading h1 {
+  font-family: var(--auth-font);
+  font-size: var(--auth-title-size);
+  line-height: var(--auth-title-leading);
+  font-weight: 500;
+  color: var(--auth-primary);
+  letter-spacing: -0.02em;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .heading p {
+  color: var(--auth-primary);
+  font-size: var(--auth-body-size);
+  line-height: var(--auth-body-leading);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

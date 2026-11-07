@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { AutofillDecoys } from '@sim/emcn/field/autofill-decoys'
+import { SecretField } from '@sim/emcn/field/value-fields'
 import { maskedClientSecret } from '@/ee/sso/lib/provider-form'
-import { AutofillDecoys, Button, SecretField, TextField } from '@/platform/design-system/components'
 import { ActionRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/client-secret-field.module.css'
 

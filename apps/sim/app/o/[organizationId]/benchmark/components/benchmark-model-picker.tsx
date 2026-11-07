@@ -1,4 +1,4 @@
-import { ChipSelect } from '@sim/emcn'
+import { ChipSelect } from '@sim/emcn-legacy'
 import { type BenchmarkModelConfig, benchmarkModelConfigSchema } from '@/lib/benchmarks/models'
 import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipInput, Search } from '@sim/emcn'
+import { ChipInput, Search } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,

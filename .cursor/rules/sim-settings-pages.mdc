@@ -186,7 +186,7 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   ships a nameless button rather than failing the build.
 - `navigable` — appends the one canonical chevron. Set it on rows that open a
   detail page; leave it off when `onClick` acts in place (revealing a folder).
-  Never import an arrow yourself: `lucide-react` and `@sim/emcn/icons` ship
+  Never import an arrow yourself: `lucide-react` and `@sim/emcn-legacy/icons` ship
   visibly different glyphs, and the row already picked one. A sanctioned bespoke
   row (below) draws it with `RESOURCE_ROW_ARROW_CLASSES` from the same module.
 - `trailing` vs `badge` — `trailing` is for **interactive** controls (a `Chip`, a

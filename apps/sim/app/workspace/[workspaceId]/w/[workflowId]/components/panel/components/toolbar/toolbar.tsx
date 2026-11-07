@@ -20,8 +20,8 @@ import {
   handleKeyboardActivation,
   Info,
   OverflowText,
-} from '@sim/emcn'
-import { ChevronDown, Lock, Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, Lock, Search } from '@sim/emcn-legacy/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/utils'

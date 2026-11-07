@@ -6,7 +6,7 @@ import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'

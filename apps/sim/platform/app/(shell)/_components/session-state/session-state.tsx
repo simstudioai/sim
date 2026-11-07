@@ -1,8 +1,8 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
 import styles from '@/platform/app/(shell)/_components/session-state/session-state.module.css'
 import { SettingsLeaveGuard } from '@/platform/app/(shell)/_components/session-state/settings-leave-guard'
-import { Button } from '@/platform/design-system/components'
 import { useImpersonation, useSessionRecovery } from '@/platform/lib/data/session'
 
 function ImpersonationBanner() {

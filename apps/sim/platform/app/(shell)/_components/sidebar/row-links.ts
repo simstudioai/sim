@@ -1,5 +1,5 @@
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { isAbsoluteHref, publicAssetPath } from '@/platform/design-system/navigation'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { isAbsoluteHref, publicAssetPath } from '@/platform/lib/navigation'
 import { createRowLinks } from '@/platform/shared/row-links'
 
 const links = createRowLinks((href) => (isAbsoluteHref(href) ? href : publicAssetPath(href)))

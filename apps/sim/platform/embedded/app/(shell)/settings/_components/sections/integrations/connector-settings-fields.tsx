@@ -1,5 +1,10 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
@@ -7,14 +12,6 @@ import {
   CONNECTOR_SWITCH_NOTICE,
   useConnectorSettingsFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
-import {
-  Button,
-  Disclosure,
-  FailureNotice,
-  InlineNotice,
-  SearchableSelect,
-  SecretField,
-} from '@/platform/design-system/components'
 import {
   ActionRow,
   Muted,

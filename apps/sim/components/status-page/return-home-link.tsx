@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 
 /** A document navigation initializes the landing theme when leaving an app status page. */
 export function ReturnHomeLink() {

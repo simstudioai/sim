@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipCombobox, ChipModalError, ChipModalField, ChipSelect } from '@sim/emcn'
-import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
+import { Chip, ChipCombobox, ChipModalError, ChipModalField, ChipSelect } from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight, Plus } from '@sim/emcn-legacy/icons'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'

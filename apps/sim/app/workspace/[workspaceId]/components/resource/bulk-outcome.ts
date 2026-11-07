@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 
 /** An item the batch reached but could not act on, with a reason worth showing. */
 interface BulkFailure {

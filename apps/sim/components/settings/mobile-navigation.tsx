@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipSelect, SimWordmark } from '@sim/emcn'
-import { ChevronLeft } from '@sim/emcn/icons'
+import { Chip, ChipSelect, SimWordmark } from '@sim/emcn-legacy'
+import { ChevronLeft } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import {
   SETTINGS_PLANE_CHROME,

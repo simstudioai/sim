@@ -8,7 +8,7 @@ paths:
 
 # Styling Rules
 
-This guide applies to the existing app. For `apps/sim/platform/**`, use `apps/sim/platform/AGENTS.md`.
+This guide applies to unreplaced routes using the legacy component library. Modern Auth, Docs and Platform follow `packages/emcn/AGENTS.md` and `packages/emcn/README.md`; Platform also follows `apps/sim/platform/AGENTS.md`.
 
 ## Tailwind
 
@@ -26,7 +26,7 @@ This guide applies to the existing app. For `apps/sim/platform/**`, use `apps/si
 ## Conditional Classes
 
 ```typescript
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 <div className={cn(
   'base-classes',
@@ -58,7 +58,7 @@ Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), n
 
 ## Text Overflow
 
-Use `OverflowText` from `@sim/emcn` for a constrained, single-line, read-only human label or title. It owns `min-w-0`, fade-only clipping, the conditional edge mask, and the full-value floating tooltip; pass only layout and typography through `className`. Never combine a fade or hand-written `mask-image` with `truncate`/`text-ellipsis`, and never remove the mask on hover to reveal an ellipsis. Pass the full label instead of shortening it in JavaScript first. Components that must measure a label externally use the complete `overflowTextClipClass` + conditional `overflowTextFadeClass` pair.
+Use `OverflowText` from `@sim/emcn-legacy` for a constrained, single-line, read-only human label or title. It owns `min-w-0`, fade-only clipping, the conditional edge mask, and the full-value floating tooltip; pass only layout and typography through `className`. Never combine a fade or hand-written `mask-image` with `truncate`/`text-ellipsis`, and never remove the mask on hover to reveal an ellipsis. Pass the full label instead of shortening it in JavaScript first. Components that must measure a label externally use the complete `overflowTextClipClass` + conditional `overflowTextFadeClass` pair.
 
 For a non-editable `Combobox` visual overlay, pass the same full plain value as `overlayLabel`. The combobox owns the visible overlay's fade and keeps the one reachable full-value tooltip on its interactive layer; consumers provide only the overlay's decorated content.
 
@@ -68,7 +68,7 @@ Do not apply the fade universally to editable or mirrored input values, code, lo
 
 ## Scroll Edges
 
-A scroll region that can hide rows past an edge uses `useScrollEdges` with `scrollFadeClass` + `scrollFadeAttributes` from `@sim/emcn`: a 12px fade at an edge only while content is hidden beyond it, never at rest. The region's baseline padding lives on the scroll box itself (so rows pass through it under the fade), and the divider at that edge is drawn by the neighboring block, conditional on the same edge. Never hand-roll a `mask-image` gradient or a `scrollTop > 0` effect for this.
+A scroll region that can hide rows past an edge uses `useScrollEdges` with `scrollFadeClass` + `scrollFadeAttributes` from `@sim/emcn-legacy`: a 12px fade at an edge only while content is hidden beyond it, never at rest. The region's baseline padding lives on the scroll box itself (so rows pass through it under the fade), and the divider at that edge is drawn by the neighboring block, conditional on the same edge. Never hand-roll a `mask-image` gradient or a `scrollTop > 0` effect for this.
 
 ## Font Weight
 
@@ -92,9 +92,9 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 
 ## Chip Components (consumer usage)
 
-The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Import components, `cn`, and tokens from the `@sim/emcn` barrel and icons from `@sim/emcn/icons`; never deep-import other component subpaths. Never update global styles; keep styling local to the component.
+The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Import components, `cn`, and tokens from the `@sim/emcn-legacy` barrel and icons from `@sim/emcn-legacy/icons`; never deep-import other component subpaths. Never update global styles; keep styling local to the component.
 
-`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
+`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn-legacy/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn-legacy` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
 

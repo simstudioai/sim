@@ -6,7 +6,7 @@
  */
 import '@/lib/core/utils/browser-polyfills'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { bindPreviewWheelZoom } from '@sim/emcn'
+import { bindPreviewWheelZoom } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
 import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'

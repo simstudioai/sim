@@ -1,21 +1,18 @@
 'use client'
 
 import { type ReactNode, useRef, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import type {
   OrganizationUsageBreakdown,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-import {
-  ActionMenu,
-  Avatar,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  OverflowText,
-  TableLabel,
-} from '@/platform/design-system/components'
-import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 import { ProviderMark } from '@/platform/embedded/app/(shell)/_components/provider-mark/provider-mark'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import type { UsageList } from '@/platform/embedded/lib/data/usage'

@@ -1,32 +1,29 @@
 'use client'
 
-import * as React from 'react'
-import * as SwitchPrimitives from '@radix-ui/react-switch'
-import { cn } from '../../lib/cn'
+import { Switch as BaseSwitch } from '@base-ui/react/switch'
+import styles from '#emcn/components/switch/switch.module.css'
 
-/**
- * Switch component styled to match Sim's design system.
- * Uses brand color for checked state, neutral border for unchecked.
- */
-const Switch = React.memo(
-  React.forwardRef<
-    React.ElementRef<typeof SwitchPrimitives.Root>,
-    React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
-  >(({ className, disabled, ...props }, ref) => (
-    <SwitchPrimitives.Root
+interface SwitchProps {
+  label: string
+  checked?: boolean
+  defaultChecked?: boolean
+  disabled?: boolean
+  onCheckedChange?: (checked: boolean) => void
+}
+
+export function Switch({ label, checked, defaultChecked, disabled, onCheckedChange }: SwitchProps) {
+  return (
+    <BaseSwitch.Root
+      aria-label={label}
+      checked={checked}
+      defaultChecked={defaultChecked}
       disabled={disabled}
-      className={cn(
-        'peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors before:absolute before:inset-[-12px] before:content-[""] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)] data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--text-primary)] data-[disabled]:opacity-50',
-        className
-      )}
-      {...props}
-      ref={ref}
+      onCheckedChange={onCheckedChange}
+      className={styles.target}
     >
-      <SwitchPrimitives.Thumb className='pointer-events-none block size-4 rounded-full bg-[var(--surface-2)] shadow-xs ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
-    </SwitchPrimitives.Root>
-  ))
-)
-
-Switch.displayName = 'Switch'
-
-export { Switch }
+      <span className={styles.track}>
+        <BaseSwitch.Thumb className={styles.thumb} />
+      </span>
+    </BaseSwitch.Root>
+  )
+}

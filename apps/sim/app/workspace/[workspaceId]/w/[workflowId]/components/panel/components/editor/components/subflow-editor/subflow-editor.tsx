@@ -7,8 +7,8 @@ import {
   getCodeEditorProps,
   Input,
   Label,
-} from '@sim/emcn'
-import { ChevronUp } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronUp } from '@sim/emcn-legacy/icons'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {

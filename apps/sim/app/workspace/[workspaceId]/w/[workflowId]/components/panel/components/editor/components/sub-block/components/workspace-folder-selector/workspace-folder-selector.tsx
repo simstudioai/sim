@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Combobox } from '@sim/emcn'
+import { Combobox } from '@sim/emcn-legacy'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { readFolderPath, readFolderPaths } from '@/lib/folders/selection'

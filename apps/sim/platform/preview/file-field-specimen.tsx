@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileField } from '@/platform/design-system/components'
+import { FileField } from '@sim/emcn/field/file-field'
 
 interface FileFieldSpecimenProps {
   label: string

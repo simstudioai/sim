@@ -1,0 +1,54 @@
+.root,
+.pane {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.pane[hidden] {
+  display: none;
+}
+.strip {
+  display: grid;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-list-gap);
+}
+.tabs > * {
+  min-inline-size: var(--spacing-64);
+  flex: 0 1 var(--panel-tab-width);
+}
+.contentRoot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+}
+.contentPane {
+  min-inline-size: 0;
+}
+.contentHeader {
+  display: flex;
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+}
+.contentNavigation {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.contentActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  margin-inline-start: auto;
+}

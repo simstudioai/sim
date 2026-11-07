@@ -1,5 +1,5 @@
 import { type ComponentType, StrictMode, useState } from 'react'
-import { Chip, ChipInput, ToastProvider, toast } from '@sim/emcn'
+import { Chip, ChipInput, ToastProvider, toast } from '@sim/emcn-legacy'
 import { PathnameContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime'
 import { createRoot } from 'react-dom/client'
 

@@ -1,4 +1,4 @@
-import { Table } from '@sim/emcn/icons'
+import { Table } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'

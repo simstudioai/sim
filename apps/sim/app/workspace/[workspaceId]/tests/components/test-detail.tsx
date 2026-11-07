@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { toast } from '@sim/emcn'
-import { Columns2, Eye, Pencil, PlayOutline, ShieldCheck } from '@sim/emcn/icons'
+import { toast } from '@sim/emcn-legacy'
+import { Columns2, Eye, Pencil, PlayOutline, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { WorkflowTestDetail } from '@/lib/api/contracts/workflow-tests'

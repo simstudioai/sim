@@ -187,13 +187,18 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('#status')).toBeHidden()
     await expect
       .poll(() =>
-        window.evaluate(async () => {
-          const fonts = await document.fonts.load('14px "Sim Auth Geist"')
+        window.locator('#title').evaluate(async (element) => {
+          const { fontFamily, fontSize, fontWeight } = getComputedStyle(element)
+          const fonts = await document.fonts.load(`${fontWeight} ${fontSize} ${fontFamily}`)
           return fonts.length > 0 && fonts.every((font) => font.status === 'loaded')
         })
       )
       .toBe(true)
     await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
+    await window.screenshot({
+      path: test.info().outputPath('offline.png'),
+      animations: 'disabled',
+    })
   })
 
   test('offline title-bar geometry follows native fullscreen state across reloads', async () => {

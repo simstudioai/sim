@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import { Chip, DropdownMenuTrigger, OverflowText, Tooltip } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Chip, DropdownMenuTrigger, OverflowText, Tooltip } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 
 interface ModelSettingTriggerProps {
   label: string

@@ -1,18 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
 import {
   ActionRow,
   FieldStack,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  InlineNotice,
-  SearchableSelect,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 

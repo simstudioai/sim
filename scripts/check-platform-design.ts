@@ -13,21 +13,30 @@
  * rewritten, so it only shrinks. Regenerate after removing findings with `--update`, which refuses
  * to raise a count; `--update --init` only creates a missing baseline.
  */
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
+import { emcnPackages, emcnTypeScriptPaths, resolveEmcnImport } from './emcn-packages'
 import { productUsage } from './platform-variant-usage'
 
-const repository = path.resolve(
+const root = path.resolve(
   process.argv.slice(2).find((argument) => !argument.startsWith('--')) ??
     path.resolve(import.meta.dir, '..')
 )
-const app = path.join(repository, 'apps/sim')
-const baselinePath = path.join(repository, 'scripts/check-platform-design.baseline.json')
+const app = path.join(root, 'apps/sim')
+const baselinePath = path.join(root, 'scripts/check-platform-design.baseline.json')
+const packages = emcnPackages(root)
 const platform = 'platform/'
-const system = 'platform/design-system/'
-const foundation = `${system}styles/`
+const shared = '../../packages/emcn/src/'
+const system = '../../packages/emcn-platform/src/'
+const systems = [shared, system]
+const packageSources = packages.map((owner) => `${path.relative(app, owner.source)}/`)
+const isSystem = (file: string) => systems.some((owner) => file.startsWith(owner))
+const isComponent = (file: string) =>
+  systems.some((owner) => file.startsWith(`${owner}components/`))
+const isFoundation = (file: string) => systems.some((owner) => file.startsWith(`${owner}styles/`))
+const isCatalog = (file: string) => systems.some((owner) => file.startsWith(`${owner}catalog/`))
 const catalog = `${system}catalog/`
 const variantsPath = `${catalog}variants.json`
 const evidencePath = `${catalog}evidence.json`
@@ -61,6 +70,31 @@ function report(rule: string, location: string, message: string) {
     rule,
     file: location.replace(/:\d+$/, ''),
   })
+}
+
+for (const owner of packages) {
+  for (const dependency of Object.keys({
+    ...owner.manifest.dependencies,
+    ...owner.manifest.peerDependencies,
+  })) {
+    if (dependency === '@sim/emcn-legacy')
+      report(
+        'legacy-import',
+        path.relative(app, path.join(owner.directory, 'package.json')),
+        dependency
+      )
+    if (
+      packages.some(
+        (target) =>
+          target.name === dependency && target.name !== '@sim/emcn' && target.name !== owner.name
+      )
+    )
+      report(
+        'design-dependency',
+        path.relative(app, path.join(owner.directory, 'package.json')),
+        dependency
+      )
+  }
 }
 
 function* files(dir = ''): Generator<string> {
@@ -168,11 +202,11 @@ const HOST_TOKENS: ReadonlySet<string> = new Set([
   '--z-tooltip',
 ])
 /** The one table cell whose width is a caller's value, carried to its CSS as a custom property. */
-const COLUMN_WIDTH_OWNER = 'platform/design-system/components/data-display/data-display'
+const COLUMN_WIDTH_OWNER = `${shared}components/data-display/data-display`
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
   'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
-  'platform/design-system/components/page-column/page-column.module.css',
+  `${system}components/page-column/page-column.module.css`,
 ])
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
@@ -385,6 +419,8 @@ const seamClosureBanned = /^(?:blocks|tools)\/registry\.tsx?$/
 const seamPackages =
   /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates)(?:\/|$)/
 function resolveImport(file: string, specifier: string) {
+  const workspace = resolveEmcnImport(packages, specifier, path.join(app, file))
+  if (workspace) return path.relative(app, workspace)
   if (specifier.startsWith('@/')) return path.normalize(specifier.slice(2))
   if (specifier.startsWith('.')) return path.normalize(path.join(path.dirname(file), specifier))
   return null
@@ -396,9 +432,33 @@ const privateRoute = (file: string) => Boolean(privateRouteOwner(file))
 
 function checkImport(file: string, specifier: string, dynamic = false, typesOnly = false) {
   const target = resolveImport(file, specifier)
-  const inPlatform = file.startsWith(platform)
+  const inPlatform = file.startsWith(platform) || isSystem(file)
   const inEmbedded = file.startsWith(embedded)
-  const primitive = file.startsWith(`${system}components/`)
+  const primitive = isComponent(file)
+  const modernPackage =
+    file.startsWith('../../packages/emcn') && !file.startsWith('../../packages/emcn-legacy/')
+  if (/^@sim\/emcn(?:-auth|-docs|-platform)?$/.test(specifier))
+    report('family-import', file, 'Import the public EMCN family subpath')
+  if (modernPackage && /^@sim\/emcn-legacy(?:\/|$)/.test(specifier))
+    report('legacy-import', file, specifier)
+  const packageOwner = packages.find((owner) =>
+    path.join(app, file).startsWith(owner.source + path.sep)
+  )
+  const targetOwnerPackage =
+    target && packages.find((owner) => path.join(app, target).startsWith(owner.source + path.sep))
+  if (
+    packageOwner &&
+    targetOwnerPackage &&
+    targetOwnerPackage.name !== '@sim/emcn' &&
+    targetOwnerPackage.name !== packageOwner.name
+  )
+    report(
+      'design-dependency',
+      file,
+      'Surface packages compose Shared, never another surface package'
+    )
+  if (modernPackage && target && !target.startsWith('../../packages/'))
+    report('design-dependency', file, 'EMCN packages cannot import application code')
   if (inPlatform && /^@base-ui\/react(?:\/|$)/.test(specifier) && !primitive)
     report('primitive-owner', file, 'Use the Platform component that owns this Base UI primitive')
   if (
@@ -412,15 +472,10 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Render an EMCN component; static Paper specimens belong in the workbench'
     )
   const targetOwner = target && privateRouteOwner(target)
-  if (
-    target?.endsWith('.module.css') &&
-    (targetOwner || target.startsWith(`${system}components/`))
-  ) {
+  if (target?.endsWith('.module.css') && (targetOwner || isComponent(target))) {
     const sameFamily = path.dirname(file) === path.dirname(target)
     const sharedPrimitiveRecipe =
-      primitive &&
-      target.startsWith(`${system}components/`) &&
-      target.endsWith('.shared.module.css')
+      primitive && isComponent(target) && target.endsWith('.shared.module.css')
     if (!sameFamily && !sharedPrimitiveRecipe)
       report('private-recipe', file, `Use the component that owns ${specifier}; its CSS is private`)
   }
@@ -449,12 +504,12 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     target !== null &&
     (seamHelpers.has(target) ||
       seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
-  // The zone and the organization views share only the design system and `platform/shared`: the zone
+  // The zone and the organization views share only the EMCN packages and `platform/shared`: the zone
   // is a separate app, and what the views import from the host would ride into it.
   if (inPlatform && !inEmbedded && target?.startsWith(embedded))
     report('zone-embedded', file, `The zone may not import the organization views: ${specifier}`)
   // Both trees already build on the design system, so a shared model may name its icon or menu types.
-  const sharedNamesDesignSystemType = typesOnly && target?.startsWith(system)
+  const sharedNamesDesignSystemType = typesOnly && Boolean(target && isSystem(target))
   if (
     file.startsWith('platform/shared/') &&
     target &&
@@ -462,27 +517,28 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     !sharedNamesDesignSystemType
   )
     report('zone-embedded', file, `platform/shared may only import itself: ${specifier}`)
-  if (inEmbedded && target && /^platform\/(?!embedded\/|design-system\/|shared\/)/.test(target))
+  if (inEmbedded && target && /^platform\/(?!embedded\/|shared\/)/.test(target))
     report('zone-embedded', file, `The organization views may not import the zone: ${specifier}`)
   const hostMountsWhatItShips =
     file.startsWith(embeddedHost) &&
     Boolean(
       target?.startsWith(embedded) ||
-        target?.startsWith(system) ||
+        (target && isSystem(target)) ||
         target?.startsWith('platform/shared/')
     )
   // `embedded` is the one tree in `platform/` built on the host app: its views and data import the
   // host's hooks, stores and packages on purpose, as `check:boundaries` governs.
   if (
     (target &&
-      (target === 'platform' || target.startsWith(platform)) !== inPlatform &&
+      (((target === 'platform' || target.startsWith(platform)) && !inPlatform) ||
+        (inPlatform && !target.startsWith(platform) && !isSystem(target))) &&
       !seamTarget &&
       !hostMountsWhatItShips &&
       !inEmbedded &&
       !(legacyTest(file) && target?.startsWith(embedded))) ||
     (inPlatform &&
       !inEmbedded &&
-      /^@sim\/(?!utils(?:\/|$))/.test(specifier) &&
+      /^@sim\/(?!utils(?:\/|$)|emcn(?:-platform)?(?:\/|$))/.test(specifier) &&
       !(inSeam && seamPackages.test(specifier)) &&
       !(
         file === 'platform/app/(shell)/_components/desktop/desktop-host.tsx' &&
@@ -509,7 +565,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Only the flagged server loader may dynamically import fixture data'
     )
   }
-  if (file.startsWith(system) && target?.startsWith(platform) && !target.startsWith(system)) {
+  if (isSystem(file) && target?.startsWith(platform) && !isSystem(target)) {
     report('design-dependency', file, specifier)
   }
 }
@@ -565,11 +621,11 @@ const sheets = new Map<string, postcss.Root>()
 const classOwners = new Map<string, Set<string>>()
 const variantProps = new Set(Object.values(variants).flatMap((props) => Object.keys(props)))
 function checkCss(file: string, sheet: postcss.Root) {
-  const base = file.startsWith(foundation)
+  const base = isFoundation(file) || file === 'platform/styles/bootstrap.css'
   const preview = file.startsWith('platform/preview/')
   if (
     !base &&
-    (!(preview || file.startsWith(system) || privateRoute(file)) || !file.endsWith('.module.css'))
+    (!(preview || isSystem(file) || privateRoute(file)) || !file.endsWith('.module.css'))
   ) {
     report('css-owner', file, 'Move the recipe into its design owner')
   }
@@ -584,7 +640,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     }
     if (rule.name === 'apply') {
       if (
-        (!file.startsWith(system) && !privateRoute(file)) ||
+        (!isSystem(file) && !privateRoute(file)) ||
         rule.params.split(/\s+/).some((utility) => !themeUtility(utility))
       )
         report(
@@ -605,7 +661,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     )
       return
     if (
-      file === `${foundation}globals.css` &&
+      file === `${system}styles/platform.css` &&
       rule.selector === '[data-platform-ui] :focus' &&
       rule.nodes.every(
         (node) => node.type === 'decl' && node.prop === 'outline' && node.value === 'none'
@@ -615,7 +671,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     // Keyboard focus is visible, as review on the running app settled. Pointer focus stays unpainted.
     if (/:focus-visible/.test(rule.selector) && !/:focus(?!-visible)/.test(rule.selector)) return
     if (
-      file === `${system}components/search-field/search-field.module.css` &&
+      file === `${shared}components/search-field/search-field.module.css` &&
       rule.selector === '.search:is(:hover, :focus-within) .queryFrame::after' &&
       rule.nodes.every(
         (node) =>
@@ -626,7 +682,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     )
       return
     if (
-      file === `${foundation}embedded.css` &&
+      file === `${shared}styles/global.css` &&
       rule.selector === '[data-platform-ui] :focus' &&
       rule.nodes.every(
         (node) => node.type === 'decl' && node.prop === 'outline' && node.value === 'none'
@@ -687,8 +743,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     }
     const location = `${file}:${source?.start?.line ?? 1}`
     for (const [, token] of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
-      const positioned =
-        file.startsWith(`${system}components/`) && positionerMeasurements.has(token)
+      const positioned = isComponent(file) && positionerMeasurements.has(token)
       const columnWidth = token === '--column-width' && file.startsWith(COLUMN_WIDTH_OWNER)
       const hostToken = file.startsWith(embedded) && HOST_TOKENS.has(token)
       if (!tokens.has(token) && !positioned && !columnWidth && !hostToken)
@@ -731,12 +786,17 @@ function checkCss(file: string, sheet: postcss.Root) {
   })
 }
 
-const sourceFiles = [...files()]
+const sourceFiles = [
+  ...files(),
+  ...packages.flatMap((owner) =>
+    existsSync(owner.source) ? [...files(path.relative(app, owner.source))] : []
+  ),
+]
 const program = ts.createProgram(
   sourceFiles
     .filter(
       (file) =>
-        (file.startsWith(platform) || file.startsWith(embeddedHost)) &&
+        (file.startsWith(platform) || file.startsWith(embeddedHost) || isSystem(file)) &&
         /\.tsx?$/.test(file) &&
         !file.includes('/checks/')
     )
@@ -747,7 +807,7 @@ const program = ts.createProgram(
     target: ts.ScriptTarget.ESNext,
     jsx: ts.JsxEmit.Preserve,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
-    paths: { '@/platform/*': [path.join(app, 'platform/*')] },
+    paths: { '@/platform/*': [path.join(app, 'platform/*')], ...emcnTypeScriptPaths(packages) },
   }
 )
 const checker = program.getTypeChecker()
@@ -775,7 +835,7 @@ function componentName(node: ElementTag) {
   let symbol = checker.getSymbolAtLocation(node.tagName)
   if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
   const file = symbol?.valueDeclaration?.getSourceFile().fileName
-  if (file?.startsWith(path.join(app, system, 'components/'))) return symbol?.name
+  if (file && isComponent(path.relative(app, file))) return symbol?.name
 }
 
 function checkDialog(node: ElementTag, location: (node: ts.Node) => string) {
@@ -834,13 +894,27 @@ function checkDialog(node: ElementTag, location: (node: ts.Node) => string) {
   if (name === 'MultiStepModal' && steps) inspect(steps)
 }
 
+const svgOwners = new Map<string, readonly string[]>([
+  [`${shared}components/icon/icon.tsx`, ['Icon']],
+  [`${shared}components/brand/wordmark.tsx`, ['Wordmark']],
+  [`${shared}components/brand/provider-icon.tsx`, ['GoogleIcon', 'MicrosoftIcon', 'GithubIcon']],
+])
+
 function checkProps(name: string, node: ts.Node, file: string, owner: boolean) {
   const choices = new Map<string, Set<string | null>>()
   const type = checker.getTypeAtLocation(node)
   for (const shape of type.isUnion() ? type.types : [type]) {
     for (const member of shape.getProperties()) {
       const prop = member.getName()
-      if (['style', 'className', 'css', 'sx'].includes(prop) && !FLOW_CANVASES.has(file))
+      if (
+        ['style', 'className', 'css', 'sx'].includes(prop) &&
+        !FLOW_CANVASES.has(file) &&
+        !(
+          prop === 'className' &&
+          (svgOwners.get(file)?.includes(name) ||
+            (file === `${shared}components/brand/provider-icon.tsx` && name === 'ProviderIcon'))
+        )
+      )
         report('style-api', file, prop)
       if (
         !variants[name]?.[prop] &&
@@ -912,8 +986,9 @@ function runtimeImports(file: string): string[] {
 function resolveSource(file: string, specifier: string): string | null {
   const target = resolveImport(file, specifier)
   if (!target) return null
-  for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
-    if (existsSync(path.join(app, target + suffix))) return target + suffix
+  for (const suffix of ['', '.ts', '.tsx', '.cjs', '/index.ts', '/index.tsx']) {
+    if (statSync(path.join(app, target + suffix), { throwIfNoEntry: false })?.isFile())
+      return target + suffix
   }
   return null
 }
@@ -933,6 +1008,9 @@ function checkSeamClosure() {
         )
       : []
   )
+  const legacyShimmed =
+    existsSync(path.join(app, config)) &&
+    /resolve\.alias\[['"]@sim\/emcn-legacy\$['"]\]\s*=\s*emcnShim/.test(read(config))
   const visited = new Set<string>()
   const queue: string[] = []
   for (const file of files(dataSeam)) {
@@ -943,6 +1021,39 @@ function checkSeamClosure() {
   for (let file = queue.pop(); file; file = queue.pop()) {
     for (const specifier of runtimeImports(file)) {
       if (replaced.has(specifier)) continue
+      if (/^@sim\/emcn-legacy(?:\/|$)/.test(specifier)) {
+        if (specifier !== '@sim/emcn-legacy' || !legacyShimmed)
+          report(
+            'seam-closure',
+            file,
+            `Legacy EMCN bypasses the toast-only runtime adapter: ${specifier}`
+          )
+        else {
+          const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
+          for (const statement of source.statements) {
+            if (
+              !ts.isImportDeclaration(statement) ||
+              !ts.isStringLiteral(statement.moduleSpecifier) ||
+              statement.moduleSpecifier.text !== specifier ||
+              isTypesOnly(statement)
+            )
+              continue
+            const bindings = statement.importClause?.namedBindings
+            if (
+              statement.importClause?.name ||
+              !bindings ||
+              !ts.isNamedImports(bindings) ||
+              bindings.elements.some(
+                (binding) =>
+                  !binding.isTypeOnly &&
+                  !['toast', 'useToast'].includes((binding.propertyName ?? binding.name).text)
+              )
+            )
+              report('seam-closure', file, 'The legacy adapter exposes only toast and useToast')
+          }
+        }
+        continue
+      }
       const target = resolveSource(file, specifier)
       if (!target || visited.has(target)) continue
       visited.add(target)
@@ -959,8 +1070,14 @@ function checkSeamClosure() {
 }
 
 function checkJs(file: string, content: string) {
-  const inPlatform = file.startsWith(platform)
-  if (!inPlatform && !content.includes('platform')) return
+  const inPlatform = file.startsWith(platform) || isSystem(file)
+  if (
+    !inPlatform &&
+    !content.includes('platform') &&
+    !content.includes('@sim/emcn') &&
+    !file.startsWith('../../packages/')
+  )
+    return
   const programSource = program.getSourceFile(path.join(app, file))
   const sf =
     programSource ??
@@ -971,7 +1088,7 @@ function checkJs(file: string, content: string) {
       true,
       /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
     )
-  const owner = file.startsWith(system) || privateRoute(file)
+  const owner = isSystem(file) || privateRoute(file)
   const preview = file.startsWith('platform/preview/')
   const ownsTimeLabels =
     file === 'platform/shared/time.ts' ||
@@ -982,6 +1099,12 @@ function checkJs(file: string, content: string) {
   const primitives = new Set<string>()
   const location = (node: ts.Node) =>
     `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`
+  function ownsSvg(node: ElementTag) {
+    const fn = ts.findAncestor(node, ts.isFunctionDeclaration)
+    return (
+      node.tagName.getText(sf) === 'svg' && fn?.name && svgOwners.get(file)?.includes(fn.name.text)
+    )
+  }
   function visit(node: ts.Node) {
     if (inPlatform && !ownsTimeLabels) {
       const factory =
@@ -1076,15 +1199,15 @@ function checkJs(file: string, content: string) {
       /\b(?:in this preview|in preview mode|in this demo)\b/i.test(node.text)
     )
       report('product-copy', location(node), 'Keep development-mode messaging out of the product')
-    if (inPlatform && ts.isJsxSpreadAttribute(node))
+    if (inPlatform && ts.isJsxSpreadAttribute(node) && !ownsSvg(node.parent.parent))
       report('prop-spread', location(node), 'Pass named props explicitly')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
       if (programSource && inRouteTree(file)) checkDialog(node, location)
       if (
         tag === 'svg' &&
-        file !== `${system}components/icon/icon.tsx` &&
-        !file.startsWith(catalog) &&
+        !ownsSvg(node) &&
+        !isCatalog(file) &&
         !preview &&
         !node.attributes.properties.some(
           (attr) =>
@@ -1162,7 +1285,8 @@ function checkJs(file: string, content: string) {
             !calendarPlacement &&
             !(FLOW_CANVASES.has(file) && attr === 'className' && localClass) &&
             !(file.startsWith(COLUMN_WIDTH_OWNER) && attr === 'style') &&
-            !(native && attr === 'className' && (owner || preview) && localClass)
+            !(native && attr === 'className' && (owner || preview) && localClass) &&
+            !(ownsSvg(node) && attr === 'className')
           ) {
             report('consumer-style', location(prop), `${tag}.${attr}: pass a named variant`)
           }
@@ -1208,10 +1332,15 @@ function checkJs(file: string, content: string) {
   visit(sf)
 }
 for (const file of sourceFiles) {
-  if (file.startsWith(`${system}features/`))
+  if (packageSources.some((owner) => file.startsWith(`${owner}features/`)))
     report('feature-owner', file, 'Colocate product UI in the owning route’s _components directory')
   if (
-    (/^platform\/design-system\/components\/[^/]+$/.test(file) && !file.endsWith('/index.ts')) ||
+    (packageSources.some(
+      (owner) =>
+        file.startsWith(`${owner}components/`) &&
+        !file.slice(`${owner}components/`.length).includes('/')
+    ) &&
+      !file.endsWith('/index.ts')) ||
     (file.startsWith('platform/app/') && /\/_components\/[^/]+\.module\.css$/.test(file))
   )
     report(
@@ -1221,10 +1350,10 @@ for (const file of sourceFiles) {
     )
   const source = read(file)
   if (!file.endsWith('.css')) checkJs(file, source)
-  else if (file.startsWith(platform)) {
+  else if (file.startsWith(platform) || isSystem(file)) {
     const sheet = postcss.parse(source, { from: file })
     sheets.set(file, sheet)
-    if (file.startsWith(foundation))
+    if (isFoundation(file) || file === 'platform/styles/bootstrap.css')
       sheet.walkDecls(/^--/, (decl) => {
         tokens.add(decl.prop)
         if (decl.parent?.type === 'atrule' && decl.parent.name === 'theme')

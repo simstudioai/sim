@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import {
   HOME_INSET,
   HOME_TYPE,

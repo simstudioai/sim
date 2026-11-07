@@ -4,7 +4,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalSurface,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createRoot } from 'react-dom/client'
 import { initializeShellPage, mountShellModal, shellWindow } from '@/renderer/shell'
 import type { ShellDialogConfiguration } from '@/shared/shell'

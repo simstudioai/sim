@@ -1,11 +1,11 @@
 'use client'
 
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import type { HomeMode } from '@/platform/app/(shell)/_components/model'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { HomeComposer } from '@/platform/app/(shell)/home/_components/home-composer/home-composer'
 import { HomeDashboard } from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard'
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
-import { SegmentedControl } from '@/platform/design-system/components'
 
 const PROMPTS: Record<HomeMode, string> = {
   Build: 'What should we get done?',

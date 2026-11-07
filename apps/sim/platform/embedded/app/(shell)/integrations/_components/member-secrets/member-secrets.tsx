@@ -1,5 +1,5 @@
-import { Chip } from '@/platform/design-system/components/button/button'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
+import { Chip } from '@sim/emcn/button'
+import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import type { GenericSecrets } from '@/platform/shared/integrations'
 
 interface MemberSecretsProps {

@@ -1,4 +1,4 @@
-import { AuthButton, type AuthButtonProps } from '@sim/auth-ui'
+import { AuthButton, type AuthButtonProps } from '@sim/emcn-auth/button'
 
 interface AuthSubmitButtonProps extends AuthButtonProps {
   loadingLabel: string

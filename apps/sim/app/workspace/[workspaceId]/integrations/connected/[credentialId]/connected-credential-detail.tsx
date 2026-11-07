@@ -11,8 +11,8 @@ import {
   cn,
   Send,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'

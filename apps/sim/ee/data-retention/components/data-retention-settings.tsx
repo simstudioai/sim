@@ -14,8 +14,8 @@ import {
   OverflowText,
   Search,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'

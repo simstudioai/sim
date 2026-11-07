@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useHeadlessConsentUI } from '@c15t/nextjs/headless'
-import { Button, cn } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn-legacy'
 
 interface ConsentPreferencesTriggerProps {
   children: ReactNode

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 interface SegmentedMeterProps {
   /** How much of the allowance is consumed, in the same unit as `total`. */

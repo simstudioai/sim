@@ -5,7 +5,7 @@
 import { act } from 'react'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockApprove, mockUseWorkspaces } = vi.hoisted(() => ({
   mockApprove: vi.fn(),
@@ -75,6 +75,23 @@ const LOADED = {
 }
 
 describe('CliAuthView workspace loading', () => {
+  beforeEach(() => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('issues a personal key even when the approver is a workspace admin', () => {
     mockUseWorkspaces.mockReturnValue(LOADED)
     render()

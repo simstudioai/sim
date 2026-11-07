@@ -1,5 +1,5 @@
-import { ChipLink } from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { BookOpen } from '@sim/emcn-legacy/icons'
 
 interface EmptyStateDocsLinkProps {
   href: string

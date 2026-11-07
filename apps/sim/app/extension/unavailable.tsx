@@ -1,4 +1,4 @@
-import { Chip, ChipLink } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn-legacy'
 
 interface ExtensionUnavailableProps {
   scope: 'organization' | 'workspace' | 'chat'

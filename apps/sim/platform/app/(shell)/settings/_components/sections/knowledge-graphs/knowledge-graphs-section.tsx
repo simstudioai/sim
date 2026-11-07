@@ -1,20 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import {
-  Button,
-  FailureNotice,
-  Icon,
-  Modal,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useKnowledgeGraphs } from '@/platform/shared/knowledge-graphs'
 
 export default function KnowledgeGraphsSection({ organization }: SettingsSectionProps) {

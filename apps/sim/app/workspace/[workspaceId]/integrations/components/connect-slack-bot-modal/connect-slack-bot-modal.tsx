@@ -9,8 +9,8 @@ import {
   ChipInput,
   ChipModalField,
   Wizard,
-} from '@sim/emcn'
-import { Loader, Plus, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Loader, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'

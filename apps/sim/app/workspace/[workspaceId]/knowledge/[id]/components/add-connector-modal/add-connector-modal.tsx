@@ -15,8 +15,8 @@ import {
   ChipSelect,
   type ComboboxOption,
   OverflowText,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn-legacy/icons'
 import { getCanonicalScopesForProvider } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'

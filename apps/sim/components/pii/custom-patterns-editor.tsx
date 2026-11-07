@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipInput } from '@sim/emcn'
-import { Plus, Trash } from '@sim/emcn/icons'
+import { Chip, ChipInput } from '@sim/emcn-legacy'
+import { Plus, Trash } from '@sim/emcn-legacy/icons'
 import { customPatternError, MAX_CUSTOM_PII_PATTERNS } from '@/lib/guardrails/custom-patterns'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 

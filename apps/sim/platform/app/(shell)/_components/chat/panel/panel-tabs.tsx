@@ -1,13 +1,10 @@
 'use client'
 
+import { IconButton } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { type TabItem, Tabs } from '@sim/emcn/tabs'
 import styles from '@/platform/app/(shell)/_components/chat/panel/panel-tabs.module.css'
-import {
-  ActionMenu,
-  IconButton,
-  OverflowText,
-  type TabItem,
-  Tabs,
-} from '@/platform/design-system/components'
 
 interface PanelTabsProps {
   tabs: readonly TabItem[]

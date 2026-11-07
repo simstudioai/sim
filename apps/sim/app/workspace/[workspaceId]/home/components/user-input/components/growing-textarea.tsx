@@ -1,5 +1,5 @@
 import type { RefObject, TextareaHTMLAttributes } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { TEXTAREA_BASE_CLASSES } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
 

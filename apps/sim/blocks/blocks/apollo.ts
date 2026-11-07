@@ -1,4 +1,4 @@
-import { Users } from '@sim/emcn/icons'
+import { Users } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

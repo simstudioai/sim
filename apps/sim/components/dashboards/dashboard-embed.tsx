@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { cn, Tooltip } from '@sim/emcn'
+import { cn, Tooltip } from '@sim/emcn-legacy'
 import { useParams } from 'next/navigation'
 import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
 import { DashboardInteractionContext } from '@/components/dashboards/dashboard-interactions'

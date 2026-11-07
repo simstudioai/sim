@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 vi.mock('react', () => ({ useEffect: vi.fn() }))
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 

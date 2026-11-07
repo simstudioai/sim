@@ -1,16 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Button,
-  Checkbox,
-  EmptyState,
-  errorMessageOr,
-  Modal,
-  QueryBoundary,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import {
   ActionRow,
   Muted,

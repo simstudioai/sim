@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Button, Checkbox, cn, Tooltip } from '@sim/emcn'
-import { Lock, Plus } from '@sim/emcn/icons'
+import { Button, Checkbox, cn, Tooltip } from '@sim/emcn-legacy'
+import { Lock, Plus } from '@sim/emcn-legacy/icons'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
 import type { DisplayColumn } from './types'
 

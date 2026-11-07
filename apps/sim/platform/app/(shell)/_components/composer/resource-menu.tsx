@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import {
   type ComposerOption,
   GROUP_ICONS,
   referenceKey,
 } from '@/platform/app/(shell)/_components/composer/reference-options'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 
 interface ComposerResourceMenuProps {
   items: readonly ComposerOption[]

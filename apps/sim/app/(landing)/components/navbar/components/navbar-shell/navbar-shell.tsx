@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 
 /**

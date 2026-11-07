@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
-import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn/icons'
+import { Button, cn, Tooltip } from '@sim/emcn-legacy'
+import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn-legacy/icons'
 import { HeroChatReply } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply'
 import { HeroToolCallItem } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-tool-call-item'
 import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'

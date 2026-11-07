@@ -1,10 +1,12 @@
 'use client'
 
 import { useId } from 'react'
+import { FieldFrame } from '@sim/emcn/field'
+import { Input } from '@sim/emcn/field/inputs'
+import { PopupNote, PopupRow } from '@sim/emcn/menu/popup-row'
 import { formatDisplayText } from '@sim/workflow-renderer/formatted-text'
 import { useConnectorApiKeyField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-connector-api-key-field'
 import { useEnvVarSuggestions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
-import { FieldFrame, Input, PopupNote, PopupRow } from '@/platform/design-system/components'
 import apiKey from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css'
 
 interface ApiKeyFieldProps {

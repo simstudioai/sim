@@ -15,8 +15,8 @@ import {
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   TabStripAction,
   Tooltip,
-} from '@sim/emcn'
-import { Folder, Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Folder, Plus } from '@sim/emcn-legacy/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { isTerminalAvailable } from '@/lib/terminal/transport'

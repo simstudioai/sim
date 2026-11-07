@@ -29,10 +29,10 @@ test('preferences apply to the interface and survive settings navigation in this
   page,
 }) => {
   await page.goto(`${base}/settings?theme=unrecognized&state=full`)
-  const theme = page.getByRole('combobox', { name: 'Theme', exact: true })
+  const theme = page.getByRole('button', { name: /^Theme:/ })
   await expect(theme).toHaveText('System')
   await theme.click()
-  await page.getByRole('option', { name: 'Dark', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
   await expect(page.locator('[data-platform-ui]')).toHaveAttribute('data-theme', 'dark')
   const canvasErrors = page.getByRole('switch', { name: 'Canvas error notifications' })
   await expect(canvasErrors).toBeChecked()

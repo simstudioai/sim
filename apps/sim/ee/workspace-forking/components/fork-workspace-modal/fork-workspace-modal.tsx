@@ -10,8 +10,8 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
-import { TriangleAlert } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { TriangleAlert } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import type { GetForkResourcesResponse } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

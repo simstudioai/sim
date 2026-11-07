@@ -10,8 +10,8 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   cn,
-} from '@sim/emcn'
-import { Loader, RefreshCw, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Loader, RefreshCw, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {

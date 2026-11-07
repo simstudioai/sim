@@ -18,7 +18,7 @@ import {
   SecretReveal,
   Tooltip,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowRight,
   Check,
@@ -27,7 +27,7 @@ import {
   SquareArrowUpRight,
   TerminalWindow,
   TriangleAlert,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'

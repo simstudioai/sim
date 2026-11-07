@@ -1,6 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ORGANIZATION_SCOPED_FEATURE_NOTE,
@@ -16,18 +25,6 @@ import type {
   AccessRequestTarget,
   PermissionGroupAccessState,
 } from '@/ee/access-requests/lib/targets'
-import {
-  Disclosure,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  LoadingRows,
-  SearchField,
-  Select,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { ProviderMark } from '@/platform/embedded/app/(shell)/_components/provider-mark/provider-mark'
 import {
   ActionRow,
@@ -57,9 +54,8 @@ interface PermissionBulkSelectProps extends ControlsProps {
 export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelectProps) {
   const editable = targets.filter((target) => !controls.isInherited(target))
   return (
-    <Select
+    <ChoiceMenu
       label='Set shown permissions to'
-      variant='quiet'
       disabled={!editable.length}
       options={[
         { value: 'shown', label: 'Set shown to…' },
@@ -110,9 +106,8 @@ function PermissionRow({
       <SettingsRow label={label} description={explanation || undefined} leading={leading}>
         <ActionRow>
           {badge && <StatusTag label={badge} />}
-          <Select
+          <ChoiceMenu
             label={label}
-            variant='quiet'
             value={state}
             options={accessStateOptions(controls.canRequest(target), state, rowDisabled)}
             disabled={rowDisabled}

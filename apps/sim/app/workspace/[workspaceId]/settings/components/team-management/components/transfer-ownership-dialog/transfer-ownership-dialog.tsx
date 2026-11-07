@@ -11,7 +11,7 @@ import {
   OverflowText,
   Search,
   Skeleton,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { RosterMember } from '@/hooks/queries/organization'
 

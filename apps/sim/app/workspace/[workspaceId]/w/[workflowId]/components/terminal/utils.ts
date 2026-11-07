@@ -1,5 +1,5 @@
 import type React from 'react'
-import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
+import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn-legacy/icons'
 import { getBlock } from '@/blocks'
 import { isSubExecutionBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthButton as Chip, AuthSelect as ChipCombobox } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthSelect as ChipCombobox } from '@sim/emcn-auth/select'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   GitHubSearchSetupScope,

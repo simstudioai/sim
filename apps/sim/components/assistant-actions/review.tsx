@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipTextarea, cn } from '@sim/emcn'
-import { ShieldCheck } from '@sim/emcn/icons'
+import { Chip, ChipInput, ChipTextarea, cn } from '@sim/emcn-legacy'
+import { ShieldCheck } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { ActionPreview } from '@/components/assistant-actions/action-preview'

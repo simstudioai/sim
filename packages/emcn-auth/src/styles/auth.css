@@ -1,0 +1,98 @@
+@import "@sim/emcn/styles/global.css";
+@import "./utilities.css";
+
+[data-auth-root] {
+  --auth-canvas: var(--emcn-color-light-canvas);
+  --auth-primary: var(--emcn-color-light-text);
+  --auth-secondary: var(--emcn-color-light-text-secondary);
+  --auth-reading: var(--emcn-color-light-reading);
+  --auth-overlay: var(--emcn-color-light-glass-floating);
+  --auth-border: var(--emcn-color-light-border);
+  --auth-border-subtle: var(--emcn-color-light-divider);
+  --auth-hover: var(--emcn-color-light-hover);
+  --auth-selected: var(--emcn-color-light-selected);
+  --auth-pressed: rgb(0 0 0 / 12%);
+  --auth-accent: var(--emcn-color-light-accent);
+  --auth-error: var(--emcn-color-light-danger);
+  --auth-disabled: var(--emcn-opacity-disabled);
+  --auth-font: var(--emcn-font-sans);
+  --auth-mono: var(--emcn-font-mono);
+  --auth-title-size: var(--emcn-type-title-size);
+  --auth-title-leading: var(--emcn-type-title-leading);
+  --auth-body-size: var(--emcn-type-body-size);
+  --auth-body-leading: var(--emcn-type-body-leading);
+  --auth-control-size: var(--emcn-type-control-size);
+  --auth-control-leading: var(--emcn-type-control-leading);
+  --auth-caption-size: var(--emcn-type-caption-size);
+  --auth-input-size: 14px;
+  --auth-control-height: var(--emcn-space-32);
+  --auth-control-radius: var(--emcn-radius-control);
+  --auth-quiet-size: var(--emcn-space-28);
+  --auth-icon-size: var(--emcn-space-16);
+  --ui-glyph-size: var(--auth-icon-size);
+  --ui-icon-ink: currentColor;
+  --ui-icon-stroke: 1.55px;
+  --auth-field-gap: var(--emcn-space-20);
+  --auth-group-gap: var(--emcn-space-20);
+  --auth-label-gap: var(--emcn-space-8);
+  --auth-control-inset: var(--emcn-space-10);
+  --auth-form-width: 400px;
+  --auth-nav-width: 1280px;
+  --auth-touch-height: var(--emcn-space-32);
+  color-scheme: light;
+  color: var(--auth-primary);
+  font-family: var(--auth-font);
+  font-size: var(--auth-body-size);
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: var(--auth-body-leading);
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  -webkit-font-smoothing: antialiased;
+}
+@layer base {
+  [data-auth-root] :where(*, *::before, *::after) {
+    box-sizing: border-box;
+  }
+  [data-auth-root] :where(h1, h2, h3, p, ul, ol, fieldset) {
+    margin: 0;
+    padding: 0;
+  }
+  [data-auth-root] :where(ul, ol) {
+    list-style: none;
+  }
+  [data-auth-root] :where(button, input, select, textarea) {
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: none;
+    color: inherit;
+  }
+  [data-auth-root] :where(a) {
+    color: inherit;
+  }
+  [data-auth-root] :where(button) {
+    cursor: pointer;
+  }
+  [data-auth-root] :where(button:disabled) {
+    cursor: not-allowed;
+  }
+  [data-auth-root] :where(svg) {
+    flex-shrink: 0;
+  }
+}
+[data-auth-root] :where(button, a, input, [tabindex]):focus-visible {
+  outline: none;
+}
+@media (max-width: 767px) {
+  [data-auth-root] {
+    --auth-input-size: 16px;
+    --auth-touch-height: var(--emcn-space-44);
+    --auth-group-gap: var(--emcn-space-24);
+  }
+}
+[data-auth-root] [data-auth-titlebar] {
+  height: var(--desktop-title-bar-height, 0px);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}

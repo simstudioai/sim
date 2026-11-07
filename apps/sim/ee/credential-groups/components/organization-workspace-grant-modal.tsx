@@ -10,7 +10,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
 import { isOrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 

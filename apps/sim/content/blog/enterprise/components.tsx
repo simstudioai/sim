@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, ChevronRight } from '@sim/emcn/icons'
+import { ArrowRight, ChevronRight } from '@sim/emcn-legacy/icons'
 
 interface ContactButtonProps {
   href: string

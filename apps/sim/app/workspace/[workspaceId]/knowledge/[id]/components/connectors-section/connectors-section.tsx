@@ -1,8 +1,8 @@
 'use client'
 
 import { useId, useRef, useState } from 'react'
-import { Badge, Chip, cn } from '@sim/emcn'
-import { Loader, Users } from '@sim/emcn/icons'
+import { Badge, Chip, cn } from '@sim/emcn-legacy'
+import { Loader, Users } from '@sim/emcn-legacy/icons'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'

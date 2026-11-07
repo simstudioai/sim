@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/auth-ui'
+import { cn } from '@sim/emcn/lib/cn'
 import {
   AuthField,
   AuthFormMessage,
@@ -81,8 +81,11 @@ export function SetNewPasswordForm({
   )
 
   return (
-    <form onSubmit={handleSubmit} className={cn('au:space-y-[var(--auth-group-gap)]', className)}>
-      <div className='au:space-y-5'>
+    <form
+      onSubmit={handleSubmit}
+      className={cn('au:flex au:flex-col au:gap-[var(--auth-group-gap)]', className)}
+    >
+      <div className='au:flex au:flex-col au:gap-5'>
         <AuthField
           htmlFor='password'
           label='New password'

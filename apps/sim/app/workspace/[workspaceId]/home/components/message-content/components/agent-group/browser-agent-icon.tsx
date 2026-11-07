@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { isBrowserToolName } from '@sim/browser-protocol'
-import { cn } from '@sim/emcn'
-import { Globe } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Globe } from '@sim/emcn-legacy/icons'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { faviconSrc } from '@/lib/favicon/url'

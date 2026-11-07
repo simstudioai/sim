@@ -1,6 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { Select } from '@sim/emcn/picker/select'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
+import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ScimConnectionView } from '@/lib/api/contracts/organization-scim'
 import {
@@ -18,26 +30,6 @@ import {
 } from '@/ee/scim/hooks/scim'
 import { formatRelative } from '@/ee/scim/lib/relative-time'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  CopyField,
-  Disclosure,
-  EmptyState,
-  errorMessageOr,
-  FailureNotice,
-  LoadingRows,
-  Modal,
-  QueryBoundary,
-  Select,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   FieldStack,

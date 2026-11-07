@@ -1,22 +1,21 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Modal } from '@sim/emcn/modal'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { useQueryStates } from 'nuqs'
 import styles from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access.module.css'
-import { CredentialAccessControls } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access-controls'
-import { CredentialInvite } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-invite'
 import {
-  ActionMenu,
-  Avatar,
-  Button,
-  DataTable,
-  EmptyState,
-  Modal,
-  OverflowText,
-  Select,
-  TableLabel,
-  Tooltip,
-} from '@/platform/design-system/components'
+  CredentialAccessControls,
+  CredentialAccessSearch,
+} from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access-controls'
+import { CredentialInvite } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-invite'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import {
   canShareCredential,
@@ -105,7 +104,7 @@ export function CredentialAccess({
     if (member.roleSource === 'workspace-admin')
       return 'Access is inherited from workspace administration.'
     if (member.status === 'active' && member.explicitAdmin && admins <= 1)
-      return 'Make someone else an admin before removing or changing this access.'
+      return 'This is the last directly assigned admin. Make someone else an admin first.'
     return undefined
   }
 
@@ -170,6 +169,7 @@ export function CredentialAccess({
       <DataTable
         title={title}
         titleHidden
+        rowActions={shareable}
         tabs={{
           label: 'Credential access views',
           items: [
@@ -185,50 +185,28 @@ export function CredentialAccess({
           },
         }}
         toolbar={
-          <CredentialAccessControls
-            view={view}
-            onSearch={(accessQ) => {
+          <CredentialAccessSearch
+            value={view.accessQ}
+            onChange={(accessQ) => {
               setSelectedIds([])
               void setView({ accessQ })
             }}
+          />
+        }
+        toolbarEnd={
+          <CredentialAccessControls
+            view={view}
             onRoleChange={(accessRole) => {
               setSelectedIds([])
               void setView({ accessRole })
             }}
             onOrderChange={(accessOrder) => void setView({ accessOrder })}
-          >
-            {editable && selected.length > 0 && (
-              <div className={styles.bulk} aria-label='Selected people' role='group'>
-                <span data-type='T060'>{selected.length} selected</span>
-                <ActionMenu
-                  label='Change role'
-                  icon={null}
-                  triggerSize='compact'
-                  actions={ROLES.map(({ value, label }) => ({
-                    id: value,
-                    label,
-                    disabled: !proposed(selectedKeys, value),
-                    onSelect: () => update(selectedKeys, value),
-                  }))}
-                />
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  disabled={!proposed(selectedKeys, null)}
-                  onClick={() => setRemovingIds(selectedKeys)}
-                >
-                  Remove selected
-                </Button>
-                <Button variant='quiet' size='compact' onClick={() => setSelectedIds([])}>
-                  Clear selection
-                </Button>
-              </div>
-            )}
-          </CredentialAccessControls>
+          />
         }
         columns={[
-          { key: 'person', label: 'Person', kind: 'text', primary: true },
-          { key: 'role', label: 'Role', kind: 'status' },
+          { key: 'person', label: 'Name', kind: 'text', primary: true, width: 'regular' },
+          { key: 'email', label: 'Email', kind: 'text', showFrom: 'compact' },
+          { key: 'role', label: 'Role', kind: 'status', width: 'compact' },
         ]}
         selection={
           editable
@@ -236,6 +214,35 @@ export function CredentialAccess({
                 selectedIds: selectedKeys,
                 onChange: setSelectedIds,
                 rowLabel: (row) => String(row.values.person ?? ''),
+                actions: (
+                  <>
+                    <ActionMenu
+                      label='Change access'
+                      icon={null}
+                      triggerSize='compact'
+                      disabled={!selected.length}
+                      actions={ROLES.map(({ value, label }) => ({
+                        id: value,
+                        label,
+                        disabled: !proposed(selectedKeys, value),
+                        disabledReason: selectedKeys.length
+                          ? 'Keep at least one directly assigned admin with access.'
+                          : 'Select people to change their access.',
+                        onSelect: () => update(selectedKeys, value),
+                      }))}
+                    />
+                    <Button
+                      variant='quiet'
+                      destructive
+                      size='compact'
+                      disabled={!proposed(selectedKeys, null)}
+                      disabledReason='Keep at least one directly assigned admin with access.'
+                      onClick={() => setRemovingIds(selectedKeys)}
+                    >
+                      {current === 'people' ? 'Remove access' : 'Cancel invitations'}
+                    </Button>
+                  </>
+                ),
               }
             : undefined
         }
@@ -245,50 +252,38 @@ export function CredentialAccess({
           const own = member.userId === viewer.id
           return {
             id: member.id,
-            values: { person: member.name, role: label },
+            values: { person: member.name, email: member.email, role: label },
             selectionDisabled: Boolean(reason),
+            selectionDisabledReason: reason,
             cells: {
               person: (
-                <TableLabel leading={<Avatar name={member.name} src={member.src} size='inline' />}>
-                  <span className={styles.person}>
-                    <OverflowText text={member.name} />
-                    {member.email && (
-                      <OverflowText text={member.email}>
-                        <span className={styles.detail} data-type='T050'>
-                          {member.email}
-                        </span>
-                      </OverflowText>
-                    )}
-                  </span>
+                <TableLabel
+                  leading={<Avatar name={member.name} src={member.src} size='inline' />}
+                  compactDetail={member.email ?? '—'}
+                >
+                  {member.name}
                 </TableLabel>
               ),
-              role: (
-                <Tooltip
-                  label={
-                    reason ??
-                    (!editable
-                      ? 'Only credential admins can change access.'
-                      : 'Change credential role')
-                  }
-                >
+              email: <span className={styles.detail}>{member.email ?? '—'}</span>,
+              role:
+                member.roleSource === 'explicit' ? (
                   <span className={styles.role}>
-                    {member.roleSource === 'explicit' ? (
-                      <Select
-                        label={`Role for ${member.name}`}
-                        variant='quiet'
-                        value={member.role}
-                        options={ROLES}
-                        disabled={!editable || Boolean(reason)}
-                        onValueChange={(value) =>
-                          update([member.id], value === 'admin' ? 'admin' : 'member')
-                        }
-                      />
-                    ) : (
-                      label
-                    )}
+                    <ChoiceMenu
+                      label={`Role for ${member.name}`}
+                      value={member.role}
+                      options={ROLES}
+                      disabled={!editable || Boolean(reason)}
+                      disabledReason={reason ?? 'Only credential admins can change access.'}
+                      onValueChange={(value) =>
+                        update([member.id], value === 'admin' ? 'admin' : 'member')
+                      }
+                    />
                   </span>
-                </Tooltip>
-              ),
+                ) : (
+                  <Tooltip label={reason ?? label}>
+                    <span className={styles.detail}>{label}</span>
+                  </Tooltip>
+                ),
             },
             action:
               shareable && (own || editable) ? (
@@ -308,6 +303,8 @@ export function CredentialAccess({
                           : 'Remove',
                       destructive: true,
                       disabled: !proposed([member.id], null),
+                      disabledReason:
+                        reason ?? 'Keep at least one directly assigned admin with access.',
                       onSelect: () => setRemovingIds([member.id]),
                     },
                   ]}

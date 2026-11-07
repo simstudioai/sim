@@ -1,11 +1,11 @@
 'use client'
 
 import { type RefObject, useState } from 'react'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
-import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
+import { Avatar } from '@sim/emcn/avatar'
+import { IdentityButton } from '@sim/emcn/identity-button'
+import { MenuItem } from '@sim/emcn/menu/action-menu'
+import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
+import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar.module.css'
 
 interface AccountMenuProps {

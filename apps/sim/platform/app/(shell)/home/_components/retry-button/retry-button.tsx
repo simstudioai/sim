@@ -1,4 +1,4 @@
-import { Button } from '@/platform/design-system/components'
+import { Button } from '@sim/emcn/button'
 
 interface RetryButtonProps {
   retrying?: boolean

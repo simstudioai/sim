@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { LANDING_CONTENT_WIDTH } from '@/app/(landing)/components/landing-layout'
 import {
   SolutionsCardRow,

@@ -13,7 +13,7 @@ const { mockUseConsentManager, mockSaveConsents, mockRevert, lastProps } = vi.ho
   lastProps: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@c15t/nextjs/headless', () => ({ useConsentManager: mockUseConsentManager }))
 vi.mock('@/app/_shell/consent/consent-preferences', () => ({
   CONSENT_LINK_CLASS: 'link',

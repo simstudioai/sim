@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipLink } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { ExtensionChat } from '@/app/extension/[workspaceId]/chat'
 import ExtensionLoading from '@/app/extension/loading'

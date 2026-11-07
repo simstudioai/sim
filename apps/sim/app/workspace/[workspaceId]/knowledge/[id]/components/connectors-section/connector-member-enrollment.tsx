@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import type { ViewerConnectorMembership } from '@/lib/api/contracts/knowledge/connectors'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useStartConnectorMemberEnrollment } from '@/hooks/queries/kb/connectors'

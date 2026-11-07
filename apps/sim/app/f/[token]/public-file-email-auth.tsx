@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AuthCodeEntry, AuthEmailInput, AuthField } from '@sim/auth-ui'
+import { AuthCodeEntry } from '@sim/emcn-auth/code-entry'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthEmailInput } from '@sim/emcn-auth/input'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -92,7 +94,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             event.preventDefault()
             void sendCode()
           }}
-          className='au:space-y-5'
+          className='au:flex au:flex-col au:gap-5'
         >
           <AuthField htmlFor='email' label='Email' errors={error ? [error] : undefined}>
             <AuthEmailInput

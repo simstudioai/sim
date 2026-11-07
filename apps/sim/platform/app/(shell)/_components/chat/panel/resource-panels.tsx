@@ -1,12 +1,12 @@
 'use client'
 
 import { type ReactNode, useRef, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { OpenPanel } from '@/platform/app/(shell)/_components/chat/panel/chat-panels'
 import type { PanelResources } from '@/platform/app/(shell)/_components/chat/panel/model'
 import { PanelTabs } from '@/platform/app/(shell)/_components/chat/panel/panel-tabs'
 import styles from '@/platform/app/(shell)/_components/chat/panel/panels.module.css'
 import { ResourceContent } from '@/platform/app/(shell)/_components/chat/panel/resource-content'
-import { EmptyState } from '@/platform/design-system/components'
 
 interface ResourcePanelsProps {
   panel: PanelResources

@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useEffect, useRef } from 'react'
-import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn'
-import { Mic } from '@sim/emcn/icons'
+import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn-legacy'
+import { Mic } from '@sim/emcn-legacy/icons'
 
 const WAVEFORM_BAR_COUNT = 5
 const WAVEFORM_MIN_HEIGHT = 1

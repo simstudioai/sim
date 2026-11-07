@@ -1,5 +1,5 @@
 import { INTEGRATION_TOTALS } from '@sim/deployment-config/integration-totals'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'

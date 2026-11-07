@@ -1,6 +1,6 @@
 'use client'
 
-import { Checkbox, Chip, Info, OverflowText } from '@sim/emcn'
+import { Checkbox, Chip, Info, OverflowText } from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProjects } from '@/hooks/queries/projects'

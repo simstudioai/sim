@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useId } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn-legacy'
 import {
   WorkflowDiffSkeleton,
   WorkflowDiffView,

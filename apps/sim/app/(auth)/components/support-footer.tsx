@@ -1,6 +1,6 @@
 'use client'
 
-import { AuthTextLink } from '@sim/auth-ui'
+import { AuthTextLink } from '@sim/emcn-auth/text-link'
 import { useBrandConfig } from '@/ee/whitelabeling'
 
 export function SupportFooter() {

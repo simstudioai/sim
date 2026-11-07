@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, Chip } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -15,16 +21,6 @@ import {
 import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
-import {
-  Button,
-  Chip,
-  FailureNotice,
-  FieldFrame,
-  InlineNotice,
-  Modal,
-  SearchableSelect,
-  SegmentedControl,
-} from '@/platform/design-system/components'
 import {
   ActionRow,
   Muted,

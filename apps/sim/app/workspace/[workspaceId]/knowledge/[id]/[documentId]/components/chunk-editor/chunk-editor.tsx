@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { handleKeyboardActivation, Label, Switch, toast } from '@sim/emcn'
+import { handleKeyboardActivation, Label, Switch, toast } from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'

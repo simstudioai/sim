@@ -10,7 +10,7 @@ import {
   ChipModalHeader,
   ChipTag,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
 import { useCancelAccessRequest, useMyAccessRequests } from '@/hooks/queries/access-requests'

@@ -1,7 +1,7 @@
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
 import styles from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list.module.css'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
-import { ActivityRow } from '@/platform/design-system/components'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 

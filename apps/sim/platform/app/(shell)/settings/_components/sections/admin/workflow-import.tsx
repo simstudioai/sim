@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
 import { generateId } from '@sim/utils/id'
 import {
   ActionRow,
@@ -8,11 +12,6 @@ import {
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { AdminExample } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
-import { Button, InlineNotice, TextField } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 export interface ImportInputs {
   workflow: string

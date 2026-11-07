@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { diffWordsWithSpace } from 'diff'
 import { getDesktopBridge } from '@/lib/desktop'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'

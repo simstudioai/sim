@@ -1,14 +1,17 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
+import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import { ActionMenu, Button, EmptyState, InlineNotice } from '@/platform/design-system/components'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 import type { HomeAccountView, HomeWidgetActions, HomeWidgetState } from '@/platform/shared/home'
 
 const DISCONNECT_NOTICE =

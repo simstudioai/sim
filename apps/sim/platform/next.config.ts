@@ -50,8 +50,8 @@ const config: NextConfig = {
     if (!isServer) {
       webpackConfig.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /^node:async_hooks$/ }))
     }
-    // No `$`, so `@sim/emcn/icons` resolves beneath the shim file and fails the build as missing.
-    webpackConfig.resolve.alias['@sim/emcn'] = emcnShim
+    // Only the legacy barrel is shimmed; shared foundation subpaths remain independently importable.
+    webpackConfig.resolve.alias['@sim/emcn-legacy$'] = emcnShim
     // A replacement, because tsconfig paths resolve `@/` before any alias is consulted.
     for (const [request, shim] of canvasShims) {
       webpackConfig.plugins.push(

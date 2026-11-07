@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { SupportModal } from '@/platform/embedded/app/(shell)/_components/sidebar/support-modal'
 import { useHelp } from '@/platform/embedded/lib/data/shell-actions'
 import { openLinkInNewTab } from '@/platform/embedded/lib/row-links'

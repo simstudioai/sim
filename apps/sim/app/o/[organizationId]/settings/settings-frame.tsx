@@ -1,12 +1,12 @@
 'use client'
 
 import { type ReactNode, useContext } from 'react'
+import { Surface } from '@sim/emcn-platform/surface'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
 import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'
-import { Surface } from '@/platform/design-system/components/surface/surface'
 import {
   SettingsBreadcrumb,
   SettingsMobileTitle,

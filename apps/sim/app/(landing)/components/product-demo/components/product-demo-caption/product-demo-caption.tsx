@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { HOME_TYPE } from '@/app/(landing)/components/landing-layout'
 import {
   DEMO_BEATS,

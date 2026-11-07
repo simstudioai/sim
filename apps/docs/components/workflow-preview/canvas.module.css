@@ -1,0 +1,31 @@
+/** The existing workflow renderer remains a scoped legacy content adapter. */
+.canvas {
+  --text-xs: var(--text-badge);
+  --text-base: 15px;
+  --text-primary: var(--docs-heading);
+  --text-body: var(--docs-text);
+  --text-secondary: var(--docs-muted);
+  --text-muted: var(--docs-muted);
+  --text-icon: var(--docs-muted);
+  --text-subtle: var(--docs-muted);
+  --text-tertiary: var(--docs-muted);
+  --workflow-edge: var(--docs-rule);
+  --border-success: var(--docs-green);
+  --warning: var(--docs-orange);
+  --white: var(--emcn-color-light-canvas);
+  --border: var(--docs-border);
+  --border-1: var(--docs-border);
+  --surface-1: var(--docs-canvas);
+  --surface-2: var(--docs-reading);
+  --surface-3: var(--docs-surface);
+  --surface-4: var(--docs-surface);
+  --surface-5: var(--docs-surface);
+  --surface-hover: var(--docs-hover);
+  --surface-active: var(--docs-selected);
+  --bg: var(--docs-canvas);
+  --brand-accent: var(--docs-link);
+  --brand-secondary: var(--docs-link);
+  --brand-blue: var(--docs-link);
+  --text-error: var(--docs-red);
+  --shadow-overlay: var(--docs-shadow);
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useDeferredValue, useId, useMemo, useRef, useState } from 'react'
-import { ChipTag, ChipTextarea } from '@sim/emcn'
+import { ChipTag, ChipTextarea } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'

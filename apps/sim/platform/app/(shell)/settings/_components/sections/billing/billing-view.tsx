@@ -1,22 +1,15 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
+import { Icon } from '@sim/emcn/icon'
+import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/app/(shell)/settings/_components/sections/billing/billing.module.css'
-import {
-  Button,
-  FailureNotice,
-  Icon,
-  Input,
-  StatusTag,
-  Switch,
-  Tooltip,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'

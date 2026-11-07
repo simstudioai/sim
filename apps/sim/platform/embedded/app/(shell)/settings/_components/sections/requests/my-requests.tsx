@@ -1,22 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { Pagination } from '@sim/emcn/pagination'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
-import {
-  Button,
-  EmptyState,
-  errorMessageOr,
-  Icon,
-  InlineNotice,
-  Pagination,
-  QueryBoundary,
-  SearchField,
-  StatusTag,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { MyRequestModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/my-request-modal'
 import { RequestAccessModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-access-modal'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'

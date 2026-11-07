@@ -1,6 +1,12 @@
 'use client'
 
 import { type ReactNode, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { useCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/platform/app/(shell)/_components/command-menu/command-menu'
 import {
@@ -17,11 +23,8 @@ import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
 import { workspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/destinations'
-import { IconButton, OverflowText, ScrollArea, Tooltip } from '@/platform/design-system/components'
-import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { isAbsoluteHref, platformHref } from '@/platform/design-system/navigation'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
+import { isAbsoluteHref, platformHref } from '@/platform/lib/navigation'
 import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 
 function isEditableTarget(target: EventTarget | null): boolean {

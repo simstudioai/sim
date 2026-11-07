@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 interface IdentityTileProps {
   /** Letter shown when there is no uploaded mark. */

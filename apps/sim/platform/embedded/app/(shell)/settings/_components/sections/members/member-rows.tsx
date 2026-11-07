@@ -1,17 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import {
-  ActionMenu,
-  Avatar,
-  ConfirmDialog,
-  Select,
-  StatusTag,
-  Tooltip,
-} from '@/platform/design-system/components'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { Avatar } from '@sim/emcn/avatar'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { StatusTag } from '@sim/emcn/status'
+import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/members/members.module.css'
 import type { MembersActions } from '@/platform/embedded/lib/data/members'
 import type {
@@ -104,9 +102,7 @@ export function MemberRow({ row, actions, onRemove, onManageCredits, onTransfer 
       menuLabel={`Actions for ${row.name}`}
       control={
         row.canEditRole ? (
-          <Select
-            block
-            variant='quiet'
+          <ChoiceMenu
             label={`Role for ${row.name}`}
             options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
@@ -197,9 +193,7 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
         row.isExternal || !canManage ? (
           <StatusTag label={row.isExternal ? 'External' : ORGANIZATION_ROLE_LABELS[row.role]} />
         ) : (
-          <Select
-            block
-            variant='quiet'
+          <ChoiceMenu
             label={`Role for ${row.email}`}
             options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
@@ -230,9 +224,7 @@ export function WorkspaceMemberRow({
   const copyEmail = useCopyEmail(row.email)
   const [removing, setRemoving] = useState(false)
   const select = (
-    <Select
-      block
-      variant='quiet'
+    <ChoiceMenu
       label={`Access to ${workspaceName} for ${row.name}`}
       options={WORKSPACE_ROLES}
       value={row.permission}
@@ -313,9 +305,7 @@ export function WorkspaceInvitationRow({
       menuLabel={`Actions for ${row.email} in ${workspaceName}`}
       actions={menu}
       control={
-        <Select
-          block
-          variant='quiet'
+        <ChoiceMenu
           label={`Access to ${workspaceName} for ${row.email}`}
           options={WORKSPACE_ROLES}
           value={row.permission}

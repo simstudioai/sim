@@ -1,13 +1,14 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
   FieldStack,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Button, Modal } from '@/platform/design-system/components'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 
 interface SlackAppSettingsProps {
   value: string | null

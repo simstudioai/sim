@@ -1,9 +1,9 @@
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { CredentialGroups } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/credential-groups'
-import { readScenario } from '@/platform/design-system/navigation'
 import { loadCredentialGroupsData } from '@/platform/fixtures'
 import { readCredentialGroups } from '@/platform/lib/data/credential-groups'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { readScenario } from '@/platform/lib/navigation'
 
 export default async function ConnectedAccountsSection({
   organization,

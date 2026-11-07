@@ -14,8 +14,8 @@ import {
   TableHeader,
   TableRow,
   useScrollEdges,
-} from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Loader } from '@sim/emcn-legacy/icons'
 import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
 import type { WorkflowTestDetail } from '@/lib/api/contracts/workflow-tests'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

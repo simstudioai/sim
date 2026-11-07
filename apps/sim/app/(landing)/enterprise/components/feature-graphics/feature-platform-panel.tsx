@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode, SVGProps } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
 
 interface FeaturePlatformPanelProps {

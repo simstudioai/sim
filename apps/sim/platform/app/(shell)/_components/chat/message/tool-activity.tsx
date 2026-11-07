@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { Icon } from '@sim/emcn/icon'
+import { StatusTag } from '@sim/emcn/status'
 import { ToolApproval } from '@/platform/app/(shell)/_components/chat/cards/tool-approval'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import type {
@@ -11,13 +16,6 @@ import {
   useChatHandlers,
   useChatInteractions,
 } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import {
-  Button,
-  CopyButton,
-  Disclosure,
-  Icon,
-  StatusTag,
-} from '@/platform/design-system/components'
 
 /** Terminal states other than success read beside the row, so a reader never takes them for done. */
 const STATUS_TAG: Partial<

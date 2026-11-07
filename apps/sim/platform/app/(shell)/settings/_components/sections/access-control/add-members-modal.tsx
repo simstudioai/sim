@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { Modal } from '@sim/emcn/modal'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SearchField } from '@sim/emcn/search-field'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -8,14 +14,6 @@ import {
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
-import {
-  Button,
-  Checkbox,
-  FailureNotice,
-  Modal,
-  SearchField,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { useOrganizationRoster } from '@/platform/lib/data/access-control'
 
 interface AddMembersModalProps {

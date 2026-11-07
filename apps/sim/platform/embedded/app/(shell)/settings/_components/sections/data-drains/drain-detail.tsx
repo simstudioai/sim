@@ -1,24 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { PropertyList } from '@sim/emcn/property-list'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
+import { Switch } from '@sim/emcn/switch'
 import type { DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import { formatConfigValue, humanizeConfigKey } from '@/ee/data-drains/lib/config-display'
-import {
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  errorMessageOr,
-  PropertyList,
-  QueryBoundary,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   DetailHeader,
   FieldStack,

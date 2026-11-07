@@ -40,9 +40,9 @@
  *    would inherit that surface's components and hooks. Fix by moving the shared part under `lib/`
  *    or `hooks/`.
  *
- * 7. The Platform zone and the organization views are two apps sharing `platform/design-system`. Nothing
- *    under `apps/sim/platform` outside `embedded` imports `@/platform/embedded`, and `embedded` imports
- *    nothing under `@/platform` but itself, the design system and `platform/shared`, tests included: the views are built on
+ * 7. The Platform zone and the organization views are two apps sharing the EMCN packages and
+ *    `platform/shared`. Nothing under `apps/sim/platform` outside `embedded` imports `@/platform/embedded`,
+ *    and `embedded` imports nothing under `@/platform` but itself and `platform/shared`, tests included: the views are built on
  *    the host app, so an edge from the zone would pull the host into a separate build, and an edge
  *    the other way would make the zone part of what every organization ships.
  *
@@ -145,7 +145,6 @@ function zoneEmbeddedViolation(file: string, specifier: string): string | null {
   if (
     !specifier.startsWith('@/platform/') ||
     matchesModule(specifier, '@/platform/embedded') ||
-    matchesModule(specifier, '@/platform/design-system') ||
     matchesModule(specifier, '@/platform/shared')
   ) {
     return null

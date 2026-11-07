@@ -1,22 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Pagination } from '@sim/emcn/pagination'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { MyRequestModal } from '@/platform/app/(shell)/settings/_components/sections/requests/my-request-modal'
 import { RequestAccessModal } from '@/platform/app/(shell)/settings/_components/sections/requests/request-access-modal'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  InlineNotice,
-  Pagination,
-  SearchField,
-  StatusTag,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import type { RequestScope, RequestTarget, useMyRequests } from '@/platform/lib/data/requests'
 import { useRequestsUrl } from '@/platform/lib/data/requests'
 

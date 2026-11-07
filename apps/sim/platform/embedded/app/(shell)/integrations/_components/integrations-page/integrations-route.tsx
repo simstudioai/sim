@@ -1,5 +1,8 @@
 'use client'
 
+import { EmptyState } from '@sim/emcn/empty-state'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryStates } from 'nuqs'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -12,8 +15,6 @@ import {
 import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { FailureNotice, LoadingRows, QueryBoundary } from '@/platform/design-system/components'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
 import { IntegrationDetails } from '@/platform/embedded/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/embedded/app/(shell)/integrations/_components/integration-list/integration-list'
 import {

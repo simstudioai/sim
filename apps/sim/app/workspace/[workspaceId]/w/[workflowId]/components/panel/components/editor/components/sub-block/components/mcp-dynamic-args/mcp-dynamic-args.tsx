@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
+import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { writeTextToClipboard } from '@sim/emcn'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { writeTextToClipboard } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { SIM_DOCS_URL } from '@sim/utils/site'
 import { useQueryStates } from 'nuqs'
@@ -30,7 +31,6 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { usePlatformNotices } from '@/platform/embedded/lib/notices'
 import { openLinkInNewTab } from '@/platform/embedded/lib/row-links'
 

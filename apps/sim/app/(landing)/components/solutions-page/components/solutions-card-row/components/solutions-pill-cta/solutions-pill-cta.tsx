@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight } from '@sim/emcn/icons'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import type { SolutionsPillCta as SolutionsPillCtaConfig } from '@/app/(landing)/components/solutions-page/types'
 

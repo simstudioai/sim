@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn-legacy'
 import { ShimmerText } from '@/components/ui/shimmer-text'
 
 /** The icon column every activity row shares, sized for the default 14px icon. */

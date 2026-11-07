@@ -1,13 +1,11 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { FailureNotice } from '@sim/emcn/status'
 import { useSlackManagedUsersSetup } from '@/ee/credential-groups/hooks/use-slack-managed-users-setup'
-import {
-  Button,
-  FailureNotice,
-  FieldFrame,
-  Modal,
-  SearchableSelect,
-} from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
 

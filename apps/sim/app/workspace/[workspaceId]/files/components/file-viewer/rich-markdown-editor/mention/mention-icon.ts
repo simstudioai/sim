@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Database, Folder, Table, Workflow } from '@sim/emcn/icons'
+import { Database, Folder, Table, Workflow } from '@sim/emcn-legacy/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getBlock } from '@/blocks/registry'

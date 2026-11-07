@@ -15,7 +15,7 @@ import {
   TypeJson,
   TypeNumber,
   Wrench,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import {
   BLOCK_DIMENSIONS,
   CanvasSentenceView,

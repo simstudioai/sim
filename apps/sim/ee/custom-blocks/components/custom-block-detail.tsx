@@ -17,8 +17,8 @@ import {
   Switch,
   toast,
   UploadPreviewButton,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronDown, X } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'

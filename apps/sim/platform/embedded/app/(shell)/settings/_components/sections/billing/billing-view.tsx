@@ -1,20 +1,13 @@
 'use client'
 
-import {
-  Button,
-  FailureNotice,
-  Icon,
-  Input,
-  RowList,
-  StatusTag,
-  Switch,
-  Tooltip,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { Button } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
+import { Icon } from '@sim/emcn/icon'
+import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/billing/billing.module.css'

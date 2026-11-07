@@ -1,4 +1,4 @@
-import { chipBorderShadowRing, cn } from '@sim/emcn'
+import { chipBorderShadowRing, cn } from '@sim/emcn-legacy'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 import { ContactForm } from '@/app/(landing)/contact/components/contact-form'
 

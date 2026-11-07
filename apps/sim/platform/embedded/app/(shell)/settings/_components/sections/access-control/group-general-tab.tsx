@@ -1,26 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
+import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   PermissionGroup,
   PermissionGroupWorkspaceRef,
 } from '@/ee/access-control/hooks/permission-groups'
-import {
-  ActionMenu,
-  Avatar,
-  Button,
-  ConfirmDialog,
-  errorMessageOr,
-  MultiSelect,
-  QueryBoundary,
-  Switch,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { FieldStack } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AddMembersModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {

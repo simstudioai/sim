@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
+import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn-legacy'
 import { EChartsView } from '@/components/charts/echarts-view'
 import type { ChartAnnotations } from '@/lib/charts/annotations'
 import {

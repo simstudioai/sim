@@ -1,8 +1,8 @@
 'use client'
 
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { Switch } from '@sim/emcn/switch'
 import dynamic from 'next/dynamic'
-import { Switch } from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SavedSettingsSection } from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'

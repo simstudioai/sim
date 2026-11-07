@@ -17,7 +17,7 @@ vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: mockListWorkspacesForViewer,
 }))
 vi.mock('@/lib/users/queries', () => usersQueriesMock)
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { userProfileKeys } from '@/hooks/queries/current-user-data'

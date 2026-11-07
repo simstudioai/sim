@@ -1,11 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { FailureNotice, IconButton, Switch, Tooltip } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { IconButton } from '@sim/emcn/button'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/section-parts/saved-settings.module.css'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/embedded/lib/data/preferences'

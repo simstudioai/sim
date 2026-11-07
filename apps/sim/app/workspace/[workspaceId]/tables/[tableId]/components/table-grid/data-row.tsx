@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
-import { PlayOutline, Square } from '@sim/emcn/icons'
+import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn-legacy'
+import { PlayOutline, Square } from '@sim/emcn-legacy/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'

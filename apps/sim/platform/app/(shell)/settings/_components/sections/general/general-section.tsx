@@ -1,3 +1,5 @@
+import { Button } from '@sim/emcn/button'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -7,11 +9,6 @@ import {
 } from '@/platform/app/(shell)/settings/_components/sections/account/account-section'
 import PreferencesSection from '@/platform/app/(shell)/settings/_components/sections/preferences/preferences-section'
 import PrivacySection from '@/platform/app/(shell)/settings/_components/sections/privacy/privacy-section'
-import { Button } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
 

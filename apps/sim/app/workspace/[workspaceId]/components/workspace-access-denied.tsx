@@ -1,5 +1,5 @@
-import { ChipLink } from '@sim/emcn'
-import { CircleAlert } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { CircleAlert } from '@sim/emcn-legacy/icons'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 

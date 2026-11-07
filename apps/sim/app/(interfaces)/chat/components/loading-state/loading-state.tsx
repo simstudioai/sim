@@ -1,4 +1,4 @@
-import { Skeleton } from '@sim/emcn'
+import { Skeleton } from '@sim/emcn-legacy'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 export function ChatLoadingState() {

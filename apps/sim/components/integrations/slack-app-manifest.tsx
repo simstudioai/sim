@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipLink, Code, useCopyToClipboard } from '@sim/emcn'
-import { Check, Clipboard } from '@sim/emcn/icons'
+import { Chip, ChipLink, Code, useCopyToClipboard } from '@sim/emcn-legacy'
+import { Check, Clipboard } from '@sim/emcn-legacy/icons'
 
 interface SlackAppManifestProps {
   manifest: string

@@ -1,4 +1,4 @@
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
 
 interface UnsavedChangesModalProps {
   open: boolean

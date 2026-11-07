@@ -17,7 +17,7 @@ import {
   Strikethrough,
   TextQuote,
   Unlink,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import type { MappablePosition } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
 import {

@@ -1,5 +1,7 @@
-import { AuthResourceIdentity, AuthResourceRow, AuthTag } from '@sim/auth-ui'
-import { ChipTag } from '@sim/emcn'
+import { AuthResourceIdentity } from '@sim/emcn-auth/identity'
+import { AuthResourceRow } from '@sim/emcn-auth/resource'
+import { AuthTag } from '@sim/emcn-auth/tag'
+import { ChipTag } from '@sim/emcn-legacy'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { InvitationDetails } from '@/lib/api/contracts/invitations'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
@@ -16,7 +18,7 @@ export function InvitationWorkspaceAccess({
 }: InvitationWorkspaceAccessProps) {
   return (
     <ul
-      className={appearance === 'auth' ? 'au:list-none au:space-y-2' : 'space-y-2'}
+      className={appearance === 'auth' ? 'au:flex au:list-none au:flex-col au:gap-2' : 'space-y-2'}
       aria-label='Invited workspace access'
     >
       {grants.map((grant) => (

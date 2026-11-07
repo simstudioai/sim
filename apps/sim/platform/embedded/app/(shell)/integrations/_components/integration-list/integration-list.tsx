@@ -1,7 +1,7 @@
-import { SectionSearch } from '@/platform/design-system/components'
-import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { RowList } from '@/platform/design-system/components/settings-section/row-list'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { RowList } from '@sim/emcn/settings-section/row-list'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/integration-list/integration-list.module.css'
 import {

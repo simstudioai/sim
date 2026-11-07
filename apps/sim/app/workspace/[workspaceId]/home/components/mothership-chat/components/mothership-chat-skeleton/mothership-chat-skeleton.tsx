@@ -1,4 +1,4 @@
-import { Skeleton } from '@sim/emcn'
+import { Skeleton } from '@sim/emcn-legacy'
 
 const LAYOUT_SKELETON_STYLES = {
   'mothership-view': {

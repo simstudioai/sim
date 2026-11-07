@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { MenuItem } from '@sim/emcn/menu/action-menu'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import {
   ComponentRecipe,
   isRecipeKey,
   recipeSlots,
-} from '@/platform/design-system/catalog/component-recipe'
-import evidence from '@/platform/design-system/catalog/evidence.json'
-import { Button, MenuItem, SearchableSelect } from '@/platform/design-system/components'
+} from '@sim/emcn-platform/catalog/component-recipe'
+import evidence from '@sim/emcn-platform/catalog/evidence.json'
 import type { PreviewData, Scenario } from '@/platform/fixtures'
 import { ControlSpecimen } from '@/platform/preview/control-specimen'
 import styles from '@/platform/preview/specimen.module.css'

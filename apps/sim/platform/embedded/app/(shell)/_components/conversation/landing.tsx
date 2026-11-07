@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Surface } from '@/platform/design-system/components/surface/surface'
+import { Surface } from '@sim/emcn-platform/surface'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 
 /** The heading of a conversation's or Search's first view, which hangs this far below the view switch. */

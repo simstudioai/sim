@@ -1,6 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { Pagination } from '@sim/emcn/pagination'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { StatusTag } from '@sim/emcn/status'
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs'
 import {
   ActionRow,
@@ -13,20 +22,6 @@ import type {
   AdminExample,
   DirectoryUser,
 } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
-import {
-  ActionMenu,
-  Button,
-  EmptyState,
-  Modal,
-  Pagination,
-  SearchField,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { toast } from '@/platform/shared/toast'
 
 const SEARCH_PARAMS = {
@@ -145,6 +140,7 @@ export function AdminDirectory({
                               {
                                 id: 'role',
                                 label: user.role === 'admin' ? 'Demote' : 'Promote',
+                                destructive: user.role === 'admin',
                                 onSelect: () =>
                                   setPending({
                                     id: user.id,

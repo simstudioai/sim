@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipInput, ChipModalTabs, cn } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Chip, ChipInput, ChipModalTabs, cn } from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'

@@ -1,7 +1,7 @@
 'use client'
 
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { SegmentedControl } from '@/platform/design-system/components'
 import { MyRequests } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/my-requests'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewRequests } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/review-requests'

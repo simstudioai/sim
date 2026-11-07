@@ -1,20 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { FailureNotice } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { canMakeProviderPrimary, nextSignInProvider } from '@/ee/sso/lib/provider-form'
-import {
-  ActivityRow,
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  errorMessageOr,
-  FailureNotice,
-  QueryBoundary,
-  RowList,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   SectionSkeleton,
   SectionStack,

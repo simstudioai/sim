@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipSwitch, ChipTag } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
+import { Chip, ChipSwitch, ChipTag } from '@sim/emcn-legacy'
+import { Lock } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'

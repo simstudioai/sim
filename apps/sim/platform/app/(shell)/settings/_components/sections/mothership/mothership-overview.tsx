@@ -1,20 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable, MetricGroup } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
+import { Pagination } from '@sim/emcn/pagination'
+import { PropertyList } from '@sim/emcn/property-list'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import {
   LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  MetricGroup,
-  Pagination,
-  PropertyList,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { type MothershipEnv, useMothershipOverview } from '@/platform/lib/data/mothership-admin'
 import { formatTimestamp } from '@/platform/shared/time'
 

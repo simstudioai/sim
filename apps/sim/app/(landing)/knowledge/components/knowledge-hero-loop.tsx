@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
-import { ArrowUpDown, Database, ListFilter, Plus, Search } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowUpDown, Database, ListFilter, Plus, Search } from '@sim/emcn-legacy/icons'
 import {
   ConfluenceIcon,
   GithubIcon,

@@ -1,14 +1,14 @@
 'use client'
 
 import { lazy, Suspense, useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { Surface } from '@sim/emcn-platform/surface'
 import { useOrganization } from '@/lib/organizations/provider'
 import { SearchFrame } from '@/app/o/[organizationId]/search/search-frame'
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
-import { IconButton } from '@/platform/design-system/components/button/button'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { Surface } from '@/platform/design-system/components/surface/surface'
 import { MicrophoneHelp } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 import {
   ConversationLanding,

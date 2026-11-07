@@ -1,15 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  AuthDivider,
-  AuthEmailInput,
-  AuthField,
-  AuthHeader,
-  AuthLinkButton,
-  AuthNavPrompt,
-  AuthStack,
-} from '@sim/auth-ui'
+import { AuthLinkButton } from '@sim/emcn-auth/button'
+import { AuthDivider } from '@sim/emcn-auth/divider'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { AuthEmailInput } from '@sim/emcn-auth/input'
+import { AuthNavPrompt } from '@sim/emcn-auth/navigation'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { useSearchParams } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -197,7 +195,7 @@ function SSOFormContent({
   return (
     <AuthStack>
       <AuthHeader title='Sign in with SSO' description='Enter your work email to continue' />
-      <form onSubmit={onSubmit} className='au:space-y-5'>
+      <form onSubmit={onSubmit} className='au:flex au:flex-col au:gap-5'>
         {formError && <AuthFormMessage type='error'>{formError}</AuthFormMessage>}
         <AuthField
           htmlFor='email'

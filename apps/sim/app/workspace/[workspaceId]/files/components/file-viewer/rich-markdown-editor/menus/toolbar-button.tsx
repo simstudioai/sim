@@ -1,8 +1,8 @@
 import type { ComponentType, SVGProps } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { Button, cn, Tooltip } from '@sim/emcn-legacy'
 
 interface ToolbarButtonProps {
-  /** Any SVG icon component, e.g. from `@sim/emcn/icons`. */
+  /** Any SVG icon component, e.g. from `@sim/emcn-legacy/icons`. */
   icon: ComponentType<SVGProps<SVGSVGElement>>
   /** Reduces optically dense filled glyphs while keeping the standard button hit target. */
   iconSize?: 'default' | 'compact'

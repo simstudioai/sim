@@ -8,7 +8,7 @@ import type {
   DesktopPreferences,
   DesktopZoomPercent,
 } from '@sim/desktop-bridge'
-import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn-legacy'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { AppearanceThemeSelect } from '@/app/workspace/[workspaceId]/settings/components/appearance-theme-select'

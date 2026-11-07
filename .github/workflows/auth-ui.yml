@@ -1,0 +1,48 @@
+name: auth-ui
+
+on:
+  pull_request:
+    paths:
+      - 'apps/sim/app/**'
+      - 'apps/sim/hooks/queries/oauth-provider.ts'
+      - 'apps/sim/lib/auth/**'
+      - 'apps/sim/scripts/auth-ui-e2e/**'
+      - 'apps/sim/scripts/test-auth-ui-e2e.ts'
+      - 'apps/sim/package.json'
+      - 'apps/sim/postcss.config.mjs'
+      - 'apps/sim/lib/postcss/hairline-border-width.cjs'
+      - 'packages/emcn/**'
+      - 'packages/emcn-auth/**'
+      - 'bun.lock'
+      - '.github/workflows/auth-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          provider: github
+      - run: bunx --no-install playwright install --with-deps --only-shell chromium
+        working-directory: apps/sim
+      - run: bun run --cwd apps/sim test:auth-ui:e2e
+        env:
+          AUTH_UI_E2E_REPORT_PATH: ${{ runner.temp }}/auth-ui/report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: auth-ui-browser
+          path: ${{ runner.temp }}/auth-ui
+          retention-days: 7

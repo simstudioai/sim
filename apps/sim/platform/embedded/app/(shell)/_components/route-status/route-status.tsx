@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { PageSurface } from '@/platform/design-system/components/surface/surface'
+import { PageSurface } from '@sim/emcn-platform/surface'
 import styles from '@/platform/embedded/app/(shell)/_components/route-status/route-status.module.css'
 
 interface RouteStatusProps {

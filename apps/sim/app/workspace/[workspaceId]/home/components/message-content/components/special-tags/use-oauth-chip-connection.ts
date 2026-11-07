@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
   buildOAuthChatCompleteAuthorizeUrl,

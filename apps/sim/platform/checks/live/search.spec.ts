@@ -17,8 +17,8 @@ test('A query lands in the URL, searches under the viewer, and a filter narrows 
 
   const filters = page.getByRole('group', { name: 'Search filters' })
   await expect(filters).toBeVisible()
-  await filters.getByRole('combobox', { name: 'Filter by date' }).click()
-  await page.getByRole('option', { name: 'Past week' }).click()
+  await filters.getByRole('button', { name: /^Filter by date:/ }).click()
+  await page.getByRole('menuitemradio', { name: 'Past week' }).click()
   await expect(page).toHaveURL(/updated=7d/)
 
   await page.reload()

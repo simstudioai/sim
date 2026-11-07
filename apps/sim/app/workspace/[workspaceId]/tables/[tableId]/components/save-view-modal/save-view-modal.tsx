@@ -7,7 +7,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 
 interface SaveViewModalProps {
   open: boolean

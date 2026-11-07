@@ -1,6 +1,6 @@
 'use client'
-import { chipVariants, cn } from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+import { chipVariants, cn } from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import { SlackIcon } from '@/components/icons'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 import {

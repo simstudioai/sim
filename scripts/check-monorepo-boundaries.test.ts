@@ -203,8 +203,8 @@ describe('package boundary command', () => {
 
     it('keeps the rest of platform from importing a route, even for a type', () => {
       withFixture((fixture, audit) => {
-        const designFile = 'apps/sim/platform/design-system/widget.tsx'
-        mkdirSync(path.join(fixture, 'apps/sim/platform/design-system'), { recursive: true })
+        const designFile = 'apps/sim/platform/preview/widget.tsx'
+        mkdirSync(path.join(fixture, 'apps/sim/platform/preview'), { recursive: true })
         for (const file of [VIEW_FILE, designFile]) {
           const cases = [
             ["import { Row } from '@/app/o/[organizationId]/row'", false],
@@ -231,7 +231,7 @@ describe('package boundary command', () => {
       ['apps/sim/platform/app/page.tsx', "import type { Row } from '../embedded/app/(shell)/row'"],
       ['apps/sim/platform/lib/data/home.ts', "import '@/platform/embedded/lib/data/home'"],
       ['apps/sim/platform/checks/home.test.ts', "import '@/platform/embedded/lib/data/home'"],
-      ['apps/sim/platform/design-system/row.tsx', "import('@/platform/embedded/lib/time')"],
+      ['apps/sim/platform/preview/row.tsx', "import('@/platform/embedded/lib/time')"],
       [LIB_FILE, "import { home } from '@/platform/lib/data/home'"],
       [VIEW_FILE, "import type { Home } from '@/platform/app/(shell)/home/model'"],
       [VIEW_FILE, "import '../../../../lib/data/home'"],
@@ -248,9 +248,9 @@ describe('package boundary command', () => {
     })
 
     it.each([
-      [VIEW_FILE, "import { Button } from '@/platform/design-system/components/button'"],
+      [VIEW_FILE, "import { Button } from '@sim/emcn/button'"],
       [LIB_FILE, "import { time } from '@/platform/embedded/lib/time'"],
-      ['apps/sim/platform/app/page.tsx', "import '@/platform/design-system/components/button'"],
+      ['apps/sim/platform/app/page.tsx', "import '@sim/emcn/button'"],
       ['apps/sim/platform/app/page.tsx', "import '@/platform/lib/data/home'"],
     ])('allows what the zone and the views each own: %s, %s', (file, source) => {
       withFixture((fixture, audit) => {

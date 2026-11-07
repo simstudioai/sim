@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
+import { Chip, ChipModalBody, ChipModalHeader, ChipModalSurface } from '@sim/emcn-legacy'
 import { PAGE_ACCESS_ORIGINS } from '@/config'
 
 interface PageAccessButtonProps {

@@ -1,16 +1,13 @@
 'use client'
 
 import { useId } from 'react'
-import {
-  EmptyState,
-  FailureNotice,
-  FieldFrame,
-  FileField,
-  Input,
-  SaveActions,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { FieldFrame, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { Input } from '@sim/emcn/field/inputs'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+import { FailureNotice } from '@sim/emcn/status'
 import {
   FieldStack,
   SectionSkeleton,

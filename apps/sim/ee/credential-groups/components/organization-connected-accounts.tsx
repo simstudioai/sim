@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipSwitch } from '@sim/emcn'
+import { Chip, ChipSwitch } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import {
   SettingsEmptyState,

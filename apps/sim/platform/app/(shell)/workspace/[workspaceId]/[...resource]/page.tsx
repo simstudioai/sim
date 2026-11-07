@@ -1,9 +1,9 @@
+import { EmptyState } from '@sim/emcn/empty-state'
 import { notFound, redirect } from 'next/navigation'
 import { WorkspacePane } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-pane/workspace-pane'
-import { EmptyState } from '@/platform/design-system/components'
-import { platformHref, readAppearance, readScenario } from '@/platform/design-system/navigation'
 import { loadShellData } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { platformHref, readAppearance, readScenario } from '@/platform/lib/navigation'
 import { WORKSPACE_PAGES, workspacePath } from '@/platform/lib/workspace-navigation'
 
 export default async function ResourcePage({

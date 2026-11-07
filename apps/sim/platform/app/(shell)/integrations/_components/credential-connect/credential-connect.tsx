@@ -1,19 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { CopyField, SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
 import { toRecord } from '@sim/utils/object'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { SlackBotConnection } from '@/platform/app/(shell)/integrations/_components/slack-bot-connection/slack-bot-connection'
-import {
-  CopyField,
-  FileField,
-  Modal,
-  SecretField,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import type {
   CredentialConnection,
   CredentialField,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useToast } from '@sim/emcn'
+import { useToast } from '@sim/emcn-legacy'
 import { getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'

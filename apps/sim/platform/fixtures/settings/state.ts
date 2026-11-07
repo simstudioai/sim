@@ -1,7 +1,7 @@
-import type { PreviewPlan } from '@/platform/design-system/navigation'
 import type { Scenario } from '@/platform/fixtures'
 import { createGeneralFixture } from '@/platform/fixtures/settings/general'
 import { createGraphsFixture } from '@/platform/fixtures/settings/knowledge-graphs'
+import type { PreviewPlan } from '@/platform/lib/navigation'
 
 export interface SettingsFixtureProfile {
   id: string

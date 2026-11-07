@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { platformHref } from '@/platform/design-system/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { platformHref } from '@/platform/lib/navigation'
 
 export default async function Page({ searchParams }: PageProps<'/'>) {
   const query = await searchParams

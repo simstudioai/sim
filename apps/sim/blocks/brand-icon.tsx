@@ -1,5 +1,5 @@
 import type { ComponentType, CSSProperties } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { getAllBlocks } from '@/blocks/registry'
 
 /** A brand icon component that accepts standard styling props. */

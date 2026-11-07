@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 

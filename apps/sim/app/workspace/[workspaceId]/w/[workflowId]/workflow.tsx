@@ -15,7 +15,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { cn, toast, useToast } from '@sim/emcn'
+import { cn, toast, useToast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'

@@ -1,0 +1,136 @@
+.inputFrame:is(:has(.input:disabled), [data-disabled]) {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.optional {
+  color: var(--ui-secondary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.field {
+  gap: var(--spacing-field-label-gap);
+  color: var(--ui-ink);
+}
+
+.inputFrame {
+  display: grid;
+  min-width: 0;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.input {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
+  padding-inline: var(--spacing-8);
+  background: transparent;
+  color: inherit;
+  text-overflow: ellipsis;
+}
+
+.input[data-masked] {
+  -webkit-text-security: disc;
+}
+
+.autofillDecoys {
+  position: absolute;
+  inset-inline-start: -100vw;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.input::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.inputFrame:not(:has(.input:disabled), [data-disabled]):hover {
+  border-color: var(--control-hover-border);
+}
+
+.inputFrame:is(:has(.input[aria-invalid="true"]), [data-invalid]) {
+  border-color: var(--control-danger);
+}
+
+.error {
+  color: var(--control-danger);
+}
+
+.hint {
+  color: var(--ui-secondary);
+}
+
+.inputFrame[data-trailing] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.trailing,
+.copyAction {
+  margin-inline-end: calc(
+    (var(--spacing-app-chip) - var(--spacing-24)) /
+    2 -
+    var(--spacing-stroke-default)
+  );
+}
+
+.inputFrame[data-view-only],
+.input[readonly] {
+  cursor: not-allowed;
+}
+
+.inputFrame[data-view-only] {
+  grid-template-areas: "row";
+}
+
+.inputFrame[data-view-only] > .input {
+  grid-area: row;
+  padding-inline-end: calc(var(--spacing-app-chip) - var(--spacing-stroke-default));
+}
+
+.copyAction {
+  display: flex;
+  grid-area: row;
+  align-self: start;
+  justify-self: end;
+  margin-block: calc(
+    (var(--spacing-app-chip) - var(--spacing-24)) /
+    2 -
+    var(--spacing-stroke-default)
+  );
+}
+
+.textareaFrame {
+  block-size: var(--spacing-76);
+}
+
+textarea.input {
+  height: 100%;
+  min-height: 0;
+  padding-block: var(--spacing-8);
+}
+
+.textareaFrame[data-default-size="expanded"] {
+  block-size: calc(2 * var(--spacing-56));
+}
+
+.textareaFrame[data-default-size="large"] {
+  block-size: calc(3 * var(--spacing-80));
+}

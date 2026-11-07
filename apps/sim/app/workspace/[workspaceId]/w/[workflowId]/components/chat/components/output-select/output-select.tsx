@@ -7,8 +7,8 @@ import {
   type ComboboxOption,
   type ComboboxOptionGroup,
   cn,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronRight } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronRight } from '@sim/emcn-legacy/icons'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import {

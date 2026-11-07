@@ -1,4 +1,4 @@
-import { cn, Skeleton } from '@sim/emcn'
+import { cn, Skeleton } from '@sim/emcn-legacy'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 
 const FEATURED_SKELETON_COUNT = 3

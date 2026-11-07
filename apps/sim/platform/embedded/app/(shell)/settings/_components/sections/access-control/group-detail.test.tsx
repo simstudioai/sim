@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   members: { data: [] as unknown[], isPending: false, error: null as unknown },
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@/platform/embedded/lib/data/access-control', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/embedded/lib/data/access-control')>()),
   useUpdatePermissionGroup: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
@@ -46,8 +46,8 @@ vi.mock(
 vi.mock('@/platform/embedded/app/(shell)/_components/provider-mark/provider-mark', () => ({
   ProviderMark: () => null,
 }))
-vi.mock('@/platform/design-system/components', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/design-system/components')>()),
+vi.mock('@sim/emcn/picker/multi-select', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn/picker/multi-select')>()),
   MultiSelect: ({
     value,
     onValueChange,

@@ -1,4 +1,4 @@
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { EmptyState } from '@/components/empty-state/empty-state'
 
 interface ResourceNoResultsProps {

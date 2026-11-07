@@ -18,8 +18,8 @@ import {
   TableHeader,
   TableRow,
   Tooltip,
-} from '@sim/emcn'
-import { RefreshCw } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { RefreshCw } from '@sim/emcn-legacy/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'

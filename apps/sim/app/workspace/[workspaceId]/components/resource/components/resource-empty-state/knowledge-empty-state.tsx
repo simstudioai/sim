@@ -1,5 +1,5 @@
-import { Chip } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { EmptyState, type EmptyStateProps } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 import { KnowledgeIsoMark } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-iso'

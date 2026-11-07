@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense, useCallback } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'

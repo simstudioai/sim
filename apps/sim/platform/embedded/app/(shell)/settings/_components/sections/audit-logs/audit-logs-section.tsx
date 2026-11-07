@@ -1,6 +1,18 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { PropertyList } from '@sim/emcn/property-list'
+import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import {
   AUDIT_TIME_RANGE_OPTIONS,
@@ -12,24 +24,6 @@ import {
   isDestructiveAuditAction,
 } from '@/ee/audit-logs/lib/format'
 import { canExportAuditLogs } from '@/ee/audit-logs/lib/scope'
-import {
-  Button,
-  DateRangePicker,
-  Disclosure,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  MultiSelect,
-  PropertyList,
-  SectionSearch,
-  Select,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   Muted,
@@ -173,7 +167,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
         </span>
         <span className={styles.filter}>
           <MultiSelect
-            variant='quiet'
+            variant='text'
             label='Resource type'
             labelHidden
             options={[{ value: ALL_TYPES, label: 'All types' }, ...RESOURCE_TYPE_OPTIONS]}
@@ -184,8 +178,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
           />
         </span>
         <span className={styles.filter}>
-          <Select
-            variant='quiet'
+          <ChoiceMenu
             id={timeRangeId}
             label='Time range'
             options={AUDIT_TIME_RANGE_OPTIONS}

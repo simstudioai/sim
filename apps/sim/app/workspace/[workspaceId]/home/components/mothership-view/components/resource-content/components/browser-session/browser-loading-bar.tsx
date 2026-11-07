@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import styles from './browser-loading-bar.module.css'
 
 const COMPLETION_DURATION_MS = 200

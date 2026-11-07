@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
-import { CircleAlert } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { CircleAlert } from '@sim/emcn-legacy/icons'
 import { STATUS_PAGE_URL } from '@/lib/status-page'
 import { useStatusPage } from '@/hooks/queries/status-page'
 

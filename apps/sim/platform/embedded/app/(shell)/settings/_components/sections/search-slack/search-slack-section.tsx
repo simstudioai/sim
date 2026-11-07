@@ -1,6 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryState } from 'nuqs'
 import { slackSetupResultParam } from '@/app/o/[organizationId]/settings/components/search-params'
 import {
@@ -8,20 +15,6 @@ import {
   useRemoveSlackSearch,
   useSlackSearchInstallations,
 } from '@/hooks/queries/slack-search'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  errorMessageOr,
-  Icon,
-  InlineNotice,
-  QueryBoundary,
-  StatusTag,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   Muted,

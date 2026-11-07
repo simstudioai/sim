@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { cn, Expandable, ExpandableContent } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { cn, Expandable, ExpandableContent } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 
 interface HomeSectionProps {
   title: string

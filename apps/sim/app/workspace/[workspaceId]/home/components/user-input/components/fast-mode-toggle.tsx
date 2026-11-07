@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, Tooltip } from '@sim/emcn'
-import { Zap } from '@sim/emcn/icons'
+import { Chip, Tooltip } from '@sim/emcn-legacy'
+import { Zap } from '@sim/emcn-legacy/icons'
 
 interface FastModeToggleProps {
   enabled: boolean

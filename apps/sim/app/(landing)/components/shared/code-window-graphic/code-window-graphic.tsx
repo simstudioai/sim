@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { TerminalWindow } from '@sim/emcn-legacy/icons'
 import styles from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic.module.css'
 
 /** The compact preview sequences up to six visual command rows. */

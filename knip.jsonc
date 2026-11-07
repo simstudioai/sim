@@ -48,11 +48,6 @@
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
         // Bundled by build:xlsx-worker and spawned as a worker thread by filename.
         "lib/file-parsers/xlsx-worker-entry.ts",
-        // The design system's public surface: a snapshot consumers pick from, kept whole so it stays
-        // identical to its source and rebases cleanly.
-        "platform/design-system/**/*.{ts,tsx}",
-        // CSS Modules reach this through `@reference`, which knip does not follow.
-        "platform/design-system/styles/theme.css",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",
         // scripts/generate-docs.ts imports this through pathToFileURL.
@@ -160,7 +155,7 @@
       ],
       // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
       // export surface is already ratcheted there; docs consumes only the icons it maps.
-      "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }
+      "ignoreIssues": { "components/icons/icons.tsx": ["exports", "types", "duplicates"] }
     },
     "apps/pii": { "includeEntryExports": false },
     "packages/cli": { "includeEntryExports": false },

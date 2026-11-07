@@ -1,4 +1,4 @@
-import { Table as TableIcon } from '@sim/emcn/icons'
+import { Table as TableIcon } from '@sim/emcn-legacy/icons'
 import { CONNECTION_KNOB_PEAK_PX } from '@sim/workflow-renderer'
 import {
   AgentIcon,

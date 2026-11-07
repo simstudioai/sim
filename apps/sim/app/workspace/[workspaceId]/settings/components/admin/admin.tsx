@@ -14,7 +14,7 @@ import {
   OverflowText,
   Search,
   Switch,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'

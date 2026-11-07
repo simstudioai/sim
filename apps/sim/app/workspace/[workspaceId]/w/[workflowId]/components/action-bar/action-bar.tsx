@@ -12,8 +12,8 @@ import {
   Tooltip,
   Trash,
   toast,
-} from '@sim/emcn'
-import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn-legacy/icons'
 import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,

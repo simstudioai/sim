@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
-import { PageColumn } from '@/platform/design-system/components'
 
 type PeopleView = 'chart' | 'directory'
 

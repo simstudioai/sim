@@ -11,7 +11,7 @@ import {
   ChipModalSeparator,
   ChipTag,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'

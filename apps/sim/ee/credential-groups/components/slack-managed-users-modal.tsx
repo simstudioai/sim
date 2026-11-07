@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Skeleton,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SlackIcon } from '@/components/icons'
 import { SlackSearchSetupWizard } from '@/components/integrations/slack-search-setup-wizard'

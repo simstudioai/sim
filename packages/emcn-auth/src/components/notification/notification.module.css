@@ -1,0 +1,21 @@
+:global([data-auth-root]) .notification {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(400px, calc(100vw - 40px));
+  padding: var(--emcn-space-12);
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: var(--emcn-space-10);
+  background: var(--auth-overlay);
+  backdrop-filter: blur(var(--emcn-glass-blur));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 6%);
+}
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Standard reduced-transparency preference; unsupported browsers keep the fallback. */
+@media (prefers-reduced-transparency: reduce) {
+  :global([data-auth-root]) .notification {
+    background: #fafafa;
+    backdrop-filter: none;
+  }
+}

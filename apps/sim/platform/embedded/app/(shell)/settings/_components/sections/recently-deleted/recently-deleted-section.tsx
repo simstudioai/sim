@@ -1,16 +1,11 @@
 'use client'
 
-import {
-  Button,
-  EmptyState,
-  Icon,
-  QueryBoundary,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { useDeletedChats, useRestoreChat } from '@/platform/shared/recently-deleted'

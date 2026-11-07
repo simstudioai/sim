@@ -17,7 +17,7 @@ vi.mock('@/hooks/queries/general-settings', () => ({
   useUpdateGeneralSetting: () => ({ mutateAsync: mutate, isPending: false }),
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ArrowLeft: () => null,
   Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Switch: ({

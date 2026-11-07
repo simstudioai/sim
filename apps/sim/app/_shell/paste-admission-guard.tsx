@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useToast } from '@sim/emcn'
+import { useToast } from '@sim/emcn-legacy'
 import { pasteRejectionLimit } from '@/lib/core/utils/paste-admission'
 
 /**

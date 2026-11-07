@@ -1,7 +1,9 @@
 'use client'
 
-import { FailureNotice, SearchableSelect, Select } from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ProfileForm } from '@/platform/embedded/app/(shell)/settings/_components/profile/profile-settings'
 import {
@@ -44,9 +46,8 @@ function Preferences() {
   return (
     <SavedSettingsSection title='Preferences' rows={7}>
       <SettingsRow label='Theme' description='Select your preferred color theme' field>
-        <Select
+        <ChoiceMenu
           label='Theme'
-          variant='quiet'
           options={THEMES}
           value={appearance.theme}
           onValueChange={appearance.setTheme}
@@ -54,7 +55,7 @@ function Preferences() {
       </SettingsRow>
       <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
         <SearchableSelect
-          variant='quiet'
+          variant='text'
           label='Time zone'
           labelHidden
           searchLabel='Search time zones'
@@ -82,9 +83,8 @@ function Preferences() {
         preview='canvas-error-notification'
       />
       <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them' field>
-        <Select
+        <ChoiceMenu
           label='Snap to grid'
-          variant='quiet'
           options={snap.options}
           value={snap.value}
           disabled={snap.disabled}

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AuthStatusContent } from '@sim/auth-ui'
+import { AuthStatusContent } from '@sim/emcn-auth/status'
 import { AuthShell } from '@/app/(auth)/components'
 
 interface DesktopHandoffShellProps {

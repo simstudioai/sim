@@ -9,8 +9,8 @@ import {
   scrollFadeClass,
   toast,
   useScrollEdges,
-} from '@sim/emcn'
-import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn-legacy/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'

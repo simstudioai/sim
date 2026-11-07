@@ -1,0 +1,71 @@
+{
+  "name": "@sim/emcn-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./button": "./src/components/button/button.tsx",
+    "./badge": "./src/components/badge/badge.tsx",
+    "./chrome": "./src/components/chrome/chrome.ts",
+    "./callout": "./src/components/callout/callout.tsx",
+    "./cards": "./src/components/cards/cards.tsx",
+    "./steps": "./src/components/steps/steps.tsx",
+    "./tabs": "./src/components/tabs/tabs.tsx",
+    "./code-block": "./src/components/code-block/code-block.tsx",
+    "./copy-button": "./src/components/copy-button/copy-button.tsx",
+    "./heading": "./src/components/heading/heading.tsx",
+    "./command-table": "./src/components/command-table/command-table.tsx",
+    "./reference-details": "./src/components/reference-details/reference-details.tsx",
+    "./scroll-region": "./src/components/scroll-region/scroll-region.tsx",
+    "./lightbox": "./src/components/lightbox/lightbox.tsx",
+    "./screenshot-frame": "./src/components/screenshot-frame/screenshot-frame.tsx",
+    "./media-viewer": "./src/components/media-viewer/media-viewer.tsx",
+    "./styles/docs.css": "./src/styles/docs.css"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint:check": "biome check ."
+  },
+  "dependencies": {
+    "@sim/emcn": "workspace:*",
+    "@base-ui/react": "1.9.0"
+  },
+  "peerDependencies": {
+    "next": ">=15",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "next": "16.4.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "typescript": "^7.0.2"
+  },
+  "imports": {
+    "#docs/components/tabs/tabs": "./src/components/tabs/tabs.tsx",
+    "#docs/components/reference-details/reference-details": "./src/components/reference-details/reference-details.tsx",
+    "#docs/components/code-block/code-block": "./src/components/code-block/code-block.tsx",
+    "#docs/components/screenshot-frame/screenshot-frame": "./src/components/screenshot-frame/screenshot-frame.tsx",
+    "#docs/components/copy-button/copy-button": "./src/components/copy-button/copy-button.tsx",
+    "#docs/components/media-viewer/media-viewer": "./src/components/media-viewer/media-viewer.tsx",
+    "#docs/components/heading/heading": "./src/components/heading/heading.tsx",
+    "#docs/components/cards/cards": "./src/components/cards/cards.tsx",
+    "#docs/components/lightbox/lightbox": "./src/components/lightbox/lightbox.tsx",
+    "#docs/components/callout/callout": "./src/components/callout/callout.tsx",
+    "#docs/components/button/button": "./src/components/button/button.tsx",
+    "#docs/components/steps/steps": "./src/components/steps/steps.tsx",
+    "#docs/components/chrome/chrome": "./src/components/chrome/chrome.ts",
+    "#docs/components/command-table/command-table": "./src/components/command-table/command-table.tsx",
+    "#docs/components/scroll-region/scroll-region": "./src/components/scroll-region/scroll-region.tsx",
+    "#docs/components/badge/badge": "./src/components/badge/badge.tsx",
+    "#docs/styles/docs.css": "./src/styles/docs.css",
+    "#docs/components/tabs/tabs.module.css": "./src/components/tabs/tabs.module.css",
+    "#docs/components/chrome/chrome.module.css": "./src/components/chrome/chrome.module.css"
+  }
+}

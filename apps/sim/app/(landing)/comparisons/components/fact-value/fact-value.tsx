@@ -1,4 +1,4 @@
-import { Check, X } from '@sim/emcn/icons'
+import { Check, X } from '@sim/emcn-legacy/icons'
 import type { Fact } from '@/lib/compare/data'
 import { SourceLink } from '@/app/(landing)/comparisons/components/source-info'
 import { parseFactValue } from '@/app/(landing)/comparisons/fact-status'

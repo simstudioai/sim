@@ -59,7 +59,7 @@ test('native file tools remember folder consent across chats and restarts until 
     const bundle = await build({
       stdin: {
         contents: `import { createRoot } from 'react-dom/client';
-import { ToastProvider } from '@sim/emcn';
+import { ToastProvider } from '@sim/emcn-legacy';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop';

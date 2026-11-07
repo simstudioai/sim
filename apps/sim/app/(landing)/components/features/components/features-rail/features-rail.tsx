@@ -1,7 +1,7 @@
 'use client'
 
 import { Children, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
 
 /**

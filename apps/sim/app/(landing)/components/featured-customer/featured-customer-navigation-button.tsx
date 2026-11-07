@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
-import { ArrowLeft, ArrowRight } from '@sim/emcn/icons'
+import { Button, cn, Tooltip } from '@sim/emcn-legacy'
+import { ArrowLeft, ArrowRight } from '@sim/emcn-legacy/icons'
 
 const HOVER_NAVIGATION_DELAY_MS = 1000
 

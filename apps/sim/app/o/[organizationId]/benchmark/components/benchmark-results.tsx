@@ -1,4 +1,4 @@
-import { Chip, cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn-legacy'
 import type { BenchmarkCase, BenchmarkRun } from '@/lib/api/contracts/benchmarks'
 
 interface BenchmarkResultsProps {

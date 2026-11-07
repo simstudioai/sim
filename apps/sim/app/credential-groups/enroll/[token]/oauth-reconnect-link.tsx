@@ -1,5 +1,5 @@
 'use client'
-import { AuthLinkButton, type AuthLinkButtonProps } from '@sim/auth-ui'
+import { AuthLinkButton, type AuthLinkButtonProps } from '@sim/emcn-auth/button'
 
 interface OAuthConnectLinkProps extends Pick<AuthLinkButtonProps, 'variant'> {
   href: string

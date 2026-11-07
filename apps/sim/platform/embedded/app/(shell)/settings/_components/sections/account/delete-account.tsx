@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { InlineNotice, Modal, TextField } from '@/platform/design-system/components'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/account/account-section.module.css'
 import { useAccountDeletion } from '@/platform/embedded/lib/data/account'
 

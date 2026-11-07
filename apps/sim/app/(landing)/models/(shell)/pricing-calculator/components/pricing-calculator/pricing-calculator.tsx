@@ -1,7 +1,7 @@
 'use client'
 
 import { useId } from 'react'
-import { ChipInput } from '@sim/emcn'
+import { ChipInput } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { debounce, useQueryStates } from 'nuqs'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'

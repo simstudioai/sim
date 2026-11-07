@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChipDropdownOption } from '@sim/emcn'
-import { Avatar, Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn'
-import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
+import type { ChipDropdownOption } from '@sim/emcn-legacy'
+import { Avatar, Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn-legacy'
+import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'

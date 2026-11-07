@@ -30,7 +30,7 @@ const {
 
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 vi.mock('@/lib/mcp/service', () => mcpServiceMock)
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
   credentialGroupOAuthAttemptPrincipal: mockAuthenticateEnrollment,
 }))

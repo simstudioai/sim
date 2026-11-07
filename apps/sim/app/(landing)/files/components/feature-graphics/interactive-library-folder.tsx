@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import styles from '@/app/(landing)/files/components/feature-graphics/file-library-graphic.module.css'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipInput, ChipSelect, toast } from '@sim/emcn'
-import { ArrowLeft, Database } from '@sim/emcn/icons'
+import { ChipInput, ChipSelect, toast } from '@sim/emcn-legacy'
+import { ArrowLeft, Database } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'

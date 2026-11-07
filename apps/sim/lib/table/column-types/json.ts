@@ -1,4 +1,4 @@
-import { TypeJson } from '@sim/emcn/icons'
+import { TypeJson } from '@sim/emcn-legacy/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const jsonColumnType: ColumnTypeDefinition = {

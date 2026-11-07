@@ -7,8 +7,8 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-} from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { BrowserNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-notice'
 import type { ContinueSignInController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/use-continue-sign-in'
 

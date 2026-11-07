@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn-legacy'
 import {
   Columns3,
   Database,
@@ -34,7 +34,7 @@ import {
   TagIcon,
   Trash,
   Upload,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
 import { useParams, useRouter } from 'next/navigation'

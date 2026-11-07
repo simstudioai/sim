@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useRef, useState } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 /**

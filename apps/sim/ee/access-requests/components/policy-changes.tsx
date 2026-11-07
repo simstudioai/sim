@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Chip, ChipModalField, Expandable, ExpandableContent } from '@sim/emcn'
+import { Chip, ChipModalField, Expandable, ExpandableContent } from '@sim/emcn-legacy'
 import type {
   AccessRequestPolicyChange,
   AccessRequestPreviewResponse,

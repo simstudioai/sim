@@ -1,4 +1,4 @@
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 
 export function workspacePath(workspaceId: string, section: string) {
   return `/workspace/${encodeURIComponent(workspaceId)}/${section}`

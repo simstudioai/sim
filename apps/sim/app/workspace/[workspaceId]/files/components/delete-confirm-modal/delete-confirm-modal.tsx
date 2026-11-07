@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
 
 interface DeleteConfirmModalProps {
   open: boolean

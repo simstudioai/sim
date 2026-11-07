@@ -18,7 +18,7 @@ import {
   chipHoverSurfaceClass,
   cn,
   disclosureChevronClass,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {

@@ -1,7 +1,7 @@
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { RowList } from '@/platform/design-system/components'
-import { ActivityRow } from '@/platform/design-system/components/activity-row/activity-row'
-import { Icon } from '@/platform/design-system/components/icon/icon'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { Icon } from '@sim/emcn/icon'
+import { RowList } from '@sim/emcn/settings-section/row-list'
 import { HomeSection } from '@/platform/embedded/app/(shell)/_components/home-section/home-section'
 import type { HomeGetStartedStep } from '@/platform/shared/home'
 

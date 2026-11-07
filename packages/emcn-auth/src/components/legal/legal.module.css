@@ -1,0 +1,11 @@
+:global([data-auth-root]) .legal {
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+  text-align: center;
+  color: var(--auth-secondary);
+}
+:global([data-auth-root]) .legal a {
+  color: var(--auth-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

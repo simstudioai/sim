@@ -1,4 +1,4 @@
-import { StatusPageContent } from '@sim/emcn'
+import { StatusPageContent } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { ReturnHomeLink } from '@/components/status-page/return-home-link'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'

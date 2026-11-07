@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Combobox, cn } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Button, Combobox, cn } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'

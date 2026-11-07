@@ -1,16 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import { Icon } from '@sim/emcn/icon'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import Link from 'next/link'
-import {
-  Avatar,
-  Button,
-  FailureNotice,
-  Icon,
-  LoadingRows,
-  RowList,
-} from '@/platform/design-system/components'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import { ProfileUnavailable } from '@/platform/embedded/app/(shell)/people/_components/people-page/profile-unavailable'
 import styles from '@/platform/embedded/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/embedded/app/(shell)/people/_components/person/person-modal'

@@ -12,7 +12,7 @@ import type { BrowserPanelSnapshot } from '@sim/browser-protocol'
 import {
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   type NativeSurfaceOcclusionPrepareDetail,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
   captureBrowserPanelSnapshot,

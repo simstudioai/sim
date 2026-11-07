@@ -13,8 +13,8 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'

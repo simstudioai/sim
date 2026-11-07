@@ -1,28 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { FailureNotice } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import type { PermissionGroup } from '@/ee/access-control/hooks/permission-groups'
-import {
-  ActivityRow,
-  Button,
-  Checkbox,
-  EmptyState,
-  errorMessageOr,
-  FailureNotice,
-  Modal,
-  MultiSelect,
-  QueryBoundary,
-  RowList,
-  SectionSearch,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   SectionStack,
   SectionToolbar,

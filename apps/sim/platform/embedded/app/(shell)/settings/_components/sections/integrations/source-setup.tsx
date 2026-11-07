@@ -1,5 +1,12 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { SelectField } from '@sim/emcn/field'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -7,16 +14,6 @@ import { getCanonicalScopesForProvider } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { useAddConnectorForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-add-connector-form'
-import {
-  Button,
-  Checkbox,
-  Disclosure,
-  FailureNotice,
-  InlineNotice,
-  SearchableSelect,
-  SelectField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   DetailHeader,

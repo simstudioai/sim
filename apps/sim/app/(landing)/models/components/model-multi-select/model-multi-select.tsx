@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn-legacy'
 import { TOOL_MODELS } from '@/app/(landing)/models/tools'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 

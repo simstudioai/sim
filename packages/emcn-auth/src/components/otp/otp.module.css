@@ -1,0 +1,46 @@
+:global([data-auth-root]) .otpLane {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--auth-touch-height);
+}
+:global([data-auth-root]) .otpLane:has(input:disabled) {
+  opacity: var(--auth-disabled);
+}
+:global([data-auth-root]) .otpGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--emcn-space-8);
+}
+:global([data-auth-root]) .otpSlot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--emcn-space-32);
+  height: var(--emcn-space-32);
+  border: 1px solid var(--auth-border);
+  border-radius: var(--emcn-space-8);
+  background: var(--auth-reading);
+  font-size: 16px;
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .caret {
+  width: var(--emcn-space-1);
+  height: 18px;
+  background: var(--auth-primary);
+  animation: pulse var(--emcn-motion-caret) infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .otpLane {
+    width: fit-content;
+  }
+}
+:global([data-auth-root]) .otpLane:has(input[aria-invalid="true"]) .otpSlot {
+  border-color: var(--auth-error);
+}

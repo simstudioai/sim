@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChipInput, ChipTextarea } from '@sim/emcn'
+import { ChipInput, ChipTextarea } from '@sim/emcn-legacy'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

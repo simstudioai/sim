@@ -1,4 +1,4 @@
-import { chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
+import { chipContentLabelClass, chipVariants, cn } from '@sim/emcn-legacy'
 
 export function ResumeExecutionUnavailable() {
   return (

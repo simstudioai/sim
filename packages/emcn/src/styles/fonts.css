@@ -1,0 +1,15 @@
+@font-face {
+  font-family: "EMCN Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "EMCN Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/geist-mono.woff2") format("woff2");
+}

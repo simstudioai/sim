@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthButton as Chip } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
 import { signOut } from '@/lib/auth/client'
 
 interface SwitchAccountProps {

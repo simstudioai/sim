@@ -1,4 +1,5 @@
-import { AuthResourceIdentity, AuthResourceRow } from '@sim/auth-ui'
+import { AuthResourceIdentity } from '@sim/emcn-auth/identity'
+import { AuthResourceRow } from '@sim/emcn-auth/resource'
 import type { InvitationDetails, MyInvitation } from '@/lib/api/contracts/invitations'
 import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
 
@@ -27,7 +28,7 @@ export function InvitationDisclosure({
     <div
       className={
         auth
-          ? 'au:space-y-3 au:text-left au:text-[var(--auth-primary)] au:text-control'
+          ? 'au:flex au:flex-col au:gap-3 au:text-left au:text-[var(--auth-primary)] au:text-control'
           : 'space-y-3 text-left text-[var(--text-body)] text-small'
       }
     >
@@ -94,7 +95,7 @@ export function InvitationDisclosure({
         </p>
       )}
       {showWorkspaceAccess && invitation.grants.length > 0 && (
-        <div className={auth ? 'au:space-y-2' : 'space-y-2'}>
+        <div className={auth ? 'au:flex au:flex-col au:gap-2' : 'space-y-2'}>
           <p
             className={
               auth

@@ -1,7 +1,13 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeXClass, Tooltip, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+  Tooltip,
+  useScrollEdges,
+} from '@sim/emcn-legacy'
 import type { OrganizationUsageCalendar } from '@/lib/api/contracts/organization-usage'
 import { formatApportionedCreditCost } from '@/lib/billing/credits/conversion'
 import { USAGE_PALETTE_CLASS } from '@/ee/organization-usage/constants'

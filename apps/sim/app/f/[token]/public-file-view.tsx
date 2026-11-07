@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip, OverflowText, SimWordmark } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import { Chip, OverflowText, SimWordmark } from '@sim/emcn-legacy'
+import { Download } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'

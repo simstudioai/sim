@@ -1,0 +1,83 @@
+{
+  "name": "@sim/emcn-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "imports": {
+    "#platform/catalog/component-recipe": "./src/catalog/component-recipe.tsx",
+    "#platform/catalog/evidence.json": "./src/catalog/evidence.json",
+    "#platform/catalog/recipes.json": "./src/catalog/recipes.json",
+    "#platform/catalog/recipes.module.css": "./src/catalog/recipes.module.css",
+    "#platform/catalog/variants.json": "./src/catalog/variants.json",
+    "#platform/components/composer-input/composer-input": "./src/components/composer-input/composer-input.tsx",
+    "#platform/components/composer-input/composer-input.module.css": "./src/components/composer-input/composer-input.module.css",
+    "#platform/components/composer-input/marked-text": "./src/components/composer-input/marked-text.tsx",
+    "#platform/components/composer-input/suggestions": "./src/components/composer-input/suggestions.tsx",
+    "#platform/components/composer-input/suggestions.module.css": "./src/components/composer-input/suggestions.module.css",
+    "#platform/components/connection-prompt/connection-prompt": "./src/components/connection-prompt/connection-prompt.tsx",
+    "#platform/components/connection-prompt/connection-prompt.module.css": "./src/components/connection-prompt/connection-prompt.module.css",
+    "#platform/components/destination-tabs/destination-tabs": "./src/components/destination-tabs/destination-tabs.tsx",
+    "#platform/components/destination-tabs/destination-tabs.module.css": "./src/components/destination-tabs/destination-tabs.module.css",
+    "#platform/components/execution-steps/execution-steps": "./src/components/execution-steps/execution-steps.tsx",
+    "#platform/components/execution-steps/execution-steps.module.css": "./src/components/execution-steps/execution-steps.module.css",
+    "#platform/components/message-bubble/message-bubble": "./src/components/message-bubble/message-bubble.tsx",
+    "#platform/components/message-bubble/message-bubble.module.css": "./src/components/message-bubble/message-bubble.module.css",
+    "#platform/components/page-column/page-column": "./src/components/page-column/page-column.tsx",
+    "#platform/components/page-column/page-column.module.css": "./src/components/page-column/page-column.module.css",
+    "#platform/components/recent-items/recent-items": "./src/components/recent-items/recent-items.tsx",
+    "#platform/components/recent-items/recent-items.module.css": "./src/components/recent-items/recent-items.module.css",
+    "#platform/components/surface/platform-surface": "./src/components/surface/platform-surface.tsx",
+    "#platform/components/surface/surface.module.css": "./src/components/surface/surface.module.css",
+    "#platform/components/workspace-fields/workspace-fields": "./src/components/workspace-fields/workspace-fields.tsx",
+    "#platform/components/workspace-fields/workspace-fields.module.css": "./src/components/workspace-fields/workspace-fields.module.css",
+    "#platform/components/workspace-list/workspace-list": "./src/components/workspace-list/workspace-list.tsx",
+    "#platform/components/workspace-list/workspace-list.module.css": "./src/components/workspace-list/workspace-list.module.css",
+    "#platform/styles.d": "./src/styles.d.ts",
+    "#platform/styles/platform.css": "./src/styles/platform.css",
+    "#platform/styles/system-appearance.cjs": "./src/styles/system-appearance.cjs"
+  },
+  "exports": {
+    "./catalog/component-recipe": "./src/catalog/component-recipe.tsx",
+    "./catalog/evidence.json": "./src/catalog/evidence.json",
+    "./catalog/recipes.json": "./src/catalog/recipes.json",
+    "./catalog/variants.json": "./src/catalog/variants.json",
+    "./composer-input": "./src/components/composer-input/composer-input.tsx",
+    "./composer-input/marked-text": "./src/components/composer-input/marked-text.tsx",
+    "./composer-input/suggestions": "./src/components/composer-input/suggestions.tsx",
+    "./connection-prompt": "./src/components/connection-prompt/connection-prompt.tsx",
+    "./destination-tabs": "./src/components/destination-tabs/destination-tabs.tsx",
+    "./execution-steps": "./src/components/execution-steps/execution-steps.tsx",
+    "./message-bubble": "./src/components/message-bubble/message-bubble.tsx",
+    "./page-column": "./src/components/page-column/page-column.tsx",
+    "./recent-items": "./src/components/recent-items/recent-items.tsx",
+    "./styles/host-bridge.module.css": "./src/styles/host-bridge.module.css",
+    "./styles/platform.css": "./src/styles/platform.css",
+    "./styles/system-appearance.cjs": "./src/styles/system-appearance.cjs",
+    "./surface": "./src/components/surface/surface.tsx",
+    "./surface/platform-surface": "./src/components/surface/platform-surface.tsx",
+    "./workspace-fields": "./src/components/workspace-fields/workspace-fields.tsx",
+    "./workspace-list": "./src/components/workspace-list/workspace-list.tsx"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.9.0",
+    "@sim/emcn": "workspace:*"
+  },
+  "peerDependencies": {
+    "next": ">=16",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^7.0.2"
+  }
+}

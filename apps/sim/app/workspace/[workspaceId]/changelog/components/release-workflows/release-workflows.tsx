@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader, OverflowText } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader, OverflowText } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import type { ChangelogReleaseWorkflow } from '@/lib/api/contracts/changelog'
 

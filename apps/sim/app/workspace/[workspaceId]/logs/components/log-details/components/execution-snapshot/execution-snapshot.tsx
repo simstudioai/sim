@@ -13,8 +13,8 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Loader,
-} from '@sim/emcn'
-import { CircleAlert } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { CircleAlert } from '@sim/emcn-legacy/icons'
 import { createPortal } from 'react-dom'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'

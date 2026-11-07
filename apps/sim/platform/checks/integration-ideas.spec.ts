@@ -20,6 +20,7 @@ test('an integration idea prepares an editable Home draft without sending or los
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/home\?/)
   await expect(composer).toHaveValue(`Keep my existing notes.\n\n${prompt}`)
+  await expect(composer).toBeFocused()
   await composer.fill(`${await composer.inputValue()}\nAsk me before sending gifts.`)
   await expect(composer).toHaveValue(/Ask me before sending gifts\.$/)
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled()

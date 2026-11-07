@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChipConfirmModal, toast } from '@sim/emcn'
+import { ChipConfirmModal, toast } from '@sim/emcn-legacy'
 import { describeRunningCommand } from '@sim/terminal-protocol'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 

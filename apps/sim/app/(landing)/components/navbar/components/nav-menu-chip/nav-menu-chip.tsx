@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
+import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn-legacy'
 import dynamic from 'next/dynamic'
 import { flushSync } from 'react-dom'
 import {

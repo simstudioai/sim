@@ -1,8 +1,8 @@
 'use client'
 
 import { forwardRef } from 'react'
-import { Chip, ChipLink, cn } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
+import { Chip, ChipLink, cn } from '@sim/emcn-legacy'
+import { Lock } from '@sim/emcn-legacy/icons'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
 export interface SidebarNavItemData {

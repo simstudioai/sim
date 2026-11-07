@@ -1,14 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Modal } from '@sim/emcn/modal'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   FieldStack,
   LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { FailureNotice, Modal, SegmentedControl } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   describeSsoPolicy,
   SSO_POLICY_OPTIONS,

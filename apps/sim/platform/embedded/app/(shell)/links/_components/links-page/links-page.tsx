@@ -9,22 +9,19 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
+import { QueryBoundary } from '@sim/emcn/status/query-boundary'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkOrigin } from '@/lib/sim-links/validation'
-import { QueryBoundary } from '@/platform/design-system/components'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { Button } from '@/platform/design-system/components/button/button'
-import {
-  DataTable,
-  TableLabel,
-} from '@/platform/design-system/components/data-display/data-display'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { ActionMenu, ContextActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
-import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
-import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { SiteMark } from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark'
 import { LinkEditor } from '@/platform/embedded/app/(shell)/links/_components/links-page/link-editor'
 import { LinksFrame } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-frame'
@@ -37,8 +34,8 @@ const LINK_SKELETON_ROWS = 6
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact', width: '27%' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide', width: '19%' },
+  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact', share: '27%' },
+  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide', share: '19%' },
   { key: 'owner', label: 'Created by', kind: 'text', showFrom: 'wide' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'wide' },
   { key: 'updated', label: 'Updated', kind: 'text', showFrom: 'wide' },

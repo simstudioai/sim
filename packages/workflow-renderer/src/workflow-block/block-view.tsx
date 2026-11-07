@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
-import { Ban, Lock } from '@sim/emcn/icons'
+import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn-legacy'
+import { Ban, Lock } from '@sim/emcn-legacy/icons'
 import { WorkflowTypeTag } from '@sim/workflow-renderer/workflow-type'
 import {
   WORKFLOW_SOURCE_HANDLE_ID,

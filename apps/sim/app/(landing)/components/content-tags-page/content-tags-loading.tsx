@@ -1,4 +1,4 @@
-import { Skeleton } from '@sim/emcn'
+import { Skeleton } from '@sim/emcn-legacy'
 
 const TAG_SKELETON_COUNT = 12
 

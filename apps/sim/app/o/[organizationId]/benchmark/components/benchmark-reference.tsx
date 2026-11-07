@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Chip, ChipTextarea, toast } from '@sim/emcn'
-import { Code, Upload } from '@sim/emcn/icons'
+import { Chip, ChipTextarea, toast } from '@sim/emcn-legacy'
+import { Code, Upload } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BenchmarkCase, RunBenchmarkStageBody } from '@/lib/api/contracts/benchmarks'
 import { BenchmarkJson } from '@/app/o/[organizationId]/benchmark/components/benchmark-json'

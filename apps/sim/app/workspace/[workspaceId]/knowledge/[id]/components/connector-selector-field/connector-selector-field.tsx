@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipCombobox, type ChipModalFieldAria } from '@sim/emcn'
+import { ChipCombobox, type ChipModalFieldAria } from '@sim/emcn-legacy'
 import {
   type ConnectorSelectorOptions,
   useConnectorSelector,

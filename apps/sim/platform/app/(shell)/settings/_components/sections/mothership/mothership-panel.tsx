@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import {
   ActionRow,
   SectionStack,
@@ -9,7 +12,6 @@ import {
 import { MothershipByok } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-byok'
 import { MothershipLicenses } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-licenses'
 import { MothershipOverview } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-overview'
-import { DateRangePicker, SegmentedControl, Select } from '@/platform/design-system/components'
 import {
   MOTHERSHIP_ENVIRONMENTS,
   MOTHERSHIP_VIEWS,
@@ -49,7 +51,7 @@ export function MothershipPanel({ organization, referenceTime }: MothershipPanel
           </ActionRow>
         }
       >
-        <Select
+        <ChoiceMenu
           label='Environment'
           value={env}
           options={

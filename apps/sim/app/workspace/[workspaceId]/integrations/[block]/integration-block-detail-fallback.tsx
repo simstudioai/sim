@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface IntegrationBlockDetailFallbackProps {

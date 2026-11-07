@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
-import { Badge, cn } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
+import { Badge, cn } from '@sim/emcn-legacy'
+import { FileText } from '@sim/emcn-legacy/icons'
 import type { KnowledgePreviewDocument } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/data'
 
 interface KnowledgeDocumentListProps {

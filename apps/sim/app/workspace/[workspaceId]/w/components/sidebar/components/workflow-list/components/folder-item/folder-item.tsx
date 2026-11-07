@@ -10,8 +10,8 @@ import {
   RowActions,
   rowActionsGroupClass,
   toast,
-} from '@sim/emcn'
-import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'

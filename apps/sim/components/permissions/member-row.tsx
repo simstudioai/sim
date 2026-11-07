@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
+import { Avatar, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn-legacy'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 

@@ -1,5 +1,5 @@
 import type { ComponentType, HTMLAttributes } from 'react'
-import { ChipTag, chipIconSlotClass, cn } from '@sim/emcn'
+import { ChipTag, chipIconSlotClass, cn } from '@sim/emcn-legacy'
 import { isLightTileColor } from '@sim/workflow-renderer/tile-icon-color'
 
 const WORKFLOW_ROLE_ACCENTS = {

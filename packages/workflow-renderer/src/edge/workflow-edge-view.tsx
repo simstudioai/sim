@@ -1,6 +1,6 @@
 import { useId, useMemo } from 'react'
-import { usePrefersReducedMotion } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { usePrefersReducedMotion } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import {
   BaseEdge,
   type Edge,

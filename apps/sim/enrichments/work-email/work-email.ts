@@ -1,4 +1,4 @@
-import { Mail } from '@sim/emcn/icons'
+import { Mail } from '@sim/emcn-legacy/icons'
 import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 

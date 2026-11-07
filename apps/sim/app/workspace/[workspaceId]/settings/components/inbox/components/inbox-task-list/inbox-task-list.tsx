@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn'
-import { ArrowRight, Paperclip } from '@sim/emcn/icons'
+import { Badge, ChipInput, ChipSelect, Search } from '@sim/emcn-legacy'
+import { ArrowRight, Paperclip } from '@sim/emcn-legacy/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'

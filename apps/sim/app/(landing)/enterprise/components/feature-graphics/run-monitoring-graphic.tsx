@@ -1,4 +1,4 @@
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn } from '@sim/emcn-legacy'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/run-monitoring-graphic.module.css'
 

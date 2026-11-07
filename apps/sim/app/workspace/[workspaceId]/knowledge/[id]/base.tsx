@@ -21,7 +21,7 @@ import {
   isTextClipped,
   Tooltip,
   useFloatingTooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   CircleAlert,
   Database,
@@ -33,7 +33,7 @@ import {
   TagIcon,
   Trash,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'

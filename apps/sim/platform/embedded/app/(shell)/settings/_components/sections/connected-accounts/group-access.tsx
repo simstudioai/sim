@@ -1,6 +1,12 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
+import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
@@ -11,19 +17,6 @@ import {
   useUpdateOrganizationAccountWorkspaceAccess,
 } from '@/hooks/queries/organization-accounts'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import {
-  Button,
-  EmptyState,
-  errorMessageOr,
-  InlineNotice,
-  LoadingRows,
-  QueryBoundary,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   SectionStack,
   SectionToolbar,

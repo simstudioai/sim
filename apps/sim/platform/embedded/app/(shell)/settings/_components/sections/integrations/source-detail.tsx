@@ -1,6 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Button, Chip } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -21,22 +30,6 @@ import {
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  ActionMenu,
-  Button,
-  Checkbox,
-  Chip,
-  ConfirmDialog,
-  EmptyState,
-  FailureNotice,
-  InlineNotice,
-  LoadingRows,
-  SaveActions,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   DetailHeader,

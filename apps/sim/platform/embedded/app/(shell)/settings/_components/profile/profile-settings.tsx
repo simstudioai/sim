@@ -1,11 +1,12 @@
 'use client'
 
 import { type ChangeEventHandler, useRef, useState } from 'react'
-import { Avatar, Button, Icon, Modal, TextField } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/profile/profile-settings.module.css'
 
 const NAME_MAX_LENGTH = 100

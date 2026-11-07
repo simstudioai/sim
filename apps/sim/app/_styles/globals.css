@@ -16,7 +16,7 @@
 @source '../../lib';
 @source '../../ee';
 @source '../../content';
-@source '../../../../packages/emcn/src';
+@source '../../../../packages/emcn-legacy/src';
 @source '../../../../packages/workflow-renderer/src';
 
 /* Tests are not production styling sources. */

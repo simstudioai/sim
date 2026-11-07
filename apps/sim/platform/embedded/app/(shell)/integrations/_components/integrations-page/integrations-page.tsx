@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Chip } from '@/platform/design-system/components/button/button'
+import { Chip } from '@sim/emcn/button'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page.module.css'
 
 interface IntegrationsPageProps {

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
 import { ManualSecretFields } from '@/platform/app/(shell)/integrations/_components/manual-secret-fields/manual-secret-fields'
-import { Modal, TextField } from '@/platform/design-system/components'
 import type {
   IntegrationCenterData,
   IntegrationResource,
@@ -41,6 +42,7 @@ export function ManualCredentialDetail({
       <CredentialDetail
         credential={credential}
         integrationName={appName ?? 'Credential'}
+        providerId={resource.appId}
         viewer={data.viewer}
         people={data.people}
         onChange={(next) => {

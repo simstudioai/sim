@@ -47,7 +47,16 @@ function fixture() {
     })
   )
   const packages = [
-    ['apps/sim', '@sim/app', { '@sim/auth': 'workspace:*', '@sim/db': 'workspace:*' }],
+    [
+      'apps/sim',
+      '@sim/app',
+      {
+        '@sim/auth': 'workspace:*',
+        '@sim/db': 'workspace:*',
+        '@sim/emcn': 'workspace:*',
+        '@sim/emcn-platform': 'workspace:*',
+      },
+    ],
     ['apps/realtime', '@sim/realtime', { '@sim/auth': 'workspace:*' }],
     ['apps/desktop', '@sim/desktop', {}],
     ['apps/extension', '@sim/extension', {}],
@@ -55,6 +64,8 @@ function fixture() {
     ['packages/auth', '@sim/auth', { '@sim/security': 'workspace:*' }],
     ['packages/security', '@sim/security', {}],
     ['packages/db', '@sim/db', {}],
+    ['packages/emcn', '@sim/emcn', {}],
+    ['packages/emcn-platform', '@sim/emcn-platform', { '@sim/emcn': 'workspace:*' }],
     ['packages/ts-sdk', 'simstudio-ts-sdk', {}],
     ['packages/sim-cli', 'sim', {}],
     [
@@ -405,9 +416,10 @@ describe('CI task attribution through real Turborepo', () => {
   it.each([
     'apps/sim/platform/embedded/app/(shell)/home/home-view.tsx',
     'apps/sim/platform/embedded/lib/data/home-model.ts',
-    'apps/sim/platform/design-system/components/button/button.tsx',
-    'apps/sim/platform/design-system/components/button/button.module.css',
-    'apps/sim/platform/design-system/styles/tokens.css',
+    'packages/emcn/src/components/button/button.tsx',
+    'packages/emcn/src/components/button/button.module.css',
+    'packages/emcn/src/styles/generated/tokens.css',
+    'packages/emcn-platform/src/components/surface/surface.tsx',
     'apps/sim/app/o/[organizationId]/page.tsx',
   ])('changes the build hash and selects every boundary for code app/o ships: %s', (file) => {
     const { repo } = fixture()

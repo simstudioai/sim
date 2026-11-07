@@ -1,20 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { FieldFrame } from '@sim/emcn/field'
+import { TextArea } from '@sim/emcn/field/inputs'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import { MessageTime } from '@/platform/app/(shell)/_components/chat/message/message-time'
 import type { PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
 import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import {
-  ActionMenu,
-  CopyButton,
-  CopyField,
-  FieldFrame,
-  IconButton,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { TextArea } from '@/platform/design-system/components/field/inputs'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 
 type Rating = 'Good response' | 'Bad response'
 

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, toast } from '@sim/emcn'
-import { Plus, Workspaces } from '@sim/emcn/icons'
+import { Chip, toast } from '@sim/emcn-legacy'
+import { Plus, Workspaces } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'

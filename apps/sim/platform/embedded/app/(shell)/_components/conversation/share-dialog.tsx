@@ -1,6 +1,15 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { FieldFrame, fieldDescription } from '@sim/emcn/field'
+import { Input } from '@sim/emcn/field/inputs'
+import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { InlineNotice } from '@sim/emcn/status'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { generatePassword } from '@/lib/core/security/encryption'
 import {
@@ -12,18 +21,6 @@ import {
   type ShareDialogProps,
   useShareDialog,
 } from '@/app/workspace/[workspaceId]/files/components/share-modal'
-import {
-  Button,
-  ConfirmDialog,
-  CopyButton,
-  FieldFrame,
-  InlineNotice,
-  Input,
-  Modal,
-  RecipientField,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { fieldDescription } from '@/platform/design-system/components/field/fields'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 

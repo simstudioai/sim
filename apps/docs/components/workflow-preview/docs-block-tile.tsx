@@ -1,5 +1,5 @@
 import { BlockTileView, type BlockTileViewProps } from '@sim/workflow-renderer'
-import { coreBlockTypes } from '@/components/ui/icon-mapping'
+import { coreBlockTypes } from '@/components/docs/icon-mapping/icon-mapping'
 import { normalizeBlockType, resolveIcon } from '@/components/workflow-preview/block-icons'
 
 interface DocsBlockTileProps {

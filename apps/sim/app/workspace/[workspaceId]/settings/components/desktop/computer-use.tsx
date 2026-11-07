@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
-import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
+import { Chip, ChipSwitch, Label, toast } from '@sim/emcn-legacy'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { getDesktopBridge } from '@/lib/desktop'

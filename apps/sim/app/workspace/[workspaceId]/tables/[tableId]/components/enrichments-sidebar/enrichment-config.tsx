@@ -12,8 +12,8 @@ import {
   OverflowText,
   Switch,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, X } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'

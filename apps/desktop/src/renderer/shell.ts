@@ -1,4 +1,4 @@
-import { focusChipModalContent } from '@sim/emcn'
+import { focusChipModalContent } from '@sim/emcn-legacy'
 import type { ShellTheme, ShellThemeApi, ShellWindowApi } from '@/shared/shell'
 
 export const shellWindow = (window as Window & { simShell?: ShellWindowApi }).simShell

@@ -1,0 +1,31 @@
+:global([data-auth-root]) .identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--emcn-space-8);
+  padding: var(--emcn-space-8);
+  min-height: var(--emcn-space-40);
+}
+:global([data-auth-root]) .identityText {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .email {
+  display: block;
+  font-size: var(--auth-caption-size);
+  color: var(--auth-secondary);
+}
+:global([data-auth-root]) .avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--emcn-space-24);
+  height: var(--emcn-space-24);
+  border-radius: 50%;
+  background: var(--auth-hover);
+  font-size: var(--auth-caption-size);
+  line-height: 16px;
+}

@@ -15,8 +15,8 @@ import {
   OverflowText,
   toast,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn-legacy/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import {

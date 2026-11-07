@@ -10,8 +10,8 @@ import {
   getCodeEditorProps,
   highlight,
   languages,
-} from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import Editor from 'react-simple-code-editor'
 import { CodeLanguage } from '@/lib/execution/languages'

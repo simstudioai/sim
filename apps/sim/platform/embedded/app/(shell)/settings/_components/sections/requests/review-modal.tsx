@@ -1,16 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Button,
-  Disclosure,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  PropertyList,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { TextAreaField, TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { PropertyList } from '@sim/emcn/property-list'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { RequestText } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-text'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { useRequestReview } from '@/platform/embedded/lib/data/requests'

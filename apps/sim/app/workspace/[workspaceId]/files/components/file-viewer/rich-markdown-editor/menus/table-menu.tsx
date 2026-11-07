@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, Rows3, Trash } from '@sim/emcn/icons'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Columns3,
+  Rows3,
+  Trash,
+} from '@sim/emcn-legacy/icons'
 import { NodeSelection, PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'

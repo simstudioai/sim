@@ -1,5 +1,5 @@
 'use client'
-import { Check, ChipTag, Credit, chipVariants, cn, Info, RefreshCw } from '@sim/emcn'
+import { Check, ChipTag, Credit, chipVariants, cn, Info, RefreshCw } from '@sim/emcn-legacy'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 /**

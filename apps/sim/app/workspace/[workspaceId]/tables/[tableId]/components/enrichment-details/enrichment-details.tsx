@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge, Button, ChipModalTabs, cn, DetailsPanel, X } from '@sim/emcn'
+import { Badge, Button, ChipModalTabs, cn, DetailsPanel, X } from '@sim/emcn-legacy'
 import { formatDuration } from '@sim/utils/formatting'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
 import {

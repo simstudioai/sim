@@ -2,7 +2,6 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import { QueryClient } from '@tanstack/react-query'
-import type { PreviewPlan } from '@/platform/design-system/navigation'
 import type { Scenario } from '@/platform/fixtures'
 import { accountFixture } from '@/platform/fixtures/settings/account'
 import { billingFixture, setSubscriptionCancellation } from '@/platform/fixtures/settings/billing'
@@ -27,6 +26,7 @@ import { readBrandImage } from '@/platform/fixtures/settings/whitelabeling'
 import { refreshMothershipLicenses } from '@/platform/lib/data/mothership-admin'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { SettingsProviders } from '@/platform/lib/data/settings-providers'
+import type { PreviewPlan } from '@/platform/lib/navigation'
 
 const sessions = new Map<string, { client: QueryClient; state: SettingsFixtureState }>()
 

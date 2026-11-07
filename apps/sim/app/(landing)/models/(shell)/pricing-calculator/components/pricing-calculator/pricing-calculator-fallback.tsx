@@ -1,4 +1,4 @@
-import { chipFieldSurfaceClass, chipGeometryClass, cn } from '@sim/emcn'
+import { chipFieldSurfaceClass, chipGeometryClass, cn } from '@sim/emcn-legacy'
 import {
   COUNT_FIELDS,
   DAYS_PER_MONTH,

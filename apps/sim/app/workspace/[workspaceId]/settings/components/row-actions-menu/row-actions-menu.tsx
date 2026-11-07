@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
   MoreHorizontal,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 
 export interface RowAction {
   label: string

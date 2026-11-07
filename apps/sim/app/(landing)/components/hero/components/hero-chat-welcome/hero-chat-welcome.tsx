@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { ArrowRight, FileText, Table, Workflow } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowRight, FileText, Table, Workflow } from '@sim/emcn-legacy/icons'
 import { PREVIEW_SUGGESTIONS } from '@/app/(landing)/components/hero/components/hero-platform-loop/preview-chat-content'
 
 interface HeroChatWelcomeProps {

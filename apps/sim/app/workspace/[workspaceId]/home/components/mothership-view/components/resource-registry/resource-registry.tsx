@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn-legacy'
 import {
   Connections,
   Dashboard,
@@ -16,7 +16,7 @@ import {
   Task,
   TerminalWindow,
   Workflow,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'

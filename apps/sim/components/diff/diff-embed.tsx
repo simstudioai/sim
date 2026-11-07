@@ -1,8 +1,8 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
-import { ArrowUpRight, Database, File } from '@sim/emcn/icons'
+import { cn, OverflowText } from '@sim/emcn-legacy'
+import { ArrowUpRight, Database, File } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { CompetitorProfile } from '@/lib/compare/data'
 import {
   type ComparisonSectionDef,

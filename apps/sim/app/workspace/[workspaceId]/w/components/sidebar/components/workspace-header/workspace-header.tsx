@@ -23,8 +23,16 @@ import {
   Tooltip,
   toast,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowLeft, MoreHorizontal, PanelLeft, Pin, Plus, Search, Send } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import {
+  ArrowLeft,
+  MoreHorizontal,
+  PanelLeft,
+  Pin,
+  Plus,
+  Search,
+  Send,
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'

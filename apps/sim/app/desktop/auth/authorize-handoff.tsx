@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthIdentity, AuthButton as Chip } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthIdentity } from '@sim/emcn-auth/identity'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { createDesktopHandoffTokenContract } from '@/lib/api/contracts/desktop-auth'

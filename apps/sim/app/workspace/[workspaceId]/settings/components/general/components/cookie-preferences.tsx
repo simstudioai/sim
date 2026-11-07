@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useConsentManager } from '@c15t/nextjs/headless'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'

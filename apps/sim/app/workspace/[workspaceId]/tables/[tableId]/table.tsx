@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, toast } from '@sim/emcn-legacy'
+import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'

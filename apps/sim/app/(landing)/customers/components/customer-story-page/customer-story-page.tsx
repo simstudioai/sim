@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import type { ContentPost } from '@/lib/content/schema'
 import type { CustomerStory } from '@/lib/customers/data'

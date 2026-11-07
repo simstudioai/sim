@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import dynamic from 'next/dynamic'
-import { Button, LoadingRows } from '@/platform/design-system/components'
 import { PeopleDirectory } from '@/platform/embedded/app/(shell)/people/_components/directory/directory'
 import { PeopleFrame } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-frame'
 import styles from '@/platform/embedded/app/(shell)/people/_components/people-page/people-page.module.css'

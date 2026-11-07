@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, cn } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import type { OrganizationUsageEvent } from '@/lib/api/contracts/organization-usage'

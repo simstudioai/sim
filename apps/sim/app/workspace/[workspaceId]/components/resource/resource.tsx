@@ -24,8 +24,8 @@ import {
   chipHoverSurfaceClass,
   cn,
   Loader,
-} from '@sim/emcn'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pin } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Pin } from '@sim/emcn-legacy/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'

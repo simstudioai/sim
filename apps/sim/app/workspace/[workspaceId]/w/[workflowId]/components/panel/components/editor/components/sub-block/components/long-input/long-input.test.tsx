@@ -7,7 +7,7 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
   searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Chip: ({
     onClick,
     disabled,
@@ -19,7 +19,7 @@ vi.mock('@sim/emcn', () => ({
   Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
 }))
 
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller',

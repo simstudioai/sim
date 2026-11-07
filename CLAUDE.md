@@ -35,7 +35,7 @@ Most rules here are enforced by a `check:*` audit or biome. When one fails, its 
 - **Utils**: check `lib/` and the `@sim/utils/<module>` helpers before writing a helper. Inline a helper with one consumer; create `utils.ts` (in `lib/` or `feature/utils/`) only when 2+ files share it.
 - **Caching**: `lru-cache` with a `max` ceiling, never a hand-rolled TTL `Map`; cache the gate, never the credential (`.claude/rules/sim-caching.md`).
 - **State ownership**: React Query owns server data (never `useState` + `fetch`); shareable view-state (tabs, filters, search, pagination, selected id) lives in the URL via `nuqs`; Zustand owns global client state; `useState` owns UI-only state. Hooks, queries, stores, URL state, components, lists and menus, and render performance each have a rule file in `.claude/rules/`.
-- **UI**: Tailwind and the `@sim/emcn` chip family (`.claude/rules/sim-styling.md`); product copy `.claude/rules/sim-ui-copy.md`; marketing copy `.claude/rules/constitution.md`. The isolated Platform in `apps/sim/platform/` follows its own design contract instead (`apps/sim/platform/AGENTS.md`, the `implement-platform` skill).
+- **UI**: existing routes use Tailwind and the `@sim/emcn-legacy` chip family (`.claude/rules/sim-styling.md`). Modern Auth, Docs and Platform import `@sim/emcn/<family>` and their surface package's families (`@sim/emcn-auth/<family>`, `@sim/emcn-docs/<family>`, `@sim/emcn-platform/<family>`) under `packages/emcn/AGENTS.md`; the isolated Platform in `apps/sim/platform/` also follows its design contract (`apps/sim/platform/AGENTS.md`, the `implement-platform` skill). Product copy `.claude/rules/sim-ui-copy.md`; marketing copy `.claude/rules/constitution.md`.
 
 ## API Contracts and Routes
 

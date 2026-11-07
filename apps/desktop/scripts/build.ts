@@ -7,6 +7,10 @@ import loadPostcssConfig from 'postcss-load-config'
 import { identityForOrigin } from './channels'
 
 const watch = process.argv.includes('--watch')
+const PACKAGED_FONTS: Readonly<Record<string, string>> = {
+  'geist.woff2': 'geist-variable.woff2',
+  'geist-mono.woff2': 'geist-mono-variable.woff2',
+}
 
 // Optional build-time default server origin (pre-release shares pointed at a
 // non-prod environment): SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai.
@@ -72,15 +76,15 @@ const renderer: BuildOptions = {
     {
       name: 'desktop-tailwind',
       setup(builder) {
-        builder.onLoad({ filter: /(?:shell|utilities|styles\.module)\.css$/ }, async ({ path }) => {
+        builder.onLoad({ filter: /(?:shell|utilities|auth)\.css$/ }, async ({ path }) => {
           const config = await loadPostcssConfig({}, resolve('../sim'))
           const result = await postcss(config.plugins).process(readFileSync(path, 'utf8'), {
             from: path,
           })
           return {
             contents: result.css.replace(
-              /url\(["']?\.\/assets\/(geist[^)"']+)["']?\)/g,
-              'url(./$1)'
+              /url\(["']?[^)"']*\/(geist[^)"']+)["']?\)/g,
+              (_url: string, filename: string) => `url(./${PACKAGED_FONTS[filename] ?? filename})`
             ),
             loader: path.endsWith('.module.css') ? 'local-css' : 'css',
             resolveDir: dirname(path),
@@ -99,8 +103,8 @@ async function run(): Promise<void> {
     stdio: 'inherit',
   })
   mkdirSync('dist/renderer', { recursive: true })
-  for (const font of ['geist-variable.woff2', 'geist-mono-variable.woff2']) {
-    cpSync(resolve('../../packages/auth-ui/src/assets', font), join('dist/renderer', font))
+  for (const [source, asset] of Object.entries(PACKAGED_FONTS)) {
+    cpSync(resolve('../../packages/emcn/src/fonts', source), join('dist/renderer', asset))
   }
   if (watch) {
     const { context } = await import('esbuild')

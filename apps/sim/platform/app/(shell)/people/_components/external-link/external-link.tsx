@@ -1,5 +1,5 @@
+import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
-import { Button } from '@/platform/design-system/components'
 
 interface ExternalLinkProps {
   href: string

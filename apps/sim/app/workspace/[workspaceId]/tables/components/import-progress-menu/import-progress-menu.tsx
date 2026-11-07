@@ -7,8 +7,8 @@ import {
   DropdownMenuTrigger,
   ProgressItem,
   toast,
-} from '@sim/emcn'
-import { CircleAlert, CircleCheck, Loader } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { CircleAlert, CircleCheck, Loader } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { cancelTableImport, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'

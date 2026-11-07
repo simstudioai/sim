@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { AuthLabel as Label } from '@sim/emcn-auth/field'
+import { AuthReadonlyInput } from '@sim/emcn-auth/input'
 import {
-  AuthReadonlyInput,
   AuthSelect as ChipSelect,
   type AuthSelectOption as ChipSelectOption,
-  AuthLabel as Label,
-} from '@sim/auth-ui'
+} from '@sim/emcn-auth/select'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -50,7 +50,7 @@ export function CliAuthView() {
 
   if (!resolution.valid) {
     return (
-      <div className='au:space-y-[var(--auth-group-gap)]'>
+      <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
         <AuthHeader
           title='Invalid request'
           description='This page can only be opened by the Sim CLI.'
@@ -95,12 +95,12 @@ export function CliAuthView() {
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
   return (
-    <div className='au:space-y-[var(--auth-group-gap)]'>
+    <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
       <AuthHeader
         title='Connect your terminal'
         description='Approve only if the code below matches the one in your terminal.'
       />
-      <div className='au:space-y-[var(--auth-group-gap)]'>
+      <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
         <AuthReadonlyInput value={request.pairing} />
         {isPlatform && (
           <div className='au:flex au:flex-col au:gap-2'>
@@ -132,8 +132,6 @@ export function CliAuthView() {
               placeholder='Select a workspace'
               searchable={options.length > 8}
               searchPlaceholder='Search workspaces'
-              fullWidth
-              dropdownWidth='trigger'
             />
             <p className='au:text-[var(--auth-secondary)] au:text-caption'>
               {loadingWorkspaces

@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { SelectField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
 import { isValidEmailSyntax } from '@sim/utils/string'
 import { FieldStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { DirectoryUser } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
-import { Modal, SecretField, SelectField, TextField } from '@/platform/design-system/components'
 
 const CREDENTIALS = [
   { value: 'set', label: 'Set a password' },

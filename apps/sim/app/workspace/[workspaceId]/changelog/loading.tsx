@@ -1,6 +1,6 @@
 'use client'
 
-import { Rss } from '@sim/emcn/icons'
+import { Rss } from '@sim/emcn-legacy/icons'
 import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
 
 export default function ChangelogLoading() {

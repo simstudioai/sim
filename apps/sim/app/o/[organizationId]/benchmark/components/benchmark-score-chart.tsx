@@ -1,4 +1,4 @@
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import type { z } from 'zod'
 import { benchmarkModelLabel } from '@/lib/benchmarks/models'
 import type { benchmarkRunSummarySchema } from '@/lib/benchmarks/types'

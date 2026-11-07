@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSettingsBrowserNavigation } from '@/hooks/use-settings-browser-navigation'
 import { useSettingsLeaveLinks } from '@/hooks/use-settings-leave-links'
-import { publicAssetPath } from '@/platform/design-system/navigation'
+import { publicAssetPath } from '@/platform/lib/navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const BASE_PATH = publicAssetPath('')

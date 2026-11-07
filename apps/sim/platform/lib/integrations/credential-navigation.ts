@@ -26,6 +26,7 @@ export type CredentialAccessView = inferParserType<typeof credentialAccessParams
 
 export const credentialParams = {
   credential: parseAsString.withDefault(''),
+  credentialFrom: parseAsStringLiteral(['app', 'credentials']).withDefault('app'),
   ...credentialDetailParams,
   ...credentialAccessParams,
 }
@@ -33,6 +34,7 @@ export const credentialParams = {
 export const serializeCredential = createSerializer(credentialParams)
 
 export const clearCredentialView = {
+  credentialFrom: null,
   credentialTab: null,
   accessTab: null,
   accessQ: null,

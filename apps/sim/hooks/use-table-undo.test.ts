@@ -12,7 +12,7 @@ vi.mock('react', () => ({
 const mockMutate = vi.fn()
 const mockMutateAsync = vi.fn()
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('@/hooks/queries/tables', () => ({
   useUpdateTableRow: vi.fn(() => ({ mutate: mockMutate })),

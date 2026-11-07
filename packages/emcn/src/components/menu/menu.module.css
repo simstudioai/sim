@@ -1,0 +1,70 @@
+.menu {
+  min-inline-size: 0;
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+}
+
+.menu {
+  composes: popup from "./popup.shared.module.css";
+  inline-size: var(--menu-action-width);
+}
+.menu:not([data-menu]):has(.menuItem[data-option]) {
+  inline-size: var(--menu-choice-width);
+}
+.menu[data-searchable] {
+  inline-size: var(--menu-search-width);
+  max-block-size: min(var(--available-height), var(--container-440));
+}
+.menu[data-searchable] .hint {
+  max-inline-size: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menuItem {
+  composes: item from "./popup.shared.module.css";
+}
+.contextTrigger {
+  display: grid;
+  min-inline-size: 0;
+}
+.menuItem[data-popup-open]:not(:disabled, [data-disabled], [aria-disabled="true"]),
+.menu[data-navigating]
+  .menuItem[tabindex="0"]:not(:disabled, [data-disabled], [aria-disabled="true"]) {
+  background: var(--ui-hover);
+}
+.trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: end;
+  inline-size: var(--spacing-32);
+}
+.hint {
+  min-width: var(--spacing-32);
+  text-align: end;
+  color: var(--ui-secondary);
+}
+
+.menu[data-menu="browser"] {
+  inline-size: var(--menu-browser-width);
+  gap: var(--spacing-2);
+}
+.separator {
+  composes: separator from "./popup.shared.module.css";
+}
+.menu[data-menu="zoom"] {
+  inline-size: var(--menu-zoom-width);
+}
+.menu:is([data-menu="browser"], [data-menu="zoom"]) [role="group"],
+.menu[data-menu="browser"] [aria-label="Browser actions"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.hoverPanel {
+  inline-size: var(--shell-org-menu-width);
+}

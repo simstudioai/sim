@@ -1,0 +1,20 @@
+.form,
+.fields,
+.access {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+}
+
+.access {
+  gap: var(--ui-product-section-gap);
+}
+
+.error {
+  color: var(--control-danger);
+}
+
+.email {
+  display: block;
+  color: var(--ui-secondary);
+}

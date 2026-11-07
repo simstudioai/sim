@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn/icons'
+import { ChipConfirmModal, toast } from '@sim/emcn-legacy'
+import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'

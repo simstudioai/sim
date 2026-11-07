@@ -1,4 +1,4 @@
-import { Badge } from '@sim/emcn'
+import { Badge } from '@sim/emcn-legacy'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useRedeployWorkflowSchedule, useScheduleQuery } from '@/hooks/queries/schedules'

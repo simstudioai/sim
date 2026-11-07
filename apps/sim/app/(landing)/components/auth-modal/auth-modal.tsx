@@ -10,8 +10,8 @@ import {
   ModalDescription,
   ModalTitle,
   ModalTrigger,
-} from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'

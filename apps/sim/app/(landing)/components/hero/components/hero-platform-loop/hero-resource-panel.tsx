@@ -12,7 +12,7 @@ import {
   TabStripAction,
   type TabStripItem,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   FileText,
   PanelLeft,
@@ -20,7 +20,7 @@ import {
   Plus,
   Table as TableIcon,
   Workflow,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
 import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
 import { TablesRecordsTable } from '@/app/(landing)/tables/components/tables-records-preview/tables-records-table'

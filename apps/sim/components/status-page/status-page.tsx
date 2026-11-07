@@ -4,7 +4,7 @@ import {
   PAGE_GUTTER,
   StatusPageContent,
   type StatusPageContentProps,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 
 interface StatusPageProps extends StatusPageContentProps {
   id?: string

@@ -26,7 +26,7 @@ import {
   Upload,
   Users,
   Wrench,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { CodeIcon, McpIcon, SlackIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'

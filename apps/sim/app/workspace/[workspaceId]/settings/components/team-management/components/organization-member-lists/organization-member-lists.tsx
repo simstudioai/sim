@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, ChipTag, toast } from '@sim/emcn'
+import { ChipDropdown, ChipTag, toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'

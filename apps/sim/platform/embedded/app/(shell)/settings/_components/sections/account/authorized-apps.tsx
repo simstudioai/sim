@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ActionMenu,
-  ConfirmDialog,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  QueryBoundary,
-  SectionSearch,
-} from '@/platform/design-system/components'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { FailureNotice } from '@sim/emcn/status'
+import { QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useAuthorizedAppsList } from '@/platform/shared/account'
 

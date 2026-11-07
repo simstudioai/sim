@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import { benchmarkModelLabel } from '@/lib/benchmarks/models'
 import { BenchmarkRunComparison } from '@/app/o/[organizationId]/benchmark/components/benchmark-run-comparison'

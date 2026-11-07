@@ -11,7 +11,7 @@ import {
   checkboxVariants,
   cn,
   X,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   INTERACTION_CARD_ROW_CLASSES,
   InteractionCard,

@@ -959,7 +959,7 @@ function frontmatter(title: string, description: string, hasTables = true): stri
     `description: ${description}`,
     '---',
     '',
-    ...(hasTables ? ["import { CommandTable } from '@/components/ui/command-table'"] : []),
+    ...(hasTables ? ["import { CommandTable } from '@sim/emcn-docs/command-table'"] : []),
     '',
   ]
 }

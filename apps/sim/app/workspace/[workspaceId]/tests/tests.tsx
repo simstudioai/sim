@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip, toast } from '@sim/emcn'
-import { PlayOutline, ShieldCheck } from '@sim/emcn/icons'
+import { Chip, toast } from '@sim/emcn-legacy'
+import { PlayOutline, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'

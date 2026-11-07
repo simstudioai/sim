@@ -19,8 +19,8 @@ import {
   toast,
   Upload,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Check, Download, Link, Send } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Download, Link, Send } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'

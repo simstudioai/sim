@@ -1,4 +1,4 @@
-import { ChipLink, cn, SimWordmark } from '@sim/emcn'
+import { ChipLink, cn, SimWordmark } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'

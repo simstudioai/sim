@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ChipInput, ChipTextarea, chipFieldSurfaceClass, cn, Tooltip } from '@sim/emcn'
+import { ChipInput, ChipTextarea, chipFieldSurfaceClass, cn, Tooltip } from '@sim/emcn-legacy'
 import dynamic from 'next/dynamic'
 import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {

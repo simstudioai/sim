@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
-import { Chip } from '@/platform/design-system/components/button/button'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
+import { Chip } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import { ConnectedCredential } from '@/platform/embedded/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/embedded/app/(shell)/integrations/_components/connection-access/connection-access'
 import { ProviderHeading } from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading'

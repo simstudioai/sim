@@ -1,7 +1,7 @@
 'use client'
 
 import type { TerminalAppearanceTheme, TerminalThemeProfile } from '@sim/desktop-bridge'
-import { ChipCombobox } from '@sim/emcn'
+import { ChipCombobox } from '@sim/emcn-legacy'
 import { withSelectedProfile } from '@/lib/desktop/appearance'
 
 interface TerminalThemePickerProps {

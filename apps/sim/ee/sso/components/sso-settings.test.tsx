@@ -23,7 +23,7 @@ const {
   mockUseSSOProviders: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ChipTag: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type='button' {...props}>

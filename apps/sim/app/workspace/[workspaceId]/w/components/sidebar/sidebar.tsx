@@ -22,7 +22,7 @@ import {
   Tooltip,
   Upload,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Building,
   Dashboard,
@@ -39,7 +39,7 @@ import {
   Table,
   Task,
   Workflow,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'

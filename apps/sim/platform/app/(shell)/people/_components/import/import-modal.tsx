@@ -1,21 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { MetricGroup } from '@sim/emcn/data-display'
+import { SelectField, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { ExternalLink } from '@/platform/app/(shell)/people/_components/external-link/external-link'
 import styles from '@/platform/app/(shell)/people/_components/import/import.module.css'
-import {
-  Button,
-  FileField,
-  InlineNotice,
-  MetricGroup,
-  Modal,
-  SecretField,
-  SelectField,
-  TextField,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   downloadImportTemplate,

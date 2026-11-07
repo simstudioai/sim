@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipModalField, ChipModalTabs } from '@sim/emcn'
+import { Chip, ChipModalField, ChipModalTabs } from '@sim/emcn-legacy'
 import {
   GITLAB_CSV_FILES,
   GITLAB_TOKEN_TABS,

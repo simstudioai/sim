@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
-import { Tooltip } from '@sim/emcn'
+import { Tooltip } from '@sim/emcn-legacy'
 import { Editor } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { createRoot, type Root } from 'react-dom/client'

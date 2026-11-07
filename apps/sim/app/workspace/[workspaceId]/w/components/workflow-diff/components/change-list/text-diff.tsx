@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Button, Code, cn } from '@sim/emcn'
+import { Button, Code, cn } from '@sim/emcn-legacy'
 import { diffWordsWithSpace } from 'diff'
 import {
   buildDiffRows,

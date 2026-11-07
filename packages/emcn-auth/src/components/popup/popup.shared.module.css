@@ -1,0 +1,78 @@
+.positioner {
+  z-index: 1000;
+}
+.menu {
+  width: var(--anchor-width, 280px);
+  max-width: calc(100vw - 32px);
+  padding: var(--emcn-space-4);
+  z-index: 1000;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: var(--emcn-space-10);
+  background: var(--auth-overlay);
+  backdrop-filter: blur(var(--emcn-glass-blur));
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 6%),
+    inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+:global([data-auth-root]) .options {
+  overflow-y: auto;
+  max-height: min(320px, var(--available-height, 60vh));
+}
+:global([data-auth-root]) .menuRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--emcn-space-30);
+  padding: var(--emcn-space-6) var(--emcn-space-8);
+  gap: var(--emcn-space-8);
+  border-radius: var(--emcn-space-6);
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  cursor: pointer;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .menuRow[aria-selected="true"] {
+  background: var(--auth-selected);
+}
+:global([data-auth-root]) .menuRow[data-highlighted] {
+  background: var(--auth-hover);
+}
+:global([data-auth-root]) .menuRow[aria-disabled="true"] {
+  opacity: var(--auth-disabled);
+  cursor: not-allowed;
+}
+.indicator {
+  display: flex;
+  width: var(--auth-icon-size);
+  height: var(--auth-icon-size);
+  flex-shrink: 0;
+}
+:global([data-auth-root]) .menuRow:not([aria-selected="true"]) .indicator {
+  visibility: hidden;
+}
+:global([data-auth-root]) .menuSearch {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--auth-border-subtle);
+  padding: var(--emcn-space-6) var(--emcn-space-8);
+  background: transparent;
+  font-size: var(--auth-input-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .menuLabel,
+:global([data-auth-root]) .empty {
+  padding: var(--emcn-space-6) var(--emcn-space-8);
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+  overflow-wrap: anywhere;
+}
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Standard reduced-transparency preference; unsupported browsers keep the fallback. */
+@media (prefers-reduced-transparency: reduce) {
+  .menu {
+    background: #fafafa;
+    backdrop-filter: none;
+  }
+}

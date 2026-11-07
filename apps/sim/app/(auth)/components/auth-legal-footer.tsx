@@ -1,4 +1,4 @@
-import { AuthLegal } from '@sim/auth-ui'
+import { AuthLegal } from '@sim/emcn-auth/legal'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface AuthLegalFooterProps {

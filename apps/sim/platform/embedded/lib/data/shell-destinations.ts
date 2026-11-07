@@ -1,5 +1,5 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import type { ShellDestination } from '@/platform/shared/shell'
 
 type OrganizationNavRoute = 'home' | 'search' | 'people' | 'integrations' | 'simLinks' | 'benchmark'

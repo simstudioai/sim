@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge } from '@sim/emcn'
+import { Badge } from '@sim/emcn-legacy'
 import { formatDate } from '@sim/utils/formatting'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

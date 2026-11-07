@@ -1,20 +1,18 @@
 'use client'
 
 import { type RefObject, useId, useRef, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
+import { IdentityButton } from '@sim/emcn/identity-button'
+import { MenuItem } from '@sim/emcn/menu/action-menu'
+import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
+import { Modal } from '@sim/emcn/modal'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import type { ShellData, ShellOrganizationActions } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/organization-menu/organization-menu.module.css'
-import {
-  Avatar,
-  Button,
-  Input,
-  MenuItem,
-  Modal,
-  RecipientField,
-} from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 import { plural } from '@/platform/shared/plural'
 
 /** Lazy because its form reads real data, which a fixture session never loads. */

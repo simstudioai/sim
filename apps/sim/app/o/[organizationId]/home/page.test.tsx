@@ -24,7 +24,7 @@ vi.mock(
     HomeDashboardSkeleton: () => <div>Home skeleton</div>,
   })
 )
-vi.mock('@/platform/design-system/components/surface/hydrated', () => ({
+vi.mock('@/app/o/[organizationId]/components/hydrated', () => ({
   Hydrated: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock(

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { FieldFrame } from '@/platform/design-system/components'
+import { FieldFrame } from '@sim/emcn/field'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
 
 interface RequestTextProps {

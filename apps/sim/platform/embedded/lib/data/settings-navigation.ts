@@ -1,5 +1,6 @@
 'use client'
 
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import {
@@ -22,7 +23,6 @@ import {
   resolveOrganizationSurfaceSection,
 } from '@/lib/organizations/settings-sections'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import { warmOrganizationSettingsSectionQuery } from '@/platform/embedded/lib/data/settings-warmers'
 
 export type SettingsSectionKey = AccountSettingsSection | OrganizationSettingsSection

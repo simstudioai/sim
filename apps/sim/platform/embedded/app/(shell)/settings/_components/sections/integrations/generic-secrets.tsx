@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -11,15 +18,6 @@ import {
   useConfigureOrganizationSecretSource,
   useRemoveOrganizationSecretSource,
 } from '@/hooks/queries/organization-secrets'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  FieldFrame,
-  Modal,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,

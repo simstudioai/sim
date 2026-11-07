@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Label, Switch, toast } from '@sim/emcn'
+import { ArrowLeft, Label, Switch, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {

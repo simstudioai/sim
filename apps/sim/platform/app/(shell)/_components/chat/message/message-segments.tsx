@@ -2,6 +2,8 @@
 
 import type { ComponentType } from 'react'
 import { createContext, useContext } from 'react'
+import { Button } from '@sim/emcn/button'
+import { InlineNotice } from '@sim/emcn/status'
 import { QuestionCard } from '@/platform/app/(shell)/_components/chat/cards/question-card'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import type {
@@ -11,7 +13,6 @@ import type {
 } from '@/platform/app/(shell)/_components/chat/model'
 import { MarkdownContent } from '@/platform/app/(shell)/_components/markdown-content/markdown-content'
 import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { Button, InlineNotice } from '@/platform/design-system/components'
 
 export interface CredentialCardProps {
   items: readonly PlatformCredentialRequest[]

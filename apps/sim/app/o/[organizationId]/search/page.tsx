@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { loadOrganizationSearchView } from '@/lib/organizations/search-params'
+import { Hydrated } from '@/app/o/[organizationId]/components/hydrated'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
-import { Hydrated } from '@/platform/design-system/components/surface/hydrated'
 import {
   LandingSkeleton,
   ResultsSkeleton,

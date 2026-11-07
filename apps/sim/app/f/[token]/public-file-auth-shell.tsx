@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AuthStack } from '@sim/auth-ui'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { AuthHeader, AuthShell } from '@/app/(auth)/components'
 
 interface PublicFileAuthShellProps {

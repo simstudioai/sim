@@ -18,14 +18,14 @@ export function getEmcnIconStub(name: string): MockIcon {
 }
 
 /**
- * Mock module for `@sim/emcn/icons`: a Proxy that resolves every export name to
+ * Mock module for `@sim/emcn-legacy/icons`: a Proxy that resolves every export name to
  * {@link getEmcnIconStub}, so it covers all ~200 icons without listing them. Stubs render `null`
  * rather than an `<svg>` because `@sim/testing` has no React dependency; a test asserting on icon
  * markup keeps its own factory. There are no `vi.fn()` knobs.
  *
  * @example
  * ```ts
- * vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+ * vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
  * ```
  */
 export const emcnIconsMock: Record<string, MockIcon> = new Proxy(

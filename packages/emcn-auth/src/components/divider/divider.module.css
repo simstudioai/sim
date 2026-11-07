@@ -1,0 +1,16 @@
+:global([data-auth-root]) .divider {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--emcn-space-16);
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .divider::before,
+:global([data-auth-root]) .divider::after {
+  content: "";
+  flex: 1;
+  height: var(--emcn-space-1);
+  background: var(--auth-border-subtle);
+}

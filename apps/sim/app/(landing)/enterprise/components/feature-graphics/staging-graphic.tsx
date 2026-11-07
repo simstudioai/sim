@@ -1,5 +1,5 @@
-import { Button, ChipTag, cn } from '@sim/emcn'
-import { ArrowRight, CircleCheck } from '@sim/emcn/icons'
+import { Button, ChipTag, cn } from '@sim/emcn-legacy'
+import { ArrowRight, CircleCheck } from '@sim/emcn-legacy/icons'
 import Image from 'next/image'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/staging-graphic.module.css'
