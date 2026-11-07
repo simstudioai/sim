@@ -517,6 +517,18 @@ export const searchSourceCatalog = [
     fields: [],
   },
   {
+    id: 'hex',
+    name: 'Hex',
+    supportedModes: ['member'],
+    connectionLabels: {
+      add: 'Add connection',
+      title: 'Add connection',
+      empty: 'No connections yet.',
+      searchPlaceholder: 'Search connections…',
+    },
+    fields: [],
+  },
+  {
     id: 'hubspot',
     name: 'HubSpot',
     supportedModes: ['member'],

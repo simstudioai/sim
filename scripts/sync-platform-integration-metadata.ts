@@ -85,6 +85,12 @@ const SEARCH_READ_LABELS = {
     get_meetings: 'Read meeting notes',
     get_meeting_transcript: 'Read available meeting transcripts',
   },
+  hex: {
+    get_me: null,
+    search_projects: 'Search projects',
+    get_project: 'Read project details',
+    list_cells: 'Read notebook cells',
+  },
   hubspot: {
     get_user_details: null,
     search_crm_objects: 'Search CRM records',

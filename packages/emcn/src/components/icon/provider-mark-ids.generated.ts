@@ -123,6 +123,7 @@ export const providerMarkIds = [
   'harmonic',
   'helpscout',
   'hex',
+  'higgsfield',
   'hubspot',
   'huggingface',
   'hunter',
