@@ -76,7 +76,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
 
   const providerCountByDomain = new Map<string, number>()
   for (const provider of providerList) {
-    const domainKey = provider.domainKey ?? ''
+    const domainKey = provider.domainKey
     providerCountByDomain.set(domainKey, (providerCountByDomain.get(domainKey) ?? 0) + 1)
   }
 
@@ -131,16 +131,16 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
                   <SettingsSection title='Identity providers'>
                     <RowList>
                       {providerList.map((provider) => {
-                        const providerId = provider.providerId ?? ''
+                        const providerId = provider.providerId
                         const isMarkedPrimary =
                           provider.isPrimary &&
-                          (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1
+                          (providerCountByDomain.get(provider.domainKey) ?? 0) > 1
                         return (
                           <ActivityRow
                             density='comfortable'
                             key={provider.id ?? providerId}
                             title={providerId}
-                            detail={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
+                            detail={`${provider.providerType.toUpperCase()} · ${provider.domain}`}
                             textMetadata={isMarkedPrimary ? 'Primary' : undefined}
                             onOpen={() =>
                               void setParams({ provider: providerId, createProvider: null })

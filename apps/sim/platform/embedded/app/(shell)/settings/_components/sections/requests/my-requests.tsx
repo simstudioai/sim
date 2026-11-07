@@ -109,37 +109,37 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
         >
           {(entries) => (
             <SettingsSurface>
-              {entries.map((entry) => (
-                <SettingsRow
-                  key={entry.key}
-                  label={entry.label}
-                  leading={entry.state === 'allowed' ? undefined : <Icon name='I137' />}
-                >
-                  <span className={styles.controls}>
-                    {entry.state === 'allowed' && <StatusTag label='Available' />}
-                    {entry.state === 'requestable' && entry.pendingRequestId ? (
-                      <Button
-                        size='compact'
-                        onClick={() => viewRequest(entry.pendingRequestId ?? '')}
-                      >
-                        View request
-                      </Button>
-                    ) : (
-                      entry.state === 'requestable' &&
-                      mine.catalogEnabled && (
-                        <Button
-                          size='compact'
-                          onClick={() => setAsking({ target: entry.target, label: entry.label })}
-                        >
-                          {entry.target.kind === 'usage_limit'
-                            ? 'Request increase'
-                            : 'Request access'}
+              {entries.map((entry) => {
+                const { pendingRequestId } = entry
+                return (
+                  <SettingsRow
+                    key={entry.key}
+                    label={entry.label}
+                    leading={entry.state === 'allowed' ? undefined : <Icon name='I137' />}
+                  >
+                    <span className={styles.controls}>
+                      {entry.state === 'allowed' && <StatusTag label='Available' />}
+                      {entry.state === 'requestable' && pendingRequestId ? (
+                        <Button size='compact' onClick={() => viewRequest(pendingRequestId)}>
+                          View request
                         </Button>
-                      )
-                    )}
-                  </span>
-                </SettingsRow>
-              ))}
+                      ) : (
+                        entry.state === 'requestable' &&
+                        mine.catalogEnabled && (
+                          <Button
+                            size='compact'
+                            onClick={() => setAsking({ target: entry.target, label: entry.label })}
+                          >
+                            {entry.target.kind === 'usage_limit'
+                              ? 'Request increase'
+                              : 'Request access'}
+                          </Button>
+                        )
+                      )}
+                    </span>
+                  </SettingsRow>
+                )
+              })}
             </SettingsSurface>
           )}
         </QueryBoundary>

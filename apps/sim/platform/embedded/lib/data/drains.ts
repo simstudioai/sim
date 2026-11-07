@@ -11,6 +11,7 @@ import {
   useTestDataDrain,
   useUpdateDataDrain,
 } from '@/ee/data-drains/hooks/data-drains'
+import { reportFailure } from '@/platform/embedded/lib/notices'
 import { useDataDrainParam } from '@/platform/shared/data-drains/params'
 import { toast } from '@/platform/shared/toast'
 
@@ -41,7 +42,7 @@ export function useDrainCreate(organizationId: string, onCreated: (drainId: stri
         toast.success('Drain created')
         onCreated(drain.id)
       } catch (error) {
-        toast.error("Couldn't create drain", { description: toError(error).message })
+        reportFailure("Couldn't create drain", error)
       }
     },
   }

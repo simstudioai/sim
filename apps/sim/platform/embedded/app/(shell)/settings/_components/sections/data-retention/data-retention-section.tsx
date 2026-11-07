@@ -54,13 +54,11 @@ function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
     defaultPii: defaultRule
       ? { id: defaultRule.id, stages: normalizeRuleStages(defaultRule) }
       : null,
-    piiOverrides: rules
-      .filter((rule) => rule.workspaceId !== null)
-      .map((rule) => ({
-        id: rule.id,
-        workspaceId: rule.workspaceId as string,
-        stages: normalizeRuleStages(rule),
-      })),
+    piiOverrides: rules.flatMap((rule) =>
+      rule.workspaceId === null
+        ? []
+        : [{ id: rule.id, workspaceId: rule.workspaceId, stages: normalizeRuleStages(rule) }]
+    ),
     overrides: data.configured.retentionOverrides ?? [],
   }
 }
