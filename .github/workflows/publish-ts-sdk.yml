@@ -6,8 +6,12 @@ on:
     paths:
       - 'packages/ts-sdk/**'
 
+# `contents: write` creates the GitHub release. `id-token: write` is npm trusted
+# publishing: the publish step trades the runner's OIDC token for a short-lived
+# npm credential, so no npm token is stored anywhere.
 permissions:
   contents: write
+  id-token: write
 
 # A newer push waits for the running publish rather than racing its version check.
 concurrency:
@@ -25,12 +29,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # Node 24 bundles npm 11.5.1+, which trusted publishing requires.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          node-version: '22'
-          registry-url: https://registry.npmjs.org/
+          node-version: '24'
 
       - name: Run tests
         working-directory: packages/ts-sdk
@@ -60,8 +64,6 @@ jobs:
         if: steps.version_check.outputs.exists == 'false'
         working-directory: packages/ts-sdk
         run: npm publish --access=public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Log skipped publish
         if: steps.version_check.outputs.exists == 'true'

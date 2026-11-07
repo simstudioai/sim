@@ -10,9 +10,14 @@ on:
       - 'packages/utils/**'
       - 'docker-compose.prod.yml'
       - 'bun.lock'
+      # A change to how the package is built or published has to republish it.
+      - '.github/workflows/publish-sim-setup.yml'
 
+# npm trusted publishing: the publish step trades the runner's OIDC token for a
+# short-lived npm credential, so no npm token is stored anywhere.
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: publish-sim-setup-${{ github.ref }}
@@ -29,18 +34,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # Vitest 5 requires Node 22.12+; the published bundle is still
-      # smoke-tested on Node 20 below, its minimum supported runtime.
+      # Node 24 bundles npm 11.5.1+, which trusted publishing requires; the
+      # published bundle is still smoke-tested on Node 20 below, its minimum
+      # supported runtime.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          node-version: '22'
-
-      - name: Verify npm authentication
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun pm whoami
+          node-version: '24'
 
       - name: Auto-bump package version
         run: bun run bump:npm-packages sim-setup
@@ -104,21 +105,32 @@ jobs:
             echo "tag=$TAG"
           } >> "$GITHUB_OUTPUT"
 
+      # Bun packs because it rewrites `workspace:` ranges to real versions,
+      # which `npm pack` would publish verbatim. The smoke test and the publish
+      # below both use this one tarball, so what was tested is what ships.
+      - name: Pack package
+        id: pack
+        working-directory: packages/sim-setup
+        run: |
+          TARBALL="$RUNNER_TEMP/sim-setup.tgz"
+          bun pm pack --ignore-scripts --filename "$TARBALL" --quiet
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node 20 for the bundle smoke test
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '20'
 
       - name: Smoke-test packed Node bundle
-        working-directory: packages/sim-setup
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
           SMOKE_DIR="$(mktemp -d "$RUNNER_TEMP/sim-setup-smoke.XXXXXX")"
-          PACKAGE_PATH="$SMOKE_DIR/sim-setup.tgz"
-          bun pm pack --ignore-scripts --filename "$PACKAGE_PATH" --quiet
-          tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
+          tar -xzf "$TARBALL" -C "$SMOKE_DIR"
 
-          if tar -tzf "$PACKAGE_PATH" | grep -Eq '^package/(apps|docker|helm|packages|scripts)/'; then
+          if tar -tzf "$TARBALL" | grep -Eq '^package/(apps|docker|helm|packages|scripts)/'; then
             echo 'Packed setup package contains repository source directories.' >&2
             exit 1
           fi
@@ -130,7 +142,7 @@ jobs:
           fi
 
           cd "$SMOKE_DIR"
-          node package/dist/index.js --version
+          test "$(node package/dist/index.js --version)" = "$VERSION"
           node package/dist/index.js --help
           for command in config add doctor start stop restart update status logs down reset; do
             node package/dist/index.js "$command" --help > /dev/null
@@ -145,8 +157,12 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node 24 for trusted publishing
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
       - name: Verify version is unpublished
-        working-directory: packages/sim-setup
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
@@ -155,12 +171,13 @@ jobs:
             exit 1
           fi
 
+      # npm publishes a tarball without running lifecycle scripts, so nothing
+      # rebuilds `dist` here. Provenance is attached automatically.
       - name: Publish to npm
-        working-directory: packages/sim-setup
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
-        run: bun publish --access public --tag "$NPM_TAG" --no-save
+        run: npm publish "$TARBALL" --access public --tag "$NPM_TAG"
 
       - name: Summarize release
         env:
