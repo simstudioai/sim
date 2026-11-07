@@ -231,6 +231,7 @@ async function persistGrant(
         id: credential.id,
         revokedAt: credential.revokedAt,
         managedOauthStatus: credential.managedOauthStatus,
+        providerMetadata: credential.providerMetadata,
         providerSubjectId: credential.providerSubjectId,
         providerTenantId: credential.providerTenantId,
         encryptedOauthTokenSet: credential.encryptedOauthTokenSet,
@@ -287,7 +288,11 @@ async function persistGrant(
       providerTenantId: grant.providerTenantId,
       managedOauthStatus: 'active' as const,
       grantedScopes: grant.grantedScopes,
-      providerMetadata: grant.metadata,
+      // A site listing that failed reports no sites; keep the account's last known list.
+      providerMetadata:
+        grant.metadata.sites === undefined && existing?.providerMetadata?.sites
+          ? { ...grant.metadata, sites: existing.providerMetadata.sites }
+          : grant.metadata,
       encryptedOauthTokenSet,
       grantedAt: now,
       revokedAt: null,

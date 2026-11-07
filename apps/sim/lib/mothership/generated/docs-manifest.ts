@@ -193,6 +193,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/harmonic.mdx',
   'integrations/helpscout.mdx',
   'integrations/hex.mdx',
+  'integrations/higgsfield.mdx',
   'integrations/hubspot-service-account.mdx',
   'integrations/hubspot-setup.mdx',
   'integrations/hubspot.mdx',

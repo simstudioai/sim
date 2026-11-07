@@ -194,7 +194,7 @@ describe('organization workspace sharing administration', () => {
       principal,
       input: { organizationId: 'org-1' },
     })
-    expect(result.viewerAccounts).toEqual([account])
+    expect(result.viewerAccounts).toEqual([{ ...account, sites: [] }])
     expect(result.canManage).toBe(false)
     expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroup.id, 'group-1')
     expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'admin-user')

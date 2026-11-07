@@ -14,7 +14,7 @@ export const imageOptionFields = [
 
 type ImageOption = (typeof imageOptionFields)[number]
 interface ImageModel {
-  provider: 'openai' | 'gemini' | 'falai'
+  provider: 'openai' | 'gemini' | 'falai' | 'higgsfield'
   id: string
   label: string
   aliases?: readonly string[]
@@ -32,6 +32,7 @@ export const imageModelDefaults = {
   openai: 'gpt-image-1.5',
   gemini: 'gemini-3.1-flash-image',
   falai: 'nano-banana-2',
+  higgsfield: 'higgsfield-ai/soul/standard',
 } as const
 
 const sizes = ['auto', '1024x1024', '1536x1024', '1024x1536']
@@ -55,6 +56,11 @@ const geminiModels = [
   ['gemini-3.1-flash-image', 'Nano Banana 2'],
   ['gemini-3.1-flash-lite-image', 'Nano Banana 2 Lite'],
   ['gemini-2.5-flash-image', 'Nano Banana'],
+] as const
+const soulModels = [
+  ['higgsfield-ai/soul/standard', 'SOUL'],
+  ['higgsfield-ai/soul/v2/standard', 'SOUL V2'],
+  ['higgsfield-ai/soul/cinema', 'SOUL Cinema'],
 ] as const
 
 /** Current prompt-to-image models, shared by the block and provider request validation. */
@@ -111,6 +117,38 @@ export const imageModels: readonly ImageModel[] = [
       },
     })
   ),
+  ...soulModels.map(
+    ([id, label]): ImageModel => ({
+      provider: 'higgsfield',
+      id,
+      label,
+      endpoint: id,
+      options: {
+        aspectRatio: {
+          field: 'aspect_ratio',
+          values: ['9:16', '16:9', '4:3', '3:4', '1:1', '2:3', '3:2'],
+        },
+        resolution: { field: 'resolution', values: ['720p', '1080p'] },
+      },
+      seed: true,
+      requestDefaults: { batch_size: 1 },
+    })
+  ),
+  {
+    provider: 'higgsfield',
+    id: 'z-image/turbo',
+    label: 'Z-Image Turbo',
+    endpoint: 'z-image/turbo',
+    options: {
+      aspectRatio: {
+        field: 'aspect_ratio',
+        values: ['1:1', '2:3', '3:2', '3:4', '4:3', '7:9', '9:7', '9:16', '16:9', '21:9'],
+      },
+      resolution: { field: 'resolution', values: ['1k', '2k'] },
+    },
+    seed: true,
+    maxPromptLength: 800,
+  },
   ...Object.entries(falModels).map(
     ([endpoint, spec]): ImageModel => ({
       ...spec,

@@ -281,7 +281,7 @@ export const ImageGeneratorV2Block: BlockConfig = {
   description: 'Generate images',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Generate images using OpenAI GPT Image, Google Nano Banana, or Fal.ai image models.',
+    'Generate images using OpenAI GPT Image, Google Nano Banana, Higgsfield SOUL and Z-Image, or Fal.ai image models.',
   docsLink: 'https://docs.sim.ai/integrations/image_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -304,16 +304,20 @@ export const ImageGeneratorV2Block: BlockConfig = {
       options: [
         { label: 'OpenAI', id: 'openai' },
         { label: 'Google Gemini', id: 'gemini' },
+        { label: 'Higgsfield', id: 'higgsfield' },
         { label: 'Fal.ai (Multi-Model)', id: 'falai' },
       ],
       commandSearchable: true,
       value: () => 'falai',
     },
-    ...(['openai', 'gemini', 'falai'] as const).map(
+    ...(['openai', 'gemini', 'higgsfield', 'falai'] as const).map(
       (provider): SubBlockConfig => ({
         id: 'model',
         title: 'Model',
-        type: 'dropdown',
+        type: 'combobox',
+        placeholder: 'Type or select a model...',
+        mediaModelOptions: true,
+        restoreDefaultWhenCleared: true,
         options: (params) =>
           imageModels
             .filter((model) => !params || model.provider === provider)

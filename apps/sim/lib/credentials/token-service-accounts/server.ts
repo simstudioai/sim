@@ -10,6 +10,7 @@ import {
   FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
   GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
   HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
+  HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -34,6 +35,7 @@ import { validateCodaServiceAccount } from '@/lib/credentials/token-service-acco
 import { validateFlowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/flow'
 import { validateGaugeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/gauge'
 import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
+import { validateHiggsfieldServiceAccount } from '@/lib/credentials/token-service-accounts/validators/higgsfield'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
@@ -109,6 +111,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSnowflakeServiceAccount,
   [CODA_SERVICE_ACCOUNT_PROVIDER_ID]: validateCodaServiceAccount,
   [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
+  [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: validateHiggsfieldServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
 }
 
