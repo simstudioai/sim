@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationCall,
+  InternalToolOperationHandler,
+} from '@/lib/internal/tool-operations/types'
 
 const { mockGetAwsCredentialConfig, mockResolveAwsSessionCredentials } = vi.hoisted(() => ({
   mockGetAwsCredentialConfig: vi.fn(),
@@ -98,7 +101,7 @@ describe('withAwsCredential', () => {
         authorizedServiceAccountCredential: { credentialId: 'oracle-1', service: 'oracledb' },
       },
     })
-    const handler = vi.fn(async () => Response.json({}))
+    const handler = vi.fn<InternalToolOperationHandler>(async () => Response.json({}))
 
     await withAwsCredential(handler)(request)
 
