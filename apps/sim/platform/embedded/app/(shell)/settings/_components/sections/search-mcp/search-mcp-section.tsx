@@ -99,7 +99,7 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
         <>
           <SettingsRow label='App'>
             <ChoiceMenu
-              label={`MCP app: ${client.label}`}
+              label='MCP app'
               value={client.value}
               options={CLIENTS}
               onValueChange={(value) => {

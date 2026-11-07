@@ -626,7 +626,7 @@ export async function settingsChecks() {
       () =>
         withSession(ADMIN, async ({ page }) => {
           await page.goto(orgUrl('/settings/members'))
-          const role = page.getByRole('combobox', { name: 'Role for Mia Member', exact: true })
+          const role = page.getByRole('button', { name: /^Role for Mia Member: / })
           const set = async (name: string) => {
             const write = page.waitForResponse(
               (response) =>
@@ -634,7 +634,7 @@ export async function settingsChecks() {
                 response.request().method() !== 'GET'
             )
             await role.click()
-            await page.getByRole('option', { name, exact: true }).click()
+            await page.getByRole('menuitemradio', { name, exact: true }).click()
             assert.ok((await write).ok(), `Setting ${name} failed`)
             await expect(role).toContainText(name)
           }

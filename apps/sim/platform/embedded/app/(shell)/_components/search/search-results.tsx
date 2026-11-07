@@ -24,7 +24,7 @@ function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] 
     <div className={styles.filters} role='group' aria-label='Search filters'>
       <div className={styles.filter}>
         <ChoiceMenu
-          label={source.label}
+          label='Filter by source'
           value={source.value}
           options={source.options}
           onValueChange={source.onChange}
@@ -32,7 +32,7 @@ function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] 
       </div>
       <div className={styles.filter}>
         <ChoiceMenu
-          label={updated.label}
+          label='Filter by date'
           value={updated.value}
           options={updated.options}
           onValueChange={updated.onChange}
