@@ -93,6 +93,7 @@ const optionFor = (provider: CredentialGroupProvider) => ({
 const DRIVE = optionFor('google-drive')
 const GITHUB = optionFor('github-repositories')
 const SLACK = optionFor('slack')
+const CONFLUENCE = optionFor('confluence')
 
 function connect(
   code: string,
@@ -110,7 +111,7 @@ function connect(
     email,
     enrollmentStatus: 'completed',
     option,
-    options: [DRIVE, GITHUB, SLACK],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE],
   }
   const attempt: CredentialGroupOAuthAttempt = {
     userId,
@@ -188,7 +189,7 @@ beforeAll(async () => {
     organizationId,
     publicId: generateId(),
     name: 'Connected accounts',
-    options: [DRIVE, GITHUB, SLACK],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE],
   })
   await db.insert(member).values({
     id: generateId(),
@@ -333,6 +334,26 @@ describe('reconnecting one of several accounts', () => {
     await expect(
       connect('work@first-tenant.test', { kind: 'reconnect', credentialId: other.credentialId })
     ).rejects.toThrow('account changed')
+    expect(await rows()).toHaveLength(2)
+  })
+})
+
+describe('adding another site to an Atlassian login', () => {
+  it('keeps the new grant on the existing account instead of refusing it', async () => {
+    const first = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const [before] = await rows()
+
+    const added = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+
+    expect(added).toMatchObject({ created: false, credentialId: first.credentialId })
+    const after = await rows()
+    expect(after).toHaveLength(1)
+    expect(after[0]?.tokens).not.toBe(before?.tokens)
+  })
+
+  it('still adds a different Atlassian login as its own account', async () => {
+    await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    await connect('other@atlassian', { kind: 'create' }, CONFLUENCE)
     expect(await rows()).toHaveLength(2)
   })
 })

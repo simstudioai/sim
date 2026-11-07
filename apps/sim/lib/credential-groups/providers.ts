@@ -52,6 +52,11 @@ interface CredentialGroupProviderSupport {
   serviceId: string
   description: string
   configuration: 'oauth' | 'slack_custom_bot'
+  /**
+   * One login holds a single grant that gains each site it consents to, so connecting that login
+   * again adds a site to the existing account rather than a second account.
+   */
+  grantSpansSites?: true
 }
 
 const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
@@ -127,11 +132,13 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     serviceId: 'confluence',
     description: 'Let each person connect one Confluence account',
     configuration: 'oauth',
+    grantSpansSites: true,
   },
   jira: {
     serviceId: 'jira',
     description: 'Let each person connect one Jira account',
     configuration: 'oauth',
+    grantSpansSites: true,
   },
   airtable: {
     serviceId: 'airtable',
@@ -256,6 +263,10 @@ export function getCredentialGroupProviderService(
     )
   }
   return service
+}
+
+export function credentialGroupGrantSpansSites(provider: CredentialGroupProvider): boolean {
+  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].grantSpansSites === true
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {

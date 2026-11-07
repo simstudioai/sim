@@ -34,9 +34,12 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
   limit,
   accounts,
   identity,
+  grantSpansSites = false,
 }: {
   intent?: CredentialGroupConnectionIntent
   limit: number
+  /** Connecting the same login again extends its grant, so it refreshes that account. */
+  grantSpansSites?: boolean
   accounts: Account[]
   identity: { subject: string; tenant: string | null } | null
 }): Account | undefined {
@@ -75,7 +78,7 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
 
   if (intent?.kind === 'create') {
     if (existing && !existing.revokedAt) {
-      if (existing.managedOauthStatus === 'active')
+      if (existing.managedOauthStatus === 'active' && !grantSpansSites)
         throw accountConflict('account_already_connected')
       return existing
     }
