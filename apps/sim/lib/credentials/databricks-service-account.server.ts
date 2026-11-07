@@ -120,6 +120,8 @@ async function requestWorkspaceToken(
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body,
+    // A secret or subject token must never follow a redirect off the workspace host.
+    redirect: 'error',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   const payload = (await response.json().catch(() => ({}))) as {
@@ -187,7 +189,7 @@ function bindSubject(
     throw new DatabricksCredentialError('Start a new keyless Databricks connection')
   }
   try {
-    verifyWorkloadIdentitySubject(owner, owner.actorUserId, subject, subjectProof)
+    verifyWorkloadIdentitySubject('databricks', owner, owner.actorUserId, subject, subjectProof)
   } catch (error) {
     if (error instanceof WorkloadIdentitySubjectError) {
       throw new DatabricksCredentialError(error.message)
@@ -235,6 +237,7 @@ export async function verifyAndEncryptDatabricksCredential(
     const token = await resolveDatabricksAccessToken(config, owner)
     const response = await fetch(`${workspaceOrigin(config.host)}/api/2.0/preview/scim/v2/Me`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      redirect: 'error',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)

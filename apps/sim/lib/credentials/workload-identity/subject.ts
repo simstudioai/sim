@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
+import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import type { WorkloadIdentityOwner } from '@/lib/credentials/workload-identity/issuer'
 
 /**
@@ -56,9 +57,15 @@ function proofKey(): Buffer {
     .digest()
 }
 
-function sign(owner: WorkloadIdentityOwner, userId: string, subject: string, expiresAt: number) {
+function sign(
+  provider: WorkloadIdentityProvider,
+  owner: WorkloadIdentityOwner,
+  userId: string,
+  subject: string,
+  expiresAt: number
+) {
   return createHmac('sha256', proofKey())
-    .update(`${ownerSegment(owner)}|${userId}|${subject}|${expiresAt}`, 'utf8')
+    .update(`${provider}|${ownerSegment(owner)}|${userId}|${subject}|${expiresAt}`, 'utf8')
     .digest('base64url')
 }
 
@@ -68,8 +75,9 @@ export interface WorkloadIdentitySubjectGrant {
   expiresAt: string
 }
 
-/** Issues a fresh subject the given user can attach to one new credential. */
+/** Issues a fresh subject the given user can attach to a new credential of one provider. */
 export function issueWorkloadIdentitySubject(
+  provider: WorkloadIdentityProvider,
   owner: WorkloadIdentityOwner,
   userId: string,
   now: number = Date.now()
@@ -78,13 +86,17 @@ export function issueWorkloadIdentitySubject(
   const expiresAt = now + SUBJECT_PROOF_TTL_MS
   return {
     subject,
-    subjectProof: `${expiresAt}.${sign(owner, userId, subject, expiresAt)}`,
+    subjectProof: `${expiresAt}.${sign(provider, owner, userId, subject, expiresAt)}`,
     expiresAt: new Date(expiresAt).toISOString(),
   }
 }
 
-/** Throws unless the proof was issued by Sim for this owner, user, and subject and has not expired. */
+/**
+ * Throws unless the proof was issued by Sim for this provider, owner, user, and
+ * subject and has not expired.
+ */
 export function verifyWorkloadIdentitySubject(
+  provider: WorkloadIdentityProvider,
   owner: WorkloadIdentityOwner,
   userId: string,
   subject: string,
@@ -101,5 +113,5 @@ export function verifyWorkloadIdentitySubject(
   const signature = subjectProof.slice(separator + 1)
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw invalid()
   if (!subject.startsWith(`sim:${ownerSegment(owner)}:credential:`)) throw invalid()
-  if (!safeCompare(signature, sign(owner, userId, subject, expiresAt))) throw invalid()
+  if (!safeCompare(signature, sign(provider, owner, userId, subject, expiresAt))) throw invalid()
 }

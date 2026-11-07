@@ -323,6 +323,21 @@ export function createUserToolSchema(
   return schema
 }
 
+/**
+ * Undeclared params a model must not inject into a hybrid tool: the saved
+ * credential selectors (which would swap the author's inline keys for another
+ * workspace credential) and the executor-owned values resolved from one.
+ */
+const HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS = [
+  'credential',
+  'credentialId',
+  'oauthCredential',
+  'manualCredential',
+  'accessToken',
+  'sessionToken',
+  'domain',
+]
+
 export async function createLLMToolSchema(
   toolConfig: ExecutableToolConfig,
   userProvidedParams: Record<string, unknown>,
@@ -341,6 +356,11 @@ export async function createLLMToolSchema(
   const modelBlockedParams = Object.entries(toolConfig.params)
     .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
     .map(([paramId]) => paramId)
+  // A hybrid tool (inline secrets or an optional saved credential) never takes its
+  // credential selection, or the values the executor derives from it, from a model.
+  if (toolConfig.oauth && toolConfig.oauth.required === false) {
+    modelBlockedParams.push(...HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS)
+  }
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
