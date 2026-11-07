@@ -213,6 +213,8 @@ export async function readHexMcp(
       const current = await project(client, reference.id, workspaceId)
       if (!current || current.revision !== before.revision)
         invalid('The Hex project changed while it was being read. Search again.')
+      if ((await workspace(client)) !== workspaceId)
+        invalid('The Hex workspace changed while it was being read. Search again.')
       return { ...current, content: parts.join('\n\n') }
     }
     if (
