@@ -35,6 +35,8 @@ import {
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   type CredentialGroupProvider,
+  credentialGroupGrantSpansSites,
+  credentialGroupTenantRecordedLater,
   getCredentialGroupProviderService,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
@@ -247,6 +249,8 @@ async function persistGrant(
       limit: CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT,
       accounts,
       identity: { subject: grant.providerSubjectId, tenant: grant.providerTenantId },
+      grantSpansSites: credentialGroupGrantSpansSites(adapter.provider),
+      tenantRecordedLater: credentialGroupTenantRecordedLater(adapter.provider),
     })
 
     let refreshToken = grant.refreshToken
