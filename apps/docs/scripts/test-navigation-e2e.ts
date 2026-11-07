@@ -1681,6 +1681,25 @@ try {
         ).toBeFocused()
       }
     )
+    await check('A stalled search request stops searching and offers a retry', async () => {
+      const page = await interactive.newPage()
+      try {
+        await open(page, '/introduction')
+        await page.route('**/api/search?query=timeout-probe', () => {})
+        await page
+          .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+          .click()
+        await page.getByRole('combobox', { name: 'Search documentation' }).fill('timeout-probe')
+        await page
+          .getByRole('button', { name: 'Try again', exact: true })
+          .waitFor({ timeout: 7000 })
+        await expect(page.getByRole('status')).toContainText('Search is unavailable')
+        await page.screenshot({ path: join(directory, 'search-timeout-retry.png') })
+      } finally {
+        await page.unrouteAll({ behavior: 'ignoreErrors' })
+        await page.close()
+      }
+    })
     await check('Closing search aborts a pending request', async () => {
       const page = await interactive.newPage()
       try {
