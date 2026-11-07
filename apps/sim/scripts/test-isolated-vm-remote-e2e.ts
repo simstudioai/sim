@@ -602,6 +602,11 @@ async function run() {
       )
       assert.equal(result.result, 1, result.error?.message)
       await server.reached
+      assert.equal(
+        await server.droppedSoon(300),
+        false,
+        'The app dropped the fetch as soon as the script returned'
+      )
     }
   )
 
