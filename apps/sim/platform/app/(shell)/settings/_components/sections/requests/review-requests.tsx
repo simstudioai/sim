@@ -43,11 +43,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
         value={list.search}
         onValueChange={list.setSearch}
       />
-      {settings.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading request settings…
-        </p>
-      ) : settings.error ? (
+      {settings.loading ? null : settings.error ? (
         <FailureNotice
           title='Unable to load request settings'
           message={settings.error.message}
@@ -90,11 +86,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
           />
         </span>
       </div>
-      {list.searching || list.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading requests…
-        </p>
-      ) : list.error ? (
+      {list.searching || list.loading ? null : list.error ? (
         <FailureNotice
           title='Unable to load requests'
           message={list.error.message}

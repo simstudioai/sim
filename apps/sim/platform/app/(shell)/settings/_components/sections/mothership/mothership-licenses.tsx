@@ -12,7 +12,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -163,9 +162,7 @@ export function MothershipLicenses({ env, organization }: LicensesProps) {
         )
       ) : list.status === 'error' ? (
         <FailureNotice message='Couldn’t load licenses.' onRetry={list.retry} />
-      ) : (
-        <LoadingState label='Loading licenses…' />
-      )}
+      ) : null}
     </SectionStack>
   )
 }

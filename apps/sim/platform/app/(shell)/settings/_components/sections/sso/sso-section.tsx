@@ -10,7 +10,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -86,9 +85,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
     selectedProvider !== undefined && canMakeProviderPrimary(providerList, selectedProvider)
   const openDomains = () => void setParams({ tab: 'domains' })
 
-  if (billingEnabled && billing.isLoading) {
-    return <LoadingState label='Loading sign-in settings…' />
-  }
+  if (billingEnabled && billing.isLoading) return null
   if (billingEnabled && billing.data === undefined && billing.error) {
     return (
       <FailureNotice
@@ -139,9 +136,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
       {/* Hidden tabs stay mounted, so a draft survives switching to Domains to verify one. */}
       <div hidden={tab !== 'sign-in'}>
         <SectionStack>
-          {providers.isLoading ? (
-            <LoadingState label='Loading identity providers…' />
-          ) : providers.data === undefined && providers.error ? (
+          {providers.isLoading ? null : providers.data === undefined && providers.error ? (
             <FailureNotice
               message={getErrorMessage(providers.error, 'Failed to load Single Sign-On settings')}
               retrying={providers.isFetching}

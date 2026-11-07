@@ -4,10 +4,6 @@
   gap: var(--spacing-24);
 }
 
-.status {
-  color: var(--ui-secondary);
-}
-
 .controls {
   display: inline-flex;
   align-items: center;

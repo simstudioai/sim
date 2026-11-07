@@ -124,9 +124,7 @@ export function UsageCalendar({ organizationId, timezone, workspaceId }: UsageCa
       </div>
       {calendar.failed ? (
         <FailureNotice message='Could not load daily usage' onRetry={calendar.retry} />
-      ) : !calendar.days ? (
-        <span className={styles.listPlaceholder} role='status' aria-label='Loading daily usage' />
-      ) : (
+      ) : !calendar.days ? null : (
         <Heatmap days={calendar.days} />
       )}
     </section>

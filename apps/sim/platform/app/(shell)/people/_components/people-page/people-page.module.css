@@ -49,20 +49,10 @@
   color: var(--ui-ink);
 }
 
-.tab:disabled {
-  cursor: default;
-}
-
 .body {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-block-size: 0;
   padding-block-start: var(--spacing-20);
-}
-
-.status {
-  color: var(--ui-secondary);
-  padding-block: var(--spacing-48);
-  text-align: center;
 }

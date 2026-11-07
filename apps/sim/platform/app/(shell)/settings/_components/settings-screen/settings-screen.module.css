@@ -62,10 +62,3 @@
     display: none;
   }
 }
-.titlePlaceholder {
-  display: block;
-  block-size: var(--spacing-32);
-  inline-size: var(--spacing-128);
-  border-radius: var(--radius-4);
-  background: var(--control-muted-fill);
-}

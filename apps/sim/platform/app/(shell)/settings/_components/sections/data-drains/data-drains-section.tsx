@@ -9,7 +9,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
   SectionToolbar,
@@ -93,9 +92,7 @@ export default function DataDrainsSection({ organization }: SettingsSectionProps
             retrying={isFetching}
             onRetry={() => void refetch()}
           />
-        ) : isPending ? (
-          <LoadingState label='Loading data drains…' />
-        ) : drains && drains.length > 0 ? (
+        ) : isPending ? null : drains && drains.length > 0 ? (
           filtered.length > 0 ? (
             <ResourceList>
               {filtered.map((drain) => (

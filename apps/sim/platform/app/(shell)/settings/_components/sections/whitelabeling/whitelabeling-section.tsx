@@ -12,7 +12,6 @@ import {
   ActionRow,
   FieldStack,
   Muted,
-  SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -212,7 +211,7 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
 export default function WhitelabelingSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id
   const read = useWhitelabelRead(organizationId)
-  if (read.status === 'pending') return <SectionSkeleton title='Brand identity' />
+  if (read.status === 'pending') return <SettingsSection title='Brand identity' />
   if (read.status === 'error' || !read.settings)
     return <FailureNotice message={read.error} onRetry={read.retry} />
   if (!read.entitled)

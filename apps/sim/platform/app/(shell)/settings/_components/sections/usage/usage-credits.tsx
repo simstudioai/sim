@@ -34,9 +34,7 @@ export function UsageCredits({
       )}
       {overview.failed ? (
         <FailureNotice message='Couldn’t load credits.' onRetry={overview.retry} />
-      ) : !chart.loaded ? (
-        <span className={styles.chartPlaceholder} role='status' aria-label='Loading credits' />
-      ) : (
+      ) : !chart.loaded ? null : (
         <BarChart title='Credits' bars={chart.bars} series={chart.series} hideEmptySeries />
       )}
     </section>

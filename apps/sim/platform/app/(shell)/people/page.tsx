@@ -1,8 +1,6 @@
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { PeoplePage } from '@/platform/app/(shell)/people/_components/people-page/people-page'
-import PeopleLoading from '@/platform/app/(shell)/people/loading'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export const metadata: Metadata = { title: 'People' }
@@ -17,9 +15,5 @@ export default async function Page() {
   )
   const organization = await requirePeopleAccess()
   if (!organization) return null
-  return (
-    <Suspense fallback={<PeopleLoading />}>
-      <PeoplePage organizationId={organization.organization.id} />
-    </Suspense>
-  )
+  return <PeoplePage organizationId={organization.organization.id} />
 }

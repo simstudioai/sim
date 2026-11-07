@@ -55,7 +55,7 @@ export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps)
                 ? `Credits used this ${usage.billingInterval === 'year' ? 'year' : 'month'}`
                 : 'Credits used'
             }
-            value={usage?.creditsUsed.toLocaleString() ?? 'Loading…'}
+            value={usage?.creditsUsed.toLocaleString() ?? ''}
             readOnly
           />
           <TextField

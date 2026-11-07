@@ -7,10 +7,8 @@ import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { usePersonalAccountsList } from '@/platform/shared/account'
 
-const TITLE = 'Connected organization accounts'
 const COLUMNS = [
   { key: 'name', label: 'Account', kind: 'text' },
   { key: 'service', label: 'Service', kind: 'text', showFrom: 'compact' },
@@ -28,7 +26,7 @@ type PersonalAccount = ReturnType<
 export function OrganizationAccounts() {
   const list = usePersonalAccountsList()
   const [pending, setPending] = useState<PersonalAccount | null>(null)
-  if (list.status === 'pending') return <SectionSkeleton title={TITLE} rows={2} />
+  if (list.status === 'pending') return null
   if (list.status === 'error')
     return (
       <FailureNotice

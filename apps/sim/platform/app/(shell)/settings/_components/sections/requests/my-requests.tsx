@@ -36,11 +36,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
       {mine.paused && (
         <InlineNotice message='Your organization has paused new requests. Your request history is still available.' />
       )}
-      {mine.searching || mine.loading ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Loading…
-        </p>
-      ) : mine.error ? (
+      {mine.searching || mine.loading ? null : mine.error ? (
         <FailureNotice
           title='Unable to load access requests'
           message={mine.error.message}

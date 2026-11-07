@@ -8,7 +8,6 @@ import { Icon } from '@sim/emcn/icon'
 import { FailureNotice } from '@sim/emcn/status'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import styles from '@/platform/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/app/(shell)/people/_components/person/person-modal'
@@ -181,9 +180,7 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
               onRetry={profile.retry}
             />
           )
-        ) : !data ? (
-          <PeopleStatus>Loading profile…</PeopleStatus>
-        ) : (
+        ) : !data ? null : (
           <>
             <header className={styles.heading}>
               <div className={styles.identity}>

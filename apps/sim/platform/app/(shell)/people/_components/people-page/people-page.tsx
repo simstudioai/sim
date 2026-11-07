@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import dynamic from 'next/dynamic'
 import { PeopleDirectory } from '@/platform/app/(shell)/people/_components/directory/directory'
@@ -116,17 +116,20 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
         ) : undefined
       }
     >
-      {currentView === 'chart' ? (
-        <OrgChart
-          organizationId={organizationId}
-          firstUse={firstUse}
-          onConnect={setConnecting}
-          onImport={openImport}
-          onSync={isAdmin ? openSync : undefined}
-        />
-      ) : (
-        <PeopleDirectory organizationId={organizationId} />
-      )}
+      {/* The chart loads lazily; while it does, the title and tabs above stay painted. */}
+      <Suspense fallback={null}>
+        {currentView === 'chart' ? (
+          <OrgChart
+            organizationId={organizationId}
+            firstUse={firstUse}
+            onConnect={setConnecting}
+            onImport={openImport}
+            onSync={isAdmin ? openSync : undefined}
+          />
+        ) : (
+          <PeopleDirectory organizationId={organizationId} />
+        )}
+      </Suspense>
       {modals}
     </PeopleFrame>
   )

@@ -7,7 +7,6 @@ import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/setting
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/app/(shell)/settings/_components/sections/billing/billing.module.css'
 import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
@@ -41,7 +40,7 @@ function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
 
 export function BillingView({ organization }: Pick<SettingsSectionProps, 'organization'>) {
   const billing = useBillingSection(organization)
-  if (billing.status === 'pending') return <SectionSkeleton title='Plan' rows={1} />
+  if (billing.status === 'pending') return null
   if (billing.status === 'error')
     return <FailureNotice message={billing.error} onRetry={billing.retry} />
   return (

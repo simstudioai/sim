@@ -8,7 +8,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   FieldStack,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -68,9 +67,7 @@ export function RequireSso({ organizationId }: { organizationId: string }) {
             retrying={isFetching}
             onRetry={() => void refetch()}
           />
-        ) : (
-          <LoadingState label='Loading sign-in requirement…' />
-        )}
+        ) : null}
       </FieldStack>
       <Modal
         variant='confirm'
