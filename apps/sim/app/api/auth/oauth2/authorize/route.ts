@@ -22,6 +22,7 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -257,6 +258,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!fromConnectionDraft) {
       if (!workspaceId) throw new Error('Workspace OAuth launch is missing its owner')
+      // The query alone picks the workspace and credential, so a cross-site page
+      // must not be able to start this launch with the viewer's session cookie.
+      if (isCrossSiteSessionRequest(request)) {
+        logger.warn('Rejected cross-site OAuth workspace launch', { userId, providerId })
+        return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
+      }
       try {
         const connection = await createCredentialConnection.execute({
           principal,
