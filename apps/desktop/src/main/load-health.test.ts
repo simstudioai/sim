@@ -7,6 +7,11 @@ describe('classifyLoadError', () => {
     expect(classifyLoadError(-2)).toBe('unreachable')
     expect(classifyLoadError(-1)).toBe('unreachable')
   })
+
+  it('reports ERR_ADDRESS_UNREACHABLE as a local-network block only under Local Network privacy', () => {
+    expect(classifyLoadError(-109, true)).toBe('local_network')
+    expect(classifyLoadError(-109, false)).toBe('unreachable')
+  })
 })
 
 vi.mock('electron', () => import('@/test/electron-mock'))
