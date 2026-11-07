@@ -143,30 +143,6 @@ function eocdUsesZip64(buffer: Buffer, eocdOffset: number): boolean {
   )
 }
 
-interface Zip64EocdRecord {
-  entryCount: number
-  centralDirectorySize: number
-  centralDirectoryOffset: number
-  /** Bytes from the record's signature through its last field. */
-  recordLength: number
-}
-
-function readZip64EocdRecord(buffer: Buffer, recordOffset: number): Zip64EocdRecord | null {
-  if (
-    recordOffset + 56 > buffer.length ||
-    !hasSignatureAt(buffer, recordOffset, ZIP64_EOCD_SIGNATURE)
-  ) {
-    return null
-  }
-  return {
-    entryCount: Number(buffer.readBigUInt64LE(recordOffset + 32)),
-    centralDirectorySize: Number(buffer.readBigUInt64LE(recordOffset + 40)),
-    centralDirectoryOffset: Number(buffer.readBigUInt64LE(recordOffset + 48)),
-    // The size field excludes the leading signature (4) and itself (8).
-    recordLength: 12 + Number(buffer.readBigUInt64LE(recordOffset + 4)),
-  }
-}
-
 interface ZipParserView {
   eocdOffset: number
   /** Bytes JSZip treats as prepended data and rebases every offset past. */
@@ -180,9 +156,15 @@ interface ZipParserView {
  * reads the archive from, mirroring `readEndOfCentral` in jszip 3.10. Unlike
  * the guard it does not anchor on the buffer tail: it takes the LAST EOCD
  * signature anywhere, the last ZIP64 locator signature anywhere (and the last
- * ZIP64 record signature if the locator's pointer misses), and treats any gap
- * before the central directory as prepended data. Returns `null` when JSZip
- * would refuse the buffer.
+ * ZIP64 record signature if the locator's in-range pointer misses), and treats
+ * any gap before the central directory as prepended data. Returns `null` when
+ * JSZip would refuse the buffer.
+ *
+ * Fields are read with JSZip's integer semantics, not the spec's: its
+ * `readInt` folds 4- and 8-byte values through 32-bit shifts, keeping only the
+ * low dword as a signed int (`readInt32LE`). Reading the full width here would
+ * let a value with high bits set look out of range while JSZip reads it as an
+ * ordinary offset or size.
  */
 function locateAsZipParser(buffer: Buffer): ZipParserView | null {
   const eocdOffset = buffer.lastIndexOf(EOCD_SIGNATURE_BYTES)
@@ -190,30 +172,37 @@ function locateAsZipParser(buffer: Buffer): ZipParserView | null {
     return null
   }
 
-  let centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16)
-  let expectedEocdOffset = centralDirectoryOffset + buffer.readUInt32LE(eocdOffset + 12)
+  let centralDirectoryOffset = buffer.readInt32LE(eocdOffset + 16)
+  let expectedEocdOffset = centralDirectoryOffset + buffer.readInt32LE(eocdOffset + 12)
   if (eocdUsesZip64(buffer, eocdOffset)) {
     const locatorOffset = buffer.lastIndexOf(ZIP64_EOCD_LOCATOR_SIGNATURE_BYTES)
     if (locatorOffset < 0 || locatorOffset + ZIP64_EOCD_LOCATOR_SIZE > buffer.length) {
       return null
     }
-    const pointedRecordOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
-    const record =
-      readZip64EocdRecord(buffer, pointedRecordOffset) ??
-      readZip64EocdRecord(buffer, buffer.lastIndexOf(ZIP64_EOCD_SIGNATURE_BYTES))
-    if (!record) {
+    // JSZip's signature probe throws on an out-of-range pointer instead of
+    // falling back to the signature scan.
+    const pointedRecordOffset = buffer.readInt32LE(locatorOffset + 8)
+    if (pointedRecordOffset < 0 || pointedRecordOffset + 4 > buffer.length) {
       return null
     }
-    centralDirectoryOffset = record.centralDirectoryOffset
+    const recordOffset = hasSignatureAt(buffer, pointedRecordOffset, ZIP64_EOCD_SIGNATURE)
+      ? pointedRecordOffset
+      : buffer.lastIndexOf(ZIP64_EOCD_SIGNATURE_BYTES)
+    if (recordOffset < 0 || recordOffset + 56 > buffer.length) {
+      return null
+    }
+    centralDirectoryOffset = buffer.readInt32LE(recordOffset + 48)
+    // The record's size field (+4) excludes its leading signature and itself (12 bytes).
     expectedEocdOffset =
       centralDirectoryOffset +
-      record.centralDirectorySize +
-      record.recordLength +
+      buffer.readInt32LE(recordOffset + 40) +
+      12 +
+      buffer.readInt32LE(recordOffset + 4) +
       ZIP64_EOCD_LOCATOR_SIZE
   }
 
   const baseOffset = eocdOffset - expectedEocdOffset
-  if (baseOffset < 0) {
+  if (baseOffset < 0 || centralDirectoryOffset < 0) {
     return null
   }
   return { eocdOffset, baseOffset, centralDirectoryStart: baseOffset + centralDirectoryOffset }
@@ -267,13 +256,16 @@ export function locateCentralDirectory(
       return null
     }
 
-    const record = readZip64EocdRecord(buffer, Number(buffer.readBigUInt64LE(locatorOffset + 8)))
-    if (!record) {
+    const zip64EocdOffset = Number(buffer.readBigUInt64LE(locatorOffset + 8))
+    if (
+      zip64EocdOffset + 56 > buffer.length ||
+      !hasSignatureAt(buffer, zip64EocdOffset, ZIP64_EOCD_SIGNATURE)
+    ) {
       return null
     }
 
-    entryCount = record.entryCount
-    cdOffset = record.centralDirectoryOffset
+    entryCount = Number(buffer.readBigUInt64LE(zip64EocdOffset + 32))
+    cdOffset = Number(buffer.readBigUInt64LE(zip64EocdOffset + 48))
   }
 
   if (cdOffset < 0 || cdOffset > buffer.length) {
