@@ -2245,7 +2245,7 @@ describe('transformBlockTool configured selectors', () => {
     )
 
     expect(result?.id).toBe('video_falai')
-    expect(result?.parameters?.properties).not.toHaveProperty('visualReference')
+    expect(result?.parameters?.properties).toHaveProperty('visualReference')
     const prepared = prepareToolExecution(
       result!,
       { prompt: 'A paper boat', provider: 'runway', model: 'gen-4-turbo' },

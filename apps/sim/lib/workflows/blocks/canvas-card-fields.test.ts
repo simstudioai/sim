@@ -95,4 +95,19 @@ describe('getCardSubBlocks', () => {
     const onCard = triggerCardIds(BLOCK_REGISTRY.webflow)
     expect(onCard).toEqual(expect.arrayContaining(['triggerCredentials', 'triggerSiteId']))
   })
+
+  it('reads the active start frame member when picking video settings', () => {
+    // The stale upload is the inactive member, so the card shows the prompt-only settings.
+    const videoGenerator = BLOCK_REGISTRY.video_generator_v3
+    const onCard = getCardSubBlocks(videoGenerator, {
+      advanced: true,
+      values: {
+        provider: 'falai',
+        model: 'alibaba/happy-horse/text-to-video',
+        visualReferenceUpload: { name: 'frame.png', key: 'k', size: 3, type: 'image/png' },
+      },
+      canonicalModeOverrides: { visualReference: 'advanced' },
+    }).map((subBlock) => subBlock.id)
+    expect(onCard).toContain('falAspectRatio')
+  })
 })

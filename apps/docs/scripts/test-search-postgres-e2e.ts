@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { connect, createServer, type Socket } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type Server, serve } from 'bun'
 import { toString as markdownToString } from 'mdast-util-to-string'
@@ -41,7 +43,10 @@ process.env.OPENAI_API_KEY = ''
 const reportPath: string = reportSetting
 const directory = dirname(reportPath)
 const workspace = resolve(import.meta.dirname, '..')
-const sql = postgres(databaseUrl.href, { max: 1 })
+const databaseHost = databaseUrl.hostname.replace(/^\[|\]$/g, '')
+await mkdir(directory, { recursive: true })
+const searchProxy = chunksOnly ? undefined : await createSearchProxy()
+const sql = postgres(searchProxy?.url ?? databaseUrl.href, { max: 1 })
 const results: Array<{
   name: string
   status: 'passed' | 'failed'
@@ -69,7 +74,6 @@ const providerRequests: Array<{
   status: number
   inputs: number
 }> = []
-await mkdir(directory, { recursive: true })
 
 async function check(name: string, action: () => Promise<void>) {
   const started = performance.now()
@@ -85,6 +89,73 @@ async function check(name: string, action: () => Promise<void>) {
     })
     throw error
   }
+}
+
+async function createSearchProxy() {
+  const sockets = new Set<Socket>()
+  const buffered = new Map<Socket, Buffer[]>()
+  let paused = false
+  const server = createServer((client) => {
+    const upstream = connect(Number(databaseUrl.port || 5432), databaseHost)
+    sockets.add(client)
+    sockets.add(upstream)
+    assert(sockets.size <= 16, 'Search proxy connection cap exceeded')
+    client.on('error', () => upstream.destroy())
+    upstream.on('error', () => client.destroy())
+    client.on('close', () => {
+      sockets.delete(client)
+      upstream.destroy()
+    })
+    upstream.on('close', () => {
+      sockets.delete(upstream)
+      buffered.delete(client)
+      client.destroy()
+    })
+    client.pipe(upstream)
+    upstream.on('data', (data: Buffer) => {
+      if (!paused) {
+        client.write(data)
+        return
+      }
+      const chunks = buffered.get(client) ?? []
+      assert(
+        chunks.reduce((bytes, chunk) => bytes + chunk.length, 0) + data.length <= 1024 * 1024,
+        'Search proxy byte cap exceeded'
+      )
+      chunks.push(data)
+      buffered.set(client, chunks)
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  assert(address && typeof address !== 'string')
+  const url = new URL(databaseUrl)
+  url.hostname = '127.0.0.1'
+  url.port = String(address.port)
+  return {
+    url: url.href,
+    pause() {
+      paused = true
+    },
+    resume() {
+      paused = false
+      for (const [client, chunks] of buffered) for (const chunk of chunks) client.write(chunk)
+      buffered.clear()
+    },
+    async close() {
+      for (const socket of sockets) socket.destroy()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
+async function within<T>(operation: Promise<T>, milliseconds: number): Promise<T> {
+  return Promise.race([
+    operation,
+    sleep(milliseconds).then(() => {
+      throw new Error('Search exceeded its response budget')
+    }),
+  ])
 }
 
 async function index(
@@ -107,7 +178,7 @@ async function index(
       cwd: workspace,
       env: {
         ...process.env,
-        DATABASE_URL: databaseUrl.href,
+        DATABASE_URL: searchProxy?.url ?? databaseUrl.href,
         OPENAI_API_KEY: useProvider ? 'isolated-fixture' : '',
         DOCS_SEARCH_REPORT_PATH: outputPath,
       },
@@ -255,6 +326,9 @@ async function verifyDatabase() {
     Array<{ count: number }>
   >`SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'`
   assert(existing?.count === 0, 'Refusing to mutate a database that already contains tables')
+  const proxy = searchProxy
+  assert(proxy, 'Search proxy fixture is required for database verification')
+  process.env.DATABASE_URL = proxy.url
   await sql`CREATE EXTENSION IF NOT EXISTS vector`
   await sql`
     CREATE TABLE docs_embeddings (
@@ -295,6 +369,62 @@ async function verifyDatabase() {
     assert.equal(results.length, 1)
     assert.equal(results[0]?.id, probe)
     assert.equal(results[0]?.url, 'https://docs.sim.ai/introduction')
+  })
+  await check('Local search matches do not wait for database traffic', async () => {
+    proxy.pause()
+    const pending = searchDocs('Slack')
+    try {
+      const results = await within(pending, 500)
+      assert(results.some((result) => new URL(result.url).pathname === '/integrations/slack'))
+    } finally {
+      proxy.resume()
+      await pending
+    }
+  })
+  await check(
+    'Hybrid deadlines keep stalled requests bounded and recover after the network resumes',
+    async () => {
+      proxy.pause()
+      try {
+        assert.deepEqual(await within(searchDocs(query), 2000), [])
+        assert.deepEqual(await within(searchDocs(query), 2000), [])
+        assert.deepEqual(await within(searchDocs(query), 500), [])
+      } finally {
+        proxy.resume()
+        await searchDatabase()`SELECT 1`
+      }
+      assert.equal((await searchDocs(query))[0]?.id, probe)
+    }
+  )
+  await check('Database keywords survive a stalled embedding provider', async () => {
+    const transport = globalThis.fetch
+    let requests = 0
+    const delayedProvider = serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      async fetch() {
+        assert(++requests <= 1, 'Search embedding request cap exceeded')
+        await sleep(3000)
+        return Response.json({ data: [{ embedding: JSON.parse(vector) }] })
+      },
+    })
+    globalThis.fetch = Object.assign(
+      (...[input, init]: Parameters<typeof fetch>) =>
+        transport(
+          input === 'https://api.openai.com/v1/embeddings' ? delayedProvider.url : input,
+          init
+        ),
+      transport
+    )
+    process.env.OPENAI_API_KEY = 'isolated-fixture'
+    try {
+      assert.equal((await within(searchDocs(query), 2000))[0]?.id, probe)
+      assert.equal(requests, 1)
+    } finally {
+      globalThis.fetch = transport
+      process.env.OPENAI_API_KEY = ''
+      await delayedProvider.stop(true)
+    }
   })
   await check('Repeated lower-ranked chunks do not outrank a stronger page match', async () => {
     const otherPage = getPage('/getting-started')
@@ -341,18 +471,18 @@ async function verifyDatabase() {
       await sql`UPDATE docs_embeddings SET source_link = 'https://docs.sim.ai/introduction' WHERE chunk_id = ${probe}`
     }
   )
-  await check('Database query failures retain credential-free catalog results', async () => {
-    await sql`ALTER TABLE docs_embeddings RENAME TO docs_embeddings_unavailable`
-    try {
-      assert(
-        (await searchDocs('Slack')).some(
-          (result) => new URL(result.url).pathname === '/integrations/slack'
-        )
-      )
-    } finally {
-      await sql`ALTER TABLE docs_embeddings_unavailable RENAME TO docs_embeddings`
+  await check(
+    'Database query failures return no matches and recover after restoration',
+    async () => {
+      await sql`ALTER TABLE docs_embeddings RENAME TO docs_embeddings_unavailable`
+      try {
+        assert.deepEqual(await searchDocs(query), [])
+      } finally {
+        await sql`ALTER TABLE docs_embeddings_unavailable RENAME TO docs_embeddings`
+      }
+      assert.equal((await searchDocs(query))[0]?.id, probe)
     }
-  })
+  )
   await sql`DELETE FROM docs_embeddings`
   const pages = getPages().filter((page) => page.url !== '/')
   for (const page of pages) {
@@ -684,10 +814,12 @@ try {
     })
   }
 } finally {
+  searchProxy?.resume()
   await provider?.stop(true)
   await rm(preloadPath, { force: true })
   if (created) await sql`DROP TABLE docs_embeddings`
   await Promise.all([sql.end({ timeout: 5 }), searchDatabase().end({ timeout: 5 })])
+  await searchProxy?.close()
   await writeFile(
     reportPath,
     `${JSON.stringify({ scope: chunksOnly ? 'compiled-content' : 'postgres-publication', results, provider: { mode: 'loopback-http-fixture', maxRequests: 16, maxInputsPerRequest: 16, requests: providerRequests } }, null, 2)}\n`
