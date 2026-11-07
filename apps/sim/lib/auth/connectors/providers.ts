@@ -466,6 +466,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-ads'),
+      authorizationUrlParams: { include_granted_scopes: 'false' },
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-ads`,
       getUserInfo: async (tokens) => {
@@ -612,6 +613,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-chat'),
+      authorizationUrlParams: { include_granted_scopes: 'false' },
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-chat`,
       getUserInfo: async (tokens) => {
@@ -649,6 +651,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-meet'),
+      authorizationUrlParams: { include_granted_scopes: 'false' },
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-meet`,
       getUserInfo: async (tokens) => {
