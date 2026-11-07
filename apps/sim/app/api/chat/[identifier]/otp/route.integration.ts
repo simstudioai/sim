@@ -134,11 +134,11 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
     it('keeps the code expiry when a failed attempt is recorded', async () => {
       if (backend === 'redis') {
         const key = `otp:${email}:${chatId}`
-        await redisClient.current?.expire(key, 60)
+        await redisClient.current?.pexpire(key, 900)
         expect(await verify('999999')).toMatchObject({ status: 400, error: INVALID })
-        const ttl = await redisClient.current?.ttl(key)
-        expect(ttl).toBeGreaterThan(55)
-        expect(ttl).toBeLessThanOrEqual(60)
+        const ttl = await redisClient.current?.pttl(key)
+        expect(ttl).toBeGreaterThan(0)
+        expect(ttl).toBeLessThanOrEqual(900)
         return
       }
       const readExpiry = async () =>

@@ -118,7 +118,9 @@ export async function storeOTP(
 
 /**
  * Lua script that reserves one verification attempt in Redis. Returns the
- * code with the reserved attempt number, or nil when no code exists.
+ * code with the reserved attempt number, or nil when no code exists. Rewrites
+ * keep the remaining lifetime to the millisecond; a code without one is
+ * treated as expired so it can never become permanent.
  */
 const RESERVE_ATTEMPT_SCRIPT = `
 local val = redis.call('GET', KEYS[1])
@@ -136,14 +138,14 @@ attempts = attempts + 1
 local newVal = otp .. ':' .. attempts
 if attempts >= tonumber(ARGV[1]) then
   redis.call('DEL', KEYS[1])
-else
-  local ttl = redis.call('TTL', KEYS[1])
-  if ttl > 0 then
-    redis.call('SET', KEYS[1], newVal, 'EX', ttl)
-  else
-    redis.call('SET', KEYS[1], newVal)
-  end
+  return newVal
 end
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl <= 0 then
+  redis.call('DEL', KEYS[1])
+  return nil
+end
+redis.call('SET', KEYS[1], newVal, 'PX', ttl)
 return newVal
 `
 
@@ -220,11 +222,7 @@ export async function verifyOTP(
   return reserved.attempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'invalid'
 }
 
-export async function deleteOTP(
-  kind: DeploymentKind,
-  deploymentId: string,
-  email: string
-): Promise<void> {
+async function deleteOTP(kind: DeploymentKind, deploymentId: string, email: string): Promise<void> {
   const keys = OTP_KEYS[kind]
   const storageMethod = getStorageMethod()
 
