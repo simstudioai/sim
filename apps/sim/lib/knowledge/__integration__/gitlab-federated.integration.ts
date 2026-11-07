@@ -31,12 +31,8 @@ import {
   updateKnowledgeConnector,
 } from '@/lib/knowledge/application/connectors'
 import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-group-sync'
-import {
-  decodeLiveReference,
-  encodeLiveReference,
-  readLiveDocument,
-  searchLiveKnowledge,
-} from '@/lib/sim-search/live/application'
+import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import { decodeLiveReference } from '@/lib/sim-search/live/reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface FixturePerson {
@@ -130,10 +126,6 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
         resultSecretRegistry: new ResolvedSecretTraceRegistry(),
       },
     })
-  }
-
-  function documentForReader(documentId: string, person: FixturePerson) {
-    return encodeLiveReference({ ...decodeLiveReference(documentId), user: person.simId })
   }
 
   beforeAll(async () => {
@@ -318,13 +310,11 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
     120_000
   )
 
-  it('keeps references reader-bound and rechecks confidentiality before reads', async () => {
+  it('checks a shared source reference against its reader and rechecks confidentiality', async () => {
     const reporter = await search(people.reporter!, 'code')
     const file = reporter.results[0]!
+    /** The ID names no reader: the guest's own GitLab access refuses the reporter's code result. */
     await expect(read(people.guest!, file.documentId)).rejects.toMatchObject({ code: 'not_found' })
-    await expect(
-      read(people.guest!, documentForReader(file.documentId, people.guest!))
-    ).rejects.toBeDefined()
     const guest = await search(people.guest!, 'issues')
     const normal = guest.results.find(
       (row) => decodeLiveReference(row.documentId).id === String(issueIid)

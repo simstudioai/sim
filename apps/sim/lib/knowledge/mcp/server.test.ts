@@ -55,6 +55,7 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import { encodeLiveReference } from '@/lib/sim-search/live/reference'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = hoisted
@@ -299,6 +300,20 @@ describe('batched document reads', () => {
     await call('read_document', { documentIds: ['a', 'b', 'a'] })
     expect(mocks.rateLimit).toHaveBeenCalledWith(request, auth, expect.anything(), 2)
     expect(mocks.liveRead).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads a document once when the batch names it in both ID forms', async () => {
+    create()
+    mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) =>
+      readResult(input.documentId)
+    )
+    const reference = { provider: 'google_drive', account: 'account', id: 'doc' } as const
+    const earlier = `live:${Buffer.from(
+      JSON.stringify({ v: 1, user: 'person-1', scope: 'organization:org-1', ...reference })
+    ).toString('base64url')}`
+    await call('read_document', { documentIds: [earlier, encodeLiveReference(reference)] })
+    expect(mocks.rateLimit).toHaveBeenCalledWith(request, auth, expect.anything(), 1)
+    expect(mocks.liveRead).toHaveBeenCalledTimes(1)
   })
 
   it('reads at most five documents from providers at once, in request order', async () => {

@@ -30,6 +30,7 @@ import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
+import { liveDocumentKey } from '@/lib/sim-search/live/reference'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -225,7 +226,9 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     async (raw: unknown, extra: { signal: AbortSignal }) => {
       const parsed = readLiveDocumentMcpSchema.safeParse(raw)
       const batch =
-        parsed.success && parsed.data.documentIds ? [...new Set(parsed.data.documentIds)] : []
+        parsed.success && parsed.data.documentIds
+          ? [...new Map(parsed.data.documentIds.map((id) => [liveDocumentKey(id), id])).values()]
+          : []
       return execute(
         'read_document',
         knowledgeOperations.readDocument,
