@@ -49,6 +49,7 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
       )
     }
     const grant = issueWorkloadIdentitySubject(
+      input.provider,
       { workspaceId: input.workspaceId },
       requirePrincipalSubjectUserId(principal)
     )

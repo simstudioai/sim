@@ -26,8 +26,11 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 /**
  * Saved AWS identities for every AWS block.
  *
- * Three modes, all resolved server-side at execution so no key or session
- * token ever reaches a block output, a log line, or the model:
+ * Three modes, all resolved server-side at execution. Keys and session tokens
+ * stay out of block outputs, logs, and model input — except where AWS itself
+ * requires them in a value the block returns: an S3 presigned download URL made
+ * with temporary credentials carries the temporary access key ID and its
+ * session token (never the secret), and expires with the session.
  * - `access_keys`: a long-lived IAM user key pair, used as-is (today's inline behavior).
  * - `assume_role`: a key pair that assumes a role, optionally with an external ID.
  * - `oidc_role`: no stored key at all — Sim signs a short-lived OIDC token for
@@ -233,7 +236,7 @@ function bindOidcSubject(
     throw new AwsCredentialError('Start a new AWS role connection to get a trust setup')
   }
   try {
-    verifyWorkloadIdentitySubject(owner, owner.actorUserId, subject, subjectProof)
+    verifyWorkloadIdentitySubject('aws', owner, owner.actorUserId, subject, subjectProof)
   } catch (error) {
     if (error instanceof WorkloadIdentitySubjectError) throw new AwsCredentialError(error.message)
     throw error

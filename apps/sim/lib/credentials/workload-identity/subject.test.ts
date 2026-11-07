@@ -13,31 +13,46 @@ const now = Date.UTC(2026, 10, 6)
 
 describe('workload identity subjects', () => {
   it('accepts the subject and proof Sim issued to this person for this workspace', () => {
-    const grant = issueWorkloadIdentitySubject(owner, 'user-1', now)
+    const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
 
     expect(grant.subject).toMatch(/^sim:workspace:ws-1:credential:[A-Za-z0-9_-]+$/)
     expect(() =>
-      verifyWorkloadIdentitySubject(owner, 'user-1', grant.subject, grant.subjectProof, now)
+      verifyWorkloadIdentitySubject('aws', owner, 'user-1', grant.subject, grant.subjectProof, now)
     ).not.toThrow()
   })
 
   it('refuses another member reusing a subject they learned from a trust policy', () => {
-    const victim = issueWorkloadIdentitySubject(owner, 'user-1', now)
-    const attacker = issueWorkloadIdentitySubject(owner, 'user-2', now)
+    const victim = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
+    const attacker = issueWorkloadIdentitySubject('aws', owner, 'user-2', now)
 
     expect(() =>
-      verifyWorkloadIdentitySubject(owner, 'user-2', victim.subject, attacker.subjectProof, now)
+      verifyWorkloadIdentitySubject(
+        'aws',
+        owner,
+        'user-2',
+        victim.subject,
+        attacker.subjectProof,
+        now
+      )
     ).toThrow(WorkloadIdentitySubjectError)
     expect(() =>
-      verifyWorkloadIdentitySubject(owner, 'user-2', victim.subject, victim.subjectProof, now)
+      verifyWorkloadIdentitySubject(
+        'aws',
+        owner,
+        'user-2',
+        victim.subject,
+        victim.subjectProof,
+        now
+      )
     ).toThrow(WorkloadIdentitySubjectError)
   })
 
   it('refuses a proof presented in another workspace', () => {
-    const grant = issueWorkloadIdentitySubject(owner, 'user-1', now)
+    const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
 
     expect(() =>
       verifyWorkloadIdentitySubject(
+        'aws',
         { workspaceId: 'ws-2' },
         'user-1',
         grant.subject,
@@ -47,17 +62,39 @@ describe('workload identity subjects', () => {
     ).toThrow(WorkloadIdentitySubjectError)
   })
 
+  it('refuses a proof issued for another provider', () => {
+    const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
+
+    expect(() =>
+      verifyWorkloadIdentitySubject(
+        'databricks',
+        owner,
+        'user-1',
+        grant.subject,
+        grant.subjectProof,
+        now
+      )
+    ).toThrow(WorkloadIdentitySubjectError)
+  })
+
   it('refuses an expired proof', () => {
-    const grant = issueWorkloadIdentitySubject(owner, 'user-1', now)
+    const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
     const later = now + 24 * 60 * 60 * 1000 + 1
 
     expect(() =>
-      verifyWorkloadIdentitySubject(owner, 'user-1', grant.subject, grant.subjectProof, later)
+      verifyWorkloadIdentitySubject(
+        'aws',
+        owner,
+        'user-1',
+        grant.subject,
+        grant.subjectProof,
+        later
+      )
     ).toThrow(WorkloadIdentitySubjectError)
   })
 
   it('refuses a tampered or malformed proof', () => {
-    const grant = issueWorkloadIdentitySubject(owner, 'user-1', now)
+    const grant = issueWorkloadIdentitySubject('aws', owner, 'user-1', now)
     const [expiresAt] = grant.subjectProof.split('.')
 
     for (const proof of [
@@ -67,7 +104,7 @@ describe('workload identity subjects', () => {
       '',
     ]) {
       expect(() =>
-        verifyWorkloadIdentitySubject(owner, 'user-1', grant.subject, proof, now)
+        verifyWorkloadIdentitySubject('aws', owner, 'user-1', grant.subject, proof, now)
       ).toThrow(WorkloadIdentitySubjectError)
     }
   })

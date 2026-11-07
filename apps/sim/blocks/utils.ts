@@ -50,11 +50,15 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
 ]
 
 /**
- * Value keys a saved credential can sit under: the picker and its advanced text
- * input by subblock id (editor, raw values) and their canonical param
- * (serializer and agent tool-input, after canonicalization).
+ * Value keys a saved credential can sit under: the picker by subblock id
+ * (editor, raw values) and its canonical param (serializer and agent
+ * tool-input, after canonicalization). The picker is deliberately the group's
+ * only member — an advanced ID input would make "is a credential selected"
+ * depend on the canonical mode, which these conditions cannot see, so a stale
+ * value in the inactive member could hide the inline fields while the run used
+ * neither.
  */
-const SAVED_CREDENTIAL_VALUE_KEYS = ['credential', 'manualCredential', 'oauthCredential'] as const
+const SAVED_CREDENTIAL_VALUE_KEYS = ['credential', 'oauthCredential'] as const
 
 /** Whether a block's values select a saved credential. */
 export function hasSavedCredential(values?: Record<string, unknown>): boolean {
@@ -87,9 +91,9 @@ export function withoutSavedCredential(base?: SubBlockConditionShape) {
 }
 
 /**
- * The optional saved-credential picker (and its advanced ID input) for a block
- * whose inline secret fields stay available. Leaving it empty keeps the inline
- * fields, so existing blocks run unchanged.
+ * The optional saved-credential picker for a block whose inline secret fields
+ * stay available. Leaving it empty keeps the inline fields, so existing blocks
+ * run unchanged.
  */
 function savedCredentialSubBlocks(input: {
   serviceId: string
@@ -104,16 +108,7 @@ function savedCredentialSubBlocks(input: {
       serviceId: input.serviceId,
       credentialKind: 'service-account',
       canonicalParamId: 'oauthCredential',
-      mode: 'basic',
       placeholder: `Select a saved ${input.title.toLowerCase()}, or ${input.inlineFallback}`,
-    },
-    {
-      id: 'manualCredential',
-      title: `${input.title} ID`,
-      type: 'short-input',
-      canonicalParamId: 'oauthCredential',
-      mode: 'advanced',
-      placeholder: `Saved ${input.title.toLowerCase()} ID, or leave empty to ${input.inlineFallback}`,
     },
   ]
 }

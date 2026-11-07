@@ -22,4 +22,6 @@ export const DATABRICKS_CREDENTIAL_OAUTH = {
   required: false,
   provider: 'databricks',
   credentialKind: 'service-account',
+  /** The saved connection's workspace host always replaces a caller-supplied one. */
+  authoritativeParams: ['domain'],
 } as const satisfies OAuthConfig
