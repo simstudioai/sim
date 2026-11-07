@@ -1070,6 +1070,7 @@ const INSTAGRAM_TOOL_IDS = [
 
 const VIDEO_TOOL_IDS = [
   'video_falai',
+  'video_higgsfield',
   'video_luma',
   'video_minimax',
   'video_runway',

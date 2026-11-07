@@ -18,6 +18,9 @@ import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/pri
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import {
+  ACCOUNT_SITE_LIMIT,
+  ACCOUNT_SITE_NAME_MAX_LENGTH,
+  ACCOUNT_SITE_URL_MAX_LENGTH,
   ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
   ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
 } from '@/lib/credential-groups/limits'
@@ -79,6 +82,14 @@ export const getOrganizationAccountsContract = defineRouteContract({
             groupId: z.string().min(1).max(128),
             optionId: z.string().min(1).max(128),
             status: z.enum(['active', 'needs_reauth']),
+            sites: z
+              .array(
+                z.object({
+                  name: z.string().max(ACCOUNT_SITE_NAME_MAX_LENGTH),
+                  url: z.string().max(ACCOUNT_SITE_URL_MAX_LENGTH),
+                })
+              )
+              .max(ACCOUNT_SITE_LIMIT),
           })
         )
         .max(ORGANIZATION_VIEWER_ACCOUNT_LIMIT)

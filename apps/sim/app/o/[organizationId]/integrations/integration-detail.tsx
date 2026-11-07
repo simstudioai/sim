@@ -33,6 +33,23 @@ interface IntegrationDetailProps {
   children?: ReactNode
 }
 
+type IntegrationAccount = MemberIntegration['accounts'][number]
+
+/** Sites recorded for an account whose one grant reaches several, such as Confluence or Jira. */
+function sitesOf(account: IntegrationAccount) {
+  return 'sites' in account ? account.sites : []
+}
+
+function siteHost(url: string) {
+  return url.replace(/^https:\/\//, '')
+}
+
+function accountSummary(account: IntegrationAccount) {
+  const status = account.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'
+  const count = sitesOf(account).length
+  return count > 0 ? `${status} · ${count} ${count === 1 ? 'site' : 'sites'}` : status
+}
+
 function savedProviderIdFor(provider: string) {
   const providerId = liveSearchSavedMemberProvider(provider)
   return providerId === 'jama-service-account' || providerId === 'flow-service-account'
@@ -81,7 +98,11 @@ export function IntegrationDetail({
                 ? undefined
                 : 'savedProviderId' in target
                   ? () => savedProvider && setSavedConnection({ providerId: savedProvider })
-                  : () => connect.mutate({ organizationId, ...target }, { onError })
+                  : () =>
+                      connect.mutate(
+                        { organizationId, ...target },
+                        { onError, onSuccess: () => toast.success(`${integration.name} connected`) }
+                      )
             }
             onReconnect={() => {
               if (!selected) return
@@ -91,7 +112,11 @@ export function IntegrationDetail({
                   credentialId: selected.credentialId,
                   displayName: selected.displayName,
                 })
-              else reconnect.mutate(selected.credentialId, { onError })
+              else
+                reconnect.mutate(selected.credentialId, {
+                  onError,
+                  onSuccess: () => toast.success(`${integration.name} reconnected`),
+                })
             }}
             connectionPending={connect.isPending || reconnect.isPending}
             canConnect={integration.ready}
@@ -117,19 +142,33 @@ export function IntegrationDetail({
               This account is no longer connected.
             </SettingsEmptyState>
           ) : selected ? (
-            <SettingsField
-              label={selected.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'}
-              breakAll
-            >
-              {selected.displayName}
-            </SettingsField>
+            <div className='flex flex-col gap-4'>
+              <SettingsField
+                label={selected.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'}
+                breakAll
+              >
+                {selected.displayName}
+              </SettingsField>
+              {sitesOf(selected).length > 0 && (
+                <SettingsField label='Sites'>
+                  <ul className='flex flex-col gap-1'>
+                    {sitesOf(selected).map((site) => (
+                      <li key={site.url} className='break-all text-[var(--text-body)] text-sm'>
+                        {site.name}{' '}
+                        <span className='text-[var(--text-muted)]'>{siteHost(site.url)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </SettingsField>
+              )}
+            </div>
           ) : integration.accounts.length ? (
             <div className={RESOURCE_LIST_STACK}>
               {integration.accounts.map((account) => (
                 <SettingsResourceRow
                   key={account.credentialId}
                   title={account.displayName}
-                  description={account.status === 'needs_reauth' ? 'Reconnect needed' : 'Connected'}
+                  description={accountSummary(account)}
                   href={accountHref(account.credentialId)}
                   clickLabel={`Open ${account.displayName} account`}
                   navigable

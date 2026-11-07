@@ -178,14 +178,13 @@ describe('image operations', () => {
   })
 
   it.each(['openai', 'gemini'])(
-    'does not purchase a fallback for an unknown %s model',
+    'rejects a malformed typed %s model before any request',
     async (provider) => {
-      mocks.fetch.mockResolvedValueOnce(new Response('Unexpected generation', { status: 502 }))
       const response = await executeImageGeneration(
-        { ...falInput, provider, model: 'unknown-model' },
+        { ...falInput, provider, model: '../unknown model' },
         {
           userId: 'user-1',
-          requestId: 'unknown-model',
+          requestId: 'malformed-model',
         }
       )
 

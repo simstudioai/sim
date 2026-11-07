@@ -243,10 +243,11 @@ function withDirectVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
             { id: 'veo', label: 'Google Gemini' },
             { id: 'luma', label: 'Luma' },
             { id: 'minimax', label: 'MiniMax' },
+            { id: 'higgsfield', label: 'Higgsfield' },
             { id: 'falai', label: 'Fal.ai (Multi-Model)' },
           ],
         },
-        ...(['runway', 'veo', 'luma', 'minimax'] as const).map(
+        ...(['runway', 'veo', 'luma', 'minimax', 'higgsfield'] as const).map(
           (provider): SubBlockConfig => ({
             id: 'model',
             title: 'Model',
@@ -1908,6 +1909,21 @@ export const VideoGeneratorV2Block: BlockConfig = {
   },
 }
 
+/** Lets a user type a model the catalog does not list yet, as well as pick a listed one. */
+function withTypedModelFields(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
+  return subBlocks.map((field) =>
+    field.id === 'model'
+      ? {
+          ...field,
+          type: 'combobox',
+          placeholder: 'Type or select a model...',
+          mediaModelOptions: true,
+          restoreDefaultWhenCleared: true,
+        }
+      : field
+  )
+}
+
 export const VideoGeneratorV3Block: BlockConfig = {
   ...VideoGeneratorV2Block,
   sunset: undefined,
@@ -1915,18 +1931,24 @@ export const VideoGeneratorV3Block: BlockConfig = {
   name: 'Video Generator',
   description: 'Generate videos from text using AI',
   longDescription:
-    'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Gemini, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
+    'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Gemini, Luma, MiniMax, Higgsfield, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
   docsLink: 'https://docs.sim.ai/integrations/video_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: VideoIcon,
   hideFromToolbar: false,
-  subBlocks: withDirectVideoCatalog(withFalVideoCatalog(VideoGeneratorV2Block.subBlocks)),
+  subBlocks: withTypedModelFields(
+    withDirectVideoCatalog(withFalVideoCatalog(VideoGeneratorV2Block.subBlocks))
+  ),
   tools: {
     ...VideoGeneratorV2Block.tools,
+    access: [...VideoGeneratorV2Block.tools.access, 'video_higgsfield'],
     config: {
-      tool: (params) => VideoGeneratorV2Block.tools.config?.tool(params) ?? 'video_runway',
+      tool: (params) =>
+        params.provider === 'higgsfield'
+          ? 'video_higgsfield'
+          : (VideoGeneratorV2Block.tools.config?.tool(params) ?? 'video_runway'),
       params: (params) => {
         if (params.provider === 'falai')
           return VideoGeneratorV2Block.tools.config?.params?.(params) ?? params
@@ -1969,6 +1991,10 @@ export const VideoGeneratorV3Block: BlockConfig = {
   },
   inputs: {
     ...VideoGeneratorV2Block.inputs,
+    provider: {
+      type: 'string',
+      description: 'Video generation provider (runway, veo, luma, minimax, higgsfield, falai)',
+    },
     duration: { type: 'number', description: 'Duration for the selected provider model' },
     aspectRatio: {
       type: 'string',

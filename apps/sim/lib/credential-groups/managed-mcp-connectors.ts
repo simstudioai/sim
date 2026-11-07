@@ -3,6 +3,7 @@ import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-g
 export const MANAGED_MCP_CONNECTOR_IDS = [
   'fireflies',
   'granola',
+  'hex',
   'databricks',
   'coda',
   'notion',
@@ -44,6 +45,13 @@ export type ManagedMcpConnector =
   | FixedPreregisteredManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  hex: {
+    id: 'hex',
+    name: 'Hex',
+    description: 'Search projects using your Hex account',
+    url: 'https://app.hex.tech/mcp',
+    oauthClientRegistration: 'dynamic',
+  },
   zoom: {
     id: 'zoom',
     name: 'Zoom',

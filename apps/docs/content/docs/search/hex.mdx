@@ -1,0 +1,37 @@
+---
+title: Hex
+description: Find Hex projects and read their available draft notebook source
+---
+
+Hex Search uses **Member accounts** through Hex's official MCP service. It searches published and unpublished projects available to your connected account, then reads supported draft notebook cells on demand.
+
+## Connect
+
+You need a Hex Team or Enterprise plan, the Editor workspace role or above, and view access to the projects you want to search. Sim uses read-only tools; project edit permission is not required.
+
+1. An admin adds **Hex → Member accounts** in **Settings → Sources**.
+2. Open **Integrations → Hex → ⋯ → Connect** and authorize your Hex account.
+3. Ask a focused question such as `Find the deployment analysis project`, then read a result.
+
+Sim connects to `https://app.hex.tech/mcp`. Hex deployments on other hosts, including EU and HIPAA environments, are not supported by this connection. [Hex MCP requirements](https://learn.hex.tech/docs/api-integrations/mcp-server).
+
+## Search projects
+
+Use plain terms of up to 400 characters, without wildcards or provider-specific query operators. Search retrieves and verifies metadata for at most ten projects. It has no continuation cursor or complete workspace listing, so narrow the query if you need more coverage.
+
+Previews contain the current project title and description. They do not contain notebook evidence. Date filters use the project's last edit time and apply only to the retrieved candidates; date sorting does not search the entire workspace.
+
+## Read notebook source
+
+Reading a result retrieves its current draft cells in notebook order. Sim includes Markdown, SQL, and Python source. Other cell types show their labels and types, with an explicit notice that their content is unavailable.
+
+This does not retrieve published app snapshots, rendered charts, query results, attachments, or warehouse data. It does not execute code or queries. Notebook section nesting is not preserved, and citations open the draft editor in Hex.
+
+Each read is limited to eight pages of 100 cells and 512 KiB of text. If those limits are exceeded, the response is malformed, or the project changes during the read, Sim returns an error instead of incomplete notebook source. Search again after a project changes, or open large projects directly in Hex.
+
+Sim uses only four read operations: `get_me`, `search_projects`, `get_project`, and `list_cells`. Each request uses the member's current grant. Switching the connected Hex workspace invalidates earlier results; search again in the intended workspace.
+
+## Related docs
+
+- [Connect your account](/search/connect-your-account)
+- [Hex MCP guide](https://learn.hex.tech/docs/api-integrations/mcp-server)

@@ -70,6 +70,18 @@ interface ManagedMcpProvider {
 
 /** Native providers implement both reads; managed MCP retrieval is dispatched by account-session. */
 export const LIVE_SEARCH_PROVIDERS = {
+  hex: {
+    transport: 'managed_mcp',
+    guide: {
+      syntax:
+        'Nonempty plain project search terms, at most 400 characters, without wildcards. Searches published and unpublished projects and verifies at most ten candidates. No search continuation or whole-workspace inventory is available.',
+      scope:
+        'Omit kind. Each member searches the workspace selected during Hex authorization. Dates use project modification time and filter only retrieved candidates; sorting does not discover globally newest or oldest projects.',
+      example: 'deployment analysis',
+      avoid:
+        'Boolean or field operators, project selectors, queryless listings, treating metadata or generated summaries as notebook evidence, and claiming access to warehouse data or rendered app results. Reads return draft SQL, Python and Markdown source plus labels for other cells, within eight pages and 512 KiB. Drafts can differ from published apps; cells are never executed.',
+    },
+  },
   lucid: {
     transport: 'managed_mcp',
     guide: {

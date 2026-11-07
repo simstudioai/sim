@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 export interface ImageGenerationParams {
-  provider: 'openai' | 'gemini' | 'falai'
+  provider: 'openai' | 'gemini' | 'falai' | 'higgsfield'
   apiKey: string
   model?: string
   prompt: string

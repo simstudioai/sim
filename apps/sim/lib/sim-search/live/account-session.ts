@@ -7,6 +7,7 @@ import { readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
 import { readFirefliesMcp, searchFirefliesMcp } from '@/lib/sim-search/live/fireflies-mcp'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
 import { readGranolaMcp, searchGranolaMcp } from '@/lib/sim-search/live/granola-mcp'
+import { readHexMcp, searchHexMcp } from '@/lib/sim-search/live/hex-mcp'
 import {
   createNativeClient,
   NATIVE_SEARCH_REQUEST_BUDGET,
@@ -143,6 +144,8 @@ export async function openLiveAccountSession(
         return searchFirefliesMcp(mcp, search)
       case 'granola':
         return searchGranolaMcp(mcp, search)
+      case 'hex':
+        return searchHexMcp(mcp, search)
       case 'notion':
         return searchNotionMcp(mcp, search)
       case 'hubspot':
@@ -165,6 +168,8 @@ export async function openLiveAccountSession(
         return readFirefliesMcp(mcp, id)
       case 'granola':
         return readGranolaMcp(mcp, id)
+      case 'hex':
+        return readHexMcp(mcp, reference)
       case 'notion':
         return readNotionMcp(mcp, id)
       case 'hubspot':

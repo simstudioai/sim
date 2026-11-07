@@ -84,6 +84,12 @@ MCP search covers page and table-row content, permits empty-query recency listin
 
 In service mode, the source's selected document IDs restrict MCP retrieval. Every candidate's parent document must also be currently visible to the source token. With an Enterprise organization ID, the Admin API must return that exact document in the configured organization; deleted documents and revoked key access are rejected. Personal MCP still enforces the member's permission to read the actual content. [Official MCP tool catalog](https://coda.io/resources/mcp/tools-and-endpoints).
 
+### Hex
+
+Member mode uses managed OAuth against `https://app.hex.tech/mcp`. Only `get_me`, `search_projects`, `get_project`, and `list_cells` are allowed. The current workspace ID from `get_me` binds search results, references, and canonical draft-editor citations; a changed workspace requires a fresh search. Every candidate is hydrated through `get_project`, and search previews are explicitly project metadata rather than notebook evidence. Search verifies at most ten unique projects and has no continuation. Date filtering and sorting apply only to those candidates.
+
+Reads verify the project revision before and after paging through its draft cells. SQL, Python, and Markdown source are included; other cell types retain their labels with an explicit unavailable-content marker. Rendered outputs, attachments, published app snapshots, and warehouse data are not retrieved. Reads fail instead of returning incomplete source when cells are malformed, project access changes, a cursor repeats, or the eight-page / 512 KiB text limit is exceeded. This path never executes projects or queries. Hex requires a Team or Enterprise plan and the Editor workspace role or above for these project-read tools; view access to each project is sufficient.
+
 ### GitLab
 
 Service mode only, with no member GitLab connection. Each configured source fixes the instance, project, token, and permission strategy. Members search the configured project through that token, but each result must separately match their verified organization identity and source ACLs.
@@ -116,7 +122,7 @@ Paths below are relative to `apps/sim`.
 
 The provider catalog holds a trusted origin, not an arbitrary URL supplied by a model. Actual endpoint paths and query translation belong in the provider module. `http.ts` supplies bounded responses, a per-client request budget, timeout/cancellation, configured-endpoint validation, and no credential-bearing redirects. Use its origin-bound path API; do not return tokens to UI or model tools.
 
-Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Managed MCP providers resolve the current member server/grant through `mcp-accounts.ts` and `managed-mcp.ts`, discover tool schemas and permit only fixed read tools. Coda, Fireflies, Granola and Notion each have an adapter for their actual search/read formats. Neither exception lets a search query choose a credential destination.
+Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Managed MCP providers resolve the current member server/grant through `mcp-accounts.ts` and `managed-mcp.ts`, discover tool schemas and permit only fixed read tools. Coda, Fireflies, Granola, Hex and Notion each have an adapter for their actual search/read formats. Neither exception lets a search query choose a credential destination.
 
 ### Provider endpoint map
 

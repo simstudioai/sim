@@ -33,6 +33,7 @@ integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
 const tokenCredentialIntegrationTypes = new Map([
   ['coda', 'coda'],
   ['gauge', 'gauge'],
+  ['higgsfield', 'higgsfield'],
   ['flow', 'flow'],
   ['claude-platform', 'managed_agent'],
 ])
