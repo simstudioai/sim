@@ -533,7 +533,7 @@ async function run() {
       intervals.error?.message
     )
     const reused = await runTask(
-      'for (let round = 0; round < 3; round++) { const ids = []; for (let i = 0; i < 1000; i++) ids.push(setTimeout(() => {}, 60000)); ids.forEach(clearTimeout) }'
+      'for (let round = 0; round < 3; round++) { const ids = []; for (let i = 0; i < 1000; i++) ids.push(setTimeout(() => {}, 60000)); ids.forEach(clearTimeout); const intervals = []; for (let i = 0; i < 50; i++) intervals.push(setInterval(() => {}, 60000)); intervals.forEach(clearInterval) }'
     )
     assert.equal(reused.error, undefined, reused.error?.message)
   })
