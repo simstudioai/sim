@@ -12,7 +12,24 @@ import { ReferenceDetails } from "@sim/emcn-docs/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zoom](https://zoom.us/) to manage meetings, retrieve invitations and recordings, and list past participants. Meeting and recording webhooks can start workflows.
 
-Connect a Zoom account from the block or **Integrations** in your workspace sidebar. For account-level authentication, follow the [Server-to-Server OAuth setup](/integrations/zoom-service-account). Manage or disconnect the saved credential from **Integrations**.
+### Connect your account
+
+Connect from a Zoom block or from **Integrations** in your workspace. For an account-level connection, use [Server-to-Server OAuth](/integrations/zoom-service-account).
+
+1. Open **Integrations → Zoom** in your workspace and select **Add to Sim → Connect with OAuth**.
+2. Give the connection a name you will recognize in the workflow's **Zoom Account** picker.
+3. On Zoom's authorization page, check the signed-in account. Select **Switch account** if needed, then authorize Sim.
+4. Return to your workflow and select that saved connection in the Zoom block. For a read-only check, choose **List Meetings** with user ID `me`.
+
+The picker lists saved connection names. If you have several Zoom accounts, give each connection a distinct name and select the one you want in each block.
+
+### Disconnect
+
+Manage the saved connection in **Integrations** to disconnect it from Sim. Workflows that use it will need another connection. To revoke the Zoom grant, open **Zoom App Marketplace → My Library**, find Sim, and select **More → Remove**. Revoking the grant can affect other Sim connections using that same Zoom account and app.
+
+Disconnecting does not delete Zoom meetings, recordings, or existing Sim workflow logs. Contact [help@sim.ai](mailto:help@sim.ai) for support or data-deletion requests.
+
+[Zoom Search](/search/zoom) uses a separate read-only app and connection. A workflow connection does not authorize Search.
 {/* MANUAL-CONTENT-END */}
 
 Connection guides: [Server-to-server OAuth apps](/integrations/zoom-service-account).
