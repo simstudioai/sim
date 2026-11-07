@@ -64,11 +64,7 @@ interface WorkspaceIntegrationContext {
   features?: { organizationSearch?: boolean; platformOrgUi?: boolean }
 }
 
-/**
- * Members of an organization on the Platform use its integration center, which replaces the
- * workspace's. Everyone else keeps the workspace credential routes: the organization surface lists
- * only Search connections, so sending them there would hide their workspace credentials.
- */
+/** Members of an organization on the Platform use its integration center; everyone else keeps the workspace's. */
 export function workspaceIntegrationsPath(
   workspaceId: string,
   context: WorkspaceIntegrationContext | null

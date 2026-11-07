@@ -291,10 +291,7 @@ export const workspaceHostContextSchema = z.object({
       organizationSearch: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate the flag. */
       knowledgeMemberAccess: z.boolean().optional(),
-      /**
-       * Whether the host organization is on the Platform, whose integration center replaces the
-       * workspace's. Optional for rolling compatibility; absent keeps Integrations in the workspace.
-       */
+      /** Whether the host organization is on the Platform. Optional for rolling compatibility. */
       platformOrgUi: z.boolean().optional(),
       /** Optional for rolling compatibility with app versions that predate administrator mode. */
       knowledgeSourceMirroredAccess: z.boolean().optional(),
