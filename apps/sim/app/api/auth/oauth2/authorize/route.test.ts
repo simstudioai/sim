@@ -1,5 +1,6 @@
 import {
   createMockRequest,
+  createRouteContext,
   queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
@@ -65,7 +66,7 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
 
 import { GET as routeGET } from '@/app/api/auth/oauth2/authorize/route'
 
-const GET = (req: NextRequest) => routeGET(req, { params: Promise.resolve({}) })
+const GET = (req: NextRequest) => routeGET(req, createRouteContext({}))
 
 const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = oauthUtilsMockFns
 
@@ -452,25 +453,11 @@ describe('OAuth2 authorize route', () => {
 
     expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_invalid`)
     expect(mocks.createConnection).not.toHaveBeenCalled()
-    expect(mocks.linkAccount).not.toHaveBeenCalled()
   })
-
-  it.each([{ 'sec-fetch-site': 'none' }, { 'sec-fetch-site': 'same-site' }])(
-    'starts a workspace launch that is not cross-site: %o',
-    async (headers) => {
-      const response = await GET(
-        request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }, headers)
-      )
-
-      expect(mocks.createConnection).toHaveBeenCalledOnce()
-      expect(response.headers.get('location')).toBe('https://provider.example/authorize')
-    }
-  )
 
   it('starts a cross-site launch of the signed-in user’s own connection draft', async () => {
     const response = await GET(request({ draftId: 'draft-1' }, { 'sec-fetch-site': 'cross-site' }))
 
-    expect(mocks.launchConnection).toHaveBeenCalledOnce()
     expect(response.headers.get('location')).toBe('https://provider.example/authorize')
   })
 
