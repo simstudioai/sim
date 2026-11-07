@@ -1711,12 +1711,12 @@ try {
         const requested = page.waitForRequest((request) =>
           request.url().includes('query=cancel-request')
         )
-        const failed = page.waitForEvent('requestfailed', {
-          predicate: (request) => request.url().includes('query=cancel-request'),
-          timeout: 10000,
-        })
         await page.getByRole('combobox', { name: 'Search documentation' }).fill('cancel-request')
         await requested
+        const failed = page.waitForEvent('requestfailed', {
+          predicate: (request) => request.url().includes('query=cancel-request'),
+          timeout: 2000,
+        })
         await page.keyboard.press('Escape')
         expect((await failed).failure()?.errorText).toMatch(/abort|cancel/i)
         await expect(page.getByRole('dialog')).toHaveCount(0)

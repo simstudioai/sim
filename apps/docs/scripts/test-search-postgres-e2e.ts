@@ -43,7 +43,10 @@ process.env.OPENAI_API_KEY = ''
 const reportPath: string = reportSetting
 const directory = dirname(reportPath)
 const workspace = resolve(import.meta.dirname, '..')
-const sql = postgres(databaseUrl.href, { max: 1 })
+const databaseHost = databaseUrl.hostname.replace(/^\[|\]$/g, '')
+await mkdir(directory, { recursive: true })
+const searchProxy = chunksOnly ? undefined : await createSearchProxy()
+const sql = postgres(searchProxy?.url ?? databaseUrl.href, { max: 1 })
 const results: Array<{
   name: string
   status: 'passed' | 'failed'
@@ -52,7 +55,6 @@ const results: Array<{
 }> = []
 const vector = JSON.stringify([1, ...Array.from({ length: 1535 }, () => 0)])
 let created = false
-let searchProxy: Awaited<ReturnType<typeof createSearchProxy>> | undefined
 const preloadPath = join(directory, 'embedding-transport.mjs')
 type ProviderScenario =
   | 'success'
@@ -72,7 +74,6 @@ const providerRequests: Array<{
   status: number
   inputs: number
 }> = []
-await mkdir(directory, { recursive: true })
 
 async function check(name: string, action: () => Promise<void>) {
   const started = performance.now()
@@ -95,7 +96,7 @@ async function createSearchProxy() {
   const buffered = new Map<Socket, Buffer[]>()
   let paused = false
   const server = createServer((client) => {
-    const upstream = connect(Number(databaseUrl.port || 5432), databaseUrl.hostname)
+    const upstream = connect(Number(databaseUrl.port || 5432), databaseHost)
     sockets.add(client)
     sockets.add(upstream)
     assert(sockets.size <= 16, 'Search proxy connection cap exceeded')
@@ -177,7 +178,7 @@ async function index(
       cwd: workspace,
       env: {
         ...process.env,
-        DATABASE_URL: databaseUrl.href,
+        DATABASE_URL: searchProxy?.url ?? databaseUrl.href,
         OPENAI_API_KEY: useProvider ? 'isolated-fixture' : '',
         DOCS_SEARCH_REPORT_PATH: outputPath,
       },
@@ -325,8 +326,8 @@ async function verifyDatabase() {
     Array<{ count: number }>
   >`SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'`
   assert(existing?.count === 0, 'Refusing to mutate a database that already contains tables')
-  const proxy = await createSearchProxy()
-  searchProxy = proxy
+  const proxy = searchProxy
+  assert(proxy, 'Search proxy fixture is required for database verification')
   process.env.DATABASE_URL = proxy.url
   await sql`CREATE EXTENSION IF NOT EXISTS vector`
   await sql`
