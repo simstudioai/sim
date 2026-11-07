@@ -95,7 +95,14 @@ For OAuth-based servers, confirm that the agent platform supports the server's c
 
 The MCP client discovers the server's available tools and their input schemas after it establishes a valid connection. The [MCP SDK documentation](https://ts.sdk.modelcontextprotocol.io/v2/servers/tools.html) shows that tool schemas are returned to a client through `tools/list`.
 
-In Sim, [register the remote MCP endpoint and its credentials, test the connection, and then select individual tools or an operations access policy](https://docs.sim.ai/agents/mcp). Review each tool's name, description, required arguments, and side effects before exposing it to a model.
+In Sim, [register the remote MCP endpoint and its credentials and test the connection](https://docs.sim.ai/agents/mcp). Then attach its tools to an agent:
+
+1. Open an **Agent** block with a model that supports tools.
+2. Under **Tools**, select **Add tool...**.
+3. In **MCP Servers**, open the configured server.
+4. Select individual tools, or select **Configure operations access** to attach the server with an access policy.
+
+Review each tool's name, description, required arguments, and side effects before exposing it to a model.
 
 A failed discovery request usually points to one of four issues: an incorrect endpoint, an incompatible transport, invalid credentials, or a server response that does not conform to the expected MCP protocol version.
 
