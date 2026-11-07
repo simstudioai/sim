@@ -513,6 +513,32 @@ describe('Video provider client', () => {
     )
   })
 
+  it.each([
+    { provider: 'falai' as const, model: 'kling-v3-pro' },
+    { provider: 'runway' as const, model: 'gen4_turbo' },
+  ])(
+    'rejects a non-image reference file for $provider before submitting',
+    ({ provider, model }) => {
+      const pdf = {
+        id: 'f',
+        name: 'brief.pdf',
+        url: '',
+        size: 3,
+        type: 'application/pdf',
+        key: 'k',
+      }
+      expect(
+        getVideoInputValidationError({
+          provider,
+          apiKey: 'key',
+          model,
+          prompt: 'Pan left',
+          visualReference: pdf,
+        })
+      ).toBe('Reference image must be an image file, not application/pdf')
+    }
+  )
+
   it('rejects a start frame for a fal model without an image-to-video endpoint', () => {
     const frame = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
     expect(

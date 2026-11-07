@@ -94,6 +94,8 @@ async function waitForProvider(context: VideoGenerationContext): Promise<void> {
 }
 
 export function getVideoInputValidationError(input: VideoGenerationInput): string | undefined {
+  if (input.visualReference && !input.visualReference.type.toLowerCase().startsWith('image/'))
+    return `Reference image must be an image file, not ${input.visualReference.type || 'an unknown type'}`
   if (input.provider === 'falai') {
     if (input.prompt.length < 3 || input.prompt.length > 2000)
       return 'Prompt must be between 3 and 2000 characters'
