@@ -192,6 +192,21 @@ describe('Hex source retrieval', () => {
     await expect(readHexMcp(client({ workspace: OTHER }), reference)).rejects.toThrow(/workspace/i)
   })
 
+  it('withholds notebook source when the provider workspace changes during paging', async () => {
+    const api = client()
+    let connectedWorkspace = WORKSPACE
+    const changingWorkspace: ManagedSearchMcpClient = {
+      async call(name, args) {
+        if (name === 'get_me') return { org: { id: connectedWorkspace } }
+        const result = await api.call(name, args)
+        if (name === 'list_cells') connectedWorkspace = OTHER
+        return result
+      },
+    }
+
+    await expect(readHexMcp(changingWorkspace, reference)).rejects.toThrow(/workspace/i)
+  })
+
   it.each([
     { ...metadata, id: OTHER },
     { ...metadata, trashedAt: '2026-01-01T13:00:00Z' },
@@ -252,5 +267,25 @@ describe('Hex source retrieval', () => {
         reference
       )
     ).rejects.toThrow(/page limit/i)
+  })
+
+  it('reads a complete eight-page notebook within the managed request budget', async () => {
+    const api = client({
+      pages: Array.from({ length: 8 }, (_, index) => ({
+        values: [cell(`cell-${index}`, 'MARKDOWN', `Source page ${index}`)],
+        pagination: { after: index === 7 ? null : `page-${index}` },
+      })),
+    })
+    let requests = 0
+    const budgetedClient: ManagedSearchMcpClient = {
+      call(name, args) {
+        if (++requests > 12) throw new Error('Managed request budget exceeded')
+        return api.call(name, args)
+      },
+    }
+
+    const result = await readHexMcp(budgetedClient, reference)
+    expect(result.content).toContain('Source page 0')
+    expect(result.content).toContain('Source page 7')
   })
 })
