@@ -13,7 +13,7 @@ import {
   Pilcrow,
   Table as TableIcon,
   TextQuote,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import type { Editor, Range } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'

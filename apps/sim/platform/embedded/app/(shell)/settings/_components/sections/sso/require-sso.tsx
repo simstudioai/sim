@@ -1,14 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { describeSsoPolicy, SSO_POLICY_OPTIONS } from '@/ee/sso/lib/provider-form'
-import {
-  ConfirmDialog,
-  errorMessageOr,
-  QueryBoundary,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   FieldStack,
   Muted,

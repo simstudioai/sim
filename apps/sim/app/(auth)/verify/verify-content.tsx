@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { AuthCodeEntry } from '@sim/auth-ui'
+import { AuthCodeEntry } from '@sim/emcn-auth/code-entry'
 import { POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import { AuthHeader, AuthNavPrompt } from '@/app/(auth)/components'
 import VerifyLoading from '@/app/(auth)/verify/loading'
@@ -41,7 +41,7 @@ function VerificationForm({
   }
 
   return (
-    <div className='au:space-y-[var(--auth-group-gap)]'>
+    <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
       <AuthHeader
         title={isVerified ? 'Email Verified' : 'Verify your email'}
         description={
@@ -58,7 +58,7 @@ function VerificationForm({
       />
 
       {!isVerified && isEmailVerificationEnabled && (
-        <div className='au:space-y-[var(--auth-group-gap)]'>
+        <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
           <AuthCodeEntry
             value={otp}
             onChange={handleOtpChange}

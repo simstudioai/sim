@@ -1,4 +1,4 @@
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/audit-trail-graphic.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'

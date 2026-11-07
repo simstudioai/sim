@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { InlineNotice } from '@sim/emcn/status'
 import type { OrganizationAccountWorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
 import { isOrganizationCredentialType } from '@/lib/credential-groups/credential-types'
-import {
-  Button,
-  InlineNotice,
-  Modal,
-  MultiSelect,
-  SearchableSelect,
-} from '@/platform/design-system/components'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 const ALL_INTEGRATIONS = 'all'

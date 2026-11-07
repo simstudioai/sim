@@ -81,8 +81,8 @@ import {
   Wrap,
   ZoomIn,
   ZoomOut,
-} from '@sim/emcn'
-import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn-legacy/icons'
 import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 

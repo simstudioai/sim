@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { usePathname } from 'next/navigation'
 import { SettingsMobileNavigation } from '@/components/settings/mobile-navigation'
 import {

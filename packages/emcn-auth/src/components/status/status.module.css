@@ -1,0 +1,6 @@
+:global([data-auth-root]) .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--emcn-space-8);
+}

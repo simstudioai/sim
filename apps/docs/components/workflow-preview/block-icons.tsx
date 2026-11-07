@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import { Repeat, Split } from '@sim/emcn/icons'
-import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
+import { Repeat, Split } from '@sim/emcn-legacy/icons'
+import { blockTypeToIconMap } from '@/components/docs/icon-mapping/icon-mapping'
 
 /** Maps legacy diagram names to the editor's canonical block types. */
 export function normalizeBlockType(type: string, triggerMode = false): string {

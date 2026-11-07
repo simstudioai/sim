@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipSelect, type ChipSelectOption } from '@sim/emcn'
+import { ChipSelect, type ChipSelectOption } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import type { CareerPosting } from '@/lib/ashby/jobs'
 import { JobGroups } from '@/app/(landing)/careers/components/job-board/job-groups'

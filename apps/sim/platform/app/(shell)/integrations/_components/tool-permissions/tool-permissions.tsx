@@ -1,7 +1,9 @@
+import { EmptyState } from '@sim/emcn/empty-state'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
-import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type {
   ToolPermissionChange,
   ToolPermissionsModel,

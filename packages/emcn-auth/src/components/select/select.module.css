@@ -1,0 +1,29 @@
+:global([data-auth-root]) .select {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+  height: var(--auth-touch-height);
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+:global([data-auth-root]) .select {
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .select > span {
+  justify-content: space-between;
+}
+:global([data-auth-root]) .value {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+:global([data-auth-root]) .select:disabled {
+  opacity: var(--auth-disabled);
+}

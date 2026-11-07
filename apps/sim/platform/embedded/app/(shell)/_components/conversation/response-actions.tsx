@@ -1,16 +1,14 @@
 'use client'
 
+import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { TextArea } from '@sim/emcn/field/inputs'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { Surface } from '@sim/emcn-platform/surface'
 import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
-import {
-  ActionMenu,
-  CopyField,
-  FieldFrame,
-  IconButton,
-  Modal,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { TextArea } from '@/platform/design-system/components/field/inputs'
-import { Surface } from '@/platform/design-system/components/surface/surface'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 

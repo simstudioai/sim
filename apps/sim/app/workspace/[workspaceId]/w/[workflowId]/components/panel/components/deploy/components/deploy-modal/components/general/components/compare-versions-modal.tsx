@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, type ChipDropdownOption } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { ChipDropdown, type ChipDropdownOption } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useDraftWorkflowState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'

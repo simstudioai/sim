@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useRef } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { useMobileViewport } from '@/hooks/use-mobile-viewport'
 
 interface WorkspaceViewportProps {

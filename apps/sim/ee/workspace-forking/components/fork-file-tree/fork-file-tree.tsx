@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Checkbox, ChevronDown, cn, OverflowText } from '@sim/emcn'
+import { Checkbox, ChevronDown, cn, OverflowText } from '@sim/emcn-legacy'
 
 export interface ForkFileTreeItem {
   id: string

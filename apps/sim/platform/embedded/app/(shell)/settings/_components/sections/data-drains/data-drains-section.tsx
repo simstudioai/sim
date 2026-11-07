@@ -1,18 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { RowList } from '@sim/emcn/settings-section/row-list'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { CADENCE_LABELS, DESTINATION_LABELS, SOURCE_LABELS } from '@/ee/data-drains/labels'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
-import {
-  ActivityRow,
-  Button,
-  EmptyState,
-  errorMessageOr,
-  QueryBoundary,
-  RowList,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   SectionStack,
   SectionToolbar,

@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipVariants, cn, OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn'
-import { Lock, MoreHorizontal } from '@sim/emcn/icons'
+import { chipVariants, cn, OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn-legacy'
+import { Lock, MoreHorizontal } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

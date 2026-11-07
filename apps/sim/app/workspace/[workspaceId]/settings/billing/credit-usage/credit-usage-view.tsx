@@ -11,8 +11,8 @@ import {
   PopoverAnchor,
   PopoverContent,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, Download } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Download } from '@sim/emcn-legacy/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'

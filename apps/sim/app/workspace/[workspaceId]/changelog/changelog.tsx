@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
-import { Rss } from '@sim/emcn/icons'
+import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn-legacy'
+import { Rss } from '@sim/emcn-legacy/icons'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import {
   ReleaseDetailsModal,

@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { isValidEnvVarName } from '@/executor/constants'
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { BrowserPageIssue } from '@sim/browser-protocol'
-import { Chip } from '@sim/emcn'
-import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { CircleAlert, Globe, RefreshCw } from '@sim/emcn-legacy/icons'
 
 interface BrowserPageIssueProps {
   issue: BrowserPageIssue

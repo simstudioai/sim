@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { useQueryState } from 'nuqs'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -22,17 +28,6 @@ import {
   useUpdateOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,

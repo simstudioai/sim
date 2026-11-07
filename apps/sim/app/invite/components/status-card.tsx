@@ -1,5 +1,8 @@
 'use client'
-import { AuthStack, AuthButton as Chip, cn, AuthLoader as Loader } from '@sim/auth-ui'
+import { cn } from '@sim/emcn/lib/cn'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthLoader as Loader } from '@sim/emcn-auth/loading'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { AuthHeader, AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
@@ -50,7 +53,7 @@ export function InviteStatusCard({
       <AuthHeader title={title} description={description} />
 
       {details}
-      <div className='au:w-full au:space-y-2'>
+      <div className='au:flex au:w-full au:flex-col au:gap-2'>
         {isExpiredError && (
           <AuthSubmitButton type='button' onClick={returnHome} loadingLabel=''>
             Request New Invitation

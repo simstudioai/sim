@@ -10,8 +10,8 @@ import {
   Label,
   OverflowText,
   Switch,
-} from '@sim/emcn'
-import { ArrowLeft, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, X } from '@sim/emcn-legacy/icons'
 import { noop } from '@sim/utils/helpers'
 
 const OUTPUTS = ['employee count', 'description'] as const

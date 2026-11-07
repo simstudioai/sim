@@ -10,8 +10,8 @@ import {
   scrollFadeClass,
   Tooltip,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'

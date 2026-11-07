@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { BookOpen } from '@sim/emcn-legacy/icons'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/solutions/components/feature-graphics/knowledge-answer-graphic.module.css'
 

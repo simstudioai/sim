@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Download,
   Duplicate,
@@ -25,7 +25,7 @@ import {
   Trash,
   Unlock,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ContextMenuProps {

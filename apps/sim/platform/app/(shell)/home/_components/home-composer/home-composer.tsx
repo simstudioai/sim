@@ -18,6 +18,7 @@ export function HomeComposer({ inventory, mode }: HomeComposerProps) {
   return (
     <MessageComposer
       composer={composer}
+      focusTarget='home'
       placeholder={
         mode === 'Build'
           ? 'Ask about your business, or give Sim something to do…'

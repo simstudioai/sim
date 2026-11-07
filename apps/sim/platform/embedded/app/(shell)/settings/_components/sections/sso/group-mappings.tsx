@@ -1,6 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { Select } from '@sim/emcn/picker/select'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
@@ -26,18 +35,6 @@ import {
   removeMappingConsequence,
 } from '@/ee/scim/lib/group-mapping-view'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  FailureNotice,
-  InlineNotice,
-  LoadingRows,
-  SearchableSelect,
-  Select,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   Muted,

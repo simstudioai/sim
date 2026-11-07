@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { cn, SimWordmark } from '@sim/emcn'
+import { cn, SimWordmark } from '@sim/emcn-legacy'
 import type { CompetitorBrand } from '@/lib/compare/data'
 
 export interface BrandIconTileProps {

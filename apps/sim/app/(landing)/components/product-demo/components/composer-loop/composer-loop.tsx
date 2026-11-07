@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { cn, usePrefersReducedMotion } from '@sim/emcn'
-import { Blimp } from '@sim/emcn/icons'
+import { cn, usePrefersReducedMotion } from '@sim/emcn-legacy'
+import { Blimp } from '@sim/emcn-legacy/icons'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { ThinkingLoader } from '@/components/ui'
 import {

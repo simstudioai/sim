@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Input, TextArea } from '@sim/emcn/field/inputs'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type {
@@ -8,8 +11,6 @@ import type {
   AssistantReviewAction,
 } from '@/platform/app/(shell)/_components/chat/model'
 import { useChatInteractions } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { Button, FailureNotice, InlineNotice, StatusTag } from '@/platform/design-system/components'
-import { Input, TextArea } from '@/platform/design-system/components/field/inputs'
 
 type Edits = Record<string, Record<string, string>>
 

@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { AdminPanel } from '@/platform/app/(shell)/settings/_components/sections/admin/admin-panel'
-import { readScenario } from '@/platform/design-system/navigation'
 import { loadAdminExample } from '@/platform/fixtures'
 import { readAdminPreferences } from '@/platform/lib/data/admin'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { readScenario } from '@/platform/lib/navigation'
 
 export default async function AdminSection({ organization, fixture, query }: SettingsSectionProps) {
   if (!organization.navFlags.platformAdmin) notFound()

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, BookOpen } from '@sim/emcn/icons'
+import { ArrowRight, BookOpen } from '@sim/emcn-legacy/icons'
 import { BlogMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/blog-menu-preview'
 import { ChangelogMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/changelog-menu-preview'
 import { DocsMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/docs-menu-preview'

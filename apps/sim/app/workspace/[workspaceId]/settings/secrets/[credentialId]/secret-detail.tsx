@@ -9,8 +9,8 @@ import {
   ChipTextarea,
   Label,
   Switch,
-} from '@sim/emcn'
-import { ArrowLeft, Clock, Key, Send } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Clock, Key, Send } from '@sim/emcn-legacy/icons'
 import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SettingsActionChips } from '@/components/settings/settings-header'

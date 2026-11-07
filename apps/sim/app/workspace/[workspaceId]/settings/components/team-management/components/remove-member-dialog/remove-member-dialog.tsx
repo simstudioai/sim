@@ -1,4 +1,4 @@
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 

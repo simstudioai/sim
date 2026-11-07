@@ -1,4 +1,4 @@
-import { AuthLinkButton as ChipLink } from '@sim/auth-ui'
+import { AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'

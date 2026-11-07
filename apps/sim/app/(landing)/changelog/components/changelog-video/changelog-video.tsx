@@ -1,4 +1,4 @@
-import { cn, Lightbox } from '@sim/emcn'
+import { cn, Lightbox } from '@sim/emcn-legacy'
 import { isChangelogMediaSource } from '@/lib/changelog/media'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 

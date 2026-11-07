@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import styles from '@/app/(landing)/components/shared/edge-fade/edge-fade.module.css'
 
 /** A side of a scene that can be softened into the ground behind it. */

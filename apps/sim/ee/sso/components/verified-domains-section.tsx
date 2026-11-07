@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn'
-import { Link } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn-legacy'
+import { Link } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'

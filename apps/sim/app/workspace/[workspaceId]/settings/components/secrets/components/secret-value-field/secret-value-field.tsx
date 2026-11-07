@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from 'react'
 import { useState } from 'react'
-import { ChipInput } from '@sim/emcn'
+import { ChipInput } from '@sim/emcn-legacy'
 
 const BULLET = '\u2022'
 

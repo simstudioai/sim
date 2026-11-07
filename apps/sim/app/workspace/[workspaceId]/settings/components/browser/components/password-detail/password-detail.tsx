@@ -14,7 +14,7 @@ import {
   EyeOff,
   Tooltip,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { BrowserCredentialIcon } from '@/components/browser-credential-icon'
 import { getDesktopBridge } from '@/lib/desktop'
 import {

@@ -1,4 +1,4 @@
-import { PAGE_CONTENT_WIDTH, PAGE_GUTTER } from '@sim/emcn'
+import { PAGE_CONTENT_WIDTH, PAGE_GUTTER } from '@sim/emcn-legacy'
 
 /**
  * Shared centered width used by the landing navbar and every primary section.

@@ -1,14 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import Link from 'next/link'
-import { Button } from '@/platform/design-system/components/button/button'
-import {
-  SettingsSection,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts.module.css'
 
 interface ChildrenProps {

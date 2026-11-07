@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { TerminalWindow } from '@sim/emcn-legacy/icons'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import { STAGE_BLOCKS } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-data'

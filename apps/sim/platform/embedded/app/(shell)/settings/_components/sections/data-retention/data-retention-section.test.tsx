@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@/ee/data-retention/hooks/data-retention', () => ({
   useOrganizationRetention: () => ({
     data: mocks.retention.current,

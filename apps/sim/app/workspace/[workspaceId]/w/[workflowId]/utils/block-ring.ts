@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 export type BlockDiffStatus = 'new' | 'edited' | null | undefined
 

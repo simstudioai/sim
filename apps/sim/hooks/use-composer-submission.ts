@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ChatContext } from '@/stores/panel'
 

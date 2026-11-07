@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface CredentialDetailLayoutProps {

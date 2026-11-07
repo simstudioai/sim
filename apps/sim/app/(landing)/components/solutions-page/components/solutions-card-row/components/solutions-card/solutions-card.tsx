@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import {
   SOLUTIONS_FEATURE_TILE_TONE,
   SOLUTIONS_SPACING,

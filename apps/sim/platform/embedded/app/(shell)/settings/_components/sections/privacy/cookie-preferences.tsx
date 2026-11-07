@@ -1,10 +1,7 @@
 'use client'
 
-import { Switch } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { Switch } from '@sim/emcn/switch'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/privacy/cookie-preferences.module.css'
 import { CookieConsentProvider, useCookieCategories } from '@/platform/shared/cookie-consent'
 

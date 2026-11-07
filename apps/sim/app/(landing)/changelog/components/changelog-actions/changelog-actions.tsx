@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
-import { BookOpen, Rss } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { BookOpen, Rss } from '@sim/emcn-legacy/icons'
 import { GithubOutlineIcon } from '@/components/icons'
 
 /**

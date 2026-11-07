@@ -1,9 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { SearchField } from '@sim/emcn/search-field'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/_components/links-page/links-page.module.css'
-import { ActionMenu, Button, PageColumn, SearchField } from '@/platform/design-system/components'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { openChromeStore, useLinksHosted } from '@/platform/lib/data/links'
 
 const SKELETON_ROWS = 6
@@ -54,7 +57,13 @@ export function LinksFrame({
             value={search}
             onValueChange={onSearch}
           />
-          <ActionMenu label={sortLabel} icon={null} align='end' actions={sortActions} />
+          <ActionMenu
+            label={sortLabel}
+            icon={null}
+            triggerSize='compact'
+            align='end'
+            actions={sortActions}
+          />
         </div>
         {children}
       </main>

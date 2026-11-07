@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn'
+import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'

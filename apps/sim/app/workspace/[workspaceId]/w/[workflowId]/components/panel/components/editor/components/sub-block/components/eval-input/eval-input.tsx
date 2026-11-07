@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
-import { Button, cn, Input, Label, Textarea, Tooltip } from '@sim/emcn'
-import { Plus, Trash } from '@sim/emcn/icons'
+import { Button, cn, Input, Label, Textarea, Tooltip } from '@sim/emcn-legacy'
+import { Plus, Trash } from '@sim/emcn-legacy/icons'
 import { generateId } from '@sim/utils/id'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

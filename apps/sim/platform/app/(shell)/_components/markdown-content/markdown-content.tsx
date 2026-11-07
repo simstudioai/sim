@@ -1,9 +1,9 @@
 'use client'
 
 import { memo, type ReactNode } from 'react'
+import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Streamdown } from 'streamdown'
 import styles from '@/platform/app/(shell)/_components/markdown-content/markdown.module.css'
-import { CopyButton } from '@/platform/design-system/components'
 import { extractTextContent } from '@/platform/lib/data/node-text'
 
 const COMPONENTS = {

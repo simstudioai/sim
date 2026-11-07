@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import type {
   MothershipResource,

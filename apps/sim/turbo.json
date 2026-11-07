@@ -4,8 +4,8 @@
     "ci:shared": {
       "dependsOn": ["^ci:runtime"],
       // The Platform zone is a separate Next app with its own workflow (platform-design.yml), so an
-      // edit that touches only the zone selects no main-app job. `platform/embedded` and
-      // `platform/design-system` ship inside `app/o`, so they stay inputs. Each zone path is named so
+      // edit that touches only the zone selects no main-app job. `platform/embedded` ships inside
+      // `app/o`, so it stays an input; the EMCN packages reach the hash as workspace dependencies. Each zone path is named so
       // that a new `platform/` folder is an input until someone decides otherwise.
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -233,7 +233,7 @@
     },
     "build": {
       // next.config bakes the Platform rewrite from SIM_PLATFORM_ORIGIN. `app/o` bundles
-      // `platform/embedded` and `platform/design-system`, so those are inputs: leaving them out would
+      // `platform/embedded` and the EMCN packages, so those are inputs: leaving them out would
       // restore a stale `.next` and ship an old UI. The zone paths below are its own Next app, reached
       // only through that rewrite, and the embedded tree imports none of them
       // (check:platform-design rule `zone-embedded`, check:boundaries).

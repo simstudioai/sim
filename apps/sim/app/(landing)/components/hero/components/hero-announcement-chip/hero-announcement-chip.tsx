@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink, ChipTag, cn } from '@sim/emcn'
+import { ChipLink, ChipTag, cn } from '@sim/emcn-legacy'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { SIGNUP_HREF } from '@/app/(landing)/constants'
 

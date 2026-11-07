@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Textarea } from '@sim/emcn'
-import { ChevronsUpDown } from '@sim/emcn/icons'
+import { cn, Textarea } from '@sim/emcn-legacy'
+import { ChevronsUpDown } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

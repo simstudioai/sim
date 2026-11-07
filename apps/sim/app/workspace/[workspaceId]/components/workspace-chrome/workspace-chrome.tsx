@@ -10,8 +10,8 @@ import {
   useState,
 } from 'react'
 import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@sim/desktop-bridge'
-import { Chip, cn } from '@sim/emcn'
-import { ArrowLeft, ArrowRight, PanelLeft, X } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { ArrowLeft, ArrowRight, PanelLeft, X } from '@sim/emcn-legacy/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { MobileTitleSlot } from '@/app/workspace/[workspaceId]/components/workspace-chrome/mobile-title-slot'

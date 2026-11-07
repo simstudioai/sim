@@ -1,4 +1,4 @@
-import { ChipLink, StatusPageContent } from '@sim/emcn'
+import { ChipLink, StatusPageContent } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'

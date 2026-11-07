@@ -1,12 +1,13 @@
 'use client'
 
 import { type ClipboardEvent, useId, useState } from 'react'
+import { Input } from '@sim/emcn/field/inputs'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import {
   copySecretName,
   type UIEnvironmentVariable,
   validateEnvVarKey,
 } from '@/components/secrets/secret-rows'
-import { ActionMenu, Input } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
 
 interface NameInputProps {

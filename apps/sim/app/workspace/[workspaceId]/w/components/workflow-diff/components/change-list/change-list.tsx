@@ -19,8 +19,8 @@ import {
   InfoCard,
   Label,
   OverflowText,
-} from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 import { humanizeBlockName } from '@sim/workflow-renderer'
 import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
 import { getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'

@@ -1,4 +1,4 @@
-import { Building } from '@sim/emcn/icons'
+import { Building } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { PitchBookIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

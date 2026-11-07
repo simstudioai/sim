@@ -1,6 +1,13 @@
 'use client'
 
 import { type ClipboardEvent, type ReactNode, useMemo, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { AutofillDecoys } from '@sim/emcn/field/autofill-decoys'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
@@ -19,15 +26,6 @@ import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganization } from '@/lib/organizations/provider'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  AutofillDecoys,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  SaveActions,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   DetailHeader,
   DraftConflictNotice,

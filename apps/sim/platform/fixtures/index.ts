@@ -1,9 +1,9 @@
 import 'server-only'
-import type { AttachmentItem } from '@/platform/design-system/components/attachments/attachment-tile'
-import type { PropertyItem } from '@/platform/design-system/components/property-list/property-list'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import type { PreviewPlan } from '@/platform/design-system/navigation'
+import type { AttachmentItem } from '@sim/emcn/attachments/tile'
+import type { PropertyItem } from '@sim/emcn/property-list'
+import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import type { IntegrationsData } from '@/platform/lib/integrations/fixture-model'
+import type { PreviewPlan } from '@/platform/lib/navigation'
 
 export type Scenario = 'empty' | 'full' | 'stress'
 

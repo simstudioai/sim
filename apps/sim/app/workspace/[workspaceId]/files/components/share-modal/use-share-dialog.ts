@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { toast, useCopyToClipboard } from '@sim/emcn'
+import { toast, useCopyToClipboard } from '@sim/emcn-legacy'
 import { generateShortId } from '@sim/utils/id'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'

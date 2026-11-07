@@ -29,8 +29,8 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
-} from '@sim/emcn'
-import { ArrowLeft, ArrowRight, Globe, Link, RefreshCw, Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ArrowRight, Globe, Link, RefreshCw, Search } from '@sim/emcn-legacy/icons'
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'

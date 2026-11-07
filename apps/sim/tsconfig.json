@@ -37,7 +37,6 @@
     "platform/fixtures",
     "platform/checks",
     "platform/preview",
-    "platform/design-system",
     "platform/.next",
     "platform/node_modules",
     "platform/next-env.d.ts",

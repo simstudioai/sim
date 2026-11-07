@@ -9,8 +9,8 @@ import {
   Tooltip,
   Trash,
   usePrefersReducedMotion,
-} from '@sim/emcn'
-import { Circle, Minus, Plus, Square, Unlock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Circle, Minus, Plus, Square, Unlock } from '@sim/emcn-legacy/icons'
 import {
   CanvasSentenceView,
   InlineChip,

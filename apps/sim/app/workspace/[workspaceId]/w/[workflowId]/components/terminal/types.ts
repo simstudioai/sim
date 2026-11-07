@@ -1,4 +1,4 @@
-import { chipContentGap, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
+import { chipContentGap, chipContentLabelClass, chipVariants, cn } from '@sim/emcn-legacy'
 
 /**
  * Terminal filter configuration state

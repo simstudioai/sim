@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { cn } from '@sim/emcn'
-import { Menu, X } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Menu, X } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'

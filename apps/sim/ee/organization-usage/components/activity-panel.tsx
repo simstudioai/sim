@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipDropdown } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { Chip, ChipDropdown } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   ACTIVITY_MAX_PAGE,

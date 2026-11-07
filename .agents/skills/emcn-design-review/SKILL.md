@@ -14,11 +14,11 @@ User arguments: $ARGUMENTS
 
 ## Context
 
-The existing Sim app uses `packages/emcn`, its Radix primitives, CVA variants, and CSS tokens. For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). For mixed scopes, review each file under its owning system and preserve the requested `fix` mode for both.
+The existing Sim app uses `packages/emcn-legacy`, its Radix primitives, CVA variants, and CSS tokens. For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). For mixed scopes, review each file under its owning system and preserve the requested `fix` mode for both.
 
 ## Steps
 
-1. Read the emcn public barrel at `packages/emcn/src/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `packages/emcn/src/icons/index.ts`
+1. Read the emcn public barrel at `packages/emcn-legacy/src/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `packages/emcn-legacy/src/icons/index.ts`
 2. Read `apps/sim/app/_styles/globals.css` for CSS variable tokens
 3. Analyze the specified scope against every rule below
 4. If fix=true, apply the fixes. If fix=false, propose the fixes without applying.
@@ -27,8 +27,8 @@ The existing Sim app uses `packages/emcn`, its Radix primitives, CVA variants, a
 
 ## Imports
 
-- Components, `cn`, and tokens from the `@sim/emcn` barrel, never component subpaths
-- Icons from `@sim/emcn/icons`
+- Components, `cn`, and tokens from the `@sim/emcn-legacy` barrel, never component subpaths
+- Icons from `@sim/emcn-legacy/icons`
 
 ## Design Tokens
 
@@ -52,7 +52,7 @@ Use `ChipConfirmModal` (title "Delete/Remove {ItemType}", `confirm={{ label, onC
 
 ## Toast
 
-`toast.success()`, `toast.error()`, `toast()` from `@sim/emcn`. Never custom notification UI.
+`toast.success()`, `toast.error()`, `toast()` from `@sim/emcn-legacy`. Never custom notification UI.
 
 ## Badges
 

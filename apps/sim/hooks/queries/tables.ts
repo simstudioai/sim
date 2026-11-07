@@ -4,7 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import {

@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import {
   InteractionCard,

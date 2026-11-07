@@ -1,6 +1,7 @@
 'use client'
 
-import { BarChart, FailureNotice, StatusTag } from '@/platform/design-system/components'
+import { BarChart } from '@sim/emcn/chart/charts'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import type { useUsageOverview } from '@/platform/embedded/lib/data/usage'
 

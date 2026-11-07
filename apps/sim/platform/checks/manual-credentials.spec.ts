@@ -2,6 +2,22 @@ import { expect, test } from '@playwright/test'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
+test('credential Back returns to its directory origin with filters intact', async ({ page }) => {
+  await page.goto(`${origin}/integrations?state=full&tab=credentials&q=Customer&order=desc`)
+  const main = page.getByRole('main')
+  await main.getByRole('link', { name: /^Customer operations service account / }).click()
+  await expect(main.getByLabel('Credential ID', { exact: true })).toBeVisible()
+  await expect(main.getByRole('link', { name: 'Back to Credentials', exact: true })).toBeVisible()
+  await main.getByRole('link', { name: 'Back to Credentials', exact: true }).click()
+  await expect(main.getByRole('searchbox', { name: 'Search credentials' })).toHaveValue('Customer')
+  await expect(page).toHaveURL(/tab=credentials/)
+  await expect(page).toHaveURL(/order=desc/)
+  await page.goBack()
+  await expect(main.getByLabel('Credential ID', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByRole('link', { name: 'Back to Credentials', exact: true })).toBeVisible()
+})
+
 test('manual secrets link to apps, start private and clear values across type changes and reopening', async ({
   page,
 }) => {
@@ -37,9 +53,9 @@ test('manual secrets link to apps, start private and clear values across type ch
   const table = main.getByRole('table', { name: 'People with access', exact: true })
   await expect(table.getByRole('row')).toHaveCount(2)
   await expect(
-    table.getByRole('combobox', { name: 'Role for Emir Karabeg', exact: true })
+    table.getByRole('button', { name: 'Role for Emir Karabeg: Admin', exact: true })
   ).toBeDisabled()
-  await main.getByRole('combobox', { name: /^People:/ }).click()
+  await main.getByRole('combobox', { name: 'People', exact: true }).click()
   await page.getByRole('option', { name: 'Nina Patel', exact: true }).click()
   await page.keyboard.press('Escape')
   await main.getByRole('button', { name: 'Add people', exact: true }).click()
@@ -58,14 +74,12 @@ test('manual secrets link to apps, start private and clear values across type ch
     .getByRole('button', { name: /^Operations vault / })
     .click()
   await expect(main.getByLabel('Credential ID', { exact: true })).toHaveValue(id)
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Replace value', exact: true }).click()
+  await main.getByRole('button', { name: 'Replace value', exact: true }).click()
   const replacement = page.getByRole('dialog', { name: 'Replace Operations vault', exact: true })
   await expect(replacement.getByLabel('Replace value', { exact: true })).toHaveValue('')
   await replacement.getByLabel('Replace value', { exact: true }).fill('cancelled-replacement-token')
   await replacement.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Replace value', exact: true }).click()
+  await main.getByRole('button', { name: 'Replace value', exact: true }).click()
   await expect(replacement.getByLabel('Replace value', { exact: true })).toHaveValue('')
   await replacement.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main.getByRole('tab', { name: 'Access', exact: true }).click()

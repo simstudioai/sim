@@ -1,11 +1,11 @@
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { MessageBubble } from '@sim/emcn-platform/message-bubble'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import { MessageTime } from '@/platform/app/(shell)/_components/chat/message/message-time'
 import type { PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
 import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/message-attachments'
 import { useChatHandlers } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { Button } from '@/platform/design-system/components'
-import { CopyButton } from '@/platform/design-system/components/button/copy-button'
-import { MessageBubble } from '@/platform/design-system/components/message-bubble/message-bubble'
 
 const DELIVERY_LABELS = {
   sending: 'Sending',

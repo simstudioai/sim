@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn'
-import { ArrowLeft, Database } from '@sim/emcn/icons'
+import { Badge, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn-legacy'
+import { ArrowLeft, Database } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import type { DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'

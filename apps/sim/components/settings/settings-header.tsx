@@ -13,8 +13,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipLink, cn, Tooltip } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Chip, ChipInput, ChipLink, cn, Tooltip } from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect

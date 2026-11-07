@@ -1,19 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Button,
-  FailureNotice,
-  Icon,
-  LoadingRows,
-  Modal,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import {
   Muted,
   SectionToolbar,

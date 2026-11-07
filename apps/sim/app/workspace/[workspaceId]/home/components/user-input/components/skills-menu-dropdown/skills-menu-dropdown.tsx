@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import type { McpServer } from '@/hooks/queries/mcp'

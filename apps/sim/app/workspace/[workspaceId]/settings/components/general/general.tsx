@@ -17,8 +17,8 @@ import {
   Label,
   Switch,
   Tooltip,
-} from '@sim/emcn'
-import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'

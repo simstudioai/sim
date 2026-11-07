@@ -1,0 +1,6 @@
+:global([data-auth-root]) .codeHelp {
+  text-align: center;
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  color: var(--auth-secondary);
+}

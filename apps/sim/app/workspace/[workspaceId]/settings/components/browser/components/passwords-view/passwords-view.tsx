@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
-import { ArrowLeft, ChipConfirmModal, Plus, toast } from '@sim/emcn'
+import { ArrowLeft, ChipConfirmModal, Plus, toast } from '@sim/emcn-legacy'
 import { BrowserCredentialIcon } from '@/components/browser-credential-icon'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { getDesktopBridge } from '@/lib/desktop'

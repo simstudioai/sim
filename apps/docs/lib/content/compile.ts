@@ -14,14 +14,14 @@ import type { DocsHeading } from '@/lib/content/types'
 import { simShikiOptions } from '@/lib/shiki-theme'
 
 const COMPONENT_IMPORTS: Record<string, readonly string[]> = {
-  '@/components/ui/callout': ['Callout'],
-  '@/components/ui/cards': ['Cards', 'Card'],
-  '@/components/ui/steps': ['Steps', 'Step'],
-  '@/components/ui/tabs': ['Tabs', 'Tab', 'TabsList', 'TabsTrigger'],
-  '@/components/ui/image': ['Image'],
-  '@/components/ui/command-table': ['CommandTable'],
-  '@/components/ui/reference-details': ['ReferenceDetails'],
-  '@/components/introduction': ['IntroductionHero', 'IntroductionLink'],
+  '@sim/emcn-docs/callout': ['Callout'],
+  '@sim/emcn-docs/cards': ['Cards', 'Card'],
+  '@sim/emcn-docs/steps': ['Steps', 'Step'],
+  '@sim/emcn-docs/tabs': ['Tabs', 'Tab', 'TabsList', 'TabsTrigger'],
+  '@/components/docs/image/image': ['Image'],
+  '@sim/emcn-docs/command-table': ['CommandTable'],
+  '@sim/emcn-docs/reference-details': ['ReferenceDetails'],
+  '@/components/introduction/introduction': ['IntroductionHero', 'IntroductionLink'],
   '@/components/workflow-preview': ['WorkflowPreview', 'BlockPreview', 'OutputBundle'],
 }
 const HTML_ELEMENTS = new Set([
@@ -167,7 +167,7 @@ function staticImages() {
       for (const statement of node.data?.estree?.body ?? []) {
         if (
           statement.type !== 'ImportDeclaration' ||
-          statement.source.value !== '@/components/ui/image'
+          statement.source.value !== '@/components/docs/image/image'
         )
           continue
         for (const specifier of statement.specifiers)

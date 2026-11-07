@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn-legacy/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'

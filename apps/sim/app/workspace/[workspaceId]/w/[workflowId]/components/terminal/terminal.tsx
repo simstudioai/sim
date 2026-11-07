@@ -12,8 +12,15 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import {
+  ArrowDown,
+  ArrowUp,
+  Download,
+  MoreHorizontal,
+  Palette,
+  Trash,
+} from '@sim/emcn-legacy/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'

@@ -1,5 +1,9 @@
 'use client'
 
+import { SelectField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   EMAIL_STATUS_OPTIONS,
@@ -7,13 +11,6 @@ import {
   useAddUserForm,
 } from '@/app/workspace/[workspaceId]/settings/components/admin/use-add-user-form'
 import type { AdminUser } from '@/hooks/queries/admin-users'
-import {
-  InlineNotice,
-  Modal,
-  SecretField,
-  SelectField,
-  TextField,
-} from '@/platform/design-system/components'
 
 interface AddUserModalProps {
   onClose: () => void

@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { HoverPopover } from '@sim/emcn/menu/hover-popover'
 import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { HoverPopover } from '@/platform/design-system/components/menu/hover-popover'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar.module.css'
 
 /** A boundary, so the rows are built only when the panel is mounted, not on every rail render. */

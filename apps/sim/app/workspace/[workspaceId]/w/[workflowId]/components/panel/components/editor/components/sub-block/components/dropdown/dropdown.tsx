@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
+import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn-legacy'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import {

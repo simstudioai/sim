@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback } from 'react'
-import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Badge, cn, handleKeyboardActivation } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { normalizeName } from '@/executor/constants'

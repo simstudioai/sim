@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import type { Editor } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'

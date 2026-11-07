@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { PropertyList } from '@sim/emcn/property-list'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import { toError } from '@sim/utils/errors'
 import {
   DetailHeader,
@@ -9,18 +15,6 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  FailureNotice,
-  Modal,
-  PropertyList,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
   type DataDrain,
@@ -243,7 +237,8 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
       <SettingsSection title='Manage drain'>
         <SettingsRow label='Delete drain'>
           <Button
-            variant='destructive'
+            variant='quiet'
+            destructive
             disabled={deleteDrain.isPending}
             onClick={() => setConfirmingDelete(true)}
           >

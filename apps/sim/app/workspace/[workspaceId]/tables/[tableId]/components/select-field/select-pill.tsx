@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge, cn, OverflowText } from '@sim/emcn'
+import { Badge, cn, OverflowText } from '@sim/emcn-legacy'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
 
 /** Reads the raw stored option ids from a cell value (single string or array). */

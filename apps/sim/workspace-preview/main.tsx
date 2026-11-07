@@ -1,5 +1,5 @@
 import '@/workspace-preview/preview.css'
-import { Workflow } from '@sim/emcn/icons'
+import { Workflow } from '@sim/emcn-legacy/icons'
 import { createRoot } from 'react-dom/client'
 import { ProductionWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/production-workflow-stage'
 import {

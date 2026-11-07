@@ -11,7 +11,7 @@ import {
   ChipSelect,
   Label,
   Skeleton,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import {

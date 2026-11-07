@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
+import { PageSurface } from '@sim/emcn-platform/surface'
 import type { Metadata } from 'next'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import Loading from '@/app/o/[organizationId]/integrations/accounts/[credentialId]/loading'
-import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { IntegrationsPage } from '@/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-page'
 import { ToolPermissionsPanel } from '@/platform/embedded/app/(shell)/integrations/_components/tool-permissions/tool-permissions-panel'
 

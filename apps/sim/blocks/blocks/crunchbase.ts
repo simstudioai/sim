@@ -1,4 +1,4 @@
-import { Building, ListChecks, Search, Sprout, Trash, Users } from '@sim/emcn/icons'
+import { Building, ListChecks, Search, Sprout, Trash, Users } from '@sim/emcn-legacy/icons'
 import { CrunchbaseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'

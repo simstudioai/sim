@@ -1,21 +1,16 @@
 'use client'
 
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { BarChart, TrendChart } from '@sim/emcn/chart/charts'
+import { DataTable, MetricGroup, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { Pagination } from '@sim/emcn/pagination'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
-import {
-  Avatar,
-  BarChart,
-  Button,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  MetricGroup,
-  OverflowText,
-  Pagination,
-  Select,
-  TableLabel,
-  TrendChart,
-} from '@/platform/design-system/components'
 import { HeadingRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import {
@@ -134,9 +129,8 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
       <section className={styles.block} aria-label='Breakdown'>
         <h2 data-type='T042'>Breakdown</h2>
         <HeadingRow>
-          <Select
+          <ChoiceMenu
             label='Group activity by'
-            variant='quiet'
             options={ACTIVITY_DIMENSIONS}
             value={activityDimension}
             onValueChange={(value) =>
@@ -147,9 +141,8 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
             }
           />
           {!member && (
-            <Select
+            <ChoiceMenu
               label='Sort activity by'
-              variant='quiet'
               options={ACTIVITY_SORTS}
               value={sort}
               onValueChange={(value) =>

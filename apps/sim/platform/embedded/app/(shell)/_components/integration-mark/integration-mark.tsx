@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
+import { Icon } from '@sim/emcn/icon'
+import { providerMark } from '@sim/emcn/icon/provider-marks'
 import styles from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark.module.css'
 
 const GENERIC_MARK = 'I070'

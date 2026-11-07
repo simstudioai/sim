@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipCopyInput } from '@sim/emcn'
+import { ChipCopyInput } from '@sim/emcn-legacy'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {

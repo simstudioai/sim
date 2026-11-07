@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Download, Loader } from '@sim/emcn'
-import { DefaultFileIcon, Music } from '@sim/emcn/icons'
+import { Button, Download, Loader } from '@sim/emcn-legacy'
+import { DefaultFileIcon, Music } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { getDocumentIcon } from '@/components/icons/document-icons'

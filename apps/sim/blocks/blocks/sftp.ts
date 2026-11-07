@@ -1,4 +1,12 @@
-import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
+import {
+  ClipboardList,
+  Download,
+  File,
+  Search,
+  Server,
+  Trash,
+  Upload,
+} from '@sim/emcn-legacy/icons'
 import { omit } from '@sim/utils/object'
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

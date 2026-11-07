@@ -1,38 +1,46 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Icon } from '@sim/emcn/icon'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { Stack } from '@sim/emcn/stack'
+import { useHomePrompt } from '@/platform/app/(shell)/_components/session/composer-host'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities.module.css'
-import {
-  ActivityRow,
-  Icon,
-  Modal,
-  ModalBody,
-  Stack,
-  TextAreaField,
-} from '@/platform/design-system/components'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
+import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
+import type {
+  IntegrationCenterData,
+  IntegrationResource,
+} from '@/platform/lib/integrations/center-model'
 
 type CatalogSkill = IntegrationCatalogEntry['skills'][number]
-type CatalogTemplate = IntegrationCatalogEntry['templates'][number]
 
 interface IntegrationCapabilitiesProps {
   catalog: IntegrationCatalogEntry
-  addedSkills?: readonly string[]
-  onAddSkill?: (skill: CatalogSkill) => void
-  onRemoveSkill?: (name: string) => void
+  providerId: string
+  data: IntegrationCenterData
+  onSave: (resource: IntegrationResource) => void
+  onRemove: (id: string) => void
 }
 
 export function IntegrationCapabilities({
   catalog,
-  addedSkills = [],
-  onAddSkill,
-  onRemoveSkill,
+  providerId,
+  data,
+  onSave,
+  onRemove,
 }: IntegrationCapabilitiesProps) {
   const [skill, setSkill] = useState<CatalogSkill | null>(null)
-  const [template, setTemplate] = useState<CatalogTemplate | null>(null)
-  const installed = new Set(addedSkills)
+  const preparePrompt = useHomePrompt()
+  const installed = new Map(
+    data.resources.flatMap((resource) =>
+      resource.kind === 'skill' && resource.source?.providerId === providerId
+        ? [[resource.source.name, resource] as const]
+        : []
+    )
+  )
+  const selected = skill ? installed.get(skill.name) : undefined
   return (
     <>
       {catalog.skills.length > 0 && (
@@ -73,73 +81,31 @@ export function IntegrationCapabilities({
                     }))}
                   />
                 }
-                onOpen={() => setTemplate(entry)}
+                disabled={!preparePrompt}
+                onOpen={() => preparePrompt?.(entry.prompt)}
               />
             ))}
           </ul>
         </section>
       )}
-      {skill &&
-        (onAddSkill ? (
-          <Modal
-            open
-            title={skill.name}
-            description={skill.description}
-            confirmLabel={installed.has(skill.name) ? 'Remove from Skills' : 'Add to Skills'}
-            confirmDisabled={installed.has(skill.name) && !onRemoveSkill}
-            onOpenChange={(open) => {
-              if (!open) setSkill(null)
-            }}
-            onConfirm={() => {
-              if (installed.has(skill.name)) {
-                onRemoveSkill?.(skill.name)
-                return
-              }
-              const content = skill.content.trim()
-              if (!content) throw new Error('Add instructions for this skill.')
-              onAddSkill({ ...skill, content })
-            }}
-          >
-            <TextAreaField
-              label='Instructions'
-              placeholder='Skill instructions'
-              value={skill.content}
-              defaultSize='large'
-              viewOnly={installed.has(skill.name)}
-              onChange={(content) => setSkill({ ...skill, content })}
-              required
-            />
-          </Modal>
-        ) : (
-          <OverlayDialog
-            open
-            title={skill.name}
-            description={skill.description}
-            onClose={() => setSkill(null)}
-          >
-            <ModalBody>
-              <TextAreaField
-                label='Instructions'
-                placeholder='Skill instructions'
-                value={skill.content}
-                defaultSize='large'
-                viewOnly
-              />
-            </ModalBody>
-          </OverlayDialog>
-        ))}
-      {template && (
-        <OverlayDialog open title={template.title} onClose={() => setTemplate(null)}>
-          <ModalBody>
-            <TextAreaField
-              label='Prompt'
-              placeholder='Agent prompt'
-              value={template.prompt}
-              defaultSize='expanded'
-              viewOnly
-            />
-          </ModalBody>
-        </OverlayDialog>
+      {skill && (
+        <ResourceEditor
+          key={selected?.id ?? skill.name}
+          kind='skill'
+          resource={selected}
+          data={data}
+          skillDefaults={{
+            name: skill.name,
+            description: skill.description,
+            instructions: skill.content,
+            source: { providerId, name: skill.name },
+          }}
+          createLabel='Add to Skills'
+          deleteLabel='Remove from Skills'
+          onSave={onSave}
+          onClose={() => setSkill(null)}
+          onDelete={selected ? () => onRemove(selected.id) : undefined}
+        />
       )}
     </>
   )

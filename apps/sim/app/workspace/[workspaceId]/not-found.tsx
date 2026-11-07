@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipLink } from '@sim/emcn'
-import { ArrowLeft, Compass, Home } from '@sim/emcn/icons'
+import { Chip, ChipLink } from '@sim/emcn-legacy'
+import { ArrowLeft, Compass, Home } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { ErrorShell } from '@/app/workspace/[workspaceId]/components/error'
 

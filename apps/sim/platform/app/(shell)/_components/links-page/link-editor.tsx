@@ -1,7 +1,10 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { FieldFrame, TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
 import styles from '@/platform/app/(shell)/_components/links-page/links-page.module.css'
-import { Button, Checkbox, FieldFrame, Modal, TextField } from '@/platform/design-system/components'
 import {
   LINK_LIMITS,
   type LinkRecord,

@@ -51,7 +51,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@sim/emcn": "workspace:*",
+    "@sim/emcn-legacy": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "@xyflow/react": "^12.11.3",
@@ -61,7 +61,7 @@
     "streamdown": ">=2.5.0"
   },
   "devDependencies": {
-    "@sim/emcn": "workspace:*",
+    "@sim/emcn-legacy": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*",

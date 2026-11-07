@@ -1,7 +1,7 @@
 'use client'
 
 import { type TouchEvent, useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import {
   FeaturedCustomerCard,
   type FeaturedCustomerStory,

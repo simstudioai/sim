@@ -1,6 +1,6 @@
 # Sim App Scope
 
-For `platform/**`, use [the Platform design contract](platform/AGENTS.md) and `$implement-platform`. The existing app styling rules apply elsewhere.
+For `platform/**`, use [the Platform design contract](platform/AGENTS.md) and `$implement-platform`. Modern Auth surfaces follow [shared EMCN ownership](../../packages/emcn/AGENTS.md) and [the system guide](../../packages/emcn/README.md). Legacy styling rules apply only to unreplaced consumers of the legacy library.
 
 Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds the repo-wide rules. Before editing in an area, read its rule file under `.claude/rules/`:
 

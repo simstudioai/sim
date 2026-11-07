@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({ app: vi.fn() }))
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ChipLink: ({ children, href }: ComponentProps<'a'>) => <a href={href}>{children}</a>,
 }))
 vi.mock('@/app/(auth)/components', () => ({

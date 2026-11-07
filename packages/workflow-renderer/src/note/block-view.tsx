@@ -13,12 +13,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChevronsDownUp, Expand } from '@sim/emcn/icons'
+import { ChevronsDownUp, Expand } from '@sim/emcn-legacy/icons'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { defaultRehypePlugins, Streamdown, type StreamdownProps } from 'streamdown'
 import 'streamdown/styles.css'
-import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
+import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn-legacy'
 import { getEmbedInfo } from '@sim/utils/media-embed'
 import { BLOCK_DIMENSIONS, clampNoteBlockHeight, estimateNoteBlockHeight } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'

@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, type SVGProps } from 'react'
-import { cn } from '@sim/emcn'
-import { Box } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Box } from '@sim/emcn-legacy/icons'
 import {
   CUSTOM_BLOCK_IMAGE_TILE_COLOR,
   CUSTOM_BLOCK_TILE_COLOR,

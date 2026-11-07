@@ -1,6 +1,8 @@
 @import "tailwindcss";
-@import "../components/docs/tokens.css";
+@import "@sim/emcn-docs/styles/docs.css";
 @source '../../../packages/emcn/src';
+@source '../../../packages/emcn-docs/src';
+@source '../../../packages/emcn-legacy/src';
 @source '../../../packages/workflow-renderer/src';
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant hover-hover {
@@ -9,20 +11,6 @@
       @slot;
     }
   }
-}
-
-@theme {
-  --text-micro: 10px;
-  --text-xs: 11px;
-  --text-caption: 12px;
-  --text-small: 13px;
-  --text-base: 15px;
-  --text-md: 16px;
-}
-
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @layer base {

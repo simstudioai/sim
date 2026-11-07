@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'

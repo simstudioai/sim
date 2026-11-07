@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { SlackConnections } from '@/platform/app/(shell)/settings/_components/sections/search-slack/slack-connections'
-import { readScenario } from '@/platform/design-system/navigation'
 import { loadSlackSettings } from '@/platform/fixtures'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { readSlackConnections, readSlackManifest } from '@/platform/lib/data/settings-slack'
+import { readScenario } from '@/platform/lib/navigation'
 
 export default async function SearchSlackSection({ organization, query }: SettingsSectionProps) {
   if (!organization.viewer.isAdmin) notFound()

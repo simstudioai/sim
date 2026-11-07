@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, cn } from '@sim/emcn'
-import { Building, Download } from '@sim/emcn/icons'
+import { Badge, cn } from '@sim/emcn-legacy'
+import { Building, Download } from '@sim/emcn-legacy/icons'
 import {
   PLATFORM_LOOP_DESIGN,
   PLATFORM_LOOP_RESET_FADE_MS,

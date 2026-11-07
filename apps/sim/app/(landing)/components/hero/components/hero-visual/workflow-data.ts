@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@sim/emcn/icons'
+import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@sim/emcn-legacy/icons'
 import type {
   BLOCK_DIMENSIONS,
   CONNECTION_KNOB_PEAK_PX,

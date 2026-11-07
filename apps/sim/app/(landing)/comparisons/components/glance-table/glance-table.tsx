@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { GlanceRow } from '@/lib/compare/data'
 import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
 

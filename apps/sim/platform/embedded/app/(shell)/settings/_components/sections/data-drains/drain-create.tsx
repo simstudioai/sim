@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import { type CADENCE_TYPES, DESTINATION_TYPES, type SOURCE_TYPES } from '@/lib/data-drains/types'
@@ -11,16 +17,6 @@ import {
 } from '@/ee/data-drains/destinations/specs'
 import { CADENCE_OPTIONS, DESTINATION_OPTIONS, SOURCE_OPTIONS } from '@/ee/data-drains/labels'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  Button,
-  Checkbox,
-  InlineNotice,
-  SecretField,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   DetailHeader,

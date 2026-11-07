@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { Button, ConfirmDialog } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { DetailHeader } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AuthorizedApps } from '@/platform/embedded/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/embedded/app/(shell)/settings/_components/sections/account/delete-account'

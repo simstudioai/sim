@@ -1,17 +1,14 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
+import { AvatarGroup } from '@sim/emcn/avatar'
+import { Button, IconButton } from '@sim/emcn/button'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/home/_components/calendar/calendar-day.module.css'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import {
-  AvatarGroup,
-  Button,
-  IconButton,
-  InlineNotice,
-  OverflowText,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import type { CalendarMeeting, HomeCalendarDay } from '@/platform/shared/home'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 

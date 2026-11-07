@@ -1,7 +1,7 @@
 'use client'
 
 import { type Dispatch, type SetStateAction, useCallback, useMemo, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   ForkClearedRef,

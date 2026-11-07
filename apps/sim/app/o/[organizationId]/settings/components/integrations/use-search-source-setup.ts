@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'

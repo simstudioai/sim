@@ -1,4 +1,4 @@
-import { Library } from '@sim/emcn/icons'
+import { Library } from '@sim/emcn-legacy/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const LogsBlock: BlockConfig = {

@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Surface } from '@sim/emcn-platform/surface'
 import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
-import { Surface } from '@/platform/design-system/components/surface/surface'
 import hostStyles from '@/platform/embedded/app/(shell)/settings/_components/settings-host.module.css'
 import { SettingsScreen } from '@/platform/embedded/app/(shell)/settings/_components/settings-screen/settings-screen'
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
-import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn-legacy'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'

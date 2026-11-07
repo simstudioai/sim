@@ -1,9 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { useRouter } from 'next/navigation'
 import styles from '@/platform/app/_components/shell-gate/shell-gate.module.css'
-import { Button, EmptyState, PlatformSurface } from '@/platform/design-system/components'
 
 interface ShellGateProps {
   title: string

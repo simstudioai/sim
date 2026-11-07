@@ -1,5 +1,5 @@
 import type { ComponentType, ElementType, HTMLAttributes, SVGProps } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
 interface IntegrationIconProps extends HTMLAttributes<HTMLElement> {

@@ -1,3 +1,5 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { FALLBACK_PROVIDER_MARK, providerMark } from '@sim/emcn/icon/provider-marks'
 import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -16,11 +18,6 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import {
-  FALLBACK_PROVIDER_MARK,
-  providerMark,
-} from '@/platform/design-system/components/icon/provider-marks'
 import type {
   AttentionItem,
   EmailItem,

@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Chip, ChipInput } from '@sim/emcn'
-import { ArrowUp } from '@sim/emcn/icons'
+import { Chip, ChipInput } from '@sim/emcn-legacy'
+import { ArrowUp } from '@sim/emcn-legacy/icons'
 
 interface GeneratePromptControlProps {
   isLoading: boolean

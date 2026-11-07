@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -19,16 +24,6 @@ import {
   useEnsureOrganizationAccounts,
   useReconnectPersonalOrganizationAccount,
 } from '@/hooks/queries/organization-accounts'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  SearchableSelect,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { toast } from '@/platform/shared/toast'

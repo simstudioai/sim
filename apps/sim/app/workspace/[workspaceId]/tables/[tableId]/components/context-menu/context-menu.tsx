@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowUp,
@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Square,
   Trash,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import type { ContextMenuState } from '../../types'
 
 /**

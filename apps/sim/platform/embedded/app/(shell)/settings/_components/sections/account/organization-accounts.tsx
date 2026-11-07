@@ -1,16 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ActionMenu,
-  ConfirmDialog,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  StatusTag,
-  TableLabel,
-} from '@/platform/design-system/components'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { SectionSkeleton } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { usePersonalAccountsList } from '@/platform/shared/account'
 

@@ -1,0 +1,58 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--auth-group-gap);
+}
+
+:global([data-auth-root]) .resourceRow {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--emcn-space-8);
+  padding: var(--emcn-space-8);
+}
+:global([data-auth-root]) .resourceIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--emcn-space-24);
+  height: var(--emcn-space-24);
+}
+:global([data-auth-root]) .resourceIcon svg {
+  width: var(--emcn-space-16);
+  height: var(--emcn-space-16);
+}
+:global([data-auth-root]) .resourceText {
+  min-width: 0;
+  font-size: var(--auth-body-size);
+  line-height: var(--auth-body-leading);
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .resourceText p {
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .resourceActions {
+  display: flex;
+  align-items: center;
+  gap: var(--emcn-space-8);
+}
+:global([data-auth-root]) .sectionHeading h2 {
+  color: var(--auth-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+:global([data-auth-root]) .sectionHeading p {
+  font-size: var(--auth-body-size);
+  line-height: var(--auth-body-leading);
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .resourceActions {
+    grid-column: 2 / -1;
+  }
+  :global([data-auth-root]) .resourceRow {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+}

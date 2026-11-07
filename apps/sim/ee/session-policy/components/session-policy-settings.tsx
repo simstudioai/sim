@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'

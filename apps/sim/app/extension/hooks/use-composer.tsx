@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo } from 'react'
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
-import { Chip, DropdownMenuCheckboxItem, DropdownMenuItem, Tooltip, toast } from '@sim/emcn'
-import { Globe, Highlighter, Settings } from '@sim/emcn/icons'
+import { Chip, DropdownMenuCheckboxItem, DropdownMenuItem, Tooltip, toast } from '@sim/emcn-legacy'
+import { Globe, Highlighter, Settings } from '@sim/emcn-legacy/icons'
 import { getPageContextBudgetError } from '@/lib/mothership/chat/page-context'
 import { usePageContext } from '@/app/extension/hooks/use-page-context'
 import { useExtensionIdentity } from '@/app/extension/providers'

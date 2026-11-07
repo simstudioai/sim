@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
@@ -15,7 +18,6 @@ import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_component
 import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
-import { ActionMenu, Button, Modal } from '@/platform/design-system/components'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 import type {
   IntegrationCenterData,
@@ -48,9 +50,6 @@ interface IntegrationDetailsProps {
   people?: readonly IntegrationPerson[]
   peopleTotal?: number
   catalog?: IntegrationCatalogEntry | null
-  addedSkills?: readonly string[]
-  onAddSkill?: (skill: IntegrationCatalogEntry['skills'][number]) => void
-  onRemoveSkill?: (name: string) => void
   library: {
     data: IntegrationCenterData
     save: (resource: IntegrationResource) => void
@@ -70,9 +69,6 @@ export function IntegrationDetails({
   people,
   peopleTotal,
   catalog,
-  addedSkills,
-  onAddSkill,
-  onRemoveSkill,
   library,
 }: IntegrationDetailsProps) {
   const [view, setView] = useQueryStates(credentialParams)
@@ -267,6 +263,7 @@ export function IntegrationDetails({
           key={selected.id}
           credential={selected}
           integrationName={integration.name}
+          providerId={integration.providerId}
           viewer={viewer}
           people={allowedPeople}
           onChange={save}
@@ -361,9 +358,10 @@ export function IntegrationDetails({
           {catalog && (
             <IntegrationCapabilities
               catalog={catalog}
-              addedSkills={addedSkills}
-              onAddSkill={onAddSkill}
-              onRemoveSkill={onRemoveSkill}
+              providerId={integration.providerId}
+              data={library.data}
+              onSave={library.save}
+              onRemove={library.remove}
             />
           )}
         </>

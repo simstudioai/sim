@@ -1,4 +1,5 @@
-import { AuthLinkButton as ChipLink, AuthStatusContent as StatusPageContent } from '@sim/auth-ui'
+import { AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
+import { AuthStatusContent as StatusPageContent } from '@sim/emcn-auth/status'
 import type { Metadata } from 'next'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AuthShell as LogoShell } from '@/app/(auth)/components'

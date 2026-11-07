@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Chip, toast } from '@sim/emcn'
-import { Check, Plus } from '@sim/emcn/icons'
+import { Chip, toast } from '@sim/emcn-legacy'
+import { Check, Plus } from '@sim/emcn-legacy/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'

@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
-import { chipBorderShadowRing, cn } from '@sim/emcn'
+import { chipBorderShadowRing, cn } from '@sim/emcn-legacy'
 import dynamic from 'next/dynamic'
 import { preconnect } from 'react-dom'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'

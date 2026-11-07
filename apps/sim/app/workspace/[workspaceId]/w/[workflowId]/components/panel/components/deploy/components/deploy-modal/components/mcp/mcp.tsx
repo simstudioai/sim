@@ -11,7 +11,7 @@ import {
   Label,
   Skeleton,
   Textarea,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { ApiClientError } from '@/lib/api/client/errors'
 import {

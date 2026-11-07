@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   useInterfacePreferences,
@@ -13,8 +14,7 @@ import type {
   HomeData,
   HomeView,
 } from '@/platform/app/(shell)/home/_components/model'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import type {
   HomeCalendarDay,
   HomeConnectOption,

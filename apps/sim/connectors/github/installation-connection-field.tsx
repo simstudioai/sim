@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { Chip, ChipCombobox, ChipModalError, ChipModalField } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Chip, ChipCombobox, ChipModalError, ChipModalField } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import type { Credential } from '@/lib/oauth'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 

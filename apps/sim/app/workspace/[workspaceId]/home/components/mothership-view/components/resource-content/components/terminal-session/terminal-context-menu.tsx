@@ -17,7 +17,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Check,
   Clipboard,
@@ -28,7 +28,7 @@ import {
   Settings,
   Trash,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 

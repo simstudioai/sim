@@ -1,9 +1,9 @@
-import { cn } from '@sim/emcn'
+import { Button } from '@sim/emcn/button'
+import { cn } from '@sim/emcn-legacy'
+import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import Link from 'next/link'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
-import { Button } from '@/platform/design-system/components/button/button'
-import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 import { RouteStatus } from '@/platform/embedded/app/(shell)/_components/route-status/route-status'
 
 export function OrganizationAccessDenied() {

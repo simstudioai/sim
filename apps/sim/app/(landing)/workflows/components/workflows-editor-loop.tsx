@@ -1,6 +1,6 @@
 'use client'
 
-import { Table as TableIcon } from '@sim/emcn/icons'
+import { Table as TableIcon } from '@sim/emcn-legacy/icons'
 import { AgentIcon, ConditionalIcon, JiraIcon, SlackIcon, StartIcon } from '@/components/icons'
 import { EditorLoop, type EditorLoopContent } from '@/app/(landing)/components/shared/editor-loop'
 

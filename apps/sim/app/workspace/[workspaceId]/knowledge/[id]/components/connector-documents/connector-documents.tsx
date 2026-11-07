@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
-import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Chip, ChipInput, ChipLink, Skeleton } from '@sim/emcn-legacy'
+import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn-legacy/icons'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import { ConnectorDocumentStatusFilter } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-document-status-filter'

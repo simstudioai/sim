@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, Chip, ChipModalField, cn, Label, Tooltip, Wizard } from '@sim/emcn'
-import { Check, ChevronRight, CircleInfo } from '@sim/emcn/icons'
+import { Checkbox, Chip, ChipModalField, cn, Label, Tooltip, Wizard } from '@sim/emcn-legacy'
+import { Check, ChevronRight, CircleInfo } from '@sim/emcn-legacy/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { buildSlackAppCreationUrl, getSlackAppNameError } from '@/lib/integrations/slack-manifest'

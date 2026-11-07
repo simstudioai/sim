@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Chip, IconButton } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { type MenuAction, MenuItem } from '@sim/emcn/menu/action-menu'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { Chip, IconButton } from '@/platform/design-system/components/button/button'
-import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
-import { type MenuAction, MenuItem } from '@/platform/design-system/components/menu/action-menu'
 import { NameModal } from '@/platform/embedded/app/(shell)/_components/sidebar/name-modal'
 import { RailFlyout } from '@/platform/embedded/app/(shell)/_components/sidebar/rail-flyout'
 import {

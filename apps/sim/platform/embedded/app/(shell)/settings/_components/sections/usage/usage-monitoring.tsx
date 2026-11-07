@@ -1,15 +1,13 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
 import type { UsageBreakdownDimension } from '@/lib/api/contracts/organization-usage'
-import {
-  Button,
-  ChoiceMenu,
-  DateRangePicker,
-  ScrollArea,
-  SegmentedControl,
-} from '@/platform/design-system/components'
 import {
   DetailHeader,
   HeadingRow,

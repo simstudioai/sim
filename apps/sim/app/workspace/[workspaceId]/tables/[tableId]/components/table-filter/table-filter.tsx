@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipDropdown, ChipInput, cn } from '@sim/emcn'
-import { Plus, X } from '@sim/emcn/icons'
+import { Button, ChipDropdown, ChipInput, cn } from '@sim/emcn-legacy'
+import { Plus, X } from '@sim/emcn-legacy/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'

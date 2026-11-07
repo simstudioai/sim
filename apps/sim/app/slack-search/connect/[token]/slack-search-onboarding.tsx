@@ -1,6 +1,6 @@
 'use client'
 
-import { AuthButton as Chip, AuthLinkButton as ChipLink } from '@sim/auth-ui'
+import { AuthButton as Chip, AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
 import { redirect } from 'next/navigation'
 import {
   slackSearchIntegrationsPath,

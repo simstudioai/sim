@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn-legacy'
 import type { Node } from '@tiptap/core'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'

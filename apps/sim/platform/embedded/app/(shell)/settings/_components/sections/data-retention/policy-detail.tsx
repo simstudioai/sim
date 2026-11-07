@@ -1,6 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, IconButton } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { FieldFrame, SelectField } from '@sim/emcn/field'
+import { Input } from '@sim/emcn/field/inputs'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { customPatternError, MAX_CUSTOM_PII_PATTERNS } from '@/lib/guardrails/custom-patterns'
 import {
   getEntityGroupsForLanguage,
@@ -17,23 +27,6 @@ import {
   stageHasContent,
   updateStagePolicy,
 } from '@/ee/data-retention/lib/policy-draft'
-import {
-  Button,
-  Checkbox,
-  ConfirmDialog,
-  FieldFrame,
-  IconButton,
-  Input,
-  MultiSelect,
-  SaveActions,
-  SectionSearch,
-  SegmentedControl,
-  SelectField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   DetailHeader,

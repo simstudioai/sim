@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -11,18 +18,6 @@ import {
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import {
-  Button,
-  CopyField,
-  EmptyState,
-  FailureNotice,
-  Modal,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   MIN_IDLE_TIMEOUT_HOURS,
   parseSessionPolicyHours,
@@ -129,7 +124,7 @@ function SessionPolicyForm({ organizationId, policy }: SessionPolicyFormProps) {
         label='End all sessions'
         description='Members must sign in again. Your current session stays active.'
       >
-        <Button variant='destructive' onClick={() => setConfirmingRevoke(true)}>
+        <Button variant='quiet' destructive onClick={() => setConfirmingRevoke(true)}>
           Sign out all members
         </Button>
       </SettingsRow>

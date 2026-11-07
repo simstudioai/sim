@@ -12,7 +12,7 @@ import {
   ChipModalHeader,
   ChipSelect,
   type ComboboxOption,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
 

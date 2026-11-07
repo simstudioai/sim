@@ -1,15 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  Button,
-  DataTable,
-  EmptyState,
-  errorMessageOr,
-  QueryBoundary,
-  SearchableSelect,
-  SearchField,
-} from '@/platform/design-system/components'
+import { Button } from '@sim/emcn/button'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import styles from '@/platform/embedded/app/(shell)/people/_components/directory/directory.module.css'
 import { PersonIdentity } from '@/platform/embedded/app/(shell)/people/_components/person-identity/person-identity'
 import { personHref } from '@/platform/embedded/lib/data/people'

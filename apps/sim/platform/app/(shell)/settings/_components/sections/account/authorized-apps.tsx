@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SearchField } from '@sim/emcn/search-field'
+import { FailureNotice } from '@sim/emcn/status'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  ActionMenu,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  Modal,
-  SearchField,
-} from '@/platform/design-system/components'
 import { useAuthorizedAppsList } from '@/platform/shared/account'
 
 const TITLE = 'Authorized apps'

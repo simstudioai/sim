@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextAreaField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { MultiStepModal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import styles from '@/platform/app/(shell)/integrations/_components/slack-bot-connection/slack-bot-connection.module.css'
@@ -9,15 +15,6 @@ import {
   SlackSlashCommands,
   slashCommandsError,
 } from '@/platform/app/(shell)/integrations/_components/slack-slash-commands'
-import {
-  Button,
-  ExecutionSteps,
-  MultiSelect,
-  MultiStepModal,
-  SecretField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import {
   slackBotCapabilities,

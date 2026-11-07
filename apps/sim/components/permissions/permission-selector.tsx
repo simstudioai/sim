@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChipButtonGroup, ChipButtonGroupItem, cn } from '@sim/emcn'
+import { ChipButtonGroup, ChipButtonGroupItem, cn } from '@sim/emcn-legacy'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 export type { PermissionType }

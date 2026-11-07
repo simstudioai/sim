@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import type { PersonalCredential } from '@/lib/api/contracts/credentials'
 import {
   createOAuthChatAttempt,

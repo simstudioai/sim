@@ -1,6 +1,6 @@
 'use client'
 
-import { Wrench } from '@sim/emcn/icons'
+import { Wrench } from '@sim/emcn-legacy/icons'
 import { McpIcon } from '@/components/icons'
 import type { SecretReferenceResourcePayload } from '@/lib/api/contracts'
 import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'

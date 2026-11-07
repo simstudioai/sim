@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { useSearchParams } from 'next/navigation'
 import { DesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import type { SettingsNavGroup, ShellData } from '@/platform/app/(shell)/_components/model'
@@ -13,15 +14,14 @@ import { IntegrationCenterChanges } from '@/platform/app/(shell)/_components/ses
 import { IntegrationChanges } from '@/platform/app/(shell)/_components/session/integration-changes'
 import { InterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import { SidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
-import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
+import type { Scenario } from '@/platform/fixtures'
+import { useLiveShellData } from '@/platform/lib/data/shell-context'
 import {
   type PreviewPlan,
   readAppearance,
   readPreviewPlan,
   readScenario,
-} from '@/platform/design-system/navigation'
-import type { Scenario } from '@/platform/fixtures'
-import { useLiveShellData } from '@/platform/lib/data/shell-context'
+} from '@/platform/lib/navigation'
 
 interface ProductSessionProps {
   fixtures: Record<

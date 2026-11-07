@@ -1,8 +1,8 @@
 import { Suspense } from 'react'
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { PageSurface } from '@sim/emcn-platform/surface'
 import type { OrganizationSurfaceGate } from '@/lib/organizations/surface'
-import { Hydrated } from '@/platform/design-system/components/surface/hydrated'
-import { PageSurface } from '@/platform/design-system/components/surface/surface'
+import { Hydrated } from '@/app/o/[organizationId]/components/hydrated'
 import {
   IntegrationsRoute,
   IntegrationsRouteFallback,

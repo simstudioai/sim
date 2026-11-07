@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Key } from '@sim/emcn/icons'
+import { Key } from '@sim/emcn-legacy/icons'
 
 interface BrowserCredentialIconProps {
   icon?: string

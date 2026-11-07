@@ -1,14 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  AuthFormMessage,
-  AuthGithubIcon,
-  AuthGoogleIcon,
-  AuthMicrosoftIcon,
-  AuthProviderGroup,
-  AuthButton as Chip,
-} from '@sim/auth-ui'
+import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@sim/emcn/brand/provider-icon'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthFormMessage } from '@sim/emcn-auth/feedback'
+import { AuthProviderGroup, AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
@@ -29,9 +25,9 @@ interface SocialLoginButtonsProps {
 
 /** Display order of the provider buttons. */
 const PROVIDERS = [
-  { provider: 'google', label: 'Google', icon: AuthGoogleIcon },
-  { provider: 'microsoft', label: 'Microsoft', icon: AuthMicrosoftIcon },
-  { provider: 'github', label: 'GitHub', icon: AuthGithubIcon },
+  { provider: 'google', label: 'Google', icon: GoogleIcon },
+  { provider: 'microsoft', label: 'Microsoft', icon: MicrosoftIcon },
+  { provider: 'github', label: 'GitHub', icon: GithubIcon },
 ] as const
 
 export function SocialLoginButtons({
@@ -82,7 +78,7 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className='au:space-y-2'>
+    <AuthStack gap='actions'>
       <AuthProviderGroup>
         {PROVIDERS.filter(({ provider }) => available[provider]).map(
           ({ provider, label, icon }) => (
@@ -105,6 +101,6 @@ export function SocialLoginButtons({
         )}
       </AuthProviderGroup>
       {error && <AuthFormMessage type='error'>{error}</AuthFormMessage>}
-    </div>
+    </AuthStack>
   )
 }

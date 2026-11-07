@@ -11,7 +11,7 @@ import {
   ChipModalHeader,
   chipFieldSurfaceClass,
   cn,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import dynamic from 'next/dynamic'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {

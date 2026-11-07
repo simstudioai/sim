@@ -14,7 +14,7 @@ import {
   Label,
   Skeleton,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import {

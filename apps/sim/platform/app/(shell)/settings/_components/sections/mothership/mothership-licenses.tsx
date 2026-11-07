@@ -1,25 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { DatePicker } from '@sim/emcn/picker/date-picker'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import {
   ActionRow,
   FieldStack,
   LoadingState,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  CopyField,
-  DataTable,
-  DatePicker,
-  EmptyState,
-  FailureNotice,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   type LicenseDraft,
   type MothershipEnv,

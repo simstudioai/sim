@@ -1,0 +1,43 @@
+:global([data-auth-root]) .field {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--auth-label-gap);
+}
+:global([data-auth-root]) .labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--emcn-space-8);
+}
+:global([data-auth-root]) .labelRow :global([data-auth-text-link]) {
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .label {
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  font-weight: 400;
+}
+:global([data-auth-root]) .caption,
+:global([data-auth-root]) .fieldErrors {
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .caption {
+  color: var(--auth-secondary);
+}
+:global([data-auth-root]) .caption:empty {
+  display: none;
+}
+:global([data-auth-root]) .fieldErrors {
+  color: var(--auth-error);
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .labelRow :global([data-auth-text-link]) {
+    min-height: 18px;
+    font-size: var(--auth-control-size);
+  }
+}

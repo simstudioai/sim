@@ -12,8 +12,8 @@ import {
   PopoverAnchor,
   PopoverContent,
   toast,
-} from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'

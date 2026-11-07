@@ -1,6 +1,6 @@
 'use client'
 
-import { OverflowText, SimWordmark } from '@sim/emcn'
+import { OverflowText, SimWordmark } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'

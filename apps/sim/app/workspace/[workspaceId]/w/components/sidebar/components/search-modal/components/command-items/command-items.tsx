@@ -2,8 +2,8 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
-import { OverflowText } from '@sim/emcn'
-import { File, Workflow } from '@sim/emcn/icons'
+import { OverflowText } from '@sim/emcn-legacy'
+import { File, Workflow } from '@sim/emcn-legacy/icons'
 import { Command } from 'cmdk'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'

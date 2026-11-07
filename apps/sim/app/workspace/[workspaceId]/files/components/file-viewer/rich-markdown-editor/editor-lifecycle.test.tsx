@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, Suspense, startTransition } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'

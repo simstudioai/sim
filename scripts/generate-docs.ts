@@ -41,7 +41,7 @@ export function defaultIntegrationDocsUrl(blockType: string): string {
   return `${DOCS_ORIGIN}integrations/${stripVersionSuffix(blockType)}`
 }
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
-const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
+const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
 const INTEGRATIONS_CATALOG_PATH = path.join(rootDir, 'packages/deployment-config/src')
 const LANDING_INTEGRATIONS_DATA_PATH = path.join(
@@ -773,7 +773,10 @@ function biomeSortCompare(a: string, b: string): number {
 
 function writeIconMapping(iconMapping: Record<string, IconRef>, coreBlockTypes: string[]): void {
   try {
-    const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
+    const iconMappingPath = path.join(
+      rootDir,
+      'apps/docs/components/docs/icon-mapping/icon-mapping.ts'
+    )
 
     // Add bare-name aliases for versioned block types so trigger provider names resolve correctly.
     // e.g. github_v2 → github, fireflies_v2 → fireflies, gmail_v2 → gmail
@@ -785,7 +788,15 @@ function writeIconMapping(iconMapping: Record<string, IconRef>, coreBlockTypes: 
       }
     }
 
-    const imports = renderIconImports(Object.values(withAliases))
+    const imports = renderIconImports(
+      Object.values(withAliases).map((ref) => ({
+        ...ref,
+        source:
+          ref.source === DEFAULT_ICON_SOURCE
+            ? '@/components/icons/icons'
+            : ref.source.replace(/^@sim\/emcn(?=\/|$)/, '@sim/emcn-legacy'),
+      }))
+    )
     const coreTypeEntries = coreBlockTypes.map((type) => `  '${type}',`).join('\n')
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
@@ -4700,7 +4711,7 @@ integration:
   color: ${JSON.stringify(bgColor || '#F5F5F5')}
 ---
 
-${hasReferenceDetails ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
+${hasReferenceDetails ? 'import { ReferenceDetails } from "@sim/emcn-docs/reference-details"\n' : ''}
 ${connectionSection}${oauthScopesSection}${usageInstructions}${toolsSection}
 `
 }
@@ -5372,7 +5383,7 @@ function withReferenceDetailsImport(markdown: string): string {
 
   return markdown.replace(
     /^(---\n[\s\S]*?\n---\n)/,
-    '$1\nimport { ReferenceDetails } from "@/components/ui/reference-details"\n'
+    '$1\nimport { ReferenceDetails } from "@sim/emcn-docs/reference-details"\n'
   )
 }
 

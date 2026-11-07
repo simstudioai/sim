@@ -5,7 +5,7 @@ import {
   chipContentLabelClass,
   chipVariants,
   cn,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Database,
   Files,
@@ -18,7 +18,7 @@ import {
   Plus,
   Search,
   Table,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import Image from 'next/image'
 import {
   SIDEBAR_CHATS,

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback } from 'react'
-import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import Image from 'next/image'
 import { AgentIcon } from '@/components/icons'

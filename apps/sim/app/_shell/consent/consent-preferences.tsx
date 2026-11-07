@@ -1,7 +1,7 @@
 'use client'
 
 import { useConsentManager } from '@c15t/nextjs/headless'
-import { Label, Switch } from '@sim/emcn'
+import { Label, Switch } from '@sim/emcn-legacy'
 import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
 
 /**

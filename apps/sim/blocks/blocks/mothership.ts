@@ -1,4 +1,4 @@
-import { Blimp } from '@sim/emcn/icons'
+import { Blimp } from '@sim/emcn-legacy/icons'
 import {
   DEFAULT_MOTHERSHIP_EFFORT,
   MOTHERSHIP_EFFORT_OPTIONS,

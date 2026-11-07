@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { Calendar } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Calendar } from '@sim/emcn-legacy/icons'
 import Image from 'next/image'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'

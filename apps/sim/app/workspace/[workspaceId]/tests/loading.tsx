@@ -1,6 +1,6 @@
 'use client'
 
-import { ShieldCheck } from '@sim/emcn/icons'
+import { ShieldCheck } from '@sim/emcn-legacy/icons'
 import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
 
 export default function TestsLoading() {

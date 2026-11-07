@@ -1,4 +1,4 @@
-import { FailureNotice } from '@/platform/design-system/components/status/status'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import type { ShellQueryStatus } from '@/platform/shared/shell'
 

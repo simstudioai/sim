@@ -1,5 +1,5 @@
-import { Chip, cn } from '@sim/emcn'
-import { Upload } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { Upload } from '@sim/emcn-legacy/icons'
 import { EmptyState, type EmptyStateProps } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 import { HAIRLINE } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/hairline'

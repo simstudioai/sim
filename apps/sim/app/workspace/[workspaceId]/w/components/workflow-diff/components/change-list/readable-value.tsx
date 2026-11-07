@@ -1,4 +1,4 @@
-import { ChipTag } from '@sim/emcn'
+import { ChipTag } from '@sim/emcn-legacy'
 import { isRecordLike } from '@sim/utils/object'
 
 interface ReadableValueProps {

@@ -1,8 +1,8 @@
 'use client'
 
 import type React from 'react'
-import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
-import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn/icons'
+import { BulkActionButton, cn, Tooltip } from '@sim/emcn-legacy'
+import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn-legacy/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 
 interface TableActionBarProps {

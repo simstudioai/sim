@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { AuthStack } from '@sim/auth-ui'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
@@ -373,7 +373,7 @@ export default function LoginPage({
           description='Enter your email and we’ll send you a reset link if an account exists.'
         />
         <form
-          className='au:space-y-5'
+          className='au:flex au:flex-col au:gap-5'
           onSubmit={(event) => {
             event.preventDefault()
             void handleForgotPassword()
@@ -418,7 +418,7 @@ export default function LoginPage({
 
   return (
     <>
-      <div className='au:space-y-[var(--auth-group-gap)]'>
+      <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
         <AuthHeader title='Sign in' description='Welcome back to Sim.' />
 
         {showTopSSO && (
@@ -426,8 +426,8 @@ export default function LoginPage({
         )}
 
         {emailEnabled && (
-          <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
-            <div className='au:space-y-5'>
+          <form onSubmit={onSubmit} className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
+            <div className='au:flex au:flex-col au:gap-5'>
               <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
                 <AuthEmailInput
                   id='email'

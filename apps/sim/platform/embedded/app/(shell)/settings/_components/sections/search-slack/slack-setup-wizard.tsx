@@ -1,19 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import { FieldFrame, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { useSlackSearchSetup } from '@/components/integrations/use-slack-search-setup'
-import {
-  Button,
-  Disclosure,
-  FieldFrame,
-  InlineNotice,
-  LoadingRows,
-  Modal,
-  SecretField,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
 import {
   ActionRow,
   Muted,

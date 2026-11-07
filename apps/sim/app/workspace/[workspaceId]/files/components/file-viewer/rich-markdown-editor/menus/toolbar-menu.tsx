@@ -10,8 +10,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { Check, ChevronDown, MoreHorizontal } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, ChevronDown, MoreHorizontal } from '@sim/emcn-legacy/icons'
 import type { Editor } from '@tiptap/react'
 
 interface ToolbarMenuProps {

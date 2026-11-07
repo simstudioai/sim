@@ -1,4 +1,4 @@
-import { Badge } from '@sim/emcn'
+import { Badge } from '@sim/emcn-legacy'
 import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'
 
 type BadgeVariant = 'green' | 'red' | 'amber' | 'gray'

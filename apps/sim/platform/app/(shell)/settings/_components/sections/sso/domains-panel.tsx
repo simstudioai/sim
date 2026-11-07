@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -9,19 +16,6 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  ActionMenu,
-  Button,
-  CopyField,
-  FailureNotice,
-  Modal,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   type OrganizationDomain,

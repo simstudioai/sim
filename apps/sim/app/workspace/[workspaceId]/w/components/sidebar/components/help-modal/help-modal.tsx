@@ -8,8 +8,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
 import Image from 'next/image'

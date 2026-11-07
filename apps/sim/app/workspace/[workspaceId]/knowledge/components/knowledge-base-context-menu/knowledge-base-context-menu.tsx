@@ -10,7 +10,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Download,
   Duplicate,
@@ -20,7 +20,7 @@ import {
   SquareArrowUpRight,
   TagIcon,
   Trash,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'

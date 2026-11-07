@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipLink } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn-legacy'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'

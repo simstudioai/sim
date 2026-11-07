@@ -1,6 +1,6 @@
 'use client'
 
-import { ChartFrame } from '@sim/emcn'
+import { ChartFrame } from '@sim/emcn-legacy'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { UsageHeatmap } from '@/ee/organization-usage/components/usage-heatmap'
 import { useOrganizationUsageCalendar } from '@/hooks/queries/organization-usage'

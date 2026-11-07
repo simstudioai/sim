@@ -1,7 +1,7 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { captureClientEvent, captureClientException } from '@/lib/posthog/client'

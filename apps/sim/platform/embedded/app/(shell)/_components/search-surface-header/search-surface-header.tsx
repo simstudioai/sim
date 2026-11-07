@@ -1,8 +1,8 @@
 'use client'
 
-import { Button } from '@/platform/design-system/components/button/button'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { Surface } from '@/platform/design-system/components/surface/surface'
+import { Button } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { Surface } from '@sim/emcn-platform/surface'
 import styles from '@/platform/embedded/app/(shell)/_components/search-surface-header/search-surface-header.module.css'
 import type { OrganizationSearchState } from '@/platform/embedded/lib/data/organization-search'
 

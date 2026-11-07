@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, ChipInput } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Button, ChipInput } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { SelectOption } from '@/lib/table'
 

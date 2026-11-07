@@ -7,12 +7,13 @@
  * Next keeps route CSS loaded after client navigation, so one global rule from an organization page
  * keeps applying on every other page the viewer opens afterwards. Three rules hold that line:
  *
- * - `entry-escape`: `platform/design-system/styles/embedded.css`, compiled through the app's real
- *   PostCSS config, may only contain selectors under `[data-platform-ui]` and `@font-face` faces
+ * - `entry-escape`: `packages/emcn-platform/src/styles/platform.css`, compiled through the app's real
+ *   PostCSS config, may only contain selectors under `[data-platform-ui]` or shared `[data-emcn]` and `@font-face` faces
  *   the host's global stylesheet never names. Any other at-rule fails: `@layer`, `@property`, and
  *   `@keyframes` are all global, and `@theme` or `@import` left over means the pipeline changed.
- * - `module-escape`: every rule in a `platform/**` CSS Module needs a local (hashed) class, and
- *   nothing may opt out through `:global`.
+ * - `module-escape`: every rule in a Platform or shared EMCN CSS Module needs a local (hashed) class, and
+ *   nothing may opt out through `:global`. A top-level `@layer components` block may join the host's
+ *   existing layer; layer-order statements and new layers remain forbidden.
  * - `route-reach`: only routes under `app/o/[organizationId]/` may load the design system. No other
  *   Next entry (`/workspace`, the extension's embedded panel, landing, auth) may reach `platform/`
  *   through any import, static or dynamic. Dynamic counts because Next attaches a dynamically
@@ -28,16 +29,20 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import postcss, { type AcceptedPlugin, type AtRule, type Root } from 'postcss'
+import { emcnPackages, resolveEmcnImport } from './emcn-packages'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const APP = path.join(ROOT, 'apps/sim')
 const PLATFORM = path.join(APP, 'platform')
-const ENTRY = path.join(PLATFORM, 'design-system/styles/embedded.css')
+const PACKAGES = emcnPackages(ROOT)
+const SHARED = path.join(ROOT, 'packages/emcn/src')
+const PLATFORM_COMPONENTS = path.join(ROOT, 'packages/emcn-platform/src')
+const ENTRY = path.join(PLATFORM_COMPONENTS, 'styles/platform.css')
 const HOST_GLOBALS = path.join(APP, 'app/_styles/globals.css')
-const HOST_BRIDGE = path.join(PLATFORM, 'design-system/styles/host-bridge.module.css')
+const HOST_BRIDGE = path.join(PLATFORM_COMPONENTS, 'styles/host-bridge.module.css')
 
 const SCOPED =
-  /^(?::where\(html\.dark\) )?(?:\[data-sim-desktop-title-bar\] )?(?:\[data-platform-ui\]|:where\(\[data-platform-ui\]\))/
+  /^(?::where\(html\.dark\) )?(?:\[data-sim-desktop-title-bar\] )?(?:\[data-(?:platform-ui|emcn)\]|:where\(\[data-(?:platform-ui|emcn)\]\))/
 const GLOBAL_TARGET = /(?:^|[\s>+~(,])(?::root|:host|html|body)(?![\w-])/
 const ENTRY_AT_RULES = new Set(['media', 'container', 'supports', 'font-face'])
 const MODULE_AT_RULES = new Set(['media', 'container', 'supports', 'keyframes'])
@@ -90,15 +95,24 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
   const findings: Finding[] = []
   const root = postcss.parse(css)
   root.walkAtRules((atRule) => {
-    if (!MODULE_AT_RULES.has(atRule.name)) {
+    const componentLayer =
+      atRule.name === 'layer' &&
+      atRule.params === 'components' &&
+      atRule.nodes !== undefined &&
+      atRule.parent === root
+    if (!MODULE_AT_RULES.has(atRule.name) && !componentLayer) {
       findings.push({ rule: 'module-escape', detail: `${file}: @${atRule.name} ${atRule.params}` })
     }
   })
   root.walkRules((rule) => {
     const { parent } = rule
-    if (parent?.type === 'rule' || (parent as AtRule | undefined)?.name === 'keyframes') return
+    const inheritsLocalScope =
+      parent?.type === 'rule' || (parent as AtRule | undefined)?.name === 'keyframes'
     for (const selector of rule.selectors) {
-      if (selector.includes(':global') || !/\.-?[_a-zA-Z]/.test(selector)) {
+      if (
+        selector.includes(':global') ||
+        (!inheritsLocalScope && !/\.-?[_a-zA-Z]/.test(selector))
+      ) {
         findings.push({ rule: 'module-escape', detail: `${file}: ${selector}` })
       }
     }
@@ -177,11 +191,14 @@ function walk(directory: string, pattern: RegExp, files: string[] = []): string[
 }
 
 function resolveSpecifier(specifier: string, from: string): string | null {
-  const base = specifier.startsWith('@/')
-    ? path.join(APP, specifier.slice(2))
-    : specifier.startsWith('.')
-      ? path.resolve(path.dirname(from), specifier)
-      : null
+  const workspace = resolveEmcnImport(PACKAGES, specifier, from)
+  const base =
+    workspace ??
+    (specifier.startsWith('@/')
+      ? path.join(APP, specifier.slice(2))
+      : specifier.startsWith('.')
+        ? path.resolve(path.dirname(from), specifier)
+        : null)
   if (!base) return null
   for (const suffix of RESOLVE_SUFFIXES) {
     const candidate = `${base}${suffix}`
@@ -192,8 +209,12 @@ function resolveSpecifier(specifier: string, from: string): string | null {
 
 /** Walks importers back from `platform/`, so each module is visited once however the graph cycles. */
 function findRouteReach(): Finding[] {
-  const insidePlatform = (file: string) => file.startsWith(`${PLATFORM}${path.sep}`)
-  const files = walk(APP, CODE_FILE).filter((file) => !insidePlatform(file))
+  const insidePlatform = (file: string) =>
+    [PLATFORM, PLATFORM_COMPONENTS].some((directory) => file.startsWith(`${directory}${path.sep}`))
+  const files = [
+    ...walk(APP, CODE_FILE),
+    ...PACKAGES.flatMap((owner) => walk(owner.source, CODE_FILE)),
+  ].filter((file) => !insidePlatform(file))
   const tsTranspiler = new Bun.Transpiler({ loader: 'ts' })
   const tsxTranspiler = new Bun.Transpiler({ loader: 'tsx' })
   const importers = new Map<string, string[]>()
@@ -260,7 +281,9 @@ if (import.meta.main) {
   })
   const findings = findEntryEscapes(entryCss, readFileSync(HOST_GLOBALS, 'utf8'))
 
-  const modules = walk(PLATFORM, CSS_MODULE)
+  const modules = [PLATFORM, SHARED, PLATFORM_COMPONENTS].flatMap((directory) =>
+    walk(directory, CSS_MODULE)
+  )
   for (const file of modules) {
     findings.push(...findModuleEscapes(await compile(file), path.relative(APP, file)))
   }
@@ -268,12 +291,12 @@ if (import.meta.main) {
   findings.push(...findBridgeDrift(entryCss, await compile(HOST_BRIDGE)))
 
   if (findings.length > 0) {
-    console.error(`check:platform-css found ${findings.length} escape(s):`)
-    for (const finding of findings) console.error(`  [${finding.rule}] ${finding.detail}`)
+    process.stderr.write(`check:platform-css found ${findings.length} escape(s):\n`)
+    for (const finding of findings) process.stderr.write(`  [${finding.rule}] ${finding.detail}\n`)
     process.exit(1)
   }
-  console.log(
+  process.stdout.write(
     `check:platform-css ok: ${selectorCount} entry selectors scoped, ${modules.length} CSS Modules ` +
-      'hashed, only organization routes reach platform/, host bridge matches its tokens'
+      'hashed, only organization routes reach platform/, host bridge matches its tokens\n'
   )
 }

@@ -1,8 +1,8 @@
 'use client'
 
 import { Component, type ErrorInfo, memo, type ReactNode } from 'react'
-import { cn } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Loader } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 

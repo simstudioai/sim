@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
@@ -9,7 +11,6 @@ import {
   useEnsureOrganizationAccounts,
   useOrganizationAccounts,
 } from '@/hooks/queries/organization-accounts'
-import { FailureNotice, Modal } from '@/platform/design-system/components'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
 
 interface SlackAccountSetupProps {

@@ -1,5 +1,5 @@
-import { Chip, ChipTextarea, cn } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import { Chip, ChipTextarea, cn } from '@sim/emcn-legacy'
+import { Download } from '@sim/emcn-legacy/icons'
 import type { BenchmarkRun } from '@/lib/api/contracts/benchmarks'
 import { benchmarkModelLabel } from '@/lib/benchmarks/models'
 import { saveBlob } from '@/lib/uploads/client/download'

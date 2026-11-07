@@ -8,7 +8,7 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSessionExpired } from '@/app/extension/providers'

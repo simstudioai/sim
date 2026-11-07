@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { PageContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'

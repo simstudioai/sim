@@ -10,8 +10,8 @@ import {
   Label,
   Skeleton,
   Tooltip,
-} from '@sim/emcn'
-import { Check, Clipboard } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Clipboard } from '@sim/emcn-legacy/icons'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
   AGENT_STREAM_PROTOCOL_V1,

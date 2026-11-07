@@ -10,8 +10,8 @@ import {
   languages,
   Textarea,
   Tooltip,
-} from '@sim/emcn'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import Editor from 'react-simple-code-editor'
 import { isElseConditionTitle } from '@/lib/workflows/conditions'

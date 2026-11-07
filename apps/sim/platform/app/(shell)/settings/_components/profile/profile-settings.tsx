@@ -1,13 +1,13 @@
 'use client'
 
 import { type ChangeEventHandler, useRef, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import { IdentityButton } from '@sim/emcn/identity-button'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
-import { Avatar, Icon, Modal, TextField } from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { toast } from '@/platform/shared/toast'
 
 const NAME_MAX_LENGTH = 100

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Dashboard, Rss, ShieldCheck } from '@sim/emcn/icons'
+import { Dashboard, Rss, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { noop } from '@sim/utils/helpers'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import {

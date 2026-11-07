@@ -11,8 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { Lock, Plus, Sparkles } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Lock, Plus, Sparkles } from '@sim/emcn-legacy/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import {
   type ColumnTypeOption,

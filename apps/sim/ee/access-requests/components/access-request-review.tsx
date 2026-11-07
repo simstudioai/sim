@@ -10,7 +10,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { PolicyChanges } from '@/ee/access-requests/components/policy-changes'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/ee/access-requests/components/status'
 import { useAccessRequestPreview, useResolveAccessRequest } from '@/hooks/queries/access-requests'

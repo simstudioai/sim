@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Code, isTextClipped, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
+import { Code, isTextClipped, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn-legacy'
 import type { CodePreview } from '../types'
 
 const OPEN_DELAY_MS = 300

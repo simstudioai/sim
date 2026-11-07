@@ -1,6 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -18,19 +27,6 @@ import {
   validateSsoProviderForm,
 } from '@/ee/sso/lib/provider-form'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  Button,
-  Checkbox,
-  CopyField,
-  Disclosure,
-  SaveActions,
-  SearchableSelect,
-  SegmentedControl,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   DetailHeader,

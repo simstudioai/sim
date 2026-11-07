@@ -1,7 +1,8 @@
 'use client'
 
+import { BarChart } from '@sim/emcn/chart/charts'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { BarChart, FailureNotice, StatusTag } from '@/platform/design-system/components'
 import type { useUsageOverview } from '@/platform/lib/data/usage'
 
 /** Headline, allowance and the source-stacked credit chart for one window. */

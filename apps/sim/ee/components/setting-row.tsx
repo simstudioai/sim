@@ -1,4 +1,4 @@
-import { Info, Label } from '@sim/emcn'
+import { Info, Label } from '@sim/emcn-legacy'
 
 interface SettingRowProps {
   label: string

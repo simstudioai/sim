@@ -1,8 +1,8 @@
 'use client'
 
 import type { Ref, RefObject } from 'react'
-import { Button } from '@sim/emcn'
-import { ArrowDown } from '@sim/emcn/icons'
+import { Button } from '@sim/emcn-legacy'
+import { ArrowDown } from '@sim/emcn-legacy/icons'
 import {
   type ChatMessage,
   ClientChatMessage,

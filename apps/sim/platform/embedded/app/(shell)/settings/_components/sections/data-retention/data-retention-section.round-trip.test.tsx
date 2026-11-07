@@ -17,7 +17,7 @@ import {
 } from '@/lib/api/contracts/organization'
 import type { PolicyDraft } from '@/ee/data-retention/lib/policy-draft'
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: [], isPending: false }),

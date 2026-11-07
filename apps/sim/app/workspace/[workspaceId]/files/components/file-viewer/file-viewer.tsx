@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Music } from '@sim/emcn/icons'
+import { Music } from '@sim/emcn-legacy/icons'
 import dynamic from 'next/dynamic'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import {

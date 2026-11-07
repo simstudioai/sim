@@ -1,8 +1,8 @@
 'use client'
 
 import { useId } from 'react'
-import { cn } from '@sim/emcn'
-import { Moon, Sun } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Moon, Sun } from '@sim/emcn-legacy/icons'
 import { useTheme } from 'next-themes'
 import { useHydrated } from '@/hooks/use-hydrated'
 

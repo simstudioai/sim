@@ -1,4 +1,4 @@
-import { TypeText } from '@sim/emcn/icons'
+import { TypeText } from '@sim/emcn-legacy/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const stringColumnType: ColumnTypeDefinition = {

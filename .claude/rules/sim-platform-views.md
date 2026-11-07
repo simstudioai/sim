@@ -4,15 +4,15 @@ paths:
   - "apps/sim/platform/embedded/app/(shell)/{settings,people,integrations,links,home}/**"
   - "apps/sim/platform/embedded/lib/**"
   - "apps/sim/platform/shared/**"
-  - "apps/sim/platform/design-system/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
+  - "packages/emcn/src/components/{status,modal,picker,settings-section,search-field,activity-row}/**"
   - "apps/sim/app/o/*/**"
   - "apps/sim/app/o/*/settings/**"
 ---
 
 # Organization Views
 
-The organization views live in `apps/sim/platform/embedded/app/(shell)/` and take everything shared from
-`@/platform/design-system/components`. Each job below has one pattern. A view that differs needs a
+The organization views live in `apps/sim/platform/embedded/app/(shell)/` and take everything shared from the
+EMCN family subpaths (`@sim/emcn/<family>`, `@sim/emcn-platform/<family>`). Each job below has one pattern. A view that differs needs a
 reason written where it differs; "it was already like that" is not one.
 
 | Job | Use | Never |

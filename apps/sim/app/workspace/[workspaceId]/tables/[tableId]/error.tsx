@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components/error'
 

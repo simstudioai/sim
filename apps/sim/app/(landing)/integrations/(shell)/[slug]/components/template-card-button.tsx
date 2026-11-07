@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { useRouter } from 'next/navigation'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { trackLandingCta } from '@/app/(landing)/track-landing-cta'

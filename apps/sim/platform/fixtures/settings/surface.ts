@@ -1,10 +1,10 @@
 import 'server-only'
-import type { PreviewPlan } from '@/platform/design-system/navigation'
 import type { Scenario } from '@/platform/fixtures'
 import { settingsScenarios } from '@/platform/fixtures/settings-data'
 import { shellScenarios } from '@/platform/fixtures/shell-data'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { previewSettingsSections } from '@/platform/lib/data/settings-navigation'
+import type { PreviewPlan } from '@/platform/lib/navigation'
 
 export function settingsSurface(scenario: Scenario, plan: PreviewPlan): PlatformOrganization {
   const { organization } = shellScenarios[scenario]

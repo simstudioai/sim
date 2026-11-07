@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { SectionStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SearchSource } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
 import { SourceRow } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-row'
-import { Button, EmptyState, Icon, SearchField } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface OrganizationSourcesProps {
   sources: SearchSource[]

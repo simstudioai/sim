@@ -1,24 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  ActionMenu,
-  Button,
-  ConfirmDialog,
-  CopyField,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  StatusTag,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   FieldStack,

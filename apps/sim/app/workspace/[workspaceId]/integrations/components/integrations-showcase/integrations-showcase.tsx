@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { getManagedMcpConnectorBgColor } from '@/lib/credential-groups/managed-mcp-connectors'
 import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'

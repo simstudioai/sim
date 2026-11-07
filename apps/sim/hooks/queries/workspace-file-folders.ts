@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'

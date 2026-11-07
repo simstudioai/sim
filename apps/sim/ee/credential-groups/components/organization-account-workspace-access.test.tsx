@@ -27,7 +27,7 @@ const hoisted = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Chip: ({ children, onClick, disabled }: ComponentProps<'button'>) => (
     <button type='button' onClick={onClick} disabled={disabled}>
       {children}
@@ -36,7 +36,7 @@ vi.mock('@sim/emcn', () => ({
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   toast: { error: hoisted.toastError, success: hoisted.toastSuccess },
 }))
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
   SettingsPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))

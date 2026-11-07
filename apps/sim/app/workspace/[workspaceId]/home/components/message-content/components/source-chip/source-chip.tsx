@@ -1,6 +1,6 @@
 'use client'
 
-import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
+import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn-legacy'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'

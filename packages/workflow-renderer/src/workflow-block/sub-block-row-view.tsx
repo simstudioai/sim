@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { CodePreview } from '../types'
 import { InlineChip } from './inline-chip'

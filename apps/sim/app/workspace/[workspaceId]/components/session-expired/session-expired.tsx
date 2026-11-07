@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, cn, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { Chip, cn, useNativeSurfaceOcclusionReady } from '@sim/emcn-legacy'
 import { useSessionExpiry } from '@/lib/auth/session-expiry'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 

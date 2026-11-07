@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isIntegrationUsable } from '@/lib/integrations/access'

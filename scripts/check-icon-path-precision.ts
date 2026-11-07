@@ -19,9 +19,9 @@ import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const EMCN_ICONS_DIRECTORY = path.join(ROOT, 'packages/emcn/src/icons')
+const EMCN_ICONS_DIRECTORY = path.join(ROOT, 'packages/emcn-legacy/src/icons')
 const STATIC_ICON_FILES = [
-  path.join(ROOT, 'apps/docs/components/icons.tsx'),
+  path.join(ROOT, 'apps/docs/components/icons/icons.tsx'),
   path.join(ROOT, 'apps/sim/components/icons.tsx'),
 ]
 const SVG_NUMBER_PATTERN = /[+-]?(?:(?:\d+\.\d*)|(?:\.\d+)|(?:\d+))(?:[eE][+-]?\d+)?/g

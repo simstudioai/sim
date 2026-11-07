@@ -1,4 +1,4 @@
-import { ChipDatePicker, ChipDropdown } from '@sim/emcn'
+import { ChipDatePicker, ChipDropdown } from '@sim/emcn-legacy'
 import { useSearchFilterControls } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-search-filter-controls'
 
 interface SearchFiltersProps {

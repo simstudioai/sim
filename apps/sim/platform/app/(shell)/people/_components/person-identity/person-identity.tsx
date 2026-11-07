@@ -1,5 +1,5 @@
+import { Avatar } from '@sim/emcn/avatar'
 import styles from '@/platform/app/(shell)/people/_components/person-identity/person-identity.module.css'
-import { Avatar } from '@/platform/design-system/components'
 import type { PersonSummary } from '@/platform/shared/people'
 
 interface PersonIdentityProps {

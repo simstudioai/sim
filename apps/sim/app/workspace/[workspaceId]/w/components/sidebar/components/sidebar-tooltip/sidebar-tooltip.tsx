@@ -1,6 +1,6 @@
 'use client'
 
-import { Tooltip } from '@sim/emcn'
+import { Tooltip } from '@sim/emcn-legacy'
 
 interface SidebarTooltipProps {
   children: React.ReactElement

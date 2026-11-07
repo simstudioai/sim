@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import type { Editor } from '@tiptap/react'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components'
 import {

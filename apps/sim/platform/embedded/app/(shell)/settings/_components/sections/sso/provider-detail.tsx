@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { PropertyList } from '@sim/emcn/property-list'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { ssoFormFromProvider, ssoProviderCallbackUrl } from '@/ee/sso/lib/provider-form'
-import { Button, CopyField, PropertyList } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   DetailHeader,
   FieldStack,

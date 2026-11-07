@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   LoadingState,
@@ -14,18 +21,6 @@ import { ProviderDetail } from '@/platform/app/(shell)/settings/_components/sect
 import { ProviderForm } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-form'
 import { RequireSso } from '@/platform/app/(shell)/settings/_components/sections/sso/require-sso'
 import { ScimPanel } from '@/platform/app/(shell)/settings/_components/sections/sso/scim-panel'
-import {
-  ActivityRow,
-  Button,
-  EmptyState,
-  FailureNotice,
-  Modal,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   canMakeProviderPrimary,
   nextSignInProvider,

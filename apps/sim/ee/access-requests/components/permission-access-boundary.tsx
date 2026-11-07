@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { isApiClientError } from '@/lib/api/client/errors'

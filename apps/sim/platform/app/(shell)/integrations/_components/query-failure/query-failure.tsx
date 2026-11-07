@@ -1,4 +1,4 @@
-import { FailureNotice } from '@/platform/design-system/components'
+import { FailureNotice } from '@sim/emcn/status'
 
 interface QueryFailureProps {
   message: string

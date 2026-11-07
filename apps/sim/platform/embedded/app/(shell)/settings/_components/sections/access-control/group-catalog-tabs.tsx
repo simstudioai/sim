@@ -1,6 +1,13 @@
 'use client'
 
 import { useDeferredValue } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isFeatureInertForGroup } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
@@ -18,18 +25,6 @@ import {
   statusFilterOptions,
 } from '@/ee/access-control/lib/editor'
 import type { AccessRequestTarget } from '@/ee/access-requests/lib/targets'
-import {
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  SearchableSelect,
-  SectionSearch,
-  Select,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { ProviderMark } from '@/platform/embedded/app/(shell)/_components/provider-mark/provider-mark'
 import {
   FieldStack,
@@ -61,12 +56,11 @@ function StatusFilterSelect({
   onChange: (value: PermissionStatusFilter) => void
 }) {
   return (
-    <Select
+    <ChoiceMenu
       label='Filter by access'
-      variant='quiet'
       value={value}
       options={statusFilterOptions(value)}
-      onValueChange={onChange}
+      onValueChange={(next) => onChange(next as PermissionStatusFilter)}
     />
   )
 }

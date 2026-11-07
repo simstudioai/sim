@@ -8,8 +8,8 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import {
   buildWorkflowDiffOverlay,
   generateWorkflowDiffSummary,

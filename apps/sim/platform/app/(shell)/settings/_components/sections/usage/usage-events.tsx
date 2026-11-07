@@ -1,8 +1,10 @@
 'use client'
 
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { FailureNotice } from '@sim/emcn/status'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { DataTable, EmptyState, FailureNotice } from '@/platform/design-system/components'
 import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 
 const COLUMNS = [

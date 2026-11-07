@@ -1,12 +1,12 @@
 'use client'
 
 import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { FieldFrame, TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { SIM_LINK_DESCRIPTION_MAX_LENGTH, SIM_LINK_VARIABLE } from '@/lib/sim-links/validation'
-import { Button } from '@/platform/design-system/components/button/button'
-import { Checkbox } from '@/platform/design-system/components/checkbox/checkbox'
-import { FieldFrame, TextField } from '@/platform/design-system/components/field/fields'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
 import { openLinkDocs, useLinkEditor } from '@/platform/embedded/lib/data/links'
 

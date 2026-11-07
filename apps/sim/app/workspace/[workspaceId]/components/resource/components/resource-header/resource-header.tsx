@@ -36,8 +36,8 @@ import {
   PopoverSection,
   useFloatingTooltip,
   useIsOverflowing,
-} from '@sim/emcn'
-import { ArrowUpLeft } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUpLeft } from '@sim/emcn-legacy/icons'
 import { createPortal } from 'react-dom'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
 import { orderHeaderActions, SettingsActionChip } from '@/components/settings/settings-header'

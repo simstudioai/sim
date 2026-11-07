@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { cn, FloatingTooltip, isTextClipped, useFloatingTooltip } from '@sim/emcn'
+import { cn, FloatingTooltip, isTextClipped, useFloatingTooltip } from '@sim/emcn-legacy'
 
 interface HeaderLabelProps {
   label: string

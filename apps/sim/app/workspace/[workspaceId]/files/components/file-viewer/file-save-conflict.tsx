@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 
 interface FileSaveConflictProps {

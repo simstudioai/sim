@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn'
+import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn-legacy'
 import {
   ChevronDown,
   ChevronUp,
@@ -13,7 +13,7 @@ import {
   TagIcon,
   Trash,
   TriangleAlert,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'

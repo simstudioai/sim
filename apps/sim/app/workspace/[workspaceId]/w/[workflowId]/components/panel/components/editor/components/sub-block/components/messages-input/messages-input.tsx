@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@sim/emcn'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
+import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@sim/emcn-legacy'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'

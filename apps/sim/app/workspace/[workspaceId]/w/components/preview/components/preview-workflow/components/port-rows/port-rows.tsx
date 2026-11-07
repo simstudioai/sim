@@ -1,6 +1,6 @@
 'use client'
 
-import { cn, OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn-legacy'
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { Handle, Position } from '@xyflow/react'
 import { getDisplayValue } from '@/lib/workflows/subblocks/display'

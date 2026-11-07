@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   requireWorkspaceCredentialListResponse: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({

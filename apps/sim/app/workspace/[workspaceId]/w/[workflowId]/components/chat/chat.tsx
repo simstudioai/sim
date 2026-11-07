@@ -16,8 +16,16 @@ import {
   Tooltip,
   Trash,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowUp, CircleAlert, Download, MoreVertical, Paperclip, Square, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import {
+  ArrowUp,
+  CircleAlert,
+  Download,
+  MoreVertical,
+  Paperclip,
+  Square,
+  X,
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useShallow } from 'zustand/react/shallow'

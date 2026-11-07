@@ -1,4 +1,4 @@
-import { Avatar } from '@/platform/design-system/components'
+import { Avatar } from '@sim/emcn/avatar'
 import styles from '@/platform/embedded/app/(shell)/people/_components/person-identity/person-identity.module.css'
 import type { PersonSummary } from '@/platform/shared/people'
 

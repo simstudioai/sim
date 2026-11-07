@@ -11,8 +11,8 @@ import {
   Switch,
   Tooltip,
   Trash,
-} from '@sim/emcn'
-import { Circle, Square, Unlock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Circle, Square, Unlock } from '@sim/emcn-legacy/icons'
 import {
   BLOCK_DIMENSIONS,
   CanvasSentenceView,

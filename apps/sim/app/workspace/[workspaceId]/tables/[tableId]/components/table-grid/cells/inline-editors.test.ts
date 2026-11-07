@@ -22,7 +22,7 @@ const { mockToastError, mockUseTimezoneState, mockCalendar } = vi.hoisted(() => 
 }))
 
 vi.mock('@/hooks/queries/general-settings', () => ({ useTimezoneState: mockUseTimezoneState }))
-vi.mock('@sim/emcn', () => {
+vi.mock('@sim/emcn-legacy', () => {
   const passthrough = ({ children }: { children?: ReactNode }) => children ?? null
   return {
     Calendar: mockCalendar,

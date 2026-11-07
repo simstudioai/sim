@@ -1,15 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { Credential } from '@/lib/oauth'
-import {
-  Button,
-  FailureNotice,
-  FieldFrame,
-  InlineNotice,
-  SearchableSelect,
-} from '@/platform/design-system/components'
 import { ActionRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface GitHubConnectionFieldProps {

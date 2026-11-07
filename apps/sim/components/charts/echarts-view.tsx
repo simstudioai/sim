@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EChartsType } from 'echarts'
 import { useTheme } from 'next-themes'

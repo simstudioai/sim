@@ -1,10 +1,9 @@
 import { type ReactNode, Suspense } from 'react'
+import { AuthButton as Chip, AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
 import {
-  AuthButton as Chip,
-  AuthLinkButton as ChipLink,
   AuthResourceRow as SettingsResourceRow,
   AuthSection as SettingsSection,
-} from '@sim/auth-ui'
+} from '@sim/emcn-auth/resource'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -283,7 +282,7 @@ export default async function CredentialGroupEnrollmentPage({
 
       <div className='au:mt-[var(--auth-group-gap)]'>
         <SettingsSection title='Accounts'>
-          <div className='au:space-y-2'>
+          <div className='au:flex au:flex-col au:gap-2'>
             {visibleOptions.map((option) => {
               const ProviderIcon = getCredentialGroupProviderService(option.provider).icon
               const visibleConnections = option.connections.filter(

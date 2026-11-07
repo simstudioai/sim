@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipDropdown, ChipInput } from '@sim/emcn'
-import { Building, Search } from '@sim/emcn/icons'
+import { ChipDropdown, ChipInput } from '@sim/emcn-legacy'
+import { Building, Search } from '@sim/emcn-legacy/icons'
 import {
   MemberRow,
   MemberSection,

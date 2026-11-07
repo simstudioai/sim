@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { FileText } from '@sim/emcn-legacy/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { Favicon } from '@/components/favicon'
 import { GoogleDocsIcon, GoogleSheetsIcon, GoogleSlidesIcon } from '@/components/icons'

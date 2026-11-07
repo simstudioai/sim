@@ -8,7 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { BenchmarkRun } from '@/lib/api/contracts/benchmarks'
 import { BenchmarkResults } from '@/app/o/[organizationId]/benchmark/components/benchmark-results'
 import { useReviewBenchmarkRun } from '@/hooks/queries/benchmarks'

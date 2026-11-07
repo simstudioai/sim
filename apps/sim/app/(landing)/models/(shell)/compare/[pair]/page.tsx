@@ -1,4 +1,4 @@
-import { ChipLink, cn } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'

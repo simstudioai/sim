@@ -1,7 +1,10 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
-import { ActivityRow, EmptyState, Modal, RowList } from '@/platform/design-system/components'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { RowList } from '@sim/emcn/settings-section/row-list'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { GENERIC_SECRETS_SOURCE_TYPE } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets'
 

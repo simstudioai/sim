@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { NavMenuItemData } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FieldDivider, Label, Switch } from '@sim/emcn'
+import { FieldDivider, Label, Switch } from '@sim/emcn-legacy'
 import {
   BLOCK_RETRY_DEFAULT_TRIES,
   BLOCK_RETRY_DEFAULT_WAIT_MS,

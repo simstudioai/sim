@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { LineChart, Loader } from '@sim/emcn'
+import { LineChart, Loader } from '@sim/emcn-legacy'
 import { useParams } from 'next/navigation'
 import {
   DashboardSegmentsContext,

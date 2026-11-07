@@ -1,6 +1,6 @@
 import { memo } from 'react'
-import { cn, handleKeyboardActivation } from '@sim/emcn'
-import { Workflow } from '@sim/emcn/icons'
+import { cn, handleKeyboardActivation } from '@sim/emcn-legacy'
+import { Workflow } from '@sim/emcn-legacy/icons'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { StatusBar, type StatusBarSegment } from '..'

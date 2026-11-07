@@ -1,4 +1,4 @@
-import { cn, SimWordmark } from '@sim/emcn'
+import { cn, SimWordmark } from '@sim/emcn-legacy'
 import { defaultBrandConfig } from '@/lib/branding'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { type BrandConfig, getBrandConfig } from '@/ee/whitelabeling'

@@ -1,0 +1,23 @@
+:global([data-auth-root]) .feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--emcn-space-8);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  color: var(--auth-primary);
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .feedback[data-align="center"] {
+  justify-content: center;
+  text-align: center;
+}
+:global([data-auth-root]) .feedback[data-tone="error"] {
+  color: var(--auth-error);
+}
+:global([data-auth-root]) .feedbackIcon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: var(--emcn-space-16);
+  height: 18px;
+}

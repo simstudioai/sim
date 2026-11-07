@@ -15,7 +15,7 @@ import {
   useState,
 } from 'react'
 import type { OnMount } from '@monaco-editor/react'
-import { cn, toast } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn-legacy'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'

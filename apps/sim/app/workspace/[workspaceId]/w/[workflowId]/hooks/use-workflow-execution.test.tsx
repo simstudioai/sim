@@ -121,7 +121,7 @@ const {
   }
 })
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 

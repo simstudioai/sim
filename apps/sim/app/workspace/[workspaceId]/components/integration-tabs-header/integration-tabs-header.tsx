@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ChipLink, cn } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn-legacy'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'

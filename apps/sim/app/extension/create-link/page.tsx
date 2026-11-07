@@ -1,4 +1,4 @@
-import { ChipLink, StatusPageContent } from '@sim/emcn'
+import { ChipLink, StatusPageContent } from '@sim/emcn-legacy'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'

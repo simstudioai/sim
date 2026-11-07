@@ -6,7 +6,7 @@ import type {
   BrowserImportError,
   BrowserImportProfile,
 } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { ImportModal } from '@/components/browser-import/import-modal'
 import { getDesktopBridge } from '@/lib/desktop'
 import { useBrowserImportProfiles } from '@/hooks/queries/browser-import'

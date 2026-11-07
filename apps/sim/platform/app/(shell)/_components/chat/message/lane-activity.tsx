@@ -1,3 +1,5 @@
+import { Disclosure } from '@sim/emcn/disclosure'
+import { InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
 import { MessageSegments } from '@/platform/app/(shell)/_components/chat/message/message-segments'
 import {
@@ -5,7 +7,6 @@ import {
   ToolInteraction,
 } from '@/platform/app/(shell)/_components/chat/message/tool-activity'
 import type { PlatformLane } from '@/platform/app/(shell)/_components/chat/model'
-import { Disclosure, InlineNotice } from '@/platform/design-system/components'
 
 /** One subagent's work under its own disclosure. A held approval renders outside the collapse. */
 export function LaneActivity({ lane }: { lane: PlatformLane }) {

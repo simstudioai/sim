@@ -12,8 +12,8 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowUpRight, ChevronLeft } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUpRight, ChevronLeft } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import {
   SETTINGS_PLANE_CHROME,

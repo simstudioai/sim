@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { AuthNotification } from '@sim/auth-ui'
+import { AuthNotification } from '@sim/emcn-auth/notification'
 import { useQueryStates } from 'nuqs'
 import {
   credentialGroupEnrollmentStatusParsers,

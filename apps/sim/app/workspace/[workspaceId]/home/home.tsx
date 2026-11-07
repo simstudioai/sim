@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { cn, pageHeadingClassName, toast } from '@sim/emcn'
+import { cn, pageHeadingClassName, toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'

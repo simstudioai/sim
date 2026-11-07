@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import Link from 'next/link'
-import { Button } from '@/platform/design-system/components/button/button'
-import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
-import { ConfirmDialog } from '@/platform/design-system/components/modal/confirm-dialog'
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/connected-credential/connected-credential.module.css'
 import type { IntegrationAccount } from '@/platform/shared/integrations'
 

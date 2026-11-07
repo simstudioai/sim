@@ -1,5 +1,16 @@
 'use client'
 
+import { Button, Chip } from '@sim/emcn/button'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SelectField, TextField } from '@sim/emcn/field'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { Pagination } from '@sim/emcn/pagination'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ADMIN_PAGE_SIZE,
@@ -8,25 +19,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
 import type { AdminUser } from '@/hooks/queries/admin-users'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
-import {
-  ActionMenu,
-  Button,
-  Chip,
-  ConfirmDialog,
-  DataTable,
-  EmptyState,
-  InlineNotice,
-  Pagination,
-  SearchField,
-  SelectField,
-  StatusTag,
-  Switch,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   ActionRow,
   FieldStack,

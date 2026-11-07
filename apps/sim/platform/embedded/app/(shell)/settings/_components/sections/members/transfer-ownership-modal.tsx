@@ -1,7 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Button, InlineNotice, Modal, SearchableSelect } from '@/platform/design-system/components'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { InlineNotice } from '@sim/emcn/status'
 import { useOwnershipTransfer } from '@/platform/embedded/lib/data/members'
 import type { RosterModel } from '@/platform/shared/members'
 

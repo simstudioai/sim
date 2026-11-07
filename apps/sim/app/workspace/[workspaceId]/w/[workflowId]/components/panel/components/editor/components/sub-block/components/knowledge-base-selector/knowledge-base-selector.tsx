@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { useQueries } from '@tanstack/react-query'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'

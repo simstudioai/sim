@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
+import { PageSurface } from '@sim/emcn-platform/surface'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
-import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { PeoplePage as PeopleView } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-page'
 import { PeopleSkeleton } from '@/platform/embedded/app/(shell)/people/_components/people-page/people-skeleton'
 

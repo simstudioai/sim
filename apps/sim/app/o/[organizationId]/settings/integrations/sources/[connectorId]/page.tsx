@@ -1,11 +1,11 @@
 import { Suspense } from 'react'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
-import { LoadingRows } from '@/platform/design-system/components/status/query-boundary'
 import { SourceDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-detail'
 import { SettingsSubpageHost } from '@/platform/embedded/app/(shell)/settings/_components/settings-subpage-host'
 

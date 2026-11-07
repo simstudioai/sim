@@ -1,7 +1,12 @@
 'use client'
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
-import { Duplicate, SquareArrowUpRight } from '@sim/emcn/icons'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@sim/emcn-legacy'
+import { Duplicate, SquareArrowUpRight } from '@sim/emcn-legacy/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean

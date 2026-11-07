@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'

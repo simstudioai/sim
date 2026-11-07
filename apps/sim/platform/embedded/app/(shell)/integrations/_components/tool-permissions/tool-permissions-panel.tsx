@@ -1,9 +1,9 @@
 'use client'
 
+import { QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryStates } from 'nuqs'
 import { integrationViewParsers } from '@/lib/organizations/integrations-search-params'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { QueryBoundary } from '@/platform/design-system/components'
 import { ProviderHeading } from '@/platform/embedded/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import {
   ToolPermissions,

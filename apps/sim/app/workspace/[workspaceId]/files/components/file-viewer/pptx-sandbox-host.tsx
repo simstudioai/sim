@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { bindPreviewWheelZoom } from '@sim/emcn'
+import { bindPreviewWheelZoom } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { openSimPptxViewer, type SimPptxViewerHandle } from '@/lib/pptx-renderer/sim-pptx-viewer'

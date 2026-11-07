@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Icon } from '@sim/emcn/icon'
 import { Favicon } from '@/components/favicon'
-import { Icon } from '@/platform/design-system/components/icon/icon'
 import styles from '@/platform/embedded/app/(shell)/_components/site-mark/site-mark.module.css'
 
 interface SiteMarkProps {

@@ -11,8 +11,8 @@ import {
   Input,
   Label,
   Trash,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { generateId } from '@sim/utils/id'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'

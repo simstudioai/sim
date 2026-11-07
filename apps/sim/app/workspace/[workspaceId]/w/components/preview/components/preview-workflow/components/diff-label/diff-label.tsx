@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { BlockDiffStatus } from '@/lib/workflows/comparison'
 
 /** The word for each comparison status, shared by the canvas label and the change list badge. */

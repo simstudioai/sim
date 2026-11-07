@@ -1,3 +1,3 @@
 'use client'
 
-export { OverflowText as FloatingOverflowText } from '@sim/emcn'
+export { OverflowText as FloatingOverflowText } from '@sim/emcn-legacy'

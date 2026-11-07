@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { ChevronDown, cn, handleKeyboardActivation } from '@sim/emcn'
+import { ChevronDown, cn, handleKeyboardActivation } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import {

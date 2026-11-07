@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuItemLabel,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import type { WorkflowTestDetail } from '@/lib/api/contracts/workflow-tests'
 import { testRunSelectionKey, useTestRunSelectionStore } from '@/stores/workflow-tests/store'

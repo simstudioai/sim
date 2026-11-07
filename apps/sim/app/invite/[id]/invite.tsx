@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AuthIdentity, AuthStack } from '@sim/auth-ui'
+import { AuthIdentity } from '@sim/emcn-auth/identity'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'

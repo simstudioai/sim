@@ -1,0 +1,59 @@
+:global([data-auth-root]) .loader {
+  display: inline-block;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+:global([data-auth-root]) .spinning {
+  animation: spin var(--emcn-motion-spinner) linear infinite;
+}
+@layer components {
+  :global([data-auth-root]) .loader {
+    width: var(--emcn-space-16);
+    height: var(--emcn-space-16);
+  }
+  :global([data-auth-root]) .skeleton {
+    height: var(--auth-touch-height);
+    border-radius: var(--emcn-space-8);
+  }
+  :global([data-auth-root]) .skeleton[data-shape="title"] {
+    height: var(--emcn-space-32);
+  }
+  :global([data-auth-root]) .skeleton[data-shape="label"] {
+    height: 18px;
+    border-radius: var(--emcn-space-4);
+  }
+  :global([data-auth-root]) .skeleton[data-shape="divider"] {
+    height: var(--emcn-space-1);
+    border-radius: 0;
+  }
+}
+:global([data-auth-root]) .skeleton {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  animation: pulse var(--emcn-motion-pulse) ease-in-out infinite;
+}
+:global([data-auth-root]) .skeleton::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--auth-hover);
+}
+:global([data-auth-root]) .skeleton[data-shape="control"]::before {
+  height: var(--auth-control-height);
+  max-height: 100%;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}

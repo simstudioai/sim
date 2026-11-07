@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { buildIndexMetadata } from '@/lib/content/seo'
 import { CUSTOMER_SECTION, CUSTOMER_STORIES } from '@/lib/customers/data'

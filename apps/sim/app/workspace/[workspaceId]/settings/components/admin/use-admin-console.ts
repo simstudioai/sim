@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+import { ChipConfirmModal, toast } from '@sim/emcn-legacy'
+import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'

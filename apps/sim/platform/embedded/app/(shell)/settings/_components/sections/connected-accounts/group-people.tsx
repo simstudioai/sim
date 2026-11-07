@@ -1,6 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { personConnectionSummaries } from '@/ee/credential-groups/person-connections'
@@ -11,24 +21,6 @@ import {
 } from '@/hooks/queries/organization-accounts'
 import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
-import {
-  ActionMenu,
-  Avatar,
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  errorMessageOr,
-  FailureNotice,
-  InlineNotice,
-  QueryBoundary,
-  SectionSearch,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   Muted,

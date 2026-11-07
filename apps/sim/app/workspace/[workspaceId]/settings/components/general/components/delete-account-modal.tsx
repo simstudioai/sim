@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipModalError, ChipModalField } from '@sim/emcn'
+import { ChipConfirmModal, ChipModalError, ChipModalField } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'

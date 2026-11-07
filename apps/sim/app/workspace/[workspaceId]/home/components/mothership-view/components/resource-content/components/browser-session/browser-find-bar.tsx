@@ -2,8 +2,8 @@
 
 import { type RefObject, useCallback, useEffect, useState } from 'react'
 import type { BrowserFindResult } from '@sim/browser-protocol'
-import { Button, ChipInput } from '@sim/emcn'
-import { ArrowDown, ArrowUp, Search, X } from '@sim/emcn/icons'
+import { Button, ChipInput } from '@sim/emcn-legacy'
+import { ArrowDown, ArrowUp, Search, X } from '@sim/emcn-legacy/icons'
 import {
   findInBrowserPage,
   onBrowserFindResult,

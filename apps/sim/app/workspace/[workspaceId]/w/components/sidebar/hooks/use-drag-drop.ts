@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { noop } from '@sim/utils/helpers'
 import { useParams } from 'next/navigation'

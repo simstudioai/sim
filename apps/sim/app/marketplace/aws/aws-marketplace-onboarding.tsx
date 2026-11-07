@@ -1,14 +1,12 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import {
-  AuthField,
-  AuthFormMessage,
-  AuthInput,
-  AuthSelect,
-  AuthTag,
-  AuthTextLink,
-} from '@sim/auth-ui'
+import { AuthFormMessage } from '@sim/emcn-auth/feedback'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthInput } from '@sim/emcn-auth/input'
+import { AuthSelect } from '@sim/emcn-auth/select'
+import { AuthTag } from '@sim/emcn-auth/tag'
+import { AuthTextLink } from '@sim/emcn-auth/text-link'
 import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
@@ -455,7 +453,6 @@ function ClaimCard({
                   value={organizationId}
                   onChange={setOrganizationId}
                   placeholder='Select an organization'
-                  fullWidth
                 />
               </AuthField>
             )}

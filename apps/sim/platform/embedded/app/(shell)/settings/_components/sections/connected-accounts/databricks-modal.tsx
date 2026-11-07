@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Modal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import {
@@ -8,13 +13,6 @@ import {
   useConfigureOrganizationMcp,
   useOrganizationDatabricksSetup,
 } from '@/hooks/queries/organization-accounts'
-import {
-  InlineNotice,
-  LoadingRows,
-  Modal,
-  SecretField,
-  TextField,
-} from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { toast } from '@/platform/shared/toast'
 

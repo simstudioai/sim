@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Combobox } from '@sim/emcn'
+import { Combobox } from '@sim/emcn-legacy'
 import {
   createMcpToolOutputSnapshot,
   MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK,

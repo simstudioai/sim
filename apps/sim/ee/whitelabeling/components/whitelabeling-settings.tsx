@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput, cn, Label, toast, UploadPreviewButton } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Button, ChipInput, cn, Label, toast, UploadPreviewButton } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'

@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import { FailureNotice, ScrollArea } from '@/platform/design-system/components'
 import { useUsageCalendar } from '@/platform/lib/data/usage'
 import { layoutUsageCalendar, type UsageCalendarDay } from '@/platform/shared/usage'
 

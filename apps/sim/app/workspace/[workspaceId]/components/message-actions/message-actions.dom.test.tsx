@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 

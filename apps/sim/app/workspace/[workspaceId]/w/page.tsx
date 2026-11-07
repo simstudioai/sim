@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'

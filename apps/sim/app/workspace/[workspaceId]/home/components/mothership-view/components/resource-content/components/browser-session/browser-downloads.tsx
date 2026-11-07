@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { CircleAlert, CircleCheck, Download, File, Loader } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { CircleAlert, CircleCheck, Download, File, Loader } from '@sim/emcn-legacy/icons'
 import {
   loadBrowserDownloads,
   onBrowserDownloadsState,

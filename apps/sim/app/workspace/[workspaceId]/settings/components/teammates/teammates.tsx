@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { ChipDropdown, Plus, toast } from '@sim/emcn'
+import { ChipDropdown, Plus, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'

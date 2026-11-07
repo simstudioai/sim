@@ -1,5 +1,10 @@
 'use client'
 
+import { Chip } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import type { ResourceScope } from '@/lib/core/resource-scope'
@@ -10,11 +15,6 @@ import {
   liveSearchResultsKey,
   toSource,
 } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
-import { Chip } from '@/platform/design-system/components/button/button'
-import { EmptyState } from '@/platform/design-system/components/empty-state/empty-state'
-import { DateRangePicker } from '@/platform/design-system/components/picker/date-picker'
-import { Select } from '@/platform/design-system/components/picker/select'
-import { FailureNotice, InlineNotice } from '@/platform/design-system/components/status/status'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/embedded/app/(shell)/_components/search/source-row'
 
@@ -23,8 +23,7 @@ function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] 
   return (
     <div className={styles.filters} role='group' aria-label='Search filters'>
       <div className={styles.filter}>
-        <Select
-          variant='quiet'
+        <ChoiceMenu
           label={source.label}
           value={source.value}
           options={source.options}
@@ -32,8 +31,7 @@ function SearchFilterControls({ sourceTypes }: { sourceTypes: readonly string[] 
         />
       </div>
       <div className={styles.filter}>
-        <Select
-          variant='quiet'
+        <ChoiceMenu
           label={updated.label}
           value={updated.value}
           options={updated.options}

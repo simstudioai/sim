@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthEmailInput, AuthField } from '@sim/auth-ui'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthEmailInput } from '@sim/emcn-auth/input'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -64,7 +65,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           e.preventDefault()
           handleAuthenticate()
         }}
-        className='au:space-y-[var(--auth-group-gap)]'
+        className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'
       >
         <AuthField htmlFor='email' label='Work email' errors={error ? [error] : undefined}>
           <AuthEmailInput

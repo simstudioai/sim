@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, OverflowText, Tooltip } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { Button, cn, OverflowText, Tooltip } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
 import {

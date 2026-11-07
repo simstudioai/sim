@@ -1,3 +1,4 @@
+import { PageSurface } from '@sim/emcn-platform/surface'
 import { HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -5,7 +6,6 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { loadSimLinksListView } from '@/lib/sim-links/search-params'
 import { requireOrganizationViewer } from '@/app/o/[organizationId]/viewer'
-import { PageSurface } from '@/platform/design-system/components/surface/surface'
 import { LinksPage } from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page'
 import { prefetchSimLinks } from '@/platform/embedded/lib/data/prefetch'
 

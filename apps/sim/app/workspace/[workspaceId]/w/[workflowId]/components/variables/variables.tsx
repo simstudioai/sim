@@ -14,8 +14,8 @@ import {
   Input,
   Label,
   languages,
-} from '@sim/emcn'
-import { Plus, Trash, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus, Trash, X } from '@sim/emcn-legacy/icons'
 import Editor from 'react-simple-code-editor'
 import { useShallow } from 'zustand/react/shallow'
 import { validateName } from '@/lib/core/utils/validation'

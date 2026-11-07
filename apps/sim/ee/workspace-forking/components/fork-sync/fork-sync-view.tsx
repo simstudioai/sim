@@ -22,7 +22,7 @@ import {
   Label,
   OverflowText,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,

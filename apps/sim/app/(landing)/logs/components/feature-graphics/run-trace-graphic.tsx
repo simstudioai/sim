@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { Check, ChevronDown, ChevronRight, Search } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Check, ChevronDown, ChevronRight, Search } from '@sim/emcn-legacy/icons'
 import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
 import { LogsRunGraph } from '@/app/(landing)/components/shared/logs-run-graph'
 import {

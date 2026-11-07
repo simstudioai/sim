@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions.module.css'
 import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
-import { EmptyState, SearchField, SegmentedControl } from '@/platform/design-system/components'
-import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
 import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/fixture-model'
 
 type Permissions = NonNullable<IntegrationAccount['permissions']>

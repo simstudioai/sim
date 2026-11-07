@@ -1,7 +1,7 @@
 'use client'
 
-import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
+import { CommandPalette } from '@sim/emcn/command-palette'
+import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import type { ShellChat, ShellWorkspace } from '@/platform/embedded/lib/data/shell-view'
 import type { ShellDestination } from '@/platform/shared/shell'
 import { useSearchModalStore } from '@/stores/modals/search/store'

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import { HeroPlatformLoopMount } from '@/app/(landing)/components/hero/components/hero-platform-loop'
 import { HERO_ARTWORK } from '@/app/(landing)/components/hero/components/hero-platform-stage/hero-artwork.generated'

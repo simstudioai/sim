@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react'
 import type { BrowserContinueSignInError, BrowserImportProfile } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { IMPORT_ERROR_MESSAGES } from '@/components/browser-import/browser-import-dialog'
 import {
   continuablePage,

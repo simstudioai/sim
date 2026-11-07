@@ -1,0 +1,77 @@
+:global([data-auth-root]) .page {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--auth-canvas);
+}
+:global([data-auth-root]) .header {
+  width: 100%;
+  flex-shrink: 0;
+  height: var(--emcn-space-56);
+}
+:global([data-auth-root]) .nav {
+  margin-inline: auto;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--auth-nav-width);
+  padding-inline: var(--emcn-space-16);
+}
+:global([data-auth-root]) .wordmark {
+  display: inline-flex;
+  align-items: center;
+  width: var(--emcn-space-40);
+  min-height: var(--emcn-space-44);
+}
+:global([data-auth-root]) .wordmark :where(svg, img) {
+  display: block;
+  translate: 0 -2px;
+  color: #000;
+  width: var(--emcn-space-40);
+  max-height: 24px;
+  object-fit: contain;
+}
+:global([data-auth-root]) .main {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: var(--emcn-space-48) var(--emcn-space-24);
+}
+:global([data-auth-root]) .column {
+  width: 100%;
+  flex-shrink: 0;
+  max-width: var(--auth-form-width);
+  min-width: 0;
+}
+:global([data-auth-root]) .footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0 var(--emcn-space-16) var(--emcn-space-24);
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}
+:global([data-auth-root]) .footer :global([data-auth-text-link]) {
+  color: var(--auth-primary);
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .main {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    padding: var(--emcn-space-24) var(--emcn-space-16) 0;
+  }
+  :global([data-auth-root]) .footer {
+    padding: 11px var(--emcn-space-16) var(--emcn-space-40);
+  }
+  :global([data-auth-root]) .footer :global([data-auth-text-link]) {
+    color: var(--auth-secondary);
+  }
+  :global([data-auth-root]) .page:not(:has(.footer)) .main {
+    padding-bottom: var(--emcn-space-40);
+  }
+}

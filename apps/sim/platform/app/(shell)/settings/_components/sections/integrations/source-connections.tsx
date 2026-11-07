@@ -1,6 +1,19 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Icon } from '@sim/emcn/icon'
+import { Modal } from '@sim/emcn/modal'
+import { Select } from '@sim/emcn/picker/select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import {
@@ -15,24 +28,6 @@ import type {
   SourceConnection,
   SourceSettingsData,
 } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
-import {
-  ActivityRow,
-  Button,
-  Disclosure,
-  EmptyState,
-  FileField,
-  Icon,
-  Modal,
-  SearchField,
-  SecretField,
-  SegmentedControl,
-  Select,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 interface SharedProps {
@@ -339,7 +334,8 @@ export function ConnectionDetails({ source, connection, href, update }: DetailsP
         </SettingsRow>
         <SettingsRow label='Remove connection'>
           <Button
-            variant='destructive'
+            variant='quiet'
+            destructive
             size='compact'
             disabled={changed}
             onClick={() => setRemoving(true)}

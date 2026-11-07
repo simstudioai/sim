@@ -1,16 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { AuthorizedApps } from '@/platform/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/app/(shell)/settings/_components/sections/account/delete-account'
 import { OrganizationAccounts } from '@/platform/app/(shell)/settings/_components/sections/account/organization-accounts'
-import { Button, Modal } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { useAccountEmail, useResetPasswordAction } from '@/platform/shared/account'
@@ -119,7 +117,8 @@ function SignedInRows({
         description='Permanently delete your account and everything it owns'
       >
         <Button
-          variant='destructive'
+          variant='quiet'
+          destructive
           size='compact'
           disabled={!email}
           onClick={() => setDialog('delete')}

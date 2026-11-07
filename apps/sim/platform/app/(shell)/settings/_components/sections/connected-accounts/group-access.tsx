@@ -1,6 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { parseAsString, useQueryState } from 'nuqs'
 import {
   FieldStack,
@@ -10,18 +17,6 @@ import type {
   CredentialGroupsData,
   WorkspaceGrant,
 } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import {
-  Button,
-  EmptyState,
-  Modal,
-  MultiSelect,
-  SearchableSelect,
-  SearchField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface GroupAccessProps {
   data: CredentialGroupsData

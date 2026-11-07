@@ -2,8 +2,8 @@
 
 import { type ReactNode, useId, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
-import { Check } from '@sim/emcn/icons'
+import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn-legacy'
+import { Check } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import {
   CONTACT_TOPIC_OPTIONS,

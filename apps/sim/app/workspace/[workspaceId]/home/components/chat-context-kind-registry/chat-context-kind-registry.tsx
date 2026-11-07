@@ -10,7 +10,7 @@ import {
   TerminalWindow,
   Workflow,
   Workspaces,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'

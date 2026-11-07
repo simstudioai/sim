@@ -1,6 +1,6 @@
 'use client'
 
-import { SearchableSelect } from '@/platform/design-system/components'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 
 interface ContentCredentialFieldProps {
   credentialId: string | null

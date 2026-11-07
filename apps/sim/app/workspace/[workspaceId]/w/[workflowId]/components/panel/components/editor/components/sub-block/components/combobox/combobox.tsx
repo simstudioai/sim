@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Combobox, type ComboboxOption, cn } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { useReactFlow } from '@xyflow/react'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { SelectorKey } from '@/lib/selectors/manifest'

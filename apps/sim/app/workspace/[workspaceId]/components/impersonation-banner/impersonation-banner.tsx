@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Banner } from '@sim/emcn'
+import { Banner } from '@sim/emcn-legacy'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'

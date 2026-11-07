@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
@@ -8,14 +14,6 @@ import {
   type OrganizationAccountProviderChoice,
   organizationAccountCatalogEntries,
 } from '@/ee/credential-groups/provider-rows'
-import {
-  Button,
-  EmptyState,
-  InlineNotice,
-  Modal,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 
 interface ProviderCatalogModalProps {

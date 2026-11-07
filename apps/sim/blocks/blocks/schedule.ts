@@ -1,4 +1,4 @@
-import { Clock } from '@sim/emcn/icons'
+import { Clock } from '@sim/emcn-legacy/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ScheduleBlock: BlockConfig = {

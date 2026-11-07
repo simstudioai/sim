@@ -3,7 +3,7 @@ import { DOCS_REDIRECTS } from '@/lib/redirects'
 
 const config: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@sim/emcn', '@sim/workflow-renderer'],
+  transpilePackages: ['@sim/emcn', '@sim/emcn-docs', '@sim/emcn-legacy', '@sim/workflow-renderer'],
   images: {
     deviceSizes: [384, 640, 828, 1080, 1440, 1920, 2560],
     imageSizes: [32, 48, 64, 96, 128, 256],

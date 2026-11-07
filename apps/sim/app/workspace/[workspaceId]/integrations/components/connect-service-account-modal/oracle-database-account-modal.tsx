@@ -10,7 +10,7 @@ import {
   ChipModalHeader,
   ChipTextarea,
   SecretInput,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   resourceScopeFields,

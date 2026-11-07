@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'

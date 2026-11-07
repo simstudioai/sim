@@ -1,12 +1,14 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { FileField } from '@sim/emcn/field/file-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { saveFile } from '@/lib/core/utils/save-file'
 import {
   GITLAB_CSV_FILES,
   GITLAB_TOKEN_TABS,
 } from '@/connectors/gitlab/permission-config/csv-files'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
-import { Button, FileField, SegmentedControl } from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface GitLabFieldsProps {

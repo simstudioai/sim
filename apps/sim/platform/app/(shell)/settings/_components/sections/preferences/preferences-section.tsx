@@ -1,5 +1,9 @@
 'use client'
 
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   ProfileForm,
@@ -10,10 +14,8 @@ import {
   SavedSettingsSection,
 } from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { FailureNotice, SearchableSelect, Select } from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
-import { readAppearance } from '@/platform/design-system/navigation'
 import { useAppearanceSettings, useSnapToGridSetting } from '@/platform/lib/data/preferences'
+import { readAppearance } from '@/platform/lib/navigation'
 import { useProfileSettings } from '@/platform/shared/preferences'
 
 const THEMES = [
@@ -53,10 +55,9 @@ function Preferences({ fixture }: PreferencesSectionProps) {
   const snap = useSnapToGridSetting()
   return (
     <SavedSettingsSection title='Preferences' rows={7}>
-      <SettingsRow label='Theme' description='Select your preferred color theme' field>
-        <Select
+      <SettingsRow label='Theme' description='Select your preferred color theme'>
+        <ChoiceMenu
           label='Theme'
-          variant='quiet'
           options={THEMES}
           value={fixture ? readAppearance(search.get('theme')) : appearance.theme}
           onValueChange={(value) => {
@@ -67,8 +68,9 @@ function Preferences({ fixture }: PreferencesSectionProps) {
           }}
         />
       </SettingsRow>
-      <SettingsRow label='Time zone' description='Used for dates and schedules you read' field>
+      <SettingsRow label='Time zone' description='Used for dates and schedules you read'>
         <SearchableSelect
+          variant='text'
           label='Time zone'
           labelHidden
           searchLabel='Search time zones'
@@ -95,10 +97,9 @@ function Preferences({ fixture }: PreferencesSectionProps) {
         description='Show error popups on blocks when a workflow run fails'
         preview='canvas-error-notification'
       />
-      <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them' field>
-        <Select
+      <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them'>
+        <ChoiceMenu
           label='Snap to grid'
-          variant='quiet'
           options={snap.options}
           value={snap.value}
           disabled={snap.disabled}

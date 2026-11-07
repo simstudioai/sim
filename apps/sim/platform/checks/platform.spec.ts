@@ -1,6 +1,6 @@
 import { expect, type Locator, test } from '@playwright/test'
+import evidence from '@sim/emcn-platform/catalog/evidence.json'
 import { load } from 'cheerio'
-import evidence from '@/platform/design-system/catalog/evidence.json'
 
 const enabled = `${process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'}/workbench`
 const catalog = process.env.PLATFORM_E2E_ORIGIN ? enabled : 'http://127.0.0.1:3180/workbench'

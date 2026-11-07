@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useRef } from 'react'
-import { ChipModal, ChipModalHeader } from '@sim/emcn'
+import { ChipModal, ChipModalHeader } from '@sim/emcn-legacy'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
 import {
   useConversationGate,

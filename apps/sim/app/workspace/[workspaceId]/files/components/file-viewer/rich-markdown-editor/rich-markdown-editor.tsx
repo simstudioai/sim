@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, cn, toast } from '@sim/emcn'
+import { Chip, cn, toast } from '@sim/emcn-legacy'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS, utf8ByteLength } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
@@ -88,7 +88,7 @@ import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import type { ChatContext } from '@/stores/panel'
-import '@sim/emcn/components/code/code.css'
+import '@sim/emcn-legacy/components/code/code.css'
 import '@/app/workspace/[workspaceId]/files/components/file-viewer/document-table.css'
 import '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
 

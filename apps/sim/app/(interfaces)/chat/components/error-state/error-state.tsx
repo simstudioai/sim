@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, StatusPageContent } from '@sim/emcn'
+import { Button, StatusPageContent } from '@sim/emcn-legacy'
 import { useRouter } from 'next/navigation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 

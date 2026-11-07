@@ -50,7 +50,7 @@ Decide what a cell literally holds in `user_table_rows.data` (JSONB). This drive
 
 ## Step 2: Add the icon
 
-Create `packages/emcn/src/icons/type-{name}.tsx`, copying the geometry conventions of its siblings exactly:
+Create `packages/emcn-legacy/src/icons/type-{name}.tsx`, copying the geometry conventions of its siblings exactly:
 
 ```tsx
 import type { SVGProps } from 'react'
@@ -82,7 +82,7 @@ export function Type{Pascal}(props: SVGProps<SVGSVGElement>) {
 
 - `viewBox='-1.75 -1.5 24 24'` is the **`type-*` family** value, not the set-wide default. Match the family.
 - Center the glyph on the viewBox's optical center (**y = 10.5**, **x = 10.25**) — every sibling does, and a few tenths off is visible at `size-[14px]`.
-- Export alphabetically **by component name** in `packages/emcn/src/icons/index.ts`.
+- Export alphabetically **by component name** in `packages/emcn-legacy/src/icons/index.ts`.
 
 ## Step 3: Write the type file
 
@@ -118,7 +118,7 @@ Prefer set-based SQL. When the transform genuinely needs JS (`currency`'s separa
 
 - **Import cycles.** `column-types/select.ts` imports `lib/table/select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
 - **The client-safe boundary.** `registry.ts` and everything it imports must stay free of `@sim/db`, `drizzle-orm`, and `next/server` — the tables grid imports it directly. A React icon is fine (it's a component *reference*, never called server-side). Only `registry.server.ts` may touch drizzle.
-- **Don't re-export the registry from `@/lib/table`.** Dozens of server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
+- **Don't re-export the registry from `@/lib/table`.** Dozens of server modules import that barrel; routing this through it pulls `@sim/emcn-legacy/icons` into all of them. Deep-import `@/lib/table/column-types`.
 - **`import.ts`'s `coerceValue` is a SECOND write path and is not opt-in.** Importing into a column of your type always hits it, and its `default` arm silently `String(value)`s — so a missing `case` stores text in a column whose `jsonbCast` is numeric, and then every filter and sort on that column errors in Postgres. Add a `case`, even though the switch compiles without one. (It is deliberately separate from the registry's `coerce`: an import wants an unparseable value to survive as its raw string so the row error can name it.)
 - **CSV inference** is an ordered heuristic in `import.ts`, deliberately not registry-driven. A new type is not inferred from a CSV unless you extend `inferColumnType` — usually you should not, since inference cannot supply configuration (an option set, a currency code).
 

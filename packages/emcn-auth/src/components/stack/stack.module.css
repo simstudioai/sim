@@ -1,0 +1,16 @@
+:global([data-auth-root]) .stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--auth-group-gap);
+}
+:global([data-auth-root]) .stack[data-gap="actions"] {
+  gap: var(--emcn-space-8);
+}
+:global([data-auth-root]) .providers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--emcn-space-8);
+}
+:global([data-auth-root]) .providers > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}

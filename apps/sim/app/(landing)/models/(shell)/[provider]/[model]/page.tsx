@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { ChipLink, cn } from '@sim/emcn'
+import { ChipLink, cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SITE_URL } from '@/lib/core/utils/urls'

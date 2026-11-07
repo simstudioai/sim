@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Chip, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
-import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Chip, Combobox, type ComboboxOptionGroup } from '@sim/emcn-legacy'
+import { Key, SquareArrowUpRight } from '@sim/emcn-legacy/icons'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,

@@ -9,14 +9,14 @@ const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
   searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ...emcnMock,
   Button: ({ children }: { children?: React.ReactNode }) => (
     <button type='button'>{children}</button>
   ),
 }))
 
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',

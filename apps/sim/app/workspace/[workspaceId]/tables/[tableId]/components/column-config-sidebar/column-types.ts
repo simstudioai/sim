@@ -1,5 +1,5 @@
 import type React from 'react'
-import { PlayOutline } from '@sim/emcn/icons'
+import { PlayOutline } from '@sim/emcn-legacy/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { ALL_COLUMN_TYPES, wouldExceedColumnTypeLimit } from '@/lib/table/column-types'
 

@@ -1,9 +1,9 @@
 'use client'
 
-import { ChevronRight, Download } from '@sim/emcn/icons'
-import { cn } from '@/components/docs/classnames'
-import { DocsButton } from '@/components/docs/primitives'
-import { CopyButton } from '@/components/ui/copy-button'
+import { cn } from '@sim/emcn/lib/cn'
+import { DocsButton } from '@sim/emcn-docs/button'
+import { CopyButton } from '@sim/emcn-docs/copy-button'
+import { ChevronRight, Download } from '@sim/emcn-legacy/icons'
 import { DocsBlockTile } from '@/components/workflow-preview/docs-block-tile'
 import { decodeOutputValues, type OutputNode } from '@/lib/content/output'
 
@@ -35,7 +35,7 @@ function TreeNode({ node }: TreeNodeProps) {
     >
       <summary
         className={cn(
-          'flex min-h-7 cursor-pointer list-none items-center gap-2 rounded-md px-1 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] [&::-webkit-details-marker]:hidden',
+          'flex min-h-7 cursor-pointer list-none items-center gap-2 rounded-md px-1 text-docs-control hover:bg-[var(--docs-hover)] [&::-webkit-details-marker]:hidden',
           node.highlight && 'text-[var(--docs-link)]'
         )}
       >

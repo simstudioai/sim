@@ -10,7 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { EChartsView } from '@/components/charts/echarts-view'
 import { TimeSeriesChart } from '@/components/charts/time-series-chart'
 import { useDashboardInteractions } from '@/components/dashboards/dashboard-interactions'

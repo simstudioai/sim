@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, IconButton } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import {
@@ -10,17 +15,6 @@ import {
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SourceSettingsData } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
-import {
-  Button,
-  EmptyState,
-  IconButton,
-  SecretField,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 interface SecretSettingsProps {

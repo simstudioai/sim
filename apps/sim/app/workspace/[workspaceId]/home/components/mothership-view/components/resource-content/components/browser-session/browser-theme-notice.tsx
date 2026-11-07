@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { BrowserNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-notice'
 

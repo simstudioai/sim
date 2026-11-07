@@ -11,7 +11,7 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowUp,
@@ -24,7 +24,7 @@ import {
   Search,
   Trash,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
 import {

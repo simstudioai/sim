@@ -1,6 +1,6 @@
 'use client'
 
-import { cn, Lightbox } from '@sim/emcn'
+import { cn, Lightbox } from '@sim/emcn-legacy'
 import NextImage from 'next/image'
 
 interface ContentImageProps {

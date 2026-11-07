@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, ComposerActionButton, cn } from '@sim/emcn'
-import { ArrowUp, Search } from '@sim/emcn/icons'
+import { Chip, ComposerActionButton, cn } from '@sim/emcn-legacy'
+import { ArrowUp, Search } from '@sim/emcn-legacy/icons'
 import { GithubIcon, GmailIcon, GoogleDriveIcon, SlackIcon } from '@/components/icons'
 import {
   LANDING_STAGE_RADIUS,

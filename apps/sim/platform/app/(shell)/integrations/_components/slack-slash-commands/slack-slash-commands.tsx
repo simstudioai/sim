@@ -1,6 +1,7 @@
+import { Button, IconButton } from '@sim/emcn/button'
+import { FieldFrame, TextField } from '@sim/emcn/field'
 import { generateId } from '@sim/utils/id'
 import styles from '@/platform/app/(shell)/integrations/_components/slack-slash-commands/slack-slash-commands.module.css'
-import { Button, FieldFrame, IconButton, TextField } from '@/platform/design-system/components'
 
 export interface SlackCommandDraft {
   id: string

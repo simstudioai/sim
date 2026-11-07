@@ -1,4 +1,4 @@
-import { ClipboardList, Table } from '@sim/emcn/icons'
+import { ClipboardList, Table } from '@sim/emcn-legacy/icons'
 import { CirclebackIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'

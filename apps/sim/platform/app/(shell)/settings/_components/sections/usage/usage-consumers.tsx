@@ -1,17 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import {
-  ActionMenu,
-  Avatar,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  OverflowText,
-  TableLabel,
-} from '@/platform/design-system/components'
 import type {
   OrganizationUsageBreakdown,
   UsageBreakdownDimension,

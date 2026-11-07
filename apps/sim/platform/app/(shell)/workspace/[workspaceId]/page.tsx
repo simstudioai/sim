@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 export default async function WorkspacePage({

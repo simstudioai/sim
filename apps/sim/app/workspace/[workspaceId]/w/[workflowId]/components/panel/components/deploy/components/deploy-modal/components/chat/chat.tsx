@@ -15,8 +15,8 @@ import {
   Switch,
   Textarea,
   Tooltip,
-} from '@sim/emcn'
-import { Check, TriangleAlert } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, TriangleAlert } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GeneratedPasswordInput } from '@/components/ui'

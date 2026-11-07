@@ -1,7 +1,7 @@
-import { platformHref } from '@/platform/design-system/navigation'
 import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
+import { platformHref } from '@/platform/lib/navigation'
 
 export type AccountMethod = 'oauth' | 'mcp' | 'slack'
 export type ToolPolicy = 'allow' | 'ask' | 'block'

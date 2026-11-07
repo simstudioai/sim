@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, ChipInput, cn } from '@sim/emcn'
-import { ChevronDown, File, Search, Table } from '@sim/emcn/icons'
+import { Badge, ChipInput, cn } from '@sim/emcn-legacy'
+import { ChevronDown, File, Search, Table } from '@sim/emcn-legacy/icons'
 import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import {
   AgentIcon,

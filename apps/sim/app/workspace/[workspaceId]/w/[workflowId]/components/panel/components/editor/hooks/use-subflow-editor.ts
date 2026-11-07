@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { highlight, languages } from '@sim/emcn'
+import { highlight, languages } from '@sim/emcn-legacy'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

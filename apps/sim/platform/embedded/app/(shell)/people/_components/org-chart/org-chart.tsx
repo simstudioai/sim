@@ -1,17 +1,14 @@
 'use client'
 
 import { Fragment, type MouseEvent, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
-import {
-  Avatar,
-  Button,
-  FailureNotice,
-  Icon,
-  IconButton,
-  LoadingRows,
-  SearchableSelect,
-  SearchCombobox,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button, IconButton } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { SearchCombobox } from '@sim/emcn/picker/search-combobox'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import {
   DirectorySources,
   ImportPrompt,

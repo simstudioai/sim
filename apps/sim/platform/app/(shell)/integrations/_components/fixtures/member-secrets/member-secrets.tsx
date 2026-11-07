@@ -1,9 +1,6 @@
-import { EmptyState } from '@/platform/design-system/components'
-import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
 
 interface MemberSecretsProps {

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { CoreFeatureCard } from '@/app/(landing)/components/features/components/core-feature-card'
 import { FeaturesRail } from '@/app/(landing)/components/features/components/features-rail'
 import {

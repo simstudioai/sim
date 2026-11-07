@@ -1,5 +1,10 @@
 'use client'
 
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { SearchField } from '@sim/emcn/search-field'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -14,14 +19,7 @@ import { useDirectorySearch } from '@/platform/app/(shell)/_components/resource-
 import type { SkillsData } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/skills-session/model'
 import { useWorkspaceSkills } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/skills-session/skills-session'
 import { SkillDetail } from '@/platform/app/(shell)/workspace/[workspaceId]/skills/_components/skill-detail/skill-detail'
-import {
-  ActivityRow,
-  Button,
-  EmptyState,
-  Icon,
-  SearchField,
-} from '@/platform/design-system/components'
-import { directoryHref } from '@/platform/design-system/navigation'
+import { directoryHref } from '@/platform/lib/navigation'
 
 interface SkillsDirectoryProps {
   data: SkillsData | null

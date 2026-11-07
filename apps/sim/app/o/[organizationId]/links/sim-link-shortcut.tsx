@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Chip, DropdownMenuItem, toast, useCopyToClipboard } from '@sim/emcn'
-import { Check, Link, Plus } from '@sim/emcn/icons'
+import { Chip, DropdownMenuItem, toast, useCopyToClipboard } from '@sim/emcn-legacy'
+import { Check, Link, Plus } from '@sim/emcn-legacy/icons'
 import { SimLinkModal } from '@/components/sim-links/sim-link-modal'
 import { simLinkUrl } from '@/lib/navigation/paths'
 import { suggestSimLinkName } from '@/lib/sim-links/validation'

@@ -1,4 +1,4 @@
-import { Play } from '@sim/emcn/icons'
+import { Play } from '@sim/emcn-legacy/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ManualTriggerBlock: BlockConfig = {

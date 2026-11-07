@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-bridge'
-import { Label, Switch, toast } from '@sim/emcn'
+import { Label, Switch, toast } from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'

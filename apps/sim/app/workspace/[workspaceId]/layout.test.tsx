@@ -31,7 +31,7 @@ const {
   mockPrefetchWorkspaceForkAvailability: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 

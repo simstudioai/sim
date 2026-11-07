@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button } from '@/platform/design-system/components/button/button'
+import { Button } from '@sim/emcn/button'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
 
 interface SettingsBreadcrumbProps {

@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AttachmentGrid } from '@sim/emcn/attachments'
+import { useFileUrl } from '@sim/emcn/attachments/use-file-url'
+import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '@/platform/app/(shell)/_components/composer/composer.module.css'
 import type { ChatAttachment } from '@/platform/app/(shell)/_components/composer/model'
-import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
-import { useFileUrl } from '@/platform/design-system/components/attachments/use-file-url'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface MessageAttachmentsProps {
   items: readonly ChatAttachment[]

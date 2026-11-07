@@ -54,7 +54,7 @@ vi.mock('nuqs', () => ({
   ],
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }))
 

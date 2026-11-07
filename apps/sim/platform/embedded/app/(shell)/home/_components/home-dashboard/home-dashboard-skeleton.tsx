@@ -1,7 +1,7 @@
 'use client'
 
+import { Surface } from '@sim/emcn-platform/surface'
 import { useOrganization } from '@/lib/organizations/provider'
-import { Surface } from '@/platform/design-system/components/surface/surface'
 import { ComposerPlaceholder } from '@/platform/embedded/app/(shell)/_components/conversation/skeletons'
 import styles from '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {

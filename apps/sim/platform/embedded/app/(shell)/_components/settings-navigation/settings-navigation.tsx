@@ -1,16 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { Icon } from '@sim/emcn/icon'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { SearchField } from '@sim/emcn/search-field'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { useRouter } from 'next/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { popSettingsReturnUrl } from '@/lib/navigation/settings-return'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { ScrollArea } from '@/platform/design-system/components/scroll-area/scroll-area'
-import { SearchField } from '@/platform/design-system/components/search-field/search-field'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 import styles from '@/platform/embedded/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import {
   type SettingsSectionKey,

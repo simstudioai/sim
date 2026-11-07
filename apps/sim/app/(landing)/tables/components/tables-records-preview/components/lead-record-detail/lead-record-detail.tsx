@@ -6,8 +6,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
-import { TagIcon, TypeNumber, TypeText } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { TagIcon, TypeNumber, TypeText } from '@sim/emcn-legacy/icons'
 import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
 
 interface LeadRecordDetailProps {

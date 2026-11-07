@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, type ReactNode, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 

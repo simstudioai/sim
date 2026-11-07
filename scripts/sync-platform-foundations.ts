@@ -32,7 +32,7 @@ if (!stylesFile)
 const tokens: Token[] = JSON.parse(readFileSync(tokensFile, 'utf8'))
 const { typography }: { typography: TypeMaster[] } = JSON.parse(readFileSync(registryFile, 'utf8'))
 const styles: Record<string, TypeStyle> = JSON.parse(readFileSync(stylesFile, 'utf8'))
-const directory = path.resolve(import.meta.dirname, '../apps/sim/platform/design-system/styles')
+const directory = path.resolve(import.meta.dirname, '../packages/emcn/src/styles/generated')
 const compare = mode === '--check'
 function emit(filename: string, css: string) {
   const file = path.join(directory, filename)
@@ -46,8 +46,15 @@ function emit(filename: string, css: string) {
   if (!compare) writeFileSync(file, formatted)
 }
 
+function fontFamily(value: string) {
+  return value
+    .replaceAll('Geist Mono', 'EMCN Geist Mono')
+    .replace(/(?<!EMCN )Geist(?! Mono)/g, 'EMCN Geist')
+}
+
 const scalable = new Set(['fontSize', 'lineHeight', 'container', 'spacing', 'breakpoint', 'radius'])
 function tokenValue(token: Token) {
+  if (token.type === 'fontFamily') return fontFamily(token.value)
   const size = /^(\d+(?:\.\d+)?)px$/.exec(token.value)
   return size && scalable.has(token.type) && Number(size[1]) >= 4
     ? `${Number(size[1]) / 16}rem`
@@ -59,7 +66,7 @@ const ordered = tokens
   .sort((a, b) => compareStrings(a.type, b.type) || compareStrings(a.name, b.name))
 emit(
   'tokens.css',
-  `/* Shared foundation. Reference px become rem at a 16px root; strokes retain their measured width. */\n[data-platform-ui] {\n${ordered.map((t) => `  ${t.name}: ${tokenValue(t)};`).join('\n')}\n}`
+  `/* Shared foundation. Reference px become rem at a 16px root; strokes retain their measured width. */\n[data-emcn] {\n${ordered.map((t) => `  ${t.name}: ${tokenValue(t)};`).join('\n')}\n}`
 )
 
 const recipes = new Map<string, string[]>()
@@ -71,7 +78,9 @@ for (const { key, base } of typography) {
     type.fontWeight === 400 || type.fontWeight === '400'
       ? 'var(--font-weight-regular)'
       : type.fontWeight
-  const properties = [`font: ${weight} ${type.fontSize} / ${type.lineHeight} ${type.fontFamily};`]
+  const properties = [
+    `font: ${weight} ${type.fontSize} / ${type.lineHeight} ${fontFamily(type.fontFamily)};`,
+  ]
   if (type.letterSpacing) properties.push(`letter-spacing: ${type.letterSpacing};`)
   if (type.fontVariationSettings) {
     const axis = type.fontVariationSettings.replace(
@@ -86,12 +95,12 @@ for (const { key, base } of typography) {
   recipes.set(recipe, keys)
 }
 function typeSelector(key: string) {
-  return `[data-platform-ui] [data-type="${key}"]`
+  return `[data-emcn] [data-type="${key}"]`
 }
 
 emit(
   'typography.css',
-  `/* Shared type masters. Color and wrapping belong to the semantic slot. */\n[data-platform-ui] [data-type] { letter-spacing: normal; font-variation-settings: normal; }\n${[...recipes].map(([recipe, keys]) => `${keys.map(typeSelector).join(',\n')} {\n${recipe}\n}`).join('\n')}`
+  `/* Shared type masters. Color and wrapping belong to the semantic slot. */\n[data-emcn] [data-type] { letter-spacing: normal; font-variation-settings: normal; }\n${[...recipes].map(([recipe, keys]) => `${keys.map(typeSelector).join(',\n')} {\n${recipe}\n}`).join('\n')}`
 )
 process.stdout.write(
   `${compare ? 'Verified' : 'Wrote'} ${tokens.length} tokens and ${typography.length} registered type recipes.\n`

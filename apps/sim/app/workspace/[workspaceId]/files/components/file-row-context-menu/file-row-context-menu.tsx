@@ -14,8 +14,8 @@ import {
   Folder,
   FolderInput,
   Pencil,
-} from '@sim/emcn'
-import { Download, Link, Pin, Send, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Download, Link, Pin, Send, Trash } from '@sim/emcn-legacy/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'

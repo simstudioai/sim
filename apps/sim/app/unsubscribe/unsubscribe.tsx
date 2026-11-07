@@ -1,7 +1,9 @@
 'use client'
 
 import { Suspense } from 'react'
-import { AuthHeader, AuthButton as Chip, AuthLoader as Loader } from '@sim/auth-ui'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { AuthLoader as Loader } from '@sim/emcn-auth/loading'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
@@ -51,7 +53,7 @@ function UnsubscribeContent() {
       <InviteLayout>
         <AuthHeader title='Invalid unsubscribe link' description={error} />
 
-        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
+        <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:flex-col au:gap-3'>
           <AuthSubmitButton type='button' onClick={() => window.history.back()} loadingLabel=''>
             Go back
           </AuthSubmitButton>
@@ -68,7 +70,7 @@ function UnsubscribeContent() {
           description='Transactional emails like password resets, account confirmations, and security alerts cannot be unsubscribed from as they contain essential information for your account.'
         />
 
-        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
+        <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:flex-col au:gap-3'>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
             Close
           </AuthSubmitButton>
@@ -85,7 +87,7 @@ function UnsubscribeContent() {
           description='You have been unsubscribed from our emails. You will stop receiving emails within 48 hours.'
         />
 
-        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
+        <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:flex-col au:gap-3'>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
             Close
           </AuthSubmitButton>
@@ -98,7 +100,7 @@ function UnsubscribeContent() {
 
   return (
     <InviteLayout>
-      <div className='au:space-y-1'>
+      <div className='au:flex au:flex-col au:gap-1'>
         <AuthHeader
           title='Email preferences'
           description="Choose which emails you'd like to stop receiving."
@@ -108,7 +110,7 @@ function UnsubscribeContent() {
         </p>
       </div>
 
-      <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
+      <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:flex-col au:gap-3'>
         <AuthSubmitButton
           type='button'
           onClick={() => handleUnsubscribe('all')}
@@ -135,7 +137,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          variant='outline'
+          variant='secondary'
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -150,7 +152,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          variant='outline'
+          variant='secondary'
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -165,7 +167,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          variant='outline'
+          variant='secondary'
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'

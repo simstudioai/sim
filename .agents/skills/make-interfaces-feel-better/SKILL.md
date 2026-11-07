@@ -65,7 +65,7 @@ Add a subtle 1px low-opacity outline to images; see surfaces.md. In this repo, u
 
 ### 12. Scale on Press
 
-A subtle scale-down (about 0.96-0.97) on press gives tactile feedback. In this repo a press affordance belongs in the emcn `Button`/`Chip` chrome (`packages/emcn`), not in consumer classes — neither component implements one today, so propose it there rather than adding per-call-site transforms.
+A subtle scale-down (about 0.96-0.97) on press gives tactile feedback. In this repo a press affordance belongs in the emcn `Button`/`Chip` chrome (`packages/emcn-legacy`), not in consumer classes — neither component implements one today, so propose it there rather than adding per-call-site transforms.
 
 ### 13. Skip Animation on Page Load
 
@@ -119,7 +119,7 @@ Present changes as markdown tables with **Before** and **After** columns, one ta
 #### Scale on press
 | Before | After |
 | --- | --- |
-| `Chip` has no press affordance | Proposed in `packages/emcn/src/components/chip/chip.tsx` (`chipVariants`): `active:scale-[0.96] transition-transform` |
+| `Chip` has no press affordance | Proposed in `packages/emcn-legacy/src/components/chip/chip.tsx` (`chipVariants`): `active:scale-[0.96] transition-transform` |
 | `scale(0.9)` on press | Raised to `scale(0.96)` — anything below `0.95` feels exaggerated |
 
 Rows should cite the specific file and the specific property that changed when it isn't obvious from the snippet. If a principle was reviewed but nothing needed to change, omit that table entirely — empty tables add noise.

@@ -42,7 +42,7 @@ afterEach(() => {
 
 const { getState } = vi.hoisted(() => ({ getState: vi.fn() }))
 vi.mock('@/stores/copilot-terminal/store', () => ({ useCopilotTerminalStore: { getState } }))
-vi.mock('@sim/emcn', () => ({ ChipConfirmModal: vi.fn(), toast: { warning: vi.fn() } }))
+vi.mock('@sim/emcn-legacy', () => ({ ChipConfirmModal: vi.fn(), toast: { warning: vi.fn() } }))
 
 function setRunning(running: string | null) {
   getState.mockReturnValue({

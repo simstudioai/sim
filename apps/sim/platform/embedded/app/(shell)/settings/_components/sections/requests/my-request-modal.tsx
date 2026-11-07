@@ -1,6 +1,7 @@
 'use client'
 
-import { FailureNotice, Modal, StatusTag } from '@/platform/design-system/components'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { RequestText } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-text'
 import { type RequestScope, useRequestDetails } from '@/platform/embedded/lib/data/requests'
 import { toast } from '@/platform/shared/toast'

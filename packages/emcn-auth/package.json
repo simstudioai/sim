@@ -1,0 +1,61 @@
+{
+  "name": "@sim/emcn-auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./account-menu": "./src/components/account-menu/account-menu.tsx",
+    "./button": "./src/components/button/button.tsx",
+    "./code-entry": "./src/components/code-entry/code-entry.tsx",
+    "./divider": "./src/components/divider/divider.tsx",
+    "./feedback": "./src/components/feedback/feedback.tsx",
+    "./field": "./src/components/field/field.tsx",
+    "./heading": "./src/components/heading/heading.tsx",
+    "./identity": "./src/components/identity/identity.tsx",
+    "./input": "./src/components/input/input.tsx",
+    "./legal": "./src/components/legal/legal.tsx",
+    "./loading": "./src/components/loading/loading.tsx",
+    "./navigation": "./src/components/navigation/navigation.tsx",
+    "./notification": "./src/components/notification/notification.tsx",
+    "./resource": "./src/components/resource/resource.tsx",
+    "./root": "./src/components/root/root.tsx",
+    "./select": "./src/components/select/select.tsx",
+    "./shell": "./src/components/shell/shell.tsx",
+    "./stack": "./src/components/stack/stack.tsx",
+    "./status": "./src/components/status/status.tsx",
+    "./tag": "./src/components/tag/tag.tsx",
+    "./text-link": "./src/components/text-link/text-link.tsx",
+    "./styles/auth.css": "./src/styles/auth.css"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "input-otp": "1.5.0",
+    "@sim/emcn": "workspace:*",
+    "@base-ui/react": "1.9.0"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^7.0.2"
+  },
+  "imports": {
+    "#auth/components/root/context": "./src/components/root/context.ts",
+    "#auth/*.css": "./src/*.css",
+    "#auth/*": "./src/*.tsx"
+  }
+}

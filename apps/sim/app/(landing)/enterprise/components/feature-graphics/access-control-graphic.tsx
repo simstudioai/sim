@@ -1,4 +1,4 @@
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/access-control-graphic.module.css'

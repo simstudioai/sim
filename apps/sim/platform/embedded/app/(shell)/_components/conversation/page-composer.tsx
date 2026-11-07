@@ -1,7 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { IconButton } from '@sim/emcn/button'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { cn } from '@sim/emcn-legacy'
+import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
+import { Surface } from '@sim/emcn-platform/surface'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
@@ -13,10 +17,6 @@ import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { PromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
-import { IconButton } from '@/platform/design-system/components/button/button'
-import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
-import { Surface } from '@/platform/design-system/components/surface/surface'
-import hostBridge from '@/platform/design-system/styles/host-bridge.module.css'
 import conversationStyles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import {
   BodyDialog,

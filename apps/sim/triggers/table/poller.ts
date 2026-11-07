@@ -1,4 +1,4 @@
-import { Table } from '@sim/emcn/icons'
+import { Table } from '@sim/emcn-legacy/icons'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const tableNewRowTrigger: TriggerConfig = {

@@ -13,8 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { MoreHorizontal } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { MoreHorizontal } from '@sim/emcn-legacy/icons'
 import { orderHeaderActions, type SettingsAction } from '@/components/settings/settings-header'
 import type { ConnectorActionState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 

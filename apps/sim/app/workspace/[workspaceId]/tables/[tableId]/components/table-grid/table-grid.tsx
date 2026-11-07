@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { cn, toast, useToast } from '@sim/emcn'
-import { Loader, TableX } from '@sim/emcn/icons'
+import { cn, toast, useToast } from '@sim/emcn-legacy'
+import { Loader, TableX } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'

@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 

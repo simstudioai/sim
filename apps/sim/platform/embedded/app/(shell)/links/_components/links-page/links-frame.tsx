@@ -1,11 +1,11 @@
 'use client'
 
 import type { ReactNode, Ref } from 'react'
+import { Button } from '@sim/emcn/button'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { SectionSearch } from '@/platform/design-system/components'
-import { Button } from '@/platform/design-system/components/button/button'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { ActionMenu } from '@/platform/design-system/components/menu/action-menu'
 import styles from '@/platform/embedded/app/(shell)/links/_components/links-page/links-page.module.css'
 import { openChromeStore } from '@/platform/embedded/lib/data/links'
 

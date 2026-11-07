@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn-legacy'
 
 interface ConversationListItemProps {
   title: string

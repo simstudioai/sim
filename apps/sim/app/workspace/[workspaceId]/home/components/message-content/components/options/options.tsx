@@ -1,4 +1,4 @@
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import type { OptionItem } from '@/app/workspace/[workspaceId]/home/types'
 
 interface OptionsProps {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, type ComboboxOption } from '@sim/emcn-legacy'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'

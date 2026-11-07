@@ -1,4 +1,4 @@
-import { Repeat } from '@sim/emcn/icons'
+import { Repeat } from '@sim/emcn-legacy/icons'
 
 /**
  * Loop tool configuration for the toolbar.

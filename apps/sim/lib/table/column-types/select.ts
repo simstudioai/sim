@@ -1,4 +1,4 @@
-import { TagIcon } from '@sim/emcn/icons'
+import { TagIcon } from '@sim/emcn-legacy/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { MAX_SELECT_OPTIONS } from '@/lib/table/constants'
 import {

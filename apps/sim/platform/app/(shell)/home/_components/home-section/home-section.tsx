@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { Icon } from '@sim/emcn/icon'
 import styles from '@/platform/app/(shell)/home/_components/home-section/home-section.module.css'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { Icon } from '@/platform/design-system/components'
 
 interface HomeSectionProps {
   title: string

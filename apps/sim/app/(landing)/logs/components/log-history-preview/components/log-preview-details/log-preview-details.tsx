@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, ChipModalTabs } from '@sim/emcn'
+import { Badge, ChipModalTabs } from '@sim/emcn-legacy'
 import type { PreviewRun } from '@/app/(landing)/logs/components/log-history-preview/types'
 import { LogTracePanel } from '@/app/(landing)/logs/components/log-trace-preview/components/log-trace-panel'
 

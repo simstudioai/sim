@@ -20,7 +20,7 @@ import 'prismjs/components/prism-clike'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
-import '@sim/emcn/components/code/code.css'
+import '@sim/emcn-legacy/components/code/code.css'
 import {
   Checkbox,
   CopyCodeButton,
@@ -33,7 +33,7 @@ import {
   scrollFadeAttributes,
   scrollFadeXClass,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   inlineChatImageUrl,

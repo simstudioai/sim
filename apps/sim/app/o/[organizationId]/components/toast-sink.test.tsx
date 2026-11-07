@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

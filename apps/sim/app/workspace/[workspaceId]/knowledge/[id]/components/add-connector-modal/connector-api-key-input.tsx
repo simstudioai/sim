@@ -1,6 +1,6 @@
 'use client'
 
-import { SecretInput } from '@sim/emcn'
+import { SecretInput } from '@sim/emcn-legacy'
 import { useConnectorApiKeyField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-connector-api-key-field'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

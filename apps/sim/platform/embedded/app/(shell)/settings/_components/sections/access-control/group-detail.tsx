@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import type {
   PermissionGroup,
   PermissionGroupWorkspaceRef,
@@ -15,16 +20,6 @@ import type {
   PermissionGroupAccessState,
 } from '@/ee/access-requests/lib/targets'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import {
-  Button,
-  ConfirmDialog,
-  SaveActions,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   DetailHeader,
   DraftConflictNotice,

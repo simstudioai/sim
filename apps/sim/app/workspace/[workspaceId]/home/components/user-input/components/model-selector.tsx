@@ -6,8 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuItemLabel,
   DropdownMenuRadioGroup,
-} from '@sim/emcn'
-import { Brain, Check, Sparkles } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Brain, Check, Sparkles } from '@sim/emcn-legacy/icons'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,

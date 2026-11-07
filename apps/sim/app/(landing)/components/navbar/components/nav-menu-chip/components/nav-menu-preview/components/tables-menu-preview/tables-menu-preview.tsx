@@ -1,4 +1,4 @@
-import { Badge, Chip } from '@sim/emcn'
+import { Badge, Chip } from '@sim/emcn-legacy'
 import {
   ChevronDown,
   Columns3,
@@ -8,7 +8,7 @@ import {
   TagIcon,
   TypeNumber,
   TypeText,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import {
   MenuPreviewHeader,

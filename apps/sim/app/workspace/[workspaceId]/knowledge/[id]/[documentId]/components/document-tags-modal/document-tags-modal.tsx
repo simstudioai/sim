@@ -14,8 +14,8 @@ import {
   ChipModalHeader,
   handleKeyboardActivation,
   Label,
-} from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import {

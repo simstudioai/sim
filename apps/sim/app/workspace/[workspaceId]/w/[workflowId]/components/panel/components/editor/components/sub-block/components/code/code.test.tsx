@@ -21,7 +21,7 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
   searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Chip: ({
     onClick,
     disabled,
@@ -51,7 +51,7 @@ vi.mock('@sim/emcn', () => ({
   languages: { javascript: {}, python: {}, bash: {} },
 }))
 
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 
 vi.mock('react-simple-code-editor', () => ({
   default: ({

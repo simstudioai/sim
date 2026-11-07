@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { HOME_INSET, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { CodeWindowGraphic } from '@/app/(landing)/components/shared/code-window-graphic'

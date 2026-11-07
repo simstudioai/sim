@@ -1,4 +1,4 @@
-import { GridOffset } from '@sim/emcn/icons'
+import { GridOffset } from '@sim/emcn-legacy/icons'
 import { CREDENTIAL_GROUP_EVENT_TRIGGER_ID } from '@/lib/credential-groups/trigger-constants'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'

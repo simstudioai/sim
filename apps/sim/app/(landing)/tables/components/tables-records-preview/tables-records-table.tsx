@@ -7,8 +7,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Check, ChevronDown, Columns3, ListFilter, Table } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, ChevronDown, Columns3, ListFilter, Table } from '@sim/emcn-legacy/icons'
 import {
   MenuPreviewHeader,
   MenuPreviewToolbar,

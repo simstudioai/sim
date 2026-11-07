@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Info,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   useOrganizationMemberUsageLimit,

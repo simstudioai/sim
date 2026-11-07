@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { Button, cn, Tooltip } from '@sim/emcn-legacy'
+import { PanelLeft } from '@sim/emcn-legacy/icons'
 import {
   HeroChatLoop,
   type HeroChatPhase,

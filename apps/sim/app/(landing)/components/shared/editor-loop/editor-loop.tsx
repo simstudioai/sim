@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'

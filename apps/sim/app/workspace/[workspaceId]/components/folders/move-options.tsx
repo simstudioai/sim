@@ -5,8 +5,8 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-} from '@sim/emcn'
-import { Folder } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Folder } from '@sim/emcn-legacy/icons'
 
 export interface MoveOptionNode {
   value: string

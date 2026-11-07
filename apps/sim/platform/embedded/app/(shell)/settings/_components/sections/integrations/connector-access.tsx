@@ -1,6 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
@@ -8,15 +14,6 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
 import type { ConnectorMeta } from '@/connectors/types'
-import {
-  Button,
-  FailureNotice,
-  FieldFrame,
-  LoadingRows,
-  SegmentedControl,
-  StatusTag,
-  Tooltip,
-} from '@/platform/design-system/components'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface ConnectorAccessProps {

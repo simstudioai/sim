@@ -41,10 +41,15 @@ const DYNAMIC_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /**
- * Subpath-only packages. Opt-in: `@sim/emcn` and `@sim/desktop-bridge` are barrel-first by
- * design, so flagging them would bury the one rule that matters.
+ * Shared libraries expose explicit families; legacy UI retains its aggregate compatibility entry.
  */
-const SUBPATH_REQUIRED = new Set(['@sim/utils'])
+const SUBPATH_REQUIRED = new Set([
+  '@sim/utils',
+  '@sim/emcn',
+  '@sim/emcn-auth',
+  '@sim/emcn-docs',
+  '@sim/emcn-platform',
+])
 const repositoryFiles = new Set<string>()
 
 /** Repo-relative path, always `/`-separated — `relative()` yields `\` on Windows. */

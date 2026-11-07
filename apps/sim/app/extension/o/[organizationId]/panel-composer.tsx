@@ -9,8 +9,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { ArrowUp, Paperclip, Plus, Slash, StopFilled } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUp, Paperclip, Plus, Slash, StopFilled } from '@sim/emcn-legacy/icons'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,

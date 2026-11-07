@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import type { ModelComparison } from '@/app/(landing)/models/comparisons'
 
 interface ComparisonLinksProps {

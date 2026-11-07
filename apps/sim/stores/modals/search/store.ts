@@ -1,4 +1,4 @@
-import { Repeat, Split } from '@sim/emcn/icons'
+import { Repeat, Split } from '@sim/emcn-legacy/icons'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { isOperationAllowed } from '@/lib/permission-groups/operation-access'

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { ContentPost } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
 import { formatPostDate } from '@/app/(landing)/components/content-utils'

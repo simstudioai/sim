@@ -1,5 +1,5 @@
 import { forwardRef, type InputHTMLAttributes, type MouseEventHandler, type ReactNode } from 'react'
-import { ArrowRight, cn } from '@sim/emcn'
+import { ArrowRight, cn } from '@sim/emcn-legacy'
 
 export const INTERACTION_CARD_ROW_CLASSES =
   'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors'

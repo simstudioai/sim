@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,

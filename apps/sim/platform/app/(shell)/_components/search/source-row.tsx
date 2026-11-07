@@ -1,7 +1,8 @@
+import { ActivityBody } from '@sim/emcn/activity-row/activity-body'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import type { SearchSourceRow } from '@/platform/app/(shell)/_components/search/model'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
-import { ActionMenu, OverflowText } from '@/platform/design-system/components'
-import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 
 interface SourceRowProps {
   row: SearchSourceRow

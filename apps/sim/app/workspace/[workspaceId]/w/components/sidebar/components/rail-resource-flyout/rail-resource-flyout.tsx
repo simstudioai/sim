@@ -11,7 +11,7 @@
  */
 
 import { useMemo } from 'react'
-import { DropdownMenuItem } from '@sim/emcn'
+import { DropdownMenuItem } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {

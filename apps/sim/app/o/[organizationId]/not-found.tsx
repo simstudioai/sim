@@ -1,9 +1,9 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { Button } from '@/platform/design-system/components/button/button'
 import { RouteStatus } from '@/platform/embedded/app/(shell)/_components/route-status/route-status'
 
 export default function OrganizationNotFound() {

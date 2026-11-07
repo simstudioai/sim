@@ -1,13 +1,15 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Chip } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { usePathname, useSearchParams } from 'next/navigation'
 import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { workspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/destinations'
 import styles from '@/platform/app/(shell)/_components/workspace-navigation/workspace-navigation.module.css'
-import { Chip, ContextActionMenu, Disclosure } from '@/platform/design-system/components'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import type { workspaceLocation } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 

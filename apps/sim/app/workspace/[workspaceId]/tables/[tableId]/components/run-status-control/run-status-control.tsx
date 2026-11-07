@@ -1,8 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { Chip } from '@sim/emcn'
-import { Loader, Square } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { Loader, Square } from '@sim/emcn-legacy/icons'
 
 interface RunStatusControlProps {
   running: number

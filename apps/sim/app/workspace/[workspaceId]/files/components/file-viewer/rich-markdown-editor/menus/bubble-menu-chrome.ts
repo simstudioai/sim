@@ -1,4 +1,4 @@
-import { cn, MENU_STYLES } from '@sim/emcn'
+import { cn, MENU_STYLES } from '@sim/emcn-legacy'
 
 /** Shared floating toolbar chrome for text and table selections. */
 export const BUBBLE_MENU_CLASS = cn(

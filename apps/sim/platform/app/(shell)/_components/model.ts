@@ -1,6 +1,6 @@
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import type { Appearance } from '@/platform/design-system/navigation'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import type { Appearance } from '@/platform/lib/navigation'
 import type { ShellDestination, ShellItem, ShellQueryStatus } from '@/platform/shared/shell'
 
 export type HomeMode = 'Build' | 'Search'

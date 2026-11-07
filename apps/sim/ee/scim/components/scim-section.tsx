@@ -17,8 +17,8 @@ import {
   Label,
   Switch,
   toast,
-} from '@sim/emcn'
-import { Key } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Key } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   ScimActivityEntry,

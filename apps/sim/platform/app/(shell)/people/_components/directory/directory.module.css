@@ -26,14 +26,16 @@
 }
 
 .department {
-  flex: 0 1 var(--spacing-192);
-  min-inline-size: var(--spacing-128);
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin-inline-start: auto;
 }
 
 .scope {
   flex: 1;
   color: var(--ui-secondary);
-  text-align: end;
+  text-align: start;
   white-space: nowrap;
 }
 

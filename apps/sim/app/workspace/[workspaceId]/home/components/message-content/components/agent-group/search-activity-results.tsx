@@ -9,7 +9,7 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   SourceIcon,
   sourceLabel,

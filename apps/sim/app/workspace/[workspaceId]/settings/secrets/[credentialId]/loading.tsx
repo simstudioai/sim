@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useParams } from 'next/navigation'
 import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'

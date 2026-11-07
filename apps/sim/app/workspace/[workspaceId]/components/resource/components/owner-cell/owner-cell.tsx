@@ -1,4 +1,4 @@
-import { Avatar } from '@sim/emcn'
+import { Avatar } from '@sim/emcn-legacy'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 

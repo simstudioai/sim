@@ -1,4 +1,4 @@
-import { Table as TableIcon } from '@sim/emcn/icons'
+import { Table as TableIcon } from '@sim/emcn-legacy/icons'
 import { AgentIcon, ConditionalIcon, HumanInTheLoopIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
 import { AssistantReview } from '@/platform/app/(shell)/_components/chat/cards/assistant-review'
 import { LaneActivity } from '@/platform/app/(shell)/_components/chat/message/lane-activity'
 import styles from '@/platform/app/(shell)/_components/chat/message/message.module.css'
@@ -14,7 +15,6 @@ import {
   useChatHandlers,
   useChatInteractions,
 } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { Button } from '@/platform/design-system/components'
 
 type AssistantTurn = Extract<PlatformTurn, { role: 'assistant' }>
 

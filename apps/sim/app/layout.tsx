@@ -1,4 +1,4 @@
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'

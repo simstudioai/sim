@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { HOME_INSET, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'

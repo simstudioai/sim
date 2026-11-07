@@ -1,0 +1,9 @@
+:global([data-auth-root]) .tag {
+  display: inline-flex;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: var(--emcn-space-6);
+  padding: var(--emcn-space-2) var(--emcn-space-6);
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}

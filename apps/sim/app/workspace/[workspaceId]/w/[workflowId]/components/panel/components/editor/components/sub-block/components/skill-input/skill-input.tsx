@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
-import { Plus, X } from '@sim/emcn/icons'
+import { Combobox, type ComboboxOptionGroup } from '@sim/emcn-legacy'
+import { Plus, X } from '@sim/emcn-legacy/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'

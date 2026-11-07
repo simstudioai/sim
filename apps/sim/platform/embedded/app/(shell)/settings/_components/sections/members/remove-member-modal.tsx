@@ -1,7 +1,7 @@
 'use client'
 
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { formatQuotedNameList } from '@sim/utils/string'
-import { ConfirmDialog } from '@/platform/design-system/components'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/members/members.module.css'
 import { useMemberRemoval } from '@/platform/embedded/lib/data/members'
 

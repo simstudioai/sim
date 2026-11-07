@@ -20,8 +20,8 @@ import {
   MoreHorizontal,
   Trash,
   toast,
-} from '@sim/emcn'
-import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'

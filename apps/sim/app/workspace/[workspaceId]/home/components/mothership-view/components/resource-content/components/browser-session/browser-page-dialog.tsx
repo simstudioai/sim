@@ -1,7 +1,7 @@
 'use client'
 
 import type { BrowserPageDialog } from '@sim/browser-protocol'
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
 
 interface BrowserPageDialogModalProps {
   dialog: BrowserPageDialog | undefined

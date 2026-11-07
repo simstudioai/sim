@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { SIM_LINK_DRAFT_PATH } from '@sim/browser-extension-protocol'
-import { Chip, ChipLink } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn-legacy'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { preserveLinkDraft } from '@/app/extension/create-link/destination'

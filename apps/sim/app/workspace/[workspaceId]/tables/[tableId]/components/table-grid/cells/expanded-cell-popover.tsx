@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Button, Tooltip } from '@sim/emcn-legacy'
 import type { TableRow as TableRowType } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { useTimezone } from '@/hooks/queries/general-settings'

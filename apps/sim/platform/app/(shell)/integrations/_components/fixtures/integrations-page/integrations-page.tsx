@@ -1,6 +1,5 @@
 'use client'
 
-import { generateId } from '@sim/utils/id'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
@@ -53,7 +52,9 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
   const item = integrations.find((entry) => entry.providerId === section)
   const secrets = section === 'secrets' ? data?.genericSecrets : null
   const manualCredentials = library.resources.filter((resource) => resource.kind === 'credential')
-  const editingSecret = manualCredentials.some((resource) => resource.id === search.get('resource'))
+  const editingResource =
+    library.resources.some((resource) => resource.id === search.get('resource')) ||
+    (search.get('resource') === 'new' && ['skills', 'mcps'].includes(search.get('tab') ?? ''))
   const selected =
     item &&
     search.get('credential') &&
@@ -84,33 +85,41 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
     scope: credentialSharing(credential),
     href: serializeCredential(
       memberIntegrationHref(`/integrations/${encodeURIComponent(credential.appId)}`, search),
-      { credential: credential.id }
+      { credential: credential.id, credentialFrom: 'credentials' }
     ),
   }))
   return (
     <PageFrame
       back={
-        selected && item
+        selected && search.get('credentialFrom') === 'credentials'
           ? {
-              href: serializeCredential(
-                memberIntegrationHref(
-                  `/integrations/${encodeURIComponent(item.providerId)}`,
-                  search
-                ),
-                { ...clearCredentialView, credential: null }
-              ),
-              label: `Back to ${item.name}`,
-              onNavigate: (event) => {
-                event.preventDefault()
-                void setCredentialView(
-                  { ...clearCredentialView, credential: null },
-                  { history: 'push', scroll: false }
-                )
-              },
+              href: serializeCredential(memberIntegrationHref('/integrations', search), {
+                ...clearCredentialView,
+                credential: null,
+              }),
+              label: 'Back to Credentials',
             }
-          : item || secrets
-            ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
-            : undefined
+          : selected && item
+            ? {
+                href: serializeCredential(
+                  memberIntegrationHref(
+                    `/integrations/${encodeURIComponent(item.providerId)}`,
+                    search
+                  ),
+                  { ...clearCredentialView, credential: null }
+                ),
+                label: `Back to ${item.name}`,
+                onNavigate: (event) => {
+                  event.preventDefault()
+                  void setCredentialView(
+                    { ...clearCredentialView, credential: null },
+                    { history: 'push', scroll: false }
+                  )
+                },
+              }
+            : item || secrets
+              ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
+              : undefined
       }
     >
       {item || secrets ? (
@@ -134,52 +143,6 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               }}
               people={center?.appPeople[item.providerId]}
               peopleTotal={center?.appUsageTotal[item.providerId]}
-              addedSkills={catalog?.skills
-                .filter((skill) =>
-                  library.resources.some(
-                    (entry) =>
-                      entry.kind === 'skill' &&
-                      entry.source?.providerId === item.providerId &&
-                      entry.source.name === skill.name
-                  )
-                )
-                .map((skill) => skill.name)}
-              onAddSkill={
-                center
-                  ? (skill) => {
-                      if (
-                        library.resources.some(
-                          (entry) =>
-                            entry.kind === 'skill' &&
-                            entry.source?.providerId === item.providerId &&
-                            entry.source.name === skill.name
-                        )
-                      )
-                        return
-                      library.save({
-                        id: generateId(),
-                        kind: 'skill',
-                        name: skill.name,
-                        description: skill.description,
-                        instructions: skill.content,
-                        source: { providerId: item.providerId, name: skill.name },
-                        scope: 'personal',
-                        owner: center.viewer,
-                        people: [center.viewer],
-                        canEdit: true,
-                      })
-                    }
-                  : undefined
-              }
-              onRemoveSkill={(name) => {
-                const skill = library.resources.find(
-                  (entry) =>
-                    entry.kind === 'skill' &&
-                    entry.source?.providerId === item.providerId &&
-                    entry.source.name === name
-                )
-                if (skill) library.remove(skill.id)
-              }}
             />
           )}
           {secrets && (
@@ -191,7 +154,7 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
         </>
       ) : (
         <>
-          {!editingSecret && <IntegrationsHeading />}
+          {!editingResource && <IntegrationsHeading />}
           <IntegrationCenter
             apps={integrations.map((integration) => ({
               id: integration.providerId,

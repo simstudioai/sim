@@ -1,19 +1,14 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SectionSearch } from '@sim/emcn/search-field/section-search'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  LoadingRows,
-  SectionSearch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { InviteModal } from '@/platform/embedded/app/(shell)/_components/invite-modal/invite-modal'
 import {
   Muted,

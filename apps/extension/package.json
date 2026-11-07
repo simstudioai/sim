@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@sim/browser-extension-protocol": "workspace:*",
-    "@sim/emcn": "workspace:*",
+    "@sim/emcn-legacy": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
     "lru-cache": "11.5.3",

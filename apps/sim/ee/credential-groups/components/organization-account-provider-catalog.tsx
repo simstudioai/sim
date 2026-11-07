@@ -9,8 +9,8 @@ import {
   ChipModalError,
   ChipModalField,
   ChipModalHeader,
-} from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'

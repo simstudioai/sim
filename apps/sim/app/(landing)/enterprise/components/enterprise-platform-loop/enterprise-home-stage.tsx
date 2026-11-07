@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChevronDown, cn } from '@sim/emcn'
+import { ChevronDown, cn } from '@sim/emcn-legacy'
 import {
   ArrowRight,
   ArrowUp,
@@ -14,7 +14,7 @@ import {
   Shuffle,
   Slash,
   Table,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { ThinkingLoader } from '@/components/ui'
 import {
   COMPOSER_PLACEHOLDER,

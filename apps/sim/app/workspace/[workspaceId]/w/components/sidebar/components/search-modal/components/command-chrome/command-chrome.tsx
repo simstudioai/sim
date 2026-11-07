@@ -8,8 +8,8 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import { Command } from 'cmdk'
 
 type CommandInputProps = ComponentPropsWithoutRef<typeof Command.Input>
