@@ -1,0 +1,57 @@
+.transparentSurface {
+  min-inline-size: 0;
+}
+.header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+}
+.views {
+  display: inline-flex;
+  align-items: stretch;
+  max-inline-size: 100%;
+  min-block-size: var(--spacing-app-control-sm);
+  gap: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--choice-track);
+}
+.view {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-6);
+  min-inline-size: 0;
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ui-secondary);
+  cursor: pointer;
+}
+.view:hover {
+  color: var(--ui-ink);
+}
+.view[aria-current="page"] {
+  border-color: var(--choice-edge);
+  background: var(--choice-selected);
+  box-shadow: var(--choice-shadow);
+  color: var(--ui-ink);
+}
+.views .view:focus-visible {
+  outline: var(--spacing-stroke-default) solid var(--ui-secondary);
+}
+.newButton {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .view::after,
+  .newButton::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: calc((var(--spacing-app-control-sm) - var(--spacing-app-touch-target)) / 2);
+  }
+}

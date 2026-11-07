@@ -28,7 +28,7 @@ export interface FileAttachmentForApi {
 /** Assistant searches as the signed-in person and uses their connected accounts. */
 export type ChatRequestMode = MothershipChat['mode']
 
-/** What a chat send carries, whether it goes out now, waits in the queue or is handed over. */
+/** What a chat send carries, whether it goes out now, steers a running turn or is handed over. */
 export interface SendPayload {
   content: string
   fileAttachments?: FileAttachmentForApi[]
@@ -36,19 +36,6 @@ export interface SendPayload {
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
   assistantSearchLevel?: AssistantSearchLevel
-}
-
-export interface QueuedMessage extends SendPayload {
-  id: string
-  /** Recovery dropped invalid contexts; the user must review the message before sending. */
-  hasUnavailableContexts?: boolean
-  /**
-   * An earlier attempt at this message got no answer, so the server may
-   * already hold it as sent. It goes out exactly as written, under that
-   * attempt's id, and cannot be edited into a different message. False once
-   * the server is known not to have it (it refused it, or it was never sent).
-   */
-  admissionUnknown?: boolean
 }
 
 export const ToolCallStatus = {
@@ -123,6 +110,7 @@ export const ContentBlockType = {
   options: 'options',
   stopped: 'stopped',
   task: 'task',
+  steering: 'steering',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
@@ -131,6 +119,8 @@ export interface ContentBlock {
   content?: string
   /** The background task this block announces (task blocks only). */
   task?: import('@/lib/mothership/request/types').TaskBlockInfo
+  /** Where the turn applied a steering message (steering blocks only). */
+  steering?: import('@/lib/mothership/chat/steering').SteeringBlockInfo
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
   subagentName?: string
@@ -202,6 +192,14 @@ export interface ChatMessage {
   content: string
   /** Automation opened this turn, not the user: a system chip, not a bubble. */
   origin?: TurnOrigin
+  /**
+   * Where a message this client is still delivering stands: going out (`sending`),
+   * waiting for the running response to end (`waiting`), or given up on until the
+   * user retries it (`failed`). Absent once delivered.
+   */
+  delivery?: 'sending' | 'waiting' | 'failed'
+  /** Sent into a running turn as steering; placed where that turn applied it. */
+  steering?: import('@/lib/mothership/chat/steering').SteeringMessageMarker
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   fileAttachments?: FileAttachmentForApi[]

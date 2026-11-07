@@ -1,7 +1,7 @@
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
 import { ChartTooltip } from '@/platform/design-system/components'
 import type { PreviewData } from '@/platform/fixtures'
-import { formatCalendarDate } from '@/platform/lib/time'
+import { formatCalendarDate } from '@/platform/shared/time'
 
 interface HomeChartSpecimenProps {
   recipe: string

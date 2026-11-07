@@ -1,5 +1,5 @@
-import type { PermissionGroupEditorCatalog } from '@/lib/api/contracts/permission-groups'
 import type { BlockConfig } from '@/blocks/types'
+import type { PermissionGroupEditorCatalog } from '@/ee/access-control/lib/editor-catalog-model'
 import { KNOWLEDGE_CONNECTOR_OPTIONS } from '@/ee/access-control/lib/editor-registry'
 import {
   DYNAMIC_MODEL_PROVIDERS,

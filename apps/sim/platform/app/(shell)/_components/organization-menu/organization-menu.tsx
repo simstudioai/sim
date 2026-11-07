@@ -15,7 +15,7 @@ import {
 } from '@/platform/design-system/components'
 import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
 import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
 
 /** Lazy because its form reads real data, which a fixture session never loads. */
 const InviteModal = dynamic(

@@ -1,6 +1,6 @@
-import type { ShellQueryStatus } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { FailureNotice } from '@/platform/design-system/components'
+import type { ShellQueryStatus } from '@/platform/shared/shell'
 
 interface SectionStatusProps {
   /** Absent means the rows are simply there, so nothing here applies. */

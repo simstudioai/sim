@@ -47,12 +47,14 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { AwsMarketplaceSubscriptionSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/aws-marketplace-subscription-section/aws-marketplace-subscription-section'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
@@ -90,6 +92,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     enabled: !isOrganizationScope,
   })
   const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
+  const marketplaceBilling = useAwsMarketplaceBilling(billingOrganizationId)
+  const { billedThroughMarketplace } = marketplaceBilling
 
   const {
     data: organizationBillingData,
@@ -296,33 +300,24 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       })
       return
     }
-    const portalWindow = window.open('', '_blank')
     const context = subscription.isOrgScoped ? 'organization' : 'user'
     if (context === 'organization' && !billingOrganizationId) {
-      portalWindow?.close()
       toast.error('Billing unavailable', {
         description: 'Organization billing context is unavailable. Please refresh and try again.',
       })
       return
     }
-    openBillingPortal.mutate(
+    openBillingPortal.open(
       {
         context,
         organizationId: billingOrganizationId ?? undefined,
         returnUrl: window.location.href,
       },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          toast.error("Couldn't open billing portal", {
-            description: getErrorMessage(error, 'Please try again in a moment.'),
-          })
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        toast.error("Couldn't open billing portal", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     )
   }
@@ -409,8 +404,11 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       ? `Organization ${planName} plan ended`
       : `Organization ${planName} plan`
     : `Personal ${planName} plan`
-  const priceText =
-    organizationSubscriptionState === 'free'
+  const priceText = billedThroughMarketplace
+    ? subscription.isFree
+      ? 'AWS Marketplace setup in progress'
+      : 'Billed through AWS Marketplace'
+    : organizationSubscriptionState === 'free'
       ? 'No active organization subscription'
       : organizationSubscriptionState === 'lapsed'
         ? 'Choose a new plan for this organization'
@@ -471,6 +469,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
           </div>
         </div>
         {!subscription.isEnterprise &&
+          !billedThroughMarketplace &&
+          !marketplaceBilling.isPending &&
           (canExplorePlans && upgradeHref ? (
             <ChipLink
               href={upgradeHref}
@@ -615,6 +615,14 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             )}
           </div>
         </SettingsSection>
+      )}
+
+      <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
+      {isOrganizationScope && (
+        <AwsMarketplaceSubscriptionSection
+          organizationId={null}
+          label='AWS Marketplace subscription on your account'
+        />
       )}
 
       {!subscription.isFree && invoices.length > 0 && (

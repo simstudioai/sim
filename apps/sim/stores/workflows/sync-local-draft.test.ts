@@ -28,7 +28,7 @@ const {
   })),
 }))
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: () => ({ fetchQuery: mockFetchQuery }),
 }))
 

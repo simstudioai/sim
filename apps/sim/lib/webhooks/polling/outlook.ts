@@ -119,13 +119,13 @@ export const outlookPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
+      logger.info(`Processing Outlook webhook: ${webhookId}`)
 
       const accessToken = await resolveOAuthCredential(webhookData, 'outlook', requestId)
       const config = getProviderConfig<OutlookWebhookConfig>(webhookData.providerConfig)
       const now = new Date()
 
-      const { emails } = await fetchNewOutlookEmails(accessToken, config, requestId, logger)
+      const { emails } = await fetchNewOutlookEmails(accessToken, config, logger)
 
       if (!emails || !emails.length) {
         await updateWebhookProviderConfig(
@@ -134,11 +134,11 @@ export const outlookPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
+        logger.info(`No new emails found for webhook ${webhookId}`)
         return 'success'
       }
 
-      logger.info(`[${requestId}] Found ${emails.length} emails for webhook ${webhookId}`)
+      logger.info(`Found ${emails.length} emails for webhook ${webhookId}`)
 
       const { processedCount, failedCount } = await processOutlookEmails(
         emails,
@@ -158,22 +158,20 @@ export const outlookPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} emails failed to process for webhook ${webhookId}`)
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
       )
       return 'success'
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+        return skipAdmissionRefusedPoll(logger, webhookId)
       }
-      logger.error(`[${requestId}] Error processing Outlook webhook ${webhookId}:`, error)
+      logger.error(`Error processing Outlook webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -189,7 +187,6 @@ const OUTLOOK_PAGE_SIZE = 50
 async function fetchNewOutlookEmails(
   accessToken: string,
   config: OutlookWebhookConfig,
-  requestId: string,
   logger: Logger
 ) {
   try {
@@ -211,7 +208,7 @@ async function fetchNewOutlookEmails(
     }
     const allEmails: OutlookEmail[] = []
     let nextUrl: string | undefined = `${apiUrl}?${params.toString()}`
-    logger.info(`[${requestId}] Fetching emails from: ${nextUrl}`)
+    logger.info(`Fetching emails from: ${nextUrl}`)
 
     while (nextUrl && allEmails.length < maxEmails) {
       const response = await fetchWithRetry(nextUrl, {
@@ -224,7 +221,7 @@ async function fetchNewOutlookEmails(
         const errorData = await response
           .json()
           .catch(() => ({ error: { message: 'Unknown error' } }))
-        logger.error(`[${requestId}] Microsoft Graph API error:`, {
+        logger.error('Microsoft Graph API error:', {
           status: response.status,
           statusText: response.statusText,
           error: errorData,
@@ -245,7 +242,7 @@ async function fetchNewOutlookEmails(
       if (pageEmails.length === 0) break
     }
 
-    logger.info(`[${requestId}] Fetched ${allEmails.length} emails total`)
+    logger.info(`Fetched ${allEmails.length} emails total`)
 
     const emails = allEmails
 
@@ -254,15 +251,10 @@ async function fetchNewOutlookEmails(
     if (config.folderIds && config.folderIds.length > 0) {
       const wellKnownFolders = config.folderIds.filter(isWellKnownFolderName)
       if (wellKnownFolders.length > 0) {
-        resolvedFolderIds = await resolveWellKnownFolderIds(
-          accessToken,
-          config.folderIds,
-          requestId,
-          logger
-        )
+        resolvedFolderIds = await resolveWellKnownFolderIds(accessToken, config.folderIds, logger)
         if (resolvedFolderIds.size < wellKnownFolders.length) {
           logger.warn(
-            `[${requestId}] Could not resolve all well-known folders (${resolvedFolderIds.size}/${wellKnownFolders.length}) — skipping folder filter to avoid incorrect results`
+            `Could not resolve all well-known folders (${resolvedFolderIds.size}/${wellKnownFolders.length}) — skipping folder filter to avoid incorrect results`
           )
           skipFolderFilter = true
         }
@@ -273,14 +265,12 @@ async function fetchNewOutlookEmails(
       ? emails
       : filterEmailsByFolder(emails, config, resolvedFolderIds)
 
-    logger.info(
-      `[${requestId}] Fetched ${emails.length} emails, ${filteredEmails.length} after filtering`
-    )
+    logger.info(`Fetched ${emails.length} emails, ${filteredEmails.length} after filtering`)
 
     return { emails: filteredEmails }
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Error fetching new Outlook emails:`, errorMessage)
+    logger.error('Error fetching new Outlook emails:', errorMessage)
     throw error
   }
 }
@@ -302,7 +292,6 @@ function isWellKnownFolderName(folderId: string): boolean {
 async function resolveWellKnownFolderId(
   accessToken: string,
   folderName: string,
-  requestId: string,
   logger: Logger
 ): Promise<string | null> {
   try {
@@ -316,16 +305,14 @@ async function resolveWellKnownFolderId(
     )
 
     if (!response.ok) {
-      logger.warn(
-        `[${requestId}] Failed to resolve well-known folder '${folderName}': ${response.status}`
-      )
+      logger.warn(`Failed to resolve well-known folder '${folderName}': ${response.status}`)
       return null
     }
 
     const folder = await response.json()
     return folder.id || null
   } catch (error) {
-    logger.error(`[${requestId}] Error resolving well-known folder '${folderName}':`, error)
+    logger.error(`Error resolving well-known folder '${folderName}':`, error)
     return null
   }
 }
@@ -333,7 +320,6 @@ async function resolveWellKnownFolderId(
 async function resolveWellKnownFolderIds(
   accessToken: string,
   folderIds: string[],
-  requestId: string,
   logger: Logger
 ): Promise<Map<string, string>> {
   const resolvedIds = new Map<string, string>()
@@ -342,7 +328,7 @@ async function resolveWellKnownFolderIds(
 
   const resolutions = await Promise.all(
     wellKnownFolders.map(async (folderName) => {
-      const actualId = await resolveWellKnownFolderId(accessToken, folderName, requestId, logger)
+      const actualId = await resolveWellKnownFolderId(accessToken, folderName, logger)
       return { folderName, actualId }
     })
   )
@@ -353,9 +339,7 @@ async function resolveWellKnownFolderIds(
     }
   }
 
-  logger.info(
-    `[${requestId}] Resolved ${resolvedIds.size}/${wellKnownFolders.length} well-known folders`
-  )
+  logger.info(`Resolved ${resolvedIds.size}/${wellKnownFolders.length} well-known folders`)
   return resolvedIds
 }
 
@@ -404,17 +388,9 @@ async function processOutlookEmails(
           let attachments: OutlookAttachment[] = []
           if (config.includeAttachments && email.hasAttachments) {
             try {
-              attachments = await downloadOutlookAttachments(
-                accessToken,
-                email.id,
-                requestId,
-                logger
-              )
+              attachments = await downloadOutlookAttachments(accessToken, email.id, logger)
             } catch (error) {
-              logger.error(
-                `[${requestId}] Error downloading attachments for email ${email.id}:`,
-                error
-              )
+              logger.error(`Error downloading attachments for email ${email.id}:`, error)
             }
           }
 
@@ -452,7 +428,7 @@ async function processOutlookEmails(
           }
 
           logger.info(
-            `[${requestId}] Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
+            `Processing email: ${email.subject} from ${email.from?.emailAddress?.address}`
           )
 
           const result = await processPolledWebhookEvent(
@@ -465,7 +441,7 @@ async function processOutlookEmails(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for email ${email.id}:`,
+              `Failed to process webhook for email ${email.id}:`,
               result.statusCode,
               result.error
             )
@@ -480,13 +456,11 @@ async function processOutlookEmails(
         }
       )
 
-      logger.info(
-        `[${requestId}] Successfully processed email ${email.id} for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully processed email ${email.id} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
-      logger.error(`[${requestId}] Error processing email ${email.id}:`, error)
+      logger.error(`Error processing email ${email.id}:`, error)
       failedCount++
     }
   }
@@ -497,7 +471,6 @@ async function processOutlookEmails(
 async function downloadOutlookAttachments(
   accessToken: string,
   messageId: string,
-  requestId: string,
   logger: Logger
 ): Promise<OutlookAttachment[]> {
   const attachments: OutlookAttachment[] = []
@@ -513,7 +486,7 @@ async function downloadOutlookAttachments(
     )
 
     if (!response.ok) {
-      logger.error(`[${requestId}] Failed to fetch attachments for message ${messageId}`)
+      logger.error(`Failed to fetch attachments for message ${messageId}`)
       return attachments
     }
 
@@ -536,17 +509,15 @@ async function downloadOutlookAttachments(
         }
       } catch (error) {
         logger.error(
-          `[${requestId}] Error processing attachment ${attachment.id} for message ${messageId}:`,
+          `Error processing attachment ${attachment.id} for message ${messageId}:`,
           error
         )
       }
     }
 
-    logger.info(
-      `[${requestId}] Downloaded ${attachments.length} attachments for message ${messageId}`
-    )
+    logger.info(`Downloaded ${attachments.length} attachments for message ${messageId}`)
   } catch (error) {
-    logger.error(`[${requestId}] Error downloading attachments for message ${messageId}:`, error)
+    logger.error(`Error downloading attachments for message ${messageId}:`, error)
   }
 
   return attachments

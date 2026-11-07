@@ -18,6 +18,7 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
@@ -117,7 +118,7 @@ export async function duplicateWorkflow(
     description,
     workspaceId,
     folderId,
-    requestId = 'unknown',
+    requestId = generateRequestId(),
     newWorkflowId: clientNewWorkflowId,
     tx: providedTx,
     workflowIdMap,
@@ -309,9 +310,9 @@ export async function duplicateWorkflow(
       })
 
       await tx.insert(workflowBlocks).values(newBlocks)
-      logger.info(
-        `[${requestId}] Copied ${sourceBlocks.length} blocks with updated parent relationships`
-      )
+      logger.info(`Copied ${sourceBlocks.length} blocks with updated parent relationships`, {
+        requestId,
+      })
     }
 
     // Copy all edges from source workflow with updated block references
@@ -368,7 +369,8 @@ export async function duplicateWorkflow(
         await tx.insert(workflowEdges).values(newEdges)
       }
       logger.info(
-        `[${requestId}] Copied ${newEdges.length}/${sourceEdges.length} edges with updated block references`
+        `Copied ${newEdges.length}/${sourceEdges.length} edges with updated block references`,
+        { requestId }
       )
     }
 
@@ -386,12 +388,14 @@ export async function duplicateWorkflow(
 
           if (!newSubflowId) {
             logger.warn(
-              `[${requestId}] Subflow ${subflow.id} (${subflow.type}) has no corresponding block, skipping`
+              `Subflow ${subflow.id} (${subflow.type}) has no corresponding block, skipping`,
+              { requestId }
             )
             return null
           }
 
-          logger.info(`[${requestId}] Mapping subflow ${subflow.id} → ${newSubflowId}`, {
+          logger.info(`Mapping subflow ${subflow.id} → ${newSubflowId}`, {
+            requestId,
             subflowType: subflow.type,
           })
 
@@ -447,7 +451,8 @@ export async function duplicateWorkflow(
       }
 
       logger.info(
-        `[${requestId}] Copied ${newSubflows.length}/${sourceSubflows.length} subflows with updated block references and matching IDs`
+        `Copied ${newSubflows.length}/${sourceSubflows.length} subflows with updated block references and matching IDs`,
+        { requestId }
       )
     }
 

@@ -13,12 +13,8 @@ import {
   SearchableSelect,
   SearchField,
 } from '@/platform/design-system/components'
-import {
-  personHref,
-  useDepartmentOptions,
-  usePeopleDirectory,
-  usePeoplePath,
-} from '@/platform/lib/data/people'
+import { usePeoplePath } from '@/platform/lib/data/people'
+import { personHref, useDepartmentOptions, usePeopleDirectory } from '@/platform/shared/people'
 
 const COLUMNS = [
   { key: 'person', label: 'Person', kind: 'text', primary: true },

@@ -105,7 +105,7 @@ function logRowNotHeldByLiveRun(staleCutoff: Date): SQL {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  logger.info(`[${requestId}] Connector member sync scheduler triggered`)
+  logger.info('Connector member sync scheduler triggered')
 
   const authError = verifyCronAuth(request, 'Connector member sync scheduler')
   if (authError) return authError
@@ -157,28 +157,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     ])
 
     if (recoveredRunning.length > 0) {
-      logger.warn(`[${requestId}] Recovered ${recoveredRunning.length} stale member sync run(s)`, {
+      logger.warn(`Recovered ${recoveredRunning.length} stale member sync run(s)`, {
         ids: recoveredRunning.map((row) => row.id),
       })
     }
     if (recoveredPending.length > 0) {
       logger.warn(
-        `[${requestId}] Recovered ${recoveredPending.length} connector(s) whose queued member sync never started`,
+        `Recovered ${recoveredPending.length} connector(s) whose queued member sync never started`,
         { ids: recoveredPending.map((row) => row.id) }
       )
     }
     if (closedLogs.length > 0) {
-      logger.warn(`[${requestId}] Closed ${closedLogs.length} orphaned member sync log(s)`)
+      logger.warn(`Closed ${closedLogs.length} orphaned member sync log(s)`)
     }
 
     /** Observation hygiene never holds back dispatch; an unfinished sweep resumes next tick. */
     try {
       const sweep = await sweepStaleMemberObservations(now)
       if (sweep.members > 0) {
-        logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+        logger.warn(`Swept observations of ${sweep.members} stale member(s)`, sweep)
       }
     } catch (error) {
-      logger.error(`[${requestId}] Stale member observation sweep failed`, {
+      logger.error('Stale member observation sweep failed', {
         error: getErrorMessage(error),
       })
     }
@@ -207,7 +207,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .orderBy(asc(knowledgeConnector.nextMemberSyncAt))
       .limit(MAX_DISPATCHES_PER_TICK)
 
-    logger.info(`[${requestId}] Found ${dueConnectors.length} connectors due for member sync`)
+    logger.info(`Found ${dueConnectors.length} connectors due for member sync`)
 
     if (dueConnectors.length === 0) {
       return NextResponse.json({
@@ -231,10 +231,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           requireRunnable: true,
         })
       } catch (error) {
-        logger.error(
-          `[${requestId}] Failed to dispatch member sync for connector ${connector.id}`,
-          error
-        )
+        logger.error(`Failed to dispatch member sync for connector ${connector.id}`, error)
       }
     })
 
@@ -244,7 +241,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       count: dueConnectors.length,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Connector member sync scheduler error`, error)
+    logger.error('Connector member sync scheduler error', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

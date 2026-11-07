@@ -29,7 +29,7 @@ vi.mock(
   })
 )
 
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop'
 
 const PREFERENCES = {

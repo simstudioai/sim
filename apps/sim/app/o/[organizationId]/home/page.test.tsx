@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
@@ -11,22 +12,34 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ context: vi.fn(), prefetchHome: vi.fn() }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
+vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceGate: mocks.context }))
 vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
-vi.mock('@/app/o/[organizationId]/_redesign/prefetch', () => ({}))
-vi.mock('@/app/o/[organizationId]/_redesign/prefetch-member-inventory', () => ({
+vi.mock('@/platform/embedded/lib/data/prefetch', () => ({}))
+vi.mock('@/platform/embedded/lib/data/prefetch-member-inventory', () => ({
   prefetchHome: mocks.prefetchHome,
 }))
-vi.mock('@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton', () => ({
-  HomeDashboardSkeleton: ({ requestMode }: { requestMode: string }) => (
-    <div>Home for {requestMode}</div>
-  ),
+vi.mock(
+  '@/platform/embedded/app/(shell)/home/_components/home-dashboard/home-dashboard-skeleton',
+  () => ({
+    HomeDashboardSkeleton: () => <div>Home skeleton</div>,
+  })
+)
+vi.mock('@/platform/design-system/components/surface/hydrated', () => ({
+  Hydrated: ({ children }: { children: ReactNode }) => children,
 }))
-vi.mock('@/app/o/[organizationId]/_redesign/search/search-surface', () => ({
+vi.mock(
+  '@/platform/embedded/app/(shell)/home/_components/home-conversation/home-conversation',
+  () => ({
+    HomeConversation: ({ requestMode }: { requestMode: string }) => (
+      <div>Home for {requestMode}</div>
+    ),
+  })
+)
+vi.mock('@/platform/embedded/app/(shell)/search/_components/search-surface/search-surface', () => ({
   OrganizationSearchSurface: () => <div>Standalone Search</div>,
 }))
-vi.mock('@/app/o/[organizationId]/components/organization-conversation', () => ({
-  OrganizationConversation: ({ requestMode }: { requestMode?: string }) => (
+vi.mock('@/platform/embedded/app/(shell)/_components/conversation/page-conversation', () => ({
+  PageConversation: ({ requestMode }: { requestMode?: string }) => (
     <div data-request-mode={requestMode}>Organization Assistant</div>
   ),
 }))

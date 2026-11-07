@@ -4661,12 +4661,8 @@ async function generateMarkdownForBlock(
         } else {
           fields += 'No output fields are documented for this action.\n'
         }
-        if (tools.access.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24) {
-          hasReferenceDetails = true
-          toolsSection += `<ReferenceDetails>\n\n${fields}\n</ReferenceDetails>\n`
-        } else {
-          toolsSection += fields
-        }
+        hasReferenceDetails = true
+        toolsSection += `<ReferenceDetails>\n\n${fields}\n</ReferenceDetails>\n`
       }
 
       toolsSection += '\n'
@@ -5329,9 +5325,7 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
   }
 
   let triggersSection = ''
-  for (let i = 0; i < triggers.length; i++) {
-    const trigger = triggers[i]
-
+  for (const trigger of triggers) {
     let configSection = ''
     if (trigger.configFields.length > 0) {
       configSection = '#### Configuration\n\n'
@@ -5355,17 +5349,13 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
     }
 
     const fields = configSection + outputSection
-    const foldFields =
-      fields.length > 0 && (triggers.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24)
-    const separator = !foldFields && i < triggers.length - 1 ? '\n---\n\n' : ''
-
     triggersSection += `### ${trigger.name}\n\n`
     const escapedTriggerDescription = escapeMdxProse(trigger.description)
     triggersSection += `${escapedTriggerDescription}\n\n`
-    triggersSection += foldFields
-      ? `<ReferenceDetails label="Configuration and outputs">\n\n${fields}</ReferenceDetails>\n\n`
-      : fields
-    triggersSection += separator
+    triggersSection +=
+      fields.length > 0
+        ? `<ReferenceDetails label="Configuration and outputs">\n\n${fields}</ReferenceDetails>\n\n`
+        : fields
   }
 
   return `## Triggers

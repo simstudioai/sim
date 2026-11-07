@@ -40,8 +40,8 @@ import {
   RESOURCE_TYPE_OPTIONS,
   useAuditLogFeed,
 } from '@/platform/lib/data/audit-logs'
-import { toast } from '@/platform/lib/data/toast'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 

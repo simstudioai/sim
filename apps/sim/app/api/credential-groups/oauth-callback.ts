@@ -139,6 +139,7 @@ export async function handleCredentialGroupOAuthCallback({
           : error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'
             : 'failed'
+    if (error instanceof CredentialGroupOAuthError && error.failure) status = error.failure
     if (identityFailure) {
       switch (identityFailure.reason) {
         case 'email_unverified':

@@ -43,6 +43,8 @@ interface RecipientFieldProps {
   validate?: (address: string) => boolean
   /** Replaces the default message shown while any tag is invalid. */
   error?: string
+  /** Invalid tags are dropped by the owner, so the message informs and the form can still submit. */
+  submitsWithInvalid?: boolean
   hint?: string
   disabled?: boolean
   name?: string
@@ -63,6 +65,7 @@ export function RecipientField({
   onRecipientsChange,
   validate = isEmailAddress,
   error: errorMessage,
+  submitsWithInvalid,
   hint,
   disabled,
   name,
@@ -86,11 +89,11 @@ export function RecipientField({
 
   useLayoutEffect(() => {
     const editor = input.current
-    editor?.setCustomValidity(error ?? '')
+    editor?.setCustomValidity(submitsWithInvalid ? '' : (error ?? ''))
     if (editor && recipients.length && document.activeElement === editor) {
       editor.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
-  }, [error, recipients.length])
+  }, [error, submitsWithInvalid, recipients.length])
 
   function commit(text: string) {
     const addresses = text
@@ -158,7 +161,7 @@ export function RecipientField({
             aria-describedby={fieldDescription(id, error, hint)}
             onChange={(event) => {
               const value = event.currentTarget.value
-              const last = Math.max(value.lastIndexOf(','), value.lastIndexOf(';'))
+              const last = value.search(/[,;\s][^,;\s]*$/)
               if (
                 last >= 0 &&
                 !('isComposing' in event.nativeEvent && event.nativeEvent.isComposing)

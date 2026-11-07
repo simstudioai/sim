@@ -1,8 +1,9 @@
 'use client'
 
-import { memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
+import { type CSSProperties, memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
+import { IconButton } from '@/platform/design-system/components/button/button'
 import { Checkbox } from '@/platform/design-system/components/checkbox/checkbox'
 import styles from '@/platform/design-system/components/data-display/data-display.module.css'
 import { Icon } from '@/platform/design-system/components/icon/icon'
@@ -11,17 +12,25 @@ import { ScrollArea } from '@/platform/design-system/components/scroll-area/scro
 import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { ContentTabs } from '@/platform/design-system/components/tabs/content-tabs'
+import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface MetricGroupProps {
-  metrics: readonly { label: string; value: string | number }[]
+  metrics: readonly { label: string; value: string | number; description?: string }[]
 }
 
 export function MetricGroup({ metrics }: MetricGroupProps) {
   return (
     <dl className={styles.metrics}>
-      {metrics.map(({ label, value }) => (
+      {metrics.map(({ label, value, description }) => (
         <div className={styles.metric} key={label}>
-          <dt data-type='T050'>{label}</dt>
+          <dt className={styles.metricLabel} data-type='T050'>
+            {label}
+            {description && (
+              <Tooltip label={description}>
+                <IconButton icon='I047' label={`About ${label.toLowerCase()}`} size='inline' />
+              </Tooltip>
+            )}
+          </dt>
           <dd data-type='T102'>{value}</dd>
         </div>
       ))}
@@ -48,6 +57,8 @@ type TableColumn = {
   key: string
   label: string
   showFrom?: 'compact' | 'wide'
+  /** The column's share of a table wide enough for every column; narrower tables split evenly. */
+  width?: `${number}%`
   /** The column a row is read by, wider than the columns that share the rest. */
   primary?: boolean
   /** Offer this column to `onSortChange`. The caller owns the order of `rows`. */
@@ -66,6 +77,8 @@ interface TableRow {
   selectionDisabled?: boolean
   /** Make the whole row open this destination, through a link on its first cell. */
   href?: string
+  /** Hold the link's prefetch, for a long list of the same route. */
+  prefetch?: boolean
   /** Make the whole row run this, through a button on its first cell. */
   onOpen?: () => void
   /** A control beside the row's target, in a trailing column. */
@@ -192,6 +205,7 @@ const TableRowView = memo(function TableRowView({
         const custom = row.cells?.[column.key]
         const content =
           custom === undefined ? cellText(row.values[column.key], column.format) : custom
+        const empty = content === '—'
         return (
           <td
             key={column.key}
@@ -199,10 +213,11 @@ const TableRowView = memo(function TableRowView({
             data-from={column.showFrom}
             data-primary={column.primary || undefined}
             data-numeric={Boolean(column.format)}
+            data-empty={empty || undefined}
             data-type={column.kind === 'text' ? 'T059' : 'T060'}
           >
             {position === 0 && row.href ? (
-              <Link href={row.href} className={styles.rowTarget}>
+              <Link href={row.href} prefetch={row.prefetch} className={styles.rowTarget}>
                 {content}
               </Link>
             ) : position === 0 && row.onOpen ? (
@@ -250,6 +265,10 @@ function TableHead({ fields, actionColumn, sort, onSortChange, selectionControl 
             <th
               key={column.key}
               scope='col'
+              style={
+                column.width ? ({ '--column-width': column.width } as CSSProperties) : undefined
+              }
+              data-width={column.width ? true : undefined}
               aria-sort={sortable ? ARIA_SORT[direction ?? 'none'] : undefined}
               data-kind={column.kind}
               data-from={column.showFrom}
@@ -328,7 +347,6 @@ function VirtualTable({
   const items = virtualizer.getVirtualItems()
   const before = items[0]?.start ?? 0
   const after = virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0)
-  const columnCount = fields.length + (actionColumn ? 1 : 0) + (selection ? 1 : 0)
   return (
     <div
       ref={scrollRef}
@@ -351,7 +369,7 @@ function VirtualTable({
           selectionControl={selectionControl}
         />
         <tbody>
-          <VirtualSpacer blockSize={before} columnCount={columnCount} />
+          <VirtualSpacer blockSize={before} fields={fields} actionColumn={actionColumn} />
           {items.map((item) => (
             <TableRowView
               key={item.key}
@@ -365,7 +383,7 @@ function VirtualTable({
               selected={selectedIds.has(rows[item.index].id)}
             />
           ))}
-          <VirtualSpacer blockSize={after} columnCount={columnCount} />
+          <VirtualSpacer blockSize={after} fields={fields} actionColumn={actionColumn} />
         </tbody>
       </table>
       {loadMore && <LoadMoreFooter state={loadMore} />}
@@ -375,11 +393,16 @@ function VirtualTable({
 
 interface VirtualSpacerProps {
   blockSize: number
-  columnCount: number
+  fields: readonly TableField[]
+  actionColumn: boolean
 }
 
-/** Stands in for rows outside the window, keeping the native table's scroll height. */
-function VirtualSpacer({ blockSize, columnCount }: VirtualSpacerProps) {
+/**
+ * Stands in for rows outside the window, keeping the native table's scroll height. One cell per
+ * column, hidden with its column: a spanning cell would make a fixed table lay out every hidden
+ * column as an empty one, squeezing the visible ones.
+ */
+function VirtualSpacer({ blockSize, fields, actionColumn }: VirtualSpacerProps) {
   if (blockSize <= 0) return null
   return (
     <tr
@@ -388,7 +411,10 @@ function VirtualSpacer({ blockSize, columnCount }: VirtualSpacerProps) {
         row?.style.setProperty('block-size', `${blockSize}px`)
       }}
     >
-      <td colSpan={columnCount} />
+      {fields.map((column) => (
+        <td key={column.key} data-from={column.showFrom} />
+      ))}
+      {actionColumn && <td />}
     </tr>
   )
 }

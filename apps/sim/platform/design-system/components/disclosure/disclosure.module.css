@@ -11,6 +11,7 @@
   list-style: none;
   cursor: pointer;
   overflow-wrap: anywhere;
+  text-align: start;
 }
 .summary::-webkit-details-marker {
   display: none;
@@ -39,6 +40,9 @@
 }
 .summary:not(:hover) svg {
   visibility: hidden;
+}
+.disclosure[data-chevron] > .summary svg {
+  visibility: visible;
 }
 
 .collection {

@@ -13,7 +13,10 @@ import {
 import { cn } from '@sim/emcn'
 import { CircleStop } from '@sim/emcn/icons'
 import { useAssistantActionLayout } from '@/components/assistant-actions'
-import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  useChatChrome,
+  useChatSurface,
+} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   hasAgentGroupItemContent,
   hasPendingAgentGroup,
@@ -212,6 +215,7 @@ function MessageContentInner({
   actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
+  const { responseActionsClassName, sourcesPopoverClassName } = useChatChrome()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const cited = useMemo(
     () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
@@ -327,11 +331,12 @@ function MessageContentInner({
         !hasActivityIndicator))
 
   const actionsRow = (
-    <div className='flex items-center gap-0.5'>
+    <div className={cn('flex items-center gap-0.5', responseActionsClassName)}>
       {actions}
       {sources.length > 0 && (
         <MessageSources
           sources={sources}
+          popoverClassName={sourcesPopoverClassName}
           onViewAll={
             messageId && onViewSources ? () => onViewSources(messageId, imageRequestId) : undefined
           }

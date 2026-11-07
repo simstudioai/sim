@@ -1,0 +1,31 @@
+{
+  "platform/embedded/app/(shell)/_components/conversation/conversation.module.css": {
+    "css-owner": 1
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-composer.module.css": {
+    "css-owner": 5
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-composer.tsx": {
+    "consumer-style": 1,
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/_components/conversation/page-conversation.tsx": {
+    "consumer-style": 1,
+    "prop-spread": 2
+  },
+  "platform/embedded/app/(shell)/_components/conversation/search-input-bar.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": {
+    "consumer-style": 2
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/integrations/api-key-field.module.css": {
+    "css-owner": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/usage/usage-credits.tsx": {
+    "consumer-style": 1
+  },
+  "platform/embedded/app/(shell)/settings/_components/sections/usage/usage-heatmap.tsx": {
+    "consumer-style": 4
+  }
+}

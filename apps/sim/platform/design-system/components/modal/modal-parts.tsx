@@ -37,19 +37,27 @@ export function ModalHeader({
 interface ModalBodyProps {
   label?: string
   inactive?: boolean
+  onInput?: () => void
   children: ReactNode
 }
 
-export function ModalBody({ children, label, inactive }: ModalBodyProps) {
+export function ModalBody({ children, label, inactive, onInput }: ModalBodyProps) {
   return (
-    <fieldset className={styles.modalBody} hidden={inactive} disabled={inactive} aria-label={label}>
+    <fieldset
+      className={styles.modalBody}
+      hidden={inactive}
+      disabled={inactive}
+      aria-label={label}
+      onInput={onInput}
+    >
       {children}
     </fieldset>
   )
 }
 
 interface ModalFooterProps {
-  confirmLabel: string
+  /** Absent for a dialog whose rows act on their own, which only closes. */
+  confirmLabel?: string
   onPrevious?: () => void
   cancelLabel?: string
   destructive?: boolean
@@ -77,9 +85,11 @@ export function ModalFooter({
       <Button variant='quiet' disabled={cancelDisabled} onClick={onPrevious}>
         {cancelLabel}
       </Button>
-      <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
-        {confirmLabel}
-      </Button>
+      {confirmLabel && (
+        <Button variant={destructive ? 'destructive' : 'primary'} submit disabled={disabled}>
+          {confirmLabel}
+        </Button>
+      )}
     </footer>
   )
 }

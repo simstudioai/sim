@@ -8,11 +8,7 @@ import type {
   ShellWorkspace,
 } from '@/platform/app/(shell)/_components/model'
 import { SidebarSortMenu } from '@/platform/app/(shell)/_components/sidebar/collection-order'
-import {
-  openInNewTabAction,
-  pinAction,
-  readFormText,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { openInNewTabAction, pinAction } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -28,6 +24,7 @@ import {
 } from '@/platform/design-system/components'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { platformHref } from '@/platform/design-system/navigation'
+import { readFormText } from '@/platform/shared/row-links'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100
 const CREATE_UNAVAILABLE = 'Workspace creation is unavailable.'

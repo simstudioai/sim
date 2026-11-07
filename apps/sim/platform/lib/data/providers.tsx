@@ -8,6 +8,7 @@ import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { LiveChatEvents } from '@/platform/lib/data/chat-events'
 import { OrganizationProvider } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { PasteGuard } from '@/platform/lib/data/paste-guard'
 import { SessionProvider } from '@/platform/lib/data/session'
 import { type ShellNavigation, useShellData } from '@/platform/lib/data/shell'
 import { LiveShellContext } from '@/platform/lib/data/shell-context'
@@ -45,6 +46,7 @@ export function LiveProviders({
             <SessionProvider>
               <FeatureFlagsProvider flags={organization.featureFlags}>
                 <LiveChatEvents />
+                <PasteGuard />
                 <LiveShellProvider navigation={navigation}>{children}</LiveShellProvider>
               </FeatureFlagsProvider>
             </SessionProvider>

@@ -45,7 +45,7 @@ export function retentionSelectOptions(
   return isKnown ? withInherit : [...withInherit, { value, label: `${value} days (custom)` }]
 }
 
-export interface PiiOverride {
+interface PiiOverride {
   id: string
   workspaceId: string
   stages: PiiStages

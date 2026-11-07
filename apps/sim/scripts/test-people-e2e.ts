@@ -777,6 +777,14 @@ async function run() {
           .addCookies([
             { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
           ])
+        await mobile.goto(new URL(`${path}?view=directory`, baseUrl).href, {
+          waitUntil: 'domcontentloaded',
+        })
+        // A report's row also holds this name, in its manager cell, which a phone keeps hidden.
+        const mobileRow = mobile
+          .getByRole('row')
+          .filter({ has: mobile.getByRole('link', { name: /^Amara Cole/ }) })
+        await expect(mobileRow.getByText(/^Reports to /)).toBeVisible({ timeout: 120_000 })
         await mobile.goto(new URL(path, baseUrl).href, { waitUntil: 'domcontentloaded' })
         await mobile
           .getByRole('link', { name: 'View profile for Maya Chen' })
@@ -813,6 +821,74 @@ async function run() {
       }
     })
 
+  if (screenshotDir)
+    await check('an in-flight disconnect and spreadsheet preview hold their dialogs', async () => {
+      const { chromium, expect } = await import('@playwright/test')
+      const browser = await chromium.launch()
+      try {
+        await sql`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
+          values (${teamOrg}, 'okta', 'hold.okta.com', now() + interval '1 hour')`
+        const page = await browser.newPage()
+        page.setDefaultTimeout(60_000)
+        await page
+          .context()
+          .addCookies([
+            { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
+          ])
+        const held = () => {
+          let release = () => {}
+          const gate = new Promise<void>((resolve) => {
+            release = resolve
+          })
+          return { gate, release: () => release() }
+        }
+
+        // Before the page loads: the chart reads the same roots query, and the picker shares its cache.
+        await page.route(/\/people\?.*scope=roots/, (route) =>
+          route.fulfill({ json: { people: [], nextCursor: null, selectedDepartment: null } })
+        )
+        await page.goto(new URL(`/o/${teamOrg}/people`, baseUrl).href)
+        await page.getByLabel('Browse top-level teams').click()
+        await expect(page.getByText('No top-level teams with reporting lines yet')).toBeVisible()
+        await page.keyboard.press('Escape')
+        await page.unroute(/\/people\?.*scope=roots/)
+
+        await page.getByRole('button', { name: 'Import', exact: true }).click()
+        const sheet = page.getByRole('dialog', { name: 'Import profiles' })
+        const preview = held()
+        await page.route(`**/api/organizations/${teamOrg}/people/import`, async (route) => {
+          await preview.gate
+          await route.fulfill({ status: 500, json: { error: 'Import refused' } })
+        })
+        const previewed = page.waitForRequest(`**/api/organizations/${teamOrg}/people/import`)
+        await sheet.locator('input[type="file"]').setInputFiles({
+          name: 'people.csv',
+          mimeType: 'text/csv',
+          buffer: Buffer.from('email,title\nheld@example.test,Engineer\n'),
+        })
+        await previewed
+        await page.keyboard.press('Escape')
+        await expect(sheet).toBeVisible()
+        preview.release()
+        await expect(sheet.getByText('Import refused')).toBeVisible()
+
+        await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+        await page.getByRole('button', { name: 'Disconnect Okta', exact: true }).click()
+        const confirming = page.getByRole('dialog', { name: 'Disconnect directory' })
+        const disconnect = held()
+        await page.route(`**/api/organizations/${teamOrg}/people/sync`, async (route) => {
+          if (route.request().method() === 'DELETE') await disconnect.gate
+          await route.continue()
+        })
+        await confirming.getByRole('button', { name: 'Disconnect', exact: true }).click()
+        await expect(confirming.getByRole('button', { name: 'Disconnecting…' })).toBeVisible()
+        disconnect.release()
+        await expect(confirming).toHaveCount(0)
+      } finally {
+        await browser.close()
+        await sql`delete from people_directory_sync where organization_id=${teamOrg}`
+      }
+    })
   if (screenshotDir)
     await check(
       'a transient status poll preserves a credential draft until administrator access is revoked',

@@ -73,7 +73,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       const now = new Date()
 
       if (!spreadsheetId || !sheetName) {
-        logger.error(`[${requestId}] Missing spreadsheetId or sheetName for webhook ${webhookId}`)
+        logger.error(`Missing spreadsheetId or sheetName for webhook ${webhookId}`)
         await markWebhookFailed(webhookId, logger)
         return 'failure'
       }
@@ -82,7 +82,6 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         accessToken,
         spreadsheetId,
         config.lastModifiedTime,
-        requestId,
         logger
       )
 
@@ -93,7 +92,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] Sheet not modified since last poll for webhook ${webhookId}`)
+        logger.info(`Sheet not modified since last poll for webhook ${webhookId}`)
         return 'success'
       }
 
@@ -118,16 +117,14 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(
-          `[${requestId}] First poll for webhook ${webhookId}, seeded row index: ${currentRowCount}`
-        )
+        logger.info(`First poll for webhook ${webhookId}, seeded row index: ${currentRowCount}`)
         return 'success'
       }
 
       if (currentRowCount <= config.lastIndexChecked) {
         if (currentRowCount < config.lastIndexChecked) {
           logger.warn(
-            `[${requestId}] Row count decreased from ${config.lastIndexChecked} to ${currentRowCount} for webhook ${webhookId}`
+            `Row count decreased from ${config.lastIndexChecked} to ${currentRowCount} for webhook ${webhookId}`
           )
         }
         await updateWebhookProviderConfig(
@@ -140,7 +137,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No new rows for webhook ${webhookId}`)
+        logger.info(`No new rows for webhook ${webhookId}`)
         return 'success'
       }
 
@@ -156,7 +153,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         headerRowIndex > 0 ? Math.max(startRow, headerRowIndex + 1) : startRow
 
       logger.info(
-        `[${requestId}] Found ${newRowCount} new rows for webhook ${webhookId}, processing rows ${adjustedStartRow}-${endRow}`
+        `Found ${newRowCount} new rows for webhook ${webhookId}, processing rows ${adjustedStartRow}-${endRow}`
       )
 
       // Entire batch is header/blank rows — advance pointer and skip fetch.
@@ -175,7 +172,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         )
         await markWebhookSuccess(webhookId, logger)
         logger.info(
-          `[${requestId}] Batch ${startRow}-${endRow} contained only header/blank rows for webhook ${webhookId}, advancing pointer`
+          `Batch ${startRow}-${endRow} contained only header/blank rows for webhook ${webhookId}, advancing pointer`
         )
         return 'success'
       }
@@ -219,22 +216,20 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} rows failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} rows failed to process for webhook ${webhookId}`)
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} rows for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} rows for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
       )
       return 'success'
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+        return skipAdmissionRefusedPoll(logger, webhookId)
       }
-      logger.error(`[${requestId}] Error processing Google Sheets webhook ${webhookId}:`, error)
+      logger.error(`Error processing Google Sheets webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -245,7 +240,6 @@ async function isDriveFileUnchanged(
   accessToken: string,
   spreadsheetId: string,
   lastModifiedTime: string | undefined,
-  requestId: string,
   logger: Logger
 ): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
   try {
@@ -255,7 +249,7 @@ async function isDriveFileUnchanged(
     }
     return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
   } catch {
-    logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
+    logger.warn('Drive modifiedTime check failed, proceeding with Sheets API')
     return { unchanged: false }
   }
 }
@@ -395,7 +389,7 @@ async function processRows(
 
     // Skip empty rows — don't fire a workflow run with no data.
     if (!row || row.length === 0) {
-      logger.info(`[${requestId}] Skipping empty row ${rowNumber} for webhook ${webhookData.id}`)
+      logger.info(`Skipping empty row ${rowNumber} for webhook ${webhookData.id}`)
       continue
     }
 
@@ -435,7 +429,7 @@ async function processRows(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for row ${rowNumber}:`,
+              `Failed to process webhook for row ${rowNumber}:`,
               result.statusCode,
               result.error
             )
@@ -446,14 +440,12 @@ async function processRows(
         }
       )
 
-      logger.info(
-        `[${requestId}] Successfully processed row ${rowNumber} for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully processed row ${rowNumber} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Error processing row ${rowNumber}:`, errorMessage)
+      logger.error(`Error processing row ${rowNumber}:`, errorMessage)
       failedCount++
     }
   }

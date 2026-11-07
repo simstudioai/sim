@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { buildMothershipErrorTag } from '@/lib/mothership/chat/error-tag'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { normalizeMessage, type PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import { readAppliedSteeringId } from '@/lib/mothership/chat/steering'
 import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
 import { reduceTaskState } from '@/lib/mothership/chat/task-state'
 import {
@@ -108,6 +109,7 @@ export function buildLiveAssistantMessage(params: {
     string,
     { type: 'task'; task: TaskBlockInfo; timestamp: number; endedAt?: number }
   >()
+  const appliedSteeringIds = new Set<string>()
   const subagentByParentToolCallId = new Map<string, string>()
   const subagentBySpanId = new Map<string, string>()
   let activeSubagentParentToolCallId: string | undefined
@@ -449,6 +451,14 @@ export function buildLiveAssistantMessage(params: {
       }
       case MothershipStreamV1EventType.run: {
         const payload = parsed.payload
+        const steeringId = readAppliedSteeringId(payload)
+        if (steeringId) {
+          if (!appliedSteeringIds.has(steeringId)) {
+            appliedSteeringIds.add(steeringId)
+            blocks.push({ type: 'steering', steering: { steeringId } })
+          }
+          continue
+        }
         if (payload.kind === 'task_armed' || payload.kind === 'task_delivered') {
           const existing = taskBlocks.get(payload.taskId)
           const task = reduceTaskState(existing?.task, payload)
@@ -567,11 +577,15 @@ export function buildEffectiveChatTranscript({
     return messages
   }
 
-  const trailingMessage = messages[messages.length - 1]
+  /** The turn's owner may be followed by steering the user sent into it, never by anything else. */
+  const ownerIndex = messages.findIndex(
+    (message) => message.role === 'user' && message.id === activeStreamId
+  )
   if (
-    !trailingMessage ||
-    trailingMessage.role !== 'user' ||
-    trailingMessage.id !== activeStreamId
+    ownerIndex < 0 ||
+    messages
+      .slice(ownerIndex + 1)
+      .some((message) => message.role !== 'user' || message.steering?.streamId !== activeStreamId)
   ) {
     return messages
   }
@@ -585,5 +599,5 @@ export function buildEffectiveChatTranscript({
     return messages
   }
 
-  return [...messages, liveAssistant]
+  return [...messages.slice(0, ownerIndex + 1), liveAssistant, ...messages.slice(ownerIndex + 1)]
 }

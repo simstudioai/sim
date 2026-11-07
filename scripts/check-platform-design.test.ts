@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -508,5 +508,198 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       expect(result.output, issue).toContain(`[${issue}]`)
   } finally {
     rmSync(ROOT, { recursive: true, force: true })
+  }
+}, 30_000)
+
+/** The smallest app the check passes on, with the embedded tree beside the zone. */
+function embeddedFixture() {
+  const root = mkdtempSync(path.join(tmpdir(), 'sim-platform-embedded-'))
+  const put = (file: string, content: string) => {
+    const absolute = path.join(root, 'apps/sim', file)
+    mkdirSync(path.dirname(absolute), { recursive: true })
+    writeFileSync(absolute, content)
+  }
+  symlinkSync(
+    path.resolve(path.dirname(CHECK), '../node_modules'),
+    path.join(root, 'node_modules'),
+    'dir'
+  )
+  mkdirSync(path.join(root, 'scripts'))
+  const catalog = 'platform/design-system/catalog'
+  put(`${catalog}/recipes.json`, '{}')
+  put(
+    `${catalog}/evidence.json`,
+    JSON.stringify([
+      {
+        key: 'C0092',
+        family: 'Button',
+        theme: 'L',
+        scope: 'shared',
+        owner: 'Button',
+        base: [SHARED, 'p-5-0', '1A-0'],
+        use: [PRODUCT, 'p-C-0', '2B-0'],
+      },
+    ])
+  )
+  put(`${catalog}/variants.json`, JSON.stringify({ Button: { variant: { primary: ['C0092'] } } }))
+  put('platform/design-system/styles/tokens.css', '[data-platform-ui] { --color-ink: #141414; }')
+  put(
+    'platform/design-system/components/button/button.tsx',
+    `export function Button({variant}: {variant: 'primary'}) { return <button data-variant={variant}/> }`
+  )
+  put(
+    'platform/embedded/app/(shell)/home/_components/home/home.tsx',
+    `import { useThing } from '@/hooks/queries/thing'
+    import { logger } from '@sim/logger'
+    import { Button } from '@/platform/design-system/components/button/button'
+    export const used = [useThing, logger]
+    export function Home() { return <Button variant='primary'/> }`
+  )
+  put(
+    'app/o/[organizationId]/home/page.tsx',
+    `import { Home } from '@/platform/embedded/app/(shell)/home/_components/home/home'
+    export default function Page() { return <Home/> }`
+  )
+  const run = (...flags: string[]) => {
+    const result = spawnSync('bun', [CHECK, root, ...flags], { encoding: 'utf8' })
+    if (result.error) throw result.error
+    return { status: result.status, output: result.stdout + result.stderr }
+  }
+  const baseline = path.join(root, 'scripts/check-platform-design.baseline.json')
+  return { root, put, run, baseline }
+}
+
+it('walks the embedded views, with a shrink-only per-file baseline that holds only them', () => {
+  const { root, put, run, baseline } = embeddedFixture()
+  const view = 'platform/embedded/app/(shell)/home/_components/home/spread.tsx'
+  try {
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+
+    put(view, 'export const Spread = (props: object) => <div {...props}/>')
+    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${view}:1 [prop-spread]`) })
+
+    expect(run('--update').status).toBe(1)
+    expect(run('--update', '--init').status).toBe(0)
+    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({ [view]: { 'prop-spread': 1 } })
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('1 embedded findings') })
+
+    put(
+      view,
+      `export const Spread = (props: object) => <div {...props}/>
+      export const Again = (props: object) => <div {...props}/>`
+    )
+    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${view}:2 [prop-spread]`) })
+    expect(run('--update').status).toBe(1)
+    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({ [view]: { 'prop-spread': 1 } })
+
+    put(view, 'export const Clean = 1')
+    expect(run()).toEqual({ status: 1, output: expect.stringContaining('shrink it with --update') })
+    expect(run('--update').status).toBe(0)
+    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({})
+
+    const zone = 'platform/app/spread.tsx'
+    put(zone, 'export const Spread = (props: object) => <div {...props}/>')
+    writeFileSync(baseline, JSON.stringify({ [zone]: { 'prop-spread': 1 } }))
+    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${zone}:1 [prop-spread]`) })
+    expect(run('--update').status).toBe(1)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it.each([
+  [
+    'zone-embedded',
+    'platform/app/page.tsx',
+    `import '@/platform/embedded/app/(shell)/home/_components/home/home'`,
+  ],
+  ['zone-embedded', 'platform/lib/data/home.ts', `import '@/platform/embedded/lib/time'`],
+  [
+    'zone-embedded',
+    'platform/design-system/components/button/leak.ts',
+    `import '@/platform/embedded/lib/time'`,
+  ],
+  ['zone-embedded', 'platform/embedded/lib/data/reach.ts', `import '@/platform/lib/data/home'`],
+  ['zone-embedded', 'platform/embedded/lib/data/reach2.ts', `import '../../../app/page'`],
+  ['zone-embedded', 'platform/shared/reach.ts', `import '@/platform/design-system/navigation'`],
+  ['zone-embedded', 'platform/shared/reach2.ts', `import type {} from '@/platform/lib/data/home'`],
+  ['legacy-import', 'app/o/[organizationId]/reach.ts', `import '@/platform/lib/data/home'`],
+  ['legacy-import', 'app/workspace/reach.tsx', `import '@/platform/embedded/lib/time'`],
+  [
+    'private-composition',
+    'platform/embedded/app/(shell)/search/_components/reach.ts',
+    `import '@/platform/embedded/app/(shell)/home/_components/home/home'`,
+  ],
+  [
+    'private-recipe',
+    'app/o/[organizationId]/recipe.ts',
+    `import '@/platform/design-system/components/button/button.module.css'`,
+  ],
+])(
+  'fails [%s] for %s',
+  (rule, file, source) => {
+    const { root, put, run } = embeddedFixture()
+    try {
+      put(file, `${source}\n`)
+      const result = run()
+      expect(result.status).toBe(1)
+      expect(result.output).toContain(`${file} [${rule}]`)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+  30_000
+)
+
+it('lets a shared model name a design-system type and an organization route import it', () => {
+  const { root, put, run } = embeddedFixture()
+  try {
+    put(
+      'platform/shared/model.ts',
+      `import type { IconName } from '@/platform/design-system/catalog/icon-geometry'\nexport type Row = IconName\n`
+    )
+    put('app/o/[organizationId]/model-reader.ts', `import '@/platform/shared/model'\n`)
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('counts a variant only an organization route mounts through a dynamic section table', () => {
+  const { root, put, run } = embeddedFixture()
+  const button = 'platform/design-system/components/button/button.tsx'
+  const section = 'platform/embedded/app/(shell)/home/_components/home/section.tsx'
+  try {
+    put(
+      'platform/design-system/catalog/variants.json',
+      JSON.stringify({ Button: { variant: { primary: ['C0092'], quiet: [] } } })
+    )
+    put(
+      button,
+      `export function Button({variant}: {variant: 'primary' | 'quiet'}) { return <button data-variant={variant}/> }`
+    )
+    put(
+      section,
+      `import { Button } from '@/${button.replace('.tsx', '')}'
+      export default function Section() { return <Button variant='quiet'/> }`
+    )
+    const unmounted = run()
+    expect(unmounted.status).toBe(1)
+    expect(unmounted.output).toContain('[code-use] Button.variant=quiet')
+
+    put(
+      'platform/embedded/app/(shell)/home/_components/home/host.tsx',
+      `import dynamic from 'next/dynamic'
+      const TABLE = { one: dynamic(() => import('@/${section.replace('.tsx', '')}')) }
+      export function Host({ name }: { name: 'one' }) { const Section = TABLE[name]; return <Section/> }`
+    )
+    put(
+      'app/o/[organizationId]/section/page.tsx',
+      `import { Host } from '@/platform/embedded/app/(shell)/home/_components/home/host'
+      export default function Page() { return <Host name='one'/> }`
+    )
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)

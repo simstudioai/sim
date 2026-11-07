@@ -210,9 +210,9 @@ export const hubspotPollingHandler: PollingProviderHandler = {
       return await pollSearchBased(ctx, config, accessToken)
     } catch (error) {
       if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+        return skipAdmissionRefusedPoll(logger, webhookId)
       }
-      logger.error(`[${requestId}] Error processing HubSpot webhook ${webhookId}:`, error)
+      logger.error(`Error processing HubSpot webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -265,7 +265,7 @@ async function pollSearchBased(
     )
     await markWebhookSuccess(webhookId, logger)
     logger.info(
-      `[${requestId}] Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`
+      `Seeded HubSpot webhook ${webhookId} watermark to ${nowMs} (${objectType}/${eventType}/${filterProperty})`
     )
     return 'success'
   }
@@ -277,7 +277,7 @@ async function pollSearchBased(
     )
   }
 
-  const userFilters = buildUserFilters(config, logger, requestId)
+  const userFilters = buildUserFilters(config, logger)
   const properties = resolveRequestedProperties(config, objectType, filterProperty, userFilters)
   const maxRecords = Math.min(
     Math.max(config.maxRecordsPerPoll ?? DEFAULT_MAX_RECORDS, 1),
@@ -294,7 +294,6 @@ async function pollSearchBased(
     properties,
     userFilters,
     maxRecords,
-    requestId,
     logger,
   })
 
@@ -305,12 +304,12 @@ async function pollSearchBased(
       logger
     )
     await markWebhookSuccess(webhookId, logger)
-    logger.info(`[${requestId}] No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`)
+    logger.info(`No new HubSpot ${objectType} ${eventType} for webhook ${webhookId}`)
     return 'success'
   }
 
   logger.info(
-    `[${requestId}] Found ${records.length} HubSpot ${objectType} ${eventType} candidates for webhook ${webhookId}`
+    `Found ${records.length} HubSpot ${objectType} ${eventType} candidates for webhook ${webhookId}`
   )
 
   const targetProperty = config.targetPropertyName?.trim() || undefined
@@ -348,15 +347,13 @@ async function pollSearchBased(
 
   if (failedCount > 0 && processedCount === 0) {
     await markWebhookFailed(webhookId, logger)
-    logger.warn(
-      `[${requestId}] All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`
-    )
+    logger.warn(`All ${failedCount} HubSpot records failed to process for webhook ${webhookId}`)
     return 'failure'
   }
 
   await markWebhookSuccess(webhookId, logger)
   logger.info(
-    `[${requestId}] Processed ${processedCount} HubSpot records${skippedCount ? `, skipped ${skippedCount} (no property change)` : ''}${failedCount ? `, ${failedCount} failed` : ''} for webhook ${webhookId}`
+    `Processed ${processedCount} HubSpot records${skippedCount ? `, skipped ${skippedCount} (no property change)` : ''}${failedCount ? `, ${failedCount} failed` : ''} for webhook ${webhookId}`
   )
   return 'success'
 }
@@ -391,7 +388,6 @@ async function pollListMembership(
     accessToken,
     initialAfter: config.lastSeenMembershipCursor?.trim() || undefined,
     pageLimit: seedComplete ? maxRecords : MAX_PAGES_PER_POLL * HUBSPOT_PAGE_LIMIT,
-    requestId,
     logger,
   })
 
@@ -403,12 +399,10 @@ async function pollListMembership(
     }
     if (result.reachedEnd) {
       update.membershipSeedComplete = true
-      logger.info(
-        `[${requestId}] HubSpot list_membership ${webhookId} seed complete (list=${listId})`
-      )
+      logger.info(`HubSpot list_membership ${webhookId} seed complete (list=${listId})`)
     } else {
       logger.info(
-        `[${requestId}] HubSpot list_membership ${webhookId} seed in progress (list=${listId}, scanned ${result.scanned})`
+        `HubSpot list_membership ${webhookId} seed in progress (list=${listId}, scanned ${result.scanned})`
       )
     }
     await updateWebhookProviderConfig(webhookId, update, logger)
@@ -429,9 +423,7 @@ async function pollListMembership(
     return 'success'
   }
 
-  logger.info(
-    `[${requestId}] Found ${result.records.length} HubSpot list memberships for webhook ${webhookId}`
-  )
+  logger.info(`Found ${result.records.length} HubSpot list memberships for webhook ${webhookId}`)
 
   let processedCount = 0
   let failedCount = 0
@@ -470,7 +462,7 @@ async function pollListMembership(
       if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       failedCount++
       logger.error(
-        `[${requestId}] Error processing HubSpot list membership ${member.recordId}:`,
+        `Error processing HubSpot list membership ${member.recordId}:`,
         getErrorMessage(error, 'Unknown error')
       )
     }
@@ -546,11 +538,7 @@ function resolveRequestedProperties(
   return [...requested]
 }
 
-export function buildUserFilters(
-  config: HubSpotWebhookConfig,
-  logger?: Logger,
-  requestId?: string
-): FilterClause[] {
+export function buildUserFilters(config: HubSpotWebhookConfig, logger?: Logger): FilterClause[] {
   const filters: FilterClause[] = []
 
   if (config.pipelineId?.trim()) {
@@ -585,10 +573,9 @@ export function buildUserFilters(
         }
       }
     } catch (error) {
-      logger?.warn(
-        `[${requestId ?? ''}] Could not parse user filters as JSON, ignoring:`,
-        getErrorMessage(error, 'parse error')
-      )
+      logger?.warn('Could not parse user filters as JSON, ignoring:', {
+        error: getErrorMessage(error, 'parse error'),
+      })
     }
   }
 
@@ -598,7 +585,7 @@ export function buildUserFilters(
   // the webhook is marked failed and the user can trim their filter configuration.
   if (filters.length > MAX_USER_FILTERS) {
     throw new Error(
-      `[${requestId ?? ''}] HubSpot webhook has ${filters.length} combined filters (pipeline/stage/owner shortcuts + advanced filters), exceeding the ${MAX_USER_FILTERS}-filter limit HubSpot's Search API allows alongside the reserved cursor filters. Reduce the number of filters.`
+      `HubSpot webhook has ${filters.length} combined filters (pipeline/stage/owner shortcuts + advanced filters), exceeding the ${MAX_USER_FILTERS}-filter limit HubSpot's Search API allows alongside the reserved cursor filters. Reduce the number of filters.`
     )
   }
 
@@ -638,7 +625,6 @@ interface FetchArgs {
   properties: string[]
   userFilters: FilterClause[]
   maxRecords: number
-  requestId: string
   logger: Logger
 }
 
@@ -652,7 +638,6 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     properties,
     userFilters,
     maxRecords,
-    requestId,
     logger,
   } = args
 
@@ -702,7 +687,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '')
-      logger.error(`[${requestId}] HubSpot search API error:`, {
+      logger.error('HubSpot search API error:', {
         status: response.status,
         objectType,
         error: errorBody,
@@ -719,7 +704,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     if (accumulated.length >= maxRecords) break
     if (pages >= MAX_PAGES_PER_POLL) {
       logger.warn(
-        `[${requestId}] HubSpot poll hit MAX_PAGES_PER_POLL=${MAX_PAGES_PER_POLL} — remaining records will roll over to next poll`
+        `HubSpot poll hit MAX_PAGES_PER_POLL=${MAX_PAGES_PER_POLL} — remaining records will roll over to next poll`
       )
       break
     }
@@ -858,7 +843,7 @@ async function processRecords(
         failedCount++
         cursorFrozen = true
         logger.error(
-          `[${requestId}] Error processing HubSpot ${objectType} ${record.id}:`,
+          `Error processing HubSpot ${objectType} ${record.id}:`,
           getErrorMessage(error, 'Unknown error')
         )
       }
@@ -900,7 +885,6 @@ interface FetchListMembershipPagesArgs {
   initialAfter: string | undefined
   /** Soft cap on emitted records (normal mode) or pages × HUBSPOT_PAGE_LIMIT (seed mode). */
   pageLimit: number
-  requestId: string
   logger: Logger
 }
 
@@ -927,7 +911,7 @@ interface FetchListMembershipPagesResult {
 async function fetchListMembershipPages(
   args: FetchListMembershipPagesArgs
 ): Promise<FetchListMembershipPagesResult> {
-  const { listId, accessToken, initialAfter, pageLimit, requestId, logger } = args
+  const { listId, accessToken, initialAfter, pageLimit, logger } = args
 
   const records: ListMembershipRecord[] = []
   let after: string | undefined = initialAfter
@@ -943,9 +927,7 @@ async function fetchListMembershipPages(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      logger.error(
-        `[${requestId}] HubSpot list memberships fetch failed ${response.status}: ${errorText}`
-      )
+      logger.error(`HubSpot list memberships fetch failed ${response.status}: ${errorText}`)
       throw new Error(
         `HubSpot list memberships fetch ${response.status}: ${errorText.slice(0, 500)}`
       )

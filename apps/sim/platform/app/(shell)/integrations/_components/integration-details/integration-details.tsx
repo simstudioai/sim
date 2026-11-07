@@ -18,9 +18,9 @@ import {
   Modal,
   TextField,
 } from '@/platform/design-system/components'
-import { isConnectable, type OrganizationIntegration } from '@/platform/lib/data/integrations-types'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
+import { isConnectable, type OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration

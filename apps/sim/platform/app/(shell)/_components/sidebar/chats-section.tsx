@@ -2,17 +2,9 @@
 
 import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import type {
-  ShellActions,
-  ShellChat,
-  ShellQueryStatus,
-} from '@/platform/app/(shell)/_components/model'
+import type { ShellActions, ShellChat } from '@/platform/app/(shell)/_components/model'
 import { SidebarSortMenu } from '@/platform/app/(shell)/_components/sidebar/collection-order'
-import {
-  linkMenuActions,
-  pinAction,
-  readFormText,
-} from '@/platform/app/(shell)/_components/sidebar/row-links'
+import { linkMenuActions, pinAction } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
@@ -27,6 +19,8 @@ import {
 } from '@/platform/design-system/components'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { platformHref } from '@/platform/design-system/navigation'
+import { readFormText } from '@/platform/shared/row-links'
+import type { ShellQueryStatus } from '@/platform/shared/shell'
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
 const CHAT_TITLE_MAX_LENGTH = 200

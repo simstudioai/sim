@@ -30,6 +30,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
@@ -42,6 +43,7 @@ import {
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -51,7 +53,6 @@ import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/h
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
@@ -758,6 +759,8 @@ function EmbeddedFileActions({
   const [isShareOpen, setIsShareOpen] = useState(false)
   const { file } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
+  const { ShareDialogComponent } = useChatChrome()
+  const ShareDialog = ShareDialogComponent ?? ShareModal
 
   const handleDownload = async () => {
     if (!file) return
@@ -818,7 +821,7 @@ function EmbeddedFileActions({
             </Tooltip.Content>
           </Tooltip.Root>
           {isShareOpen && (
-            <ShareModal
+            <ShareDialog
               key={file.id}
               open
               onOpenChange={setIsShareOpen}

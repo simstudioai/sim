@@ -182,7 +182,6 @@ export function useFixtureChatRuntime(
     title: changes.titleFor(id, thread?.title ?? 'New chat'),
     status: running ? 'sending' : 'idle',
     turns: fixtureTurns(turns),
-    queue: [],
     send,
     sendText: (text) => send({ text, attachments: [] }),
     stop: () => {
@@ -192,10 +191,6 @@ export function useFixtureChatRuntime(
       const turn = turns.find((item) => `${item.id}:response` === turnId)
       if (turn) transition(turn, 'running')
     },
-    removeQueued: () => {},
-    sendQueuedNow: () => {},
-    editQueued: () => {},
-    cancelQueueEdit: () => {},
     approvals: { outstanding: [], submitted: [] },
     registerApproval: () => () => {},
     decideTools: async () => 'ok',

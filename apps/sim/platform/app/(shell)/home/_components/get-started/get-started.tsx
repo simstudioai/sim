@@ -1,7 +1,7 @@
 import styles from '@/platform/app/(shell)/home/_components/get-started/get-started.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type { HomeGetStartedStep } from '@/platform/app/(shell)/home/_components/model'
 import { ActivityRow, Icon } from '@/platform/design-system/components'
+import type { HomeGetStartedStep } from '@/platform/shared/home'
 
 interface GetStartedProps {
   steps: readonly HomeGetStartedStep[]

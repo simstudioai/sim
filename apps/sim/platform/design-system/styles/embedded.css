@@ -37,7 +37,6 @@
 [data-platform-ui] {
   color-scheme: light;
   color: var(--ui-ink);
-  background: var(--ui-canvas);
   font-family: var(--font-sans);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -46,6 +45,17 @@
   text-rendering: auto;
   font-feature-settings: normal;
   font-variation-settings: normal;
+}
+
+[data-platform-ui][data-canvas] {
+  background: var(--ui-canvas);
+}
+
+/* A phone has no sidebar toolbar for a page's first row to line up with, only the bar above it. */
+@media (max-width: 48rem) {
+  [data-platform-ui] {
+    --shell-home-row-start: var(--ui-product-section-gap);
+  }
 }
 
 [data-platform-ui][data-theme="dark"] {

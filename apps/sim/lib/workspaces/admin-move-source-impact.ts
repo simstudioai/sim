@@ -53,7 +53,7 @@ import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
  * failure mode a downgrade disclosure cannot have. Now adding a section to
  * that union fails the build here until somebody decides whether it is gated.
  *
- * The gating mirrors `isOrganizationSettingsSectionAvailable`. The type is
+ * The gating mirrors `organizationPlanAllowsSettingsSection`. The type is
  * imported type-only so this domain module stays free of the settings
  * navigation module's React and icon imports.
  */

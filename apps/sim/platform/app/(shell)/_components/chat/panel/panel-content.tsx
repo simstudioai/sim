@@ -13,7 +13,7 @@ import {
   WorkspaceList,
 } from '@/platform/design-system/components'
 import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
-import { formatRelativeTime } from '@/platform/lib/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 interface PanelContentProps {
   view: PanelDestination

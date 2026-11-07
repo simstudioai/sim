@@ -97,7 +97,7 @@ async function fetchWithDNSPinning(
   try {
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl', 'contentFetch')
     if (!urlValidation.isValid) {
-      logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, { url })
+      logger.warn(`Invalid content URL: ${urlValidation.error}`, { requestId, url })
       return null
     }
     const headers: Record<string, string> = {}
@@ -110,7 +110,8 @@ async function fetchWithDNSPinning(
     })
     return response
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
+    logger.error('Error fetching URL with DNS pinning', {
+      requestId,
       error: toError(error).message,
       url: sanitizeUrlForLog(url),
     })
@@ -483,7 +484,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const url = new URL(request.url)
     const validationToken = url.searchParams.get('validationToken')
     if (validationToken) {
-      logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+      logger.info(`Microsoft Graph subscription validation for path: ${path}`, { requestId })
       return new NextResponse(validationToken, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -496,9 +497,9 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     if (providerConfig.triggerId !== 'microsoftteams_chat_subscription') {
       const hmacSecret = providerConfig.hmacSecret as string | undefined
       if (!hmacSecret) {
-        logger.error(
-          `[${requestId}] Microsoft Teams outgoing webhook missing configured HMAC secret`
-        )
+        logger.error('Microsoft Teams outgoing webhook missing configured HMAC secret', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Missing HMAC secret configuration', {
           status: 401,
         })
@@ -507,14 +508,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const authHeader = request.headers.get('authorization')
 
       if (!authHeader || !authHeader.startsWith('HMAC ')) {
-        logger.warn(
-          `[${requestId}] Microsoft Teams outgoing webhook missing HMAC authorization header`
-        )
+        logger.warn('Microsoft Teams outgoing webhook missing HMAC authorization header', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Missing HMAC signature', { status: 401 })
       }
 
       if (!validateMicrosoftTeamsSignature(hmacSecret, authHeader, rawBody)) {
-        logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
+        logger.warn('Microsoft Teams HMAC signature verification failed', { requestId })
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
       }
     }
@@ -523,7 +524,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const expectedClientState = String(webhook.id ?? '')
       if (!expectedClientState) {
         logger.warn(
-          `[${requestId}] Microsoft Teams chat subscription webhook missing id for clientState verification`
+          'Microsoft Teams chat subscription webhook missing id for clientState verification',
+          { requestId }
         )
         return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
       }
@@ -539,18 +541,18 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       }
 
       if (notifications.length === 0) {
-        logger.warn(
-          `[${requestId}] Microsoft Teams chat subscription notification missing value array`
-        )
+        logger.warn('Microsoft Teams chat subscription notification missing value array', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Invalid notification payload', { status: 401 })
       }
 
       for (const notification of notifications) {
         const clientState = (notification as Record<string, unknown>)?.clientState
         if (typeof clientState !== 'string' || !safeCompare(clientState, expectedClientState)) {
-          logger.warn(
-            `[${requestId}] Microsoft Teams chat subscription clientState verification failed`
-          )
+          logger.warn('Microsoft Teams chat subscription clientState verification failed', {
+            requestId,
+          })
           return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
         }
       }
@@ -603,14 +605,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const chatId = config.chatId as string | undefined
 
     if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId for Teams chat subscription ${webhook.id}`)
+      logger.warn(`Missing credentialId for Teams chat subscription ${webhook.id}`, { requestId })
       throw new WebhookDeploymentConfigurationError(
         'Microsoft Teams credentials are required. Please connect your Microsoft account in the trigger configuration.'
       )
     }
 
     if (!chatId) {
-      logger.warn(`[${requestId}] Missing chatId for Teams chat subscription ${webhook.id}`)
+      logger.warn(`Missing chatId for Teams chat subscription ${webhook.id}`, { requestId })
       throw new WebhookDeploymentConfigurationError(
         'Chat ID is required to create a Teams subscription. Please provide a valid chat ID.'
       )
@@ -618,7 +620,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
     const accessToken = await getCredentialAccessToken(credentialId, requestId)
     if (!accessToken) {
-      logger.error(`[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`)
+      logger.error(`Failed to get access token for Teams subscription ${webhook.id}`, { requestId })
       throw new Error(
         'Failed to authenticate with Microsoft Teams. Please reconnect your Microsoft account and try again.'
       )
@@ -634,7 +636,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         if (checkRes.ok) {
           const existingPayload = await checkRes.json()
           logger.info(
-            `[${requestId}] Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`
+            `Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`,
+            { requestId }
           )
           return {
             providerConfigUpdates: {
@@ -644,7 +647,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
           }
         }
       } catch {
-        logger.debug(`[${requestId}] Existing subscription check failed, will create new one`)
+        logger.debug('Existing subscription check failed, will create new one', { requestId })
       }
     }
 
@@ -678,13 +681,11 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       if (!res.ok) {
         const errorMessage =
           payload.error?.message || payload.error?.code || 'Unknown Microsoft Graph API error'
-        logger.error(
-          `[${requestId}] Failed to create Teams subscription for webhook ${webhook.id}`,
-          {
-            status: res.status,
-            error: payload.error,
-          }
-        )
+        logger.error(`Failed to create Teams subscription for webhook ${webhook.id}`, {
+          requestId,
+          status: res.status,
+          error: payload.error,
+        })
 
         let userFriendlyMessage = 'Failed to create Teams subscription'
         if (res.status === 401 || res.status === 403) {
@@ -701,7 +702,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       }
 
       logger.info(
-        `[${requestId}] Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`
+        `Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`,
+        { requestId }
       )
       return {
         providerConfigUpdates: {
@@ -719,10 +721,9 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         throw error
       }
 
-      logger.error(
-        `[${requestId}] Error creating Teams subscription for webhook ${webhook.id}`,
-        error
-      )
+      logger.error(`Error creating Teams subscription for webhook ${webhook.id}`, error, {
+        requestId,
+      })
       throw new Error(
         getErrorMessage(error, 'Failed to create Teams subscription. Please try again.')
       )
@@ -745,7 +746,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const credentialId = config.credentialId as string | undefined
 
       if (!externalSubscriptionId || !credentialId) {
-        logger.info(`[${requestId}] No external subscription to delete for webhook ${webhook.id}`)
+        logger.info(`No external subscription to delete for webhook ${webhook.id}`, { requestId })
         if (strict) throw new Error('Missing Teams subscription cleanup configuration')
         return
       }
@@ -753,7 +754,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         logger.warn(
-          `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
+          `Could not get access token to delete Teams subscription for webhook ${webhook.id}`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Teams access token for subscription deletion')
         return
@@ -769,21 +771,22 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
       if (res.ok || res.status === 404) {
         logger.info(
-          `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
+          `Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`,
+          { requestId }
         )
       } else {
         // Drain the unread body so the connection is released.
         await res.text()
         logger.warn(
-          `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
+          `Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`,
+          { requestId }
         )
         if (strict) throw new Error(`Failed to delete Teams subscription: ${res.status}`)
       }
     } catch (error) {
-      logger.error(
-        `[${requestId}] Error deleting Teams subscription for webhook ${webhook.id}`,
-        error
-      )
+      logger.error(`Error deleting Teams subscription for webhook ${webhook.id}`, error, {
+        requestId,
+      })
       if (strict) throw error
     }
   },

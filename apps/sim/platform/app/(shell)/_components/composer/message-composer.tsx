@@ -19,20 +19,9 @@ interface MessageComposerProps {
   /** Returns false to keep the draft, when the message was refused before it went anywhere. */
   onSubmit: (draft: ComposerController['draft']) => false | undefined
   onStop?: () => void
-  /** Enter on an empty field while a turn runs sends the queued message at the head of the line. */
-  onSendQueuedHead?: () => void
-  /** Arrow Up on an empty field recalls the last queued message; false when there is none. */
-  onRecallQueued?: () => boolean
 }
 
-export function MessageComposer({
-  composer,
-  placeholder,
-  onSubmit,
-  onStop,
-  onSendQueuedHead,
-  onRecallQueued,
-}: MessageComposerProps) {
+export function MessageComposer({ composer, placeholder, onSubmit, onStop }: MessageComposerProps) {
   const compact = useCompactViewport()
   const { draft, settings, drop } = composer
   const { text, attachments: files } = draft
@@ -42,10 +31,7 @@ export function MessageComposer({
   const uploading = files.some((file) => file.uploading)
   function submit() {
     if (uploading) return
-    if (!text.trim() && !files.length) {
-      onSendQueuedHead?.()
-      return
-    }
+    if (!text.trim() && !files.length) return
     if (onSubmit({ text: text.trim(), attachments: files }) === false) return
     composer.clear()
   }
@@ -79,17 +65,7 @@ export function MessageComposer({
         onFocus={refs.focus}
         onBlur={refs.blur}
         onCursorChange={refs.cursor}
-        onEditorKeyDown={(event) => {
-          refs.onKeyDown(event)
-          if (
-            !event.defaultPrevented &&
-            event.key === 'ArrowUp' &&
-            !text &&
-            !files.length &&
-            onRecallQueued?.()
-          )
-            event.preventDefault()
-        }}
+        onEditorKeyDown={refs.onKeyDown}
         onSubmit={submit}
         onPasteFiles={composer.addFiles}
         onPasteText={composer.addPastedText}

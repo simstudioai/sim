@@ -100,7 +100,8 @@ export async function attachLargeFileRemoteUrls(
 
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
-        `[${requestId}] Sending "${file.name}" inline for "${providerId}": the large-file path needs cloud storage, which is not configured`
+        `Sending "${file.name}" inline for "${providerId}": the large-file path needs cloud storage, which is not configured`,
+        { requestId }
       )
       continue
     }

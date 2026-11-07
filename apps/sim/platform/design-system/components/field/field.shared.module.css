@@ -35,6 +35,18 @@
   padding-inline: var(--spacing-8);
   background: transparent;
   color: inherit;
+  text-overflow: ellipsis;
+}
+
+.input[data-masked] {
+  -webkit-text-security: disc;
+}
+
+.autofillDecoys {
+  position: absolute;
+  inset-inline-start: -100vw;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .input::placeholder {

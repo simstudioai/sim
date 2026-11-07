@@ -5,7 +5,7 @@ This describes the live enterprise-search path. Credential Groups and ordinary k
 ## Admin and member surfaces
 
 - **Sources** controls integration availability and account mode per integration.
-- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. Old member resource filters are ignored and cleared when settings are saved.
+- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. A member can add several accounts of one provider, such as Google Drive in two tenants; each is searched and cited separately, and every search counts them toward its account limit. Old member resource filters are ignored and cleared when settings are saved.
 - **Service account** selects an admin-managed source. Its connection owns the resource settings; Sources does not duplicate them. GitHub uses one GitHub App source per repository instead of a single selected source. A member still connects their own account, except for GitLab. Search returns the intersection of the member's provider permissions and the source's current resource boundary.
 - GitLab is always service-account mode. Slack and Jira currently support member mode only.
 - Removing a source integration prevents subsequent account resolution, searches, and reads. Paused, archived, deleted, wrong-organization, wrong-provider, and unapproved service sources cannot authorize search.
@@ -198,3 +198,11 @@ For end-to-end verification, use authorized fixture accounts on localhost: add t
 GitHub issue/PR reads include ordinary comments, submitted review decisions and inline review comments with author, date, source link and diff context. Issue-search previews prefer the matching comment fragment. `in:comments` does not guarantee discovery of inline review text. Drive comments and nested replies enrich document reads; Drive file search does not index those discussions. Both adapters report pagination, permission or text caps as incomplete at the start of the read.
 
 Fireflies and Granola use `eventStartAt` for generic date filters; modification filters require independent provider modification metadata. Granola semantic answers are never substituted for source notes: only identifiable cited meetings that can be read become documents. Notion MCP searches content rather than REST titles; plan-dependent tool access, ignored filters and bounded results must remain visible to callers.
+
+## Personal saved credentials
+
+Jama Connect and Flow Engineering use the existing encrypted saved-credential framework in member mode. Search lists only credentials created by the acting user in the current scope, then compares a fresh provider identity with the member's verified Sim email. Organization setup, reconnect, and disconnect use the personal Search credential operation; ordinary service-account sharing does not grant another person Search access.
+
+Jama exchanges personal client credentials against the configured instance, preserving deployment context paths. Flow uses a saved API host and workspace identifier with its API key. Neither a query nor a returned item may change those destinations. Document references include a connection binding derived from the provider host, tenant, and user identity; changing a saved connection cannot silently reuse an older item ID in another instance.
+
+Both adapters use the existing bounded native HTTP client. Jama returns one page of up to 50 abstract items. Flow searches up to six projects and reads the current entities within each project, with explicit incomplete-result reporting when provider limits apply. Neither adapter creates an indexing connector or background crawl.

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   LiveCredentialCard,
   LiveUsageNotice,
@@ -16,10 +16,11 @@ import { ResourcePanels } from '@/platform/app/(shell)/_components/chat/panel/re
 import { LiveSearchTab } from '@/platform/app/(shell)/_components/search/live-search-tab'
 import { SearchTabProvider } from '@/platform/app/(shell)/_components/search/search-results-host'
 import { useLiveChatRuntime } from '@/platform/lib/data/chat'
-import { type LiveComposer, useLiveComposer } from '@/platform/lib/data/chat-composer'
+import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
 import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
 import { useOrganization } from '@/platform/lib/data/organization'
+import type { SummaryRequest } from '@/platform/lib/data/search-summary'
 
 const CARDS: ChatCards = { Credential: LiveCredentialCard, Usage: LiveUsageNotice }
 
@@ -34,17 +35,26 @@ interface LiveChatProps {
   /** A surface's own controls in place of the chat title. */
   header?: ReactNode
   chatPath?: (chatId: string) => string
+  summaryRequest?: SummaryRequest
+  onSummaryConsumed?: (id: string) => void
 }
 
-function LiveConversation({ chatId, destination, header, chatPath }: LiveChatProps) {
+function LiveConversation({
+  chatId,
+  destination,
+  header,
+  chatPath,
+  summaryRequest,
+  onSummaryConsumed,
+}: LiveChatProps) {
   const [planning, setPlanning] = useState(false)
   const requestMode = destination === 'agent' && !chatId && planning ? 'plan' : destination
-  const restore = useRef<LiveComposer['restore']>(() => {})
   const { runtime, chat, panel, controller } = useLiveChatRuntime({
     chatId,
     requestMode,
     chatPath,
-    onRestoreQueued: (draft) => restore.current(draft),
+    summaryRequest,
+    onSummaryConsumed,
   })
   const composer = useLiveComposer({
     draftKey:
@@ -53,7 +63,6 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
     chatId: chat.resolvedChatId,
     onPlanChange: destination === 'agent' ? setPlanning : undefined,
   })
-  restore.current = composer.restore
   const resources = usePanelResources({ chat, panel, controller })
   return (
     <ChatCardsProvider value={CARDS}>
@@ -75,7 +84,14 @@ function LiveConversation({ chatId, destination, header, chatPath }: LiveChatPro
  * The live conversation surface. It waits for the viewer's session, then remounts per viewer,
  * organization, chat and mode, which is how the hook starts each chat clean.
  */
-export function LiveChat({ chatId, destination, header, chatPath }: LiveChatProps) {
+export function LiveChat({
+  chatId,
+  destination,
+  header,
+  chatPath,
+  summaryRequest,
+  onSummaryConsumed,
+}: LiveChatProps) {
   const { organization } = useOrganization()
   const userId = useViewerId()
   const restored = useChatRestore(chatId, destination)
@@ -87,6 +103,8 @@ export function LiveChat({ chatId, destination, header, chatPath }: LiveChatProp
       destination={destination}
       header={header}
       chatPath={chatPath}
+      summaryRequest={summaryRequest}
+      onSummaryConsumed={onSummaryConsumed}
     />
   )
 }

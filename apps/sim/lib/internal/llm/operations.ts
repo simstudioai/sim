@@ -63,7 +63,8 @@ async function authorizeVertexCredential(
     callerUserId: context.actorUserId,
   })
   if (!access.ok) {
-    logger.warn(`[${context.requestId}] Vertex credential access denied`, {
+    logger.warn('Vertex credential access denied', {
+      requestId: context.requestId,
       error: access.error,
       credentialId: input.vertexCredential,
     })
@@ -130,7 +131,8 @@ async function prepareProviderRequest(
     }
   } catch (error) {
     if (error instanceof LlmOperationError) throw error
-    logger.error(`[${context.requestId}] Failed to resolve Vertex credential`, {
+    logger.error('Failed to resolve Vertex credential', {
+      requestId: context.requestId,
       provider: input.provider,
       model: input.model,
       error: toError(error).message,

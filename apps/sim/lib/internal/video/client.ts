@@ -103,7 +103,8 @@ export async function generateVideo(
   context: VideoGenerationContext
 ): Promise<VideoGenerationResult> {
   context.signal?.throwIfAborted()
-  logger.info(`[${context.requestId}] Generating video with ${input.provider}`, {
+  logger.info(`Generating video with ${input.provider}`, {
+    requestId: context.requestId,
     model: input.model || 'default',
   })
   return input.provider === 'falai'
@@ -362,7 +363,7 @@ async function generateWithFalAI(
   const { apiKey, model, duration, aspectRatio, resolution, useHostedCostTracking } = input
   const { requestId, signal } = context
   signal?.throwIfAborted()
-  logger.info(`[${requestId}] Starting Fal.ai generation with model: ${model}`)
+  logger.info(`Starting Fal.ai generation with model: ${model}`, { requestId })
   const { endpoint, body } = buildFalVideoRequest(input)
   const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
@@ -397,7 +398,7 @@ async function generateWithFalAI(
   )
   const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
 
-  logger.info(`[${requestId}] Fal.ai request created: ${requestIdFal}`)
+  logger.info(`Fal.ai request created: ${requestIdFal}`, { requestId })
 
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
   let attempts = 0

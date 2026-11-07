@@ -1,0 +1,9 @@
+/* Holds no box: the brand icon, which takes only a class, is sized as the glyph it stands in for. */
+.mark {
+  display: contents;
+}
+.mark > * {
+  flex: none;
+  width: var(--ui-glyph-size);
+  height: var(--ui-glyph-size);
+}

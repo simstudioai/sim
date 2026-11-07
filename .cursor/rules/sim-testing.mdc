@@ -1,6 +1,6 @@
 ---
 description: "Test layers, naming, and Vitest mechanics for Sim"
-globs: ["**/*.test.ts","**/*.test.tsx","**/*.integration.ts","**/e2e/**"]
+globs: ["**/*.test.ts","**/*.test.tsx","**/*.integration.ts","**/e2e/**","apps/sim/scripts/test-*-e2e.ts"]
 ---
 
 <!-- Generated from .claude/rules/sim-testing.md by `bun run skills:sync`. Edit the source, not this file. -->

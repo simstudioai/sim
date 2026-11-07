@@ -1,5 +1,6 @@
-import type { ShellDestination, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { WORKSPACE_PAGES, workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
+import type { ShellDestination } from '@/platform/shared/shell'
 
 interface WorkspaceNavigation {
   primary: ShellDestination[]

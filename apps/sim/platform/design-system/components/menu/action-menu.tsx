@@ -53,6 +53,9 @@ export type MenuAction = {
     }
 )
 
+/** A function is called only once the menu opens, so a closed row builds none of its actions. */
+type MenuActions = readonly MenuAction[] | (() => readonly MenuAction[])
+
 interface ActionMenuProps {
   label: string
   defaultValue?: string
@@ -62,9 +65,9 @@ interface ActionMenuProps {
 
 interface TriggeredMenuProps {
   label: string
-  actions: readonly MenuAction[]
-  /** A row or toolbar trigger's glyph. `null` draws the label as a text button instead. */
-  icon: IconName | null
+  actions: MenuActions
+  /** A row or toolbar trigger's glyph. Omitted or `null` draws the label as a text button instead. */
+  icon?: IconName | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
   align?: 'start' | 'end'
@@ -73,6 +76,8 @@ interface TriggeredMenuProps {
   triggerSize?: 'small' | 'row' | 'compact'
   triggerVariant?: 'secondary' | 'quiet'
   tooltip?: boolean
+  /** A short visible trigger, such as a count, which `label` then names for assistive technology. */
+  triggerText?: string
   children?: never
   defaultValue?: never
 }
@@ -92,6 +97,7 @@ export function ActionMenu(props: ActionMenuProps | TriggeredMenuProps) {
         triggerSize={props.triggerSize}
         triggerVariant={props.triggerVariant}
         tooltip={props.tooltip}
+        triggerText={props.triggerText}
       />
     )
   return (
@@ -131,6 +137,11 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
   ))
 }
 
+/** A boundary: the popup's portal renders it only while the menu is open. */
+function MenuActionRows({ actions }: { actions: MenuActions }) {
+  return actionRows(typeof actions === 'function' ? actions() : actions)
+}
+
 function TriggeredMenu({
   label,
   actions,
@@ -143,8 +154,10 @@ function TriggeredMenu({
   triggerSize = 'small',
   triggerVariant = 'quiet',
   tooltip = true,
+  triggerText,
 }: TriggeredMenuProps) {
   const { trigger, container, opener } = usePopoverContainer()
+  const disabled = typeof actions !== 'function' && !actions.length && !search
   const menu = (
     <Menu.Root
       modal={false}
@@ -161,16 +174,16 @@ function TriggeredMenu({
           size={triggerSize}
           label={label}
           icon={icon}
-          disabled={!actions.length && !search}
+          disabled={disabled}
         />
       ) : (
         <Button
-          render={<Menu.Trigger ref={trigger} />}
+          render={<Menu.Trigger ref={trigger} aria-label={triggerText ? label : undefined} />}
           variant={triggerVariant}
-          size={triggerSize === 'compact' ? 'compact' : 'regular'}
-          disabled={!actions.length && !search}
+          size={triggerText || triggerSize === 'compact' ? 'compact' : 'regular'}
+          disabled={disabled}
         >
-          {label}
+          {triggerText ?? label}
         </Button>
       )}
       <ActionMenuPopup
@@ -184,7 +197,7 @@ function TriggeredMenu({
             {heading}
           </div>
         )}
-        {actionRows(actions)}
+        <MenuActionRows actions={actions} />
       </ActionMenuPopup>
     </Menu.Root>
   )
@@ -205,7 +218,7 @@ function TriggeredMenu({
 
 interface ContextActionMenuProps {
   label: string
-  actions: readonly MenuAction[]
+  actions: MenuActions
   onOpenChange?: (open: boolean) => void
   children: ReactNode
 }
@@ -224,7 +237,7 @@ export function ContextActionMenu({
         {children}
       </ContextMenu.Trigger>
       <ActionMenuPopup label={label} container={container}>
-        {actionRows(actions)}
+        <MenuActionRows actions={actions} />
       </ActionMenuPopup>
     </ContextMenu.Root>
   )

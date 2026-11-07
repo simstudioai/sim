@@ -44,6 +44,8 @@ interface SecretFieldProps extends TextValueProps {
   autoComplete?: string
   /** Offer a copy action while the field holds a controlled value. */
   copyable?: boolean
+  /** A text input drawn as dots, which password managers leave alone as they do not a password one. */
+  maskAsText?: boolean
 }
 
 /** A masked credential the viewer can reveal, for entry or for one-time display. */
@@ -62,6 +64,7 @@ export function SecretField({
   hint,
   autoComplete = 'off',
   copyable,
+  maskAsText,
 }: SecretFieldProps) {
   const id = useId()
   const [revealed, setRevealed] = useState(false)
@@ -70,7 +73,8 @@ export function SecretField({
       <Input
         id={id}
         label={label}
-        type={revealed ? 'text' : 'password'}
+        type={revealed || maskAsText ? 'text' : 'password'}
+        masked={maskAsText && !revealed}
         value={value}
         defaultValue={defaultValue}
         onChange={onChange}

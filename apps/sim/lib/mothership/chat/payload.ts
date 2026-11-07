@@ -1,8 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
 import type { BrowserKnownSession } from '@sim/browser-protocol'
-import { createLogger } from '@sim/logger'
-import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
-import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -29,7 +26,7 @@ import {
 } from '@/lib/mothership/assistant/tool-policy'
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
-import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
+import { buildChatUploadContexts } from '@/lib/mothership/chat/prepared-uploads'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
@@ -48,11 +45,9 @@ import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertion
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
-import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
 
-const logger = createLogger('CopilotChatPayload')
 const EMAIL_TAGLINE_CACHE_TTL_MS = 5_000
 const EMAIL_TAGLINE_CACHE_MAX_ENTRIES = 20_000
 /** One per schema surface and personal-accounts mode; the cap only backstops a new surface. */
@@ -389,78 +384,16 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     computerUseOwner !== null &&
     (await isComputerUseAvailableFor(params.principal, computerUseOwner))
 
-  // Track uploaded files in the DB and build context tags instead of base64 inlining.
-  // Tracking writes `workspace_files` rows, so it needs the same write grant the
-  // upload routes that issue these keys already require — reaching the chat
-  // endpoint with `read` must not confer a file-write capability.
-  const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
-  // `userPermission` is typed `string` for legacy reasons, so narrow it before
-  // comparing — an unrecognized value must fail the gate, not rank below it.
-  const canWriteWorkspaceFiles =
-    isPermissionType(params.userPermission) && permissionSatisfies(params.userPermission, 'write')
-  if (
-    !isAssistant &&
-    chatId &&
-    params.workspaceId &&
-    fileAttachments &&
-    fileAttachments.length > 0
-  ) {
-    if (!canWriteWorkspaceFiles) {
-      logger.warn('Dropping chat file attachments without workspace write access', {
-        chatId,
-        workspaceId: params.workspaceId,
-        attachmentCount: fileAttachments.length,
-      })
-    }
-    const trackableAttachments = canWriteWorkspaceFiles ? fileAttachments : []
-    for (const f of trackableAttachments) {
-      const filename = (f.filename ?? f.name ?? 'file') as string
-      const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
-      try {
-        const { displayName } = await trackChatUpload(
-          params.workspaceId,
-          userId,
-          chatId,
-          f.key,
-          filename,
-          mediaType,
-          f.size,
-          userMessageId
-        )
-        uploadContexts.push(buildUploadedFileContext(displayName, mediaType, f.size))
-      } catch (err) {
-        const cause = toError(err)
-        logger.warn('Failed to track chat upload', {
-          filename,
-          chatId,
-          error: cause.message,
-        })
-        // Isolate failures by entry. Aborting here discarded every valid
-        // sibling attachment in the request, even ones already tracked. Give
-        // the model a local marker for this file and continue preparing the
-        // rest of the batch.
-        uploadContexts.push({
-          type: 'uploaded_file',
-          content: `File "${filename}" could not be prepared for Copilot and was omitted. Other attached files remain available.`,
-        })
-      }
-    }
-  }
-
-  if (params.organizationId && !isAssistant) {
-    for (const attachment of params.fileAttachments ?? []) {
-      uploadContexts.push(
-        buildUploadedFileContext(
-          typeof attachment.filename === 'string' ? attachment.filename : attachment.id,
-          typeof attachment.media_type === 'string'
-            ? attachment.media_type
-            : 'application/octet-stream',
-          attachment.size,
-          attachment.id
-        )
-      )
-    }
-  }
+  const uploadContexts = await buildChatUploadContexts({
+    isAssistant,
+    userId,
+    chatId,
+    workspaceId: params.workspaceId,
+    organizationId: params.organizationId,
+    userPermission: params.userPermission,
+    userMessageId,
+    fileAttachments,
+  })
 
   const allContexts = isAssistant
     ? [

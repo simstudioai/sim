@@ -1,9 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Proves the embedded design system cannot change a legacy page.
+ * Proves the design system, which `app/o` loads for every organization, stays inside what it styles.
+ * It restyles `/o` itself, which is the point; nothing here protects that page's legacy chrome except
+ * the `[data-platform-ui]` scope. It cannot reach a page outside `/o`, or that scope's outside on one.
  *
- * Next keeps route CSS loaded after client navigation, so one global rule from a flagged page keeps
- * applying on every legacy page the viewer opens afterwards. Three rules hold that line:
+ * Next keeps route CSS loaded after client navigation, so one global rule from an organization page
+ * keeps applying on every other page the viewer opens afterwards. Three rules hold that line:
  *
  * - `entry-escape`: `platform/design-system/styles/embedded.css`, compiled through the app's real
  *   PostCSS config, may only contain selectors under `[data-platform-ui]` and `@font-face` faces
@@ -16,18 +18,23 @@
  *   through any import, static or dynamic. Dynamic counts because Next attaches a dynamically
  *   imported module's CSS to a Server Component's route whether or not it renders.
  *
+ * - `bridge-drift`: `host-bridge.module.css` carries tokens to the components between surfaces, under
+ *   `--design-<token>` names. Each must equal its token's value in that theme, so a token change
+ *   fails here rather than leaving the legacy components beside it a shade off.
+ *
  * Run: `bun run check:platform-css`
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import postcss, { type AcceptedPlugin, type AtRule } from 'postcss'
+import postcss, { type AcceptedPlugin, type AtRule, type Root } from 'postcss'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const APP = path.join(ROOT, 'apps/sim')
 const PLATFORM = path.join(APP, 'platform')
 const ENTRY = path.join(PLATFORM, 'design-system/styles/embedded.css')
 const HOST_GLOBALS = path.join(APP, 'app/_styles/globals.css')
+const HOST_BRIDGE = path.join(PLATFORM, 'design-system/styles/host-bridge.module.css')
 
 const SCOPED =
   /^(?::where\(html\.dark\) )?(?:\[data-sim-desktop-title-bar\] )?(?:\[data-platform-ui\]|:where\(\[data-platform-ui\]\))/
@@ -45,7 +52,7 @@ const SKIPPED_FOLDERS = new Set(['node_modules', '.next', 'dist', 'public'])
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.cjs', '/index.ts', '/index.tsx']
 
 export interface Finding {
-  rule: 'entry-escape' | 'module-escape' | 'route-reach'
+  rule: 'entry-escape' | 'module-escape' | 'route-reach' | 'bridge-drift'
   detail: string
 }
 
@@ -96,6 +103,66 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
       }
     }
   })
+  return findings
+}
+
+const BRIDGE_PREFIX = '--design-'
+const LIGHT_SCOPE = '[data-platform-ui]'
+const DARK_SCOPE = '[data-platform-ui][data-theme="dark"]'
+
+/** Reads a stylesheet's top-level custom properties for one selector, later declarations winning. */
+function customProperties(root: Root, matches: (selector: string) => boolean) {
+  const values = new Map<string, string>()
+  for (const node of root.nodes) {
+    if (node.type !== 'rule' || !node.selectors.some(matches)) continue
+    node.walkDecls(/^--/, (declaration) => values.set(declaration.prop, declaration.value))
+  }
+  return values
+}
+
+function resolveVars(value: string, values: Map<string, string>, depth = 0): string {
+  if (depth > 32) return value
+  const resolved = value.replace(/var\((--[\w-]+)\)/g, (reference, name: string) => {
+    const next = values.get(name)
+    return next === undefined ? reference : resolveVars(next, values, depth + 1)
+  })
+  return resolved.replace(/\s+/g, ' ').trim()
+}
+
+/** Compares each `--design-<token>` with `--<token>`, in light and in dark. */
+export function findBridgeDrift(entryCss: string, bridgeCss: string): Finding[] {
+  const entry = postcss.parse(entryCss)
+  const bridge = postcss.parse(bridgeCss)
+  const tokensLight = customProperties(entry, (selector) => selector === LIGHT_SCOPE)
+  const tokensDark = new Map([
+    ...tokensLight,
+    ...customProperties(entry, (selector) => selector === DARK_SCOPE),
+  ])
+  const bridgeLight = customProperties(bridge, (selector) => selector === '.tokens')
+  const bridgeDark = new Map([
+    ...bridgeLight,
+    ...customProperties(bridge, (selector) => selector.endsWith(' .tokens')),
+  ])
+  const findings: Finding[] = []
+  for (const [theme, tokens, carried] of [
+    ['light', tokensLight, bridgeLight],
+    ['dark', tokensDark, bridgeDark],
+  ] as const) {
+    for (const [name, value] of carried) {
+      if (!name.startsWith(BRIDGE_PREFIX)) continue
+      const token = `--${name.slice(BRIDGE_PREFIX.length)}`
+      const expected = tokens.get(token)
+      const actual = resolveVars(value, carried)
+      if (expected === undefined) {
+        findings.push({ rule: 'bridge-drift', detail: `${name}: no token ${token}` })
+      } else if (resolveVars(expected, tokens) !== actual) {
+        findings.push({
+          rule: 'bridge-drift',
+          detail: `${name} (${theme}) is ${actual}, ${token} is ${resolveVars(expected, tokens)}`,
+        })
+      }
+    }
+  }
   return findings
 }
 
@@ -198,6 +265,7 @@ if (import.meta.main) {
     findings.push(...findModuleEscapes(await compile(file), path.relative(APP, file)))
   }
   findings.push(...findRouteReach())
+  findings.push(...findBridgeDrift(entryCss, await compile(HOST_BRIDGE)))
 
   if (findings.length > 0) {
     console.error(`check:platform-css found ${findings.length} escape(s):`)
@@ -206,6 +274,6 @@ if (import.meta.main) {
   }
   console.log(
     `check:platform-css ok: ${selectorCount} entry selectors scoped, ${modules.length} CSS Modules ` +
-      'hashed, only organization routes reach platform/'
+      'hashed, only organization routes reach platform/, host bridge matches its tokens'
   )
 }

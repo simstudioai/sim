@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { remarkAppliedSteeringMessage } from '@/lib/mothership/chat/messages-store'
 import {
   buildPersistedAssistantMessage,
   withStoppedContentBlock,
@@ -11,6 +12,37 @@ import { StreamControllerSupersededError } from '@/lib/mothership/request/sessio
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const logger = createLogger('CopilotChatCompletion')
+
+/**
+ * Ends a turn the worker refused because a run of the chat already applied its
+ * message as steering (`input_applied`): nothing ran, so no answer or error is
+ * stored. The admitted message goes back to being that steering record, so the
+ * transcript shows it once, where the run applied it.
+ */
+async function settleAppliedInputTurn(params: {
+  runController?: { id: string; token: string }
+  chatId: string
+  userMessageId: string
+  notifyChatStatus: boolean
+  workspaceId?: string
+  organizationId?: string
+  userId?: string
+}): Promise<void> {
+  const { runController, chatId, userMessageId, workspaceId, organizationId, userId } = params
+  await remarkAppliedSteeringMessage(chatId, userMessageId)
+  await finalizeAssistantTurn({
+    runController,
+    chatId,
+    userMessageId,
+    streamMarkerPolicy: 'active-or-cleared',
+  })
+  if (params.notifyChatStatus) {
+    publishChatStatusChanged(
+      { workspaceId, organizationId, userId },
+      { chatId, type: 'completed', streamId: userMessageId }
+    )
+  }
+}
 
 export function buildOnComplete(params: {
   chatId?: string
@@ -64,6 +96,18 @@ export function buildOnComplete(params: {
     if (!chatId) return
 
     try {
+      if (result.inputApplied) {
+        await settleAppliedInputTurn({
+          runController,
+          chatId,
+          userMessageId,
+          notifyChatStatus,
+          workspaceId,
+          organizationId,
+          userId,
+        })
+        return
+      }
       if (result.cancelled) {
         const finalization = await finalizeAssistantTurn({
           runController,
@@ -119,7 +163,8 @@ export function buildOnComplete(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to persist chat messages`, {
+      logger.error('Failed to persist chat messages', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })
@@ -147,6 +192,18 @@ export function buildOnError(params: {
     if (!chatId) return
 
     try {
+      if (result?.inputApplied) {
+        await settleAppliedInputTurn({
+          runController,
+          chatId,
+          userMessageId,
+          notifyChatStatus,
+          workspaceId,
+          organizationId,
+          userId,
+        })
+        return
+      }
       // Persist whatever streamed before a thrown backend error, mirroring the
       // cancelled / non-success completion path, so the partial assistant turn
       // (text + tool calls + subagent work) survives the refetch instead of the
@@ -183,7 +240,8 @@ export function buildOnError(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
+      logger.error('Failed to finalize errored chat stream', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })

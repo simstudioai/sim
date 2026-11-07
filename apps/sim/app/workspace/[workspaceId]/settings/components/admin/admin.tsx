@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -15,40 +14,20 @@ import {
   OverflowText,
   Search,
   Switch,
-  toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
-import { useSession } from '@/lib/auth/client'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {
-  adminParsers,
-  adminUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
-import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
+  ADMIN_PAGE_SIZE,
+  MOTHERSHIP_ENV_OPTIONS,
+  useAdminConsole,
+} from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import {
-  type AdminUser,
-  useAdminUsers,
-  useAdminUsersByEmails,
-  useBanUser,
-  useImpersonateUser,
-  useSendPasswordReset,
-  useSetUserRole,
-  useUnbanUser,
-} from '@/hooks/queries/admin-users'
-import { useBenchmarkAvailability } from '@/hooks/queries/benchmarks'
-import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
-import { useImportWorkflow } from '@/hooks/queries/workflows'
-import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import { clearUserData } from '@/stores'
-
-const PAGE_SIZE = 20 as const
+import type { AdminUser } from '@/hooks/queries/admin-users'
 
 const USER_TABLE_HEADER = (
   <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
@@ -60,178 +39,58 @@ const USER_TABLE_HEADER = (
   </div>
 )
 
-/**
- * The row action awaiting confirmation. Holds ids, never the user row, so a
- * refetch while the modal is open refreshes the name it shows without
- * redirecting the action the admin committed to.
- */
-type PendingUserAction =
-  | { type: 'ban'; userId: string }
-  | { type: 'role'; userId: string; nextRole: 'admin' | 'user' }
-
-const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
-  { value: 'default', label: 'Default' },
-  { value: 'dev', label: 'Dev' },
-  { value: 'staging', label: 'Staging' },
-  { value: 'prod', label: 'Prod' },
-]
-
 export function Admin() {
-  const { data: session } = useSession()
-
-  const { data: settings } = useGeneralSettings()
-  const updateSetting = useUpdateGeneralSetting()
-  const benchmarkAvailability = useBenchmarkAvailability(Boolean(settings?.superUserModeEnabled))
-  const importWorkflow = useImportWorkflow()
-
-  const setUserRole = useSetUserRole()
-  const banUser = useBanUser()
-  const unbanUser = useUnbanUser()
-  const impersonateUser = useImpersonateUser()
-  const sendPasswordReset = useSendPasswordReset()
-  const { recentEmails, recordImpersonation } = useRecentImpersonations()
-  const { data: recentUsers } = useAdminUsersByEmails(recentEmails)
-
-  const [workflowId, setWorkflowId] = useState('')
-  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
-  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)
-  const isImpersonating = impersonatingUserId !== null || impersonateUser.isPending
-  const discardImport = () => {
-    setWorkflowId('')
-    setTargetWorkspaceId('')
-  }
-  const importGuard = useSettingsUnsavedGuard({
-    isDirty: Boolean(workflowId.trim() || targetWorkspaceId.trim()),
-    navigationBlocked: importWorkflow.isPending || isImpersonating,
-    onDiscard: discardImport,
-  })
-
-  const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
-    adminParsers,
-    adminUrlKeys
-  )
-
-  const [searchInput, setSearchInput] = useState(searchQuery)
-  const [pendingAction, setPendingAction] = useState<PendingUserAction | null>(null)
-  const [banReason, setBanReason] = useState('')
-  const [impersonationGuardError, setImpersonationGuardError] = useState<string | null>(null)
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false)
-  const [provisionWarning, setProvisionWarning] = useState<string | null>(null)
-
   const {
-    data: usersData,
-    isLoading: usersLoading,
-    error: usersError,
-  } = useAdminUsers(usersOffset, PAGE_SIZE, searchQuery)
-
-  const handleSearch = () => {
-    const trimmed = searchInput.trim()
-    setAdminParams({ q: trimmed.length > 0 ? trimmed : null, offset: null })
-  }
-
-  const lastSyncedSearchRef = useRef(searchQuery)
-  useEffect(() => {
-    if (searchQuery === lastSyncedSearchRef.current) return
-    lastSyncedSearchRef.current = searchQuery
-    setSearchInput((current) => (current === searchQuery ? current : searchQuery))
-  }, [searchQuery])
-
-  const totalPages = Math.ceil((usersData?.total ?? 0) / PAGE_SIZE)
-  const currentPage = Math.floor(usersOffset / PAGE_SIZE) + 1
-
-  const handleSuperUserModeToggle = async (checked: boolean) => {
-    if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
-    }
-  }
-
-  const handleMothershipEnvironmentChange = async (nextEnvironment: MothershipEnvironment) => {
-    if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({
-        key: 'mothershipEnvironment',
-        value: nextEnvironment,
-      })
-    }
-  }
-
-  const handleImpersonate = (userId: string, email: string) => {
-    if (isImpersonating || importWorkflow.isPending) return
-    setImpersonationGuardError(null)
-    if (session?.user?.role !== 'admin') {
-      setImpersonatingUserId(null)
-      setImpersonationGuardError('Only admins can impersonate users.')
-      return
-    }
-
-    importGuard.guardBack(() => {
-      setImpersonatingUserId(userId)
-      impersonateUser.reset()
-      impersonateUser.mutate(
-        { userId },
-        {
-          onError: () => {
-            setImpersonatingUserId(null)
-          },
-          onSuccess: async () => {
-            recordImpersonation(email)
-            await clearUserData({ preserveRecentImpersonations: true })
-            window.location.assign(APP_ENTRY_PATH)
-          },
-        }
-      )
-    })
-  }
-
-  const handleImport = () => {
-    const sourceId = workflowId.trim()
-    const targetId = targetWorkspaceId.trim()
-    if (!sourceId || !targetId || importWorkflow.isPending || isImpersonating) return
-    importWorkflow.mutate(
-      { workflowId: sourceId, targetWorkspaceId: targetId },
-      {
-        onSuccess: discardImport,
-      }
-    )
-  }
-
-  const pendingUser = pendingAction
-    ? (usersData?.users.find((u) => u.id === pendingAction.userId) ??
-      recentUsers?.find((u) => u.id === pendingAction.userId) ??
-      null)
-    : null
-  const isDemotion = pendingAction?.type === 'role' && pendingAction.nextRole === 'user'
-
-  const closePendingAction = () => {
-    setPendingAction(null)
-    setBanReason('')
-  }
-
-  const handleConfirmBan = () => {
-    if (pendingAction?.type !== 'ban') return
-    const trimmedReason = banReason.trim()
-    banUser.mutate(
-      {
-        userId: pendingAction.userId,
-        ...(trimmedReason ? { banReason: trimmedReason } : {}),
-      },
-      { onSuccess: closePendingAction }
-    )
-  }
-
-  const handleConfirmRoleChange = () => {
-    if (pendingAction?.type !== 'role') return
-    setUserRole.mutate(
-      { userId: pendingAction.userId, role: pendingAction.nextRole },
-      { onSuccess: closePendingAction }
-    )
-  }
-
-  const pendingUserIds = new Set<string>()
-  for (const mutation of [setUserRole, banUser, unbanUser, impersonateUser, sendPasswordReset]) {
-    if (mutation.isPending && mutation.variables?.userId)
-      pendingUserIds.add(mutation.variables.userId)
-  }
-  if (impersonatingUserId) pendingUserIds.add(impersonatingUserId)
+    banReason,
+    banUser,
+    benchmarkAvailability,
+    closePendingAction,
+    currentPage,
+    handleConfirmBan,
+    handleConfirmRoleChange,
+    handleImpersonate,
+    handleImport,
+    handleMothershipEnvironmentChange,
+    handleSearch,
+    handleSuperUserModeToggle,
+    handleUserCreated,
+    impersonateUser,
+    impersonatingUserId,
+    impersonationGuardError,
+    importWorkflow,
+    isAddUserOpen,
+    isDemotion,
+    isImpersonating,
+    pendingAction,
+    pendingUser,
+    pendingUserIds,
+    provisionWarning,
+    recentUsers,
+    searchInput,
+    searchQuery,
+    sendPasswordReset,
+    sendReset,
+    session,
+    setAdminParams,
+    setBanReason,
+    setIsAddUserOpen,
+    setSearchInput,
+    setTargetWorkspaceId,
+    setUserRole,
+    setWorkflowId,
+    settings,
+    startBan,
+    startRoleChange,
+    targetWorkspaceId,
+    totalPages,
+    unbanUser,
+    updateSetting,
+    usersData,
+    usersError,
+    usersLoading,
+    usersOffset,
+    workflowId,
+  } = useAdminConsole()
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex items-center gap-3 px-3 py-2 text-small'>
@@ -258,34 +117,12 @@ export function Admin() {
               actions={[
                 {
                   label: 'Reset password',
-                  onSelect: () => {
-                    setProvisionWarning(null)
-                    sendPasswordReset.mutate(
-                      { userId: u.id, email: u.email },
-                      {
-                        onSuccess: () => toast.success(`Password reset email sent to ${u.email}`),
-                        onError: (error) =>
-                          toast.error(
-                            getErrorMessage(
-                              error,
-                              `Could not send a password reset email to ${u.email}`
-                            )
-                          ),
-                      }
-                    )
-                  },
+                  onSelect: () => sendReset(u),
                   disabled: pendingUserIds.has(u.id),
                 },
                 {
                   label: u.role === 'admin' ? 'Demote' : 'Promote',
-                  onSelect: () => {
-                    setUserRole.reset()
-                    setPendingAction({
-                      type: 'role',
-                      userId: u.id,
-                      nextRole: u.role === 'admin' ? 'user' : 'admin',
-                    })
-                  },
+                  onSelect: () => startRoleChange(u),
                   disabled: pendingUserIds.has(u.id),
                 },
                 u.banned
@@ -296,11 +133,7 @@ export function Admin() {
                     }
                   : {
                       label: 'Ban',
-                      onSelect: () => {
-                        banUser.reset()
-                        setBanReason('')
-                        setPendingAction({ type: 'ban', userId: u.id })
-                      },
+                      onSelect: () => startBan(u),
                       destructive: true,
                       disabled: pendingUserIds.has(u.id),
                     },
@@ -473,7 +306,7 @@ export function Admin() {
                       className='h-[28px] text-caption'
                       onClick={() =>
                         setAdminParams((prev) => ({
-                          offset: Math.max(0, prev.offset - PAGE_SIZE),
+                          offset: Math.max(0, prev.offset - ADMIN_PAGE_SIZE),
                         }))
                       }
                       disabled={usersOffset === 0 || usersLoading}
@@ -484,9 +317,11 @@ export function Admin() {
                       variant='active'
                       className='h-[28px] text-caption'
                       onClick={() =>
-                        setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
+                        setAdminParams((prev) => ({ offset: prev.offset + ADMIN_PAGE_SIZE }))
                       }
-                      disabled={usersOffset + PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading}
+                      disabled={
+                        usersOffset + ADMIN_PAGE_SIZE >= (usersData?.total ?? 0) || usersLoading
+                      }
                     >
                       Next
                     </Button>
@@ -571,17 +406,7 @@ export function Admin() {
       <AddUserModal
         open={isAddUserOpen}
         onOpenChange={setIsAddUserOpen}
-        onCreated={(user, resetEmailError) => {
-          // Search for the new user either way: when the reset email failed,
-          // the recovery action named below lives on that user's row.
-          setSearchInput(user.email)
-          setAdminParams({ q: user.email, offset: null })
-          setProvisionWarning(
-            resetEmailError
-              ? `Created ${user.email}, but the password reset email failed to send (${resetEmailError}). Use Reset password in that row's actions menu to try again.`
-              : null
-          )
-        }}
+        onCreated={handleUserCreated}
       />
     </SettingsPanel>
   )

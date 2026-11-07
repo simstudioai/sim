@@ -15,19 +15,22 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import type { AttentionItem, EmailItem } from '@/platform/app/(shell)/home/_components/model'
+import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
+import {
+  FALLBACK_PROVIDER_MARK,
+  providerMark,
+} from '@/platform/design-system/components/icon/provider-marks'
+import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+import { placeMeeting } from '@/platform/shared/calendar-meeting'
 import type {
-  AttentionItem,
   CalendarMeeting,
-  EmailItem,
   HomeAccountView,
   HomeCalendarDay,
   HomeConnectOption,
   HomeWidgetState,
-} from '@/platform/app/(shell)/home/_components/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
+} from '@/platform/shared/home'
+import { groupRecentSources } from '@/platform/shared/recent-sources'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */
@@ -165,24 +168,6 @@ export function toEmailItems(email: OrganizationHomeEmail): EmailItem[] {
   }))
 }
 
-const MINUTES_PER_DAY = 24 * 60
-
-export function wallClockMinute(instantMs: number, timeZone: string): number {
-  const { hour, minute } = getWallClockParts(new Date(instantMs), timeZone)
-  return hour * 60 + minute
-}
-
-/** A wall-clock minute of the requested day; an instant outside it clamps to that day's edge. */
-function minuteOfDay(
-  instant: string,
-  window: OrganizationHomeCalendar['window'],
-  timeZone: string
-) {
-  if (instant <= window.startAt) return 0
-  if (instant >= window.endAt) return MINUTES_PER_DAY
-  return wallClockMinute(Date.parse(instant), timeZone)
-}
-
 export function toCalendarDay(
   calendar: OrganizationHomeCalendar,
   day: { date: string; nowMinute: number | null; timeZone: string }
@@ -191,16 +176,17 @@ export function toCalendarDay(
   const allDay: HomeCalendarDay['allDay'][number][] = []
   for (const event of calendar.events) {
     const id = `${event.credentialId}:${event.id}`
-    if (event.allDay) {
+    // A timed event filling the whole day would only be a card too tall to read.
+    const fillsDay =
+      event.startAt <= calendar.window.startAt && event.endAt >= calendar.window.endAt
+    if (event.allDay || fillsDay) {
       allDay.push({ id, title: event.title, providerUrl: event.url })
       continue
     }
-    const startMinute = minuteOfDay(event.startAt, calendar.window, day.timeZone)
     meetings.push({
       id,
       title: event.title,
-      startMinute,
-      duration: Math.max(1, minuteOfDay(event.endAt, calendar.window, day.timeZone) - startMinute),
+      ...placeMeeting(event, calendar.window, day.timeZone),
       providerUrl: event.url,
       people: event.people,
     })
@@ -223,14 +209,18 @@ export function toTaskPoints(summary: OrganizationActivitySummary) {
   }))
 }
 
-export function toRecentItems(history: SearchHistoryResponse): RecentItem[] {
-  return history.sources.map((source) => {
+/** A recent chip with every source it stands for, so removing it removes them all. */
+export type CollapsedRecent = RecentItem & { urls: string[] }
+
+export function toRecentItems(history: SearchHistoryResponse): CollapsedRecent[] {
+  return groupRecentSources(history).map(({ source, label, urls }) => {
     const mark = source.connectorType ? providerMark(source.connectorType) : undefined
     return {
       id: source.url,
-      label: source.title ?? linkSiteName(source.url, source.siteName),
+      label,
       href: source.url,
-      icon: typeof mark === 'string' ? mark : undefined,
+      icon: typeof mark === 'string' && mark !== FALLBACK_PROVIDER_MARK ? mark : undefined,
+      urls,
     }
   })
 }

@@ -38,6 +38,10 @@
   box-shadow: var(--switch-thumb-shadow);
 }
 
+.target[data-checked] .thumb {
+  background: var(--switch-thumb-on);
+}
+
 @media (pointer: coarse) {
   .target {
     min-inline-size: var(--spacing-44);

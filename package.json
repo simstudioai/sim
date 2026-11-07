@@ -94,6 +94,7 @@
     "check:file-names": "bun run scripts/check-file-names.ts",
     "check:source-conventions": "bun run scripts/check-source-conventions.ts",
     "check:platform-css": "bun run scripts/check-platform-css.ts",
+    "check:platform-convergence": "bun run scripts/check-platform-convergence.ts",
     "check:test-types": "bun run scripts/check-test-types.ts",
     "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",

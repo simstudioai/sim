@@ -13,9 +13,12 @@ import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
+  resolveWorkspaceBillingPayer,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { payerHasPaidAccess } from '@/lib/billing/core/chat-access'
+import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import {
   findDatabaseQueryError,
   getUserFacingErrorMessage,
@@ -111,7 +114,11 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
-import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
+import {
+  HostedKeyRateLimitedError,
+  HostedKeyRequiresPaidPlanError,
+  HostedKeyUnavailableError,
+} from '@/tools/errors'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -547,6 +554,40 @@ async function registerAssistantCredentialSecrets(
   }
 }
 
+/**
+ * Refuses a `requiresPaidPlan` hosted key to a run whose payer lacks paid access. The payer is
+ * the run's admitted attribution, or the workspace's payer for a surface that carries none; a
+ * workspace without a payer, or a free payer whose credit balance cannot be read, is refused.
+ */
+async function assertPayerMayUseHostedKey(
+  tool: ToolDefinition,
+  workspaceId: string | undefined,
+  billingAttribution: BillingAttributionSnapshot | undefined
+): Promise<void> {
+  if (!isBillingEnabled) return
+
+  let payer: UsageUpgradePayer | null = billingAttribution ?? null
+  if (!payer && workspaceId) {
+    const workspacePayer = await resolveWorkspaceBillingPayer(workspaceId, {
+      onMissing: 'return-null',
+    })
+    if (workspacePayer) {
+      payer = {
+        billingEntity: workspacePayer.organizationId
+          ? { type: 'organization', id: workspacePayer.organizationId }
+          : { type: 'user', id: workspacePayer.billedAccountUserId },
+        payerSubscription: workspacePayer.payerSubscription,
+      }
+    }
+  }
+
+  if (payer && (await payerHasPaidAccess(payer, { onBalanceUnavailable: 'deny' }))) return
+
+  throw new HostedKeyRequiresPaidPlanError(
+    `${tool.name} with Sim's hosted key is available on paid plans. Upgrade your plan, or add your own API key under Settings > BYOK.`
+  )
+}
+
 /** Result from hosted key injection */
 interface HostedKeyInjectionResult {
   isUsingHostedKey: boolean
@@ -577,15 +618,22 @@ async function injectHostedKeyIfNeeded(
     return { isUsingHostedKey: false }
   }
 
-  const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
+  const { workspaceId, userId, workflowId, billingAttribution } = resolveToolScope(
+    params,
+    executionContext
+  )
 
   if (byokProviderId && workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId, { signal })
     if (byokResult) {
       params[apiKeyParam] = byokResult.apiKey
-      logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+      logger.info(`Using BYOK key for ${tool.id}`, { requestId })
       return { isUsingHostedKey: false }
     }
+  }
+
+  if (tool.hosting.requiresPaidPlan) {
+    await assertPayerMayUseHostedKey(tool, workspaceId, billingAttribution)
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
@@ -593,7 +641,7 @@ async function injectHostedKeyIfNeeded(
   const billingActorId = workspaceId
 
   if (!billingActorId) {
-    logger.error(`[${requestId}] No workspace ID available for hosted key rate limiting`)
+    logger.error('No workspace ID available for hosted key rate limiting', { requestId })
     return { isUsingHostedKey: false }
   }
 
@@ -606,7 +654,8 @@ async function injectHostedKeyIfNeeded(
   )
 
   if (!acquireResult.success && acquireResult.billingActorRateLimited) {
-    logger.warn(`[${requestId}] Billing actor ${billingActorId} rate limited for ${tool.id}`, {
+    logger.warn(`Billing actor ${billingActorId} rate limited for ${tool.id}`, {
+      requestId,
       provider,
       retryAfterMs: acquireResult.retryAfterMs,
     })
@@ -628,7 +677,7 @@ async function injectHostedKeyIfNeeded(
   }
 
   if (!acquireResult.success) {
-    logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
+    logger.error(`No hosted keys configured for ${tool.id}: ${acquireResult.error}`, { requestId })
     throw new HostedKeyUnavailableError(
       acquireResult.error || `No hosted keys configured for ${tool.id}`
     )
@@ -636,7 +685,8 @@ async function injectHostedKeyIfNeeded(
 
   params[apiKeyParam] = acquireResult.key
   params.__usingHostedKey = true
-  logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
+  logger.info(`Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
+    requestId,
     keyIndex: acquireResult.keyIndex,
     provider,
   })
@@ -678,14 +728,16 @@ async function reacquireHostedKey(
 
   if (!acquireResult.success || !acquireResult.key) {
     logger.warn(
-      `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
+      `Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`,
+      { requestId }
     )
     return null
   }
 
   params[apiKeyParam] = acquireResult.key
   logger.info(
-    `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
+    `Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`,
+    { requestId }
   )
   return acquireResult.envVarName ?? 'unknown'
 }
@@ -780,15 +832,16 @@ async function executeWithRetry<T>(
               const requeued = await reacquireAfterRetriesExhausted()
               if (requeued) {
                 logger.warn(
-                  `[${requestId}] Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`
+                  `Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`,
+                  { requestId }
                 )
                 return (await requeued()) as T
               }
             } catch (requeueError) {
-              logger.error(
-                `[${requestId}] Re-queue after exhausted upstream retries failed for ${toolId}`,
-                { error: toError(requeueError).message }
-              )
+              logger.error(`Re-queue after exhausted upstream retries failed for ${toolId}`, {
+                requestId,
+                error: toError(requeueError).message,
+              })
             }
           }
 
@@ -818,7 +871,8 @@ async function executeWithRetry<T>(
       })
 
       logger.warn(
-        `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
+        `Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`,
+        { requestId }
       )
       await sleep(delayMs)
     }
@@ -902,10 +956,9 @@ async function processHostedKeyCost(
 
   if (cost <= 0) return { cost: 0 }
 
-  logger.debug(
-    `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
-    metadata ? { metadata } : {}
-  )
+  logger.debug(`Hosted key cost for ${tool.id}: $${cost}`, metadata ? { metadata } : {}, {
+    requestId,
+  })
 
   return { cost, metadata }
 }
@@ -940,14 +993,15 @@ async function reportCustomDimensionUsage(
 
     for (const dim of result.dimensions) {
       if (!dim.allowed) {
-        logger.warn(`[${requestId}] Dimension ${dim.name} overdrawn after ${tool.id} execution`, {
+        logger.warn(`Dimension ${dim.name} overdrawn after ${tool.id} execution`, {
+          requestId,
           consumed: dim.consumed,
           tokensRemaining: dim.tokensRemaining,
         })
       }
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to report custom dimension usage for ${tool.id}:`, error)
+    logger.error(`Failed to report custom dimension usage for ${tool.id}:`, error, { requestId })
   }
 }
 
@@ -1014,10 +1068,11 @@ async function applyHostedKeyCostToResult(
     // The provider already ran and already charged Sim's key. Failing the
     // execution here would destroy the caller's result without recovering the
     // spend, so the run stands and the gap is raised for reconciliation.
-    logger.error(
-      `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
-      { provider, error: getErrorMessage(error) }
-    )
+    logger.error(`Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`, {
+      requestId,
+      provider,
+      error: getErrorMessage(error),
+    })
     await recordServiceMeteringFailure(`Hosted provider ${provider}: ${getErrorMessage(error)}`)
     hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
   }
@@ -1141,12 +1196,10 @@ async function readToolResponseBody(
       throw error
     }
 
-    logger.warn(
-      `[${options.requestId}] Failed to read non-OK response body for ${options.toolId}`,
-      {
-        errorName: toError(error).name,
-      }
-    )
+    logger.warn(`Failed to read non-OK response body for ${options.toolId}`, {
+      requestId: options.requestId,
+      errorName: toError(error).name,
+    })
     return Buffer.alloc(0)
   }
 }
@@ -1587,7 +1640,8 @@ async function fetchCredentialTokenFromRoute(params: {
     })
   } catch (error: unknown) {
     const status = error instanceof ApiClientError ? error.status : undefined
-    logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+    logger.error(`Token fetch failed for ${toolId}:`, {
+      requestId,
       status,
       error: getErrorMessage(error),
     })
@@ -1802,7 +1856,7 @@ async function executeToolImplementation(
         signal: effectiveSignal,
       })
       if (!tool) {
-        logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
+        logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
       return await executeMcpTool(
@@ -1816,7 +1870,7 @@ async function executeToolImplementation(
     } else {
       tool = getTool(normalizedToolId)
       if (!tool) {
-        logger.error(`[${requestId}] Built-in tool not found: ${normalizedToolId}`)
+        logger.error(`Built-in tool not found: ${normalizedToolId}`, { requestId })
       }
     }
 
@@ -1891,7 +1945,7 @@ async function executeToolImplementation(
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
     if (contextParams.credential) {
-      logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
+      logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
         const workflowId = scope.workflowId
         const userId = scope.userId
@@ -2003,6 +2057,12 @@ async function executeToolImplementation(
           if (data.idToken) {
             contextParams.idToken = data.idToken
           }
+          if (
+            data.providerWorkspaceId &&
+            credentialTool.oauth?.authoritativeParams?.includes('providerWorkspaceId')
+          ) {
+            contextParams.providerWorkspaceId = data.providerWorkspaceId
+          }
           if (data.instanceUrl) {
             contextParams.instanceUrl = data.instanceUrl
           }
@@ -2037,7 +2097,7 @@ async function executeToolImplementation(
           refreshCredential = resolveCredential
         }
 
-        logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
+        logger.info(`Successfully got access token for ${toolId}`, { requestId })
 
         // Preserve credential for downstream transforms while removing it from request payload
         // so we don't leak it to external services.
@@ -2053,7 +2113,8 @@ async function executeToolImplementation(
       } catch (error: any) {
         // A revoked credential is the user's to reconnect; the resolver already logged it.
         if (!(error instanceof CredentialRevokedError)) {
-          logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
+          logger.error(`Error fetching access token for ${toolId}:`, {
+            requestId,
             error: toError(error).message,
           })
         }
@@ -2071,7 +2132,7 @@ async function executeToolImplementation(
     // admission slot and one top-level log row, and billing/observability match
     // the canvas workflow block.
     if (normalizedToolId === 'workflow_executor') {
-      logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
+      logger.info(`Running workflow tool ${toolId} in-process`, { requestId })
       const { runWorkflowTool } = await import('@/executor/handlers/workflow/tool-runner')
       const result = await runWorkflowTool(
         {
@@ -2119,7 +2180,7 @@ async function executeToolImplementation(
     }
 
     if (normalizedToolId === 'deployed_block_executor') {
-      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      logger.info(`Running custom block tool ${toolId}`, { requestId })
       const { runCustomBlockTool } = await import(
         '@/executor/handlers/workflow/custom-block-tool-runner'
       )
@@ -2182,7 +2243,8 @@ async function executeToolImplementation(
         try {
           finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
         } catch (error) {
-          logger.error(`[${requestId}] Post-processing error for ${toolId}`, {
+          logger.error(`Post-processing error for ${toolId}`, {
+            requestId,
             errorName: toError(error).name,
           })
         }
@@ -2276,7 +2338,7 @@ async function executeToolImplementation(
       } catch (error) {
         const normalizedError = toError(error)
         logger.error(
-          `[${requestId}] Post-processing error for ${toolId}:`,
+          `Post-processing error for ${toolId}:`,
           projectToolLogMetadata(
             { error: normalizedError.message },
             resolvedSecretTraceRegistry,
@@ -2284,7 +2346,8 @@ async function executeToolImplementation(
               errorName: normalizedError.name,
             },
             structuralOnlyToolLogs
-          )
+          ),
+          { requestId }
         )
         finalResult = result
       }
@@ -2336,8 +2399,9 @@ async function executeToolImplementation(
     /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
     if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
     const toolContext = toRecord(params._context)
-    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
+    logFailureOnce(logger, 'Error executing tool', error, {
       metadata: () => ({
+        requestId,
         toolId,
         workflowId: executionContext?.workflowId ?? undefined,
         executionId: executionContext?.executionId,
@@ -2989,10 +3053,10 @@ async function executeToolRequest(
           baseMs: retryConfig.initialDelayMs,
           maxMs: retryConfig.maxDelayMs,
         })
-        logger.warn(
-          `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
-          { delayMs }
-        )
+        logger.warn(`Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`, {
+          requestId,
+          delayMs,
+        })
         await sleep(delayMs)
         continue
       }
@@ -3010,7 +3074,8 @@ async function executeToolRequest(
         )
         if (retryAfterMs !== null && retryAfterMs > retryConfig.maxDelayMs) {
           logger.warn(
-            `[${requestId}] Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`
+            `Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`,
+            { requestId }
           )
           break
         }
@@ -3024,8 +3089,8 @@ async function executeToolRequest(
           maxMs: retryConfig.maxDelayMs,
         })
         logger.warn(
-          `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
-          { delayMs }
+          `Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
+          { requestId, delayMs }
         )
         await sleep(delayMs)
         continue
@@ -3048,7 +3113,7 @@ async function executeToolRequest(
           errorData = errorText
         }
       } catch {
-        logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
+        logger.error(`Failed to read response body for ${toolId}`, { requestId })
         errorData = null
       }
 
@@ -3259,7 +3324,7 @@ async function executeMcpTool(
   const actualStartTime = startTimeISO || new Date().toISOString()
 
   try {
-    logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
+    logger.info(`Executing MCP tool: ${toolId}`, { requestId: actualRequestId })
     validateRequestBodySize(JSON.stringify(params))
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
@@ -3294,7 +3359,9 @@ async function executeMcpTool(
 
     if (!response.ok) {
       if (response.status === 413) {
-        logger.error(`[${actualRequestId}] Request body too large for mcp:${toolId} (HTTP 413)`)
+        logger.error(`Request body too large for mcp:${toolId} (HTTP 413)`, {
+          requestId: actualRequestId,
+        })
         return {
           success: false,
           output: {},
@@ -3335,7 +3402,7 @@ async function executeMcpTool(
       }
     }
 
-    logger.info(`[${actualRequestId}] MCP tool ${toolId} executed successfully`)
+    logger.info(`MCP tool ${toolId} executed successfully`, { requestId: actualRequestId })
 
     return {
       success: true,
@@ -3361,21 +3428,18 @@ async function executeMcpTool(
     const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
       const failure = bodySizeLimitError()
-      logFailureOnce(
-        logger,
-        `[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`,
-        failure,
-        {
-          metadata: () => ({
-            ...runIdentity,
-            ...projectToolLogMetadata(
-              { originalError: errorMsg },
-              context?.resolvedSecretTraceRegistry,
-              { hasOriginalError: errorMsg.length > 0 }
-            ),
-          }),
-        }
-      )
+      logFailureOnce(logger, 'Request body size limit exceeded for MCP tool', failure, {
+        metadata: () => ({
+          requestId: actualRequestId,
+          toolId,
+          ...runIdentity,
+          ...projectToolLogMetadata(
+            { originalError: errorMsg },
+            context?.resolvedSecretTraceRegistry,
+            { hasOriginalError: errorMsg.length > 0 }
+          ),
+        }),
+      })
       return {
         success: false,
         output: loggedFailureOutput(failure),
@@ -3389,8 +3453,10 @@ async function executeMcpTool(
     }
 
     const normalizedError = toError(error)
-    logFailureOnce(logger, `[${actualRequestId}] Error executing MCP tool ${toolId}:`, error, {
+    logFailureOnce(logger, 'Error executing MCP tool', error, {
       metadata: () => ({
+        requestId: actualRequestId,
+        toolId,
         ...runIdentity,
         ...projectToolLogMetadata(
           {

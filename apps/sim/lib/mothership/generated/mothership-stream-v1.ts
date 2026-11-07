@@ -23,6 +23,7 @@ export type MothershipStreamV1EventEnvelope =
   | MothershipStreamV1RunResumedEventEnvelope
   | MothershipStreamV1CompactionStartEventEnvelope
   | MothershipStreamV1CompactionDoneEventEnvelope
+  | MothershipStreamV1SteeringAppliedEventEnvelope
   | MothershipStreamV1TaskArmedEventEnvelope
   | MothershipStreamV1TaskDeliveredEventEnvelope
   | MothershipStreamV1ErrorEventEnvelope
@@ -370,6 +371,25 @@ export interface MothershipStreamV1CompactionDonePayload {
 }
 export interface MothershipStreamV1CompactionDoneData {
   summary_chars: number
+}
+export interface MothershipStreamV1SteeringAppliedEventEnvelope {
+  payload: MothershipStreamV1SteeringAppliedPayload
+  scope?: MothershipStreamV1StreamScope
+  seq: number
+  stream: MothershipStreamV1StreamRef
+  trace?: MothershipStreamV1Trace
+  ts: string
+  type: 'run'
+  v: 1
+}
+export interface MothershipStreamV1SteeringAppliedPayload {
+  content?: string
+  eventSeq?: number
+  kind: 'steering_applied'
+  messageId?: string
+  mode?: 'deferred' | 'interrupt'
+  steeringId: string
+  textOffset?: number
 }
 export interface MothershipStreamV1TaskArmedEventEnvelope {
   payload: MothershipStreamV1TaskArmedPayload

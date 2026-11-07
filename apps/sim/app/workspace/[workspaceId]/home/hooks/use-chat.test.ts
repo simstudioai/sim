@@ -1,3 +1,4 @@
+import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provider.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
@@ -13,16 +14,13 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import {
   selectDeletedWorkflowResources,
-  shouldQueueOutgoingMessage,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
-vi.mock('@/lib/core/config/feature-flags-context', () => ({
-  useFeatureFlag: () => false,
-}))
+vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
@@ -40,15 +38,6 @@ describe('selectDeletedWorkflowResources', () => {
     expect(
       selectDeletedWorkflowResources([resource('wf-new')], new Set(), [cached('wf-new')])
     ).toEqual([])
-  })
-})
-
-describe('shouldQueueOutgoingMessage', () => {
-  it('queues behind messages still waiting after the turn ended', () => {
-    // The regression: a message queued mid-stream must dispatch before one
-    // typed in the idle gap after the turn stopped — a direct send here would
-    // jump the queue and swap the user's message order.
-    expect(shouldQueueOutgoingMessage(false, false, 1)).toBe(true)
   })
 })
 

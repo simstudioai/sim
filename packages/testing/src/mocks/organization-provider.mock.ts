@@ -1,19 +1,19 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable mock functions for `@/app/o/[organizationId]/providers/organization-provider`.
+ * Controllable mock functions for `@/lib/organizations/provider`.
  *
  * Defaults mirror rendering outside an `OrganizationProvider`:
- * - `mockUseOrganizationContext` throws the real "must be used within OrganizationProvider" error,
+ * - `mockUseOrganization` throws the real "must be used within OrganizationProvider" error,
  *   so a test that renders an organization surface must set the context it needs.
- * - `mockUseOptionalOrganizationContext` returns `null`.
+ * - `mockUseOptionalOrganization` returns `null`.
  * - `mockOrganizationProvider` renders its `children`.
  *
  * @example
  * ```ts
  * import { organizationProviderMockFns } from '@sim/testing/mocks/organization-provider.mock'
  *
- * organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+ * organizationProviderMockFns.mockUseOrganization.mockReturnValue({
  *   organization: { id: 'org-1', name: 'Acme', logo: null },
  *   viewer: { isAdmin: true },
  * })
@@ -21,23 +21,23 @@ import { vi } from 'vitest'
  */
 export const organizationProviderMockFns = {
   mockOrganizationProvider: vi.fn(({ children }: { children?: unknown }): unknown => children),
-  mockUseOrganizationContext: vi.fn((): unknown => {
-    throw new Error('useOrganizationContext must be used within OrganizationProvider')
+  mockUseOrganization: vi.fn((): unknown => {
+    throw new Error('useOrganization must be used within OrganizationProvider')
   }),
-  mockUseOptionalOrganizationContext: vi.fn((): unknown => null),
+  mockUseOptionalOrganization: vi.fn((): unknown => null),
 }
 
 /**
- * Static mock module for `@/app/o/[organizationId]/providers/organization-provider`. Covers every
+ * Static mock module for `@/lib/organizations/provider`. Covers every
  * runtime export.
  *
  * @example
  * ```ts
- * vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+ * vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
  * ```
  */
 export const organizationProviderMock = {
   OrganizationProvider: organizationProviderMockFns.mockOrganizationProvider,
-  useOrganizationContext: organizationProviderMockFns.mockUseOrganizationContext,
-  useOptionalOrganizationContext: organizationProviderMockFns.mockUseOptionalOrganizationContext,
+  useOrganization: organizationProviderMockFns.mockUseOrganization,
+  useOptionalOrganization: organizationProviderMockFns.mockUseOptionalOrganization,
 }

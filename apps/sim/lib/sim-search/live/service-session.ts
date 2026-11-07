@@ -101,8 +101,11 @@ export async function createLiveServiceSession(input: {
       })),
     }
   }
+  const origin = LIVE_SEARCH_PROVIDER_CATALOG[provider].origin
+  if (!origin)
+    throw new NativeSearchError('unavailable', 'This provider requires a personal connection.')
   const client = createNativeClient({
-    origin: LIVE_SEARCH_PROVIDER_CATALOG[provider].origin,
+    origin,
     accessToken: token.accessToken,
     signal,
     pool,

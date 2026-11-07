@@ -32,7 +32,7 @@ import {
 } from '@/hooks/queries/access-requests'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { formatInstantDate } from '@/platform/lib/time'
+import { formatInstantDate } from '@/platform/shared/time'
 
 export { getAccessRequestTargetKey }
 export type RequestRecord = AccessRequestRecord

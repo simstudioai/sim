@@ -2,7 +2,6 @@
 
 import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import styles from '@/platform/app/(shell)/_components/chat/conversation/conversation.module.css'
-import { QueuedMessages } from '@/platform/app/(shell)/_components/chat/conversation/queued-messages'
 import { ResponseMessage } from '@/platform/app/(shell)/_components/chat/message/response-message'
 import { UserMessage } from '@/platform/app/(shell)/_components/chat/message/user-message'
 import type { ChatRuntime, PlatformTurn } from '@/platform/app/(shell)/_components/chat/model'
@@ -59,7 +58,7 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
   const viewport = useRef<HTMLDivElement>(null)
   const reading = useScrollEdges('vertical', { viewport, tabStop: true })
   const [earlier, setEarlier] = useState(false)
-  const { title, turns, status, chatId, queue } = runtime
+  const { title, turns, status, chatId } = runtime
   const running = status === 'sending' || status === 'reconnecting'
   const last = turns.at(-1)
   const thread = useRef<HTMLDivElement>(null)
@@ -142,7 +141,6 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
             </div>
           )}
           <PageColumn>
-            <QueuedMessages runtime={runtime} />
             <PageOverflow>
               <MessageComposer
                 composer={composer}
@@ -155,13 +153,6 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
                 }
                 onSubmit={runtime.send}
                 onStop={running ? runtime.stop : undefined}
-                onSendQueuedHead={queue.length ? () => runtime.sendQueuedNow() : undefined}
-                onRecallQueued={() => {
-                  const tail = queue.at(-1)
-                  if (!tail || tail.locked) return false
-                  runtime.editQueued(tail.id)
-                  return true
-                }}
               />
             </PageOverflow>
           </PageColumn>

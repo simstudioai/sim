@@ -6,7 +6,7 @@ import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-deskto
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 
 const native = vi.hoisted(() => ({
   getActivity: vi.fn<() => Promise<Activity | null>>(),

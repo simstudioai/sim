@@ -20,6 +20,8 @@ interface FaviconProps {
   fallback: ReactNode
   /** Sizing for the icon; the fallback carries its own. */
   className?: string
+  /** Reports the image painted, including one the browser had ready before hydration. */
+  onLoad?: () => void
 }
 
 /**
@@ -27,16 +29,20 @@ interface FaviconProps {
  * private tenant shows its platform's icon, and a site with none renders `fallback` instead
  * of a provider's placeholder.
  */
-export function Favicon({ host, fallback, className }: FaviconProps) {
+export function Favicon({ host, fallback, className, onLoad }: FaviconProps) {
   const [, rerender] = useReducer((failures: number) => failures + 1, 0)
   if (!host || knownMisses.has(host)) return fallback
   return (
     <img
+      ref={(image) => {
+        if (onLoad && image?.complete && image.naturalWidth > 0) onLoad()
+      }}
       src={faviconSrc(host)}
       alt=''
       loading='lazy'
       decoding='async'
       className={cn('rounded-sm', className)}
+      onLoad={onLoad}
       onError={() => {
         knownMisses.set(host, true)
         rerender()

@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import { mothershipErrorText } from '@/lib/mothership/chat/error-tag'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
@@ -11,6 +12,12 @@ type ErrorEvent = Extract<PersistedStreamEventEnvelope, { type: 'error' }>
  */
 export function handleErrorEvent(ctx: StreamLoopContext, parsed: ErrorEvent): void {
   const { state, ops, deps } = ctx
+  /* A turn for a message a run already applied as steering is refused: the message
+     is in the conversation already, so this is no failure to show. */
+  if (toRecord(parsed.payload).code === 'input_applied') {
+    state.inputApplied = true
+    return
+  }
   state.sawStreamError = true
   deps.setError(mothershipErrorText(parsed.payload) ?? 'An error occurred')
   ops.flush()

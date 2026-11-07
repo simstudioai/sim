@@ -27,6 +27,8 @@ Run SQL over your observability data, search spans and logs with structured filt
 
 Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -51,6 +53,8 @@ Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the r
 |   ↳ `datatype` | json | Arrow datatype of the column |
 |   ↳ `nullable` | boolean | Whether the column is nullable |
 | `rowCount` | number | Number of rows returned |
+
+</ReferenceDetails>
 
 ### Logfire Search Records
 
@@ -147,6 +151,8 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 
 Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -163,5 +169,7 @@ Resolve which Logfire organization and project a read token belongs to. Useful f
 | `projectName` | string | Logfire project the read token belongs to |
 | `expiresAt` | string | When the read token expires. Null when it never expires. |
 | `spendingCapReachedAt` | string | When the organization's spending cap was reached, which stops queries. Null when it has not been reached. |
+
+</ReferenceDetails>
 
 

@@ -119,7 +119,8 @@ export async function executeSquareCreateCatalogImage(
     })
   } catch (error) {
     context.signal?.throwIfAborted()
-    logger.error(`[${context.requestId}] Square catalog image upload failed`, {
+    logger.error('Square catalog image upload failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error),
     })
     return failureResponse(getErrorMessage(error, 'Unknown error'), 500)

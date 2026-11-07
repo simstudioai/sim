@@ -32,3 +32,45 @@ test('Home’s Search segment opens Search with the query', async ({ page }) => 
   await page.getByRole('button', { name: 'Send message' }).click()
   await expect(page).toHaveURL(/\/org\/search\?.*q=renewal/)
 })
+
+test('Summarize on a result switches to Assistant and asks about that document', async ({
+  page,
+}) => {
+  await page.route('**/api/knowledge/search', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: {
+          query: 'renewal',
+          retrieval: { status: 'complete', timedOutLegs: [] },
+          results: [
+            {
+              documentId: 'doc-renewal',
+              knowledgeBaseId: 'kb-1',
+              knowledgeBaseName: 'Drive',
+              documentName: 'Renewal plan',
+              sourceUrl: 'https://example.com/renewal',
+              connectorType: null,
+              sourceModifiedAt: null,
+              author: null,
+              content: 'The renewal plan',
+              chunkIndex: 0,
+              similarity: 1,
+            },
+          ],
+        },
+      },
+    })
+  )
+  await signInAsAdmin(page, '/org/search?mode=search&q=renewal')
+  await page.getByRole('button', { name: 'Actions for Renewal plan' }).click()
+  const posted = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().includes('/api/mothership/chat')
+  )
+  await page.getByRole('menuitem', { name: 'Summarize' }).click()
+  await expect(page).toHaveURL(/mode=assistant/)
+  const body = (await posted).postDataJSON()
+  expect(body.message).toBe('Summarize "Renewal plan"')
+  expect(body.assistantSearch.documentIds).toEqual(['doc-renewal'])
+  await expect(page.getByRole('radio', { name: 'Assistant' })).toBeChecked()
+})

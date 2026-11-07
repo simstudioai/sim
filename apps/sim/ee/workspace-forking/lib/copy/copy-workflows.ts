@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildFolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
@@ -499,7 +500,7 @@ export async function copyWorkflowStateIntoTarget(
     nameRegistry,
     resolveBlockId,
     triggerPathByBlockId,
-    requestId = 'unknown',
+    requestId = generateRequestId(),
   } = params
 
   const targetFolderId = sourceMeta.folderId ? (folderIdMap.get(sourceMeta.folderId) ?? null) : null
@@ -651,7 +652,8 @@ export async function copyWorkflowStateIntoTarget(
     const newSource = blockIdMapping.get(edge.source)
     const newTarget = blockIdMapping.get(edge.target)
     if (!newSource || !newTarget) {
-      logger.warn(`[${requestId}] Skipping edge with unmapped block reference during fork copy`, {
+      logger.warn('Skipping edge with unmapped block reference during fork copy', {
+        requestId,
         edgeId: edge.id,
       })
       return []

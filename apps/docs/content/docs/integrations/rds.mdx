@@ -6,11 +6,12 @@ integration:
   color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) through the Data API to query or modify rows, execute SQL, and inspect the database schema from a workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can
 ### RDS Query
 
 Execute a SELECT query on Amazon RDS using the Data API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +45,13 @@ Execute a SELECT query on Amazon RDS using the Data API
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### RDS Insert
 
 Insert data into an Amazon RDS table using the Data API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,9 +74,13 @@ Insert data into an Amazon RDS table using the Data API
 | `rows` | array | Array of inserted rows |
 | `rowCount` | number | Number of rows inserted |
 
+</ReferenceDetails>
+
 ### RDS Update
 
 Update data in an Amazon RDS table using the Data API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -93,9 +104,13 @@ Update data in an Amazon RDS table using the Data API
 | `rows` | array | Array of updated rows |
 | `rowCount` | number | Number of rows updated |
 
+</ReferenceDetails>
+
 ### RDS Delete
 
 Delete data from an Amazon RDS table using the Data API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -118,9 +133,13 @@ Delete data from an Amazon RDS table using the Data API
 | `rows` | array | Array of deleted rows |
 | `rowCount` | number | Number of rows deleted |
 
+</ReferenceDetails>
+
 ### RDS Execute
 
 Execute raw SQL on Amazon RDS using the Data API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -142,9 +161,13 @@ Execute raw SQL on Amazon RDS using the Data API
 | `rows` | array | Array of rows returned or affected |
 | `rowCount` | number | Number of rows affected |
 
+</ReferenceDetails>
+
 ### RDS Introspect
 
 Introspect Amazon RDS Aurora database schema to retrieve table structures, columns, and relationships
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,5 +190,7 @@ Introspect Amazon RDS Aurora database schema to retrieve table structures, colum
 | `engine` | string | Detected database engine type |
 | `tables` | array | Array of table schemas with columns, keys, and indexes |
 | `schemas` | array | List of available schemas in the database |
+
+</ReferenceDetails>
 
 

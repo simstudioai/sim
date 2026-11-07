@@ -295,7 +295,8 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
     const bodyText = await response.text()
     if (!response.ok) {
-      logger.error(`[${requestId}] Failed to create Zoho Desk webhook`, {
+      logger.error('Failed to create Zoho Desk webhook', {
+        requestId,
         status: response.status,
         body: truncate(bodyText, 500),
       })
@@ -321,7 +322,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       )
     }
 
-    logger.info(`[${requestId}] Created Zoho Desk webhook`, { externalId })
+    logger.info('Created Zoho Desk webhook', { requestId, externalId })
     return {
       // externalId (the JWT `aud` claim) and apiDomain are provider-managed and
       // are SYSTEM_MANAGED_FIELDS, so they are excluded from the redeploy config
@@ -373,7 +374,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     })
 
     if (!response.ok && response.status !== 404) {
-      logger.warn(`[${requestId}] Failed to delete Zoho Desk webhook`, { status: response.status })
+      logger.warn('Failed to delete Zoho Desk webhook', { requestId, status: response.status })
       if (strict) throw new Error(`Zoho Desk webhook delete failed: ${response.status}`)
     }
   },
@@ -385,7 +386,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const token = request.headers.get('x-zdesk-jwt')
     if (!token) {
-      logger.warn(`[${requestId}] Zoho Desk webhook missing X-ZDesk-JWT header`)
+      logger.warn('Zoho Desk webhook missing X-ZDesk-JWT header', { requestId })
       return new NextResponse('Unauthorized - Missing Zoho Desk JWT', { status: 401 })
     }
 
@@ -402,7 +403,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // subscription, so accepting any org-JWKS RS256 token matching only the
     // issuer would be a verification bypass. Reject instead of skipping a claim.
     if (!orgId || !webhookId) {
-      logger.warn(`[${requestId}] Zoho Desk webhook missing orgId/webhookId; rejecting`)
+      logger.warn('Zoho Desk webhook missing orgId/webhookId; rejecting', { requestId })
       return new NextResponse('Unauthorized - webhook not fully provisioned', { status: 401 })
     }
 
@@ -438,7 +439,8 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       })
       return null
     } catch (error) {
-      logger.warn(`[${requestId}] Zoho Desk JWT verification failed`, {
+      logger.warn('Zoho Desk JWT verification failed', {
+        requestId,
         message: toError(error).message,
       })
       return new NextResponse('Unauthorized - Invalid Zoho Desk JWT', { status: 401 })
@@ -455,7 +457,8 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // than silently drop if that ever changes, so batched deliveries are visible.
     if (body.length > 1) {
       logger.warn(
-        `[${requestId}] Zoho Desk delivered ${body.length} events in one payload; processing the first only`
+        `Zoho Desk delivered ${body.length} events in one payload; processing the first only`,
+        { requestId }
       )
     }
     const event = body[0]

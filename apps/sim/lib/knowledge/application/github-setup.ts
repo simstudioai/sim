@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { credential, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
@@ -20,8 +20,8 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import {
   connectGitHubSearchInstallation,
-  findGitHubSearchReaderCredential,
   listGitHubSearchInstallations,
+  listGitHubSearchReaderCredentials,
 } from '@/lib/knowledge/application/github-installations'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
@@ -244,7 +244,7 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
   )
   if (!context)
     throw new OrchestrationError('forbidden', 'This account connection is no longer available.')
-  const [existing] = await db
+  const connected = await db
     .select({ id: credential.id })
     .from(credential)
     .where(
@@ -252,10 +252,18 @@ async function authorizeReader(attempt: GitHubSetupAttempt) {
         eq(credential.organizationId, attempt.organizationId),
         eq(credential.type, 'managed_oauth'),
         eq(credential.credentialGroupEnrollmentId, enrollment.id),
-        eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId)
+        eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
+        isNull(credential.revokedAt)
       )
     )
-    .limit(1)
+    .limit(2)
+  // GitHub signs in whoever its session holds, so setup cannot aim at one of several accounts.
+  if (connected.length > 1)
+    throw new OrchestrationError(
+      'validation',
+      'Reconnect one of your GitHub accounts in Integrations, then try setup again.'
+    )
+  const [existing] = connected
   const url = await startCredentialGroupOAuth(context, token, {
     completionRedirect: true,
     completionId: attempt.setupId,
@@ -383,12 +391,12 @@ export const continueGitHubSearchSetup = defineAuthorizedKnowledgeUseCase({
       ...scope,
       completionId: input.setupId,
     })
-    const reader = await findGitHubSearchReaderCredential(
+    const readers = await listGitHubSearchReaderCredentials(
       db,
       input.organizationId,
       principal.userId
     )
-    if (!receipt || reader?.id !== receipt)
+    if (!receipt || !readers.some((reader) => reader.id === receipt))
       throw new OrchestrationError(
         'forbidden',
         'Complete GitHub authorization before continuing setup.'

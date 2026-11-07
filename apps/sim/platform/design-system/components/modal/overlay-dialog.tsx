@@ -11,7 +11,11 @@ interface DialogSurfaceProps {
   description?: string
   step?: number
   busy?: boolean
+  /** Names the dialog more specifically than its visible title. */
+  accessibleName?: string
   onSubmit?: FormEventHandler<HTMLFormElement>
+  /** Lets Enter in a text field submit the form. Search fields and pickers never do. */
+  submitOnEnter?: boolean
   children: ReactNode
 }
 
@@ -30,7 +34,9 @@ export function OverlayDialog({
   presentation,
   step,
   busy,
+  accessibleName,
   onSubmit,
+  submitOnEnter,
   children,
 }: OverlayDialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -75,8 +81,8 @@ export function OverlayDialog({
       data-material='floating'
       data-elevation='modal'
       data-presentation={presentation}
-      aria-label={label}
-      aria-labelledby={title ? `${id}-title` : undefined}
+      aria-label={label ?? accessibleName}
+      aria-labelledby={title && !accessibleName ? `${id}-title` : undefined}
       aria-describedby={description ? `${id}-description` : undefined}
       onKeyDown={(event) => {
         if (
@@ -100,6 +106,13 @@ export function OverlayDialog({
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
+      onClose={(event) => {
+        // Once user activation is spent the browser's `cancel` cannot be prevented: Escape closes
+        // the element itself, so state and element are put back in step here.
+        if (!open || event.currentTarget.open) return
+        if (busy) event.currentTarget.showModal()
+        else onClose()
+      }}
     >
       {open &&
         (onSubmit ? (
@@ -108,6 +121,18 @@ export function OverlayDialog({
             className={styles.modalLayout}
             aria-busy={busy || undefined}
             onSubmit={onSubmit}
+            onKeyDown={(event) => {
+              const { target } = event
+              if (event.key !== 'Enter' || event.defaultPrevented || event.nativeEvent.isComposing)
+                return
+              if (!(target instanceof HTMLInputElement)) return
+              if (
+                !submitOnEnter ||
+                target.type === 'search' ||
+                target.getAttribute('role') === 'combobox'
+              )
+                event.preventDefault()
+            }}
           >
             {content}
           </form>

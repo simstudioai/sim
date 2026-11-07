@@ -16,7 +16,7 @@
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
 
 /** Contract field ids a token service-account modal may collect. */
-export type TokenServiceAccountFieldId = 'apiToken' | 'domain'
+export type TokenServiceAccountFieldId = 'apiToken' | 'domain' | 'providerWorkspaceId'
 
 export interface TokenServiceAccountField {
   id: TokenServiceAccountFieldId
@@ -81,7 +81,9 @@ export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account'
 export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
   'claude-platform-service-account' as const
 export const SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID = 'snowflake-service-account' as const
+export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
+export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -111,6 +113,8 @@ export type TokenServiceAccountProviderId =
   | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -409,6 +413,30 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
   },
+  [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FLOW_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Flow Engineering',
+    tokenNoun: 'personal API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'brd_...', secret: true },
+      {
+        id: 'domain',
+        label: 'API host',
+        placeholder: 'backend.branch.flowengineering.com',
+        secret: false,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Flow workspace identifier',
+        placeholder: 'Workspace identifier from your MCP URL',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/flow',
+    helpText:
+      'Copy your API key, API host, and workspace identifier from Settings → API & MCP in Flow.',
+  },
   [CODA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CODA_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Coda',
@@ -425,6 +453,27 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/coda',
     helpText:
       'Create a token under Account settings → API connections. A token restricted to specific docs or tables can only read and write those.',
+  },
+  [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GAUGE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Gauge',
+    tokenNoun: 'organization API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'gauge_sk_...',
+        secret: true,
+        hintPattern: /^gauge_sk_/,
+        hintMessage: 'Gauge organization API keys start with gauge_sk_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gauge',
+    helpText:
+      'Create a key in Gauge under Settings → Integrations → API Keys. Read only supports reports and reads; choose Read & write to manage prompts, topics, and tags. Reconnect with a new key after expiry or revocation.',
+    invalidCredentialsHelp:
+      'Use a Gauge organization API key, not a CLI login token. Check that the key has not expired or been revoked.',
   },
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,

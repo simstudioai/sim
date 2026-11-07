@@ -42,6 +42,7 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type DurableSecretProvenance,
@@ -1113,7 +1114,7 @@ export async function copyForkResourceContent(params: {
   requestId?: string
   control?: ForkCopyControl
 }): Promise<{ copied: number; failed: number; failures: ForkFailedResource[] }> {
-  const { contentPlan, contentRefMaps, control, requestId = 'unknown' } = params
+  const { contentPlan, contentRefMaps, control, requestId = generateRequestId() } = params
   const { childWorkspaceId, userId } = contentPlan
 
   let copiedResources = 0
@@ -1143,7 +1144,8 @@ export async function copyForkResourceContent(params: {
       })
     } catch (mappingCleanupError) {
       rethrowForkCopyInterruption(mappingCleanupError, control)
-      logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
+      logger.error('Failed to clean mapping for a failed copied document', {
+        requestId,
         childDocumentId,
         error: getErrorMessage(mappingCleanupError),
       })
@@ -1183,17 +1185,20 @@ export async function copyForkResourceContent(params: {
         // the same child id again, and the cleanup keys failed ids by kind in a Set.
         await dropCopiedDocumentMapping(childDocumentId)
         staleChildIds.push(childDocumentId)
-        logger.warn(
-          `[${requestId}] Dropping a fork placeholder planned for a connector-managed document`,
-          { sourceDocumentId: id, childDocumentId, childKnowledgeBaseId: kb.childId }
-        )
+        logger.warn('Dropping a fork placeholder planned for a connector-managed document', {
+          requestId,
+          sourceDocumentId: id,
+          childDocumentId,
+          childKnowledgeBaseId: kb.childId,
+        })
       }
       return staleChildIds
     } catch (error) {
       rethrowForkCopyInterruption(error, control)
       logger.error(
-        `[${requestId}] Failed to reconcile fork placeholders planned for connector-managed documents`,
+        'Failed to reconcile fork placeholders planned for connector-managed documents',
         {
+          requestId,
           sourceKnowledgeBaseId: kb.sourceId,
           childKnowledgeBaseId: kb.childId,
           error: getErrorMessage(error),
@@ -1223,14 +1228,16 @@ export async function copyForkResourceContent(params: {
         )
       const skipped = Number(row?.total ?? 0)
       if (skipped === 0) return
-      logger.info(`[${requestId}] Skipped connector-managed documents in a copied knowledge base`, {
+      logger.info('Skipped connector-managed documents in a copied knowledge base', {
+        requestId,
         sourceKnowledgeBaseId: kb.sourceId,
         childKnowledgeBaseId: kb.childId,
         skipped,
       })
     } catch (error) {
       rethrowForkCopyInterruption(error, control)
-      logger.warn(`[${requestId}] Failed to count the documents a copied knowledge base skipped`, {
+      logger.warn('Failed to count the documents a copied knowledge base skipped', {
+        requestId,
         sourceKnowledgeBaseId: kb.sourceId,
         error: getErrorMessage(error),
       })
@@ -1349,7 +1356,8 @@ export async function copyForkResourceContent(params: {
       rethrowForkCopyInterruption(error, control)
       failedResources += 1
       failures.push({ kind: 'table', childId: table.childId })
-      logger.warn(`[${requestId}] Failed to copy table rows during fork`, {
+      logger.warn('Failed to copy table rows during fork', {
+        requestId,
         sourceTableId: table.sourceId,
         error: getErrorMessage(error),
       })
@@ -1469,7 +1477,8 @@ export async function copyForkResourceContent(params: {
         await rollbackCopiedKbDocuments(kb.childId, childWorkspaceId, control)
       } catch (rollbackError) {
         rethrowForkCopyInterruption(rollbackError, control)
-        logger.error(`[${requestId}] Failed to roll back copied KB storage accounting`, {
+        logger.error('Failed to roll back copied KB storage accounting', {
+          requestId,
           childKnowledgeBaseId: kb.childId,
           error: getErrorMessage(rollbackError),
         })
@@ -1487,7 +1496,8 @@ export async function copyForkResourceContent(params: {
           )
         } catch (mappingCleanupError) {
           rethrowForkCopyInterruption(mappingCleanupError, control)
-          logger.error(`[${requestId}] Failed to clean mappings for a failed copied KB`, {
+          logger.error('Failed to clean mappings for a failed copied KB', {
+            requestId,
             childKnowledgeBaseId: kb.childId,
             error: getErrorMessage(mappingCleanupError),
           })
@@ -1499,7 +1509,8 @@ export async function copyForkResourceContent(params: {
         childId: kb.childId,
         documentChildIds: Object.values(kb.documentIdMap),
       })
-      logger.warn(`[${requestId}] Failed to copy knowledge base content during fork`, {
+      logger.warn('Failed to copy knowledge base content during fork', {
+        requestId,
         sourceKnowledgeBaseId: kb.sourceId,
         error: getErrorMessage(error),
       })
@@ -1567,7 +1578,8 @@ export async function copyForkResourceContent(params: {
       await dropCopiedDocumentMapping(docEntry.childDocId)
       failedResources += 1
       failures.push({ kind: 'knowledge-document', childId: docEntry.childDocId })
-      logger.warn(`[${requestId}] Failed to copy document into mapped KB during sync`, {
+      logger.warn('Failed to copy document into mapped KB during sync', {
+        requestId,
         sourceDocumentId: docEntry.sourceDocId,
         error: getErrorMessage(error),
       })
@@ -1609,13 +1621,11 @@ export async function copyForkResourceContent(params: {
           await completeForkCopyResource(control, `skill:${row.id}`)
         } catch (error) {
           rethrowForkCopyInterruption(error, control)
-          logger.warn(
-            `[${requestId}] Failed to rewrite copied skill content; keeping source links`,
-            {
-              childSkillId: row.id,
-              error: getErrorMessage(error),
-            }
-          )
+          logger.warn('Failed to rewrite copied skill content; keeping source links', {
+            requestId,
+            childSkillId: row.id,
+            error: getErrorMessage(error),
+          })
         }
       })
       afterId = rows[rows.length - 1].id

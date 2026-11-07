@@ -11,9 +11,15 @@ type DisclosureProps = {
   onOpenChange?: (open: boolean) => void
   children: ReactNode
 } & (
-  | { variant?: 'section' | 'navigation'; actions?: ReactNode; introduction?: never }
-  | { variant: 'folder'; actions?: never; introduction?: never }
-  | { variant: 'activity'; introduction?: ReactNode; actions?: never }
+  | {
+      variant?: 'section' | 'navigation'
+      actions?: ReactNode
+      introduction?: never
+      /** Keeps the chevron shown, for a trigger that reads as plain text without it. */
+      chevron?: boolean
+    }
+  | { variant: 'folder'; actions?: never; introduction?: never; chevron?: never }
+  | { variant: 'activity'; introduction?: ReactNode; actions?: never; chevron?: never }
 )
 
 export function Disclosure({
@@ -24,6 +30,7 @@ export function Disclosure({
   variant = 'section',
   actions,
   introduction,
+  chevron,
   children,
 }: DisclosureProps) {
   const title = (
@@ -61,7 +68,11 @@ export function Disclosure({
       </Collapsible.Root>
     )
   const disclosure = (
-    <details className={styles.disclosure} open={open ?? initiallyOpen}>
+    <details
+      className={styles.disclosure}
+      data-chevron={chevron || undefined}
+      open={open ?? initiallyOpen}
+    >
       <summary
         className={styles.summary}
         data-type='T052'

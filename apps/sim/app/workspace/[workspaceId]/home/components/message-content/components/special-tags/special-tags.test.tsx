@@ -53,8 +53,8 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/resource-workspace-host',
   ResourceWorkspaceHost: mockCredentialHost,
 }))
 
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => null,
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
@@ -117,7 +117,7 @@ import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/comp
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 import { organizationSecretKeys } from '@/hooks/queries/utils/organization-secret-keys'
 
-const mockOrganizationContext = organizationProviderMockFns.mockUseOptionalOrganizationContext
+const mockOrganizationContext = organizationProviderMockFns.mockUseOptionalOrganization
 const mockSession = authClientMockFns.mockUseSession
 deploymentShapeMockFns.mockUseDeploymentShape.mockReturnValue(
   createMockDeploymentShape({ hosted: true })

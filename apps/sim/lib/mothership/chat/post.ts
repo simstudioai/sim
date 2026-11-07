@@ -32,6 +32,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
+import { settleSteeringFallback } from '@/lib/mothership/chat/application/steering-fallback'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
@@ -47,6 +48,7 @@ import {
   loadChatMcpServerIds,
   resolveOrCreateChat,
 } from '@/lib/mothership/chat/lifecycle'
+import { normalizeContexts } from '@/lib/mothership/chat/normalize-contexts'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
@@ -127,6 +129,8 @@ const ChatMessageSchema = z
      a client-supplied id longer than the btree entry limit would throw there.
      A generated id is 36 chars. */
     userMessageId: z.string().max(128).optional(),
+    /** This turn is a steering message going out on its own; its disposition settles first. */
+    steeringFallback: z.boolean().optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
@@ -340,21 +344,6 @@ type UnifiedChatBranch =
       }) => Promise<ExecutionContext>
     })
 
-function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
-  if (!Array.isArray(contexts)) {
-    return contexts
-  }
-
-  return contexts.map((ctx) => {
-    if (ctx.kind === 'table' && ctx.currentView)
-      return { ...ctx, viewId: ctx.currentView.viewId ?? undefined }
-    if (ctx.kind !== 'blocks') return ctx
-    if (Array.isArray(ctx.blockIds) && ctx.blockIds.length > 0) return ctx
-    if (ctx.blockId) return { ...ctx, blockIds: [ctx.blockId] }
-    return ctx
-  })
-}
-
 /**
  * An MCP server tagged with `/name` stays tagged for the rest of the chat, not
  * just the turn it was tagged on. Every usable workspace server is discoverable
@@ -425,7 +414,7 @@ async function resolveAgentContexts(params: {
         requestMode
       )
     } catch (error) {
-      logger.error(`[${requestId}] Failed to process contexts`, error)
+      logger.error('Failed to process contexts', error, { requestId })
     }
   }
 
@@ -989,6 +978,35 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           )
         )
 
+      /* A turn under a steering message's id is that message going out on its own
+         after its run did not apply it. The worker's disposition settles it first,
+         so the message never runs twice. */
+      if (actualChatId && currentChat && !chatIsNew && body.steeringFallback) {
+        const fallback = await settleSteeringFallback.execute({
+          principal: {
+            kind: 'session',
+            userId: authenticatedUserId,
+            sessionId: session.session.id,
+          },
+          input: { chatId: actualChatId, messageId: userMessageId },
+        })
+        if (fallback.kind !== 'send') {
+          activeOtelRoot.finish('success')
+          return NextResponse.json(
+            fallback.kind === 'applied'
+              ? {
+                  error: 'This message was already included in the response it steered.',
+                  code: 'input_applied',
+                }
+              : {
+                  error: 'A response is already in progress for this chat.',
+                  activeStreamId: fallback.streamId,
+                },
+            { status: 409 }
+          )
+        }
+      }
+
       let pendingStreamWaitMs = 0
       if (actualChatId) {
         const lockStart = Date.now()
@@ -1410,7 +1428,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (isZodError(error)) {
       // A rejected body otherwise leaves no trace: the client sees a 400 and
       // its stream reconnect 404s, which reads as the stream dying for no reason.
-      logger.warn(`[${requestId}] Rejected chat request as invalid`, {
+      logger.warn('Rejected chat request as invalid', {
+        requestId,
         issues: error.issues.map((issue) => ({
           path: issue.path.join('.'),
           message: issue.message,
@@ -1442,7 +1461,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }
 
-    logger.error(`[${requestId}] Error handling unified chat request`, {
+    logger.error('Error handling unified chat request', {
+      requestId,
       error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })

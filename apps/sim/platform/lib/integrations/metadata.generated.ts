@@ -87,6 +87,16 @@ export const providerMetadata = [
     requestedScopes: null,
   },
   {
+    id: 'flow',
+    name: 'Flow Engineering',
+    description: 'Manage engineering requirements and traceability',
+    category: 'DevOps',
+    setupGuideUrl: 'https://docs.sim.ai/search/flow',
+    searchResource: 'Engineering items',
+    searchReads: [],
+    requestedScopes: [],
+  },
+  {
     id: 'github',
     name: 'GitHub',
     description: 'Interact with GitHub or trigger workflows from GitHub events',
@@ -213,6 +223,16 @@ export const providerMetadata = [
       { id: 'get_crm_objects', label: 'Read CRM records' },
     ],
     requestedScopes: null,
+  },
+  {
+    id: 'jama',
+    name: 'Jama Connect',
+    description: 'Manage requirements, traceability, and verification in Jama Connect',
+    category: 'DevOps',
+    setupGuideUrl: 'https://docs.sim.ai/search/jama',
+    searchResource: 'Items',
+    searchReads: [],
+    requestedScopes: [],
   },
   {
     id: 'jira',

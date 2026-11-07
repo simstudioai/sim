@@ -6,7 +6,10 @@
  * data without such a check is `Unverified`, and says why.
  *
  * With `--report <playwright.json>` (repeatable) it also reads what that run did: a row whose
- * proving test failed or was skipped is not Done, whatever the ledger says.
+ * proving test failed or was skipped is not Done, whatever the ledger says. The two live jobs build
+ * different apps and cannot read each other's reports, so `--job` holds each to its own rows: a row
+ * saying it is proved in the `live (flag-off)` job answers to that job's run, and every other row
+ * answers to `zone`'s.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -19,6 +22,9 @@ const HEADERS = new Set([
 ])
 const FILE_PROOF = /[\w./-]+\.(?:integration\.ts|test\.tsx?|spec\.ts)/g
 const TITLE_PROOF = /"([^"]+)"/g
+const FLAG_OFF_JOB_PROOF = 'in the `live (flag-off)` job'
+const LIVE_JOBS = ['zone', 'flag-off'] as const
+type LiveJob = (typeof LIVE_JOBS)[number]
 
 /** Test title to its worst status in a run. */
 type RunOutcome = Map<string, string>
@@ -30,6 +36,8 @@ interface LedgerInputs {
   /** Titles of every test in the live specs. */
   liveTitles: readonly string[]
   run?: RunOutcome
+  /** Which job's run this is. Without it, the run answers for every row. */
+  job?: LiveJob
 }
 
 function cells(line: string): string[] {
@@ -48,7 +56,7 @@ function isLiveSpec(file: string): boolean {
   return file.endsWith('.spec.ts') && file.includes('checks/')
 }
 
-export function auditLedger({ ledger, testFiles, liveTitles, run }: LedgerInputs): string[] {
+export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerInputs): string[] {
   const findings: string[] = []
   let columns: number | null = null
   ledger.split('\n').forEach((line, index) => {
@@ -81,6 +89,7 @@ export function auditLedger({ ledger, testFiles, liveTitles, run }: LedgerInputs
     }
     if (!status.startsWith('Done')) return
 
+    const answersToThisRun = !job || proof.includes(FLAG_OFF_JOB_PROOF) === (job === 'flag-off')
     const quoted = [...proof.matchAll(TITLE_PROOF)].map((match) => match[1] as string)
     if (quoted.length === 0 && files.every(isLiveSpec)) {
       findings.push(
@@ -92,7 +101,7 @@ export function auditLedger({ ledger, testFiles, liveTitles, run }: LedgerInputs
         findings.push(`${at}: "${capability}" quotes a test that does not exist: "${title}"`)
         continue
       }
-      if (!run) continue
+      if (!run || !answersToThisRun) continue
       const outcomes = matchingTitles(title, run.keys()).map((match) => run.get(match))
       if (!outcomes.includes('passed')) {
         findings.push(
@@ -145,12 +154,17 @@ function main() {
       liveTitles.push(title as string)
     }
   }
-  const { values } = parseArgs({ options: { report: { type: 'string', multiple: true } } })
+  const { values } = parseArgs({
+    options: { report: { type: 'string', multiple: true }, job: { type: 'string' } },
+  })
+  const job = LIVE_JOBS.find((candidate) => candidate === values.job)
+  if (values.job && !job) throw new Error(`--job must be one of ${LIVE_JOBS.join(', ')}`)
   const findings = auditLedger({
     ledger: readFileSync(path.join(app, 'platform/docs/org-parity.md'), 'utf8'),
     testFiles,
     liveTitles,
     run: values.report ? readRunOutcome(values.report) : undefined,
+    job,
   })
   if (findings.length > 0) {
     console.error(`check:platform-parity: ${findings.length} finding(s)\n`)

@@ -1,8 +1,10 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense, useCallback } from 'react'
+import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
+import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
@@ -23,6 +25,8 @@ interface ChatResourcePanelProps {
   panel: ReturnType<typeof useChatResourcePanel>
   children: ReactNode
   header?: ReactNode
+  /** Leaves out the panel toggle while there is no resource to show and the panel is closed. */
+  hideToggleUntilResource?: boolean
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
 }
 
@@ -35,8 +39,10 @@ export function ChatResourcePanel({
   panel,
   children,
   header,
+  hideToggleUntilResource = false,
   onSummarize,
 }: ChatResourcePanelProps) {
+  const { panelClassName } = useChatChrome()
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const {
@@ -77,6 +83,7 @@ export function ChatResourcePanel({
       collapsed={isResourceCollapsed}
       label='resource view'
       activityCount={resourceActivityIds.size}
+      toggleHidden={hideToggleUntilResource && isResourceCollapsed && resources.length === 0}
       onToggle={isResourceCollapsed ? expandResource : collapseResource}
       onResize={handleResourceResizePointerDown}
       onResizeKeyDown={handleResourceResizeKeyDown}
@@ -106,7 +113,7 @@ export function ChatResourcePanel({
               isAgentResponding={isSending}
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
-              className={skipResourceTransition ? 'transition-none!' : undefined}
+              className={cn(skipResourceTransition && 'transition-none!', panelClassName)}
             />
           </Suspense>
         </MothershipResourcesProvider>

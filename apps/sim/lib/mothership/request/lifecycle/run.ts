@@ -694,6 +694,8 @@ export async function runCopilotLifecycle(
         ...(endedWithoutReason ? { error: ENDED_RUN_MESSAGE } : {}),
         ...(failure ? { error: failure.userMessage, errorCode: failure.code } : {}),
         errors: !succeeded && context.errors.length ? context.errors : undefined,
+        /* Forwarded as the error frame's code, so the view reads the refusal as delivered. */
+        ...(context.inputApplied ? { inputApplied: true, errorCode: 'input_applied' } : {}),
         usage: context.usage,
         cost: context.cost,
       }

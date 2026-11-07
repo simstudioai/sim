@@ -34,7 +34,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const hoisted = vi.hoisted(() => ({
   canOpenOrganizationSettingsSection: vi.fn(),
   getOrganizationSettingsFeatures: vi.fn((hasEnterprisePlan: boolean) => ({ hasEnterprisePlan })),
-  isOrganizationSettingsSectionAvailable: vi.fn(),
+  organizationPlanAllowsSettingsSection: vi.fn(),
   isPlatformAdmin: vi.fn(),
   isAccessRequestEnabled: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
@@ -42,7 +42,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@/components/settings/navigation', () => ({
   getOrganizationSettingsFeatures: hoisted.getOrganizationSettingsFeatures,
-  isOrganizationSettingsSectionAvailable: hoisted.isOrganizationSettingsSectionAvailable,
+  organizationPlanAllowsSettingsSection: hoisted.organizationPlanAllowsSettingsSection,
   resolveWorkspaceNavigation: hoisted.resolveWorkspaceNavigation,
   UNIFIED_TO_ORGANIZATION_SECTION: {
     organization: 'members',
@@ -141,7 +141,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
     mocks.isCustomBlocksEligibleForOrganization.mockResolvedValue(true)
     mocks.isForkingAvailableForWorkspace.mockResolvedValue(true)
     mocks.isOrganizationOnEnterprisePlan.mockResolvedValue(true)
-    mocks.isOrganizationSettingsSectionAvailable.mockReturnValue(true)
+    mocks.organizationPlanAllowsSettingsSection.mockReturnValue(true)
     mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(true)
     mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     mocks.isPlatformAdmin.mockResolvedValue(true)

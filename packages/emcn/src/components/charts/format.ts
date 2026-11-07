@@ -1,4 +1,4 @@
-import { formatDuration } from '@sim/utils/formatting'
+import { formatCompactNumber, formatDuration } from '@sim/utils/formatting'
 
 /** Duration for an axis tick or tooltip. `—` for a missing or non-positive value. */
 export function formatChartLatency(ms: number): string {
@@ -27,7 +27,5 @@ export function formatChartDate(timestamp?: string, timeZone?: string): string {
 
 /** Compact axis magnitude — `1.2k`, `3.4m`. */
 export function formatChartCompactNumber(value: number): string {
-  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
-    .format(value)
-    .toLowerCase()
+  return formatCompactNumber(value)
 }

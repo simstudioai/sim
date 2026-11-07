@@ -44,7 +44,7 @@ import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/requ
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
-import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 
 export interface MothershipChatMetadata {
   mode?: MothershipChat['mode']
@@ -404,19 +404,14 @@ function joinCachedOlderMessages(
 
 /**
  * Reads a chat from the server: the newest messages on first load, then everything from the
- * cached window's first message, joined to the older messages `readCached` holds. A chat this
- * tab saw deleted that the server returns again was restored, so it takes queued sends again.
- * Only a read that began after the delete counts: one already in flight can return the chat
- * from before it.
+ * cached window's first message, joined to the older messages `readCached` holds.
  */
 export async function fetchMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal,
   readCached?: () => MothershipChatHistory | undefined
 ): Promise<MothershipChatHistory> {
-  const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
   const history = await readMothershipChatHistory(chatId, readCached?.()?.windowStartCursor, signal)
-  if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
   return joinCachedOlderMessages(readCached?.(), history)
 }
 
@@ -527,7 +522,7 @@ export function useDeleteMothershipChat(owner?: MothershipChatOwner) {
     onSuccess: async (_data, chatId) => {
       await suspendDesktopChatScopes(chatId)
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-      useMothershipQueueStore.getState().clearChat(chatId)
+      useMothershipOutgoingStore.getState().record(chatId, [])
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -550,12 +545,6 @@ export function useRestoreMothershipChat(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: restoreChat,
-    /** The delete this restore undoes; one that lands while it is in flight stays. */
-    onMutate: (chatId) => ({ deleteSeen: useMothershipQueueStore.getState().cleared[chatId] }),
-    onSuccess: (_data, chatId, context) => {
-      if (context?.deleteSeen === undefined) return
-      useMothershipQueueStore.getState().liftDelete(chatId, context.deleteSeen)
-    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
@@ -576,7 +565,7 @@ export function useDeleteMothershipChats(owner?: MothershipChatOwner) {
           await deleteChat(chatId)
           await suspendDesktopChatScopes(chatId)
           queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-          useMothershipQueueStore.getState().clearChat(chatId)
+          useMothershipOutgoingStore.getState().record(chatId, [])
         })
       )
       const failed = results.find((result) => result.status === 'rejected')
@@ -661,6 +650,20 @@ function applyUnreadFlag(
 }
 
 /**
+ * Stops the list reads that could overwrite an optimistic flag. Answers whether one was owed by an
+ * invalidation: the flag's write clears that mark, so the caller has to read the list again.
+ */
+async function holdChatListReads(
+  queryClient: ReturnType<typeof useQueryClient>,
+  owner: MothershipChatOwner | undefined
+): Promise<boolean> {
+  const queryKey = mothershipChatKeys.ownerList(owner)
+  const owesRead = queryClient.getQueryState(queryKey)?.isInvalidated === true
+  await queryClient.cancelQueries({ queryKey })
+  return owesRead
+}
+
+/**
  * Marks a chat as read with optimistic update.
  *
  * The server only updates `lastSeenAt`, never `updatedAt`, so we deliberately
@@ -670,7 +673,8 @@ function applyUnreadFlag(
  * If there is no cached list yet (initial fetch still in flight, e.g. on
  * chat-page refresh), we skip cancellation entirely so the in-flight fetch
  * can resolve normally — otherwise it would be orphaned and never refetched.
- * `onSuccess` then reconciles whichever state the fetch produced.
+ * `onSuccess` then reconciles whichever state the fetch produced. A read an invalidation
+ * asked for still runs: cancelling one for good would keep a deleted chat in the sidebar.
  */
 export function useMarkMothershipChatRead(owner?: MothershipChatOwner) {
   const queryClient = useQueryClient()
@@ -680,12 +684,12 @@ export function useMarkMothershipChatRead(owner?: MothershipChatOwner) {
       const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
         mothershipChatKeys.ownerList(owner)
       )
-      if (!previousChats) return { previousChats }
+      if (!previousChats) return { previousChats, owesRead: false }
 
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
+      const owesRead = await holdChatListReads(queryClient, owner)
       applyUnreadFlag(queryClient, owner, chatId, false)
 
-      return { previousChats }
+      return { previousChats, owesRead }
     },
     onSuccess: (_data, chatId) => {
       applyUnreadFlag(queryClient, owner, chatId, false)
@@ -694,6 +698,10 @@ export function useMarkMothershipChatRead(owner?: MothershipChatOwner) {
       if (context?.previousChats) {
         queryClient.setQueryData(mothershipChatKeys.ownerList(owner), context.previousChats)
       }
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.owesRead)
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
     },
   })
 }
@@ -712,12 +720,12 @@ export function useMarkMothershipChatUnread(owner?: MothershipChatOwner) {
       const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
         mothershipChatKeys.ownerList(owner)
       )
-      if (!previousChats) return { previousChats }
+      if (!previousChats) return { previousChats, owesRead: false }
 
-      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
+      const owesRead = await holdChatListReads(queryClient, owner)
       applyUnreadFlag(queryClient, owner, chatId, true)
 
-      return { previousChats }
+      return { previousChats, owesRead }
     },
     onSuccess: (_data, chatId) => {
       applyUnreadFlag(queryClient, owner, chatId, true)
@@ -726,6 +734,10 @@ export function useMarkMothershipChatUnread(owner?: MothershipChatOwner) {
       if (context?.previousChats) {
         queryClient.setQueryData(mothershipChatKeys.ownerList(owner), context.previousChats)
       }
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.owesRead)
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerList(owner) })
     },
   })
 }

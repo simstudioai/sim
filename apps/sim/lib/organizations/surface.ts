@@ -31,10 +31,11 @@ interface OrganizationSurfaceOrganization {
   name: string
   slug: string
   logo: string | null
-  memberCount: number
 }
 
 interface OrganizationSurfaceViewer {
+  /** The user this context was authorized for, known at first paint with no session read. */
+  userId: string
   role: OrganizationRole
   isAdmin: boolean
   canInviteMembers: boolean
@@ -44,18 +45,25 @@ interface OrganizationSurfaceViewer {
 }
 
 /**
- * Everything the organization surface (`/o/[organizationId]`) needs before it renders:
- * the routed organization's identity, the viewer's standing in it, and the
- * server-resolved deployment shape its client code reads. A `null`
- * result is an explicit access denial — the viewer is not a member, or there is no
- * such organization.
+ * What deciding a page takes: the routed organization's identity, the viewer's standing in it, and
+ * the server-resolved deployment shape. A `null` result is an explicit access denial: the viewer is
+ * not a member, or there is no such organization.
  */
-export interface OrganizationSurfaceContext extends OrganizationChatAccess {
+export interface OrganizationSurfaceGate extends OrganizationChatAccess {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
-  settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
+}
+
+/**
+ * Everything the organization surface (`/o/[organizationId]`) hands its client: the
+ * {@link OrganizationSurfaceGate} plus what only the shell draws, which pages reached by client
+ * navigation have no use for. Read by the layout, not by each page.
+ */
+export interface OrganizationSurfaceContext extends Omit<OrganizationSurfaceGate, 'organization'> {
+  organization: OrganizationSurfaceOrganization & { memberCount: number }
+  settingsFeatures: OrganizationSettingsFeatures
 }
 
 export function canConnectSearchIntegrations(config: PermissionGroupConfig | null): boolean {
@@ -66,59 +74,33 @@ export function canConnectSearchIntegrations(config: PermissionGroupConfig | nul
 }
 
 /**
- * Resolves the surface context from membership in the organization named by the
- * route. Session active-organization state is intentionally not consulted: it
- * describes the viewer's account, not the organization being viewed.
+ * Resolves the gate from membership in the organization named by the route. Session
+ * active-organization state is intentionally not consulted: it describes the viewer's account, not
+ * the organization being viewed.
  */
-async function resolveOrganizationSurfaceContext(
+async function resolveOrganizationSurfaceGate(
   organizationId: string,
   userId: string
-): Promise<OrganizationSurfaceContext | null> {
-  const access = await getOrganizationSettingsAccess(organizationId, userId)
-  if (!access.isMember || access.role === null) return null
-
-  const [row] = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      logo: organization.logo,
-    })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .limit(1)
-  if (!row) return null
-
-  const deployment = getDeploymentShape()
-  const [
-    config,
-    [{ memberCount }],
-    connectedAccountsAvailable,
-    searchAccess,
-    hasEnterprisePlan,
-    governanceActive,
-  ] = await Promise.all([
-    getUserPermissionConfigForOrganization(organizationId),
+): Promise<OrganizationSurfaceGate | null> {
+  const [access, [row]] = await Promise.all([
+    getOrganizationSettingsAccess(organizationId, userId),
     db
-      .select({ memberCount: count() })
-      .from(member)
-      .where(eq(member.organizationId, organizationId)),
+      .select({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        logo: organization.logo,
+      })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+  ])
+  if (!access.isMember || access.role === null || !row) return null
+
+  const [config, connectedAccountsAvailable, searchAccess] = await Promise.all([
+    getUserPermissionConfigForOrganization(organizationId),
     isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
     resolveKnowledgeAccessAvailability({ organizationId }),
-    deployment.hosted && access.isAdmin
-      ? isOrganizationOnEnterprisePlan(organizationId)
-      : Promise.resolve(false),
-    /**
-     * Access Control stays listed while a payment is failing, because its rules still apply.
-     *
-     * Resolved rather than rejected on a read failure: this value only decides whether a nav item
-     * is drawn, and it is shared by every organization page — letting it throw would take home,
-     * chat and search down with the billing table. The page and the management API read the same
-     * regime and still fail closed, so a listed item cannot be used to reach anything.
-     */
-    deployment.hosted && access.isAdmin
-      ? isOrganizationPermissionRegimeActive(organizationId).catch(() => false)
-      : Promise.resolve(false),
   ])
   return {
     organization: {
@@ -126,9 +108,9 @@ async function resolveOrganizationSurfaceContext(
       name: row.name,
       slug: row.slug,
       logo: row.logo ?? null,
-      memberCount,
     },
     viewer: {
+      userId,
       role: access.role,
       isAdmin: access.isAdmin,
       canInviteMembers:
@@ -143,19 +125,53 @@ async function resolveOrganizationSurfaceContext(
     },
     connectedAccountsAvailable,
     ...projectOrganizationChatAccess({ role: access.role, config, searchAccess }),
+    deployment: getDeploymentShape(),
+  }
+}
+
+/** Request-memoized gate, so a page and the layout above it share one membership lookup. */
+export const getOrganizationSurfaceGate = cache(resolveOrganizationSurfaceGate)
+
+async function resolveOrganizationSurfaceContext(
+  organizationId: string,
+  userId: string
+): Promise<OrganizationSurfaceContext | null> {
+  const gate = await getOrganizationSurfaceGate(organizationId, userId)
+  if (!gate) return null
+
+  const { deployment, viewer } = gate
+  const [[{ memberCount }], hasEnterprisePlan, governanceActive] = await Promise.all([
+    db
+      .select({ memberCount: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId)),
+    deployment.hosted && viewer.isAdmin
+      ? isOrganizationOnEnterprisePlan(organizationId)
+      : Promise.resolve(false),
+    /**
+     * Access Control stays listed while a payment is failing, because its rules still apply.
+     *
+     * Resolved rather than rejected on a read failure: this value only decides whether a nav item
+     * is drawn, and it is shared by every organization page — letting it throw would take home,
+     * chat and search down with the billing table. The page and the management API read the same
+     * regime and still fail closed, so a listed item cannot be used to reach anything.
+     */
+    deployment.hosted && viewer.isAdmin
+      ? isOrganizationPermissionRegimeActive(organizationId).catch(() => false)
+      : Promise.resolve(false),
+  ])
+  return {
+    ...gate,
+    organization: { ...gate.organization, memberCount },
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,
       deployment,
       governanceActive
     ),
-    deployment,
   }
 }
 
-/**
- * Request-memoized surface context for nested Server Components, so the layout and
- * any page under it share one membership lookup.
- */
+/** Request-memoized surface context for the layout, sharing its membership lookup with the page's gate. */
 export const getOrganizationSurfaceContext = cache(resolveOrganizationSurfaceContext)
 
 /**

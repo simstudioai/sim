@@ -33,6 +33,18 @@ for (const [from, to] of REDIRECTS) {
   })
 }
 
+test('the component workbench is not served by a live zone', async ({ page }) => {
+  const response = await page.goto('/org/workbench?recipe=C1084')
+  expect(response?.status()).toBe(404)
+})
+
+test('a Slack handoff link stays on the legacy integrations page', async ({ page }) => {
+  await signInAsAdmin(page, '/org/home')
+  const target = legacy('/integrations?slack=not-a-token')
+  await page.goto(target)
+  await expect(page).not.toHaveURL(/\/org\//)
+})
+
 test('a route with no Platform counterpart stays legacy', async ({ page }) => {
   await signInAsAdmin(page, legacy(UNMAPPED))
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(legacy(UNMAPPED))}$`))

@@ -23,7 +23,7 @@ export function textractErrorResponse(
   const notReady = docNotReadyResponse(error)
   if (notReady) return notReady
 
-  logger.error(`[${requestId}] Error in Textract request:`, error)
+  logger.error('Error in Textract request:', error, { requestId })
   const status = error instanceof TextractOperationError ? error.status : 500
   return NextResponse.json(
     { success: false, error: getErrorMessage(error, 'Internal server error') },

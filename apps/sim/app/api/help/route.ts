@@ -4,7 +4,6 @@ import { getRequestConfirmationSubject, renderHelpConfirmationEmail } from '@/co
 import { helpFormBodySchema } from '@/lib/api/contracts/common'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
 import {
   isMultipartFieldValidationError,
   isPayloadSizeLimitError,
@@ -27,12 +26,10 @@ const logger = createLogger('HelpAPI')
 const MAX_HELP_FORM_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const session = await getSession()
     if (!session?.user?.email) {
-      logger.warn(`[${requestId}] Unauthorized help request attempt`)
+      logger.warn('Unauthorized help request attempt')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -50,7 +47,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const workspaceId = formData.get('workspaceId') as string
     const userAgent = formData.get('userAgent') as string | null
 
-    logger.info(`[${requestId}] Processing help request`, {
+    logger.info('Processing help request', {
       type,
       email: `${email.substring(0, 3)}***`, // Log partial email for privacy
     })
@@ -62,7 +59,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid help request data`, {
+      logger.warn('Invalid help request data', {
         issues: validationResult.error.issues,
       })
       return validationErrorResponse(validationResult.error)
@@ -117,11 +114,11 @@ ${message}
     })
 
     if (!emailResult.success) {
-      logger.error(`[${requestId}] Error sending help request email`, emailResult.message)
+      logger.error('Error sending help request email', emailResult.message)
       return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Help request email sent successfully`)
+    logger.info('Help request email sent successfully')
 
     try {
       const confirmationHtml = await renderHelpConfirmationEmail(
@@ -138,7 +135,7 @@ ${message}
         emailType: 'transactional',
       })
     } catch (err) {
-      logger.warn(`[${requestId}] Failed to send confirmation email`, err)
+      logger.warn('Failed to send confirmation email', err)
     }
 
     return NextResponse.json(
@@ -150,14 +147,14 @@ ${message}
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     if (isPayloadSizeLimitError(error)) {
-      logger.warn(`[${requestId}] Help request form data too large`, { message: error.message })
+      logger.warn('Help request form data too large', { message: error.message })
       return NextResponse.json(
         { error: `Request body exceeds the maximum allowed size of ${MAX_HELP_FORM_BYTES} bytes` },
         { status: 413 }
       )
     }
     if (error instanceof Error && error.message.includes('not configured')) {
-      logger.error(`[${requestId}] Email service configuration error`, error)
+      logger.error('Email service configuration error', error)
       return NextResponse.json(
         {
           error:
@@ -167,7 +164,7 @@ ${message}
       )
     }
 
-    logger.error(`[${requestId}] Error processing help request`, error)
+    logger.error('Error processing help request', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

@@ -17,6 +17,7 @@ import {
   toCalendarDay,
   toHomeConnection,
   toReadableProviders,
+  toRecentItems,
 } from '@/platform/lib/data/home-model'
 
 function entry(provider: string, overrides: Partial<MemberIntegration>): MemberIntegration {
@@ -213,9 +214,58 @@ describe('placing a meeting on the day', () => {
     expect(after).toMatchObject({ startMinute: 23 * 60, duration: 60 })
   })
 
+  it('keeps the true clock of a meeting cut off by midnight, for its label', () => {
+    const [before] = day([event('2026-11-05T06:00:00.000Z', '2026-11-05T09:00:00.000Z')]).meetings
+    expect(before?.clock).toEqual({ startMinute: 22 * 60, endMinute: 60 })
+    const [within] = day([event('2026-11-05T17:00:00.000Z', '2026-11-05T17:30:00.000Z')]).meetings
+    expect(within?.clock).toBeUndefined()
+  })
+
+  it('keeps a meeting with no length at zero, so its label does not invent a minute', () => {
+    const [meeting] = day([event('2026-11-05T17:00:00.000Z', '2026-11-05T17:00:00.000Z')]).meetings
+    expect(meeting?.duration).toBe(0)
+  })
+
   it('keeps an all-day event off the timeline without dropping it', () => {
     const calendar = day([event(window.startAt, window.endAt, true)])
     expect(calendar.meetings).toEqual([])
     expect(calendar.allDay).toHaveLength(1)
+  })
+
+  it('moves a timed event filling the whole day out of the timeline', () => {
+    const calendar = day([event(window.startAt, window.endAt)])
+    expect(calendar.meetings).toEqual([])
+    expect(calendar.allDay).toHaveLength(1)
+  })
+})
+
+describe('toRecentItems', () => {
+  const viewed = (url: string, title: string, connectorType?: string) => ({
+    url,
+    title,
+    ...(connectorType ? { connectorType } : {}),
+    viewedAt: '2026-11-05T10:00:00.000Z',
+  })
+
+  it('shows one chip for a channel, carrying every message it stands for', () => {
+    const items = toRecentItems({
+      sources: [
+        viewed('https://acme.slack.com/archives/C1/p2', '#candidates', 'slack'),
+        viewed('https://acme.slack.com/archives/C1/p1', '#candidates', 'slack'),
+        viewed('https://a.example.com/x', 'Roadmap'),
+      ],
+      queries: [],
+    })
+    expect(items.map((item) => item.label)).toEqual(['#candidates', 'Roadmap'])
+    expect(items[0].href).toBe('https://acme.slack.com/archives/C1/p2')
+    expect(items[0].urls).toHaveLength(2)
+  })
+
+  it('leaves a source with no mark of its own bare, rather than the generic integration glyph', () => {
+    const items = toRecentItems({
+      sources: [viewed('https://a.example.com/x', 'Roadmap', 'no_such_connector')],
+      queries: [],
+    })
+    expect(items[0]?.icon).toBeUndefined()
   })
 })

@@ -143,15 +143,14 @@ export async function parseWebhookBody(
     }
   } catch (bodyError) {
     if (isPayloadSizeLimitError(bodyError)) {
-      logger.warn(`[${requestId}] Rejected oversized webhook body`, {
+      logger.warn('Rejected oversized webhook body', {
+        requestId,
         maxBytes: WEBHOOK_MAX_BODY_BYTES,
         observedBytes: bodyError.observedBytes,
       })
       return new NextResponse('Request body too large', { status: 413 })
     }
-    logger.error(`[${requestId}] Failed to read request body`, {
-      error: toError(bodyError).message,
-    })
+    logger.error('Failed to read request body', { requestId, error: toError(bodyError).message })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
 
@@ -174,7 +173,8 @@ export async function parseWebhookBody(
       body = JSON.parse(rawBody)
     }
   } catch (parseError) {
-    logger.error(`[${requestId}] Failed to parse webhook body`, {
+    logger.error('Failed to parse webhook body', {
+      requestId,
       error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
       bodyPreview: truncate(rawBody ?? '', 100),
@@ -237,7 +237,8 @@ export async function handlePreLookupWebhookVerification(
   }
 
   logger.info(
-    `[${requestId}] Returning 200 for pending ${pendingVerification.provider} webhook verification on path: ${path}`
+    `Returning 200 for pending ${pendingVerification.provider} webhook verification on path: ${path}`,
+    { requestId }
   )
 
   return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
@@ -350,7 +351,8 @@ export function handlePreDeploymentVerification(
 ): NextResponse | null {
   if (requiresPendingWebhookVerification(webhookRecord.provider)) {
     logger.info(
-      `[${requestId}] ${webhookRecord.provider} webhook - block not in deployment, returning 200 OK for URL validation`
+      `${webhookRecord.provider} webhook - block not in deployment, returning 200 OK for URL validation`,
+      { requestId }
     )
     return NextResponse.json({
       status: 'ok',
@@ -411,7 +413,9 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length === 0) {
-    logger.debug(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+    logger.debug(`No active webhooks found for path: ${options.path}`, {
+      requestId: options.requestId,
+    })
     return results
   }
 
@@ -434,14 +438,17 @@ export async function findAllWebhooksForPath(
     const ownerResults = results.filter((result) => result.webhook.workflowId === ownerWorkflowId)
 
     logger.error(
-      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} (${claimOwnerWorkflowId === ownerWorkflowId ? 'path-claim owner' : 'earliest registration'}) and dropping ${results.length - ownerResults.length} foreign webhook(s).`
+      `Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} (${claimOwnerWorkflowId === ownerWorkflowId ? 'path-claim owner' : 'earliest registration'}) and dropping ${results.length - ownerResults.length} foreign webhook(s).`,
+      { requestId: options.requestId }
     )
 
     return ownerResults
   }
 
   if (results.length > 1) {
-    logger.info(`[${options.requestId}] Found ${results.length} webhooks for path: ${options.path}`)
+    logger.info(`Found ${results.length} webhooks for path: ${options.path}`, {
+      requestId: options.requestId,
+    })
   }
 
   return results
@@ -517,7 +524,7 @@ export async function findWebhooksByRoutingKey(
   }
 
   if (results.length === 0) {
-    logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)
+    logger.warn(`No active ${provider} webhooks for routing key`, { requestId })
   }
 
   return results
@@ -583,9 +590,7 @@ export async function verifyProviderAuth(
         foundWorkflow.workspaceId ?? undefined
       )
     } catch (error) {
-      logger.error(`[${requestId}] Failed to fetch environment variables`, {
-        error,
-      })
+      logger.error('Failed to fetch environment variables', { requestId, error })
     }
   }
 
@@ -648,7 +653,8 @@ export async function checkWebhookPreprocessing(
       const error = preprocessResult.error
       const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
       const admissionRejectionCode = getDeterministicAdmissionRejectionCode(error)
-      logger.warn(`[${requestId}] Webhook preprocessing failed`, {
+      logger.debug('Webhook preprocessing failed', {
+        requestId,
         provider: foundWebhook.provider,
         error: error.message,
         statusCode: error.statusCode,
@@ -674,7 +680,7 @@ export async function checkWebhookPreprocessing(
       executionTimeoutMs: preprocessResult.executionTimeout.async,
     }
   } catch (preprocessError) {
-    logger.error(`[${requestId}] Error during webhook preprocessing:`, preprocessError)
+    logger.error('Error during webhook preprocessing:', preprocessError, { requestId })
 
     return {
       error: formatProviderErrorResponse(foundWebhook, 'Internal error during preprocessing', 500),
@@ -742,7 +748,9 @@ async function queueWebhookExecutionWithResult(
     const billingAttribution = options.billingAttribution
     const workspaceId = foundWorkflow.workspaceId
     if (!actorUserId || !billingAttribution || !workspaceId) {
-      logger.error(`[${options.requestId}] Missing billing context for webhook ${foundWebhook.id}`)
+      logger.error(`Missing billing context for webhook ${foundWebhook.id}`, {
+        requestId: options.requestId,
+      })
       return {
         outcome: 'failed',
         response: NextResponse.json(
@@ -820,7 +828,8 @@ async function queueWebhookExecutionWithResult(
       })
       reservationTransferred = true
       logger.info(
-        `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
+        `Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`,
+        { requestId: options.requestId }
       )
     } else {
       const jobQueue = await getInlineJobQueue()
@@ -836,9 +845,9 @@ async function queueWebhookExecutionWithResult(
           executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
-      logger.info(
-        `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
-      )
+      logger.info(`Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`, {
+        requestId: options.requestId,
+      })
     }
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
@@ -852,7 +861,7 @@ async function queueWebhookExecutionWithResult(
       reason: 'queued',
     }
   } catch (error: unknown) {
-    logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
+    logger.error('Failed to queue webhook execution:', error, { requestId: options.requestId })
 
     const errorResponse = handler.formatQueueErrorResponse?.() ?? null
     if (errorResponse) {
@@ -1002,11 +1011,13 @@ export async function processPolledWebhookEvent(
     return { success: false, error: 'Webhook has no provider', statusCode: 400 }
   }
   const provider = foundWebhook.provider
+  // Concurrent polls in one tick share a request; the webhook id tells their lines apart.
+  const log = logger.withMetadata({ webhookId: foundWebhook.id })
 
   const ticket = tryAdmit()
   if (!ticket) {
     const gateFailure = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
-    logger.warn(`[${requestId}] Admission gate rejected polled webhook event`)
+    log.warn('Admission gate rejected polled webhook event', { requestId })
     return {
       success: false,
       error: 'Server at capacity',
@@ -1023,8 +1034,9 @@ export async function processPolledWebhookEvent(
     if (foundWebhook.blockId) {
       const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
       if (!blockExists) {
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
+        log.info(
+          `Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`,
+          { requestId }
         )
         return { success: false, error: 'Trigger block not found in deployment', statusCode: 404 }
       }
@@ -1042,7 +1054,8 @@ export async function processPolledWebhookEvent(
         typeof errorBody.error === 'string'
           ? errorBody.error
           : 'Preprocessing failed'
-      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
+      log.warn('Polled webhook preprocessing failed', {
+        requestId,
         statusCode,
         error: errorMessage,
       })
@@ -1073,7 +1086,7 @@ export async function processPolledWebhookEvent(
     const billingAttribution = preprocessResult.billingAttribution
     const workspaceId = foundWorkflow.workspaceId ?? undefined
     if (!actorUserId || !billingAttribution || !workspaceId) {
-      logger.error(`[${requestId}] Missing billing context for webhook ${foundWebhook.id}`)
+      log.error(`Missing billing context for webhook ${foundWebhook.id}`, { requestId })
       return { success: false, error: 'Unable to resolve billing account', statusCode: 500 }
     }
 
@@ -1135,8 +1148,9 @@ export async function processPolledWebhookEvent(
         maxDurationSeconds,
       })
       reservationTransferred = true
-      logger.info(
-        `[${requestId}] Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`
+      log.info(
+        `Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`,
+        { requestId }
       )
     } else {
       const jobQueue = await getInlineJobQueue()
@@ -1152,12 +1166,12 @@ export async function processPolledWebhookEvent(
           executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
-      logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
+      log.info(`Queued ${provider} webhook execution ${jobId} via inline backend`, { requestId })
     }
 
     return { success: true, executionId }
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
+    log.error('Failed to process polled webhook event:', error, { requestId })
     return { success: false, error: 'Internal server error', statusCode: 500 }
   } finally {
     if (!reservationTransferred && reservedExecutionId) {

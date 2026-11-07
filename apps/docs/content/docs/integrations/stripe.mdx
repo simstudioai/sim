@@ -3126,6 +3126,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -3146,4 +3148,6 @@ Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 | `livemode` | boolean | Whether this event occurred in live mode \(true\) or test mode \(false\) |
 | `pending_webhooks` | number | Number of webhooks yet to be delivered for this event |
 | `request` | json | Information about the API request that triggered this event \(id, idempotency_key\) |
+
+</ReferenceDetails>
 

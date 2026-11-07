@@ -30,7 +30,7 @@ import {
   useDataDrains,
   useSettingsSearch,
 } from '@/platform/lib/data/data-drains'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 export default function DataDrainsSection({ organization }: SettingsSectionProps) {
   const organizationId = organization.organization.id

@@ -19,9 +19,8 @@ import { Download, RefreshCw, Search, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
-import { downloadCsvExport } from '@/lib/core/utils/csv-download'
 import { formatDateShort } from '@/lib/core/utils/date-display'
-import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
@@ -64,16 +63,12 @@ const logger = createLogger('AuditLogs')
 const REFRESH_SPINNER_DURATION_MS = 1000
 
 function renderMetadataValue(value: unknown) {
-  const described = describeMetadataValue(value)
-  if (described.kind === 'empty') {
-    return <span className='text-[var(--text-muted)]'>{described.text}</span>
-  }
-  if (described.kind === 'text') {
-    return <span className='text-[var(--text-primary)]'>{described.text}</span>
-  }
+  const { kind, text } = describeMetadataValue(value)
+  if (kind === 'empty') return <span className='text-[var(--text-muted)]'>{text}</span>
+  if (kind === 'text') return <span className='text-[var(--text-primary)]'>{text}</span>
   return (
     <pre className='min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all text-[var(--text-secondary)] text-xs'>
-      {described.text}
+      {text}
     </pre>
   )
 }
@@ -162,15 +157,9 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     customStart: customStartDate,
     customEnd: customEndDate,
   } = resolveAuditTimeRange(urlFilters, DEFAULT_AUDIT_TIME_RANGE)
-  /**
-   * Resolved, not merely present. Only the id lives in the URL, and the filter is
-   * applied once it matches a workspace the organization actually owns — a stale id
-   * from an old link would otherwise be shown under a chip labelled with a bare uuid.
-   */
   const workspaceScope = urlFilters.workspace
   const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
   const scope = resolveAuditWorkspaceScope(workspaceScope, orgWorkspaces)
-  const scopedWorkspace = scope.workspace
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const dateRangeAppliedRef = useRef(false)
@@ -196,15 +185,11 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const filters: AuditLogFilters = {
     search: debouncedSearch || undefined,
     resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
-    workspaceId: scopedWorkspace?.id,
+    workspaceId: scope.workspace?.id,
     startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
     endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
   }
 
-  const isWorkspaceScopePending = scope.isPending
-  const isWorkspaceScopeUnavailable = scope.isUnavailable
-  const isWorkspaceScopeUnresolved = scope.isUnresolved
-  const isScopeAnswerable = scope.isAnswerable
   const {
     data,
     isLoading,
@@ -216,8 +201,8 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   } = useAuditLogs(organizationId, filters, scope.feedEnabled)
 
   const allEntries = useMemo(
-    () => presentableAuditEntries(data?.pages, isScopeAnswerable),
-    [data, isScopeAnswerable]
+    () => presentableAuditEntries(data?.pages, scope.isAnswerable),
+    [data, scope.isAnswerable]
   )
 
   const typeDisplayLabel =
@@ -261,8 +246,8 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       refreshTimers.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimers.add(timerId)
-    const pending: Promise<unknown>[] = []
     const reads = auditRefreshReads(scope, workspaceScope)
+    const pending: Promise<unknown>[] = []
     if (reads.feed) pending.push(refetch())
     if (reads.workspaces) pending.push(orgWorkspaces.refetch())
     Promise.all(pending).catch((error: unknown) => {
@@ -281,17 +266,25 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const handleExportCsv = async () => {
     setIsExporting(true)
     try {
-      const result = await downloadCsvExport(
-        auditLogExportUrl(organizationId, filters),
-        `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
-      )
-      if (!result.ok) {
+      // boundary-raw-fetch: downloads a CSV blob and reads a response header before saving it
+      const response = await fetch(auditLogExportUrl(organizationId, filters))
+      if (!response.ok) {
         toast.error('Failed to export audit logs')
         return
       }
-      if (result.truncated) {
+      if (response.headers.get('X-Export-Truncated') === '1') {
         toast.info('Export truncated — narrow the date range to see everything')
       }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
     } finally {
       setIsExporting(false)
     }
@@ -305,7 +298,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           icon: Download,
           onSelect: () => void handleExportCsv(),
           disabled: !canExportAuditLogs({
-            isScopeAnswerable,
+            isScopeAnswerable: scope.isAnswerable,
             entryCount: allEntries.length,
             isExporting,
             isPlaceholderData,
@@ -406,11 +399,11 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       <ActivityLog
         entries={allEntries.map(toActivityEntry)}
         emptyState={
-          isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnavailable ? (
+          isLoading || scope.isPending ? undefined : scope.isUnavailable ? (
             <SettingsEmptyState>
               Couldn't check that workspace. Refresh to try again.
             </SettingsEmptyState>
-          ) : isWorkspaceScopeUnresolved ? (
+          ) : scope.isUnresolved ? (
             <SettingsEmptyState>
               That workspace is not part of this organization.
             </SettingsEmptyState>

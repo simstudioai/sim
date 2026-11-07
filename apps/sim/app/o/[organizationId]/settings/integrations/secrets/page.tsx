@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { OrganizationSecretsPage } from '@/components/secrets/organization-secrets-page'
+import { OrganizationSecretsPage } from '@/app/o/[organizationId]/integrations/secrets/organization-secrets-page'
 
 export const metadata: Metadata = { title: 'Generic Secrets' }
 

@@ -34,7 +34,10 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
     getPolicy: async () => ({ authorizationAppId: 'current-app', scopeVersion: 1 }),
   }),
 }))
-vi.mock('@/lib/oauth/github-installation', () => ({
+vi.mock('@/lib/oauth/github-installation', async (importOriginal) => ({
+  GitHubInstallationError: (
+    await importOriginal<typeof import('@/lib/oauth/github-installation')>()
+  ).GitHubInstallationError,
   getGitHubInstallationConfiguration: () => ({
     configured: true,
     installUrl: 'https://github.com/apps/example/installations/new',
@@ -45,6 +48,7 @@ vi.mock('@/lib/oauth/github-installation', () => ({
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: vi.fn() }))
 
 import { listGitHubSearchInstallations } from '@/lib/knowledge/application/github-installations'
+import { GitHubInstallationError } from '@/lib/oauth/github-installation'
 
 const { drizzle } = await import('drizzle-orm/postgres-js')
 const schema = await import('@sim/db/schema')
@@ -109,6 +113,85 @@ describe('GitHub installation setup reader ownership in PostgreSQL', () => {
     expect(await list('bob')).toMatchObject({ needsUserConnection: true })
     expect(await list('alice', 'other-org')).toMatchObject({ needsUserConnection: true })
     expect(mocks.token).toHaveBeenCalledTimes(1)
+  })
+
+  describe('with several GitHub accounts connected', () => {
+    const installation = (installationId: string) => ({
+      installationId,
+      accountLogin: installationId,
+    })
+
+    beforeEach(async () => {
+      await fixture.client.unsafe(`
+        INSERT INTO credential(id,organization_id,type,provider_id,provider_subject_id,authorization_app_id,
+          managed_oauth_status,managed_oauth_scope_version,granted_scopes,encrypted_oauth_token_set,granted_at,
+          credential_group_enrollment_id,credential_group_option_id)
+          VALUES ('alice-github-2','setup-org','managed_oauth','github-repositories','456','current-app','active',1,
+            ARRAY[]::text[],'encrypted',now(),'setup-enrollment','github-option');
+      `)
+      mocks.token.mockImplementation(async ({ credentialId }: { credentialId: string }) => ({
+        accessToken: `token-${credentialId}`,
+      }))
+    })
+
+    it('lists installations from each account once', async () => {
+      mocks.list.mockImplementation(async (token: string) =>
+        token === 'token-alice-github'
+          ? [installation('shared'), installation('work')]
+          : [installation('shared'), installation('personal')]
+      )
+      const result = await list()
+      expect(result.needsUserConnection).toBe(false)
+      expect(result.installations.map(({ installationId }) => installationId).sort()).toEqual([
+        'personal',
+        'shared',
+        'work',
+      ])
+    })
+
+    it('does not ask to reconnect while another account still answers', async () => {
+      mocks.list.mockImplementation(async (token: string) => {
+        if (token === 'token-alice-github') throw new GitHubInstallationError('expired', 401)
+        return [installation('personal')]
+      })
+      expect(await list()).toMatchObject({
+        needsUserConnection: false,
+        installations: [installation('personal')],
+      })
+    })
+
+    it('still lists through one account when another lacks organization access', async () => {
+      mocks.list.mockImplementation(async (token: string) => {
+        if (token === 'token-alice-github')
+          throw new GitHubInstallationError('Approve access', 403, 'membership-permissions')
+        return [installation('personal')]
+      })
+      expect(await list()).toMatchObject({
+        needsUserConnection: false,
+        installations: [installation('personal')],
+      })
+    })
+
+    it('reports the failure when no account answers', async () => {
+      mocks.list.mockImplementation(async (token: string) => {
+        if (token === 'token-alice-github')
+          throw new GitHubInstallationError('Approve access', 403, 'membership-permissions')
+        throw new GitHubInstallationError('expired', 401)
+      })
+      await expect(list()).rejects.toThrow('Approve access')
+    })
+
+    it('stays within the setup limit when accounts together see too many', async () => {
+      mocks.list.mockImplementation(async (token: string) =>
+        Array.from({ length: 600 }, (_, index) => installation(`${token}-${index}`))
+      )
+      expect((await list()).installations).toHaveLength(1000)
+    })
+
+    it('asks to reconnect once no account answers', async () => {
+      mocks.list.mockRejectedValue(new GitHubInstallationError('expired', 401))
+      expect(await list()).toMatchObject({ needsUserConnection: true, installations: [] })
+    })
   })
 
   it.each([

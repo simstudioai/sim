@@ -1,0 +1,75 @@
+'use client'
+
+import { useState } from 'react'
+import { FailureNotice, Modal, TextField } from '@/platform/design-system/components'
+import { useMemberCredits } from '@/platform/embedded/lib/data/members'
+
+export interface CreditsTarget {
+  userId: string
+  name: string
+}
+
+interface ManageCreditsModalProps {
+  member: CreditsTarget
+  onClose: () => void
+}
+
+/**
+ * A member's credits used and their cap, blank for no limit. The draft seeds from the loaded limit
+ * until the admin types, so a refetch can't clobber an edit. Mount per member.
+ */
+export function ManageCreditsModal({ member, onClose }: ManageCreditsModalProps) {
+  const credits = useMemberCredits(member.userId)
+  const [edit, setEdit] = useState<string | null>(null)
+  const saved = credits.usage?.creditLimit ?? null
+  const draft = edit ?? (saved === null ? '' : String(saved))
+  const trimmed = draft.trim()
+  const limit = trimmed === '' ? null : Number(trimmed)
+  const valid = limit === null || (Number.isInteger(limit) && limit >= 0)
+  const { usage } = credits
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title={`Manage credits: ${member.name}`}
+      confirmLabel='Save'
+      confirmDisabled={!usage || !valid || limit === saved}
+      onConfirm={() => credits.save(limit)}
+    >
+      {credits.error && !usage ? (
+        <FailureNotice
+          title='Could not load credit usage'
+          message={credits.error.message}
+          onRetry={credits.retry}
+        />
+      ) : (
+        <>
+          <TextField
+            label={
+              usage
+                ? `Credits used this ${usage.billingInterval === 'year' ? 'year' : 'month'}`
+                : 'Credits used'
+            }
+            value={usage?.creditsUsed.toLocaleString() ?? 'Loading…'}
+            placeholder='Credits used'
+            readOnly
+          />
+          <TextField
+            label='Credit limit'
+            inputMode='numeric'
+            placeholder='No limit'
+            value={draft}
+            onChange={setEdit}
+            disabled={!usage}
+            error={
+              valid ? undefined : 'Enter a whole number of credits, or leave blank for no limit.'
+            }
+            hint="Leave blank for no limit. Set in credits, Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
+          />
+        </>
+      )}
+    </Modal>
+  )
+}

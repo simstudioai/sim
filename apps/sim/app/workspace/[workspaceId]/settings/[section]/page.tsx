@@ -10,10 +10,10 @@ import {
 import { getSession } from '@/lib/auth'
 import { authorizeWorkspaceSettingsSection } from '@/lib/settings/application/workspace-section-access'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { resolveSettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { getLegacyAccessRequestsQuery } from '@/ee/access-requests/lib/navigation'
+import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { SECTION_PREFETCHERS } from './prefetch'
 import { SettingsPage } from './settings'
 

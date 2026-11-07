@@ -14,6 +14,7 @@ export async function listViewerOrganizationAccounts(input: {
   const accounts = await db
     .select({
       credentialId: credential.id,
+      providerSubjectId: credential.providerSubjectId,
       displayName: credential.displayName,
       status: credential.managedOauthStatus,
       groupId: credentialGroup.id,

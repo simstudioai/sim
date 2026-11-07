@@ -129,3 +129,20 @@ test('people-profile renders healthy in both themes at both widths', async ({ pa
   await visitEverywhere(page, 'people-profile', `/org/people/${first.memberId}`)
   expect(problems).toEqual([])
 })
+
+test('Each route names its own tab', async ({ page }) => {
+  await signIn(page, adminEmail(), '/org/home')
+  const titles = [
+    ['/org/home', 'Home'],
+    ['/org/search', 'Search'],
+    ['/org/chat', 'Chat'],
+    ['/org/integrations', 'Integrations'],
+    ['/org/settings', 'General'],
+    ['/org/settings/members', 'Members'],
+    ['/org/settings/usage/events', 'Usage events'],
+  ]
+  for (const [route, title] of titles) {
+    await page.goto(route as string)
+    await expect(page).toHaveTitle(title as string)
+  }
+})

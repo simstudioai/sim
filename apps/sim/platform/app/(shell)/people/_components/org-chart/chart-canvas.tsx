@@ -23,13 +23,9 @@ import {
   OverflowText,
   PageColumn,
 } from '@/platform/design-system/components'
-import {
-  type ChartBranch,
-  type PersonSummary,
-  personHref,
-  usePeoplePath,
-} from '@/platform/lib/data/people'
-import { plural } from '@/platform/lib/plural'
+import { usePeoplePath } from '@/platform/lib/data/people'
+import { type ChartBranch, type PersonSummary, personHref } from '@/platform/shared/people'
+import { plural } from '@/platform/shared/plural'
 
 import '@xyflow/react/dist/style.css'
 

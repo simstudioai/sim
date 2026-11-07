@@ -2,12 +2,35 @@ name: platform-design
 
 on:
   pull_request:
+    # The zone and the seam it reads through: the main app that mounts and proxies it, the contracts,
+    # hooks and enterprise domains its data layer wraps, and the chat modules it drives unchanged.
+    # A pattern's order matters: the ledger follows the docs exclusion so an edit to it still meets
+    # the report-based parity check. `*` stands for `[workspaceId]`, which a filter would read as a
+    # character class.
     paths:
       - 'apps/sim/platform/**'
       - '!apps/sim/platform/docs/**'
       - '!apps/sim/platform/README.md'
+      - 'apps/sim/platform/docs/org-parity.md'
+      - 'apps/sim/app/o/**'
+      - 'apps/sim/lib/platform/**'
+      - 'apps/sim/proxy.ts'
+      - 'apps/sim/next.config.ts'
+      - 'apps/sim/lib/api/contracts/**'
+      - 'apps/sim/hooks/queries/**'
+      - 'apps/sim/ee/**'
+      - 'apps/sim/app/workspace/*/home/hooks/**'
+      - 'apps/sim/app/workspace/*/home/types.ts'
+      - 'apps/sim/app/workspace/*/home/search-params.ts'
+      - 'apps/sim/app/workspace/*/home/components/message-content/**'
+      - 'apps/sim/app/workspace/*/home/components/knowledge-search-results/utils.ts'
+      - 'apps/sim/app/workspace/*/w/*/components/panel/components/copilot/components/user-input/hooks/**'
+      - 'apps/sim/scripts/platform-live-seed.ts'
       - 'apps/sim/package.json'
+      - 'apps/realtime/**'
       - 'scripts/check-platform-design*'
+      - 'scripts/check-platform-parity*'
+      - 'scripts/platform-search-source-catalog.ts'
       - 'scripts/platform-variant-usage.ts'
       - 'scripts/sync-platform-*.ts'
       - '.github/workflows/platform-design.yml'
@@ -89,7 +112,8 @@ jobs:
 
   # The Platform against the real stack: Postgres, Redis, migrations, the production main app and
   # the production Platform. `zone` is the deployed topology, and then that same build with the flag
-  # off. `flag-off` builds with no zone at all, so it is the only proof /org is truly absent.
+  # off. `flag-off` builds with no zone at all, so it is the only proof /org is truly absent, and
+  # then runs that build self-hosted.
   # Group environment and seed: `.github/scripts/http-e2e.sh`.
   live:
     name: live (${{ matrix.topology }})
@@ -166,8 +190,21 @@ jobs:
         if: always() && matrix.topology == 'zone'
         run: >-
           bun run check:platform-parity
+          --job zone
           --report "$RUNNER_TEMP/e2e/platform-live/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-down/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-5xx/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-recovered/report.json"
           --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-rollout/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-zone-boot/report.json"
+      - name: Hold the parity ledger's flag-off rows to this run
+        if: always() && matrix.topology == 'flag-off'
+        run: >-
+          bun run check:platform-parity
+          --job flag-off
+          --report "$RUNNER_TEMP/e2e/platform-live-flag-off/report.json"
+          --report "$RUNNER_TEMP/e2e/platform-live-self-hosted/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

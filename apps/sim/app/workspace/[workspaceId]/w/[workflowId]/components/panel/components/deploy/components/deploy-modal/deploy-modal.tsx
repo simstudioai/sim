@@ -34,7 +34,6 @@ import type { DeploymentViewState } from '@/app/workspace/[workspaceId]/w/[workf
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
-  invalidateDeploymentQueries,
   useActivateDeploymentVersion,
   useChatDeploymentInfo,
   useDeploymentInfo,
@@ -42,6 +41,7 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
+import { invalidateDeploymentQueries } from '@/hooks/queries/utils/deployment-keys'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'

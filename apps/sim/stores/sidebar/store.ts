@@ -30,6 +30,23 @@ function clampSidebarWidth(width: number): number {
 }
 
 /**
+ * The width the mounted rail opens at. Every workspace visit persists `sidebarWidth`, so only a value
+ * above the minimum proves someone dragged it; the organization rail honours that until it has its
+ * own. Mirrored inline by the pre-paint script in `app/layout.tsx`, which cannot import this.
+ */
+function resolveExpandedWidth({
+  surface,
+  sidebarWidth,
+  organizationSidebarWidth,
+}: Pick<SidebarState, 'surface' | 'sidebarWidth' | 'organizationSidebarWidth'>): number {
+  if (surface === 'workspace') return sidebarWidth
+  if (typeof organizationSidebarWidth === 'number' && Number.isFinite(organizationSidebarWidth)) {
+    return organizationSidebarWidth
+  }
+  return sidebarWidth > SIDEBAR_WIDTH.MIN ? sidebarWidth : SIDEBAR_WIDTH.ORGANIZATION_DEFAULT
+}
+
+/**
  * Publishes both sidebar widths, owning the collapsed mapping so callers don't repeat it.
  *
  * `--sidebar-width` is the width the rail currently occupies (the collapsed width while
@@ -80,6 +97,8 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
+      organizationSidebarWidth: null,
+      surface: 'workspace',
       renderedSidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: readCollapsedCookie(),
       _hasHydrated: false,
@@ -87,7 +106,15 @@ export const useSidebarStore = create<SidebarState>()(
       setSidebarWidth: (width) => {
         if (get().isCollapsed) return
         const clampedWidth = clampSidebarWidth(width)
-        set({ sidebarWidth: clampedWidth })
+        set(
+          get().surface === 'organization'
+            ? { organizationSidebarWidth: clampedWidth }
+            : { sidebarWidth: clampedWidth }
+        )
+        get().syncWidth()
+      },
+      setSurface: (surface) => {
+        set({ surface })
         get().syncWidth()
       },
       toggleCollapsed: () => {
@@ -97,8 +124,8 @@ export const useSidebarStore = create<SidebarState>()(
         get().syncWidth()
       },
       syncWidth: () => {
-        const { isCollapsed, sidebarWidth } = get()
-        const clampedWidth = clampSidebarWidth(sidebarWidth)
+        const { isCollapsed } = get()
+        const clampedWidth = clampSidebarWidth(resolveExpandedWidth(get()))
         set({
           renderedSidebarWidth:
             typeof window !== 'undefined' && window.innerWidth < 768
@@ -125,8 +152,11 @@ export const useSidebarStore = create<SidebarState>()(
           state.syncWidth()
         }
       },
-      /** Only width is persisted; collapse lives in the cookie. */
-      partialize: (state) => ({ sidebarWidth: state.sidebarWidth }),
+      /** Only widths are persisted; collapse lives in the cookie. */
+      partialize: (state) => ({
+        sidebarWidth: state.sidebarWidth,
+        organizationSidebarWidth: state.organizationSidebarWidth,
+      }),
       /**
        * Never lets a legacy persisted `isCollapsed` override the cookie-seeded
        * value — the cookie is the source of truth (handles migration cleanly).

@@ -1,5 +1,6 @@
 import { toArray, toRecord } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
+import { compareStrings, truncate } from '@sim/utils/string'
+import { LRUCache } from 'lru-cache'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { hasRateLimitEvidence } from '@/lib/knowledge/documents/utils'
@@ -27,6 +28,8 @@ import type { ToolConfig } from '@/tools/types'
 const REQUEST_TIMEOUT_MS = 10_000
 const RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 const GMAIL_THREAD_CONCURRENCY = 5
+/** Long enough to span a Home visit's reads, short enough that a reconnect shows soon after. */
+const GMAIL_MAILBOX_TTL_MS = 5 * 60 * 1000
 /** The Outlook read tool's own ceiling for a folder listing. */
 const OUTLOOK_MESSAGE_LIMIT = 10
 /** Asks only for what a widget shows, so no mail or event body is ever fetched. */
@@ -171,23 +174,83 @@ function mailboxReadFailure(error: unknown): HomeProviderReadError {
   return new HomeProviderReadError('unavailable', error.status)
 }
 
-export async function readGmailThreads({
+/**
+ * The address thread links open as. A reconnect can bind a credential to a Google account it had no
+ * identity for, on any instance, so the key names the account's subject too. It holds only the
+ * address: the token itself is resolved fresh for every read.
+ */
+const gmailMailboxes = new LRUCache<string, string>({
+  max: 10_000,
+  ttl: GMAIL_MAILBOX_TTL_MS,
+})
+
+async function readGmailMailbox({
   accessToken,
   signal,
-}: ProviderReadInput): Promise<HomeEmailThread[]> {
-  const list = await runTool(
-    gmailListThreadsV2Tool,
-    { accessToken, labelIds: 'INBOX', maxResults: HOME_EMAIL_THREAD_LIMIT },
-    signal
-  )
-  if (!list.success) throw new HomeProviderReadError('unavailable')
+  credentialId,
+  providerSubjectId,
+}: ProviderReadInput & { credentialId: string; providerSubjectId: string | null }) {
+  const key = `${credentialId}:${providerSubjectId}`
+  const cached = gmailMailboxes.get(key)
+  if (cached !== undefined) return cached
   const mailbox = await getGmailMailboxEmail(accessToken, { signal }).catch((error: unknown) => {
     throw mailboxReadFailure(error)
   })
+  gmailMailboxes.set(key, mailbox)
+  return mailbox
+}
+
+/** An account's inbox listing, newest first, and how far through it a read has come. */
+export interface GmailThreadCursor {
+  mailbox: string
+  unreadThreadIds: string[]
+}
+
+/** Lists the inbox and reads its first `count` threads, leaving the rest for {@link readMoreGmailThreads}. */
+export async function readGmailThreads({
+  accessToken,
+  signal,
+  credentialId,
+  providerSubjectId,
+  count,
+}: ProviderReadInput & {
+  credentialId: string
+  providerSubjectId: string | null
+  count: number
+}): Promise<{
+  threads: HomeEmailThread[]
+  cursor: GmailThreadCursor
+}> {
+  const [list, mailbox] = await Promise.all([
+    runTool(
+      gmailListThreadsV2Tool,
+      { accessToken, labelIds: 'INBOX', maxResults: HOME_EMAIL_THREAD_LIMIT },
+      signal
+    ),
+    readGmailMailbox({ accessToken, signal, credentialId, providerSubjectId }),
+  ])
+  if (!list.success) throw new HomeProviderReadError('unavailable')
+  const cursor: GmailThreadCursor = {
+    mailbox,
+    unreadThreadIds: list.output.threads
+      .slice(0, HOME_EMAIL_THREAD_LIMIT)
+      .map((thread) => thread.id),
+  }
+  return { threads: await readMoreGmailThreads({ accessToken, signal, cursor, count }), cursor }
+}
+
+/** Reads the next `count` listed threads, one request each, and advances the cursor past them. */
+export async function readMoreGmailThreads({
+  accessToken,
+  signal,
+  cursor,
+  count,
+}: ProviderReadInput & { cursor: GmailThreadCursor; count: number }): Promise<HomeEmailThread[]> {
+  const { mailbox } = cursor
   const threads = await mapWithConcurrency(
-    list.output.threads.slice(0, HOME_EMAIL_THREAD_LIMIT),
+    cursor.unreadThreadIds.slice(0, count),
     GMAIL_THREAD_CONCURRENCY,
-    async ({ id }) => {
+    async (id) => {
       const thread = await runTool(
         gmailGetThreadV2Tool,
         { accessToken, threadId: id, format: 'metadata' },
@@ -210,7 +273,50 @@ export async function readGmailThreads({
       }
     }
   )
+  // Only a read that worked moves on: a refused token repeats these same threads with a fresh one.
+  cursor.unreadThreadIds.splice(0, count)
   return threads.filter((thread) => thread !== null)
+}
+
+interface MergedMailRow {
+  credentialId: string
+  receivedAt: string
+}
+
+/**
+ * How many more threads each account must give up before the newest `limit` rows of the merge are
+ * certain, given that a listing runs newest first. An account is done once its oldest row read so
+ * far falls at or below the last row that would show, because nothing further down can displace it.
+ */
+export function gmailThreadsStillNeeded(
+  rows: readonly MergedMailRow[],
+  cursors: ReadonlyMap<string, GmailThreadCursor>,
+  limit: number
+): Map<string, number> {
+  const shown = [...rows]
+    .sort((left, right) => compareStrings(right.receivedAt, left.receivedAt))
+    .slice(0, limit)
+  const lastShown = shown.length === limit ? shown[limit - 1].receivedAt : undefined
+  const open = limit - shown.length
+  const wanting = [...cursors]
+    .filter(([, cursor]) => cursor.unreadThreadIds.length > 0)
+    .flatMap(([credentialId]) => {
+      const oldest = rows
+        .filter((row) => row.credentialId === credentialId)
+        .map((row) => row.receivedAt)
+        .sort(compareStrings)[0]
+      if (lastShown && oldest && compareStrings(oldest, lastShown) <= 0) return []
+      const displaceable = oldest
+        ? shown.filter((row) => compareStrings(row.receivedAt, oldest) < 0).length
+        : shown.length
+      return [{ credentialId, slots: open + displaceable }]
+    })
+  return new Map(
+    wanting.map(({ credentialId, slots }) => [
+      credentialId,
+      Math.max(1, Math.ceil(slots / wanting.length)),
+    ])
+  )
 }
 
 /** Latest messages in the Outlook inbox. Graph does not group these into threads here. */

@@ -9,10 +9,6 @@ import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
-  getMothershipAttachmentPreviewUrl,
-  getMothershipAttachmentUrl,
-} from '@/lib/mothership/chat/attachment-preview'
-import {
   MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
@@ -51,7 +47,7 @@ import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useStartSearch } from '@/platform/lib/data/search'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,
@@ -139,21 +135,16 @@ function useComposerSettings(
   }
 }
 
-export type LiveComposer = ComposerController & {
-  /** Puts a queued message back in the field for editing. */
-  restore: (draft: { text: string; files: FileAttachmentForApi[]; contexts: ChatContext[] }) => void
-}
-
 /**
  * A draft persisted per viewer and chat through the legacy drafts store, with uploads through the
- * legacy attachment hook, so a reload, a queued edit and the upload rules all behave the same.
+ * legacy attachment hook, so a reload and the upload rules behave the same.
  */
 export function useLiveComposer({
   draftKey,
   requestMode = 'agent',
   chatId,
   onPlanChange,
-}: ComposerOptions & { onPlanChange?: (active: boolean) => void }): LiveComposer {
+}: ComposerOptions & { onPlanChange?: (active: boolean) => void }): ComposerController {
   const { organization } = useOrganization()
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -307,24 +298,6 @@ export function useLiveComposer({
     clear: () => {
       useMothershipDraftsStore.getState().clearDraft(key)
       files.clearAttachedFiles()
-    },
-    restore: ({ text: restored, files: restoredFiles, contexts: restoredContexts }) => {
-      write({ text: restored, contexts: restoredContexts })
-      files.restoreAttachedFiles(
-        restoredFiles.map((file) => ({
-          id: file.id,
-          key: file.key,
-          name: file.filename,
-          type: file.media_type,
-          size: file.size,
-          path:
-            file.path ||
-            getMothershipAttachmentPreviewUrl(file) ||
-            getMothershipAttachmentUrl(file),
-          previewUrl: getMothershipAttachmentPreviewUrl(file),
-          uploading: false,
-        }))
-      )
     },
     references,
     referencesLoading,

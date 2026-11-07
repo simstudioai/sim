@@ -16,6 +16,7 @@ import {
   addOrganizationAccountProvider,
   ensureWorkspaceAccountsGroup,
 } from '@/lib/credential-groups/service'
+import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
@@ -46,6 +47,7 @@ import {
   LIVE_SEARCH_SOURCE_TYPES,
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
+  liveSearchSavedMemberProvider,
 } from '@/lib/sim-search/live/source-catalog'
 import { getConnectorMeta } from '@/connectors/registry'
 
@@ -62,23 +64,36 @@ export const listSearchIntegrations = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listSearchIntegrations,
   resolveContext: ({ input }: { input: SearchIntegrationInput }) =>
     resolveKnowledgeOwnerContext({ organizationId: input.organizationId }),
-  async execute({ context }) {
+  async execute({ context, principal }) {
     if (!context.organizationId)
       throw new OrchestrationError('validation', 'Organization is required')
     const approvals = await listOrganizationSearchApprovals(context.organizationId)
     const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
-    const zoomEnabled = await isSearchProviderEnabled('zoom', scope)
-    const integrations = LIVE_SEARCH_SOURCE_TYPES.map(([connectorType]) => ({
-      connectorType,
-      approved: approvals.get(connectorType) ?? false,
-      ...(policies
-        ? {
-            policy: livePolicyFor(policies, connectorType),
-            available: connectorType !== 'zoom' || zoomEnabled,
-          }
-        : {}),
-    }))
+    const [zoomEnabled, providerCatalog] = await Promise.all([
+      isSearchProviderEnabled('zoom', scope),
+      listCredentialProviderCatalog(principal, { organizationId: context.organizationId }),
+    ])
+    const availableSavedProviders = new Set(
+      providerCatalog.flatMap((entry) =>
+        entry.type === 'service_account' && entry.available ? [entry.providerId] : []
+      )
+    )
+    const integrations = LIVE_SEARCH_SOURCE_TYPES.map(([connectorType]) => {
+      const savedProviderId = liveSearchSavedMemberProvider(connectorType)
+      return {
+        connectorType,
+        approved: approvals.get(connectorType) ?? false,
+        ...(policies
+          ? {
+              policy: livePolicyFor(policies, connectorType),
+              available:
+                (connectorType !== 'zoom' || zoomEnabled) &&
+                (!savedProviderId || availableSavedProviders.has(savedProviderId)),
+            }
+          : {}),
+      }
+    })
     const servicePolicies = integrations.filter(
       (integration) =>
         integration.approved &&

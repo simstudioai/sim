@@ -9,6 +9,7 @@ import {
 } from '@/lib/core/application/organization-authorization'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { organizationOperations } from '@/lib/organizations/application/operations'
+import { organizationSurfaceSettingsNavigation } from '@/lib/organizations/settings-sections'
 import {
   getOrganizationSurfaceContext,
   type OrganizationSurfaceContext,
@@ -19,12 +20,11 @@ import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
-import { organizationSurfaceSettingsNavigation } from '@/app/o/[organizationId]/settings/navigation'
 
 const logger = createLogger('OrganizationSurfaceRead')
 
 /** What a member's navigation and pages read about their surface, given the resolved context. */
-export async function resolveOrganizationSurface(
+async function resolveOrganizationSurface(
   context: OrganizationSurfaceContext,
   userId: string
 ): Promise<OrganizationSurfaceResponse> {

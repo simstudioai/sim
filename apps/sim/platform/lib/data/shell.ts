@@ -9,18 +9,14 @@ import {
   usePinnedWorkspaceIds,
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
-import type {
-  ShellChat,
-  ShellData,
-  ShellDestination,
-  ShellWorkspace,
-} from '@/platform/app/(shell)/_components/model'
-import { useChatListActions } from '@/platform/lib/data/chat-list'
+import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { canListOrganizationChats, legacyRoutes } from '@/platform/lib/data/organization-model'
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
+import type { ShellDestination } from '@/platform/shared/shell'
 
 type LegacyRoutes = ReturnType<typeof legacyRoutes>
 
@@ -95,6 +91,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const chats = useOrganizationMothershipChats(organizationId, 'active', {
     enabled: chatsAvailable,
   })
+  const canOpenChat = useCanOpenOrganizationChat()
   const profile = useUserProfile()
   const settings = useGeneralSettings()
   const routes = legacyRoutes(organization)
@@ -109,13 +106,13 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       workspaces: (workspaces.data ?? [])
         .filter((workspace) => workspace.organizationId === organizationId)
         .map((workspace) => toShellWorkspace(workspace, pinnedIds.data, routes)),
-      chats: (chats.data ?? []).map(toShellChat),
+      chats: (chats.data ?? []).filter(canOpenChat).map(toShellChat),
       inbox: [],
       notifications: [],
       unbacked: ['inbox'],
       status: {
-        workspaces: workspaces.status,
-        chats: chatsAvailable ? chats.status : 'success',
+        workspaces: workspaces.isRefetchError ? 'success' : workspaces.status,
+        chats: !chatsAvailable || chats.isRefetchError ? 'success' : chats.status,
         profile: profile.status,
       },
       workspaceCreation: toWorkspaceCreation(creationPolicy.data),

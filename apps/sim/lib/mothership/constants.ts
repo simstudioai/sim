@@ -78,9 +78,6 @@ export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
  */
 export const DESKTOP_TOOL_PICKUP_GRACE_MS = 15_000
 
-/** SessionStorage key for persisting active stream metadata across page reloads. */
-export const STREAM_STORAGE_KEY = 'copilot_active_stream'
-
 /** POST — send a chat message through the unified mothership chat surface. */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 

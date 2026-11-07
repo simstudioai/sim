@@ -83,6 +83,8 @@ export interface StreamLoopState {
   liveSearchResource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'> | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
+  /** The worker refused the turn because a run already applied its message as steering. */
+  inputApplied: boolean
   /** The terminal complete frame's status — the SERVER's verdict on the turn. */
   completionStatus: 'complete' | 'error' | 'cancelled' | null
   browserAgentRunIds: Set<string>
@@ -241,6 +243,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     liveSearchResource: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
+    inputApplied: false,
     completionStatus: null,
     browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,

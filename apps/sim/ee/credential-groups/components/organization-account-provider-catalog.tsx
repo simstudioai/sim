@@ -12,26 +12,18 @@ import {
 } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
-import {
-  MANAGED_MCP_CONNECTOR_IDS,
-  MANAGED_MCP_CONNECTORS,
-  type ManagedMcpConnectorId,
-} from '@/lib/credential-groups/managed-mcp-connectors'
-import {
-  type CredentialGroupProvider,
-  getCredentialGroupProviderService,
-} from '@/lib/credential-groups/providers'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
-
-export type OrganizationAccountProviderChoice =
-  | { kind: 'oauth'; provider: CredentialGroupProvider }
-  | { kind: 'mcp'; connectorId: ManagedMcpConnectorId }
+import {
+  type OrganizationAccountProviderChoice,
+  organizationAccountCatalogEntries,
+} from '@/ee/credential-groups/provider-rows'
 
 interface OrganizationAccountProviderCatalogProps {
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
@@ -46,7 +38,7 @@ interface OrganizationAccountProviderCatalogProps {
 export function OrganizationAccountProviderCatalog({
   group,
   availableProviders,
-  availableMcpConnectors = MANAGED_MCP_CONNECTOR_IDS,
+  availableMcpConnectors,
   pending,
   error,
   onClose,
@@ -54,31 +46,12 @@ export function OrganizationAccountProviderCatalog({
 }: OrganizationAccountProviderCatalogProps) {
   const [search, setSearch] = useState('')
   const query = search.trim().toLowerCase()
-  const providers = [
-    ...availableProviders
-      .filter((provider) => !group.options.some((option) => option.provider === provider))
-      .map((provider) => ({
-        ...getCredentialGroupProviderService(provider),
-        choice: { kind: 'oauth', provider } as const,
-      })),
-    ...availableMcpConnectors
-      .filter(
-        (id) =>
-          !group.mcpServers.some(
-            (server) => server.managedConnectorId === id && (id !== 'databricks' || server.enabled)
-          )
-      )
-      .map((connectorId) => ({
-        name:
-          connectorId === 'hubspot' || connectorId === 'zoom'
-            ? `${MANAGED_MCP_CONNECTORS[connectorId].name} (member access)`
-            : MANAGED_MCP_CONNECTORS[connectorId].name,
-        icon: getManagedMcpConnectorIcon(connectorId),
-        choice: { kind: 'mcp', connectorId } as const,
-      })),
-  ]
-    .filter((provider) => provider.name.toLowerCase().includes(query))
-    .sort((left, right) => left.name.localeCompare(right.name))
+  const providers = organizationAccountCatalogEntries(
+    group,
+    availableProviders,
+    availableMcpConnectors,
+    query
+  )
 
   return (
     <ChipModal

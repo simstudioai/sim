@@ -363,12 +363,13 @@ async function restoreScheduleClaim(
     )
     .returning({ id: workflowSchedule.id })
     .catch((error) => {
-      logger.error(`[${requestId}] ${context}`, error)
+      logger.error(context, error, { requestId })
       throw error
     })
 
   if (!restored) {
-    logger.warn(`[${requestId}] ${context}`, {
+    logger.warn(context, {
+      requestId,
       scheduleId,
       currentClaim: currentClaim.toISOString(),
       activeClaim: activeClaim.toISOString(),
@@ -743,7 +744,8 @@ async function reconcileExistingScheduleJob(params: {
   }
 
   if (!scheduleWorkflowId) {
-    logger.warn(`[${requestId}] Cannot reconcile schedule job without a workflow`, {
+    logger.warn('Cannot reconcile schedule job without a workflow', {
+      requestId,
       scheduleId: schedule.id,
       jobId: job.id,
     })
@@ -759,7 +761,8 @@ async function reconcileExistingScheduleJob(params: {
       `Failed to restore schedule ${schedule.id} claim for recovery`
     )
     if (!restored) {
-      logger.info(`[${requestId}] Skipped schedule reconciliation after claim changed`, {
+      logger.info('Skipped schedule reconciliation after claim changed', {
+        requestId,
         scheduleId: schedule.id,
         jobId: job.id,
       })
@@ -819,7 +822,8 @@ async function deferClaimedScheduleAfterQueueFailure(
   const retryDelayMs = calculateScheduleInfraRetryDelayMs(retryAttempt)
   const nextRetryAt = new Date(now.getTime() + retryDelayMs)
 
-  logger.warn(`[${requestId}] Deferring schedule after queue infrastructure failure`, {
+  logger.warn('Deferring schedule after queue infrastructure failure', {
+    requestId,
     scheduleId: schedule.id,
     workflowId: schedule.workflowId,
     retryAttempt,
@@ -843,7 +847,7 @@ async function deferClaimedScheduleAfterQueueFailure(
       )
     )
     .catch((updateError) => {
-      logger.error(`[${requestId}] ${context}`, updateError)
+      logger.error(context, updateError, { requestId })
       throw updateError
     })
 }
@@ -870,7 +874,8 @@ async function handleClaimedScheduleSetupFailure(
     return
   }
 
-  logger.error(`[${requestId}] Non-retryable schedule setup failure`, {
+  logger.error('Non-retryable schedule setup failure', {
+    requestId,
     scheduleId: schedule.id,
     workflowId: schedule.workflowId,
     error: toError(error).message,
@@ -1152,7 +1157,8 @@ async function executeDatabaseScheduleJob(
     tryStartDatabaseScheduleJob(jobId)
   )
   if (startResult === 'not_pending') {
-    logger.info(`[${requestId}] Database schedule execution job is no longer pending`, {
+    logger.info('Database schedule execution job is no longer pending', {
+      requestId,
       scheduleId: schedule.id,
       workflowId: schedule.workflowId,
       jobId,
@@ -1161,7 +1167,8 @@ async function executeDatabaseScheduleJob(
   }
 
   if (startResult === 'capacity_full') {
-    logger.info(`[${requestId}] Deferred database schedule execution because capacity is full`, {
+    logger.info('Deferred database schedule execution because capacity is full', {
+      requestId,
       scheduleId: schedule.id,
       workflowId: schedule.workflowId,
       jobId,
@@ -1182,7 +1189,8 @@ async function executeDatabaseScheduleJob(
     await jobQueue.completeJob(jobId, output ?? null)
   } catch (error) {
     const errorMessage = toError(error).message
-    logger.error(`[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`, {
+    logger.error(`Schedule execution failed for workflow ${schedule.workflowId}`, {
+      requestId,
       scheduleId: schedule.id,
       jobId,
       error: errorMessage,
@@ -1262,7 +1270,8 @@ async function resumePendingDatabaseScheduleJobs(
 
       const claimState = await getScheduleClaimState(recoveryMetadata, claimedAt)
       if (claimState === 'released') {
-        logger.info(`[${requestId}] Cancelling stale pending schedule execution job`, {
+        logger.info('Cancelling stale pending schedule execution job', {
+          requestId,
           scheduleId: recoveryMetadata.scheduleId,
           workflowId: recoveryMetadata.workflowId,
           jobId: job.id,
@@ -1270,7 +1279,8 @@ async function resumePendingDatabaseScheduleJobs(
         return cancelReleasedPendingDatabaseScheduleCarrier(job.id)
       }
       if (claimState === 'claimed_by_other') {
-        logger.info(`[${requestId}] Leaving pending schedule execution job for active claimant`, {
+        logger.info('Leaving pending schedule execution job for active claimant', {
+          requestId,
           scheduleId: recoveryMetadata.scheduleId,
           workflowId: recoveryMetadata.workflowId,
           jobId: job.id,
@@ -1281,7 +1291,8 @@ async function resumePendingDatabaseScheduleJobs(
       const payloadValidation = getSchedulePayloadValidation(job.payload)
       if (!payloadValidation.success) {
         const error = `Invalid pending schedule execution payload: ${payloadValidation.error}`
-        logger.warn(`[${requestId}] Rejecting invalid pending schedule execution payload`, {
+        logger.warn('Rejecting invalid pending schedule execution payload', {
+          requestId,
           scheduleId: recoveryMetadata.scheduleId,
           workflowId: recoveryMetadata.workflowId,
           jobId: job.id,
@@ -1299,7 +1310,8 @@ async function resumePendingDatabaseScheduleJobs(
         return true
       }
 
-      logger.info(`[${requestId}] Resuming pending database schedule execution job`, {
+      logger.info('Resuming pending database schedule execution job', {
+        requestId,
         scheduleId: recoveryMetadata.scheduleId,
         workflowId: recoveryMetadata.workflowId,
         jobId: job.id,
@@ -1326,7 +1338,8 @@ async function resumePendingDatabaseScheduleJobs(
     }
 
     if (result.status === 'rejected') {
-      logger.error(`[${requestId}] Failed to resume pending database schedule execution job`, {
+      logger.error('Failed to resume pending database schedule execution job', {
+        requestId,
         jobId: pendingJobs[index]?.id,
         error: toError(result.reason).message,
       })
@@ -1364,7 +1377,8 @@ async function processScheduleItem(
           (existingJob.status === JOB_STATUS.PENDING && existingJob.attempts > 0))
       ) {
         await recoverStaleDatabaseScheduleJobs(new Date())
-        logger.info(`[${requestId}] Reconciled claimed database schedule execution jobs`, {
+        logger.info('Reconciled claimed database schedule execution jobs', {
+          requestId,
           scheduleId: schedule.id,
           jobId: scheduleJobId,
         })
@@ -1380,7 +1394,8 @@ async function processScheduleItem(
         activeJobClaim &&
         isStaleScheduleClaim(activeJobClaim, existingJob)
       ) {
-        logger.warn(`[${requestId}] Cancelling stale schedule execution job`, {
+        logger.warn('Cancelling stale schedule execution job', {
+          requestId,
           scheduleId: schedule.id,
           jobId: existingJob.id,
           claimedAt: activeJobClaim.toISOString(),
@@ -1404,7 +1419,8 @@ async function processScheduleItem(
         const payloadValidation = getSchedulePayloadValidation(databaseJob.payload)
         if (!payloadValidation.success) {
           const error = `Invalid pending schedule execution payload: ${payloadValidation.error}`
-          logger.warn(`[${requestId}] Rejecting invalid pending schedule execution payload`, {
+          logger.warn('Rejecting invalid pending schedule execution payload', {
+            requestId,
             scheduleId: schedule.id,
             workflowId: schedule.workflowId,
             jobId: scheduleJobId,
@@ -1423,7 +1439,8 @@ async function processScheduleItem(
           return
         }
 
-        logger.info(`[${requestId}] Resuming pending database schedule execution job`, {
+        logger.info('Resuming pending database schedule execution job', {
+          requestId,
           scheduleId: schedule.id,
           jobId: scheduleJobId,
         })
@@ -1455,7 +1472,8 @@ async function processScheduleItem(
         databaseJob.status !== JOB_STATUS.PENDING &&
         databaseJob.status !== JOB_STATUS.PROCESSING
       ) {
-        logger.info(`[${requestId}] Database schedule execution job reached terminal state`, {
+        logger.info('Database schedule execution job reached terminal state', {
+          requestId,
           scheduleId: schedule.id,
           jobId: scheduleJobId,
           status: databaseJob.status,
@@ -1471,7 +1489,8 @@ async function processScheduleItem(
         return
       }
 
-      logger.info(`[${requestId}] Schedule execution job already exists`, {
+      logger.info('Schedule execution job already exists', {
+        requestId,
         scheduleId: schedule.id,
         jobId: scheduleJobId,
         status: databaseJob?.status ?? existingJob.status,
@@ -1494,7 +1513,8 @@ async function processScheduleItem(
       return
     }
     if (existingJob) {
-      logger.info(`[${requestId}] Reconciling schedule claim for finished job`, {
+      logger.info('Reconciling schedule claim for finished job', {
+        requestId,
         scheduleId: schedule.id,
         jobId: scheduleJobId,
         status: existingJob.status,
@@ -1581,9 +1601,9 @@ async function processScheduleItem(
       const classifiedError = isAsyncJobEnqueueError(error) ? error : null
       const acceptance = classifiedError?.acceptance ?? 'unknown'
       logger.error(
-        `[${requestId}] Failed to enqueue schedule execution for workflow ${schedule.workflowId}`,
+        `Failed to enqueue schedule execution for workflow ${schedule.workflowId}`,
         error,
-        { acceptance, jobId: scheduleJobId }
+        { requestId, acceptance, jobId: scheduleJobId }
       )
       /**
        * The queue may have accepted the job before the response was lost, and
@@ -1603,12 +1623,13 @@ async function processScheduleItem(
       return
     }
 
-    logger.info(
-      `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`
-    )
+    logger.info(`Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`, {
+      requestId,
+    })
 
     if (useDatabaseFallback) {
-      logger.info(`[${requestId}] Executing durable database schedule execution job`, {
+      logger.info('Executing durable database schedule execution job', {
+        requestId,
         scheduleId: schedule.id,
         workflowId: schedule.workflowId,
         jobId,
@@ -1629,7 +1650,8 @@ async function processScheduleItem(
 
     const queuedJob = await jobQueue.getJob(jobId)
     if (queuedJob && !['pending', 'processing'].includes(queuedJob.status)) {
-      logger.info(`[${requestId}] Schedule execution job already finished`, {
+      logger.info('Schedule execution job already finished', {
+        requestId,
         scheduleId: schedule.id,
         jobId,
         status: queuedJob.status,
@@ -1650,7 +1672,8 @@ async function processScheduleItem(
       )
       if (queuedJobClaim) {
         if (isStaleScheduleClaim(queuedJobClaim, queuedJob)) {
-          logger.warn(`[${requestId}] Cancelling stale queued schedule execution job`, {
+          logger.warn('Cancelling stale queued schedule execution job', {
+            requestId,
             scheduleId: schedule.id,
             jobId,
             claimedAt: queuedJobClaim.toISOString(),
@@ -1676,7 +1699,8 @@ async function processScheduleItem(
       }
     }
 
-    logger.info(`[${requestId}] Schedule execution task accepted`, {
+    logger.info('Schedule execution task accepted', {
+      requestId,
       scheduleId: schedule.id,
       workflowId: schedule.workflowId,
       jobId,
@@ -1686,8 +1710,9 @@ async function processScheduleItem(
     })
   } catch (error) {
     logger.error(
-      `[${requestId}] Failed after queueing schedule execution for workflow ${schedule.workflowId}`,
-      error
+      `Failed after queueing schedule execution for workflow ${schedule.workflowId}`,
+      error,
+      { requestId }
     )
     if (!enqueuedJobId && !carrierObservedOrLookupUncertain) {
       await handleClaimedScheduleSetupFailure(
@@ -1701,7 +1726,8 @@ async function processScheduleItem(
       return
     }
 
-    logger.warn(`[${requestId}] Preserved schedule occurrence after carrier uncertainty`, {
+    logger.warn('Preserved schedule occurrence after carrier uncertainty', {
+      requestId,
       scheduleId: schedule.id,
       jobId: enqueuedJobId ?? scheduleJobId,
       error: toError(error).message,
@@ -1771,8 +1797,9 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     totalSchedules += dueSchedules.length + resumedPendingSchedules
 
     logger.info(
-      `[${requestId}] Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs`,
+      `Iteration ${iterations}: claimed ${dueSchedules.length} schedules, resumed ${resumedPendingSchedules} pending schedule jobs`,
       {
+        requestId,
         remainingWorkflowBudget,
         scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
         databaseScheduleSlots,
@@ -1793,14 +1820,15 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     const { claimed } = await runJobLane()
     totalSchedules += claimed
   } catch (error) {
-    logger.error(`[${requestId}] Scheduled job lane failed`, { error: toError(error).message })
+    logger.error('Scheduled job lane failed', { requestId, error: toError(error).message })
   }
 
   const totalCount = totalSchedules
   const durationMs = Date.now() - tickStart
   logger.info(
-    `[${requestId}] Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms`,
+    `Processed ${totalCount} items across ${iterations} iteration(s) in ${durationMs}ms`,
     {
+      requestId,
       scheduleConcurrencyLimit: SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
       scheduleEnqueueBudget: SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
       remainingWorkflowBudget,
@@ -1812,7 +1840,7 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
+  logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
 
   const authError = verifyCronAuth(request, 'Schedule execution')
   if (authError) {

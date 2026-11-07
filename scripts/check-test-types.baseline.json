@@ -465,7 +465,7 @@
   "apps/sim/app/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/o/[organizationId]/settings/components/integrations/search-source-setup.test.tsx": {
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-dialogs.test.tsx": {
     "TS2339": 31,
     "TS2345": 2
   },
@@ -538,7 +538,7 @@
   },
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
-    "TS2322": 4,
+    "TS2322": 2,
     "TS2353": 1,
     "TS2550": 1
   },
@@ -657,8 +657,7 @@
     "TS18048": 7
   },
   "apps/sim/blocks/blocks/google_drive.test.ts": {
-    "TS18048": 1,
-    "TS2554": 4
+    "TS18048": 1
   },
   "apps/sim/blocks/blocks/instagram.test.ts": {
     "TS18048": 1
@@ -1176,7 +1175,7 @@
     "TS2739": 1
   },
   "apps/sim/lib/credential-groups/oauth.test.ts": {
-    "TS2345": 10
+    "TS2345": 9
   },
   "apps/sim/lib/credential-groups/organization-account-options.test.ts": {
     "TS18048": 1

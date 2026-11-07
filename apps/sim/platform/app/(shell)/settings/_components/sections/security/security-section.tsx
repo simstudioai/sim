@@ -32,8 +32,8 @@ import {
   useUpdateOrganizationSessionPolicy,
 } from '@/platform/lib/data/security'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
+import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 

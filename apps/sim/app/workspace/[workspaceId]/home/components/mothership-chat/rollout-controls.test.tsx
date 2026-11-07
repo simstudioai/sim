@@ -5,10 +5,10 @@ import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-deskto
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
-import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
@@ -69,13 +69,6 @@ async function render(advanced: boolean, workspaceId?: string) {
             isSending={false}
             onSubmit={vi.fn()}
             onStopGeneration={vi.fn()}
-            messageQueue={[]}
-            editingQueuedId={null}
-            dispatchingHeadId={null}
-            onRemoveQueuedMessage={vi.fn()}
-            onSendQueuedMessage={async () => {}}
-            onEditQueuedMessage={() => undefined}
-            onCancelQueueEdit={vi.fn()}
             composer={<ModelSelector plan />}
           />
         </FeatureFlagsProvider>

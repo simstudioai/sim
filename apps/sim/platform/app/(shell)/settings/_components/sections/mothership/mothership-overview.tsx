@@ -16,7 +16,7 @@ import {
 } from '@/platform/design-system/components'
 import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { type MothershipEnv, useMothershipOverview } from '@/platform/lib/data/mothership-admin'
-import { formatTimestamp } from '@/platform/lib/time'
+import { formatTimestamp } from '@/platform/shared/time'
 
 const USER_COLUMNS = [
   { key: 'user', label: 'User ID', kind: 'text' },

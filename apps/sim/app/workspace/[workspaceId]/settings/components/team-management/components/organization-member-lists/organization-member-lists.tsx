@@ -6,12 +6,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import {
-  type OrgRole,
-  type PermissionType,
-  RoleLockTooltip,
-  workspaceRoleLockReason,
-} from '@/components/permissions'
+import { type OrgRole, type PermissionType, RoleLockTooltip } from '@/components/permissions'
 import type {
   OrganizationRoster,
   RosterMember,
@@ -19,6 +14,7 @@ import type {
   RosterWorkspaceAccess,
 } from '@/lib/api/contracts/organization'
 import type { Member } from '@/lib/workspaces/organization'
+import { workspaceRoleLockReason } from '@/lib/workspaces/permissions/role-lock'
 import {
   ManageCreditsModal,
   type ManageCreditsTarget,

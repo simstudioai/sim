@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { ShellSupport } from '@/platform/app/(shell)/_components/model'
-import { readFormText } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import {
   AttachmentGrid,
   FileField,
@@ -13,6 +12,7 @@ import {
   TextAreaField,
   TextField,
 } from '@/platform/design-system/components'
+import { readFormText } from '@/platform/shared/row-links'
 
 interface SupportImage {
   id: string

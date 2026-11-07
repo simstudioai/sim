@@ -6,20 +6,17 @@ import {
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
-import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
-import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
 import {
   loadIntegrationConnectionParams,
   loadIntegrationView,
   serializeIntegrationView,
-} from '@/app/o/[organizationId]/integrations/search-params'
-import {
-  GENERIC_SECRETS_SEGMENT,
-  integrationPath,
-  integrationSegment,
-} from '@/platform/lib/data/integrations-types'
+} from '@/lib/organizations/integrations-search-params'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { slackSearchIntegrationsPath } from '@/lib/slack-search/onboarding'
+import { requireIntegrationsViewer } from '@/app/o/[organizationId]/integrations/access'
+import { HydratedIntegrations } from '@/app/o/[organizationId]/integrations/hydrated-integrations'
+import { integrationPath } from '@/platform/embedded/lib/data/integrations-model'
+import { GENERIC_SECRETS_SEGMENT, integrationSegment } from '@/platform/shared/integrations'
 
 export const metadata: Metadata = {
   title: 'Integrations',
@@ -32,6 +29,7 @@ interface OrganizationIntegrationsPageProps {
     slack?: string | string[]
     connectionMode?: string | string[]
     optionId?: string | string[]
+    savedProviderId?: string | string[]
     provider?: string | string[]
     connectorType?: string | string[]
     connectorId?: string | string[]
@@ -58,11 +56,13 @@ export default async function OrganizationIntegrationsPage({
     selection.credentialId ||
     selection.connectionMode ||
     selection.optionId ||
+    selection.savedProviderId ||
     selection.provider
       ? searchConnectionTargetSchema.safeParse({
           type: 'link',
           ...(selection.connectionMode ? { connectionMode: selection.connectionMode } : {}),
           ...(selection.optionId ? { optionId: selection.optionId } : {}),
+          ...(selection.savedProviderId ? { savedProviderId: selection.savedProviderId } : {}),
           provider: selection.provider || connector?.providerId,
           connectorType: selection.connectorType,
           ...(selection.connectorId ? { connectorId: selection.connectorId } : {}),

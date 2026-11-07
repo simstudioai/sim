@@ -41,7 +41,7 @@ vi.mock('next/headers', () => ({
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
+vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: () => ({ setQueryData: vi.fn() }),
 }))
 

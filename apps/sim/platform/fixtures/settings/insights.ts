@@ -3,7 +3,7 @@ import { settingsWorkspaces } from '@/platform/fixtures/settings/organization'
 import type { SettingsFixtureState } from '@/platform/fixtures/settings/state'
 import { csvRow } from '@/platform/lib/data/csv'
 import type { OrganizationUsageBreakdown, UsageBreakdownDimension } from '@/platform/lib/data/usage'
-import { calendarDayFormatter } from '@/platform/lib/time'
+import { calendarDayFormatter } from '@/platform/shared/time'
 
 const DAY = 86_400_000
 const HOUR = 3_600_000

@@ -1,0 +1,64 @@
+/*
+ * The design system's tokens exist only inside a `[data-platform-ui]` surface, whose names collide
+ * with the host's, so components that sit between surfaces (the composer's frame, the chat's thread,
+ * the column around them) cannot read them. `--design-<token>` carries `--<token>`'s value under a
+ * name the host never uses, on the organization view's root.
+ *
+ * Every `--design-*` here must resolve to its token's value in that theme: `check:platform-css`
+ * compares them against the compiled design system and fails on drift.
+ */
+.tokens {
+  --design-ui-canvas: rgb(255 255 255);
+  --design-ui-ink: rgb(10 10 10 / 80%);
+  --design-ui-secondary: rgb(10 10 10 / 60%);
+  --design-ui-muted: rgb(10 10 10 / 60%);
+  --design-ui-divider: rgb(0 0 0 / 6%);
+  --design-ui-hover: rgb(10 10 10 / 6%);
+  --design-font-sans: "Geist";
+  --design-font-weight-regular: 400;
+  --design-font-weight-medium: 500;
+  --design-text-body: 0.875rem;
+  --design-text-control: 0.8125rem;
+  --design-leading-22: 1.375rem;
+  --design-leading-16: 1rem;
+  --design-radius-control: 0.5rem;
+  --design-spacing-1: 1px;
+  --design-spacing-4: 0.25rem;
+  --design-spacing-8: 0.5rem;
+  --design-spacing-12: 0.75rem;
+  --design-spacing-14: 0.875rem;
+  --design-spacing-16: 1rem;
+  --design-spacing-24: 1.5rem;
+  --design-spacing-32: 2rem;
+  --design-spacing-40: 2.5rem;
+  --design-spacing-48: 3rem;
+  --design-spacing-64: 4rem;
+  --design-spacing-132: 8.25rem;
+  --design-spacing-app-control-sm: 1.75rem;
+  --design-spacing-app-touch-target: 2.75rem;
+  --design-container-chat: 44rem;
+  --design-container-chat-message: 40rem;
+  --design-container-app-panel-start: 30rem;
+  --design-ui-page-max-size: calc(75rem + 2 * 3rem);
+}
+html[class~="dark"] .tokens {
+  --design-ui-canvas: #141414;
+  --design-ui-ink: #e6e6e6;
+  --design-ui-secondary: #b0b0b0;
+  --design-ui-muted: #a8a8a8;
+  --design-ui-divider: #383838;
+  --design-ui-hover: rgb(255 255 255 / 6%);
+}
+
+/* Legacy surfaces in this view paint `--bg`, so every page sits on the design system's canvas. */
+.canvas {
+  --bg: var(--design-ui-canvas);
+}
+
+/* The host tokens the legacy components between surfaces read, on the design's values. */
+.palette {
+  --text-primary: var(--design-ui-ink);
+  --text-muted: var(--design-ui-muted);
+  --text-icon: var(--design-ui-secondary);
+  --surface-hover: var(--design-ui-hover);
+}

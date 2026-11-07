@@ -1,0 +1,16 @@
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+}
+.mark > * {
+  grid-area: 1 / 1;
+}
+.mark > img {
+  flex: none;
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+  border-radius: var(--radius-2);
+}

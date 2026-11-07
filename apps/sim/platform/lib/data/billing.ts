@@ -37,10 +37,10 @@ import { useOrganizationBillingSummary } from '@/hooks/queries/organization-bill
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { queryView } from '@/platform/lib/data/query-view'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { toast } from '@/platform/lib/data/toast'
-import { formatCalendarDate, formatInstantDate } from '@/platform/lib/time'
+import { queryView } from '@/platform/shared/query-view'
+import { formatCalendarDate, formatInstantDate } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformBilling')
 
@@ -122,20 +122,11 @@ export function useBillingSection(organization: PlatformOrganization) {
 
   function openPortal() {
     if (fixture || !canManage) return
-    // Opened before the request so a popup blocker still treats it as the viewer's click.
-    const portalWindow = window.open('', '_blank')
-    portal.mutate(
+    portal.open(
       { context: 'organization', organizationId, returnUrl: window.location.href },
-      {
-        onSuccess: (data) => {
-          if (portalWindow) portalWindow.location.href = data.url
-          else window.location.href = data.url
-        },
-        onError: (error) => {
-          portalWindow?.close()
-          logger.error('Failed to open billing portal', { error })
-          reportFailure("Couldn't open billing portal", error)
-        },
+      (error) => {
+        logger.error('Failed to open billing portal', { error })
+        reportFailure("Couldn't open billing portal", error)
       }
     )
   }

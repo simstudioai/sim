@@ -190,7 +190,8 @@ export async function executeResumeWorkflow({
     })
   } catch (error) {
     const message = toError(error).message
-    logger.error(`[${requestId}] Failed to validate paused execution snapshot`, {
+    logger.error('Failed to validate paused execution snapshot', {
+      requestId,
       workflowId,
       executionId,
       error: message,
@@ -201,7 +202,8 @@ export async function executeResumeWorkflow({
   const { snapshot: persistedSnapshot, billingAttribution } = snapshotBinding
   const resumeExecutionId = generateId()
 
-  logger.info(`[${requestId}] Preprocessing resume execution`, {
+  logger.info('Preprocessing resume execution', {
+    requestId,
     workflowId,
     parentExecutionId: executionId,
     resumeExecutionId,
@@ -227,7 +229,8 @@ export async function executeResumeWorkflow({
     const statusCode = preprocessResult.error?.statusCode || 400
     const message =
       preprocessResult.error?.message || 'Failed to validate resume execution. Please try again.'
-    logger.warn(`[${requestId}] Preprocessing failed for resume`, {
+    logger.warn('Preprocessing failed for resume', {
+      requestId,
       workflowId,
       parentExecutionId: executionId,
       error: message,
@@ -236,7 +239,8 @@ export async function executeResumeWorkflow({
     throw new ResumeWorkflowExecutionError(statusCode, message, statusCode < 500)
   }
 
-  logger.info(`[${requestId}] Preprocessing passed, proceeding with resume`, {
+  logger.info('Preprocessing passed, proceeding with resume', {
+    requestId,
     workflowId,
     parentExecutionId: executionId,
     resumeExecutionId,

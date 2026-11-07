@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => mocks.workspace,
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
@@ -32,9 +32,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entit
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
-organizationProviderMockFns.mockUseOptionalOrganizationContext.mockImplementation(
-  () => mocks.organization
-)
+organizationProviderMockFns.mockUseOptionalOrganization.mockImplementation(() => mocks.organization)
 
 beforeEach(() => {
   mocks.organization.viewer.isAdmin = true

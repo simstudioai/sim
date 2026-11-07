@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
   AirtableIcon,
+  ApiIcon,
   AsanaIcon,
   AtlassianIcon,
   AttioIcon,
@@ -21,6 +22,7 @@ import {
   DocuSignIcon,
   DropboxIcon,
   FivetranIcon,
+  GaugeIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -1588,6 +1590,40 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'hubspot',
   },
+  jama: {
+    name: 'Jama Connect',
+    icon: ApiIcon,
+    services: {
+      jama: {
+        name: 'Jama Connect',
+        description: 'Connect your Jama Connect account.',
+        providerId: 'jama',
+        serviceAccountProviderId: 'jama-service-account',
+        icon: ApiIcon,
+        baseProviderIcon: ApiIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'jama',
+  },
+  flow: {
+    name: 'Flow Engineering',
+    icon: ApiIcon,
+    services: {
+      flow: {
+        name: 'Flow Engineering',
+        description: 'Connect your Flow Engineering account.',
+        providerId: 'flow',
+        serviceAccountProviderId: 'flow-service-account',
+        icon: ApiIcon,
+        baseProviderIcon: ApiIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'flow',
+  },
   coda: {
     name: 'Coda',
     icon: CodaIcon,
@@ -1604,6 +1640,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'coda',
+  },
+  gauge: {
+    name: 'Gauge',
+    icon: GaugeIcon,
+    services: {
+      gauge: {
+        name: 'Gauge',
+        description: 'Track AI visibility and manage Gauge prompts, topics, and tags.',
+        providerId: 'gauge',
+        serviceAccountProviderId: 'gauge-service-account',
+        icon: GaugeIcon,
+        baseProviderIcon: GaugeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'gauge',
   },
   harmonic: {
     name: 'Harmonic',

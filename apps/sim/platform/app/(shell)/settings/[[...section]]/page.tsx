@@ -1,9 +1,18 @@
+import type { Metadata } from 'next'
 import { LiveSettingsRoute } from '@/platform/app/(shell)/settings/_components/live-settings/live-settings-route'
 import { SettingsScreen } from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen'
 import { EmptyState } from '@/platform/design-system/components'
 import { readPreviewPlan, readScenario } from '@/platform/design-system/navigation'
 import { loadSettingsFixture } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { settingsPageTitle } from '@/platform/lib/data/settings-navigation'
+
+export async function generateMetadata({
+  params,
+}: PageProps<'/settings/[[...section]]'>): Promise<Metadata> {
+  const { section = [] } = await params
+  return { title: settingsPageTitle(section) }
+}
 
 export default async function Page({
   searchParams,

@@ -337,7 +337,8 @@ export async function cleanupExternalWebhook(
     )
   } catch (error) {
     const projected = projectProviderFailure(error, secrets, resolvedProviderConfig)
-    logger.warn(`[${requestId}] Error cleaning up external webhook (non-fatal)`, {
+    logger.warn('Error cleaning up external webhook (non-fatal)', {
+      requestId,
       provider,
       webhookId: webhook.id,
       error: projected.message,

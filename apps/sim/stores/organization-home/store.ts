@@ -4,7 +4,7 @@ import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 const STORAGE_KEY = 'organization-home:v1'
 
-export type OrganizationHomeWidget = 'Activity' | 'Email' | 'Calendar'
+export type OrganizationHomeWidget = 'Activity' | 'Workspaces' | 'Email' | 'Calendar'
 
 interface OrganizationHomeState {
   /** What each viewer hid from Customize Home, keyed by user and organization. */

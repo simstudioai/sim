@@ -122,7 +122,7 @@ async function handleBatchInsert(
     const response = orchestrationErrorResponse(error)
     if (response) return response
 
-    logger.error(`[${requestId}] Error batch inserting rows:`, error)
+    logger.error('Error batch inserting rows:', error, { requestId })
     return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
   }
 }
@@ -217,7 +217,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error(`[${requestId}] Error querying rows:`, error)
+    logger.error('Error querying rows:', error)
     return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
   }
 })
@@ -318,7 +318,7 @@ export const POST = withRouteHandler(
       const response = orchestrationErrorResponse(error)
       if (response) return response
 
-      logger.error(`[${requestId}] Error inserting row:`, error)
+      logger.error('Error inserting row:', error)
       return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
     }
   }
@@ -413,7 +413,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const response = orchestrationErrorResponse(error)
     if (response) return response
 
-    logger.error(`[${requestId}] Error updating rows by filter:`, error)
+    logger.error('Error updating rows by filter:', error)
     return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 })
@@ -507,7 +507,7 @@ export const DELETE = withRouteHandler(
       const response = orchestrationErrorResponse(error)
       if (response) return response
 
-      logger.error(`[${requestId}] Error deleting rows:`, error)
+      logger.error('Error deleting rows:', error)
       return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
     }
   }

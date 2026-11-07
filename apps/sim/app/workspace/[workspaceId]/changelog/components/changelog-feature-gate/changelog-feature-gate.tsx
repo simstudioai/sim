@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 
 interface ChangelogFeatureGateProps {
   children: ReactNode

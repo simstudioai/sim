@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 import { notFound, redirect } from 'next/navigation'
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { resolveOrganizationSurfaceHeaderMeta } from '@/app/o/[organizationId]/settings/navigation'
+import { resolveOrganizationSurfaceHeaderMeta } from '@/lib/organizations/settings-sections'
 
 interface OrganizationSettingsSectionLayoutProps {
   children: ReactNode
@@ -19,12 +18,7 @@ export default async function OrganizationSettingsSectionLayout({
       `${organizationRoutes(organizationId).settingsSection('general')}?view=authorized-apps`
     )
   }
-  const meta = resolveOrganizationSurfaceHeaderMeta(section)
-  if (!meta) notFound()
-
-  return (
-    <SettingsHeaderProvider>
-      <SettingsHeaderShell meta={meta}>{children}</SettingsHeaderShell>
-    </SettingsHeaderProvider>
-  )
+  if (!resolveOrganizationSurfaceHeaderMeta(section)) notFound()
+  /** Every section draws its own heading in its surface. */
+  return children
 }

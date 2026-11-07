@@ -1,14 +1,10 @@
 import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import type { Appearance } from '@/platform/design-system/navigation'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import type { ShellDestination, ShellItem, ShellQueryStatus } from '@/platform/shared/shell'
 
 export type HomeMode = 'Build' | 'Search'
 export type HomeWidget = 'Activity' | 'Email' | 'Calendar'
-
-interface ShellItem {
-  id: string
-  title: string
-}
 
 export interface InboxItem extends ShellItem {
   description: string
@@ -46,14 +42,6 @@ export interface ShellChat extends ShellItem {
   updatedAt?: string
 }
 
-/** `value` is absolute when the destination stays on the legacy surface. */
-export interface ShellDestination {
-  id: string
-  label: string
-  icon: IconName
-  value: string
-}
-
 export interface SettingsNavItem {
   key: string
   title: string
@@ -66,8 +54,6 @@ export interface SettingsNavGroup {
   label: string
   items: readonly SettingsNavItem[]
 }
-
-export type ShellQueryStatus = 'pending' | 'error' | 'success'
 
 export interface ShellData {
   /** The viewer's saved theme. Live sessions set it; fixtures read `?theme=` instead. */

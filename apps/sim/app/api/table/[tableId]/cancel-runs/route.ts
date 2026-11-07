@@ -56,7 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       excludeRowIds,
     })
     logger.info(
-      `[${requestId}] cancel-runs: tableId=${tableId} scope=${scope}${
+      `cancel-runs: tableId=${tableId} scope=${scope}${
         rowId ? ` rowId=${rowId}` : ''
       } cancelled=${cancelled}`
     )
@@ -74,7 +74,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (error instanceof TableQueryValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
-    logger.error(`[${requestId}] cancel-runs failed:`, error)
+    logger.error('cancel-runs failed:', error)
     return NextResponse.json({ error: 'Failed to cancel runs' }, { status: 500 })
   }
 })

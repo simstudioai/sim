@@ -6,16 +6,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  RoleLockTooltip,
-  type WorkspaceRoleSource,
-  workspaceMemberRemovalLockReason,
-  workspaceRoleLockReason,
-} from '@/components/permissions'
+import { RoleLockTooltip, workspaceMemberRemovalLockReason } from '@/components/permissions'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  type WorkspaceRoleSource,
+  workspaceRoleLockReason,
+} from '@/lib/workspaces/permissions/role-lock'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
   MemberRow,

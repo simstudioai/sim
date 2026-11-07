@@ -31,6 +31,8 @@ export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganizatio
       `${legacyOrigin}/account/settings/mothership?tab=licenses&env=${encodeURIComponent(env)}`,
     benchmark: `${legacyOrigin}${routes.benchmark}`,
     memberSecrets: `${legacyOrigin}${routes.memberSecrets}`,
+    integration: (segment: string) =>
+      `${legacyOrigin}${routes.integrations}/${encodeURIComponent(segment)}`,
     settingsSection: (section: string) => `${legacyOrigin}${routes.settingsSection(section)}`,
     workspace: (workspaceId: string) => `${legacyOrigin}${WORKSPACES_PATH}/${workspaceId}`,
     workspaceSettings: `${legacyOrigin}${WORKSPACE_SETTINGS_PATH}`,

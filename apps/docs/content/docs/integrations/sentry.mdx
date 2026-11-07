@@ -772,6 +772,8 @@ Trigger workflow when a new error event is created in Sentry
 
 Trigger workflow when a Sentry issue alert rule fires
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -791,8 +793,7 @@ Trigger workflow when a Sentry issue alert rule fires
 |   ↳ `title` | string | Alert rule name |
 |   ↳ `settings` | json | Alert rule action settings \(name/value pairs\) |
 
-
----
+</ReferenceDetails>
 
 ### Sentry Issue Created
 
@@ -918,6 +919,8 @@ Trigger workflow when an issue is resolved in Sentry
 
 Trigger workflow when a Sentry metric alert changes state (critical, warning, resolved)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -935,4 +938,6 @@ Trigger workflow when a Sentry metric alert changes state (critical, warning, re
 | `description_text` | string | Human-friendly description of the alert |
 | `description_title` | string | Human-friendly title of the alert |
 | `web_url` | string | API URL for the incident |
+
+</ReferenceDetails>
 

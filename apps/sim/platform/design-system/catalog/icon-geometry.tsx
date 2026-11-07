@@ -907,6 +907,11 @@ export const glyphs = {
       </>
     ),
   },
+  I140: {
+    label: 'chevron-left',
+    viewBox: '-2.25 -1.75 24 24',
+    draw: (): ReactNode => <path d='M13.25 3L6.25 10.25L13.25 17.5' />,
+  },
 } as const
 
 export type IconName = keyof typeof glyphs

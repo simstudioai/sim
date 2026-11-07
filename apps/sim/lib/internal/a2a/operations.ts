@@ -124,12 +124,14 @@ export async function sendA2AMessage(input: A2ASendMessageInput, context: A2AOpe
   context.signal?.throwIfAborted()
 
   if (!isTaskResult(result)) {
-    logger.info(`[${context.requestId}] A2A send returned a direct message`)
+    logger.info('A2A send returned a direct message', { requestId: context.requestId })
     return { success: true as const, output: messageOutput(result) }
   }
   const output = taskOutput(result)
   const errored = taskErrored(result)
-  logger.info(`[${context.requestId}] A2A send produced task ${result.id} (${output.state})`)
+  logger.info(`A2A send produced task ${result.id} (${output.state})`, {
+    requestId: context.requestId,
+  })
   return {
     success: !errored,
     ...(errored ? { error: output.content || `Agent task ${output.state}` } : {}),
@@ -145,7 +147,7 @@ export async function getA2ATask(input: A2AGetTaskInput, context: A2AOperationCo
     historyLength: input.historyLength,
   })
   context.signal?.throwIfAborted()
-  logger.info(`[${context.requestId}] Retrieved A2A task ${task.id}`)
+  logger.info(`Retrieved A2A task ${task.id}`, { requestId: context.requestId })
   return { success: true as const, output: taskOutput(task) }
 }
 
@@ -154,7 +156,7 @@ export async function cancelA2ATask(input: A2ACancelTaskInput, context: A2AOpera
   const task = await client.cancelTask({ tenant: '', id: input.taskId, metadata: undefined })
   context.signal?.throwIfAborted()
   const output = taskOutput(task)
-  logger.info(`[${context.requestId}] Cancel requested for A2A task ${task.id}`)
+  logger.info(`Cancel requested for A2A task ${task.id}`, { requestId: context.requestId })
   return {
     success: true as const,
     output: { taskId: output.taskId, state: output.state, canceled: output.state === 'canceled' },
@@ -165,6 +167,6 @@ export async function getA2AAgentCard(input: A2AGetAgentCardInput, context: A2AO
   const client = await createA2AClient(input.agentUrl, input.apiKey, { signal: context.signal })
   const card = await client.getAgentCard()
   context.signal?.throwIfAborted()
-  logger.info(`[${context.requestId}] Fetched agent card for ${card.name}`)
+  logger.info(`Fetched agent card for ${card.name}`, { requestId: context.requestId })
   return { success: true as const, output: agentCardOutput(card, input.agentUrl) }
 }

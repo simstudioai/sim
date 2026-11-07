@@ -13,7 +13,7 @@ export type CredentialRoleSource = 'explicit' | 'workspace-admin'
  * reason here must have a guard there and vice versa.
  *
  * Deliberately keyed on facts rather than on `roleSource` like
- * {@link workspaceRoleLockReason}: the two disagree about the workspace owner,
+ * `workspaceRoleLockReason`: the two disagree about the workspace owner,
  * whose role is fixed but who can still be removed (ownership transfers to the
  * billing account) — and `roleSource` ranks `owner` above `org-admin`, so it
  * cannot answer for someone who is both.

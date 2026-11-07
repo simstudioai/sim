@@ -30,7 +30,7 @@ import {
   useRemoveOrganizationDomain,
   useVerifyOrganizationDomain,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 interface DomainRowProps {
   organizationId: string

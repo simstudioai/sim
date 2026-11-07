@@ -38,12 +38,20 @@
     grid-row: 1 / span 2;
   }
 }
+.metaLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-popup-padding);
+}
 .row:disabled {
   color: var(--ui-secondary);
   cursor: default;
 }
-.entry:hover:not(:has(.row:disabled)) {
+.entry:hover:not(:has(.row:disabled, .row[data-read-only])) {
   background: var(--ui-hover);
+}
+.row[data-read-only] {
+  cursor: default;
 }
 .body {
   display: flex;
@@ -81,4 +89,7 @@
   min-block-size: var(--leading-app-control);
   max-inline-size: 45%;
   overflow-wrap: anywhere;
+}
+.row[data-density="comfortable"] {
+  min-block-size: var(--spacing-64);
 }

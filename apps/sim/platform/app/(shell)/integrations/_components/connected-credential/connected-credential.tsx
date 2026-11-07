@@ -6,8 +6,8 @@ import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components
 import { ActionMenu, ActivityRow, Modal } from '@/platform/design-system/components'
 import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 import { CountedLabel } from '@/platform/design-system/components/overflow-text/counted-label'
-import type { IntegrationAccount } from '@/platform/lib/data/integrations-types'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
+import type { IntegrationAccount } from '@/platform/shared/integrations'
 
 interface CredentialRow extends IntegrationAccount {
   /** Opens this account's permissions when the integration lists several. */

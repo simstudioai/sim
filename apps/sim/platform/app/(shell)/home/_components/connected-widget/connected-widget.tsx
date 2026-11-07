@@ -3,17 +3,13 @@
 import { type ReactNode, useState } from 'react'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
-import type {
-  HomeAccountView,
-  HomeWidgetActions,
-  HomeWidgetState,
-} from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { ActionMenu, Button, EmptyState, InlineNotice } from '@/platform/design-system/components'
 import { ConnectionPrompt } from '@/platform/design-system/components/connection-prompt/connection-prompt'
 import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
 import { Modal } from '@/platform/design-system/components/modal/modal'
+import type { HomeAccountView, HomeWidgetActions, HomeWidgetState } from '@/platform/shared/home'
 
 const DISCONNECT_NOTICE =
   'Sim will stop reading this account everywhere it is used, including Integrations. You can reconnect anytime.'

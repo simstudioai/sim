@@ -116,7 +116,8 @@ export async function resolveFileInputToUrl(
       const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context)
 
       if (!hasAccess) {
-        logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+        logger.warn('Unauthorized presigned URL generation attempt', {
+          requestId,
           userId,
           key: userFile.key,
           context,
@@ -189,10 +190,7 @@ export async function resolveFileInputToUrl(
         }
       }
     } else if (filePath.startsWith('/')) {
-      logger.warn(`[${requestId}] Invalid internal path`, {
-        userId,
-        path: filePath.substring(0, 50),
-      })
+      logger.warn('Invalid internal path', { requestId, userId, path: filePath.substring(0, 50) })
       return {
         error: {
           status: 400,
@@ -332,7 +330,8 @@ export async function resolveInternalFileUrl(
     const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context)
 
     if (!hasAccess) {
-      logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+      logger.warn('Unauthorized presigned URL generation attempt', {
+        requestId,
         userId,
         key: storageKey,
         context,
@@ -345,10 +344,10 @@ export async function resolveInternalFileUrl(
       context,
       presignExpirySeconds
     )
-    logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
+    logger.info(`Generated presigned URL for ${context} file`, { requestId })
     return { fileUrl }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
+    logger.error('Failed to generate presigned URL:', error, { requestId })
     return { error: { status: 500, message: 'Failed to generate file access URL' } }
   }
 }
@@ -382,12 +381,12 @@ export async function downloadFileFromStorage(
   assertKnownSizeWithinLimit(userFile.size, maxBytes, 'storage file download')
 
   if (isExecutionFile(userFile)) {
-    logger.info(`[${requestId}] Downloading from execution storage: ${userFile.key}`)
+    logger.info(`Downloading from execution storage: ${userFile.key}`, { requestId })
     const { downloadExecutionFile } = await import('@/lib/uploads/contexts/execution/file-manager')
     buffer = await downloadExecutionFile(userFile, { maxBytes, signal })
   } else if (userFile.key) {
     const context = resolveTrustedFileContext(userFile.key, userFile.context)
-    logger.info(`[${requestId}] Downloading from ${context} storage: ${userFile.key}`)
+    logger.info(`Downloading from ${context} storage: ${userFile.key}`, { requestId })
 
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
     buffer = await downloadFile({
@@ -542,7 +541,7 @@ export async function downloadServableFilesWithinBudget(
   let spent = 0
 
   for (const userFile of userFiles) {
-    logger.info(`[${requestId}] Downloading ${userFile.name} (${userFile.size} bytes)`)
+    logger.info(`Downloading ${userFile.name} (${userFile.size} bytes)`, { requestId })
     let servable: ServableFile
     try {
       servable = await downloadServableFileFromStorage(userFile, requestId, logger, {

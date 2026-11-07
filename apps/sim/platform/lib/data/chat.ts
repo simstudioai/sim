@@ -16,11 +16,7 @@ import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
-import type {
-  ChatMessage,
-  ChatRequestMode,
-  FileAttachmentForApi,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
 import {
@@ -28,29 +24,21 @@ import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
-import type {
-  ChatRuntime,
-  PlatformQueuedMessage,
-  ToolDecision,
-} from '@/platform/app/(shell)/_components/chat/model'
+import type { ChatRuntime, ToolDecision } from '@/platform/app/(shell)/_components/chat/model'
 import { platformUrl } from '@/platform/lib/data/base-path'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
-import { toPlatformTurns } from '@/platform/lib/data/chat-model'
+import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
-import type { ChatContext } from '@/stores/panel'
+import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
+import { plural } from '@/platform/shared/plural'
+import { toast } from '@/platform/shared/toast'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
 /** A running `wait` counts down, and nothing else re-renders during the pause. */
 function useWaitClock(messages: readonly ChatMessage[], streaming: boolean): number {
   const [now, setNow] = useState(() => Date.now())
-  const waiting =
-    streaming &&
-    (messages.at(-1)?.contentBlocks ?? []).some(
-      (block) => block.toolCall?.name === 'wait' && block.toolCall.status === 'executing'
-    )
+  const waiting = streaming && isRunningWait(messages)
   useEffect(() => {
     if (!waiting) return
     const interval = setInterval(() => setNow(Date.now()), 1_000)
@@ -93,18 +81,6 @@ function useMessageClock(chatId: string | undefined) {
   }
 }
 
-function toQueued(
-  message: ReturnType<typeof useChat>['messageQueue'][number]
-): PlatformQueuedMessage {
-  return {
-    id: message.id,
-    text: message.content,
-    attachmentCount: (message.fileAttachments?.length ?? 0) + (message.contexts?.length ?? 0),
-    needsReview: message.hasUnavailableContexts,
-    locked: message.admissionUnknown,
-  }
-}
-
 function isNewChatRoute(pathname: string): boolean {
   return pathname === '/chat' || pathname === '/search'
 }
@@ -112,25 +88,23 @@ function isNewChatRoute(pathname: string): boolean {
 interface LiveChatOptions {
   chatId?: string
   requestMode: ChatRequestMode
-  /** What to do with a queued message handed back to the composer. */
-  onRestoreQueued: (draft: {
-    text: string
-    files: FileAttachmentForApi[]
-    contexts: ChatContext[]
-  }) => void
   /** A chat's URL, for a surface other than Chat. */
   chatPath?: (chatId: string) => string
+  /** A summary to send under its own search scope; `onSummaryConsumed` fires as it goes out. */
+  summaryRequest?: SummaryRequest
+  onSummaryConsumed?: (id: string) => void
 }
 
 /**
- * Drives the existing chat hook for a Platform surface. Every send, stream, stop, reconnect and
- * queue rule stays in `useChat`; this module only supplies this app's URLs and projects its state.
+ * Drives the existing chat hook for a Platform surface. Every send, steer, stream, stop and
+ * reconnect rule stays in `useChat`; this module only supplies this app's URLs and projects its state.
  */
 export function useLiveChatRuntime({
   chatId,
   requestMode,
-  onRestoreQueued,
   chatPath = (id) => `/chat/${id}`,
+  summaryRequest,
+  onSummaryConsumed,
 }: LiveChatOptions) {
   const { organization, canBuild } = useOrganization()
   const organizationId = organization.id
@@ -167,7 +141,7 @@ export function useLiveChatRuntime({
     [chat.messages, streaming, sentAt, now, isPersisted]
   )
 
-  const { sendMessage, stopGeneration, sendNow } = chat
+  const { sendMessage, stopGeneration } = chat
   const assistantOptions = useMemo(
     () => ({
       requestMode,
@@ -198,6 +172,16 @@ export function useLiveChatRuntime({
       })
     }
   }, [chatId, organizationId, requestMode, sendMessage, assistantOptions])
+
+  useSendSummary({
+    request: summaryRequest,
+    onConsumed: onSummaryConsumed,
+    send: useCallback(
+      ({ message, assistantSearch }: SummaryRequest) =>
+        void sendMessage(message, undefined, undefined, { ...assistantOptions, assistantSearch }),
+      [sendMessage, assistantOptions]
+    ),
+  })
 
   const register = useToolPermissionStore((state) => state.register)
   const unregister = useToolPermissionStore((state) => state.unregister)
@@ -273,9 +257,6 @@ export function useLiveChatRuntime({
             : 'idle',
     loadFailed: clock.loadFailed && !chat.messages.length,
     turns,
-    queue: chat.messageQueue.map(toQueued),
-    editingQueuedId: chat.editingQueuedId,
-    dispatchingQueuedId: chat.dispatchingHeadId,
     send: (draft) => {
       if (requestMode !== 'assistant' && !canBuild) return false
       if (draft.attachments.some((attachment) => attachment.uploading)) return false
@@ -296,20 +277,8 @@ export function useLiveChatRuntime({
     stop: () => {
       void stopGeneration()
     },
-    removeQueued: chat.removeFromQueue,
-    sendQueuedNow: (id) => {
-      void sendNow(id)
-    },
-    editQueued: (id) => {
-      const queued = chat.editQueuedMessage(id)
-      if (queued)
-        onRestoreQueued({
-          text: queued.content,
-          files: queued.fileAttachments ?? [],
-          contexts: queued.contexts ?? [],
-        })
-    },
-    cancelQueueEdit: chat.cancelQueueEdit,
+    retryMessage: chat.retryMessage,
+    dismissMessage: chat.dismissMessage,
     approvals,
     registerApproval,
     decideTools,

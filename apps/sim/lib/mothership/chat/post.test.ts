@@ -75,6 +75,7 @@ const {
   persistChatResources,
   atomicallyClaimChatSend,
   admitTurn,
+  settleFallback,
   releaseChatSendClaim,
 } = vi.hoisted(() => ({
   computeWorkspaceEntitlements: vi.fn(async () => []),
@@ -91,6 +92,9 @@ const {
   persistChatResources: vi.fn(),
   atomicallyClaimChatSend: vi.fn(),
   admitTurn: vi.fn(),
+  settleFallback: vi.fn(
+    async (): Promise<{ kind: string; streamId?: string }> => ({ kind: 'send' })
+  ),
   releaseChatSendClaim: vi.fn(),
 }))
 
@@ -171,6 +175,9 @@ vi.mock('@/lib/mothership/chat/process-contents', () => ({
 
 vi.mock('@/lib/mothership/chat/application/admit-turn', () => ({
   admitChatTurn: { execute: admitTurn },
+}))
+vi.mock('@/lib/mothership/chat/application/steering-fallback', () => ({
+  settleSteeringFallback: { execute: settleFallback },
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   getLocalChatStreamLease: (chatId: string, streamId: string) => ({
@@ -1692,11 +1699,58 @@ describe('handleUnifiedChatPost', () => {
     })
 
     /**
-     * The queued-send-handoff path deliberately retries under the original
-     * `userMessageId` after a stream collision. If the collided attempt left a
+     * A message refused by a busy chat is retried under its original
+     * `userMessageId` (or steered into the turn holding the chat). If the collided attempt left a
      * permanent claim, that retry would deduplicate against a chat whose turn
      * never started and reattach to a stream that does not exist.
      */
+    describe('a turn marked as a steering message going out on its own', () => {
+      const post = (steeringFallback?: boolean) => {
+        resolveOrCreateChat.mockResolvedValueOnce({
+          chatId: 'chat-1',
+          chat: { id: 'chat-1' },
+          isNew: false,
+        })
+        return handleUnifiedChatPost(
+          new NextRequest('http://localhost/api/mothership/chat', {
+            method: 'POST',
+            body: JSON.stringify({
+              message: 'Then summarize',
+              workspaceId: 'ws-1',
+              userMessageId: 'msg-1',
+              chatId: 'chat-1',
+              ...(steeringFallback ? { steeringFallback } : {}),
+            }),
+          })
+        )
+      }
+
+      it('answers input_applied and admits nothing for a message a run already applied', async () => {
+        settleFallback.mockResolvedValueOnce({ kind: 'applied' })
+        const response = await post(true)
+
+        expect(response.status).toBe(409)
+        expect(await response.json()).toMatchObject({ code: 'input_applied' })
+        expect(admitTurn).not.toHaveBeenCalled()
+      })
+
+      it('answers busy, naming the run, for a message that run still holds', async () => {
+        settleFallback.mockResolvedValueOnce({ kind: 'busy', streamId: 'run-1' })
+        const response = await post(true)
+
+        expect(response.status).toBe(409)
+        expect(await response.json()).toMatchObject({ activeStreamId: 'run-1' })
+        expect(admitTurn).not.toHaveBeenCalled()
+      })
+
+      it('leaves a send without the mark to go straight to admission', async () => {
+        await post()
+
+        expect(settleFallback).not.toHaveBeenCalled()
+        expect(admitTurn).toHaveBeenCalled()
+      })
+    })
+
     it('releases the claim when a stream collision stops the turn from starting', async () => {
       acquirePendingChatStream.mockResolvedValue(false)
       getPendingChatStreamId.mockResolvedValue('other-stream')

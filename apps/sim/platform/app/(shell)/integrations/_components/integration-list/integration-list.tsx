@@ -1,9 +1,6 @@
 import { IntegrationCenter } from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
-import type {
-  GenericSecrets,
-  OrganizationIntegration,
-} from '@/platform/lib/data/integrations-types'
 import type { AppSummary } from '@/platform/lib/integrations/center-model'
+import type { GenericSecrets, OrganizationIntegration } from '@/platform/shared/integrations'
 
 interface IntegrationListProps {
   integrations: readonly OrganizationIntegration[]

@@ -31,6 +31,7 @@
   flex: 1;
   min-inline-size: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -140,4 +141,8 @@
 
 .trigger[data-empty] .value {
   color: var(--ui-secondary);
+}
+
+.trigger[data-block] {
+  inline-size: 100%;
 }

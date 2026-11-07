@@ -54,6 +54,9 @@ export function useUpdateOrganizationRetention() {
         params: { id: orgId },
         body: settings,
       }),
+    onSuccess: ({ data }, { orgId }) => {
+      queryClient.setQueryData(dataRetentionKeys.settings(orgId), data)
+    },
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: dataRetentionKeys.settings(orgId) })
     },

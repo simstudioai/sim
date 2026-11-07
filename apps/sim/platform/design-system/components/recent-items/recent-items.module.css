@@ -19,4 +19,5 @@
 }
 .recentLane > li {
   flex: none;
+  max-inline-size: var(--container-216);
 }

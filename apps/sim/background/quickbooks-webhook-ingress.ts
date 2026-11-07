@@ -43,7 +43,8 @@ export async function executeQuickBooksWebhookIngress(
       routingKey = buildQuickBooksWebhookRoutingKey(payload.appKey, event.intuitaccountid)
     } catch (error) {
       ignored += 1
-      logger.warn(`[${payload.requestId}] QuickBooks webhook event is not routable`, {
+      logger.warn('QuickBooks webhook event is not routable', {
+        requestId: payload.requestId,
         error: getErrorMessage(error, 'Unknown error'),
         eventId: event.id,
         eventIndex,
@@ -78,7 +79,8 @@ export async function executeQuickBooksWebhookIngress(
           else failed += 1
         } catch (error) {
           failed += 1
-          logger.error(`[${payload.requestId}] QuickBooks webhook target dispatch failed`, {
+          logger.error('QuickBooks webhook target dispatch failed', {
+            requestId: payload.requestId,
             error,
             eventId: event.id,
             eventIndex,
@@ -87,7 +89,8 @@ export async function executeQuickBooksWebhookIngress(
         }
       }
 
-      logger.info(`[${payload.requestId}] QuickBooks webhook event completed`, {
+      logger.info('QuickBooks webhook event completed', {
+        requestId: payload.requestId,
         eventId: event.id,
         eventIndex,
         ignored,
@@ -96,7 +99,8 @@ export async function executeQuickBooksWebhookIngress(
       })
     } catch (error) {
       failed += 1
-      logger.error(`[${payload.requestId}] QuickBooks webhook target lookup failed`, {
+      logger.error('QuickBooks webhook target lookup failed', {
+        requestId: payload.requestId,
         error,
         eventId: event.id,
         eventIndex,
@@ -104,7 +108,8 @@ export async function executeQuickBooksWebhookIngress(
     }
   }
 
-  logger.info(`[${payload.requestId}] QuickBooks webhook delivery completed`, {
+  logger.info('QuickBooks webhook delivery completed', {
+    requestId: payload.requestId,
     eventCount: payload.events.length,
     failed,
     ignored,

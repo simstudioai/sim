@@ -3,8 +3,26 @@
   "tasks": {
     "ci:shared": {
       "dependsOn": ["^ci:runtime"],
+      // The Platform zone is a separate Next app with its own workflow (platform-design.yml), so an
+      // edit that touches only the zone selects no main-app job. `platform/embedded` and
+      // `platform/design-system` ship inside `app/o`, so they stay inputs. Each zone path is named so
+      // that a new `platform/` folder is an input until someone decides otherwise.
       "inputs": [
         "$TURBO_DEFAULT$",
+        "!platform/app/**",
+        "!platform/lib/**",
+        "!platform/fixtures/**",
+        "!platform/checks/**",
+        "!platform/docs/**",
+        "!platform/preview/**",
+        "!platform/public/**",
+        "!platform/next.config.ts",
+        "!platform/proxy.ts",
+        "!platform/postcss.config.mjs",
+        "!platform/package.json",
+        "!platform/tsconfig.json",
+        "!platform/README.md",
+        "!scripts/platform-live-*",
         "!app/workspace/**",
         "!app/(landing)/**",
         "!app/api/**",
@@ -214,13 +232,28 @@
       ]
     },
     "build": {
-      // next.config bakes the Platform rewrite from SIM_PLATFORM_ORIGIN, and the main app imports
-      // nothing from its separate `platform/` zone or the seed of its live checks.
+      // next.config bakes the Platform rewrite from SIM_PLATFORM_ORIGIN. `app/o` bundles
+      // `platform/embedded` and `platform/design-system`, so those are inputs: leaving them out would
+      // restore a stale `.next` and ship an old UI. The zone paths below are its own Next app, reached
+      // only through that rewrite, and the embedded tree imports none of them
+      // (check:platform-design rule `zone-embedded`, check:boundaries).
       "env": ["NEXT_BUILD_SKIP_TYPE_CHECK", "SIM_PLATFORM_ORIGIN"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
-        "!platform/**",
+        "!platform/app/**",
+        "!platform/lib/**",
+        "!platform/fixtures/**",
+        "!platform/checks/**",
+        "!platform/docs/**",
+        "!platform/preview/**",
+        "!platform/public/**",
+        "!platform/next.config.ts",
+        "!platform/proxy.ts",
+        "!platform/postcss.config.mjs",
+        "!platform/package.json",
+        "!platform/tsconfig.json",
+        "!platform/README.md",
         "!scripts/platform-live-*",
         "!**/*.test.*",
         "!**/*.spec.*",

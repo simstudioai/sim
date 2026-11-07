@@ -23,7 +23,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized metadata update attempt`)
+      logger.warn('Unauthorized metadata update attempt')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -61,7 +61,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
 
     return NextResponse.json({ success: true, data: { metadata: updated } })
   } catch (error) {
-    logger.error(`[${requestId}] Error updating table metadata:`, error)
+    logger.error('Error updating table metadata:', error)
     return NextResponse.json({ error: 'Failed to update metadata' }, { status: 500 })
   }
 })

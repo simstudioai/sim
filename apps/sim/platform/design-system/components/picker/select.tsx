@@ -10,26 +10,29 @@ import { useScrollEdges } from '@/platform/design-system/components/scroll-area/
 
 const optionValue = (option: { value: string }) => option.value
 
-interface SelectProps extends ControlProps {
+interface SelectProps<Value extends string> extends ControlProps {
   variant?: 'quiet'
-  value?: string
-  onValueChange?: (value: string) => void
-  options: ReadonlyArray<{ value: string; label: string }>
+  /** Fills its container, for a control in a fixed column. */
+  block?: boolean
+  value?: Value
+  onValueChange?: (value: Value) => void
+  options: ReadonlyArray<{ value: Value; label: string }>
 }
 
-export function Select({
+export function Select<Value extends string>({
   id,
   label,
   name,
   options,
   variant,
+  block,
   value,
   onValueChange,
   defaultValue,
   disabled,
   invalid,
   describedBy,
-}: SelectProps) {
+}: SelectProps<Value>) {
   const valueEdges = useScrollEdges<HTMLSpanElement>('horizontal')
   const scrollRef = useScrollEdges<HTMLDivElement>()
   const selection = usePickerValue(options, optionValue, defaultValue)
@@ -40,7 +43,7 @@ export function Select({
       value={value ?? selection.value}
       onValueChange={(value) => {
         selection.setValue(value)
-        if (value !== null) onValueChange?.(value)
+        if (value !== null) onValueChange?.(value as Value)
       }}
       disabled={disabled || options.length === 0}
       modal={false}
@@ -53,6 +56,7 @@ export function Select({
         aria-describedby={describedBy}
         className={picker.trigger}
         data-variant={variant}
+        data-block={block || undefined}
         data-type={variant === 'quiet' ? 'T057' : 'T043'}
       >
         <BaseSelect.Value ref={valueEdges} className={picker.value} />

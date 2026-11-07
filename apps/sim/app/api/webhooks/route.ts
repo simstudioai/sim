@@ -62,7 +62,8 @@ async function revertSavedWebhook(
         updatedAt: existingWebhook.updatedAt,
       })
       .where(eq(webhook.id, savedWebhook.id))
-    logger.info(`[${requestId}] Restored previous webhook configuration after failed re-save`, {
+    logger.info('Restored previous webhook configuration after failed re-save', {
+      requestId,
       webhookId: savedWebhook.id,
     })
     return
@@ -73,12 +74,10 @@ async function revertSavedWebhook(
 
 // Get all webhooks for the current user
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized webhooks access attempt`)
+      logger.warn('Unauthorized webhooks access attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -96,7 +95,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .limit(1)
 
       if (!wf.length) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        logger.warn(`Workflow not found: ${workflowId}`)
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
@@ -110,7 +109,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
       if (!canRead) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} denied permission to read webhooks for workflow ${workflowId}`
+          `User ${session.user.id} denied permission to read webhooks for workflow ${workflowId}`
         )
         return NextResponse.json({ webhooks: [] }, { status: 200 })
       }
@@ -146,7 +145,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .orderBy(desc(webhook.updatedAt))
 
       logger.info(
-        `[${requestId}] Retrieved ${webhooks.length} webhooks for workflow ${workflowId} block ${blockId}`
+        `Retrieved ${webhooks.length} webhooks for workflow ${workflowId} block ${blockId}`
       )
       return NextResponse.json({ webhooks }, { status: 200 })
     }
@@ -174,10 +173,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
       .where(and(inArray(workflow.workspaceId, workspaceIds), isNull(webhook.archivedAt)))
 
-    logger.info(`[${requestId}] Retrieved ${webhooks.length} workspace-accessible webhooks`)
+    logger.info(`Retrieved ${webhooks.length} workspace-accessible webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching webhooks`, error)
+    logger.error('Error fetching webhooks', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
@@ -189,7 +188,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const userId = session?.user?.id
 
   if (!userId) {
-    logger.warn(`[${requestId}] Unauthorized webhook creation attempt`)
+    logger.warn('Unauthorized webhook creation attempt')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -203,7 +202,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Validate input
     if (!workflowId) {
-      logger.warn(`[${requestId}] Missing required fields for webhook creation`, {
+      logger.warn('Missing required fields for webhook creation', {
         hasWorkflowId: !!workflowId,
         hasPath: !!path,
       })
@@ -251,19 +250,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
           if (existingForBlock.length > 0) {
             finalPath = existingForBlock[0].path ?? ''
-            logger.info(
-              `[${requestId}] Reusing existing generated path for ${provider} trigger: ${finalPath}`
-            )
+            logger.info(`Reusing existing generated path for ${provider} trigger: ${finalPath}`)
           }
         }
 
         // If still no path, generate a new dummy path (first-time save)
         if (!finalPath || finalPath.trim() === '') {
           finalPath = `${provider}-${generateId()}`
-          logger.info(`[${requestId}] Generated webhook path for ${provider} trigger: ${finalPath}`)
+          logger.info(`Generated webhook path for ${provider} trigger: ${finalPath}`)
         }
       } else {
-        logger.warn(`[${requestId}] Missing path for webhook creation`, {
+        logger.warn('Missing path for webhook creation', {
           hasWorkflowId: !!workflowId,
           hasPath: !!path,
         })
@@ -291,7 +288,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     if (workflowData.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+      logger.warn(`Workflow not found: ${workflowId}`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
@@ -305,9 +302,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const canModify = authorization.allowed
 
     if (!canModify) {
-      logger.warn(
-        `[${requestId}] User ${userId} denied permission to modify webhook for workflow ${workflowId}`
-      )
+      logger.warn(`User ${userId} denied permission to modify webhook for workflow ${workflowId}`)
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
     await assertWorkflowMutable(workflowId)
@@ -347,7 +342,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workflowId,
       })
       if (conflictingOwner) {
-        logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
+        logger.warn(`Webhook path conflict: ${finalPath}`)
         return NextResponse.json(
           { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
           { status: 409 }
@@ -445,7 +440,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : false
       if (withheld) {
         logger.warn(
-          `[${requestId}] Webhook ${existingWebhook ? 'reactivation' : 'creation'} blocked by permission group`,
+          `Webhook ${existingWebhook ? 'reactivation' : 'creation'} blocked by permission group`,
           {
             userId,
             workflowId,
@@ -500,7 +495,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { credentialId, workflowId }
       )
       if (!credentialAccess.ok) {
-        logger.warn(`[${requestId}] Webhook credential reference denied`, {
+        logger.warn('Webhook credential reference denied', {
           userId,
           workflowId,
           credentialId,
@@ -576,11 +571,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } catch (err) {
         const isConfigurationError = err instanceof WebhookDeploymentConfigurationError
         if (isConfigurationError) {
-          logger.warn(`[${requestId}] Rejected webhook trigger configuration`, {
+          logger.warn('Rejected webhook trigger configuration', {
             error: err.message,
           })
         } else {
-          logger.error(`[${requestId}] Error creating external webhook subscription`, err)
+          logger.error('Error creating external webhook subscription', err)
         }
         return NextResponse.json(
           {
@@ -597,7 +592,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     try {
       if (targetWebhookId) {
-        logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
+        logger.info(`Updating existing webhook for path: ${finalPath}`, {
           webhookId: targetWebhookId,
           provider,
           hasCredentialId: !!(configToSave as any)?.credentialId,
@@ -618,14 +613,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .where(eq(webhook.id, targetWebhookId))
           .returning()
         savedWebhook = updatedResult[0]
-        logger.info(`[${requestId}] Webhook updated successfully`, {
+        logger.info('Webhook updated successfully', {
           webhookId: savedWebhook.id,
           savedProviderConfig: savedWebhook.providerConfig,
         })
       } else {
         // Create a new webhook
         const webhookId = generateShortId()
-        logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
+        logger.info(`Creating new webhook with ID: ${webhookId}`)
         const newResult = await db
           .insert(webhook)
           .values({
@@ -647,7 +642,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (dbError) {
       if (externalSubscriptionCreated) {
-        logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
+        logger.error('DB save failed, cleaning up external subscription', dbError)
         try {
           await cleanupExternalWebhook(
             createTempWebhookData(omit(configToSave, ['previousSubscription'])),
@@ -656,7 +651,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         } catch (cleanupError) {
           logger.error(
-            `[${requestId}] Failed to cleanup external subscription after DB save failure`,
+            'Failed to cleanup external subscription after DB save failure',
             cleanupError
           )
         }
@@ -712,7 +707,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
       } catch (cleanupError) {
         logger.warn(
-          `[${requestId}] Failed to cleanup previous external webhook subscription ${existingWebhook.id}`,
+          `Failed to cleanup previous external webhook subscription ${existingWebhook.id}`,
           cleanupError
         )
       }
@@ -721,9 +716,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (savedWebhook) {
       const pollingHandler = getProviderHandler(provider)
       if (pollingHandler.configurePolling) {
-        logger.info(
-          `[${requestId}] ${provider} provider detected. Setting up polling configuration.`
-        )
+        logger.info(`${provider} provider detected. Setting up polling configuration.`)
         try {
           const success = await pollingHandler.configurePolling({
             webhook: savedWebhook,
@@ -735,9 +728,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
 
           if (!success) {
-            logger.error(
-              `[${requestId}] Failed to configure ${provider} polling, rolling back webhook`
-            )
+            logger.error(`Failed to configure ${provider} polling, rolling back webhook`)
             await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
             return NextResponse.json(
               {
@@ -748,10 +739,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             )
           }
 
-          logger.info(`[${requestId}] Successfully configured ${provider} polling`)
+          logger.info(`Successfully configured ${provider} polling`)
         } catch (err) {
           logger.error(
-            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`,
+            `Error setting up ${provider} webhook configuration, rolling back webhook`,
             err
           )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
@@ -818,7 +809,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    logger.error(`[${requestId}] Error creating/updating webhook`, {
+    logger.error('Error creating/updating webhook', {
       message: error.message,
       stack: error.stack,
     })

@@ -136,7 +136,8 @@ export async function executeTikTokUploadVideoDraft(
       return failureResponse(`Video exceeds the ${maxMb}MB limit for file uploads.`, 413)
     }
     if (signal.aborted) return failureResponse('TikTok video upload was cancelled.', 499)
-    logger.error(`[${context.requestId}] TikTok video draft upload failed`, {
+    logger.error('TikTok video draft upload failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error),
     })
     return failureResponse(getErrorMessage(error, 'Internal server error'), 500)

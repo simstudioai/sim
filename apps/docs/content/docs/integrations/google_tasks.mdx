@@ -38,6 +38,8 @@ Create, read, update, delete, and list tasks and task lists.
 
 Create a new task in a Google Tasks list
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -66,6 +68,8 @@ Create a new task in a Google Tasks list
 | `position` | string | Position among sibling tasks |
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
+
+</ReferenceDetails>
 
 ### Google Tasks List Tasks
 
@@ -119,6 +123,8 @@ List all tasks in a Google Tasks list
 
 Retrieve a specific task by ID from a Google Tasks list
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -143,9 +149,13 @@ Retrieve a specific task by ID from a Google Tasks list
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
 
+</ReferenceDetails>
+
 ### Google Tasks Update Task
 
 Update an existing task in a Google Tasks list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +185,13 @@ Update an existing task in a Google Tasks list
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
 
+</ReferenceDetails>
+
 ### Google Tasks Delete Task
 
 Delete a task from a Google Tasks list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -193,9 +207,13 @@ Delete a task from a Google Tasks list
 | `taskId` | string | Deleted task ID |
 | `deleted` | boolean | Whether deletion was successful |
 
+</ReferenceDetails>
+
 ### Google Tasks List Task Lists
 
 Retrieve all task lists for the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,5 +232,7 @@ Retrieve all task lists for the authenticated user
 |   ↳ `updated` | string | Last modification time \(RFC 3339 timestamp\) |
 |   ↳ `selfLink` | string | URL pointing to this task list |
 | `nextPageToken` | string | Token for retrieving the next page of results |
+
+</ReferenceDetails>
 
 

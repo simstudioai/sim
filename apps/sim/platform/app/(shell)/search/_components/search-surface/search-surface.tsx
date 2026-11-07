@@ -52,6 +52,8 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
             chatId={chatId}
             destination='assistant'
             chatPath={(id) => `/search/chat/${id}`}
+            summaryRequest={surface.pendingSummary}
+            onSummaryConsumed={surface.consumeSummary}
             header={<div className={styles.switch}>{modeSwitch}</div>}
           />
         </div>

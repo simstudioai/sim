@@ -3,7 +3,6 @@ import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetWorkflowContract } from '@/lib/api/contracts/v1/workflows'
@@ -23,8 +22,6 @@ export const revalidate = 0
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateId().slice(0, 8)
-
     try {
       const rateLimit = await checkRateLimit(request, 'workflow-detail')
       if (!rateLimit.allowed) {
@@ -40,7 +37,7 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      logger.info(`[${requestId}] Fetching workflow details for ${id}`, { userId })
+      logger.info(`Fetching workflow details for ${id}`, { userId })
 
       const workflowData = await getActiveWorkflowRecord(id)
       if (!workflowData) {
@@ -94,7 +91,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Workflow details fetch error`, { error: message })
+      logger.error('Workflow details fetch error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

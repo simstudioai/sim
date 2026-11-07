@@ -1,1 +1,7 @@
-export { ChatSurfaceProvider, useChatSurface } from './chat-surface-context'
+export {
+  type ChatChrome,
+  ChatChromeProvider,
+  ChatSurfaceProvider,
+  useChatChrome,
+  useChatSurface,
+} from './chat-surface-context'

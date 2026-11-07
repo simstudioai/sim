@@ -41,7 +41,7 @@ import {
   useSsoOrigin,
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 const PROVIDER_TYPE_OPTIONS = [
   { label: 'OIDC', value: 'oidc' },

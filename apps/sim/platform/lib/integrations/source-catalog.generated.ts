@@ -9,7 +9,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [
       {
@@ -49,7 +49,7 @@ export const searchSourceCatalog = [
       add: 'Add Confluence site',
       title: 'Connect Confluence site',
       empty: 'No Confluence sites connected.',
-      searchPlaceholder: 'Search Confluence sites...',
+      searchPlaceholder: 'Search Confluence sites…',
     },
     fields: [
       {
@@ -104,7 +104,19 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
+    },
+    fields: [],
+  },
+  {
+    id: 'flow',
+    name: 'Flow Engineering',
+    supportedModes: ['member'],
+    connectionLabels: {
+      add: 'Add connection',
+      title: 'Add connection',
+      empty: 'No connections yet.',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -117,7 +129,7 @@ export const searchSourceCatalog = [
       add: 'Add repository',
       title: 'Add GitHub repository',
       empty: 'No GitHub repositories added.',
-      searchPlaceholder: 'Search GitHub repositories...',
+      searchPlaceholder: 'Search GitHub repositories…',
     },
     fields: [
       {
@@ -155,7 +167,7 @@ export const searchSourceCatalog = [
       add: 'Add project',
       title: 'Add GitLab project',
       empty: 'No GitLab projects added.',
-      searchPlaceholder: 'Search GitLab projects...',
+      searchPlaceholder: 'Search GitLab projects…',
     },
     fields: [
       {
@@ -257,7 +269,7 @@ export const searchSourceCatalog = [
       add: 'Connect service account',
       title: 'Connect Gmail service account',
       empty: 'No Gmail connections yet.',
-      searchPlaceholder: 'Search Gmail connections...',
+      searchPlaceholder: 'Search Gmail connections…',
     },
     fields: [
       {
@@ -349,7 +361,7 @@ export const searchSourceCatalog = [
       add: 'Connect service account',
       title: 'Connect Google Calendar service account',
       empty: 'No Google Calendar connections yet.',
-      searchPlaceholder: 'Search Google Calendar connections...',
+      searchPlaceholder: 'Search Google Calendar connections…',
     },
     fields: [
       {
@@ -429,7 +441,7 @@ export const searchSourceCatalog = [
       add: 'Connect service account',
       title: 'Connect Google Drive service account',
       empty: 'No Google Drive connections yet.',
-      searchPlaceholder: 'Search Google Drive connections...',
+      searchPlaceholder: 'Search Google Drive connections…',
     },
     fields: [
       {
@@ -488,7 +500,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -500,7 +512,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -512,7 +524,19 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
+    },
+    fields: [],
+  },
+  {
+    id: 'jama',
+    name: 'Jama Connect',
+    supportedModes: ['member'],
+    connectionLabels: {
+      add: 'Add connection',
+      title: 'Add connection',
+      empty: 'No connections yet.',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -524,7 +548,7 @@ export const searchSourceCatalog = [
       add: 'Add projects',
       title: 'Add Jira projects',
       empty: 'No Jira projects added.',
-      searchPlaceholder: 'Search Jira projects...',
+      searchPlaceholder: 'Search Jira projects…',
     },
     fields: [],
   },
@@ -536,7 +560,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -548,7 +572,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -560,7 +584,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },
@@ -572,7 +596,7 @@ export const searchSourceCatalog = [
       add: 'Add channels or DMs',
       title: 'Choose Slack channels and DMs',
       empty: 'No Slack connections yet.',
-      searchPlaceholder: 'Search Slack connections...',
+      searchPlaceholder: 'Search Slack connections…',
     },
     fields: [],
   },
@@ -584,7 +608,7 @@ export const searchSourceCatalog = [
       add: 'Add connection',
       title: 'Add connection',
       empty: 'No connections yet.',
-      searchPlaceholder: 'Search connections...',
+      searchPlaceholder: 'Search connections…',
     },
     fields: [],
   },

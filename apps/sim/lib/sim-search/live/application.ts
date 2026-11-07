@@ -151,6 +151,7 @@ const referenceSchema = z
     container: z.string().max(500).optional(),
     kind: z.string().max(200).optional(),
     revision: z.string().max(200).optional(),
+    connectionBinding: z.string().min(1).max(128).optional(),
     threadId: z
       .string()
       .regex(/^\d+\.\d+$/)
@@ -245,6 +246,7 @@ function candidateFor(
       ...(document.container ? { container: document.container } : {}),
       ...(document.kind ? { kind: document.kind } : {}),
       ...(document.revision ? { revision: document.revision } : {}),
+      ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
       ...(document.threadId ? { threadId: document.threadId } : {}),
     }),
   }
@@ -970,7 +972,17 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     })
     return {
       query: input.query,
-      results: ranked.slice(0, input.topK).map(({ result }) => result),
+      results: ranked.slice(0, input.topK).map(({ result, queries: matched }) => {
+        const queryIndexes = [
+          ...new Set(
+            matched.flatMap((index) => {
+              const queryIndex = searched[index]?.status.queryIndex
+              return queryIndex === undefined ? [] : [queryIndex]
+            })
+          ),
+        ].sort((a, b) => a - b)
+        return queryIndexes.length ? { ...result, queryIndexes } : result
+      }),
       retrieval: {
         status: retrievalStatus,
         timedOutLegs: [],

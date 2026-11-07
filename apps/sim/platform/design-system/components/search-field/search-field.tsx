@@ -14,6 +14,7 @@ interface SearchFieldProps {
   shortcut?: '⌘K' | '/'
   variant?: 'outlined' | 'sidebar' | 'quiet'
   onValueChange?: (query: string) => void
+  maxLength?: number
 }
 
 export function SearchField({
@@ -24,6 +25,7 @@ export function SearchField({
   shortcut,
   variant = 'outlined',
   onValueChange,
+  maxLength,
 }: SearchFieldProps) {
   const input = useRef<HTMLInputElement>(null)
   const queryEdges = useScrollEdges('horizontal', { viewport: input })
@@ -80,6 +82,7 @@ export function SearchField({
           type='search'
           aria-label={label}
           placeholder={placeholder}
+          maxLength={maxLength}
           className={styles.query}
           data-type='T043'
           value={query}

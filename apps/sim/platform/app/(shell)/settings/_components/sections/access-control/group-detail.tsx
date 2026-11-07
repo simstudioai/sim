@@ -72,9 +72,9 @@ import {
   useUpdatePermissionGroup,
 } from '@/platform/lib/data/access-control'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/lib/data/toast'
-import { plural } from '@/platform/lib/plural'
-import { formatTimestamp } from '@/platform/lib/time'
+import { plural } from '@/platform/shared/plural'
+import { formatTimestamp } from '@/platform/shared/time'
+import { toast } from '@/platform/shared/toast'
 
 const TABS = [
   { value: 'general', label: 'General' },

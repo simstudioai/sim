@@ -193,13 +193,13 @@ export function TextAreaField({
   )
 }
 
-interface SelectFieldProps extends FieldProps {
-  options: ReadonlyArray<{ value: string; label: string }>
-  value?: string
-  onValueChange?: (value: string) => void
+interface SelectFieldProps<Value extends string> extends FieldProps {
+  options: ReadonlyArray<{ value: Value; label: string }>
+  value?: Value
+  onValueChange?: (value: Value) => void
 }
 
-export function SelectField({
+export function SelectField<Value extends string>({
   label,
   optional,
   error,
@@ -210,7 +210,7 @@ export function SelectField({
   options,
   value,
   onValueChange,
-}: SelectFieldProps) {
+}: SelectFieldProps<Value>) {
   const id = useId()
   return (
     <FieldFrame id={id} label={label} optional={optional} error={error} hint={hint}>

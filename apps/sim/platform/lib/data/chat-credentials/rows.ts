@@ -21,7 +21,7 @@ import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-c
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/lib/data/toast'
+import { toast } from '@/platform/shared/toast'
 
 /** The card's workspace target, read by the connection hooks in place of a workspace route. */
 export const CredentialWorkspaceProvider = CredentialWorkspaceContext.Provider

@@ -59,30 +59,31 @@ export function useScrollEdges<T extends HTMLElement>(
           resize.observe(child)
           observedChildren.add(child)
         }
-        measure()
       }
       syncChildren()
+      measure()
+      let frame = 0
+      /** A burst of changes costs one layout read. */
+      const measureNextFrame = () => {
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(measure)
+      }
       const content = new MutationObserver((records) => {
         if (records.some(({ type, target }) => type === 'childList' && target === element))
           syncChildren()
-        else measure()
+        measureNextFrame()
       })
       content.observe(element, { childList: true, subtree: true, characterData: true })
       const form =
         element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
           ? element.form
           : null
-      let resetFrame = 0
-      const afterReset = () => {
-        cancelAnimationFrame(resetFrame)
-        resetFrame = requestAnimationFrame(measure)
-      }
-      form?.addEventListener('reset', afterReset)
+      form?.addEventListener('reset', measureNextFrame)
       element.addEventListener('scroll', measure, { passive: true })
       element.addEventListener('input', measure)
       return () => {
-        form?.removeEventListener('reset', afterReset)
-        cancelAnimationFrame(resetFrame)
+        form?.removeEventListener('reset', measureNextFrame)
+        cancelAnimationFrame(frame)
         content.disconnect()
         resize.disconnect()
         element.removeEventListener('scroll', measure)

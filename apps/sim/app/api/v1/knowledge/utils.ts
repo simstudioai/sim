@@ -122,6 +122,6 @@ export function handleError(
     }
   }
 
-  logger.error(`[${requestId}] ${defaultMessage}:`, error)
+  logger.error(`${defaultMessage}:`, error, { requestId })
   return NextResponse.json({ error: defaultMessage }, { status: 500 })
 }
