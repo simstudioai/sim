@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { VideoIcon } from '@/components/icons'
 import {
   directVideoDefaults,
@@ -10,6 +11,11 @@ import {
   getFalVideoModel,
   getFalVideoVariant,
 } from '@/lib/media/fal-video-catalog'
+import {
+  type CanonicalGroup,
+  type CanonicalModeOverrides,
+  resolveActiveCanonicalValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
 
@@ -52,12 +58,24 @@ const endpointModels = falVideoModels.filter((model) => !model.legacyId)
 const START_FRAME_FIELDS = ['visualReferenceInput', 'visualReferenceUpload']
 const HIDDEN = { field: 'provider', value: [] }
 
+const START_FRAME_GROUP: CanonicalGroup = {
+  canonicalId: 'visualReference',
+  basicId: 'visualReferenceUpload',
+  advancedIds: ['visualReferenceInput'],
+}
+
+/**
+ * Whether the run will send a start frame: the serialized `visualReference`, or else only the
+ * upload/reference member in the active mode, since the serializer drops the inactive one.
+ */
 function hasStartFrame(values?: Record<string, unknown>) {
-  return [
-    values?.visualReference,
-    values?.visualReferenceInput,
-    values?.visualReferenceUpload,
-  ].some((reference) => (Array.isArray(reference) ? reference.length > 0 : Boolean(reference)))
+  if (!values) return false
+  const overrides = isRecordLike(values.__canonicalModes)
+    ? (values.__canonicalModes as CanonicalModeOverrides)
+    : undefined
+  const reference =
+    values.visualReference ?? resolveActiveCanonicalValue(START_FRAME_GROUP, values, overrides)
+  return Array.isArray(reference) ? reference.length > 0 : Boolean(reference)
 }
 
 /** Settings of the endpoint a fal run will call: image-to-video once a start frame is attached. */
