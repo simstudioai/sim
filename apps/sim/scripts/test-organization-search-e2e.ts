@@ -938,7 +938,7 @@ try {
         await expect(page).toHaveURL((url) => url.searchParams.get('source') === 'google_drive')
         await expect(wikiResult).toHaveCount(0)
         await capture('search-filtered')
-        await page.getByRole('combobox', { name: 'Filter by date: Any time' }).click()
+        await page.getByRole('button', { name: 'Filter by date: Any time' }).click()
         await capture('search-date-filter')
         await page.keyboard.press('Escape')
         await page.setViewportSize({ width: 390, height: 844 })
