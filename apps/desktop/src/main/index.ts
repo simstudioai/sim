@@ -61,6 +61,7 @@ import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 import { ComputerUseService } from '@/main/computer-use/service'
 import {
   APP_NAME_FOR_CHANNEL,
+  addressSpaceOverrideForOrigin,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -147,6 +148,10 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
+  const addressSpaceOverride = addressSpaceOverrideForOrigin(config.getOrigin())
+  if (addressSpaceOverride) {
+    app.commandLine.appendSwitch('ip-address-space-overrides', addressSpaceOverride)
+  }
   setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()

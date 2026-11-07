@@ -204,6 +204,24 @@ export function isSimCloudOrigin(origin: string): boolean {
 }
 
 /**
+ * Chromium's Local Network Access checks reject a top-level navigation when a
+ * self-hosted deployment name resolves to RFC1918 space, before Electron can
+ * show a permission prompt or the request reaches the server. The configured
+ * Sim origin is an explicit trust decision and already owns the shell's preload
+ * bridge, so classify only that hostname as public instead of disabling the
+ * process-wide checks that protect arbitrary browser tabs.
+ */
+export function addressSpaceOverrideForOrigin(origin: string): string | null {
+  try {
+    const host = new URL(origin).hostname.toLowerCase()
+    if (isLoopbackHostname(host) || isSimCloudOrigin(origin)) return null
+    return `${host}=public`
+  } catch {
+    return null
+  }
+}
+
+/**
  * Maps a server origin to its cookie/storage partition. Each origin gets an
  * isolated persistent partition so sessions never leak across instances.
  */
