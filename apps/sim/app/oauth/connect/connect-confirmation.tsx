@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AuthIdentity, AuthButton as Chip } from '@sim/auth-ui'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { startCredentialConnectionContract } from '@/lib/api/contracts/credentials'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
@@ -43,6 +44,12 @@ export function ConnectConfirmation({
       if (callbackURL) launch.searchParams.set('callbackURL', callbackURL)
       window.location.assign(launch.toString())
     } catch (error) {
+      if (isApiClientError(error) && error.status === 401) {
+        // The session ended after this page rendered: sign in again, then return here.
+        const here = `${window.location.pathname}${window.location.search}`
+        window.location.assign(`/login?callbackUrl=${encodeURIComponent(here)}`)
+        return
+      }
       setErrorMessage(error instanceof Error ? error.message : null)
       setStatus('error')
     }
