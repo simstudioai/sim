@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -10,15 +11,13 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import {
-  decodeOTPValue,
   deleteOTP,
   generateOTP,
-  getOTP,
-  incrementOTPAttempts,
   MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
+  reserveOTPAttempt,
   storeOTP,
 } from '@/lib/core/security/otp'
 import { afterResponse } from '@/lib/core/utils/after-response'
@@ -196,22 +195,13 @@ export const PUT = withRouteHandler(
         return createCodedErrorResponse('Email not authorized', 403)
       }
 
-      const storedValue = await getOTP('chat', deployment.id, email)
-      if (!storedValue) {
+      const reserved = await reserveOTPAttempt('chat', deployment.id, email)
+      if (!reserved) {
         return createCodedErrorResponse('No verification code found, request a new one', 400)
       }
 
-      const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
-
-      if (attempts >= MAX_OTP_ATTEMPTS) {
-        await deleteOTP('chat', deployment.id, email)
-        logger.warn(`OTP already locked out for ${email}`)
-        return createCodedErrorResponse('Too many failed attempts. Please request a new code.', 429)
-      }
-
-      if (storedOTP !== otp) {
-        const result = await incrementOTPAttempts('chat', deployment.id, email, storedValue)
-        if (result === 'locked') {
+      if (!safeCompare(reserved.otp, otp)) {
+        if (reserved.attempts >= MAX_OTP_ATTEMPTS) {
           logger.warn(`OTP invalidated after max failed attempts for ${email}`)
           return createCodedErrorResponse(
             'Too many failed attempts. Please request a new code.',

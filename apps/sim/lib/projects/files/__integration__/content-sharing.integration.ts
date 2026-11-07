@@ -606,9 +606,9 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         status: 400,
       })
       await otpStore.storeOTP('file', share.id, email, '123456')
-      const get = otpStore.getOTP
-      const spy = vi.spyOn(otpStore, 'getOTP').mockImplementation(async (...args) => {
-        const result = await get(...args)
+      const reserve = otpStore.reserveOTPAttempt
+      const spy = vi.spyOn(otpStore, 'reserveOTPAttempt').mockImplementation(async (...args) => {
+        const result = await reserve(...args)
         await db
           .update(publicShare)
           .set({ allowedEmails: ['replacement@shared.invalid'] })

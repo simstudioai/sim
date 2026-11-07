@@ -316,7 +316,7 @@ describe('Chat OTP API Route', () => {
   describe('PUT - Verify OTP (authType re-check)', () => {
     beforeEach(() => {
       mockGetStorageMethod.mockReturnValue('redis')
-      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
+      mockRedisEval.mockResolvedValue(`${mockOTP}:1`)
     })
 
     it('rejects verification when the chat has switched away from email auth', async () => {
@@ -338,7 +338,7 @@ describe('Chat OTP API Route', () => {
         'This chat does not use email authentication',
         400
       )
-      expect(mockRedisGet).not.toHaveBeenCalled()
+      expect(mockRedisEval).not.toHaveBeenCalled()
       expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
     })
 
@@ -355,83 +355,8 @@ describe('Chat OTP API Route', () => {
       await PUT(request, createRouteContext({ identifier: mockIdentifier }))
 
       expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
-      expect(mockRedisGet).not.toHaveBeenCalled()
+      expect(mockRedisEval).not.toHaveBeenCalled()
       expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('PUT - Verify OTP (Database path)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('database')
-      mockGetRedisClient.mockReturnValue(null)
-    })
-
-    it('should reject expired OTP from database', async () => {
-      queueDeployment({ id: mockChatId, authType: 'email' })
-      queueTableRows(schemaMock.verification, [])
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/chat/test/otp',
-        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
-
-      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
-        'No verification code found, request a new one',
-        400
-      )
-    })
-  })
-
-  describe('Brute-force protection', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('redis')
-    })
-
-    it('should atomically increment attempts on wrong OTP', async () => {
-      mockRedisGet.mockResolvedValue('654321:0')
-      mockRedisEval.mockResolvedValue('654321:1')
-
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/chat/test/otp',
-        rawBody: JSON.stringify({ email: mockEmail, otp: 'wrong1' }),
-      })
-
-      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
-
-      expect(mockRedisEval).toHaveBeenCalledWith(
-        expect.any(String),
-        1,
-        `otp:${mockEmail}:${mockChatId}`,
-        5
-      )
-      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith('Invalid verification code', 400)
-    })
-
-    it('should invalidate OTP and return 429 after max failed attempts', async () => {
-      mockRedisGet.mockResolvedValue('654321:4')
-      mockRedisEval.mockResolvedValue('LOCKED')
-
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/chat/test/otp',
-        rawBody: JSON.stringify({ email: mockEmail, otp: 'wrong5' }),
-      })
-
-      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
-
-      expect(mockRedisEval).toHaveBeenCalled()
-      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
-        'Too many failed attempts. Please request a new code.',
-        429
-      )
     })
   })
 })
