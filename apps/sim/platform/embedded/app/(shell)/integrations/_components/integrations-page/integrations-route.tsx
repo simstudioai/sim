@@ -211,14 +211,14 @@ export function IntegrationsRoute({
                 pending={actions.pending}
                 onConnect={() => {
                   if (integration.connectionTarget)
-                    actions.connect(integration.connectionTarget, {
-                      onSuccess: () => toast.success(`${integration.name} connected`),
-                    })
+                    actions.connect(integration.connectionTarget, () =>
+                      toast.success(`${integration.name} connected`)
+                    )
                 }}
                 onReconnect={(credentialId) =>
-                  actions.reconnect(credentialId, {
-                    onSuccess: () => toast.success(`${integration.name} reconnected`),
-                  })
+                  actions.reconnect(credentialId, () =>
+                    toast.success(`${integration.name} reconnected`)
+                  )
                 }
                 onDisconnect={async (credentialId) => {
                   await actions.disconnect(credentialId)

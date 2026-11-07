@@ -86,24 +86,24 @@ function useAccountConnectionMutation<Variables>(
           : { ...input, completionId }
       if (isDesktopApp()) {
         await connectDesktopSource(request, controller.signal)
-      } else {
-        await connectCredentialGroupInPopup(
-          completionId,
-          (signal) =>
-            request.kind === 'organization-account'
-              ? requestJson(startOrganizationAccountConnectionContract, {
-                  params: { id: request.organizationId },
-                  body: request.body,
-                  signal,
-                })
-              : requestJson(reconnectPersonalOrganizationAccountContract, {
-                  params: { credentialId: request.credentialId },
-                  query: { oauthCompletionId: completionId },
-                  signal,
-                }),
-          controller.signal
-        )
+        return true
       }
+      return connectCredentialGroupInPopup(
+        completionId,
+        (signal) =>
+          request.kind === 'organization-account'
+            ? requestJson(startOrganizationAccountConnectionContract, {
+                params: { id: request.organizationId },
+                body: request.body,
+                signal,
+              })
+            : requestJson(reconnectPersonalOrganizationAccountContract, {
+                params: { credentialId: request.credentialId },
+                query: { oauthCompletionId: completionId },
+                signal,
+              }),
+        controller.signal
+      )
     },
     onSettled: () => refreshConnectedAccounts(client),
   })

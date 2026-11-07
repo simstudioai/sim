@@ -10,12 +10,16 @@ import {
 
 const CONNECTION_TIMEOUT_MS = 10 * 60_000
 
-/** Keeps the initiating surface open; provider window isolation is not a cancellation signal. */
+/**
+ * Keeps the initiating surface open; provider window isolation is not a cancellation signal.
+ * Resolves true once the account connects, or false when blocked popups send this page to the
+ * provider instead and the connection finishes on its return.
+ */
 export async function connectCredentialGroupInPopup(
   completionId: string,
   start: (signal: AbortSignal) => Promise<OrganizationAccountConnectionResponse>,
   signal: AbortSignal
-): Promise<void> {
+): Promise<boolean> {
   signal.throwIfAborted()
   const popup =
     typeof BroadcastChannel === 'undefined' ? null : window.open('about:blank', '_blank')
@@ -23,8 +27,7 @@ export async function connectCredentialGroupInPopup(
     const result = await start(signal)
     signal.throwIfAborted()
     window.location.assign(result.authorizationUrl ?? result.invitationLink)
-    // The connection finishes after the provider sends the browser back, so it never reports success here.
-    return new Promise<never>(() => {})
+    return false
   }
   popup.opener = null
   return new Promise((resolve, reject) => {
@@ -43,7 +46,7 @@ export async function connectCredentialGroupInPopup(
       signal.removeEventListener('abort', abort)
       toast.dismiss(notice)
       if (error) reject(error)
-      else resolve()
+      else resolve(true)
     }
     const abort = () => {
       finish(new Error('Connection canceled. You can try again.'))
