@@ -9,7 +9,6 @@ import styles from '@/platform/app/(shell)/home/_components/activity-list/activi
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import type { AttentionItem, EmailItem } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
-import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import { platformHref } from '@/platform/lib/navigation'
 import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
@@ -88,7 +87,6 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
   const search = useSearchParams()
   return (
     <HomeSection title='Needs your attention'>
-      {state.status === 'loading' && <WidgetSkeleton label='Loading what needs your attention' />}
       {state.status === 'error' && (
         <InlineNotice
           intent='warning'

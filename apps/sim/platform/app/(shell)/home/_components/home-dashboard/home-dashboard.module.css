@@ -93,30 +93,3 @@
 .column:empty {
   display: none;
 }
-.placeholderGreeting,
-.placeholderWordmark,
-.placeholderComposer,
-.placeholderGetStarted {
-  border-radius: var(--ui-control-radius);
-  background: var(--control-muted-fill);
-}
-.placeholderGreeting {
-  block-size: var(--spacing-56);
-  inline-size: 60%;
-}
-.placeholderWordmark {
-  block-size: var(--spacing-28);
-  inline-size: var(--spacing-40);
-}
-.placeholderGetStarted {
-  block-size: var(--spacing-132);
-}
-/* The real composer's first-paint heights: the Assistant's pill, the agent's field and toolbar. */
-.placeholderComposer {
-  block-size: 2.875rem;
-  border-radius: var(--radius-full);
-}
-.placeholderComposer[data-mode="agent"] {
-  block-size: 6.5rem;
-  border-radius: var(--ui-control-radius);
-}

@@ -6,11 +6,16 @@ import { credentialDescription } from '@/platform/lib/integrations/credential-di
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
 interface CredentialListProps {
+  /**
+   * The app whose page lists these credentials. Every row wears its mark, even a shared Google
+   * credential first linked to another app.
+   */
+  providerId: string
   credentials: readonly IntegrationCredential[]
   onOpen: (credential: IntegrationCredential) => void
 }
 
-export function CredentialList({ credentials, onOpen }: CredentialListProps) {
+export function CredentialList({ providerId, credentials, onOpen }: CredentialListProps) {
   return (
     <section className={styles.section} aria-label='Connected credentials'>
       <h2 data-type='T093'>
@@ -21,7 +26,7 @@ export function CredentialList({ credentials, onOpen }: CredentialListProps) {
           {credentials.map((credential) => (
             <ActivityRow
               key={credential.id}
-              leading={<IntegrationMark providerId={credential.appId} />}
+              leading={<IntegrationMark providerId={providerId} />}
               title={credential.displayName}
               detail={credentialDescription(credential)}
               onOpen={() => onOpen(credential)}
