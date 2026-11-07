@@ -28,12 +28,6 @@ import {
   liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
-import { useOrganizationSecretSource } from '@/hooks/queries/organization-secrets'
-import {
-  useSearchIntegrations,
-  useUpdateSearchIntegration,
-} from '@/hooks/queries/search-integrations'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
@@ -56,14 +50,12 @@ import {
 import { PolicyModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/policy-modal'
 import { SlackAccountSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 import { SourceSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host'
-import { toast } from '@/platform/shared/toast'
+import { useSourceSettings } from '@/platform/embedded/lib/data/integration-settings'
 
 export default function IntegrationsSection({ organization: context }: SettingsSectionProps) {
   const { organization, viewer, searchAccess } = context
-  const policies = useSearchIntegrations(organization.id)
-  const secrets = useOrganizationSecretSource(organization.id)
-  const accounts = useOrganizationAccounts(viewer.isAdmin ? organization.id : undefined)
-  const update = useUpdateSearchIntegration()
+  const settings = useSourceSettings(organization.id, viewer.isAdmin)
+  const { policies, secrets, accounts, added } = settings
   const availability = usePermissionConfig()
   const router = useRouter()
   const [search, setSearch] = useSettingsSearch()
@@ -77,9 +69,6 @@ export default function IntegrationsSection({ organization: context }: SettingsS
   )
   if (!viewer.isAdmin) return null
 
-  const added =
-    policies.data?.filter((row) => row.approved && LIVE_SEARCH_SCOPE_FIELDS[row.connectorType]) ??
-    []
   const visible = added.filter((integration) =>
     LIVE_SEARCH_SOURCE_TYPES.some(
       ([type, meta]) =>
@@ -149,7 +138,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             variant='primary'
             size='compact'
             icon='I074'
-            disabled={!policies.data || !secrets.data || !availableToAdd.length || update.isPending}
+            disabled={!policies.data || !secrets.data || !availableToAdd.length || settings.pending}
             onClick={() => setAdding(true)}
           >
             Add source
@@ -164,14 +153,11 @@ export default function IntegrationsSection({ organization: context }: SettingsS
           />
         )}
         {/* Two reads settle this list together, and the empty state depends on the search too. */}
-        {policies.error || secrets.error ? (
+        {settings.failure ? (
           <FailureNotice
-            message={getErrorMessage(policies.error ?? secrets.error, 'Could not load sources')}
-            retrying={policies.isFetching || secrets.isFetching}
-            onRetry={() => {
-              void policies.refetch()
-              void secrets.refetch()
-            }}
+            message={settings.failure.message}
+            retrying={settings.failure.retrying}
+            onRetry={settings.failure.retry}
           />
         ) : !policies.data || !secrets.data ? (
           <SectionSkeleton title='Added sources' />
@@ -256,19 +242,11 @@ export default function IntegrationsSection({ organization: context }: SettingsS
                     {needsMemberSetup && (
                       <Button
                         size='compact'
-                        disabled={update.isPending}
+                        disabled={settings.pending}
                         onClick={() =>
-                          update.mutate(
-                            {
-                              organizationId: organization.id,
-                              connectorType: type,
-                              approved: true,
-                              policy: integration.policy ?? defaultLiveSearchPolicy(type),
-                            },
-                            {
-                              onSuccess: () => toast.success('Source settings saved'),
-                              onError: (error) => toast.error(error.message),
-                            }
+                          settings.setUpAccounts(
+                            type,
+                            integration.policy ?? defaultLiveSearchPolicy(type)
                           )
                         }
                       >
@@ -288,7 +266,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
                           id: 'remove',
                           label: 'Remove source',
                           destructive: true,
-                          disabled: update.isPending,
+                          disabled: settings.pending,
                           onSelect: () => setRemoving(type),
                         },
                       ]}
@@ -325,18 +303,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
             title={`Remove ${removingName} source?`}
             confirmLabel='Remove source'
             pendingLabel='Removing…'
-            onConfirm={async () => {
-              try {
-                await update.mutateAsync({
-                  organizationId: organization.id,
-                  connectorType: removing,
-                  approved: false,
-                })
-              } catch (error) {
-                toast.error(getErrorMessage(error, 'Could not remove the source'))
-                return false
-              }
-            }}
+            onConfirm={() => settings.removeSource(removing)}
           >
             <Muted>Members will no longer be able to search this source.</Muted>
           </ConfirmDialog>
@@ -358,7 +325,7 @@ export default function IntegrationsSection({ organization: context }: SettingsS
                         : 'Member accounts',
               ])
             )}
-            pending={update.isPending}
+            pending={settings.pending}
             ready={availability.isIntegrationAvailabilityReady}
             feedback={
               accounts.error ? (
@@ -377,22 +344,11 @@ export default function IntegrationsSection({ organization: context }: SettingsS
                 return
               }
               if (type === 'gitlab' || !LIVE_SEARCH_SERVICE_PROVIDERS.includes(type)) {
-                update.mutate(
-                  {
-                    organizationId: organization.id,
-                    connectorType: type,
-                    approved: true,
-                    policy: defaultLiveSearchPolicy(type),
-                  },
-                  {
-                    onSuccess: () => {
-                      setAdding(false)
-                      if (type === 'gitlab') router.push(routes.searchProvider(type))
-                      if (type === 'slack') void setConnectedAccounts('slack')
-                    },
-                    onError: (error) => toast.error(error.message),
-                  }
-                )
+                settings.addSource(type, () => {
+                  setAdding(false)
+                  if (type === 'gitlab') router.push(routes.searchProvider(type))
+                  if (type === 'slack') void setConnectedAccounts('slack')
+                })
                 return
               }
               setAdding(false)

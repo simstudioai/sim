@@ -12,7 +12,6 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -22,12 +21,6 @@ import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[
 import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import {
-  isConnectorSyncingOrPending,
-  useConnectorDetail,
-  useSearchIndex,
-} from '@/hooks/queries/kb/connectors'
-import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
@@ -38,15 +31,13 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ConnectorSettingsFields } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-settings-fields'
+import {
+  useSourceConnection,
+  useSourceIntegrationStatus,
+} from '@/platform/embedded/lib/data/integration-settings'
 
 interface SourceDetailProps {
   connectorId: string
-}
-
-const ACCESS_FAILURE = [401, 403, 404]
-
-function isAccessFailure(error: unknown) {
-  return isApiClientError(error) && ACCESS_FAILURE.includes(error.status)
 }
 
 export function SourceDetail({ connectorId }: SourceDetailProps) {
@@ -54,9 +45,11 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
   const router = useRouter()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const backHref = organizationRoutes(organization.id).settingsSection('integrations')
-  const index = useSearchIndex(scope, { enabled: viewer.isAdmin })
-  const knowledgeBaseId = viewer.isAdmin ? (index.data?.knowledgeBaseId ?? undefined) : undefined
-  const detail = useConnectorDetail(knowledgeBaseId, connectorId)
+  const { knowledgeBaseId, indexPending, connector, syncing, failure } = useSourceConnection(
+    scope,
+    connectorId,
+    viewer.isAdmin
+  )
   const shell = (title: string, children: ReactNode) => (
     <SectionStack>
       <DetailHeader backLabel='Sources' onBack={() => router.push(backHref)} title={title} />
@@ -66,41 +59,25 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
 
   if (!viewer.isAdmin)
     return shell('Connection', <EmptyState title='Only organization admins can manage sources.' />)
-  const accessFailure = [index, detail].find(
-    (query) => query.isError && isAccessFailure(query.error)
-  )
-  const failedQuery = accessFailure ?? (index.isError ? index : detail.isError ? detail : null)
-  const hasCanonicalDetail = Boolean(
-    detail.data &&
-      !detail.isPlaceholderData &&
-      detail.data.id === connectorId &&
-      detail.data.knowledgeBaseId === knowledgeBaseId
-  )
-  if (failedQuery && (!hasCanonicalDetail || accessFailure))
+  if (failure?.blocking)
     return shell(
       'Connection',
-      isApiClientError(failedQuery.error) && failedQuery.error.status === 404 ? (
+      failure.gone ? (
         <EmptyState title='This connection is no longer available.' />
       ) : (
         <FailureNotice
-          message={getErrorMessage(failedQuery.error, 'Could not load connection')}
-          retrying={failedQuery.isFetching}
-          onRetry={() => void failedQuery.refetch()}
+          message={getErrorMessage(failure.error, 'Could not load connection')}
+          retrying={failure.retrying}
+          onRetry={failure.retry}
         />
       )
     )
-  if (!index.isPending && !knowledgeBaseId)
+  if (!indexPending && !knowledgeBaseId)
     return shell('Connection', <EmptyState title='This connection is no longer available.' />)
+  if (!connector) return shell('Connection', <LoadingRows label='Loading connection' />)
   if (
-    !detail.data ||
-    detail.isPlaceholderData ||
-    detail.data.id !== connectorId ||
-    detail.data.knowledgeBaseId !== knowledgeBaseId
-  )
-    return shell('Connection', <LoadingRows label='Loading connection' />)
-  if (
-    detail.data.accessMode === 'members' &&
-    !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)
+    connector.accessMode === 'members' &&
+    !(connector.connectorType === 'github' && connector.sourceConfig.githubRepositoryId)
   )
     return shell(
       'Member accounts',
@@ -117,16 +94,17 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
   return (
     <SourceDetailContent
       key={`${organization.id}:${connectorId}`}
-      connector={detail.data}
+      connector={connector}
+      syncing={syncing}
       scope={scope}
-      backHref={organizationRoutes(organization.id).searchProvider(detail.data.connectorType)}
-      backText={CONNECTOR_META_REGISTRY[detail.data.connectorType]?.name ?? 'Integration'}
+      backHref={organizationRoutes(organization.id).searchProvider(connector.connectorType)}
+      backText={CONNECTOR_META_REGISTRY[connector.connectorType]?.name ?? 'Integration'}
       queryError={
-        failedQuery ? (
+        failure ? (
           <FailureNotice
-            message={getErrorMessage(failedQuery.error, 'Could not refresh connection')}
-            retrying={failedQuery.isFetching}
-            onRetry={() => void failedQuery.refetch()}
+            message={getErrorMessage(failure.error, 'Could not refresh connection')}
+            retrying={failure.retrying}
+            onRetry={failure.retry}
           />
         ) : undefined
       }
@@ -136,6 +114,7 @@ export function SourceDetail({ connectorId }: SourceDetailProps) {
 
 interface SourceDetailContentProps {
   connector: ConnectorDetailData
+  syncing: boolean
   scope: ResourceScope
   backHref: string
   backText: string
@@ -144,6 +123,7 @@ interface SourceDetailContentProps {
 
 function SourceDetailContent({
   connector,
+  syncing,
   scope,
   backHref,
   backText,
@@ -157,7 +137,7 @@ function SourceDetailContent({
     connector.id
   )
   const { organization } = useOrganization()
-  const integrations = useSearchIntegrations(organization.id)
+  const integration = useSourceIntegrationStatus(organization.id, connector.connectorType)
   const router = useRouter()
   const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
   const title = meta
@@ -175,14 +155,14 @@ function SourceDetailContent({
   const onBack = () => router.push(backHref)
   const onRemoved = () =>
     router.replace(organizationRoutes(organization.id).settingsSection('integrations'))
-  const integrationFailure = integrations.isError && (
+  const integrationFailure = integration.failure && (
     <FailureNotice
-      message={getErrorMessage(integrations.error, 'Could not load integration status')}
-      retrying={integrations.isFetching}
-      onRetry={() => void integrations.refetch()}
+      message={integration.failure.message}
+      retrying={integration.failure.retrying}
+      onRetry={integration.failure.retry}
     />
   )
-  if (integrations.isError && isAccessFailure(integrations.error))
+  if (integration.accessDenied)
     return (
       <SectionStack>
         <DetailHeader backLabel={backText} onBack={onBack} title='Connection' />
@@ -193,6 +173,7 @@ function SourceDetailContent({
     <SourceSettingsEditor
       key={connector.id}
       connector={connector}
+      syncing={syncing}
       scope={scope}
       title={title}
       description={description}
@@ -200,9 +181,8 @@ function SourceDetailContent({
         <>
           {queryError}
           {integrationFailure ||
-            (integrations.isPending && <LoadingRows label='Loading integration status' rows={1} />)}
-          {integrations.data?.find((item) => item.connectorType === connector.connectorType)
-            ?.approved === false && (
+            (integration.pending && <LoadingRows label='Loading integration status' rows={1} />)}
+          {integration.deactivated && (
             <InlineNotice
               intent='warning'
               title={`${meta?.name ?? 'This integration'} is deactivated`}
@@ -220,6 +200,7 @@ function SourceDetailContent({
 
 interface SourceSettingsEditorProps {
   connector: ConnectorData
+  syncing: boolean
   scope: ResourceScope
   title: string
   description?: string
@@ -237,6 +218,7 @@ function SourceSettingsEditor(props: SourceSettingsEditorProps) {
     <SourceSettingsForm
       key={draft.revision}
       connector={props.connector}
+      syncing={props.syncing}
       scope={props.scope}
       title={props.title}
       description={props.description}
@@ -259,6 +241,7 @@ interface SourceSettingsFormProps extends SourceSettingsEditorProps {
 
 function SourceSettingsForm({
   connector,
+  syncing,
   baseline,
   scope,
   title,
@@ -272,7 +255,7 @@ function SourceSettingsForm({
 }: SourceSettingsFormProps) {
   const form = useConnectorSettingsForm({
     connector: baseline,
-    syncing: isConnectorSyncingOrPending(connector),
+    syncing,
     scope,
     knowledgeBaseId: connector.knowledgeBaseId,
     isSearchIndex: true,

@@ -1,13 +1,6 @@
 {
   "viewDataHooks": {
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/data-retention/data-retention-section.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/assistant-apps.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/generic-secrets.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/integrations-section.tsx": 3,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/policy-modal.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/provider-detail.tsx": 3,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-detail.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/mothership/mothership-section.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/security/security-section.tsx": 2,

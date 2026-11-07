@@ -22,12 +22,6 @@ import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/param
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { useSearchSources } from '@/hooks/queries/kb/connectors'
-import {
-  useOrganizationAccounts,
-  useUpdateOrganizationAccounts,
-} from '@/hooks/queries/organization-accounts'
-import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
@@ -38,6 +32,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackAccountSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 import { SourceSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host'
+import { useProviderConnections } from '@/platform/embedded/lib/data/integration-settings'
 
 interface ProviderDetailProps {
   connectorType: string
@@ -51,17 +46,13 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
   const sourceSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
   const scope = { kind: 'organization', organizationId: organization.id } as const
-  const overview = useSearchIntegrations(organization.id)
-  const sources = useSearchSources(scope, {
-    connectorType,
+  const connections = useProviderConnections(organization.id, connectorType, {
     search: sourceSearch,
-    enabled: viewer.isAdmin,
+    isAdmin: viewer.isAdmin,
   })
+  const { overview, sources, accounts, provider, listed, needsSlackSetup, canRemoveSlackSetup } =
+    connections
   const availability = usePermissionConfig()
-  const accounts = useOrganizationAccounts(
-    viewer.isAdmin && connectorType === 'slack' ? organization.id : undefined
-  )
-  const removeSlackAccounts = useUpdateOrganizationAccounts()
   const [, setSetup] = useQueryStates(
     {
       [searchSetupParam.key]: searchSetupParam.parser,
@@ -73,7 +64,6 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
     connectedAccountsParam.key,
     connectedAccountsParam.parser
   )
-  const provider = overview.data?.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const routes = organizationRoutes(organization.id)
   const sourcesHref = routes.settingsSection('integrations')
@@ -97,17 +87,6 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
             ? 'GitHub App repositories'
             : 'Service account connections'
         : undefined
-  const option = accounts.data?.credentialGroup?.options.find(
-    (item) => item.provider === 'slack' && item.status === 'active'
-  )
-  const group = accounts.data?.credentialGroup
-  const canRemoveSlackSetup =
-    connectorType === 'slack' &&
-    !accounts.isError &&
-    group?.options.some((item) => item.provider === 'slack')
-  const needsSlackSetup =
-    connectorType === 'slack' &&
-    (option?.provider !== 'slack' || option.configurationStatus !== 'ready')
   const pending =
     overview.isPending || overview.isError || !availability.isIntegrationAvailabilityReady
   const startSource = () =>
@@ -157,11 +136,6 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
         <LoadingRows label='Loading integration' />
       </SectionStack>
     )
-
-  const listed = sources.data?.filter(
-    (source) =>
-      source.accessMode === 'admin' || (connectorType === 'github' && source.isGitHubInstallation)
-  )
   return (
     <SourceSetup
       scope={scope}
@@ -222,7 +196,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
                 size='compact'
                 disabled={accounts.isFetching}
                 onClick={() => {
-                  removeSlackAccounts.reset()
+                  connections.resetSlackRemoval()
                   setRemovingSlackAccounts(true)
                 }}
               >
@@ -313,29 +287,14 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
           </QueryBoundary>
         </SettingsSection>
         <SlackAccountSetup organizationId={organization.id} isAdmin={viewer.isAdmin} />
-        {removingSlackAccounts && group && (
+        {removingSlackAccounts && connections.removeSlackSetup && (
           <ConfirmDialog
             target
             onClose={() => setRemovingSlackAccounts(false)}
             title='Remove Slack app setup?'
             confirmLabel='Remove'
             pendingLabel='Removing…'
-            onConfirm={async () => {
-              await removeSlackAccounts.mutateAsync({
-                organizationId: organization.id,
-                groupId: group.id,
-                update: {
-                  options: group.options
-                    .filter((item) => item.provider !== 'slack')
-                    .map(({ id, provider: optionProvider, label, required }) => ({
-                      id,
-                      provider: optionProvider,
-                      label,
-                      required,
-                    })),
-                },
-              })
-            }}
+            onConfirm={connections.removeSlackSetup}
           >
             <Muted>
               This disconnects your organization’s Slack accounts and clears their saved app

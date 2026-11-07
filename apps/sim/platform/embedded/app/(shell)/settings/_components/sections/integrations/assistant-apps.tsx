@@ -18,15 +18,12 @@ import {
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import {
-  useConnectOrganizationAccount,
-  useDisconnectPersonalOrganizationAccount,
-  useEnsureOrganizationAccounts,
-  useReconnectPersonalOrganizationAccount,
-} from '@/hooks/queries/organization-accounts'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { toast } from '@/platform/shared/toast'
+import {
+  useAssistantAppActions,
+  usePersonalAccountDisconnect,
+} from '@/platform/embedded/lib/data/integration-settings'
 
 interface AssistantAppsProps {
   organizationId: string
@@ -37,10 +34,7 @@ interface AssistantAppsProps {
 
 /** Apps without a Search connector use the same personal enrollment and approval controls. */
 export function AssistantApps({ organizationId, search, data, policies }: AssistantAppsProps) {
-  const connect = useConnectOrganizationAccount()
-  const reconnect = useReconnectPersonalOrganizationAccount()
-  const ensure = useEnsureOrganizationAccounts()
-  const onError = (error: Error) => toast.error(error.message)
+  const actions = useAssistantAppActions(organizationId)
   const group = data.credentialGroup
   const { providers, visible } = assistantAccountOptions(data, search)
   const query = search.trim().toLowerCase()
@@ -90,16 +84,12 @@ export function AssistantApps({ organizationId, search, data, policies }: Assist
               accounts={accounts}
               onConnect={
                 accounts.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
-                  ? () => connect.mutate({ organizationId, optionId: option.id }, { onError })
+                  ? () => actions.connect(option.id)
                   : undefined
               }
-              onReconnect={(credentialId) => reconnect.mutate(credentialId, { onError })}
-              connectionPending={connect.isPending || reconnect.isPending}
-              connecting={
-                connect.isPending &&
-                'optionId' in connect.variables &&
-                connect.variables.optionId === option.id
-              }
+              onReconnect={actions.reconnect}
+              connectionPending={actions.connectionPending}
+              connecting={actions.connectingOptionId === option.id}
               connectionReady={ready}
               reconnectAccountIds={ready ? accounts.map((account) => account.credentialId) : []}
               permissionAccountIds={
@@ -119,25 +109,14 @@ export function AssistantApps({ organizationId, search, data, policies }: Assist
             searchLabel='Search apps'
             placeholder='Add app'
             value={null}
-            disabled={ensure.isPending}
+            disabled={actions.adding}
             options={available.map((provider) => ({
               value: provider,
               label: getCredentialGroupProviderService(provider).name,
             }))}
             onValueChange={(value) => {
               const provider = available.find((candidate) => candidate === value)
-              if (provider && provider !== 'slack')
-                ensure.mutate(
-                  {
-                    organizationId,
-                    option: {
-                      provider,
-                      label: getCredentialGroupProviderService(provider).name,
-                      required: false,
-                    },
-                  },
-                  { onError }
-                )
+              if (provider && provider !== 'slack') actions.add(provider)
             }}
           />
         </SettingsRow>
@@ -171,13 +150,13 @@ function AccountActions({
   permissionAccountIds,
   reconnectAccountIds,
 }: AccountActionsProps) {
-  const disconnect = useDisconnectPersonalOrganizationAccount()
+  const disconnect = usePersonalAccountDisconnect(organizationId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = accounts.find((account) => account.credentialId === selectedId)
   const permissionAccounts = accounts.filter((account) =>
     permissionAccountIds.includes(account.credentialId)
   )
-  const pending = connectionPending || disconnect.isPending
+  const pending = connectionPending || disconnect.pending
   const suffix = (account: ViewerSearchSourceAccount) =>
     accounts.length > 1 ? ` · ${account.displayName}` : ''
   if (!accounts.length && !onConnect) return null
@@ -238,9 +217,7 @@ function AccountActions({
           title={`Disconnect ${integrationName}`}
           confirmLabel='Disconnect'
           pendingLabel='Disconnecting…'
-          onConfirm={async () => {
-            await disconnect.mutateAsync({ credentialId: selected.credentialId, organizationId })
-          }}
+          onConfirm={() => disconnect.disconnect(selected.credentialId)}
         >
           <Muted>
             {`Disconnect ${selected.displayName} from this organization. Workflows using this account will also lose access. You can reconnect later.`}

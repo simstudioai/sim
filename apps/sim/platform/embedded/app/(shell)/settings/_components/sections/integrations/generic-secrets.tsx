@@ -8,22 +8,19 @@ import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow } from '@sim/emcn/settings-section'
-import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import {
-  useConfigureOrganizationSecretSource,
-  useRemoveOrganizationSecretSource,
-} from '@/hooks/queries/organization-secrets'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { toast } from '@/platform/shared/toast'
+import {
+  useGenericSecretSourceRemoval,
+  useGenericSecretSourceSetup,
+} from '@/platform/embedded/lib/data/generic-secrets'
 
 export const GENERIC_SECRETS_SOURCE_TYPE = 'generic-secrets'
 export const GENERIC_SECRETS_NAME = 'Generic Secrets'
@@ -40,8 +37,7 @@ export function GenericSecretSourceModal({
   onClose,
 }: GenericSecretSourceModalProps) {
   const [mode, setMode] = useState<SecretSourceMode>(source?.mode ?? 'organization')
-  const update = useConfigureOrganizationSecretSource(organizationId)
-  const router = useRouter()
+  const setup = useGenericSecretSourceSetup(organizationId)
   return (
     <Modal
       open
@@ -49,13 +45,9 @@ export function GenericSecretSourceModal({
         if (!open) onClose()
       }}
       title={GENERIC_SECRETS_NAME}
-      confirmLabel={update.isPending ? 'Saving' : source ? 'Save' : 'Add source'}
-      confirmDisabled={update.isPending}
-      onConfirm={async () => {
-        await update.mutateAsync({ sourceId: source?.id ?? null, mode })
-        if (mode === 'organization')
-          router.push(organizationRoutes(organizationId).organizationSecrets)
-      }}
+      confirmLabel={setup.pending ? 'Saving' : source ? 'Save' : 'Add source'}
+      confirmDisabled={setup.pending}
+      onConfirm={() => setup.save(source?.id ?? null, mode)}
     >
       <FieldFrame label='Mode'>
         <SegmentedControl
@@ -80,7 +72,7 @@ interface GenericSecretSourceRowProps {
 export function GenericSecretSourceRow({ organizationId, source }: GenericSecretSourceRowProps) {
   const [editing, setEditing] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const remove = useRemoveOrganizationSecretSource(organizationId)
+  const remove = useGenericSecretSourceRemoval(organizationId)
   const routes = organizationRoutes(organizationId)
   return (
     <>
@@ -126,14 +118,7 @@ export function GenericSecretSourceRow({ organizationId, source }: GenericSecret
           title='Remove Generic Secrets source?'
           confirmLabel='Remove source'
           pendingLabel='Removing…'
-          onConfirm={async () => {
-            try {
-              await remove.mutateAsync(source.id)
-            } catch (error) {
-              toast.error(getErrorMessage(error, 'Could not remove the source'))
-              return false
-            }
-          }}
+          onConfirm={() => remove(source.id)}
         >
           <Muted>This deletes its organization and member secrets.</Muted>
         </ConfirmDialog>

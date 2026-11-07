@@ -19,12 +19,14 @@ import {
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
-import { useSearchSources } from '@/hooks/queries/kb/connectors'
-import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
 import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
+import {
+  useSearchPolicySave,
+  useServiceAccountConnections,
+} from '@/platform/embedded/lib/data/integration-settings'
 import { toast } from '@/platform/shared/toast'
 
 interface PolicyModalProps {
@@ -34,7 +36,7 @@ interface PolicyModalProps {
 }
 
 export function PolicyModal({ organizationId, integration, onClose }: PolicyModalProps) {
-  const update = useUpdateSearchIntegration()
+  const update = useSearchPolicySave(organizationId)
   const router = useRouter()
   const provider = integration.connectorType
   const [accessMode, setAccessMode] = useState<NonNullable<LiveSearchPolicy['accessMode']>>(
@@ -52,7 +54,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
         : !sourceId)
 
   async function save(openSetup = needsServiceSetup) {
-    if (update.isPending) return
+    if (update.pending) return
     let policy: LiveSearchPolicy
     try {
       policy = normalizeLiveSearchPolicy(provider, {
@@ -70,11 +72,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
       return
     }
     setError('')
-    try {
-      await update.mutateAsync({ organizationId, connectorType: provider, approved: true, policy })
-    } catch {
-      return
-    }
+    if (!(await update.save(provider, policy))) return
     onClose()
     if (openSetup)
       router.push(
@@ -94,16 +92,16 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
         : provider === 'github'
           ? 'Only added repositories that each member can access.'
           : 'Only configured resources that each member can access.'
-  const message = error || update.error?.message
+  const message = error || update.error
   return (
     <Modal
       open
       onOpenChange={(open) => {
-        if (!open && !update.isPending) onClose()
+        if (!open && !update.pending) onClose()
       }}
       title={connectorDisplayName(provider)}
       confirmLabel={
-        update.isPending
+        update.pending
           ? 'Saving'
           : needsServiceSetup
             ? provider === 'github'
@@ -113,8 +111,8 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
                 : 'Add connection'
             : 'Save settings'
       }
-      confirmDisabled={update.isPending}
-      pending={update.isPending}
+      confirmDisabled={update.pending}
+      pending={update.pending}
       onConfirm={async () => {
         await save()
         return false
@@ -169,7 +167,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
             onChange={setSourceId}
             canManage={integration.approved}
             onAdd={() => save(true)}
-            disabled={update.isPending}
+            disabled={update.pending}
           />
         ))}
       {message && <InlineNotice intent='danger' message={message} />}
@@ -196,29 +194,18 @@ function ServiceAccountSource({
   onAdd,
   disabled,
 }: ServiceAccountSourceProps) {
-  const sources = useSearchSources(
-    { kind: 'organization', organizationId },
-    { connectorType: provider }
-  )
-  const entries = (sources.data ?? []).filter((source) => source.accessMode === 'admin')
-  const options = entries.map((source) => ({
-    value: source.connectorId,
-    label: `${source.sourceDescription || connectorDisplayName(provider)}${
-      !source.enabled ? ' · Paused' : source.availability !== 'available' ? ' · Unavailable' : ''
-    }`,
-    disabled: !source.enabled || source.availability !== 'available',
-  }))
+  const { sources, options } = useServiceAccountConnections(organizationId, provider)
   if (
     !sourceId &&
     !sources.isPending &&
     !sources.isError &&
-    !entries.length &&
+    !options.length &&
     !sources.hasNextPage
   )
     return null
   return (
     <>
-      {(sourceId || entries.length > 0 || sources.isPending) && (
+      {(sourceId || options.length > 0 || sources.isPending) && (
         <SearchableSelect
           label='Service account connection'
           searchLabel='Search connections'
@@ -231,7 +218,7 @@ function ServiceAccountSource({
               ? 'Configured connection'
               : undefined
           }
-          disabled={disabled || sources.isPending || sources.isError || !entries.length}
+          disabled={disabled || sources.isPending || sources.isError || !options.length}
         />
       )}
       {sources.isError && !sources.isFetchNextPageError && (

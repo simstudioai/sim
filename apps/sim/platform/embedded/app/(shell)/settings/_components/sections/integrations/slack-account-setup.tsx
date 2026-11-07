@@ -1,17 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice } from '@sim/emcn/status'
-import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
-import {
-  useEnsureOrganizationAccounts,
-  useOrganizationAccounts,
-} from '@/hooks/queries/organization-accounts'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
+import { useSlackAppSetup } from '@/platform/embedded/lib/data/integration-settings'
 
 interface SlackAccountSetupProps {
   organizationId: string
@@ -30,22 +25,7 @@ export function SlackAccountSetup({ organizationId, isAdmin }: SlackAccountSetup
   )
   const [, setSelectedType] = useQueryState(searchSetupParam.key, searchSetupParam.parser)
   const open = provider === 'slack' && isAdmin
-  const accounts = useOrganizationAccounts(open ? organizationId : undefined)
-  const {
-    mutate: ensureAccounts,
-    data: preparedAccounts,
-    error: setupError,
-    isIdle: setupIdle,
-    isPending: setupPending,
-  } = useEnsureOrganizationAccounts()
-  const prepared = preparedAccounts?.credentialGroup
-  const group =
-    accounts.data?.credentialGroup ??
-    (prepared?.organizationId === organizationId ? prepared : undefined)
-  const needsSetup = open && accounts.isSuccess && !group
-  useEffect(() => {
-    if (needsSetup && setupIdle) ensureAccounts({ organizationId })
-  }, [ensureAccounts, needsSetup, setupIdle, organizationId])
+  const { group, failure } = useSlackAppSetup(organizationId, open)
 
   const close = () => {
     void setProvider(null)
@@ -68,8 +48,7 @@ export function SlackAccountSetup({ organizationId, isAdmin }: SlackAccountSetup
       />
     )
   }
-  const error = accounts.error ?? setupError
-  if (!error) return null
+  if (!failure) return null
   return (
     <Modal
       open
@@ -81,11 +60,9 @@ export function SlackAccountSetup({ organizationId, isAdmin }: SlackAccountSetup
       confirmLabel='Done'
     >
       <FailureNotice
-        message={getErrorMessage(error, 'Could not load Slack setup')}
-        retrying={accounts.isFetching || setupPending}
-        onRetry={() =>
-          accounts.error ? void accounts.refetch() : ensureAccounts({ organizationId })
-        }
+        message={failure.message}
+        retrying={failure.retrying}
+        onRetry={failure.retry}
       />
     </Modal>
   )

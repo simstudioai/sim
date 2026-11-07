@@ -1,12 +1,17 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganization } from '@/lib/organizations/provider'
 import {
+  useConfigureOrganizationSecretSource,
   useOrganizationSecrets,
+  useRemoveOrganizationSecretSource,
   useSaveOrganizationSecrets,
 } from '@/hooks/queries/organization-secrets'
+import { toast } from '@/platform/shared/toast'
 
 /**
  * One source's Generic Secrets, read only by whom may hold them: the organization's for an admin, a
@@ -38,5 +43,32 @@ export function useGenericSecrets(mode: SecretSourceMode) {
             save.mutateAsync({ ...changes, sourceId: data.source.id, mode }),
         }
       : null,
+  }
+}
+
+/** Adds or reconfigures the Generic Secrets source; an organization source then opens its secrets. */
+export function useGenericSecretSourceSetup(organizationId: string) {
+  const configure = useConfigureOrganizationSecretSource(organizationId)
+  const router = useRouter()
+  return {
+    pending: configure.isPending,
+    save: async (sourceId: string | null, mode: SecretSourceMode) => {
+      await configure.mutateAsync({ sourceId, mode })
+      if (mode === 'organization')
+        router.push(organizationRoutes(organizationId).organizationSecrets)
+    },
+  }
+}
+
+/** Removes the Generic Secrets source; a failure toasts and resolves `false` to keep the dialog open. */
+export function useGenericSecretSourceRemoval(organizationId: string) {
+  const remove = useRemoveOrganizationSecretSource(organizationId)
+  return async (sourceId: string) => {
+    try {
+      await remove.mutateAsync(sourceId)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not remove the source'))
+      return false
+    }
   }
 }
