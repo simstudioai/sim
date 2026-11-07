@@ -344,6 +344,8 @@ if (process.argv.includes('--check')) {
 }
 
 const spriteOutput = resolve(root, 'apps/sim/platform/public/provider-marks/catalog.svg')
+/** The organization views render in the main app, which serves its own public folder. */
+const hostSpriteOutput = resolve(root, 'apps/sim/public/provider-marks/catalog.svg')
 const symbols = integrationCatalog.map(({ id, type }) => {
   const icon = getBlock(type)?.icon
   if (!icon) throw new Error(`No canonical icon for ${type}`)
@@ -377,6 +379,7 @@ export const providerMarkIds = ${JSON.stringify(integrationCatalog.map(({ id }) 
 )
 for (const [path, source] of [
   [spriteOutput, sprite],
+  [hostSpriteOutput, sprite],
   [markIdsOutput, markIdsGenerated],
 ]) {
   if (process.argv.includes('--check')) {
