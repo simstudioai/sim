@@ -150,6 +150,22 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
       expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
     })
 
+    it('lets only one of several concurrent correct submissions succeed', async () => {
+      const results = await Promise.all(Array.from({ length: 10 }, () => verify(CODE)))
+
+      const accepted = results.filter((result) => result.status === 200)
+      expect(accepted).toHaveLength(1)
+      expect(accepted[0].cookie).toContain(`chat_auth_${chatId}=`)
+      expect(results.filter((result) => result.cookie !== null)).toHaveLength(1)
+    })
+
+    it.runIf(backend === 'redis')('treats a code with no expiry as expired', async () => {
+      const key = `otp:${email}:${chatId}`
+      await redisClient.current?.set(key, `${CODE}:${MAX_OTP_ATTEMPTS - 1}`)
+      expect(await verify(CODE)).toMatchObject({ status: 400, error: NO_CODE, cookie: null })
+      expect(await redisClient.current?.exists(key)).toBe(0)
+    })
+
     it('accepts the correct code on the last remaining attempt and mints the auth cookie', async () => {
       for (const guess of wrongGuesses(MAX_OTP_ATTEMPTS - 1)) {
         expect(await verify(guess)).toMatchObject({ status: 400, error: INVALID })
