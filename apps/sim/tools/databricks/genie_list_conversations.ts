@@ -4,11 +4,14 @@ import type {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
   genieSpacePath,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieListConversationsTool: ToolConfig<
@@ -20,6 +23,7 @@ export const genieListConversationsTool: ToolConfig<
   description:
     'List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,
@@ -47,7 +51,7 @@ export const genieListConversationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        databricksUrl(params.host, `${genieSpacePath(params.spaceId)}/conversations`)
+        databricksUrl(databricksHost(params), `${genieSpacePath(params.spaceId)}/conversations`)
       )
       if (params.includeAll) url.searchParams.set('include_all', 'true')
       if (params.pageSize) url.searchParams.set('page_size', String(params.pageSize))
@@ -57,7 +61,7 @@ export const genieListConversationsTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

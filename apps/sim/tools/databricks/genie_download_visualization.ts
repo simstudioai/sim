@@ -3,11 +3,14 @@ import type {
   DatabricksGenieDownloadVisualizationResponse,
 } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   GENIE_READ_RETRY,
   genieAttachmentPath,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieDownloadVisualizationTool: ToolConfig<
@@ -19,6 +22,7 @@ export const genieDownloadVisualizationTool: ToolConfig<
   description:
     'Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_MESSAGE_PARAMS,
@@ -32,11 +36,14 @@ export const genieDownloadVisualizationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      databricksUrl(params.host, `${genieAttachmentPath(params)}/download-visualization`),
+      databricksUrl(
+        databricksHost(params),
+        `${genieAttachmentPath(params)}/download-visualization`
+      ),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/octet-stream',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     responseType: 'binary',
     retry: GENIE_READ_RETRY,

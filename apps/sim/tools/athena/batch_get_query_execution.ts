@@ -2,6 +2,7 @@ import type {
   AthenaBatchGetQueryExecutionParams,
   AthenaBatchGetQueryExecutionResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const batchGetQueryExecutionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const batchGetQueryExecutionTool: InternalToolConfig<
   name: 'Athena Batch Get Query Executions',
   description: 'Get the status and details of up to 50 Athena query executions in one call',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

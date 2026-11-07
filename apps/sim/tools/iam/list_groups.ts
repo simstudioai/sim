@@ -1,4 +1,5 @@
 import type { IAMListGroupsParams, IAMListGroupsResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listGroupsTool: InternalToolConfig<IAMListGroupsParams, IAMListGroupsResponse> = {
@@ -6,6 +7,7 @@ export const listGroupsTool: InternalToolConfig<IAMListGroupsParams, IAMListGrou
   name: 'IAM List Groups',
   description: 'List IAM groups in your AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

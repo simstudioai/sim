@@ -2,7 +2,8 @@ import type {
   DatabricksGetClusterParams,
   DatabricksGetClusterResponse,
 } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGetClusterResponse> =
@@ -12,6 +13,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
     description:
       'Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID.',
     version: '1.0.0',
+    oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
     params: {
       host: {
@@ -36,14 +38,14 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
 
     request: {
       url: (params) => {
-        const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/get'))
+        const url = new URL(databricksUrl(databricksHost(params), '/api/2.1/clusters/get'))
         url.searchParams.set('cluster_id', params.clusterId.trim())
         return url.toString()
       },
       method: 'GET',
       headers: (params) => ({
         Accept: 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
+        Authorization: `Bearer ${databricksToken(params)}`,
       }),
     },
 

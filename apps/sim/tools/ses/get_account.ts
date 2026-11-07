@@ -1,4 +1,5 @@
 import type { SESGetAccountParams, SESGetAccountResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccountResponse> = {
@@ -6,6 +7,7 @@ export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccou
   name: 'SES Get Account',
   description: 'Get SES account sending quota and status information',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

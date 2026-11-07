@@ -94,6 +94,26 @@ export const GENIE_MESSAGE_PARAMS = {
 } as const satisfies ToolConfig['params']
 
 /**
+ * Bearer token for a Databricks call: the token a saved Databricks connection
+ * resolved to (`accessToken`), otherwise the inline personal access token.
+ */
+export function databricksToken(params: { accessToken?: string; apiKey?: string }): string {
+  return params.accessToken || params.apiKey || ''
+}
+
+/**
+ * Workspace host for a Databricks call: the host bound to a saved connection
+ * (`domain`, set only alongside its `accessToken`), otherwise the inline host.
+ */
+export function databricksHost(params: {
+  accessToken?: string
+  domain?: string
+  host?: string
+}): string {
+  return (params.accessToken && params.domain) || params.host || ''
+}
+
+/**
  * Builds an absolute Databricks REST URL, refusing any host outside the Databricks workspace
  * domains so the access token is only ever sent to Databricks. The host may carry a scheme or
  * trailing slash; an `http://` scheme is upgraded to HTTPS as before, not rejected.

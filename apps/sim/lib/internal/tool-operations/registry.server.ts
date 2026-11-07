@@ -1491,75 +1491,145 @@ function registerFamily(
   }
 }
 
+/**
+ * AWS families also accept a saved AWS credential. The wrapper is a no-op for
+ * calls without an executor-authorized credential, so inline-key calls reach
+ * the family handler unchanged.
+ */
+function awsFamily(
+  load: () => Promise<InternalToolOperationHandler<InternalToolOperationResult>>
+): InternalToolOperationHandlerLoader {
+  return async () => {
+    const [{ withAwsCredential }, handler] = await Promise.all([
+      import('@/lib/internal/aws/credentials'),
+      load(),
+    ])
+    return withAwsCredential(handler)
+  }
+}
+
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
 
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
 })
 
-registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/sts/execute-tool')).executeStsTool
-})
-registerFamily(handlerLoaders, EC2_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/ec2/execute-tool')).executeEc2Tool
-})
-registerFamily(handlerLoaders, APPCONFIG_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/appconfig/execute-tool')).executeAppConfigTool
-})
-registerFamily(handlerLoaders, IAM_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/iam/execute-tool')).executeIamTool
-})
-registerFamily(handlerLoaders, IDENTITY_CENTER_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/identity-center/execute-tool')).executeIdentityCenterTool
-})
-registerFamily(handlerLoaders, SECRETS_MANAGER_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool
-})
-registerFamily(handlerLoaders, SSM_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/ssm/execute-tool')).executeSsmTool
-})
-registerFamily(handlerLoaders, DYNAMODB_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/dynamodb/execute-tool')).executeDynamodbTool
-})
-registerFamily(handlerLoaders, SES_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/ses/execute-tool')).executeSesTool
-})
-registerFamily(handlerLoaders, SQS_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/sqs/execute-tool')).executeSqsTool
-})
-registerFamily(handlerLoaders, RDS_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/rds/execute-tool')).executeRdsTool
-})
-registerFamily(handlerLoaders, TEXTRACT_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/textract/execute-tool')).executeTextractTool
-})
-registerFamily(handlerLoaders, CLOUDWATCH_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
-})
-registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
-})
+registerFamily(
+  handlerLoaders,
+  STS_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/sts/execute-tool')).executeStsTool)
+)
+registerFamily(
+  handlerLoaders,
+  EC2_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/ec2/execute-tool')).executeEc2Tool)
+)
+registerFamily(
+  handlerLoaders,
+  APPCONFIG_TOOL_IDS,
+  awsFamily(
+    async () => (await import('@/lib/internal/appconfig/execute-tool')).executeAppConfigTool
+  )
+)
+registerFamily(
+  handlerLoaders,
+  IAM_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/iam/execute-tool')).executeIamTool)
+)
+registerFamily(
+  handlerLoaders,
+  IDENTITY_CENTER_TOOL_IDS,
+  awsFamily(
+    async () =>
+      (await import('@/lib/internal/identity-center/execute-tool')).executeIdentityCenterTool
+  )
+)
+registerFamily(
+  handlerLoaders,
+  SECRETS_MANAGER_TOOL_IDS,
+  awsFamily(
+    async () =>
+      (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool
+  )
+)
+registerFamily(
+  handlerLoaders,
+  SSM_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/ssm/execute-tool')).executeSsmTool)
+)
+registerFamily(
+  handlerLoaders,
+  DYNAMODB_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/dynamodb/execute-tool')).executeDynamodbTool)
+)
+registerFamily(
+  handlerLoaders,
+  SES_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/ses/execute-tool')).executeSesTool)
+)
+registerFamily(
+  handlerLoaders,
+  SQS_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/sqs/execute-tool')).executeSqsTool)
+)
+registerFamily(
+  handlerLoaders,
+  RDS_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/rds/execute-tool')).executeRdsTool)
+)
+registerFamily(
+  handlerLoaders,
+  TEXTRACT_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/textract/execute-tool')).executeTextractTool)
+)
+registerFamily(
+  handlerLoaders,
+  CLOUDWATCH_TOOL_IDS,
+  awsFamily(
+    async () => (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
+  )
+)
+registerFamily(
+  handlerLoaders,
+  CLOUDTRAIL_TOOL_IDS,
+  awsFamily(
+    async () => (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
+  )
+)
 registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
 })
 registerFamily(handlerLoaders, REDIS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/redis/execute-tool')).executeRedisTool
 })
-registerFamily(handlerLoaders, CLOUDFORMATION_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/cloudformation/execute-tool')).executeCloudformationTool
-})
-registerFamily(handlerLoaders, LAMBDA_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/lambda/execute-tool')).executeLambdaTool
-})
-registerFamily(handlerLoaders, CODEPIPELINE_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool
-})
+registerFamily(
+  handlerLoaders,
+  CLOUDFORMATION_TOOL_IDS,
+  awsFamily(
+    async () =>
+      (await import('@/lib/internal/cloudformation/execute-tool')).executeCloudformationTool
+  )
+)
+registerFamily(
+  handlerLoaders,
+  LAMBDA_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/lambda/execute-tool')).executeLambdaTool)
+)
+registerFamily(
+  handlerLoaders,
+  CODEPIPELINE_TOOL_IDS,
+  awsFamily(
+    async () => (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool
+  )
+)
 registerFamily(handlerLoaders, MYSQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/mysql/execute-tool')).executeMysqlTool
 })
-registerFamily(handlerLoaders, ATHENA_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/athena/execute-tool')).executeAthenaTool
-})
+registerFamily(
+  handlerLoaders,
+  ATHENA_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/athena/execute-tool')).executeAthenaTool)
+)
 registerFamily(handlerLoaders, CLICKHOUSE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/clickhouse/execute-tool')).executeClickHouseTool
 })
@@ -1569,9 +1639,11 @@ registerFamily(handlerLoaders, MONGODB_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, NEO4J_TOOL_IDS, async () => {
   return (await import('@/lib/internal/neo4j/execute-tool')).executeNeo4jTool
 })
-registerFamily(handlerLoaders, S3_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/s3/execute-tool')).executeS3Tool
-})
+registerFamily(
+  handlerLoaders,
+  S3_TOOL_IDS,
+  awsFamily(async () => (await import('@/lib/internal/s3/execute-tool')).executeS3Tool)
+)
 registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/jupyter/execute-tool')).executeJupyterTool
 })

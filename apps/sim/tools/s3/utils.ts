@@ -103,7 +103,11 @@ export function generatePresignedUrl(params: any, expiresIn = 3600): string {
 
   const method = 'GET'
   const canonicalUri = `/${encodedPath}`
-  const canonicalQueryString = `X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${encodeURIComponent(`${params.accessKeyId}/${dateStamp}/${params.region}/s3/aws4_request`)}&X-Amz-Date=${amzDate}&X-Amz-Expires=${expiresIn}&X-Amz-SignedHeaders=host`
+  // Temporary keys from a saved AWS credential sign with their session token (sorted query order).
+  const securityToken = params.sessionToken
+    ? `&X-Amz-Security-Token=${encodeURIComponent(params.sessionToken)}`
+    : ''
+  const canonicalQueryString = `X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${encodeURIComponent(`${params.accessKeyId}/${dateStamp}/${params.region}/s3/aws4_request`)}&X-Amz-Date=${amzDate}&X-Amz-Expires=${expiresIn}${securityToken}&X-Amz-SignedHeaders=host`
   const canonicalHeaders = `host:${params.bucketName}.s3.${params.region}.amazonaws.com\n`
   const signedHeaders = 'host'
   const payloadHash = 'UNSIGNED-PAYLOAD'

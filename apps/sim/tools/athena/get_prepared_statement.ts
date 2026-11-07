@@ -2,6 +2,7 @@ import type {
   AthenaGetPreparedStatementParams,
   AthenaGetPreparedStatementResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getPreparedStatementTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getPreparedStatementTool: InternalToolConfig<
   name: 'Athena Get Prepared Statement',
   description: 'Get the SQL and metadata of a prepared statement in an Athena workgroup',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

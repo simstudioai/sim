@@ -5,12 +5,15 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   GENIE_READ_RETRY,
   genieMessagePath,
   mapGenieMessage,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetMessageTool: ToolConfig<
@@ -22,15 +25,16 @@ export const genieGetMessageTool: ToolConfig<
   description:
     "Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_MESSAGE_PARAMS,
 
   request: {
-    url: (params) => databricksUrl(params.host, genieMessagePath(params)),
+    url: (params) => databricksUrl(databricksHost(params), genieMessagePath(params)),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

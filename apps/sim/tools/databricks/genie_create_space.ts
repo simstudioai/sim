@@ -6,11 +6,14 @@ import type {
 import { GENIE_SPACE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   mapGenieSpace,
   optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieCreateSpaceTool: ToolConfig<
@@ -21,6 +24,7 @@ export const genieCreateSpaceTool: ToolConfig<
   name: 'Databricks Create Genie Space',
   description: 'Create a Genie space from its serialized configuration and a SQL warehouse.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     warehouseId: {
@@ -60,10 +64,10 @@ export const genieCreateSpaceTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ serializedSpace: params.serializedSpace }),
     },
-    url: (params) => databricksUrl(params.host, `/api/2.0/genie/spaces`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.0/genie/spaces`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

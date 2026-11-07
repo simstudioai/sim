@@ -5,10 +5,13 @@ import type {
 import { WAREHOUSE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   mapWarehouse,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -20,6 +23,7 @@ export const getWarehouseTool: ToolConfig<
   name: 'Databricks Get Warehouse',
   description: 'Get the configuration, state, and scaling settings of a SQL warehouse.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     warehouseId: {
@@ -32,11 +36,14 @@ export const getWarehouseTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        params.host,
+        databricksHost(params),
         `/api/2.0/sql/warehouses/${safeUrlPathSegment(params.warehouseId, 'warehouseId')}`
       ),
     method: 'GET',
-    headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
+    headers: (params) => ({
+      Authorization: `Bearer ${databricksToken(params)}`,
+      Accept: 'application/json',
+    }),
   },
   transformResponse: async (response) => {
     if (!response.ok)

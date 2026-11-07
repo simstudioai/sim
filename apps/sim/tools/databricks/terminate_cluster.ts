@@ -5,9 +5,12 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const terminateClusterTool: ToolConfig<
@@ -18,6 +21,7 @@ export const terminateClusterTool: ToolConfig<
   name: 'Databricks Terminate Cluster',
   description: 'Terminate a compute cluster while retaining its configuration for a later restart.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     clusterId: {
@@ -28,10 +32,10 @@ export const terminateClusterTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.1/clusters/delete`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.1/clusters/delete`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

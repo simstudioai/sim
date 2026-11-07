@@ -1,6 +1,7 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
 
 export const STSBlock: BlockConfig = {
   type: 'sts',
@@ -63,17 +64,18 @@ export const STSBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
-      condition: {
+      condition: withoutSavedCredential({
         field: 'operation',
         value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
         not: true,
-      },
+      }),
       required: {
         field: 'operation',
         value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
@@ -86,11 +88,11 @@ export const STSBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
-      condition: {
+      condition: withoutSavedCredential({
         field: 'operation',
         value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
         not: true,
-      },
+      }),
       required: {
         field: 'operation',
         value: ['assume_role_with_web_identity', 'assume_role_with_saml'],
@@ -371,6 +373,10 @@ export const STSBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'STS operation to perform' },
     region: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     roleArn: { type: 'string', description: 'ARN of the role to assume' },

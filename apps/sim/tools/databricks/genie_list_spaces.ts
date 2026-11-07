@@ -6,10 +6,13 @@ import {
 import {
   DATABRICKS_AUTH_PARAMS,
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   mapGenieSpace,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieListSpacesTool: ToolConfig<
@@ -21,6 +24,7 @@ export const genieListSpacesTool: ToolConfig<
   description:
     'List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...DATABRICKS_AUTH_PARAMS,
@@ -40,7 +44,7 @@ export const genieListSpacesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(params.host, '/api/2.0/genie/spaces'))
+      const url = new URL(databricksUrl(databricksHost(params), '/api/2.0/genie/spaces'))
       if (params.pageSize) url.searchParams.set('page_size', String(params.pageSize))
       if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       return url.toString()
@@ -48,7 +52,7 @@ export const genieListSpacesTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

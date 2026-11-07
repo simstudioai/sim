@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmDescribeInstanceInformationParams,
   SsmDescribeInstanceInformationResponse,
@@ -12,6 +13,7 @@ export const describeInstanceInformationTool: InternalToolConfig<
   name: 'SSM Describe Instance Information',
   description: 'List managed nodes registered with AWS Systems Manager and their agent status',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

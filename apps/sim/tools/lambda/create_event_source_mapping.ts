@@ -3,6 +3,7 @@ import type {
   LambdaCreateEventSourceMappingParams,
   LambdaCreateEventSourceMappingResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createEventSourceMappingTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const createEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Create Event Source Mapping',
   description: 'Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

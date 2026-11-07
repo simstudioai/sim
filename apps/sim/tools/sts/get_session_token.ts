@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSGetSessionTokenParams, STSGetSessionTokenResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getSessionTokenTool: InternalToolConfig<
   name: 'STS Get Session Token',
   description: 'Get temporary security credentials for an IAM user, optionally with MFA',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

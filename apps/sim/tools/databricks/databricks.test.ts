@@ -10,6 +10,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 import * as databricksTools from '@/tools/databricks'
 import { executeSqlTool } from '@/tools/databricks/execute_sql'
 import { getRunTool } from '@/tools/databricks/get_run'
+import { databricksHost, databricksToken } from '@/tools/databricks/utils'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 import { prepareToolRequest } from '@/tools/request-transport'
@@ -214,5 +215,35 @@ describe('Databricks paginated results', () => {
       repairHistory: [{ id: 12, type: 'REPAIR', task_run_ids: [11] }],
       nextPageToken: 'next-tasks',
     })
+  })
+})
+
+describe('Databricks saved-connection auth', () => {
+  it('keeps the inline host and token when no saved connection resolved', () => {
+    const params = { host: 'dbc-inline.cloud.databricks.com', apiKey: 'dapi-inline' }
+
+    expect(databricksHost(params)).toBe('dbc-inline.cloud.databricks.com')
+    expect(databricksToken(params)).toBe('dapi-inline')
+  })
+
+  it('ignores a stray domain that did not come with a resolved token', () => {
+    expect(
+      databricksHost({
+        host: 'dbc-inline.cloud.databricks.com',
+        domain: 'dbc-other.cloud.databricks.com',
+      })
+    ).toBe('dbc-inline.cloud.databricks.com')
+  })
+
+  it('uses the resolved token and its bound workspace host', () => {
+    const params = {
+      accessToken: 'oauth-token',
+      domain: 'dbc-saved.cloud.databricks.com',
+      host: '',
+      apiKey: '',
+    }
+
+    expect(databricksHost(params)).toBe('dbc-saved.cloud.databricks.com')
+    expect(databricksToken(params)).toBe('oauth-token')
   })
 })

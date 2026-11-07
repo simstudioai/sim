@@ -5,11 +5,14 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const repairRunTool: ToolConfig<DatabricksRepairRunParams, DatabricksRepairRunResponse> = {
@@ -17,6 +20,7 @@ export const repairRunTool: ToolConfig<DatabricksRepairRunParams, DatabricksRepa
   name: 'Databricks Repair Run',
   description: 'Rerun failed or selected tasks within an existing Databricks run.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     runId: {
@@ -70,10 +74,10 @@ export const repairRunTool: ToolConfig<DatabricksRepairRunParams, DatabricksRepa
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/runs/repair`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/runs/repair`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

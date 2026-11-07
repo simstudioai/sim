@@ -5,12 +5,15 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
   genieSpacePath,
   mapGenieSpace,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetSpaceTool: ToolConfig<
@@ -22,6 +25,7 @@ export const genieGetSpaceTool: ToolConfig<
   description:
     "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions).",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,
@@ -36,14 +40,14 @@ export const genieGetSpaceTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(params.host, genieSpacePath(params.spaceId)))
+      const url = new URL(databricksUrl(databricksHost(params), genieSpacePath(params.spaceId)))
       if (params.includeSerializedSpace) url.searchParams.set('include_serialized_space', 'true')
       return url.toString()
     },
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     retry: GENIE_READ_RETRY,
   },

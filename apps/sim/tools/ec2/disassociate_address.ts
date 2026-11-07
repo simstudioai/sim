@@ -3,6 +3,7 @@ import type {
   Ec2DisassociateAddressResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const disassociateAddressTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const disassociateAddressTool: InternalToolConfig<
   name: 'EC2 Disassociate Address',
   description: 'Disassociate an Elastic IP address from its instance or network interface',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

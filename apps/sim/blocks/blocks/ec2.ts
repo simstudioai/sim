@@ -1,6 +1,7 @@
 import { EC2Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
 
 const INSTANCE_ACTIONS = [
   'start_instances',
@@ -205,12 +206,14 @@ export const EC2Block: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'awsAccessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'Enter your AWS access key ID',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -219,6 +222,7 @@ export const EC2Block: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter your AWS secret access key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -686,6 +690,10 @@ Return ONLY the JSON array, no explanation.`,
   inputs: {
     operation: { type: 'string', description: 'EC2 operation to perform' },
     awsRegion: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     awsAccessKeyId: { type: 'string', description: 'AWS access key ID' },
     awsSecretAccessKey: { type: 'string', description: 'AWS secret access key' },
     instanceIds: { type: 'string', description: 'Comma-separated instance IDs' },

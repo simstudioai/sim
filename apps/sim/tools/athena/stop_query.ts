@@ -1,4 +1,5 @@
 import type { AthenaStopQueryParams, AthenaStopQueryResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const stopQueryTool: InternalToolConfig<AthenaStopQueryParams, AthenaStopQueryResponse> = {
@@ -6,6 +7,7 @@ export const stopQueryTool: InternalToolConfig<AthenaStopQueryParams, AthenaStop
   name: 'Athena Stop Query',
   description: 'Stop a running Athena query execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -5,6 +5,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createWorkspaceCredentialContract,
+  prepareWorkloadIdentityContract,
   updateWorkspaceCredentialContract,
   type WorkspaceCredential,
   type WorkspaceCredentialType,
@@ -18,6 +19,7 @@ import {
   updateOrganizationCredentialContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import {
   organizationCredentialKeys,
@@ -112,5 +114,36 @@ export function useUpdateScopedCredential() {
       })
     },
     onSuccess: reconcile,
+  })
+}
+
+/**
+ * The trust setup for a new keyless AWS role or Databricks service principal:
+ * the issuer to register and the signed subject it must trust. Each fetch
+ * mints a new subject, so the key carries the modal session and the result
+ * never goes stale or refetches while the person is copying it.
+ */
+export function useWorkloadIdentitySetup(input: {
+  workspaceId?: string
+  provider: WorkloadIdentityProvider
+  sessionKey: string
+  enabled: boolean
+}) {
+  return useQuery({
+    queryKey: workspaceCredentialKeys.workloadIdentity(
+      input.workspaceId,
+      input.provider,
+      input.sessionKey
+    ),
+    queryFn: async ({ signal }) =>
+      requestJson(prepareWorkloadIdentityContract, {
+        body: { workspaceId: input.workspaceId ?? '', provider: input.provider },
+        signal,
+      }),
+    enabled: input.enabled && Boolean(input.workspaceId),
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
   })
 }

@@ -3,6 +3,7 @@ import type {
   LambdaGetRuntimeManagementConfigParams,
   LambdaGetRuntimeManagementConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getRuntimeManagementConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getRuntimeManagementConfigTool: InternalToolConfig<
   name: 'Lambda Get Runtime Management Config',
   description: 'Get the runtime update policy of a function version',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

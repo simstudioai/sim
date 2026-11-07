@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3ListObjectsTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3ListObjectsTool: InternalToolConfig = {
   name: 'S3 List Objects',
   description: 'List objects in an AWS S3 bucket',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

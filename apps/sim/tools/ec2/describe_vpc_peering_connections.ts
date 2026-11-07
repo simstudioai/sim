@@ -5,6 +5,7 @@ import {
   type Ec2DescribeVpcPeeringConnectionsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeVpcPeeringConnectionsTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeVpcPeeringConnectionsTool: InternalToolConfig<
   name: 'EC2 Describe VPC Peering Connections',
   description: 'List VPC peering connections with their status and both VPCs',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

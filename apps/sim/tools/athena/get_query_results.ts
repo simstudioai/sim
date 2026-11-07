@@ -2,6 +2,7 @@ import type {
   AthenaGetQueryResultsParams,
   AthenaGetQueryResultsResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getQueryResultsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getQueryResultsTool: InternalToolConfig<
   name: 'Athena Get Query Results',
   description: 'Retrieve the results of a completed Athena query execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

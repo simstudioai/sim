@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-07",
   "integrations": [
     {
       "type": "onepassword",
@@ -1170,11 +1170,11 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-07"
     },
     {
       "type": "sqs",
@@ -2025,11 +2025,11 @@
       "operationCount": 27,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["cloud", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-07"
     },
     {
       "type": "attio",
@@ -2717,11 +2717,11 @@
       "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
       "tags": ["cloud", "secrets-management"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-07"
     },
     {
       "type": "ses",
@@ -6046,11 +6046,11 @@
       "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-07"
     },
     {
       "type": "cloudtrail",
@@ -6194,11 +6194,11 @@
       "operationCount": 13,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["cloud", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-07"
     },
     {
       "type": "coda",

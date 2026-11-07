@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsSendMessageBatchParams, SqsSendMessageBatchResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const sendMessageBatchTool: InternalToolConfig<
   name: 'SQS Send Message Batch',
   description: 'Send up to 10 messages to an Amazon SQS queue in a single request',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

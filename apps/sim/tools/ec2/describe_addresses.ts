@@ -4,6 +4,7 @@ import {
   type Ec2DescribeAddressesResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeAddressesTool: InternalToolConfig<
@@ -14,6 +15,7 @@ export const describeAddressesTool: InternalToolConfig<
   name: 'EC2 Describe Addresses',
   description: 'List Elastic IP addresses and what they are associated with',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

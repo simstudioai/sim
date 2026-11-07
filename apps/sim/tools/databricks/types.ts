@@ -4,6 +4,10 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 interface DatabricksBaseParams {
   apiKey: string
   host: string
+  /** Token a saved Databricks connection resolved to; set by the executor, never by users. */
+  accessToken?: string
+  /** Workspace host bound to that saved connection. */
+  domain?: string
 }
 
 /** Execute SQL Statement */

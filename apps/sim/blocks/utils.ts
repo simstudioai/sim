@@ -50,6 +50,89 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
 ]
 
 /**
+ * Value keys a saved credential can sit under: the picker and its advanced text
+ * input by subblock id (editor, raw values) and their canonical param
+ * (serializer and agent tool-input, after canonicalization).
+ */
+const SAVED_CREDENTIAL_VALUE_KEYS = ['credential', 'manualCredential', 'oauthCredential'] as const
+
+/** Whether a block's values select a saved credential. */
+export function hasSavedCredential(values?: Record<string, unknown>): boolean {
+  return SAVED_CREDENTIAL_VALUE_KEYS.some((key) => {
+    const value = values?.[key]
+    return typeof value === 'string' && value.trim().length > 0
+  })
+}
+
+type SubBlockConditionShape = Extract<NonNullable<SubBlockConfig['condition']>, { field: string }>
+
+/**
+ * Condition for an inline secret field on a block that also accepts a saved
+ * credential: shown, and so validated, only while no saved credential is
+ * selected. A block that has never had a credential — every block saved before
+ * the credential option existed — always shows its inline fields exactly as
+ * before. `base` keeps a field's existing gate.
+ */
+export function withoutSavedCredential(base?: SubBlockConditionShape) {
+  return (values?: Record<string, unknown>): SubBlockConditionShape => {
+    if (hasSavedCredential(values)) {
+      return { field: 'credential', value: '__saved_credential_selected__' }
+    }
+    if (base) return base
+    // The catalog evaluates this with no values; publish "required while no credential is selected".
+    if (!values) return { field: 'credential', value: '' }
+    // Matches itself whatever the empty value is (absent, null, or blank).
+    return { field: 'credential', value: values.credential as string }
+  }
+}
+
+/**
+ * The optional saved-credential picker (and its advanced ID input) for a block
+ * whose inline secret fields stay available. Leaving it empty keeps the inline
+ * fields, so existing blocks run unchanged.
+ */
+function savedCredentialSubBlocks(input: {
+  serviceId: string
+  title: string
+  inlineFallback: string
+}): SubBlockConfig[] {
+  return [
+    {
+      id: 'credential',
+      title: input.title,
+      type: 'oauth-input',
+      serviceId: input.serviceId,
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      placeholder: `Select a saved ${input.title.toLowerCase()}, or ${input.inlineFallback}`,
+    },
+    {
+      id: 'manualCredential',
+      title: `${input.title} ID`,
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: `Saved ${input.title.toLowerCase()} ID, or leave empty to ${input.inlineFallback}`,
+    },
+  ]
+}
+
+/** Optional saved AWS credential for every AWS block. */
+export const AWS_CREDENTIAL_SUBBLOCKS = savedCredentialSubBlocks({
+  serviceId: 'aws',
+  title: 'AWS Credential',
+  inlineFallback: 'enter access keys below',
+})
+
+/** Optional saved Databricks connection for the Databricks block. */
+export const DATABRICKS_CREDENTIAL_SUBBLOCKS = savedCredentialSubBlocks({
+  serviceId: 'databricks',
+  title: 'Databricks Connection',
+  inlineFallback: 'enter a host and token below',
+})
+
+/**
  * Returns model options for combobox subblocks, combining all provider sources.
  */
 export function getModelOptions() {

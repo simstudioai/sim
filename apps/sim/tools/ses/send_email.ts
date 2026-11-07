@@ -1,4 +1,5 @@
 import type { SESSendEmailParams, SESSendEmailResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailResponse> = {
@@ -6,6 +7,7 @@ export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailR
   name: 'SES Send Email',
   description: 'Send an email via AWS SES using simple or HTML content',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

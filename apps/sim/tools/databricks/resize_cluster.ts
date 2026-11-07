@@ -5,10 +5,13 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const resizeClusterTool: ToolConfig<
@@ -19,6 +22,7 @@ export const resizeClusterTool: ToolConfig<
   name: 'Databricks Resize Cluster',
   description: 'Change the fixed worker count or autoscaling range of a running cluster.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     clusterId: {
@@ -41,10 +45,10 @@ export const resizeClusterTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.1/clusters/resize`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.1/clusters/resize`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
