@@ -1,15 +1,79 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { VideoGenerationInput } from '@/lib/internal/video/client'
-import { getDirectVideoModel } from '@/lib/media/direct-video-catalog'
+import { assertNoCustomModelSettings, parseCustomModelId } from '@/lib/media/custom-model'
+import { directVideoModels, getDirectVideoModel } from '@/lib/media/direct-video-catalog'
+import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
+import { HIGGSFIELD_API_BASE } from '@/lib/media/higgsfield'
+
+type DirectVideoModel = NonNullable<ReturnType<typeof getDirectVideoModel>>
+
+const VIDEO_PROVIDER_LABELS: Record<VideoGenerationInput['provider'], string> = {
+  runway: 'Runway',
+  veo: 'Google Gemini',
+  luma: 'Luma',
+  minimax: 'MiniMax',
+  higgsfield: 'Higgsfield',
+  falai: 'Fal.ai',
+}
+
+/** The current API generation each provider serves a model it did not list through. */
+const CUSTOM_MODEL_PROTOCOLS: Partial<
+  Record<VideoGenerationInput['provider'], DirectVideoModel['protocol']>
+> = {
+  runway: 'runway',
+  veo: 'gemini',
+  luma: 'luma',
+  minimax: 'minimax-v2',
+  higgsfield: 'higgsfield',
+}
+
+/**
+ * Names the provider a catalog model belongs to, so a stale cross-provider value fails fast.
+ * Endpoint paths are left alone: Fal.ai and Higgsfield both name models by vendor path.
+ */
+function findVideoModelProvider(id: string): VideoGenerationInput['provider'] | undefined {
+  if (id.includes('/')) return undefined
+  const direct = directVideoModels.find((model) => model.id === id || model.aliases?.includes(id))
+  if (direct) return direct.provider
+  return getFalVideoModel(id) ? 'falai' : undefined
+}
+
+function resolveDirectVideoModel(input: VideoGenerationInput): DirectVideoModel {
+  const model = getDirectVideoModel(input.provider, input.model, Boolean(input.visualReference))
+  if (model) return model
+  if (input.provider === 'veo' && (!input.model || input.model.startsWith('veo-')))
+    throw new Error('Google Veo has retired from the Gemini API. Select Gemini Omni 1.1 Flash.')
+  const protocol = CUSTOM_MODEL_PROTOCOLS[input.provider]
+  if (!protocol || !input.model)
+    throw new Error(`Unknown ${input.provider} video model: ${input.model}`)
+  const owner = findVideoModelProvider(input.model.trim())
+  if (owner && owner !== input.provider) {
+    const ownerLabel = VIDEO_PROVIDER_LABELS[owner]
+    throw new Error(`${input.model} is a ${ownerLabel} model. Select ${ownerLabel} as the provider`)
+  }
+  const id = parseCustomModelId(input.model, VIDEO_PROVIDER_LABELS[input.provider])
+  assertNoCustomModelSettings(id, {
+    visualReference: input.visualReference,
+    duration: input.duration,
+    aspectRatio: input.aspectRatio,
+    resolution: input.resolution,
+    generateAudio: input.generateAudio,
+    promptOptimizer: input.promptOptimizer,
+    cameraControl: input.cameraControl,
+    endpoint: input.endpoint,
+  })
+  return {
+    provider: input.provider as DirectVideoModel['provider'],
+    id,
+    label: id,
+    protocol,
+    settings: {},
+  }
+}
 
 /** Validates provider-specific choices before creating a paid video generation job. */
 export function buildDirectVideoRequest(input: VideoGenerationInput) {
-  const model = getDirectVideoModel(input.provider, input.model, Boolean(input.visualReference))
-  if (!model) {
-    if (input.provider === 'veo')
-      throw new Error('Google Veo has retired from the Gemini API. Select Gemini Omni 1.1 Flash.')
-    throw new Error(`Unknown ${input.provider} video model: ${input.model}`)
-  }
+  const model = resolveDirectVideoModel(input)
   const spec = model.settings
   if (!spec)
     throw new Error(
@@ -113,7 +177,10 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
     case 'luma':
     case 'luma-legacy': {
       const ratio = aspectRatio || settings.aspect_ratio
-      const video = { duration: `${settings.duration}s`, resolution: settings.resolution }
+      const video = {
+        ...(settings.duration !== undefined && { duration: `${settings.duration}s` }),
+        ...(settings.resolution !== undefined && { resolution: settings.resolution }),
+      }
       url =
         model.protocol === 'luma'
           ? 'https://agents.lumalabs.ai/v1/generations'
@@ -122,7 +189,9 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
         model: model.id,
         prompt: input.prompt,
         aspect_ratio: ratio,
-        ...(model.protocol === 'luma' ? { type: 'video', video } : { ...video, loop: false }),
+        ...(model.protocol === 'luma'
+          ? { type: 'video', ...(Object.keys(video).length > 0 && { video }) }
+          : { ...video, loop: false }),
         ...(concepts && { concepts }),
       }
       break
@@ -131,6 +200,19 @@ export function buildDirectVideoRequest(input: VideoGenerationInput) {
       if (aspectRatio) settings.ratio = aspectRatio
       url = 'https://api.minimax.io/v2/video_generation'
       body = { model: model.id, content: [{ type: 'text', text: input.prompt }], ...settings }
+      break
+    case 'higgsfield':
+      url = `${HIGGSFIELD_API_BASE}/${model.id}`
+      body = {
+        prompt: input.prompt,
+        ...settings,
+        ...(aspectRatio && { aspect_ratio: aspectRatio }),
+        ...(input.generateAudio !== undefined &&
+          model.audioField === 'sound' && { sound: input.generateAudio ? 'on' : 'off' }),
+        ...(input.generateAudio !== undefined &&
+          model.audioField === 'generate_audio' && { generate_audio: input.generateAudio }),
+        ...(input.promptOptimizer !== undefined && { prompt_optimizer: input.promptOptimizer }),
+      }
       break
     case 'minimax-v1':
       url = 'https://api.minimax.io/v1/video_generation'

@@ -3,6 +3,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { toArray, toRecord } from '@sim/utils/object'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import {
+  HIGGSFIELD_API_BASE,
+  HIGGSFIELD_FAILED_STATUSES,
+  higgsfieldAuthHeaders,
+  higgsfieldFailureMessage,
+} from '@/lib/media/higgsfield'
 import type {
   HiggsfieldCharacter,
   HiggsfieldGenerationParams,
@@ -13,11 +19,10 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('HiggsfieldTools')
 
-const HIGGSFIELD_API_BASE = 'https://api.higgsfield.ai'
 const POLL_INITIAL_INTERVAL_MS = 2000
 const POLL_MAX_INTERVAL_MS = 10_000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
-const TERMINAL_REQUEST_STATUSES = new Set(['completed', 'failed', 'nsfw', 'canceled'])
+const TERMINAL_REQUEST_STATUSES = new Set<string>(['completed', ...HIGGSFIELD_FAILED_STATUSES])
 const MODEL_ENDPOINT_PATTERN = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+$/i
 
 export const higgsfieldAuthParams = {
@@ -80,11 +85,10 @@ export function buildHiggsfieldUrl(
   return url.toString()
 }
 
-/** Higgsfield authenticates with `Authorization: Key <key-id>:<key-secret>`. */
+/** Auth headers, plus a JSON content type for requests that send a body. */
 export function higgsfieldHeaders(accessToken: string, hasBody = false): Record<string, string> {
   return {
-    Authorization: `Key ${accessToken}`,
-    Accept: 'application/json',
+    ...higgsfieldAuthHeaders(accessToken),
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
   }
 }
@@ -166,12 +170,6 @@ export function mapHiggsfieldCharacter(payload: unknown): HiggsfieldCharacter {
   }
 }
 
-function failureMessage(output: HiggsfieldRequestOutput): string {
-  if (output.status === 'nsfw') return 'Higgsfield rejected the request in content moderation'
-  if (output.status === 'canceled') return 'The Higgsfield request was canceled'
-  return output.error ?? 'Higgsfield generation failed'
-}
-
 /**
  * Post-processes a generation submission: polls Get Request Status until the request reaches a
  * terminal state, unless the caller asked to return immediately.
@@ -227,7 +225,12 @@ export async function waitForHiggsfieldRequest(
   }
 
   if (output.status !== 'completed') {
-    return { ...result, output, success: false, error: failureMessage(output) }
+    return {
+      ...result,
+      output,
+      success: false,
+      error: higgsfieldFailureMessage(output.status, output.error),
+    }
   }
   return { ...result, output }
 }

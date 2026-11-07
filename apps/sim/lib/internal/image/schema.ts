@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const imageProviders = ['openai', 'gemini', 'falai'] as const
+export const imageProviders = ['openai', 'gemini', 'falai', 'higgsfield'] as const
 const MISSING_IMAGE_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and prompt'
 const optionalNumberInput = (value: unknown) =>
   value === null || (typeof value === 'string' && value.trim() === '') ? undefined : value
@@ -25,7 +25,7 @@ export const imageGenerationInputSchema = z
         message: `Invalid provider. Must be one of: ${imageProviders.join(', ')}`,
       }),
     apiKey: z.string({ error: MISSING_IMAGE_FIELDS_ERROR }).min(1, MISSING_IMAGE_FIELDS_ERROR),
-    model: z.string().optional(),
+    model: z.string().trim().optional(),
     prompt: z.string({ error: MISSING_IMAGE_FIELDS_ERROR }).min(1, MISSING_IMAGE_FIELDS_ERROR),
     size: z.string().optional(),
     aspectRatio: z.string().optional(),

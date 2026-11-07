@@ -8,7 +8,8 @@ type ImageGenerationToolConfig = InternalToolConfig<ImageGenerationParams, Image
 export const imageGenerateTool: ImageGenerationToolConfig = {
   id: 'image_generate',
   name: 'Image Generator',
-  description: 'Generate images with OpenAI GPT Image, Google Nano Banana, or Fal.ai image models',
+  description:
+    'Generate images with OpenAI GPT Image, Google Nano Banana, Higgsfield SOUL and Z-Image, or Fal.ai image models',
   version: '1.0.0',
 
   params: {
@@ -16,7 +17,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Image generation provider: openai, gemini, or falai',
+      description: 'Image generation provider: openai, gemini, higgsfield, or falai',
     },
     apiKey: {
       type: 'string',
@@ -29,7 +30,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Provider model ID, such as gpt-image-2.5-sunburst, gemini-3-pro-image, nano-banana-pro, or a fal endpoint ID',
+        'Provider model ID, such as gpt-image-2.5-sunburst, gemini-3-pro-image, higgsfield-ai/soul/standard, z-image/turbo, nano-banana-pro, or a fal endpoint ID. An unlisted model ID or endpoint path is sent with the prompt only.',
     },
     prompt: {
       type: 'string',

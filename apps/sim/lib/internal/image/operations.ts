@@ -21,6 +21,12 @@ import { buildImageGenerationRequest } from '@/lib/internal/image/request'
 import type { ImageGenerationInput, ImageProvider } from '@/lib/internal/image/schema'
 import { cancelFalRequest } from '@/lib/media/falai'
 import { FalAIResultError, fetchFalAIResult } from '@/lib/media/falai-result'
+import {
+  HIGGSFIELD_FAILED_STATUSES,
+  higgsfieldAuthHeaders,
+  higgsfieldFailureMessage,
+  higgsfieldStatusUrl,
+} from '@/lib/media/higgsfield'
 import { recordServiceMeteringFailure } from '@/lib/mothership/billing/service-observer'
 import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
@@ -113,6 +119,14 @@ export async function executeImageGeneration(
         (cost) => {
           undeliveredFalCost = cost
         },
+        context.signal
+      )
+    } else if (provider === 'higgsfield') {
+      imageResult = await generateWithHiggsfield(
+        apiKey,
+        prepared,
+        requestId,
+        logger,
         context.signal
       )
     } else {
@@ -600,6 +614,90 @@ async function generateWithFalAI(
     if (!reachedTerminalStatus) await cancelFalRequest(cancelUrl, apiKey, falRequestId)
     throw error
   }
+}
+
+async function readHiggsfieldRequest(
+  response: Response,
+  label: string,
+  signal?: AbortSignal
+): Promise<Record<string, unknown>> {
+  if (!response.ok) {
+    const error = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: `${label} error response`,
+      signal,
+    }).catch(() => '')
+    throw new Error(`Higgsfield API error: ${response.status} - ${error}`)
+  }
+  const data = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_IMAGE_JSON_BYTES,
+    label,
+    signal,
+  })
+  if (!isRecordLike(data)) throw new Error(`Invalid ${label}`)
+  return data
+}
+
+async function generateWithHiggsfield(
+  apiKey: string,
+  prepared: ReturnType<typeof buildImageGenerationRequest>,
+  requestId: string,
+  logger: ReturnType<typeof createLogger>,
+  signal?: AbortSignal
+): Promise<GeneratedImageResult> {
+  const model = prepared.model.id
+  const headers = higgsfieldAuthHeaders(apiKey)
+  let data = await readHiggsfieldRequest(
+    await fetch(prepared.endpoint, {
+      method: 'POST',
+      redirect: 'error',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(prepared.body),
+      signal,
+    }),
+    'Higgsfield submit response',
+    signal
+  )
+  const higgsfieldRequestId = getStringProperty(data, 'request_id')
+  if (!higgsfieldRequestId) throw new Error('Higgsfield response missing request_id')
+  logger.info('Higgsfield image request created', { requestId, higgsfieldRequestId })
+
+  const pollIntervalMs = 3000
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    const status = getStringProperty(data, 'status') || ''
+    if (status === 'completed') {
+      const imageUrl = getStringProperty(firstRecord(data.images), 'url')
+      if (!imageUrl) throw new Error('No image URL in Higgsfield response')
+      const downloaded = await bufferFromImageUrl(imageUrl, signal)
+      return {
+        buffer: downloaded.buffer,
+        contentType: downloaded.contentType,
+        fileName: `higgsfield-${model.replaceAll('/', '-')}.${extensionFromContentType(downloaded.contentType)}`,
+        provider: 'higgsfield',
+        model,
+        sourceUrl: imageUrl,
+        jobId: higgsfieldRequestId,
+      }
+    }
+    if (HIGGSFIELD_FAILED_STATUSES.some((failedStatus) => failedStatus === status)) {
+      throw new Error(higgsfieldFailureMessage(status, data.error))
+    }
+    if (attempt === maxAttempts) break
+    await interruptibleSleep(pollIntervalMs, signal)
+    signal?.throwIfAborted()
+    data = await readHiggsfieldRequest(
+      await fetch(higgsfieldStatusUrl(higgsfieldRequestId), {
+        redirect: 'error',
+        headers,
+        signal,
+      }),
+      'Higgsfield status response',
+      signal
+    )
+  }
+
+  throw new Error('Higgsfield image generation timed out')
 }
 
 async function storeGeneratedImage(

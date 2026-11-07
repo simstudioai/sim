@@ -1,16 +1,74 @@
 import type { ImageGenerationInput, ImageProvider } from '@/lib/internal/image/schema'
-import { getImageModel, imageModelDefaults, imageOptionFields } from '@/lib/media/image-catalog'
+import { assertNoCustomModelSettings, parseCustomModelId } from '@/lib/media/custom-model'
+import { HIGGSFIELD_API_BASE } from '@/lib/media/higgsfield'
+import {
+  getImageModel,
+  imageModelDefaults,
+  imageModels,
+  imageOptionFields,
+} from '@/lib/media/image-catalog'
 
 /** Sim limits image prompts independently of larger provider model allowances. */
 const MAX_IMAGE_PROMPT_CHARACTERS = 4000
 
+type ImageModel = NonNullable<ReturnType<typeof getImageModel>>
+
+const IMAGE_PROVIDER_LABELS: Record<ImageProvider, string> = {
+  openai: 'OpenAI',
+  gemini: 'Google Gemini',
+  falai: 'Fal.ai',
+  higgsfield: 'Higgsfield',
+}
+
+/** OpenAI image models that older blocks still store; they keep failing as retired. */
+const RETIRED_IMAGE_MODELS = new Set(['openai:dall-e-3', 'openai:gpt-image-1'])
+
+/** Resolves a catalog model, or a model ID typed in place of one. */
+function resolveImageModel(input: ImageGenerationInput): ImageModel {
+  const provider = input.provider as ImageProvider
+  const id = input.model || imageModelDefaults[provider]
+  const model = getImageModel(provider, id)
+  if (model) return model
+  const retiredError = new Error(`Unknown or retired ${provider} image model: ${input.model}`)
+  if (!input.model || RETIRED_IMAGE_MODELS.has(`${provider}:${input.model}`)) throw retiredError
+  // Endpoint paths are left alone: Fal.ai and Higgsfield both name models by vendor path.
+  const owner = input.model.includes('/')
+    ? undefined
+    : imageModels.find(
+        (candidate) =>
+          candidate.provider !== provider &&
+          (candidate.id === input.model || candidate.aliases?.includes(input.model ?? ''))
+      )
+  if (owner) {
+    const ownerLabel = IMAGE_PROVIDER_LABELS[owner.provider]
+    throw new Error(`${input.model} is a ${ownerLabel} model. Select ${ownerLabel} as the provider`)
+  }
+  const customId = parseCustomModelId(input.model, IMAGE_PROVIDER_LABELS[provider])
+  if (provider === 'falai') {
+    if (!customId.includes('/')) throw retiredError
+    if (input.useHostedCostTracking)
+      throw new Error(
+        `Custom Fal.ai endpoints need your own Fal.ai API key: ${customId} is not a listed model`
+      )
+  }
+  assertNoCustomModelSettings(customId, {
+    ...Object.fromEntries(imageOptionFields.map((key) => [key, input[key]])),
+    seed: input.seed,
+    enableSafetyChecker: input.enableSafetyChecker,
+    enableWebSearch: input.enableWebSearch,
+  })
+  return {
+    provider,
+    id: customId,
+    label: customId,
+    endpoint: customId,
+    requestDefaults: provider === 'openai' ? { n: 1 } : undefined,
+  }
+}
+
 /** Builds only supported settings for the selected image model before a paid request is sent. */
 export function buildImageGenerationRequest(input: ImageGenerationInput) {
-  const model = getImageModel(
-    input.provider,
-    input.model || imageModelDefaults[input.provider as ImageProvider]
-  )
-  if (!model) throw new Error(`Unknown or retired ${input.provider} image model: ${input.model}`)
+  const model = resolveImageModel(input)
   if (input.numImages !== undefined && input.numImages !== 1) {
     throw new Error('Image generation returns one image per tool execution; numImages must be 1')
   }
@@ -60,6 +118,9 @@ export function buildImageGenerationRequest(input: ImageGenerationInput) {
       contents: [{ parts: [{ text: input.prompt }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: settings },
     }
+  } else if (model.provider === 'higgsfield') {
+    endpoint = `${HIGGSFIELD_API_BASE}/${model.endpoint}`
+    body = { prompt: input.prompt, ...settings }
   } else {
     endpoint = `https://queue.fal.run/${model.endpoint}`
     body = { prompt: input.prompt, ...settings }

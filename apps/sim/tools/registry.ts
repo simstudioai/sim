@@ -6441,6 +6441,7 @@ import {
 } from '@/tools/vercel'
 import {
   falaiVideoTool,
+  higgsfieldVideoTool,
   lumaVideoTool,
   minimaxVideoTool,
   runwayVideoTool,
@@ -11222,6 +11223,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   video_runway: runwayVideoTool,
   video_veo: veoVideoTool,
   video_luma: lumaVideoTool,
+  video_higgsfield: higgsfieldVideoTool,
   video_minimax: minimaxVideoTool,
   video_falai: falaiVideoTool,
   s3_get_object: s3GetObjectTool,

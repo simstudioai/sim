@@ -1,4 +1,6 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { VideoGenerationInput } from '@/lib/internal/video/client'
+import { assertNoCustomModelSettings, parseCustomModelId } from '@/lib/media/custom-model'
 import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
 
 type FalAIDurationFormat = 'number' | 'seconds' | 'string'
@@ -16,6 +18,8 @@ interface FalAIModelConfig {
   requestDefaults?: Readonly<Record<string, string>>
   maxDurationByResolution?: Readonly<Record<string, number>>
   maxPromptLength?: number
+  /** Typed endpoint path outside the catalog: sent with the prompt only. */
+  custom?: boolean
 }
 
 const LEGACY_FALAI_MODELS: Record<string, FalAIModelConfig> = {
@@ -71,9 +75,20 @@ const LEGACY_FALAI_MODELS: Record<string, FalAIModelConfig> = {
   },
 }
 
+/** A typed Fal endpoint path such as `fal-ai/some-model/text-to-video`, not a catalog model. */
+export function isCustomFalVideoModel(id: string | undefined): boolean {
+  return Boolean(
+    id?.includes('/') && !getFalVideoModel(id) && !Object.hasOwn(LEGACY_FALAI_MODELS, id)
+  )
+}
+
 function getFalModelConfig(id: string): FalAIModelConfig | undefined {
   const model = getFalVideoModel(id)
-  if (!model) return Object.hasOwn(LEGACY_FALAI_MODELS, id) ? LEGACY_FALAI_MODELS[id] : undefined
+  if (!model) {
+    if (Object.hasOwn(LEGACY_FALAI_MODELS, id)) return LEGACY_FALAI_MODELS[id]
+    if (!isCustomFalVideoModel(id)) return undefined
+    return { endpoint: parseCustomModelId(id, 'Fal.ai'), custom: true }
+  }
   const sample = model.durations?.[0]
   return {
     endpoint: model.endpoint,
@@ -116,9 +131,29 @@ function formatAllowedValues(allowed: readonly (number | string)[]): string {
 export function getFalAIValidationError(input: VideoGenerationInput): string | undefined {
   const { model, prompt, duration, aspectRatio, resolution } = input
   if (!model) return 'Model is required for Fal.ai provider'
-  const modelConfig = getFalModelConfig(model)
+  let modelConfig: FalAIModelConfig | undefined
+  try {
+    modelConfig = getFalModelConfig(model)
+  } catch (error) {
+    return getErrorMessage(error)
+  }
   if (!modelConfig) {
     return `Unknown Fal.ai model: ${model}`
+  }
+  if (modelConfig.custom) {
+    if (input.useHostedCostTracking)
+      return `Custom Fal.ai endpoints need your own Fal.ai API key: ${model} is not a listed model`
+    try {
+      assertNoCustomModelSettings(model, {
+        duration,
+        aspectRatio,
+        resolution,
+        promptOptimizer: input.promptOptimizer,
+        generateAudio: input.generateAudio,
+      })
+    } catch (error) {
+      return getErrorMessage(error)
+    }
   }
 
   if (modelConfig.maxPromptLength && prompt.length > modelConfig.maxPromptLength) {
