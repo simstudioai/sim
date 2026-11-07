@@ -8,6 +8,7 @@ import {
 } from '@sim/testing'
 import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -62,7 +63,9 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
   createQuickBooksOAuthState: mocks.createQuickBooksState,
 }))
 
-import { GET } from '@/app/api/auth/oauth2/authorize/route'
+import { GET as routeGET } from '@/app/api/auth/oauth2/authorize/route'
+
+const GET = (req: NextRequest) => routeGET(req, { params: Promise.resolve({}) })
 
 const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = oauthUtilsMockFns
 

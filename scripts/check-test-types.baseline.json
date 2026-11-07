@@ -30,7 +30,7 @@
   },
   "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
     "TS2345": 2,
-    "TS2554": 22
+    "TS2554": 1
   },
   "apps/sim/app/api/auth/oauth2/callback/quickbooks/route.test.ts": {
     "TS2554": 3
