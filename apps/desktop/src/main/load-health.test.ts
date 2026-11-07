@@ -8,10 +8,9 @@ describe('classifyLoadError', () => {
     expect(classifyLoadError(-1)).toBe('unreachable')
   })
 
-  it('reports ERR_ADDRESS_UNREACHABLE as a local-network block only on macOS', () => {
-    expect(classifyLoadError(-109, 'darwin')).toBe('local_network')
-    expect(classifyLoadError(-109, 'linux')).toBe('unreachable')
-    expect(classifyLoadError(-109, 'win32')).toBe('unreachable')
+  it('reports ERR_ADDRESS_UNREACHABLE as a local-network block only under Local Network privacy', () => {
+    expect(classifyLoadError(-109, true)).toBe('local_network')
+    expect(classifyLoadError(-109, false)).toBe('unreachable')
   })
 })
 
