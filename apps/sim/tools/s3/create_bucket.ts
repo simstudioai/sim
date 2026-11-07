@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3CreateBucketTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3CreateBucketTool: InternalToolConfig = {
   name: 'S3 Create Bucket',
   description: 'Create a new AWS S3 bucket in the specified region',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

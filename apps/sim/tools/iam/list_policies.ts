@@ -1,4 +1,5 @@
 import type { IAMListPoliciesParams, IAMListPoliciesResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMListPoliciesResponse> =
@@ -7,6 +8,7 @@ export const listPoliciesTool: InternalToolConfig<IAMListPoliciesParams, IAMList
     name: 'IAM List Policies',
     description: 'List managed IAM policies',
     version: '1.0.0',
+    oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {
       region: {

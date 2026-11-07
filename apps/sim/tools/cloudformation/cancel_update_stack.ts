@@ -2,6 +2,7 @@ import type {
   CloudFormationCancelUpdateStackParams,
   CloudFormationCancelUpdateStackResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const cancelUpdateStackTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const cancelUpdateStackTool: InternalToolConfig<
   name: 'CloudFormation Cancel Update Stack',
   description: 'Cancel an in-progress stack update and roll back to the last known stable state',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

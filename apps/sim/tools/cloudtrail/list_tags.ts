@@ -1,4 +1,5 @@
 import type { CloudTrailListTagsParams, CloudTrailListTagsResponse } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listTagsTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const listTagsTool: InternalToolConfig<
   name: 'CloudTrail List Tags',
   description: 'List the tags on CloudTrail trails, event data stores, dashboards, or channels',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

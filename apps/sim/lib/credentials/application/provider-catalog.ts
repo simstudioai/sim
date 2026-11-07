@@ -18,6 +18,8 @@ import {
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -126,6 +128,45 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       helpText:
         'Connect an installation through your organization’s Search integrations. Each person connects their own GitHub account to establish access.',
       fields: [],
+    }
+  }
+  if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Databricks connection',
+      description:
+        'Use the Databricks block with a personal access token, a service principal OAuth secret, or a keyless service principal that trusts Sim through OpenID Connect.',
+      docsUrl: 'https://docs.sim.ai/integrations/databricks-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"authType":"personal_access_token","host":"dbc-abc123.cloud.databricks.com","token":"dapi..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: 'JSON object with host and authType: "personal_access_token" (token) or "service_principal" (clientId, clientSecret). Keyless "oidc_federation" connections are created from the Databricks connect dialog, which issues the trusted subject.',
+        },
+      ],
+    }
+  }
+  if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'AWS credential',
+      description:
+        'Use AWS blocks with saved access keys, access keys that assume an IAM role, or a keyless IAM role that trusts Sim through OpenID Connect.',
+      docsUrl: 'https://docs.sim.ai/integrations/aws-credentials',
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Credential configuration',
+          placeholder: '{"authType":"access_keys","accessKeyId":"AKIA...","secretAccessKey":"..."}',
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: 'JSON object with authType: "access_keys" (accessKeyId, secretAccessKey) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId). Keyless "oidc_role" credentials are created from the AWS connect dialog, which issues the trusted subject.',
+        },
+      ],
     }
   }
   if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) {

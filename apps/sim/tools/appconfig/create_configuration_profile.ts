@@ -2,6 +2,7 @@ import type {
   AppConfigCreateConfigurationProfileParams,
   AppConfigCreateConfigurationProfileResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createConfigurationProfileTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Create Configuration Profile',
   description: 'Create a configuration profile in an AWS AppConfig application',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

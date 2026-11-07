@@ -2,6 +2,7 @@ import type {
   AthenaBatchGetPreparedStatementParams,
   AthenaBatchGetPreparedStatementResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const batchGetPreparedStatementTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const batchGetPreparedStatementTool: InternalToolConfig<
   description:
     'Get the details of up to 256 prepared statements in an Athena workgroup by name in a single call',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

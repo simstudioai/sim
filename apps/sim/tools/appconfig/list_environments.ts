@@ -2,6 +2,7 @@ import type {
   AppConfigListEnvironmentsParams,
   AppConfigListEnvironmentsResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listEnvironmentsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listEnvironmentsTool: InternalToolConfig<
   name: 'AppConfig List Environments',
   description: 'List environments for an AWS AppConfig application',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

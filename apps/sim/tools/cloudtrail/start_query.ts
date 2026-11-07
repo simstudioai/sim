@@ -2,6 +2,7 @@ import type {
   CloudTrailStartQueryParams,
   CloudTrailStartQueryResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const startQueryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const startQueryTool: InternalToolConfig<
   name: 'CloudTrail Start Query',
   description: 'Start a CloudTrail Lake SQL query over an event data store',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

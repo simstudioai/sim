@@ -3,6 +3,7 @@ import type {
   LambdaGetFunctionUrlConfigParams,
   LambdaGetFunctionUrlConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getFunctionUrlConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Get Function URL',
   description: 'Get details about a function URL',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

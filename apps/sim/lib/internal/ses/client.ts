@@ -22,6 +22,7 @@ import {
   UpdateEmailTemplateCommand,
 } from '@aws-sdk/client-sesv2'
 import { z } from 'zod'
+import { awsClientCredentials } from '@/lib/internal/aws/credentials'
 import type { SESConnectionConfig } from '@/tools/ses/types'
 
 const SesBulkEmailDestinationSchema = z.object({
@@ -34,10 +35,7 @@ type SesBulkEmailDestination = z.infer<typeof SesBulkEmailDestinationSchema>
 export function createSESClient(config: SESConnectionConfig): SESv2Client {
   return new SESv2Client({
     region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
   })
 }
 

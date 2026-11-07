@@ -1,4 +1,5 @@
 import type { IAMUpdateAccessKeyParams, IAMUpdateAccessKeyResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateAccessKeyTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const updateAccessKeyTool: InternalToolConfig<
   description:
     'Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

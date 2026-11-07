@@ -6,6 +6,7 @@ import {
   getSignatureKey,
   parseS3Uri,
 } from '@/tools/s3/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const s3GetObjectTool: ToolConfig = {
@@ -13,6 +14,7 @@ export const s3GetObjectTool: ToolConfig = {
   name: 'S3 Get Object',
   description: 'Retrieve an object from an AWS S3 bucket',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {
@@ -81,9 +83,16 @@ export const s3GetObjectTool: ToolConfig = {
         const canonicalQueryString = ''
         const payloadHash = crypto.createHash('sha256').update('').digest('hex')
         const host = `${params.bucketName}.s3.${params.region}.amazonaws.com`
+        // Saved AWS credentials resolve to temporary keys that must carry their session token.
+        const sessionToken: string | undefined = params.sessionToken || undefined
         const canonicalHeaders =
-          `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amzDate}\n`
-        const signedHeaders = 'host;x-amz-content-sha256;x-amz-date'
+          `host:${host}\n` +
+          `x-amz-content-sha256:${payloadHash}\n` +
+          `x-amz-date:${amzDate}\n` +
+          (sessionToken ? `x-amz-security-token:${sessionToken}\n` : '')
+        const signedHeaders = sessionToken
+          ? 'host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+          : 'host;x-amz-content-sha256;x-amz-date'
         const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`
 
         const algorithm = 'AWS4-HMAC-SHA256'
@@ -99,6 +108,7 @@ export const s3GetObjectTool: ToolConfig = {
           Host: host,
           'X-Amz-Content-Sha256': payloadHash,
           'X-Amz-Date': amzDate,
+          ...(sessionToken ? { 'X-Amz-Security-Token': sessionToken } : {}),
           Authorization: authorizationHeader,
         }
       } catch (error) {

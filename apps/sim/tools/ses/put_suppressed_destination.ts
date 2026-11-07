@@ -2,6 +2,7 @@ import type {
   SESPutSuppressedDestinationParams,
   SESPutSuppressedDestinationResponse,
 } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putSuppressedDestinationTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const putSuppressedDestinationTool: InternalToolConfig<
   name: 'SES Put Suppressed Destination',
   description: 'Add an email address to the account-level SES suppression list',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

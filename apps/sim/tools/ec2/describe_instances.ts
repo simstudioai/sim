@@ -5,6 +5,7 @@ import {
   type Ec2DescribeInstancesResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeInstancesTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeInstancesTool: InternalToolConfig<
   name: 'EC2 Describe Instances',
   description: 'List EC2 instances with their state, type, networking, and tags',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

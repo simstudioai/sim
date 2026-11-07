@@ -1,4 +1,5 @@
 import type { DynamoDBUpdateParams, DynamoDBUpdateResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
   name: 'DynamoDB Update',
   description: 'Update an item in a DynamoDB table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

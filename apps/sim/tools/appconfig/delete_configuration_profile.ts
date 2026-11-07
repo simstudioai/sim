@@ -2,6 +2,7 @@ import type {
   AppConfigDeleteConfigurationProfileParams,
   AppConfigDeleteResourceResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteConfigurationProfileTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Delete Configuration Profile',
   description: 'Delete an AWS AppConfig configuration profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

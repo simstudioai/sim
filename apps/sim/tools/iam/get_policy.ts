@@ -1,4 +1,5 @@
 import type { IAMGetPolicyParams, IAMGetPolicyResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getPolicyTool: InternalToolConfig<IAMGetPolicyParams, IAMGetPolicyResponse> = {
@@ -7,6 +8,7 @@ export const getPolicyTool: InternalToolConfig<IAMGetPolicyParams, IAMGetPolicyR
   description:
     'Get details about a managed IAM policy, including its description — the field ListPolicies never returns',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

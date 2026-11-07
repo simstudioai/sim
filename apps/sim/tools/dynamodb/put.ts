@@ -1,4 +1,5 @@
 import type { DynamoDBPutParams, DynamoDBPutResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
@@ -6,6 +7,7 @@ export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse>
   name: 'DynamoDB Put',
   description: 'Put an item into a DynamoDB table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

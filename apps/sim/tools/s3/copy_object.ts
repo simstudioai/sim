@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3CopyObjectTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3CopyObjectTool: InternalToolConfig = {
   name: 'S3 Copy Object',
   description: 'Copy an object within or between AWS S3 buckets',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

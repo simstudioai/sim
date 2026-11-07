@@ -3,11 +3,14 @@ import type {
   DatabricksGenieSuccessResponse,
 } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   genieMessagePath,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieDeleteMessageTool: ToolConfig<
@@ -18,15 +21,16 @@ export const genieDeleteMessageTool: ToolConfig<
   name: 'Databricks Genie Delete Message',
   description: 'Delete a message from a Genie conversation.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_MESSAGE_PARAMS,
 
   request: {
-    url: (params) => databricksUrl(params.host, genieMessagePath(params)),
+    url: (params) => databricksUrl(databricksHost(params), genieMessagePath(params)),
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
   },
 

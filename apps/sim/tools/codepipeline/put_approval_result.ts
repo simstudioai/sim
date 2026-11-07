@@ -2,6 +2,7 @@ import type {
   CodePipelinePutApprovalResultParams,
   CodePipelinePutApprovalResultResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putApprovalResultTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const putApprovalResultTool: InternalToolConfig<
   description:
     'Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

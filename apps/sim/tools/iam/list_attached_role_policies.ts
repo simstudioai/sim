@@ -2,6 +2,7 @@ import type {
   IAMListAttachedPoliciesResponse,
   IAMListAttachedRolePoliciesParams,
 } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listAttachedRolePoliciesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listAttachedRolePoliciesTool: InternalToolConfig<
   name: 'IAM List Attached Role Policies',
   description: 'List all managed policies attached to an IAM role',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

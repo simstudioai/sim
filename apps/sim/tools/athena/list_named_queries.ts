@@ -2,6 +2,7 @@ import type {
   AthenaListNamedQueriesParams,
   AthenaListNamedQueriesResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listNamedQueriesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listNamedQueriesTool: InternalToolConfig<
   name: 'Athena List Named Queries',
   description: 'List saved/named query IDs in AWS Athena',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

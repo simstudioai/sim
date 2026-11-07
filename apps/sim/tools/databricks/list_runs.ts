@@ -1,6 +1,7 @@
 import type { DatabricksListRunsParams, DatabricksListRunsResponse } from '@/tools/databricks/types'
 import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT, RUN_STATUS_OUTPUT } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRunsResponse> = {
@@ -9,6 +10,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
   description:
     'List job runs in a Databricks workspace with optional filtering by job, status, and time range.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     host: {
@@ -89,7 +91,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          params.host,
+          databricksHost(params),
           `/api/${params.offset != null && !params.pageToken ? '2.1' : '2.2'}/jobs/runs/list`
         )
       )
@@ -111,7 +113,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
   },
 

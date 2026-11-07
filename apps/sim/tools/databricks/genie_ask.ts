@@ -12,6 +12,8 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   GENIE_TERMINAL_STATUSES,
@@ -19,6 +21,7 @@ import {
   genieSpacePath,
   mapGenieMessage,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DatabricksGenieAskTool')
@@ -45,6 +48,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
   description:
     'Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,
@@ -77,7 +81,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     url: (params) => {
       const conversationId = params.conversationId?.trim()
       return databricksUrl(
-        params.host,
+        databricksHost(params),
         conversationId
           ? `${genieConversationPath(params.spaceId, conversationId)}/messages`
           : `${genieSpacePath(params.spaceId)}/start-conversation`
@@ -87,7 +91,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: (params) => ({
       content: params.content,
@@ -127,8 +131,8 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     }
 
     const messageParams = {
-      host: params.host,
-      apiKey: params.apiKey,
+      host: databricksHost(params),
+      apiKey: databricksToken(params),
       spaceId: params.spaceId,
       conversationId,
       messageId,

@@ -2,6 +2,7 @@ import type {
   CloudWatchDescribeAlarmHistoryParams,
   CloudWatchDescribeAlarmHistoryResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeAlarmHistoryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeAlarmHistoryTool: InternalToolConfig<
   name: 'CloudWatch Describe Alarm History',
   description: 'Retrieve state-change and configuration history for CloudWatch alarms',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

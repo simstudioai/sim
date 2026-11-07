@@ -1,4 +1,5 @@
 import type { RdsExecuteParams, RdsExecuteResponse } from '@/tools/rds/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const executeTool: InternalToolConfig<RdsExecuteParams, RdsExecuteResponse> = {
@@ -6,6 +7,7 @@ export const executeTool: InternalToolConfig<RdsExecuteParams, RdsExecuteRespons
   name: 'RDS Execute',
   description: 'Execute raw SQL on Amazon RDS using the Data API',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

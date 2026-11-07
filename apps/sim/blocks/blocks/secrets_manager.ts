@@ -1,10 +1,12 @@
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
 
 export const SecretsManagerBlock: BlockConfig = {
   type: 'secrets_manager',
   name: 'AWS Secrets Manager',
+  authMode: AuthMode.ApiKey,
   description: 'Connect to AWS Secrets Manager',
   longDescription:
     'Retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.',
@@ -77,12 +79,14 @@ export const SecretsManagerBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -91,6 +95,7 @@ export const SecretsManagerBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -415,6 +420,10 @@ export const SecretsManagerBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Secrets Manager operation to perform' },
     region: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     secretId: { type: 'string', description: 'Secret name or ARN' },

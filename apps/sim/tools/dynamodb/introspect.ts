@@ -1,4 +1,5 @@
 import type { DynamoDBIntrospectParams, DynamoDBIntrospectResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const introspectTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const introspectTool: InternalToolConfig<
   description:
     'Introspect DynamoDB to list tables or get detailed schema information for a specific table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

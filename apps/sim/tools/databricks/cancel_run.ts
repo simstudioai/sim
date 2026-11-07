@@ -2,7 +2,8 @@ import type {
   DatabricksCancelRunParams,
   DatabricksCancelRunResponse,
 } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCancelRunResponse> = {
@@ -11,6 +12,7 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   description:
     'Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     host: {
@@ -34,11 +36,11 @@ export const cancelRunTool: ToolConfig<DatabricksCancelRunParams, DatabricksCanc
   },
 
   request: {
-    url: (params) => databricksUrl(params.host, '/api/2.2/jobs/runs/cancel'),
+    url: (params) => databricksUrl(databricksHost(params), '/api/2.2/jobs/runs/cancel'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: (params) => ({
       run_id: params.runId,

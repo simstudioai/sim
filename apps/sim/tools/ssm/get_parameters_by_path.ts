@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmGetParametersByPathParams,
   SsmGetParametersByPathResponse,
@@ -12,6 +13,7 @@ export const getParametersByPathTool: InternalToolConfig<
   name: 'SSM Get Parameters By Path',
   description: 'Read parameters under a Parameter Store hierarchy path',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

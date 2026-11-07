@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { AWS_CREDENTIAL_SUBBLOCKS, withoutSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
@@ -132,12 +133,14 @@ export const SQSBlock: BlockConfig = {
       placeholder: 'us-east-1',
       required: true,
     },
+    ...AWS_CREDENTIAL_SUBBLOCKS,
     {
       id: 'accessKeyId',
       title: 'AWS Access Key ID',
       type: 'short-input',
       placeholder: 'AKIA...',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -146,6 +149,7 @@ export const SQSBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Your secret access key',
       password: true,
+      condition: withoutSavedCredential(),
       required: true,
     },
     {
@@ -805,6 +809,10 @@ export const SQSBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'SQS operation to perform' },
     region: { type: 'string', description: 'AWS region' },
+    oauthCredential: {
+      type: 'string',
+      description: 'Saved AWS credential (optional; replaces the access keys)',
+    },
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     queueUrl: { type: 'string', description: 'SQS queue URL' },

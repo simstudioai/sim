@@ -2,6 +2,7 @@ import type {
   CloudFormationValidateTemplateParams,
   CloudFormationValidateTemplateResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const validateTemplateTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const validateTemplateTool: InternalToolConfig<
   name: 'CloudFormation Validate Template',
   description: 'Validate a CloudFormation template for syntax and structural correctness',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

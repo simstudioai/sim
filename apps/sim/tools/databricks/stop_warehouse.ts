@@ -4,9 +4,12 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -18,6 +21,7 @@ export const stopWarehouseTool: ToolConfig<
   name: 'Databricks Stop Warehouse',
   description: 'Stop a running SQL warehouse.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     warehouseId: {
@@ -30,12 +34,12 @@ export const stopWarehouseTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        params.host,
+        databricksHost(params),
         `/api/2.0/sql/warehouses/${safeUrlPathSegment(params.warehouseId, 'warehouseId')}/stop`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: () => ({}),

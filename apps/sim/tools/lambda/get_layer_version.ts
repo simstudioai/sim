@@ -2,6 +2,7 @@ import type {
   LambdaGetLayerVersionParams,
   LambdaGetLayerVersionResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getLayerVersionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getLayerVersionTool: InternalToolConfig<
   name: 'Lambda Get Layer Version',
   description: 'Get details and a download link for a specific layer version',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

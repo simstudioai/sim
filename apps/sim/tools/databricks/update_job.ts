@@ -2,10 +2,13 @@ import { filterUndefined } from '@sim/utils/object'
 import type { DatabricksSuccessResponse, DatabricksUpdateJobParams } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSuccessResponse> = {
@@ -14,6 +17,7 @@ export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSucc
   description:
     'Merge selected settings into a Databricks job and optionally remove settings or tasks.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     jobId: {
@@ -37,10 +41,10 @@ export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSucc
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/update`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/update`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

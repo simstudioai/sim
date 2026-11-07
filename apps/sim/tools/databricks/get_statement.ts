@@ -4,10 +4,13 @@ import type {
 } from '@/tools/databricks/types'
 import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
 import {
+  databricksHost,
+  databricksToken,
   databricksUrl,
   mapStatementResult,
   optionalDatabricksString,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -20,6 +23,7 @@ export const getStatementTool: ToolConfig<
   description:
     'Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     host: {
@@ -52,7 +56,7 @@ export const getStatementTool: ToolConfig<
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          params.host,
+          databricksHost(params),
           `/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}`
         )
       )
@@ -63,7 +67,7 @@ export const getStatementTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
   },
 

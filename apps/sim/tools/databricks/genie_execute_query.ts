@@ -5,11 +5,14 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   GENIE_QUERY_ATTACHMENT_PARAMS,
   genieAttachmentPath,
   mapStatementResult,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieExecuteQueryTool: ToolConfig<
@@ -21,16 +24,18 @@ export const genieExecuteQueryTool: ToolConfig<
   description:
     "Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_QUERY_ATTACHMENT_PARAMS,
 
   request: {
-    url: (params) => databricksUrl(params.host, `${genieAttachmentPath(params)}/execute-query`),
+    url: (params) =>
+      databricksUrl(databricksHost(params), `${genieAttachmentPath(params)}/execute-query`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
     }),
     body: () => ({}),
   },

@@ -343,7 +343,11 @@ export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCas
     const result =
       context.credential.type === 'personal_token'
         ? await updatePersonalTokenCredential({ ...fields, credential: context.credential })
-        : await updateCredentialRecord({ ...fields, credential: context.credential })
+        : await updateCredentialRecord({
+            ...fields,
+            credential: context.credential,
+            actorUserId: requirePrincipalSubjectUserId(principal),
+          })
     if (!result.success) throwCredentialMutationFailure(result)
     const access = await getCredentialActorContext(
       context.credential.id,

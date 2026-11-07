@@ -2,9 +2,12 @@ import { filterUndefined } from '@sim/utils/object'
 import type { DatabricksDeleteRunParams, DatabricksSuccessResponse } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
+  databricksHost,
+  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteRunTool: ToolConfig<DatabricksDeleteRunParams, DatabricksSuccessResponse> = {
@@ -12,6 +15,7 @@ export const deleteRunTool: ToolConfig<DatabricksDeleteRunParams, DatabricksSucc
   name: 'Databricks Delete Run',
   description: 'Delete a completed Databricks job run.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     runId: {
@@ -22,10 +26,10 @@ export const deleteRunTool: ToolConfig<DatabricksDeleteRunParams, DatabricksSucc
     },
   },
   request: {
-    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/runs/delete`),
+    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/runs/delete`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${databricksToken(params)}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
