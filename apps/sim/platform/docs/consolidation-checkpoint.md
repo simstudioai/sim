@@ -19,6 +19,23 @@ Decisions in Merge B for the `embedded/` owner to review:
 - `host-bridge.module.css` lives in `packages/emcn-platform/src/styles/` and names the `EMCN Geist` family. An embedded surface paints its canvas only with `canvas`, through `[data-embedded]:not([data-canvas])`; the zone keeps painting by default.
 - `embedded/` may import only itself, `platform/shared` and the EMCN packages (`check:platform-design`, `check:boundaries` rule 7). `check:platform-css` reads the host bridge from its package.
 
+Reconciliation evidence, run in a separate worktree on the merge commits:
+
+| Check | Merge A | Merge B |
+| --- | --- | --- |
+| Lint | Touched files clean | 30/30 tasks |
+| Types | Platform and app projects | 32/32 workspaces, including every EMCN package |
+| Audits | Platform audits passed; the full suite's unused-export finding was fixed and rechecked | 68/68 |
+| Platform production build | Passed | Passed |
+| Main app production build | Not run | Passed with CI's environment: 1,708 pages |
+| Platform browser suite, fixtures on and off | 101/101 | 118/118 |
+| Electron renderer | Not run | Passed |
+| Script tests | 834 | 845 |
+| Platform and `app/o` unit tests | 385 | 383, plus `@sim/emcn` 2 and `@sim/emcn-legacy` 36 |
+| Full repository tests | Not run | 20 of 21 tasks. App: 40,122 passed, 22 skipped, 3 failed in `gateway.server`, `egress-end-to-end.server` and `processing-recovery-queue-transport`. Those three fail the same way on `b5a30e9744` under the local Node 23.10, which lacks `tls.setDefaultCACertificates`, and pass under Node 24.19 (21/21) |
+| Block registry | Not run | Passed against `origin/staging` |
+| Live suite (`checks/live`) | Not run: needs a running app and database | Not run |
+
 ## Canonical owners
 
 | Owner | Responsibility |
