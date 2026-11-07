@@ -54,9 +54,7 @@ function fontFamily(value: string) {
 
 const scalable = new Set(['fontSize', 'lineHeight', 'container', 'spacing', 'breakpoint', 'radius'])
 function tokenValue(token: Token) {
-  // A fallback keeps first paint in a sans face while the self-hosted Geist loads.
-  if (token.type === 'fontFamily')
-    return `${fontFamily(token.value)}, ${token.value.includes('Mono') ? 'ui-monospace, monospace' : 'Arial, sans-serif'}`
+  if (token.type === 'fontFamily') return fontFamily(token.value)
   const size = /^(\d+(?:\.\d+)?)px$/.exec(token.value)
   return size && scalable.has(token.type) && Number(size[1]) >= 4
     ? `${Number(size[1]) / 16}rem`
