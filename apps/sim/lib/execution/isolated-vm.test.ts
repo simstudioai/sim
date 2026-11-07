@@ -336,6 +336,34 @@ describe('isolated-vm scheduler', () => {
     expect(spawnMock).toHaveBeenCalledTimes(2)
   })
 
+  it('disposes the worker execution when the host timeout fires', async () => {
+    const sent: Array<{ type?: string; executionId?: number }> = []
+    const hungWorker = () => {
+      const proc = createBaseProc()
+      proc.send = (message: unknown) => {
+        sent.push(message as { type?: string; executionId?: number })
+        return true
+      }
+      setImmediate(() => proc.emit('message', { type: 'ready' }))
+      return proc
+    }
+    const { executeInIsolatedVM } = await loadExecutionModule({ spawns: [hungWorker] })
+
+    const result = await executeInIsolatedVM({
+      code: 'await new Promise(() => {})',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 10,
+      requestId: 'req-hung',
+    })
+
+    expect(result.termination).toBe('timeout')
+    const executed = sent.find((message) => message.type === 'execute')
+    expect(executed?.executionId).toBeDefined()
+    expect(sent).toContainEqual({ type: 'cancel', executionId: executed?.executionId })
+  })
+
   it('spawns workers with an allowlisted env, never the parent process.env', async () => {
     const ALLOWED_WORKER_ENV_KEYS = new Set([
       'PATH',

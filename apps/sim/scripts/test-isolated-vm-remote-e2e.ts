@@ -499,6 +499,43 @@ async function run() {
     assert.equal(next.result, 'still alive', next.error?.message)
   })
 
+  const runTask = (code: string) =>
+    executeInIsolatedVM({
+      code,
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 10000,
+      requestId: `e2e-${generateRandomHex(4)}`,
+      ownerKey: 'e2e-owner',
+      task: {
+        id: 'e2e-timers',
+        bundles: [],
+        bootstrap: '',
+        brokers: [],
+        finalize: 'return new Uint8Array([1])',
+      },
+    })
+
+  await check('caps the timers a task may hold on the shared worker', async () => {
+    const timeouts = await runTask(
+      'const f = () => {}; for (let i = 0; i < 200000; i++) setTimeout(f, 60000)'
+    )
+    assert.match(timeouts.error?.message ?? '', /Too many pending timers/, timeouts.error?.message)
+    const intervals = await runTask(
+      'const f = () => {}; for (let i = 0; i < 200; i++) setInterval(f, 1000)'
+    )
+    assert.match(
+      intervals.error?.message ?? '',
+      /Too many active intervals/,
+      intervals.error?.message
+    )
+    const reused = await runTask(
+      'for (let round = 0; round < 3; round++) { const ids = []; for (let i = 0; i < 1000; i++) ids.push(setTimeout(() => {}, 60000)); ids.forEach(clearTimeout) }'
+    )
+    assert.equal(reused.error, undefined, reused.error?.message)
+  })
+
   await check('rejects a connection with the wrong token', async () => {
     const ws = await openSocket(probeHost, authFrame(generateRandomHex(32)))
     assert.equal(await closeCode(ws), 4401)

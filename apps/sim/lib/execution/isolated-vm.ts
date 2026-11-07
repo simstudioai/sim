@@ -1309,6 +1309,13 @@ function dispatchToWorker(
 
   const timeout = setTimeout(() => {
     workerInfo.pendingExecutions.delete(execId)
+    // A never-settling promise escapes the isolate's own script timeout, so the worker
+    // would otherwise keep the isolate and its timers alive until the worker retires.
+    try {
+      workerInfo.process.send({ type: 'cancel', executionId: execId })
+    } catch (err) {
+      logger.warn('Failed to send timeout cancel to worker', { err, workerId: workerInfo.id })
+    }
     workerInfo.activeExecutions--
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
