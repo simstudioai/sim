@@ -10,7 +10,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
@@ -88,9 +87,7 @@ export function AddMembersModal({
       confirmDisabled={selected.size === 0}
       onConfirm={() => onAdd([...selected])}
     >
-      {isPending ? (
-        <LoadingState label='Loading members…' />
-      ) : roster === undefined ? (
+      {isPending ? null : roster === undefined ? (
         <FailureNotice
           message={getErrorMessage(error, 'Failed to load members')}
           retrying={isFetching}

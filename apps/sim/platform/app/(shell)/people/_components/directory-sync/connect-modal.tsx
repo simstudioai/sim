@@ -140,15 +140,15 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
       )}
       {source === 'scim' && (
         <div className={styles.provisioning} aria-live='polite'>
-          <p data-type='T060'>
-            {provisioning.loading
-              ? 'Checking provisioning…'
-              : provisioning.failed
+          {!provisioning.loading && (
+            <p data-type='T060'>
+              {provisioning.failed
                 ? 'Could not read the provisioning connection.'
                 : provisioning.ready
                   ? 'Active'
                   : 'Enable provisioning before connecting this source.'}
-          </p>
+            </p>
+          )}
           <div className={styles.quietActions}>
             {canOpenProvisioningSettings && (
               <Button

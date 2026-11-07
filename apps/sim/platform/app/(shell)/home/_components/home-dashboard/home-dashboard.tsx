@@ -20,7 +20,6 @@ import { GetStarted } from '@/platform/app/(shell)/home/_components/get-started/
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
-import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
@@ -114,7 +113,6 @@ export function HomeDashboard({
           </PageOverflow>
           <PlatformSurface theme='system'>
             <div className={styles.sections}>
-              {view.recents.status === 'loading' && <SkeletonLane label='Loading recents' />}
               {view.recents.status === 'error' && (
                 <InlineNotice
                   intent='warning'

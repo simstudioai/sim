@@ -53,7 +53,7 @@ const EDGE_KEY_STEP_PX = 16
 export function Sidebar(flags: OrganizationNavFlags) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle } = useSidebarChrome()
   const collapsed = railCollapsed && !isPeeking
-  const pathname = usePathname() ?? ''
+  const pathname = usePathname()
   const { data, retryChats, retryWorkspaces } = useOrganizationShell(flags)
   const actions = useShellActions()
   const { organization, destinations } = data

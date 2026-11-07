@@ -40,6 +40,7 @@ const LOAD_FAILED = 'Failed to load organization members'
 
 export function MembersPanel({ organization }: MembersPanelProps) {
   const members = useMembers(organization)
+  const viewerId = members.viewerId
   const [search, setSearch] = useSettingsSearch()
   const [inviting, setInviting] = useState(false)
   const [removal, setRemoval] = useState<RemovalTarget | null>(null)
@@ -89,7 +90,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
         <Muted>Your permission group or this deployment has turned off invitations.</Muted>
       )}
 
-      {members.canLeave && members.viewerId && (
+      {members.canLeave && viewerId && (
         <SettingsSection title='Membership'>
           <SettingsRow label='Organization membership'>
             <Button
@@ -97,7 +98,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
               variant='destructive'
               onClick={() =>
                 setRemoval({
-                  userId: members.viewerId ?? '',
+                  userId: viewerId,
                   name: 'yourself',
                   isSelf: true,
                   isExternal: false,

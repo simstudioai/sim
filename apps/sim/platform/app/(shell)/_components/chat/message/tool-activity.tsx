@@ -168,13 +168,15 @@ export function ToolInteraction({ tool }: { tool: PlatformTool }) {
   if (tool.status !== 'awaiting_approval') return null
   if (review && tool.reviewed) {
     // The review card on this turn owns a proposed action; a call it no longer holds says so.
-    if (review.actions.some((action) => action.id === tool.id) || review.status === 'error')
+    if (
+      review.status === 'loading' ||
+      review.status === 'error' ||
+      review.actions.some((action) => action.id === tool.id)
+    )
       return null
     return (
       <p className={styles.status} data-type='T048' role='status'>
-        {review.status === 'loading'
-          ? 'Loading action review'
-          : `${tool.title} · No longer waiting for review`}
+        {`${tool.title} · No longer waiting for review`}
       </p>
     )
   }

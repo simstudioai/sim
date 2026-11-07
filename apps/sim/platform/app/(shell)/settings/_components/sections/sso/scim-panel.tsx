@@ -14,7 +14,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -52,7 +51,7 @@ function ActivityList({ organizationId, active }: { organizationId: string; acti
     organizationId,
     active
   )
-  if (isLoading) return <LoadingState label='Loading activity…' />
+  if (isLoading) return null
   if (data === undefined && isError) {
     return (
       <FailureNotice
@@ -366,7 +365,6 @@ export function ScimPanel({ organizationId, active, onOpenDomains }: ScimPanelPr
           </SettingsRow>
         )}
       </SettingsSection>
-      {isLoading && <LoadingState label='Loading directory provisioning…' />}
       {connection && enabled && (
         <ConnectionDetails
           organizationId={organizationId}

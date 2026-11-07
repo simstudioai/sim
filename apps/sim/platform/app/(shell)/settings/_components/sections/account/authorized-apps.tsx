@@ -7,7 +7,6 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useAuthorizedAppsList } from '@/platform/shared/account'
 
 const TITLE = 'Authorized apps'
@@ -39,9 +38,7 @@ export function AuthorizedApps() {
         value={list.search}
         onValueChange={list.setSearch}
       />
-      {list.status === 'pending' ? (
-        <SectionSkeleton title={TITLE} rows={2} />
-      ) : list.apps.length === 0 ? (
+      {list.status === 'pending' ? null : list.apps.length === 0 ? (
         <EmptyState
           title={
             list.term

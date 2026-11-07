@@ -30,9 +30,7 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
       <h2 data-type='T093'>Activity</h2>
       {summary.failed ? (
         <FailureNotice message='Couldn’t load activity.' onRetry={summary.retry} />
-      ) : summary.pending ? (
-        <span className={styles.chartPlaceholder} role='status' aria-label='Loading activity' />
-      ) : (
+      ) : summary.pending ? null : (
         <>
           <MetricGroup metrics={summary.metrics} />
           <div className={styles.cards}>
@@ -146,9 +144,7 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
         </div>
         {breakdown.failed ? (
           <FailureNotice message='Couldn’t load the breakdown.' onRetry={breakdown.retry} />
-        ) : !breakdown.rows ? (
-          <span className={styles.listPlaceholder} role='status' aria-label='Loading breakdown' />
-        ) : breakdown.rows.length === 0 ? (
+        ) : !breakdown.rows ? null : breakdown.rows.length === 0 ? (
           <EmptyState title='No activity in this period.' />
         ) : (
           <DataTable

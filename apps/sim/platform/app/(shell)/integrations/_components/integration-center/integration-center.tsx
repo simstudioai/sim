@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { type ReactNode, useState, useTransition } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
@@ -45,6 +45,11 @@ interface ResourceLibrary {
 }
 
 interface IntegrationCenterProps {
+  /**
+   * The directory's page heading. A resource opened in place replaces the directory and this heading
+   * in the same render, so the two never disagree about which view the URL shows.
+   */
+  heading?: ReactNode
   apps: readonly AppSummary[]
   credentials?: readonly AppSummary[]
   library?: ResourceLibrary
@@ -60,6 +65,7 @@ const CREATE_LABEL = {
 
 /** The same directory receives authorized live summaries or server-gated example data. */
 export function IntegrationCenter({
+  heading,
   apps,
   credentials = [],
   library,
@@ -214,164 +220,167 @@ export function IntegrationCenter({
   }
 
   return (
-    <div className={styles.center}>
-      <div className={styles.toolbar}>
-        <DestinationTabs
-          label='Integration categories'
-          destinations={destinations}
-          currentHref={currentHref}
-        />
-        <IntegrationControls
-          leading={
-            <SearchField
-              variant='quiet'
-              label={`Search ${current}`}
-              placeholder={`Search ${current === 'mcps' ? 'MCPs' : current}…`}
-              value={view.q}
-              onValueChange={(q) => void setView({ q })}
-            />
-          }
-        >
-          {current === 'apps' ? (
-            <ChoiceMenu
-              label='App filter'
-              value={view.category === 'all' ? view.connection : `category:${view.category}`}
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'Connected', value: 'connected' },
-                { label: 'Available', value: 'available' },
+    <>
+      {heading}
+      <div className={styles.center}>
+        <div className={styles.toolbar}>
+          <DestinationTabs
+            label='Integration categories'
+            destinations={destinations}
+            currentHref={currentHref}
+          />
+          <IntegrationControls
+            leading={
+              <SearchField
+                variant='quiet'
+                label={`Search ${current}`}
+                placeholder={`Search ${current === 'mcps' ? 'MCPs' : current}…`}
+                value={view.q}
+                onValueChange={(q) => void setView({ q })}
+              />
+            }
+          >
+            {current === 'apps' ? (
+              <ChoiceMenu
+                label='App filter'
+                value={view.category === 'all' ? view.connection : `category:${view.category}`}
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'Connected', value: 'connected' },
+                  { label: 'Available', value: 'available' },
+                  {
+                    label: 'Categories',
+                    options: categories.map((category) => ({
+                      label: category,
+                      value: `category:${category}`,
+                    })),
+                  },
+                ]}
+                onValueChange={(value) => {
+                  if (value.startsWith('category:')) {
+                    void setView({ category: value.slice(9), connection: 'all' })
+                  } else if (value === 'all' || value === 'connected' || value === 'available') {
+                    void setView({ category: 'all', connection: value })
+                  }
+                }}
+              />
+            ) : (
+              <ChoiceMenu
+                label='Category'
+                value={view.scope}
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'Shared', value: 'shared' },
+                  { label: 'Personal', value: 'personal' },
+                ]}
+                onValueChange={(scope) => {
+                  if (scope === 'all' || scope === 'shared' || scope === 'personal')
+                    void setView({ scope })
+                }}
+              />
+            )}
+            <ActionMenu
+              label='Sort integrations'
+              icon='I050'
+              tooltip
+              actions={[
                 {
-                  label: 'Categories',
-                  options: categories.map((category) => ({
-                    label: category,
-                    value: `category:${category}`,
-                  })),
+                  id: 'asc',
+                  label: 'Name A–Z',
+                  checked: view.order === 'asc',
+                  onSelect: () => void setView({ order: 'asc' }),
+                },
+                {
+                  id: 'desc',
+                  label: 'Name Z–A',
+                  checked: view.order === 'desc',
+                  onSelect: () => void setView({ order: 'desc' }),
                 },
               ]}
-              onValueChange={(value) => {
-                if (value.startsWith('category:')) {
-                  void setView({ category: value.slice(9), connection: 'all' })
-                } else if (value === 'all' || value === 'connected' || value === 'available') {
-                  void setView({ category: 'all', connection: value })
-                }
-              }}
             />
-          ) : (
-            <ChoiceMenu
-              label='Category'
-              value={view.scope}
-              options={[
-                { label: 'All', value: 'all' },
-                { label: 'Shared', value: 'shared' },
-                { label: 'Personal', value: 'personal' },
-              ]}
-              onValueChange={(scope) => {
-                if (scope === 'all' || scope === 'shared' || scope === 'personal')
-                  void setView({ scope })
-              }}
-            />
-          )}
-          <ActionMenu
-            label='Sort integrations'
-            icon='I050'
-            tooltip
-            actions={[
-              {
-                id: 'asc',
-                label: 'Name A–Z',
-                checked: view.order === 'asc',
-                onSelect: () => void setView({ order: 'asc' }),
-              },
-              {
-                id: 'desc',
-                label: 'Name Z–A',
-                checked: view.order === 'desc',
-                onSelect: () => void setView({ order: 'desc' }),
-              },
-            ]}
-          />
-          {current !== 'apps' && library && (
-            <Button
-              variant='secondary'
-              size='compact'
-              icon='I074'
-              onClick={() => {
-                if (current === 'credentials') setCreating('credential')
-                else
-                  void setView(
-                    { resource: 'new', resourceTab: null },
-                    { history: 'push', scroll: false }
-                  )
-              }}
-            >
-              {CREATE_LABEL[current]}
-            </Button>
-          )}
-        </IntegrationControls>
-      </div>
-      <div className={styles.groups}>
-        {current === 'apps' ? (
-          <>
-            <AppGroup
-              title='Connected'
-              apps={visibleApps.filter((app) => app.connected)}
-              onNavigate={navigate}
-            />
-            <AppGroup
-              title='Available'
-              apps={visibleApps.filter((app) => !app.connected)}
-              onNavigate={navigate}
-            />
-          </>
-        ) : (
-          <>
-            {(['shared', 'personal'] as const).map((scope) => (
-              <ResourceGroup
-                key={scope}
-                title={scope === 'shared' ? 'Shared' : 'Personal'}
-                resources={resources.filter((resource) => resource.scope === scope)}
-                links={
-                  current === 'credentials'
-                    ? credentialLinks.filter((item) => item.scope === scope)
-                    : []
-                }
-                order={view.order}
+            {current !== 'apps' && library && (
+              <Button
+                variant='secondary'
+                size='compact'
+                icon='I074'
+                onClick={() => {
+                  if (current === 'credentials') setCreating('credential')
+                  else
+                    void setView(
+                      { resource: 'new', resourceTab: null },
+                      { history: 'push', scroll: false }
+                    )
+                }}
+              >
+                {CREATE_LABEL[current]}
+              </Button>
+            )}
+          </IntegrationControls>
+        </div>
+        <div className={styles.groups}>
+          {current === 'apps' ? (
+            <>
+              <AppGroup
+                title='Connected'
+                apps={visibleApps.filter((app) => app.connected)}
                 onNavigate={navigate}
-                onOpen={open}
-                resourceHref={(resource) =>
-                  serializeCredential(
-                    serializeCenter(base, { resource: resource.id, resourceTab: null }),
-                    clearCredentialView
-                  )
-                }
               />
-            ))}
-          </>
-        )}
-        {settled && empty && (
-          <section className={styles.empty} aria-label='Search results'>
-            <h2 data-type='T059'>
-              {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
-            </h2>
-            <p data-type='T050'>
-              {term
-                ? 'Try a different name or clear your filters.'
-                : current === 'apps'
-                  ? 'Apps available to your organization appear here.'
-                  : 'Your personal and shared connections appear here.'}
-            </p>
-          </section>
+              <AppGroup
+                title='Available'
+                apps={visibleApps.filter((app) => !app.connected)}
+                onNavigate={navigate}
+              />
+            </>
+          ) : (
+            <>
+              {(['shared', 'personal'] as const).map((scope) => (
+                <ResourceGroup
+                  key={scope}
+                  title={scope === 'shared' ? 'Shared' : 'Personal'}
+                  resources={resources.filter((resource) => resource.scope === scope)}
+                  links={
+                    current === 'credentials'
+                      ? credentialLinks.filter((item) => item.scope === scope)
+                      : []
+                  }
+                  order={view.order}
+                  onNavigate={navigate}
+                  onOpen={open}
+                  resourceHref={(resource) =>
+                    serializeCredential(
+                      serializeCenter(base, { resource: resource.id, resourceTab: null }),
+                      clearCredentialView
+                    )
+                  }
+                />
+              ))}
+            </>
+          )}
+          {settled && empty && (
+            <section className={styles.empty} aria-label='Search results'>
+              <h2 data-type='T059'>
+                {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
+              </h2>
+              <p data-type='T050'>
+                {term
+                  ? 'Try a different name or clear your filters.'
+                  : current === 'apps'
+                    ? 'Apps available to your organization appear here.'
+                    : 'Your personal and shared connections appear here.'}
+              </p>
+            </section>
+          )}
+        </div>
+        {creating === 'credential' && library && (
+          <ResourceEditor
+            kind='credential'
+            data={library.data}
+            apps={apps}
+            onClose={() => setCreating(null)}
+            onSave={library.save}
+          />
         )}
       </div>
-      {creating === 'credential' && library && (
-        <ResourceEditor
-          kind='credential'
-          data={library.data}
-          apps={apps}
-          onClose={() => setCreating(null)}
-          onSave={library.save}
-        />
-      )}
-    </div>
+    </>
   )
 }

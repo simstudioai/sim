@@ -3,14 +3,15 @@ import styles from '#emcn/components/settings-section/settings-section.module.cs
 
 interface SettingsSectionProps {
   title: string
-  children: ReactNode
+  /** Omitted while the section's first read is pending, so the heading paints alone. */
+  children?: ReactNode
 }
 
 export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <section className={styles.section} aria-label={title} data-setting-label={title}>
       <h2 data-type='T093'>{title}</h2>
-      <SettingsSurface>{children}</SettingsSurface>
+      {children !== undefined && <SettingsSurface>{children}</SettingsSurface>}
     </section>
   )
 }

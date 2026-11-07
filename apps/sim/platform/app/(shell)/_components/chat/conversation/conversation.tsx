@@ -97,11 +97,6 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
         >
           <PageColumn>
             <div className={styles.thread} ref={thread}>
-              {status === 'loading' && (
-                <p className={styles.turn} data-type='T048' role='status'>
-                  Loading conversation
-                </p>
-              )}
               {runtime.loadFailed && (
                 <InlineNotice
                   intent='danger'

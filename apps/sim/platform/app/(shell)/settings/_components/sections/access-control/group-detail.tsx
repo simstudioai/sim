@@ -19,7 +19,6 @@ import {
   ActionRow,
   DetailHeader,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
   SectionToolbar,
@@ -315,7 +314,7 @@ export function GroupDetail({
   const query = deferredSearch.trim().toLowerCase()
 
   function catalogBody() {
-    if (editor.isLoading) return <LoadingState label='Loading permissions…' />
+    if (editor.isLoading) return null
     if (!model || !controls) {
       return (
         <FailureNotice
@@ -584,7 +583,7 @@ export function GroupDetail({
                         : 'Select the workspaces this group governs'
                     }
                     searchLabel='Search workspaces…'
-                    placeholder={workspacesLoading ? 'Loading workspaces…' : 'Select workspaces…'}
+                    placeholder='Select workspaces…'
                     options={workspaceOptions}
                     value={viewing.workspaces.map((ws) => ws.id)}
                     disabled={workspacesLoading}
@@ -620,9 +619,7 @@ export function GroupDetail({
                   Add
                 </Button>
               </SettingsRow>
-              {members.isPending ? (
-                <LoadingState label='Loading members…' />
-              ) : members.data === undefined ? (
+              {members.isPending ? null : members.data === undefined ? (
                 <FailureNotice
                   message={getErrorMessage(members.error, 'Failed to load members')}
                   retrying={members.isFetching}

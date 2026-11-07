@@ -16,7 +16,6 @@ import {
 import { ChartCanvas } from '@/platform/app/(shell)/people/_components/org-chart/chart-canvas'
 import { ChartEmptyState } from '@/platform/app/(shell)/people/_components/org-chart/chart-empty-state'
 import styles from '@/platform/app/(shell)/people/_components/org-chart/org-chart.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import { usePeoplePicker, usePeopleViewer } from '@/platform/lib/data/people'
 import { type SyncSource, useOrgChart } from '@/platform/shared/people'
@@ -304,9 +303,7 @@ export function OrgChart({ organizationId, firstUse, onConnect, onImport, onSync
             />
           )}
         </PageColumn>
-      ) : (
-        <PeopleStatus>Loading org chart…</PeopleStatus>
-      )}
+      ) : null}
     </section>
   )
 }

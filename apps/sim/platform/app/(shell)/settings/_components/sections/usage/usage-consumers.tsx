@@ -82,8 +82,7 @@ export function UsageConsumers({
 }: UsageConsumersProps) {
   const { data: breakdown, loading, failed, dimmed, retry: onRetry } = list
   if (failed) return <FailureNotice message={`Couldn’t load ${title}.`} onRetry={onRetry} />
-  if (loading || !breakdown)
-    return <span className={styles.listPlaceholder} role='status' aria-label={`Loading ${title}`} />
+  if (loading || !breakdown) return null
   if (breakdown.rows.length === 0)
     return <EmptyState title={title} description={EMPTY_COPY[dimension]} />
   return (

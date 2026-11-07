@@ -15,7 +15,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -104,13 +103,7 @@ function CreateGroupModal({
       <MultiSelect
         label='Workspaces'
         searchLabel='Search workspaces…'
-        placeholder={
-          workspacesLoading
-            ? 'Loading workspaces…'
-            : isDefault
-              ? 'All workspaces'
-              : 'Select workspaces…'
-        }
+        placeholder={isDefault ? 'All workspaces' : 'Select workspaces…'}
         hint={
           isDefault
             ? undefined
@@ -143,7 +136,7 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
     ? permissionGroups.find((group) => group.id === params.groupId)
     : undefined
 
-  if (groups.isPending) return <LoadingState label='Loading permission groups…' />
+  if (groups.isPending) return null
   if (groups.error && groups.data === undefined) {
     return (
       <FailureNotice

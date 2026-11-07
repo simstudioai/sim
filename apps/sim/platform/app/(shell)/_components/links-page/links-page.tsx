@@ -14,10 +14,7 @@ import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
 import { FailureNotice } from '@sim/emcn/status'
 import { LinkEditor } from '@/platform/app/(shell)/_components/links-page/link-editor'
 import { LinkIcon } from '@/platform/app/(shell)/_components/links-page/link-icon'
-import {
-  LinkRowsSkeleton,
-  LinksFrame,
-} from '@/platform/app/(shell)/_components/links-page/links-frame'
+import { LinksFrame } from '@/platform/app/(shell)/_components/links-page/links-frame'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -184,6 +181,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
   const links = useLinksPage(organizationId)
   const [editing, setEditing] = useState<LinkRecord | null>(null)
   const [deleting, setDeleting] = useState<LinkRecord | null>(null)
+  const unsettled = links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0)
 
   return (
     <LinksFrame
@@ -195,9 +193,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
     >
       {links.status === 'error' ? (
         <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
-      ) : links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0) ? (
-        <LinkRowsSkeleton />
-      ) : links.rows.length === 0 ? (
+      ) : unsettled ? null : links.rows.length === 0 ? (
         links.term ? (
           <EmptyState
             title={`No results for “${links.term}”`}

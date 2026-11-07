@@ -1,6 +1,14 @@
 'use client'
 
-import { type ReactNode, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { useCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
 import { OverflowText } from '@sim/emcn/overflow-text'
@@ -246,20 +254,26 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
               : undefined
           }
         >
-          {location && !workspaceChat ? (
-            <div className={styles.pageContent} data-workspace-pane={directory ? undefined : true}>
-              {children}
-            </div>
-          ) : scrollingPage ? (
-            <ScrollArea
-              key={pathname}
-              label={home ? 'Home dashboard' : 'Organization integrations'}
-            >
-              <div className={styles.pageContent}>{children}</div>
-            </ScrollArea>
-          ) : (
-            children
-          )}
+          {/* Unkeyed, so a navigation keeps the current page until the next one is ready. */}
+          <Suspense fallback={null}>
+            {location && !workspaceChat ? (
+              <div
+                className={styles.pageContent}
+                data-workspace-pane={directory ? undefined : true}
+              >
+                {children}
+              </div>
+            ) : scrollingPage ? (
+              <ScrollArea
+                key={pathname}
+                label={home ? 'Home dashboard' : 'Organization integrations'}
+              >
+                <div className={styles.pageContent}>{children}</div>
+              </ScrollArea>
+            ) : (
+              children
+            )}
+          </Suspense>
         </div>
         <dialog
           ref={drawerRef}

@@ -40,7 +40,7 @@ export function SettingsFrame({ children }: SettingsFrameProps) {
   const pathname = usePathname()
   const { pendingSection } = useSettingsNavigationState()
   const pending = pendingSection ? resolveOrganizationSurfaceHeaderMeta(pendingSection) : null
-  const current = resolveOrganizationSurfaceHeaderMeta(pathname ?? '')
+  const current = resolveOrganizationSurfaceHeaderMeta(pathname)
   const title = pending?.title ?? current?.title ?? 'Settings'
 
   return (

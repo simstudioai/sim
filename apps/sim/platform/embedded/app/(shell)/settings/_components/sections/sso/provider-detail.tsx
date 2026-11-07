@@ -58,8 +58,8 @@ export function ProviderDetail({
   }
 
   const isSaml = provider.providerType === 'saml'
-  const isOidc = (provider.providerType ?? 'oidc') === 'oidc'
-  const encodedProviderId = encodeURIComponent(provider.providerId ?? '')
+  const isOidc = provider.providerType === 'oidc'
+  const encodedProviderId = encodeURIComponent(provider.providerId)
   const jit = provider.jitProvisioningEnabled ?? true
 
   return (
@@ -79,16 +79,16 @@ export function ProviderDetail({
                 id: 'provider-id',
                 label: 'Provider ID',
                 kind: 'text',
-                value: provider.providerId ?? '',
+                value: provider.providerId,
               },
               {
                 id: 'type',
                 label: 'Provider type',
                 kind: 'text',
-                value: (provider.providerType ?? 'oidc').toUpperCase(),
+                value: provider.providerType.toUpperCase(),
               },
-              { id: 'domain', label: 'Domain', kind: 'text', value: provider.domain ?? '' },
-              { id: 'issuer', label: 'Issuer URL', kind: 'text', value: provider.issuer ?? '' },
+              { id: 'domain', label: 'Domain', kind: 'text', value: provider.domain },
+              { id: 'issuer', label: 'Issuer URL', kind: 'text', value: provider.issuer },
             ]}
           />
           <CopyField

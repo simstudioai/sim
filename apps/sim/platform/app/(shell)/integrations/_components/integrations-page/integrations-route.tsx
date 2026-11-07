@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { InlineNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
@@ -22,9 +21,6 @@ import {
 } from '@/platform/lib/data/integrations'
 import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
-
-const LOADING_CONNECTIONS = 'Loading your connections'
-const LOADING_CONNECTION = 'Loading connection'
 
 export interface IntegrationsRouteProps {
   organizationId: string
@@ -64,10 +60,8 @@ export function IntegrationsRoute({
     { q: search }
   )
 
-  const inventoryStatus = inventory.error ? (
+  const inventoryFailure = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
-  ) : !inventory.data ? (
-    <InlineNotice message={LOADING_CONNECTIONS} />
   ) : null
   const readFailures = (
     <>
@@ -85,22 +79,23 @@ export function IntegrationsRoute({
       <IntegrationsPage>
         <IntegrationsHeading handoff={handoff} />
         {connectionRequest}
-        {inventoryStatus ?? (
-          <>
-            {readFailures}
-            <IntegrationList
-              integrations={integrations}
-              secrets={genericSecrets}
-              integrationHref={integrationHref}
-              secretsHref={
-                genericSecrets?.mode === 'member'
-                  ? memberSecretsHref
-                  : integrationHref(GENERIC_SECRETS_SEGMENT)
-              }
-              settled={policies.isSuccess && secrets.isSuccess}
-            />
-          </>
-        )}
+        {inventoryFailure ??
+          (inventory.data && (
+            <>
+              {readFailures}
+              <IntegrationList
+                integrations={integrations}
+                secrets={genericSecrets}
+                integrationHref={integrationHref}
+                secretsHref={
+                  genericSecrets?.mode === 'member'
+                    ? memberSecretsHref
+                    : integrationHref(GENERIC_SECRETS_SEGMENT)
+                }
+                settled={policies.isSuccess && secrets.isSuccess}
+              />
+            </>
+          ))}
       </IntegrationsPage>
     )
 
@@ -110,16 +105,12 @@ export function IntegrationsRoute({
       ? { href: integrationHref(integration.id), label: `Back to ${integration.name}` }
       : { href: indexHref, label: 'Integrations' }
   const unavailable = (loading: boolean) =>
-    loading ? (
-      <InlineNotice message={LOADING_CONNECTION} />
-    ) : (
-      <EmptyState title='This integration is no longer available.' />
-    )
+    loading ? null : <EmptyState title='This integration is no longer available.' />
 
   if (section === GENERIC_SECRETS_SEGMENT)
     return (
       <IntegrationsPage back={back}>
-        {inventoryStatus}
+        {inventoryFailure}
         {readFailures}
         {genericSecrets ? (
           <>
@@ -134,43 +125,44 @@ export function IntegrationsRoute({
 
   return (
     <IntegrationsPage back={back}>
-      {inventoryStatus ?? (
-        <>
-          {readFailures}
-          {integration ? (
-            <IntegrationDetails
-              key={integration.id}
-              integration={integration}
-              accountId={account}
-              integrationHref={integrationHref(integration.id)}
-              accountHref={(credentialId) =>
-                serialize(integrationCenterHref(pathOf(integration.id), params), {
-                  q: search,
-                  account: credentialId,
-                })
-              }
-              pending={actions.pending}
-              onConnect={() => {
-                if (integration.connectionTarget) actions.connect(integration.connectionTarget)
-              }}
-              onReconnect={actions.reconnect}
-              onDisconnect={async (credentialId) => {
-                await actions.disconnect(credentialId)
-                if (account === credentialId) clearAccount()
-              }}
-              renderToolPermissions={(credentialId) => (
-                <ToolPermissionsPanel
-                  key={credentialId}
-                  organizationId={organizationId}
-                  credentialId={credentialId}
-                />
-              )}
-            />
-          ) : (
-            !policies.error && unavailable(policies.isPending)
-          )}
-        </>
-      )}
+      {inventoryFailure ??
+        (inventory.data && (
+          <>
+            {readFailures}
+            {integration ? (
+              <IntegrationDetails
+                key={integration.id}
+                integration={integration}
+                accountId={account}
+                integrationHref={integrationHref(integration.id)}
+                accountHref={(credentialId) =>
+                  serialize(integrationCenterHref(pathOf(integration.id), params), {
+                    q: search,
+                    account: credentialId,
+                  })
+                }
+                pending={actions.pending}
+                onConnect={() => {
+                  if (integration.connectionTarget) actions.connect(integration.connectionTarget)
+                }}
+                onReconnect={actions.reconnect}
+                onDisconnect={async (credentialId) => {
+                  await actions.disconnect(credentialId)
+                  if (account === credentialId) clearAccount()
+                }}
+                renderToolPermissions={(credentialId) => (
+                  <ToolPermissionsPanel
+                    key={credentialId}
+                    organizationId={organizationId}
+                    credentialId={credentialId}
+                  />
+                )}
+              />
+            ) : (
+              !policies.error && unavailable(policies.isPending)
+            )}
+          </>
+        ))}
     </IntegrationsPage>
   )
 }

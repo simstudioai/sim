@@ -9,7 +9,6 @@ import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
 import { usePeoplePath } from '@/platform/lib/data/people'
 import { personHref, useDepartmentOptions, usePeopleDirectory } from '@/platform/shared/people'
@@ -83,9 +82,7 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
             />
           </div>
         </div>
-        {directory.loading ? (
-          <PeopleStatus>Loading people…</PeopleStatus>
-        ) : directory.error ? (
+        {directory.loading ? null : directory.error ? (
           <FailureNotice
             title='Could not load people'
             message={directory.error.message}

@@ -9,33 +9,28 @@ import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/_components/links-page/links-page.module.css'
 import { openChromeStore, useLinksHosted } from '@/platform/lib/data/links'
 
-const SKELETON_ROWS = 6
-
 interface LinksFrameProps {
-  search?: string
-  onSearch?: (value: string) => void
-  onCreate?: () => void
-  sortLabel?: string
-  sortActions?: readonly MenuAction[]
-  /** Holds the page's controls still while the route loads. */
-  loading?: boolean
+  search: string
+  onSearch: (value: string) => void
+  onCreate: () => void
+  sortLabel: string
+  sortActions: readonly MenuAction[]
   children: ReactNode
 }
 
-/** The page's title, actions, search and sort, shared with its loading state so nothing shifts. */
+/** The page's title, actions, search and sort, painted before the first read of links settles. */
 export function LinksFrame({
-  search = '',
+  search,
   onSearch,
   onCreate,
-  sortLabel = 'Sort',
-  sortActions = [],
-  loading,
+  sortLabel,
+  sortActions,
   children,
 }: LinksFrameProps) {
   const hosted = useLinksHosted()
   return (
     <PageColumn>
-      <main className={styles.page} inert={loading} aria-busy={loading || undefined}>
+      <main className={styles.page}>
         <header className={styles.heading}>
           <h1 data-type='T076'>Links</h1>
           <div className={styles.actions}>
@@ -68,15 +63,5 @@ export function LinksFrame({
         {children}
       </main>
     </PageColumn>
-  )
-}
-
-export function LinkRowsSkeleton() {
-  return (
-    <div role='status' aria-label='Loading links' className={styles.skeleton}>
-      {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-        <span key={index} className={styles.skeletonRow} />
-      ))}
-    </div>
   )
 }

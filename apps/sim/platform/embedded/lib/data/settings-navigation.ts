@@ -132,7 +132,7 @@ export function useSettingsNavigation() {
   return {
     groups,
     /** Empty on a path that names no section, such as not-found, so no row reads as current. */
-    activeSection: resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? '',
+    activeSection: resolveOrganizationSurfaceSection(pathname)?.section ?? '',
     isAdmin,
     hosted: settingsFeatures.hosted,
     /** Where Back to app lands when no return URL was remembered on the way in. */

@@ -12,7 +12,6 @@ import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -171,7 +170,7 @@ export function PermissionGrid({
     )
     .sort((a, b) => a.label.localeCompare(b.label))
   const targetFor = (id: string) => ({ kind, id }) as AccessRequestTarget
-  if (loading) return <LoadingState label='Loading…' />
+  if (loading) return null
   if (!items.length) return <Muted>{emptyLabel}</Muted>
   return (
     <>

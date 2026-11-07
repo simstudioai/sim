@@ -13,12 +13,12 @@ const VIEWS = [
 
 interface PeopleFrameProps {
   actions?: ReactNode
-  view?: PeopleView
-  onViewChange?: (view: PeopleView) => void
+  view: PeopleView
+  onViewChange: (view: PeopleView) => void
   children: ReactNode
 }
 
-/** The title, its actions and the view tabs, shared with the loading state so nothing shifts. */
+/** The title, its actions and the view tabs, painted before the view's first read settles. */
 export function PeopleFrame({ actions, view, onViewChange, children }: PeopleFrameProps) {
   return (
     <main className={styles.page}>
@@ -35,8 +35,7 @@ export function PeopleFrame({ actions, view, onViewChange, children }: PeopleFra
               className={styles.tab}
               data-type={view === value ? 'T042' : 'T043'}
               aria-current={view === value ? 'page' : undefined}
-              disabled={!onViewChange}
-              onClick={() => onViewChange?.(value)}
+              onClick={() => onViewChange(value)}
             >
               {label}
             </button>

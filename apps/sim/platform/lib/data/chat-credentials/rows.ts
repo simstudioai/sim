@@ -45,10 +45,10 @@ export function useSearchConnectionRow(
 /** Mounts the shared directory on desktop; undefined outside that host. */
 export function useFolderAccess() {
   const bridge = getDesktopBridge()
-  if (!bridge?.localFilesystem) return undefined
+  if (!bridge) return undefined
   return async (name: string | undefined): Promise<boolean> => {
     try {
-      await bridge.localFilesystem?.({ operation: 'mount_directory' })
+      await bridge.localFilesystem({ operation: 'mount_directory' })
       toast.success(`Access granted — ${name ?? 'folder'}`)
       return true
     } catch {
