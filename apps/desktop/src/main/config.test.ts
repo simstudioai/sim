@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  addressSpaceOverrideForOrigin,
   canonicalOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -39,6 +40,17 @@ describe('partitionForOrigin', () => {
     const partition = partitionForOrigin('https://self-hosted.example:8443')
     expect(partition).toMatch(/^persist:sim-/)
     expect(partition).not.toBe(partitionForOrigin('https://other.example'))
+  })
+})
+
+describe('addressSpaceOverrideForOrigin', () => {
+  it('marks only self-hosted deployment hosts as public', () => {
+    expect(addressSpaceOverrideForOrigin('https://sim.internal.example')).toBe(
+      'sim.internal.example=public'
+    )
+    expect(addressSpaceOverrideForOrigin('https://192.168.50.173')).toBe('192.168.50.173=public')
+    expect(addressSpaceOverrideForOrigin('https://www.sim.ai')).toBeNull()
+    expect(addressSpaceOverrideForOrigin('http://localhost:3000')).toBeNull()
   })
 })
 

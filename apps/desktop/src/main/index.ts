@@ -61,6 +61,7 @@ import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 import { ComputerUseService } from '@/main/computer-use/service'
 import {
   APP_NAME_FOR_CHANNEL,
+  addressSpaceOverrideForOrigin,
   channelForOrigin,
   createConfigStore,
   DEFAULT_ORIGIN,
@@ -155,6 +156,10 @@ function main(): void {
     if (!repaired.ok) {
       logger.error('Could not repair desktop settings for account-data recovery')
     }
+  }
+  const addressSpaceOverride = addressSpaceOverrideForOrigin(config.getOrigin())
+  if (addressSpaceOverride) {
+    app.commandLine.appendSwitch('ip-address-space-overrides', addressSpaceOverride)
   }
   const accountDataAvailable = () =>
     config.isPersistenceAvailable() && !isAccountDataTeardownRequired()
