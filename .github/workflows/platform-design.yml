@@ -30,6 +30,7 @@ on:
       - 'apps/realtime/**'
       - 'packages/emcn/**'
       - 'packages/emcn-platform/**'
+      - 'packages/emcn-legacy/**'
       - 'scripts/emcn-packages.ts'
       - 'apps/sim/lib/postcss/platform-embed.cjs'
       - 'scripts/check-platform-design*'

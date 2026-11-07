@@ -10,6 +10,7 @@ on:
       - 'apps/sim/scripts/test-auth-ui-e2e.ts'
       - 'apps/sim/package.json'
       - 'apps/sim/postcss.config.mjs'
+      - 'apps/sim/lib/postcss/hairline-border-width.cjs'
       - 'packages/emcn/**'
       - 'packages/emcn-auth/**'
       - 'bun.lock'

@@ -231,6 +231,7 @@ async function run() {
       await page.keyboard.press('Enter')
       await expect(workspace).toContainText('Design')
       await workspace.click()
+      await expect(page.getByRole('listbox')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(workspace).toBeFocused()
       await expect(page.getByRole('listbox')).toBeHidden()

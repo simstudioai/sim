@@ -54,8 +54,6 @@
         "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
-        "@sim/emcn": "workspace:*",
-        "@sim/emcn-auth": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/security": "workspace:*",
         "@sim/terminal-protocol": "workspace:*",
@@ -71,6 +69,8 @@
       "devDependencies": {
         "@electron/fuses": "1.8.0",
         "@playwright/test": "1.64.1",
+        "@sim/emcn": "workspace:*",
+        "@sim/emcn-auth": "workspace:*",
         "@sim/emcn-legacy": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/micromatch": "4.0.10",

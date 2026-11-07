@@ -6,3 +6,11 @@
 
 @source "../../../../packages/emcn/src/components";
 @source "../../../../packages/emcn-platform/src/components";
+
+/* Electron moves the window from these headers; their controls stay clickable. */
+[data-sim-desktop-title-bar] [data-desktop-drag] {
+  -webkit-app-region: drag;
+}
+[data-sim-desktop-title-bar] [data-desktop-drag] :is(button, a, input, textarea, [role="tab"]) {
+  -webkit-app-region: no-drag;
+}

@@ -218,3 +218,10 @@
 .docs-portal :where(button, a, input, textarea, select, summary, [tabindex]):focus {
   outline: none;
 }
+
+/* Pointer focus stays unpainted; keyboard focus outlines controls other than text fields. */
+.docs-root :focus-visible:not(input, textarea, select, [tabindex="-1"]),
+.docs-portal :focus-visible:not(input, textarea, select, [tabindex="-1"]) {
+  outline: var(--spacing-stroke-focus, 2px) solid var(--docs-link);
+  outline-offset: var(--spacing-stroke-focus, 2px);
+}

@@ -22,7 +22,7 @@ interface SurfaceProps {
  */
 export function Surface({ canvas, detached, children }: SurfaceProps) {
   return (
-    <PlatformSurface theme='system' canvas={canvas} detached={detached}>
+    <PlatformSurface theme='system' embedded canvas={canvas} detached={detached}>
       {children}
     </PlatformSurface>
   )

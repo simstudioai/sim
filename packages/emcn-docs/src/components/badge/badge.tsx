@@ -40,7 +40,7 @@ interface NeutralBadgeProps {
 
 export function NeutralBadge({ children }: NeutralBadgeProps) {
   return (
-    <span className='inline-flex items-center rounded-md bg-[var(--docs-surface)] px-2 py-0.5 font-mono text-[var(--docs-muted)] text-docs-caption'>
+    <span className='inline-flex w-fit items-center rounded-md bg-[var(--docs-surface)] px-2 py-0.5 font-mono text-[var(--docs-muted)] text-docs-caption'>
       {children}
     </span>
   )
