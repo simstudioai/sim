@@ -10,9 +10,12 @@ import {
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationSettingsAccess } = vi.hoisted(() => ({
+const { mockGetOrganizationSettingsAccess, mockIsPlatformOrgUiEnabled } = vi.hoisted(() => ({
   mockGetOrganizationSettingsAccess: vi.fn(),
+  mockIsPlatformOrgUiEnabled: vi.fn(),
 }))
+
+vi.mock('@/lib/platform/rollout', () => ({ isPlatformOrgUiEnabled: mockIsPlatformOrgUiEnabled }))
 
 vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
@@ -77,6 +80,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       sourceMirrored: true,
     })
     mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
+    mockIsPlatformOrgUiEnabled.mockResolvedValue(false)
   })
 
   it.each([
@@ -102,6 +106,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       expect(context?.features).toEqual({
         credentialGroups: true,
         organizationSearch,
+        platformOrgUi: false,
         knowledgeMemberAccess: workspaceKnowledge,
         knowledgeSourceMirroredAccess: workspaceKnowledge,
         chat: true,
@@ -134,8 +139,28 @@ describe('getWorkspaceHostContextForViewer', () => {
     })
     expect(context?.hostOrganizationId).toBe('org-host')
     expect(context?.features?.organizationSearch).toBe(false)
+    expect(context?.features?.platformOrgUi).toBe(false)
     expect(mockIsKnowledgeMemberAccessAvailable).not.toHaveBeenCalled()
+    expect(mockIsPlatformOrgUiEnabled).not.toHaveBeenCalled()
   })
+
+  it.each([true, false])(
+    'reports the host organization’s Platform rollout (%s) to its members',
+    async (enabled) => {
+      mockCheckWorkspaceAccess.mockResolvedValue(accessibleWorkspace('write', 'org-host'))
+      mockGetOrganizationSettingsAccess.mockResolvedValue({
+        role: 'member',
+        isMember: true,
+        isAdmin: false,
+      })
+      mockIsPlatformOrgUiEnabled.mockResolvedValue(enabled)
+
+      const context = await getWorkspaceHostContextForViewer('workspace-1', 'member-1')
+
+      expect(context?.features?.platformOrgUi).toBe(enabled)
+      expect(mockIsPlatformOrgUiEnabled).toHaveBeenCalledExactlyOnceWith('org-host')
+    }
+  )
 
   it('returns null before loading entitlements when the viewer has no access', async () => {
     mockCheckWorkspaceAccess.mockResolvedValue({

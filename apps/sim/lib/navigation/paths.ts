@@ -61,15 +61,17 @@ export function organizationRoutes(organizationId: string) {
 
 interface WorkspaceIntegrationContext {
   hostOrganizationId: string | null
-  features?: { organizationSearch?: boolean }
+  features?: { organizationSearch?: boolean; platformOrgUi?: boolean }
 }
 
-/** Organization members use the center; standalone workspaces retain their credential routes. */
+/** Members of an organization on the Platform use its integration center; everyone else keeps the workspace's. */
 export function workspaceIntegrationsPath(
   workspaceId: string,
   context: WorkspaceIntegrationContext | null
 ) {
-  return context?.features?.organizationSearch && context.hostOrganizationId
+  return context?.features?.organizationSearch &&
+    context.features.platformOrgUi &&
+    context.hostOrganizationId
     ? organizationRoutes(context.hostOrganizationId).integrations
     : `/workspace/${workspaceId}/integrations`
 }

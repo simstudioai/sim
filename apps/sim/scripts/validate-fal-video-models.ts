@@ -1,6 +1,6 @@
 /**
- * Checks every visible fal Video Generator option against its published queue schema,
- * without submitting jobs. Run with bun apps/sim/scripts/validate-fal-video-models.ts.
+ * Checks every visible fal Video Generator option against its published queue schema, with and
+ * without a start frame (which targets the model's image-to-video endpoint), without submitting jobs. Run with bun apps/sim/scripts/validate-fal-video-models.ts.
  * FAL_VIDEO_SCHEMA_DIR optionally supplies saved schemas named <endpoint with / replaced by __>.json.
  * FAL_VIDEO_REPORT_PATH optionally saves the per-model results.
  */
@@ -68,13 +68,24 @@ async function loadSchema(endpoint: string): Promise<ModelSchema> {
   return response.json()
 }
 
-async function checkModel(id: string) {
+const startFrame = {
+  id: 'schema-validation-frame',
+  name: 'frame.png',
+  url: '',
+  size: 1024,
+  type: 'image/png',
+  key: 'workspace/schema-validation/frame.png',
+}
+
+async function checkModel(id: string, withImage: boolean) {
   const model = getFalVideoModel(id)
   assert(model)
   assert.equal(getFalVideoModel(model.endpoint), model)
-  const { paths, components } = await loadSchema(model.endpoint)
+  const endpoint = withImage ? model.image?.endpoint : model.endpoint
+  assert(endpoint)
+  const { paths, components } = await loadSchema(endpoint)
   const schemaAt = (ref?: string) => components.schemas[ref?.split('/').pop() ?? '']
-  const path = `/${model.endpoint}`
+  const path = `/${endpoint}`
   const input = schemaAt(paths[path]?.post?.requestBody.content['application/json'].schema.$ref)
   const output = schemaAt(
     paths[`${path}/requests/{request_id}`]?.get?.responses['200'].content['application/json'].schema
@@ -103,6 +114,7 @@ async function checkModel(id: string) {
     model: id,
     apiKey: 'schema-validation',
     prompt: 'A red kite rises above a meadow.',
+    ...(withImage ? { visualReference: startFrame } : {}),
   }
   const params = block.tools.config?.params
   if (!params) throw new Error('Video Generator must map block settings to tool parameters')
@@ -110,7 +122,7 @@ async function checkModel(id: string) {
     duration: 'duration',
     resolution: 'resolution',
     aspectRatio: 'aspect_ratio',
-    generateAudio: model.audioField,
+    generateAudio: (withImage ? model.image : model)?.audioField,
     promptOptimizer: 'prompt_optimizer',
   }
   let count = 0
@@ -123,8 +135,13 @@ async function checkModel(id: string) {
     const parsed = videoToolBodySchema.parse(toolInput)
     const request = { ...parsed, provider: 'falai' } as const
     assert.equal(getFalAIValidationError(request), undefined)
-    const { body, endpoint } = buildFalVideoRequest(request)
-    assert.equal(endpoint, model?.endpoint)
+    const { body, endpoint: requestEndpoint, imageField } = buildFalVideoRequest(request)
+    assert.equal(requestEndpoint, endpoint)
+    assert.equal(imageField, withImage ? model?.image?.imageField : undefined)
+    if (withImage) {
+      assert.deepEqual(parsed.visualReference, startFrame)
+      if (imageField) body[imageField] = 'https://example.com/frame.png'
+    }
     assert(validate(body), JSON.stringify(validate.errors))
     assert.equal(body.prompt, base.prompt)
     if (expected === 'default' && wireKey) assert(!Object.hasOwn(body, wireKey), wireKey)
@@ -138,6 +155,12 @@ async function checkModel(id: string) {
     }
     count++
   }
+  const startFrameField = block.subBlocks.find((field) => field.id === 'visualReferenceUpload')
+  assert.equal(
+    evaluateSubBlockCondition(startFrameField?.condition, base),
+    Boolean(model.image),
+    'Start frame field should show exactly when the model has an image-to-video endpoint'
+  )
   check({})
   for (const field of block.subBlocks) {
     const key = field.id.replace(/^fal([A-Z])/, (_, initial: string) => initial.toLowerCase())
@@ -155,10 +178,14 @@ async function checkModel(id: string) {
 
 const results = []
 for (const option of visible) {
-  try {
-    results.push({ model: option.id, passed: true, requests: await checkModel(option.id) })
-  } catch (error) {
-    results.push({ model: option.id, passed: false, error: getErrorMessage(error) })
+  const variants = getFalVideoModel(option.id)?.image ? [false, true] : [false]
+  for (const withImage of variants) {
+    const model = withImage ? `${option.id} (start frame)` : option.id
+    try {
+      results.push({ model, passed: true, requests: await checkModel(option.id, withImage) })
+    } catch (error) {
+      results.push({ model, passed: false, error: getErrorMessage(error) })
+    }
   }
 }
 if (process.env.FAL_VIDEO_REPORT_PATH) {

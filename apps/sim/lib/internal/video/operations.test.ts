@@ -71,27 +71,30 @@ describe('executeVideoOperation', () => {
     })
   })
 
-  it('fails opaque provenance before inspecting or downloading a Runway file', async () => {
-    mocks.validateOpaqueModelInputProvenance.mockReturnValue({
-      success: false,
-      error: 'Model input provenance is unavailable',
-      status: 400,
-    })
+  it.each(['runway', 'falai'] as const)(
+    'fails opaque provenance before inspecting or downloading a %s file',
+    async (provider) => {
+      mocks.validateOpaqueModelInputProvenance.mockReturnValue({
+        success: false,
+        error: 'Model input provenance is unavailable',
+        status: 400,
+      })
 
-    await expect(
-      executeVideoOperation(
-        {
-          provider: 'runway',
-          apiKey: 'key',
-          prompt: 'A cinematic sunrise',
-          visualReference: file,
-        },
-        { headers: new Headers(), requestId: 'request-1', userId: 'user-1' }
-      )
-    ).rejects.toMatchObject({ status: 400, message: 'Model input provenance is unavailable' })
-    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
-    expect(mocks.generateVideo).not.toHaveBeenCalled()
-  })
+      await expect(
+        executeVideoOperation(
+          {
+            provider,
+            apiKey: 'key',
+            prompt: 'A cinematic sunrise',
+            visualReference: file,
+          },
+          { headers: new Headers(), requestId: 'request-1', userId: 'user-1' }
+        )
+      ).rejects.toMatchObject({ status: 400, message: 'Model input provenance is unavailable' })
+      expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
+      expect(mocks.generateVideo).not.toHaveBeenCalled()
+    }
+  )
 
   it('fails closed for model-unsafe workspace files', async () => {
     mockIsModelSafeWorkspaceFileKey.mockResolvedValue(false)

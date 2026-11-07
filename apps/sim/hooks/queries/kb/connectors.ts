@@ -517,7 +517,7 @@ export function useStartConnectorMemberEnrollment() {
         return true
       }
       if (completionId) {
-        await connectCredentialGroupInPopup(
+        return connectCredentialGroupInPopup(
           completionId,
           async (signal) => ({
             invitationLink: (
@@ -531,7 +531,6 @@ export function useStartConnectorMemberEnrollment() {
           }),
           controller.signal
         )
-        return true
       }
       const tab = window.open('about:blank', '_blank')
       if (tab) tab.opener = null

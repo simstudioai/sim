@@ -1,6 +1,7 @@
 import { release } from 'node:os'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
+import { isSimCloudOrigin } from '@/main/config'
 import { type EventRecorder, scrubUrl } from '@/main/observability'
 
 const logger = createLogger('DesktopLoadHealth')
@@ -32,6 +33,7 @@ export type LoadErrorKind =
  */
 export function classifyLoadError(
   errorCode: number,
+  url: string,
   localNetworkPrivacy: boolean = hasLocalNetworkPrivacy()
 ): LoadErrorKind {
   // Only ERR_ABORTED (-3) and success (0) are ignored. ERR_FAILED (-2) and
@@ -54,7 +56,8 @@ export function classifyLoadError(
   // macOS Local Network privacy fails the socket with EHOSTUNREACH, which
   // Chromium reports as ERR_ADDRESS_UNREACHABLE (-109), so a self-hosted server
   // on a private address looks like a routing failure until Sim is allowed.
-  if (errorCode === -109 && localNetworkPrivacy) {
+  // Sim Cloud is public, so that permission can never be what blocked it.
+  if (errorCode === -109 && localNetworkPrivacy && !isSimCloudOrigin(url)) {
     return 'local_network'
   }
   return 'unreachable'
@@ -151,7 +154,7 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
         return
       }
       clearTimeout(watchdogTimer)
-      const kind = classifyLoadError(errorCode)
+      const kind = classifyLoadError(errorCode, validatedURL)
       if (kind === 'ignored') {
         return
       }

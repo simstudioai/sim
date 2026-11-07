@@ -20,6 +20,7 @@ import {
   isSubBlockHidden,
   isToolInputOnlySubBlock,
   resolveCanonicalMode,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
@@ -551,7 +552,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   // canonical-index-unscoped: `shouldSerializeSubBlock` drops the inactive surface's members, and
   // the collapse below reads `params` (the filtered map), never `allValues`.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
     const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
@@ -707,7 +708,7 @@ export function collectBlockFieldIssues(
   // trigger-mode block returns above before reaching here at all.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
   const canonicalModeOverrides = block.data?.canonicalModes
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
