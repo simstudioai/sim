@@ -164,15 +164,19 @@ export const Dropdown = memo(function Dropdown({
   }, [multiSelect, value])
 
   // Derived option lists read the block's own values (a model's valid reasoning efforts);
-  // `dependsOn` already re-renders this control when one of those siblings changes.
+  // `dependsOn` already re-renders this control when one of those siblings changes. They also get
+  // `__canonicalModes`, as conditions do, so both read the same active member of a canonical pair.
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const blockValues = useSubBlockStore((state) =>
     activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
   )
   const evaluatedOptions = useMemo(() => {
-    if (typeof options === 'function') return options({ values: blockValues ?? {} })
-    return options ?? EMPTY_OPTIONS
-  }, [options, blockValues])
+    if (typeof options !== 'function') return options ?? EMPTY_OPTIONS
+    const values = blockValues ?? {}
+    return options({
+      values: canonicalModes ? { ...values, __canonicalModes: canonicalModes } : values,
+    })
+  }, [options, blockValues, canonicalModes])
 
   const reactiveOptions = useMemo(
     () =>

@@ -28,6 +28,8 @@ describe('getFalAICostMetadata fallback floor', () => {
     ['fal-ai/nano-banana', FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS],
     ['fal-ai/veo-3.1', FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS],
     ['fal-ai/seedance-2.0', FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS],
+    ['fal-ai/kling-video/v3/pro/image-to-video', FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS],
+    ['blackforestlabs/flux-3/image-to-video', FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS],
   ])('uses the correct provider-cost floor for %s', async (endpointId, expected) => {
     const result = await getFalAICostMetadata({
       apiKey: 'test-key',
