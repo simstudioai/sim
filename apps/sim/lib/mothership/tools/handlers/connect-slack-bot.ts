@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { createServiceAccountCredentialUseCase } from '@/lib/credentials/application/service-account'
+import { buildSlackCustomBotRequestUrl } from '@/lib/integrations/slack-manifest'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
 import { ConnectSlackBotInputSchema } from '@/lib/mothership/generated/protocol'
 import type { ToolHandler } from '@/lib/mothership/tool-executor/types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
-import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBot')
 
