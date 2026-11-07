@@ -20,7 +20,10 @@ vi.mock('@/lib/credential-groups/member-integrations', () => ({
   memberIntegrationEntries: () => entries.current,
 }))
 
-import { toOrganizationIntegrations } from '@/platform/lib/data/integrations-model'
+import {
+  toCenterIntegrations,
+  toOrganizationIntegrations,
+} from '@/platform/lib/data/integrations-model'
 
 function guideOf(provider: string) {
   const entry: Partial<MemberIntegration> = {
@@ -57,5 +60,89 @@ describe('an integration’s guide and resource', () => {
       url: 'https://docs.example/documented',
       resource: 'Pages',
     })
+  })
+})
+
+const VIEWER = { id: 'viewer', name: 'Viewer' }
+
+function centerOf(entry: Partial<MemberIntegration>) {
+  entries.current = [
+    {
+      id: 'atlassian',
+      provider: 'confluence',
+      name: 'Confluence',
+      accounts: [],
+      permissionAccountIds: [],
+      reconnectAccountIds: [],
+      ready: true,
+      ...entry,
+    },
+  ]
+  const [integration] = toCenterIntegrations({} as never, [], VIEWER)
+  return integration
+}
+
+const oauthAccount = {
+  credentialId: 'oauth-1',
+  displayName: 'me@example.com',
+  providerId: 'confluence',
+  groupId: 'group',
+  optionId: 'option',
+  status: 'active' as const,
+  sites: [{ name: 'Engineering', url: 'https://eng.atlassian.net' }],
+}
+
+describe('the live inventory in the integration center', () => {
+  it('offers no new credential when the organization blocks the app, and says why', () => {
+    const integration = centerOf({
+      ready: false,
+      description: 'Paused by your organization',
+      connectionTarget: { optionId: 'option' },
+    })
+    expect(integration).toMatchObject({
+      availability: 'unavailable',
+      canAddCredential: false,
+      accessDescription: 'Paused by your organization',
+    })
+  })
+
+  it('offers nothing to connect for an organization-managed source', () => {
+    const integration = centerOf({ managed: true, connectionTarget: { optionId: 'option' } })
+    expect(integration).toMatchObject({
+      availability: 'managed',
+      canAddCredential: false,
+      connectableMethod: null,
+      credentials: [],
+    })
+  })
+
+  it('keeps each account as the viewer’s own credential, with the sites its grant reaches', () => {
+    const [credential] = centerOf({
+      accounts: [oauthAccount],
+      reconnectAccountIds: ['oauth-1'],
+    }).credentials
+    expect(credential).toMatchObject({
+      id: 'oauth-1',
+      type: 'oauth',
+      canReconnect: true,
+      sites: oauthAccount.sites,
+      scope: { kind: 'personal', ownerId: 'viewer' },
+      members: [{ userId: 'viewer', role: 'admin', explicitAdmin: true }],
+    })
+  })
+
+  it('tells a saved service account and a managed MCP account from an OAuth grant', () => {
+    const integration = centerOf({
+      accounts: [
+        { ...oauthAccount, credentialId: 'saved', providerId: 'jama-service-account' },
+        { credentialId: 'mcp', displayName: 'Workspace', mcpServerId: 'server', status: 'active' },
+      ] as MemberIntegration['accounts'],
+    })
+    expect(
+      integration?.credentials.map(({ id, type, providerId }) => ({ id, type, providerId }))
+    ).toEqual([
+      { id: 'saved', type: 'service_account', providerId: 'jama-service-account' },
+      { id: 'mcp', type: 'mcp', providerId: 'confluence' },
+    ])
   })
 })

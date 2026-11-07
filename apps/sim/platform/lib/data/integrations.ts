@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { useSession } from '@/lib/auth/client'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -24,6 +25,7 @@ import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import {
+  toCenterIntegrations,
   toGenericSecrets,
   toOrganizationIntegrations,
   toToolPermissions,
@@ -54,6 +56,29 @@ export function useMemberIntegrations(organizationId: string) {
     inventory,
     policies,
     secrets,
+  }
+}
+
+/**
+ * The live inventory in the integration center's credential shape, for the center's app details.
+ * Empty until the inventory and the signed-in viewer have both loaded.
+ */
+export function useIntegrationCenterApps(organizationId: string) {
+  const inventory = useOrganizationAccounts(organizationId)
+  const policies = useSearchIntegrations(organizationId)
+  const viewer = useSession().data?.user
+  return {
+    integrations:
+      inventory.data && viewer
+        ? toCenterIntegrations(inventory.data, policies.isSuccess ? policies.data : undefined, {
+            id: viewer.id,
+            name: viewer.name ?? viewer.email,
+            email: viewer.email,
+            src: viewer.image ?? undefined,
+          })
+        : [],
+    inventory,
+    policies,
   }
 }
 

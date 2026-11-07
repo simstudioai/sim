@@ -20,6 +20,8 @@ export interface IntegrationCredential {
   description: string
   accountLabel?: string
   instanceUrl?: string
+  /** Sites one grant reaches, such as Confluence or Jira. */
+  sites?: readonly { name: string; url: string }[]
   role: 'admin' | 'member'
   status: 'active' | 'needs_reauth'
   canReconnect: boolean

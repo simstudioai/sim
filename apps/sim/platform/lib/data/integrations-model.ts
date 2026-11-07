@@ -6,6 +6,9 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
+import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
+import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
+import type { OrganizationIntegration as CenterIntegration } from '@/platform/lib/integrations/fixture-model'
 import {
   memberSecretMetadata,
   providerMetadata,
@@ -66,6 +69,85 @@ export function toOrganizationIntegrations(
   policies: SearchIntegrationStatus[] | undefined
 ): OrganizationIntegration[] {
   return memberIntegrationEntries(accounts, policies).map(toOrganizationIntegration)
+}
+
+type InventoryAccount = MemberIntegration['accounts'][number]
+
+function credentialType(account: InventoryAccount): IntegrationCredential['type'] {
+  if ('mcpServerId' in account) return 'mcp'
+  if (account.providerId.endsWith('-service-account')) return 'service_account'
+  return 'oauth'
+}
+
+/** A managed MCP account belongs to its server, so it takes the integration's provider. */
+function providerOf(entry: MemberIntegration, account: InventoryAccount) {
+  return 'providerId' in account ? account.providerId : entry.provider
+}
+
+function connectableMethod(target: MemberIntegration['connectionTarget']) {
+  if (!target) return null
+  if ('mcpServerId' in target) return 'mcp'
+  return 'optionId' in target ? 'oauth' : null
+}
+
+/**
+ * The live inventory in the integration center's shape. Every account is the viewer's own
+ * connection, so each is a personal credential the viewer administers alone; sharing is not
+ * offered until an authorized operation supplies members. Tool permissions load per account.
+ */
+export function toCenterIntegrations(
+  accounts: OrganizationAccountsSettings,
+  policies: SearchIntegrationStatus[] | undefined,
+  viewer: IntegrationPerson & { email?: string }
+): CenterIntegration[] {
+  return memberIntegrationEntries(accounts, policies).map((entry) => {
+    const live = toOrganizationIntegration(entry)
+    const availability = entry.managed ? 'managed' : entry.ready ? 'ready' : 'unavailable'
+    return {
+      providerId: entry.provider,
+      name: live.name,
+      description: live.description,
+      category: live.category,
+      setupGuideUrl: live.setupGuideUrl,
+      searchResource: live.searchResource,
+      searchReads: live.searchReads,
+      requestedScopes: live.requestedScopes,
+      accessDescription: entry.ready ? live.accessDescription : live.status,
+      availability,
+      connectableMethod: entry.managed ? null : connectableMethod(entry.connectionTarget),
+      canAddCredential: availability === 'ready' && Boolean(entry.connectionTarget),
+      credentialProviders: [
+        ...new Set(entry.accounts.map((account) => providerOf(entry, account))),
+      ],
+      credentials: live.accounts.map((account) => {
+        const source = entry.accounts.find(({ credentialId }) => credentialId === account.id)
+        return {
+          id: account.id,
+          appId: entry.provider,
+          providerId: source ? providerOf(entry, source) : entry.provider,
+          type: source ? credentialType(source) : 'oauth',
+          displayName: account.label,
+          description: '',
+          accountLabel: account.label,
+          sites: account.sites,
+          role: 'admin',
+          status: account.status,
+          canReconnect: account.canReconnect,
+          scope: { kind: 'personal', ownerId: viewer.id },
+          members: [
+            {
+              ...viewer,
+              userId: viewer.id,
+              role: 'admin',
+              roleSource: 'explicit',
+              explicitAdmin: true,
+              status: 'active',
+            },
+          ],
+        }
+      }),
+    }
+  })
 }
 
 export function toGenericSecrets(
