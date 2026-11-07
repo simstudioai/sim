@@ -35,6 +35,11 @@
   ],
   "author": "Sim",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simstudioai/sim.git",
+    "directory": "packages/cli"
+  },
   "engines": {
     "node": ">=18"
   },

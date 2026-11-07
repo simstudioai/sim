@@ -19,10 +19,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: publish
+  build:
+    name: build
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -37,11 +40,6 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: '22'
 
-      - name: Verify npm authentication
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun pm whoami
-
       - name: Auto-bump package version
         run: bun run bump:npm-packages sim-cli
 
@@ -54,9 +52,10 @@ jobs:
         run: bun run type-check
 
       # The usage-reporting destination is baked into the bundle at build time
-      # (docs/cli/usage-data), so only the two steps that build it get the
-      # token. Every other step, the tests above in particular, runs without
-      # it: a test that runs a real command must never report to production.
+      # (docs/cli/usage-data), so only this step gets the token, and the
+      # tarball packed from its output is what ships. Every other step, the
+      # tests above in particular, runs without it: a test that runs a real
+      # command must never report to production.
       - name: Build package
         working-directory: packages/sim-cli
         env:
@@ -107,23 +106,28 @@ jobs:
             echo "tag=$TAG"
           } >> "$GITHUB_OUTPUT"
 
+      # Bun packs because it rewrites `workspace:` ranges to real versions,
+      # which `npm pack` would publish verbatim. The smoke test below and the
+      # publish job both use this one tarball, so what was tested is what ships.
+      - name: Pack package
+        working-directory: packages/sim-cli
+        run: bun pm pack --ignore-scripts --filename "$RUNNER_TEMP/package.tgz" --quiet
+
       - name: Setup Node 20 for the bundle smoke test
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '20'
 
       - name: Smoke-test packed Node bundle
-        working-directory: packages/sim-cli
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
           SMOKE_DIR="$(mktemp -d "$RUNNER_TEMP/sim-cli-smoke.XXXXXX")"
-          PACKAGE_PATH="$SMOKE_DIR/sim-cli.tgz"
-          bun pm pack --ignore-scripts --filename "$PACKAGE_PATH" --quiet
-          tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
-          "$SMOKE_DIR/package/dist/index.js" --version
+          tar -xzf "$RUNNER_TEMP/package.tgz" -C "$SMOKE_DIR"
+          test "$("$SMOKE_DIR/package/dist/index.js" --version)" = "$VERSION"
 
       - name: Verify version is unpublished
-        working-directory: packages/sim-cli
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
@@ -132,19 +136,47 @@ jobs:
             exit 1
           fi
 
-      # `bun publish` runs `prepublishOnly`, which rebuilds `dist`, and that
-      # rebuild is what ships, so it needs the token as well.
+      - name: Upload package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/package.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  # npm trusted publishing trades this job's OIDC token for a short-lived npm
+  # credential, so no npm token is stored anywhere. npm accepts the token only
+  # from GitHub-hosted runners, and only this job can mint one: it runs no
+  # repository code, it publishes the tarball the build job tested. npm runs no
+  # lifecycle scripts for a tarball, so nothing is rebuilt here, and provenance
+  # is attached automatically.
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+    steps:
+      # Node 24 bundles npm 11.5.1+, which trusted publishing requires.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: Download package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}
+
       - name: Publish to npm
-        working-directory: packages/sim-cli
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TAG: ${{ steps.release.outputs.tag }}
-          SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
-          SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
-        run: bun publish --access public --tag "$NPM_TAG" --no-save
+          NPM_TAG: ${{ needs.build.outputs.tag }}
+        run: npm publish "$RUNNER_TEMP/package.tgz" --access public --tag "$NPM_TAG"
 
       - name: Summarize release
         env:
-          VERSION: ${{ steps.release.outputs.version }}
-          NPM_TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+          NPM_TAG: ${{ needs.build.outputs.tag }}
         run: echo "Published sim@$VERSION with the '$NPM_TAG' tag."
