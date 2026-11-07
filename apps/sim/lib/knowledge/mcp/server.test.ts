@@ -163,6 +163,76 @@ describe('live organization Search MCP', () => {
     )
   })
 
+  const textOf = (result: CallToolResult) => {
+    const [part] = result.content
+    if (part?.type !== 'text') throw new Error('Expected a text result')
+    return JSON.parse(part.text) as Record<string, unknown> & { results?: unknown[] }
+  }
+
+  it('returns each search fact once and keeps facts that differ', async () => {
+    create()
+    const message = {
+      documentId: 'live:message',
+      documentName: '#release',
+      sourceUrl: 'https://example.slack.com/archives/C1/p1',
+      sourceModifiedAt: '2026-09-22T10:00:00.000Z',
+      sourceDate: '2026-09-22T10:00:00Z',
+      sourceContainerName: '#release',
+      sourceContainerUrl: 'https://example.slack.com/archives/C1',
+      connectorType: 'slack',
+      content: 'Shipping Friday',
+      chunkIndex: 0,
+    }
+    const event = {
+      documentId: 'live:event',
+      documentName: 'Launch review',
+      sourceUrl: 'https://calendar.example.com/event',
+      sourceModifiedAt: '2026-09-20T08:00:00.000Z',
+      sourceDate: '2026-09-25T16:00:00Z',
+      sourceContainerName: 'Team calendar',
+      connectorType: 'google_calendar',
+      content: 'Launch review',
+      chunkIndex: 0,
+    }
+    mocks.liveSearch.mockResolvedValueOnce({
+      results: [message, event],
+      live: coverage,
+      retrieval: { status: 'complete' },
+    })
+    const { results } = textOf(await call('search', { query: 'launch' }))
+    expect(results).toEqual([
+      {
+        documentId: 'live:message',
+        title: '#release',
+        citationId: expect.any(String),
+        citationUrl: 'https://example.slack.com/archives/C1/p1',
+        sourceDate: '2026-09-22T10:00:00Z',
+        sourceContainerUrl: 'https://example.slack.com/archives/C1',
+        connectorType: 'slack',
+        content: 'Shipping Friday',
+      },
+      {
+        documentId: 'live:event',
+        title: 'Launch review',
+        citationId: expect.any(String),
+        citationUrl: 'https://calendar.example.com/event',
+        sourceModifiedAt: '2026-09-20T08:00:00.000Z',
+        sourceDate: '2026-09-25T16:00:00Z',
+        sourceContainerName: 'Team calendar',
+        connectorType: 'google_calendar',
+        content: 'Launch review',
+      },
+    ])
+  })
+
+  it('returns a read document title and link once', async () => {
+    create()
+    const read = textOf(await call('read_document', { documentId }))
+    expect(read).toMatchObject({ title: 'Release notes', citationUrl: 'https://example.com/notes' })
+    expect(read).not.toHaveProperty('documentName')
+    expect(read).not.toHaveProperty('sourceUrl')
+  })
+
   it.each(['search', 'read_document'])(
     'refuses live %s content with incomplete secret provenance',
     async (tool) => {
