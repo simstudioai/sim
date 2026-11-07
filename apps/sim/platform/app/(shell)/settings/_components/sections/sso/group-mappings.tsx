@@ -11,7 +11,6 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
-  LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import {
@@ -175,7 +174,7 @@ export function GroupMappings({
   }
   const automaticMatchRemains = automaticMatchWouldRemain(pendingRemove, autoMapByName, names)
 
-  if (isLoading) return <LoadingState label='Loading groups…' />
+  if (isLoading) return null
   if (groups === undefined && isError) {
     return (
       <FailureNotice
@@ -185,9 +184,7 @@ export function GroupMappings({
       />
     )
   }
-  if (permissionGroupsQuery.isPending || workspacesQuery.isPending) {
-    return <LoadingState label='Loading groups…' />
-  }
+  if (permissionGroupsQuery.isPending || workspacesQuery.isPending) return null
   // The pickers and the name-match warning both read these, so a failed read must not look empty.
   if (!permissionGroupsQuery.data || !workspacesQuery.data) {
     return (

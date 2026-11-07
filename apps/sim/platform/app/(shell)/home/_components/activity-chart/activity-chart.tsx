@@ -10,7 +10,6 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart.module.css'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
-import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type { ActivityPoint, HomeActivityState } from '@/platform/shared/home'
 import { DAY_MS, formatCalendarDate } from '@/platform/shared/time'
 
@@ -143,7 +142,6 @@ export function HomeActivityChart({
           />
         )}
       </header>
-      {state.status === 'loading' && <SkeletonBlock label={`Loading ${title}`} />}
       {state.status === 'error' && (
         <InlineNotice
           intent='warning'

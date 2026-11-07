@@ -26,16 +26,6 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
   const { status, rows, filters } = results
   return (
     <div className={styles.results} aria-busy={status === 'searching' || status === 'updating'}>
-      {status === 'searching' && (
-        <p className={styles.quiet} data-type='T048' role='status'>
-          Searching
-        </p>
-      )}
-      {status === 'updating' && (
-        <p className={styles.quiet} data-type='T048' role='status'>
-          Updating results
-        </p>
-      )}
       {status === 'needs-range' && <p data-type='T052'>Choose the days to search.</p>}
       {status === 'error' && (
         <FailureNotice message='Search couldn’t run.' onRetry={results.retry} />

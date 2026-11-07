@@ -63,11 +63,6 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
           : undefined
       }
     >
-      {review.loading && (
-        <p role='status' data-type='T060'>
-          Loading preview…
-        </p>
-      )}
       {review.loadError && (
         <FailureNotice
           title='Unable to load preview'

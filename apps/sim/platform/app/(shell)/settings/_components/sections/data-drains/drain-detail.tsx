@@ -11,7 +11,6 @@ import { toError } from '@sim/utils/errors'
 import {
   DetailHeader,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -214,11 +213,7 @@ export function DrainDetail({ organizationId, drain, onBack }: DrainDetailProps)
             Run now
           </Button>
         </SettingsRow>
-        {runsLoading ? (
-          <FieldStack>
-            <LoadingState label='Loading runs…' />
-          </FieldStack>
-        ) : runs.data === undefined ? (
+        {runsLoading ? null : runs.data === undefined ? (
           <FieldStack>
             <FailureNotice
               message={toError(runs.error).message}

@@ -56,8 +56,3 @@
   font-weight: var(--font-weight-medium);
   color: var(--ui-ink);
 }
-.composerPlaceholder {
-  block-size: var(--spacing-132);
-  border-radius: var(--ui-control-radius);
-  background: var(--control-muted-fill);
-}

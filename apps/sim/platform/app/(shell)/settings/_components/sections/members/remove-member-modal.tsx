@@ -70,16 +70,10 @@ export function RemoveMemberModal({ target, onClose }: RemoveMemberModalProps) {
       onConfirm={removal.confirm}
     >
       <p data-type='T060'>{copy.body}</p>
-      {removal.checking ? (
-        <p className={styles.status} role='status' data-type='T060'>
-          Checking which connected credentials this affects…
+      {!removal.checking && impact && (
+        <p className={styles.status} data-type='T060'>
+          {impact}
         </p>
-      ) : (
-        impact && (
-          <p className={styles.status} data-type='T060'>
-            {impact}
-          </p>
-        )
       )}
     </Modal>
   )

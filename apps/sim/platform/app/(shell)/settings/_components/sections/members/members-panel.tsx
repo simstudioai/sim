@@ -66,11 +66,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       {members.seats.visible && <SeatsOverview seats={members.seats} />}
 
       {roster.status === 'pending' ? (
-        <SettingsSection title='Members'>
-          <p className={styles.status} role='status' data-type='T060'>
-            Loading members…
-          </p>
-        </SettingsSection>
+        <SettingsSection title='Members' />
       ) : !visible ? (
         <FailureNotice
           title={LOAD_FAILED}

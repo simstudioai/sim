@@ -14,7 +14,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import {
   ActionRow,
-  LoadingState,
   Muted,
   Preformatted,
   RowStack,
@@ -268,9 +267,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
               }}
             />
           </>
-        ) : feed.isLoading ? (
-          <LoadingState label='Loading audit logs…' />
-        ) : scope.isUnavailable ? (
+        ) : feed.isLoading ? null : scope.isUnavailable ? (
           <FailureNotice
             message="Couldn't check that workspace."
             retrying={refreshing}

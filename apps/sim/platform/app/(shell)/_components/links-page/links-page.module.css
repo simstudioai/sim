@@ -40,16 +40,6 @@
   block-size: var(--spacing-16);
   border-radius: var(--radius-2);
 }
-.skeleton {
-  display: grid;
-  gap: var(--ui-list-gap);
-}
-.skeletonRow {
-  display: block;
-  block-size: var(--spacing-40);
-  border-radius: var(--radius-4);
-  background: var(--ui-hover);
-}
 .access {
   display: grid;
   gap: var(--spacing-8);

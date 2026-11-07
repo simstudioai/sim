@@ -12,7 +12,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -151,11 +150,7 @@ export function DomainsPanel({
             </ActionRow>
           </FieldStack>
         </form>
-        {isLoading ? (
-          <FieldStack>
-            <LoadingState label='Loading domains…' />
-          </FieldStack>
-        ) : data === undefined && isError ? (
+        {isLoading ? null : data === undefined && isError ? (
           <FieldStack>
             <FailureNotice
               message={getErrorMessage(error, 'Failed to load verified domains')}

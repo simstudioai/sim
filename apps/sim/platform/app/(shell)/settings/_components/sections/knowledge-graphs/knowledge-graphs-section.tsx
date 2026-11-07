@@ -7,7 +7,6 @@ import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { LoadingState } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { useKnowledgeGraphs } from '@/platform/shared/knowledge-graphs'
 
@@ -23,9 +22,7 @@ export default function KnowledgeGraphsSection({ organization }: SettingsSection
             message={graphs.error ?? 'Failed to load knowledge graphs'}
             onRetry={graphs.retry}
           />
-        ) : graphs.status === 'pending' ? (
-          <LoadingState label='Loading knowledge graphs' rows={2} />
-        ) : (
+        ) : graphs.status === 'pending' ? null : (
           graphs.graphs.map((graph) => (
             <SettingsRow
               key={graph.key}

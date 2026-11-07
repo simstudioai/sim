@@ -12,7 +12,6 @@ import {
   SOURCE_MARKS,
 } from '@/platform/app/(shell)/people/_components/directory-sync/directory-sources'
 import styles from '@/platform/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
-import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   SYNC_SOURCE_NAMES,
@@ -213,9 +212,7 @@ export function DirectorySyncPage({
             Keep people, roles, and reporting lines up to date from your identity provider.
           </p>
         </header>
-        {directory.loading ? (
-          <PeopleStatus>Loading directory connection…</PeopleStatus>
-        ) : directory.loadError ? (
+        {directory.loading ? null : directory.loadError ? (
           <FailureNotice
             message={directory.loadError.message}
             retrying={directory.fetching}

@@ -102,11 +102,8 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
                 <SearchResults results={surface.results} />
               ) : history.status === 'error' ? (
                 <FailureNotice message='Your history could not load.' onRetry={history.retry} />
-              ) : history.status === 'loading' ? (
-                <p data-type='T048' role='status'>
-                  Loading history
-                </p>
-              ) : !history.sources.length && !history.queries.length ? (
+              ) : history.status === 'loading' ? null : !history.sources.length &&
+                !history.queries.length ? (
                 <EmptyState title='No search history yet' />
               ) : (
                 <section className={styles.history} aria-label='Search history'>

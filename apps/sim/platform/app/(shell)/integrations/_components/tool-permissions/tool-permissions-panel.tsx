@@ -1,6 +1,5 @@
 'use client'
 
-import { InlineNotice } from '@sim/emcn/status'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions'
@@ -21,7 +20,7 @@ export function ToolPermissionsPanel({
   const { query, view, pending, save } = useToolPermissions(organizationId, credentialId)
   const { search, setSearch } = useToolPermissionsSearch()
   if (query.error) return <QueryFailure message='Could not load tool permissions' query={query} />
-  if (!view) return <InlineNotice message='Loading tool permissions' />
+  if (!view) return null
   return (
     <>
       {showHeading && (

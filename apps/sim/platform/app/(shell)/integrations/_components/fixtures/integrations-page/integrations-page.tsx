@@ -1,7 +1,6 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useIntegrationCenterResources } from '@/platform/app/(shell)/_components/session/integration-center-changes'
 import { useOrganizationIntegrations } from '@/platform/app/(shell)/_components/session/integration-changes'
@@ -21,7 +20,6 @@ import {
 } from '@/platform/lib/integrations/credential-display'
 import {
   clearCredentialView,
-  credentialParams,
   serializeCredential,
 } from '@/platform/lib/integrations/credential-navigation'
 import {
@@ -46,22 +44,11 @@ export function IntegrationsPage({ data, center, section, catalog }: Integration
 
 function IntegrationsContent({ data, center, section, catalog }: IntegrationsPageProps) {
   const search = useSearchParams()
-  const [, setCredentialView] = useQueryStates(credentialParams)
   const { integrations, save } = useOrganizationIntegrations(data)
   const library = useIntegrationCenterResources(center)
   const item = integrations.find((entry) => entry.providerId === section)
   const secrets = section === 'secrets' ? data?.genericSecrets : null
   const manualCredentials = library.resources.filter((resource) => resource.kind === 'credential')
-  const editingResource =
-    library.resources.some((resource) => resource.id === search.get('resource')) ||
-    (search.get('resource') === 'new' && ['skills', 'mcps'].includes(search.get('tab') ?? ''))
-  const selected =
-    item &&
-    search.get('credential') &&
-    (item.credentials.some((credential) => credential.id === search.get('credential')) ||
-      manualCredentials.some(
-        (resource) => resource.appId === item.providerId && resource.id === search.get('credential')
-      ))
   const credentialLinks: AppSummary[] = [
     ...new Map(
       integrations.flatMap((integration) =>
@@ -91,35 +78,9 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
   return (
     <PageFrame
       back={
-        selected && search.get('credentialFrom') === 'credentials'
-          ? {
-              href: serializeCredential(memberIntegrationHref('/integrations', search), {
-                ...clearCredentialView,
-                credential: null,
-              }),
-              label: 'Back to Credentials',
-            }
-          : selected && item
-            ? {
-                href: serializeCredential(
-                  memberIntegrationHref(
-                    `/integrations/${encodeURIComponent(item.providerId)}`,
-                    search
-                  ),
-                  { ...clearCredentialView, credential: null }
-                ),
-                label: `Back to ${item.name}`,
-                onNavigate: (event) => {
-                  event.preventDefault()
-                  void setCredentialView(
-                    { ...clearCredentialView, credential: null },
-                    { history: 'push', scroll: false }
-                  )
-                },
-              }
-            : item || secrets
-              ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
-              : undefined
+        (item && !center) || secrets
+          ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
+          : undefined
       }
     >
       {item || secrets ? (
@@ -128,6 +89,20 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
             <IntegrationDetails
               key={item.providerId}
               integration={item}
+              backHrefs={{
+                integrations: memberIntegrationHref('/integrations', search),
+                credentials: serializeCredential(memberIntegrationHref('/integrations', search), {
+                  ...clearCredentialView,
+                  credential: null,
+                }),
+                app: serializeCredential(
+                  memberIntegrationHref(
+                    `/integrations/${encodeURIComponent(item.providerId)}`,
+                    search
+                  ),
+                  { ...clearCredentialView, credential: null }
+                ),
+              }}
               onChange={save}
               knownCredentials={integrations.flatMap((entry) => entry.credentials)}
               organization={center.organization}
@@ -153,60 +128,57 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
           )}
         </>
       ) : (
-        <>
-          {!editingResource && <IntegrationsHeading />}
-          <IntegrationCenter
-            apps={integrations.map((integration) => ({
-              id: integration.providerId,
-              name: integration.name,
-              description: integration.description,
-              category: integration.category ?? 'Other',
-              href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
-              connected:
-                integration.credentials.length > 0 ||
-                manualCredentials.some((credential) => credential.appId === integration.providerId),
-              credentialCount:
-                integration.credentials.length +
-                manualCredentials.filter(
-                  (credential) => credential.appId === integration.providerId
-                ).length,
-              searchable: integration.credentials
-                .map((credential) => `${credential.displayName} ${credential.accountLabel ?? ''}`)
-                .join(' '),
-              people: center?.appPeople[integration.providerId],
-              peopleTotal: center?.appUsageTotal[integration.providerId],
-            }))}
-            library={
-              center
-                ? {
-                    data: { ...center, resources: library.resources },
-                    save: library.save,
-                    remove: library.remove,
-                    leave: library.leave,
-                  }
-                : undefined
-            }
-            credentials={[
-              ...credentialLinks,
-              ...(data?.genericSecrets
-                ? [
-                    {
-                      id: 'secrets',
-                      name: data.genericSecrets.name,
-                      description: data.genericSecrets.description,
-                      category: 'Credentials',
-                      scope:
-                        data.genericSecrets.mode === 'organization'
-                          ? ('shared' as const)
-                          : ('personal' as const),
-                      connected: true,
-                      href: memberIntegrationHref('/integrations/secrets', search),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </>
+        <IntegrationCenter
+          heading={<IntegrationsHeading />}
+          apps={integrations.map((integration) => ({
+            id: integration.providerId,
+            name: integration.name,
+            description: integration.description,
+            category: integration.category ?? 'Other',
+            href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
+            connected:
+              integration.credentials.length > 0 ||
+              manualCredentials.some((credential) => credential.appId === integration.providerId),
+            credentialCount:
+              integration.credentials.length +
+              manualCredentials.filter((credential) => credential.appId === integration.providerId)
+                .length,
+            searchable: integration.credentials
+              .map((credential) => `${credential.displayName} ${credential.accountLabel ?? ''}`)
+              .join(' '),
+            people: center?.appPeople[integration.providerId],
+            peopleTotal: center?.appUsageTotal[integration.providerId],
+          }))}
+          library={
+            center
+              ? {
+                  data: { ...center, resources: library.resources },
+                  save: library.save,
+                  remove: library.remove,
+                  leave: library.leave,
+                }
+              : undefined
+          }
+          credentials={[
+            ...credentialLinks,
+            ...(data?.genericSecrets
+              ? [
+                  {
+                    id: 'secrets',
+                    name: data.genericSecrets.name,
+                    description: data.genericSecrets.description,
+                    category: 'Credentials',
+                    scope:
+                      data.genericSecrets.mode === 'organization'
+                        ? ('shared' as const)
+                        : ('personal' as const),
+                    connected: true,
+                    href: memberIntegrationHref('/integrations/secrets', search),
+                  },
+                ]
+              : []),
+          ]}
+        />
       )}
     </PageFrame>
   )

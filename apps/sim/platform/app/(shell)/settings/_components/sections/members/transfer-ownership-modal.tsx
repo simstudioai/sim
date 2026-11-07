@@ -55,11 +55,7 @@ export function TransferOwnershipModal({
         if (selected) await transfer.confirm(selected)
       }}
     >
-      {!roster ? (
-        <p role='status' data-type='T060'>
-          Loading members…
-        </p>
-      ) : !hasCandidates ? (
+      {!roster ? null : !hasCandidates ? (
         <p data-type='T060'>
           You're the only member of this organization. Invite another admin before leaving.
         </p>

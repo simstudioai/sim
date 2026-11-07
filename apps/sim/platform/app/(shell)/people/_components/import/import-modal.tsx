@@ -249,17 +249,17 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
           )}
           {source === 'directory' && (
             <>
-              <p className={styles.secondary} data-type='T060'>
-                {connection.loading
-                  ? 'Checking your provisioning connection…'
-                  : connection.failed
+              {!connection.loading && (
+                <p className={styles.secondary} data-type='T060'>
+                  {connection.failed
                     ? 'Could not load your provisioning connection.'
                     : !connection.active
                       ? 'Enable SCIM provisioning and assign accounts in your provider to import their profiles.'
                       : connection.userCount === 0
                         ? 'Your connection is active. Assign accounts to Sim in your identity provider, then refresh here.'
                         : `Your connection has ${plural(connection.userCount, 'provisioned account')}. Preview the profile fields and reporting lines sent by your provider.`}
-              </p>
+                </p>
+              )}
               {!connection.loading && (
                 <div className={styles.links}>
                   {canOpenProvisioningSettings && !connection.failed && (

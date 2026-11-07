@@ -7,20 +7,18 @@ import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings.module.css'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
 import { publicAssetPath } from '@/platform/lib/navigation'
 
 interface SavedSettingsSectionProps {
   title: string
-  rows?: number
   children: ReactNode
 }
 
 /** A section of saved preferences. They share one read, so a control never shows a guessed value. */
-export function SavedSettingsSection({ title, rows, children }: SavedSettingsSectionProps) {
+export function SavedSettingsSection({ title, children }: SavedSettingsSectionProps) {
   const { status, retry } = useSavedSettingsRead()
-  if (status === 'pending') return <SectionSkeleton title={title} rows={rows} />
+  if (status === 'pending') return <SettingsSection title={title} />
   if (status === 'error')
     return <FailureNotice message='Failed to load your settings' onRetry={retry} />
   return <SettingsSection title={title}>{children}</SettingsSection>

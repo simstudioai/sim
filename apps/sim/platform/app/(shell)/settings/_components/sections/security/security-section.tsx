@@ -12,9 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   FieldStack,
-  LoadingState,
   Muted,
-  SectionSkeleton,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
@@ -154,7 +152,7 @@ function SessionPolicySection({
 }) {
   const { data, error, isLoading, isFetching, refetch } =
     useOrganizationSessionPolicy(organizationId)
-  if (isLoading) return <SectionSkeleton title='Session policies' rows={2} />
+  if (isLoading) return <SettingsSection title='Session policies' />
   if (!data) {
     return (
       <SettingsSection title='Session policies'>
@@ -183,9 +181,7 @@ function NetworkSection({ organizationId }: { organizationId: string }) {
   return (
     <SettingsSection title='Outbound IP addresses'>
       <FieldStack>
-        {isPending ? (
-          <LoadingState label='Loading network settings…' />
-        ) : error || !data || data.mode === 'unavailable' ? (
+        {isPending ? null : error || !data || data.mode === 'unavailable' ? (
           <FailureNotice
             message={getErrorMessage(error, 'Could not load network settings')}
             retrying={isFetching}

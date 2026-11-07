@@ -33,11 +33,6 @@ export function MyRequestModal({ scope, requestId, onClose }: MyRequestModalProp
           : undefined
       }
     >
-      {details.loading && (
-        <p role='status' data-type='T060'>
-          Loading request…
-        </p>
-      )}
       {details.error && (
         <FailureNotice
           title='Unable to load request'

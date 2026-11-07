@@ -2,7 +2,7 @@
 
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { SettingsRow } from '@sim/emcn/settings-section'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -13,7 +13,6 @@ import {
   BooleanRow,
   SavedSettingsSection,
 } from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
-import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { useAppearanceSettings, useSnapToGridSetting } from '@/platform/lib/data/preferences'
 import { readAppearance } from '@/platform/lib/navigation'
 import { useProfileSettings } from '@/platform/shared/preferences'
@@ -30,7 +29,7 @@ interface PreferencesSectionProps {
 
 function Profile({ fixture }: PreferencesSectionProps) {
   const profile = useProfileSettings()
-  if (profile.status === 'pending') return <SectionSkeleton title='Profile' />
+  if (profile.status === 'pending') return <SettingsSection title='Profile' />
   if (profile.status === 'error')
     return <FailureNotice message='Failed to load your profile' onRetry={profile.retry} />
   return fixture ? (
@@ -54,7 +53,7 @@ function Preferences({ fixture }: PreferencesSectionProps) {
   const appearance = useAppearanceSettings()
   const snap = useSnapToGridSetting()
   return (
-    <SavedSettingsSection title='Preferences' rows={7}>
+    <SavedSettingsSection title='Preferences'>
       <SettingsRow label='Theme' description='Select your preferred color theme'>
         <ChoiceMenu
           label='Theme'

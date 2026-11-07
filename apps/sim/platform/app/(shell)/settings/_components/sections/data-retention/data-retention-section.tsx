@@ -8,7 +8,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import {
-  LoadingState,
   ResourceList,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
@@ -187,8 +186,7 @@ export default function DataRetentionSection({ organization }: SettingsSectionPr
   const { data, isLoading, isFetching, refetch } = useOrganizationRetention(organizationId)
   const workspacesQuery = useWorkspacesQuery(Boolean(organizationId))
 
-  if (isLoading || workspacesQuery.isPending)
-    return <LoadingState label='Loading data retention…' />
+  if (isLoading || workspacesQuery.isPending) return null
   if (!data) {
     return (
       <FailureNotice

@@ -28,9 +28,7 @@ export function UsageEvents({ organizationId }: { organizationId: string }) {
       />
       {events.failed && events.rows.length === 0 ? (
         <FailureNotice message='Couldn’t load usage events.' onRetry={events.retry} />
-      ) : events.pending ? (
-        <span className={styles.listPlaceholder} role='status' aria-label='Loading usage events' />
-      ) : events.rows.length === 0 ? (
+      ) : events.pending ? null : events.rows.length === 0 ? (
         <EmptyState title='No usage in this period.' />
       ) : (
         <div className={styles.dimmable} data-dimmed={events.dimmed || undefined}>

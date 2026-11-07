@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
-import { SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
 
@@ -120,41 +119,5 @@ export function DetailHeader({
         {children && <div className={styles.actions}>{children}</div>}
       </div>
     </header>
-  )
-}
-
-interface LoadingStateProps {
-  /** Announced, since the rows themselves say nothing. */
-  label: string
-  rows?: number
-}
-
-/** Rows the height of the ones being read, at the place they will appear, so nothing reads as empty. */
-export function LoadingState({ label, rows = 3 }: LoadingStateProps) {
-  return (
-    <>
-      <span role='status' data-visually-hidden>
-        {label}
-      </span>
-      {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className={styles.skeletonRow} aria-hidden='true'>
-          <span className={styles.skeletonLabel} />
-          <span className={styles.skeletonControl} />
-        </div>
-      ))}
-    </>
-  )
-}
-
-interface SectionSkeletonProps {
-  title: string
-  rows?: number
-}
-
-export function SectionSkeleton({ title, rows }: SectionSkeletonProps) {
-  return (
-    <SettingsSection title={title}>
-      <LoadingState label={`Loading ${title}`} rows={rows} />
-    </SettingsSection>
   )
 }

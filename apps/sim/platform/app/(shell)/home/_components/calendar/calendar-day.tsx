@@ -8,7 +8,6 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/home/_components/calendar/calendar-day.module.css'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
-import { SkeletonBlock } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type { CalendarMeeting, HomeCalendarDay } from '@/platform/shared/home'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 
@@ -140,7 +139,6 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           <IconButton icon='I032' label='Next day' tooltip onClick={() => onDayChange(1)} />
         </div>
       </div>
-      {calendar.status === 'loading' && <SkeletonBlock label='Loading this day' />}
       {calendar.status === 'error' && (
         <InlineNotice
           intent='warning'
@@ -148,7 +146,7 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
           action={<RetryButton onRetry={onRetry} />}
         />
       )}
-      {calendar.status === 'ready' && (
+      {calendar.status !== 'error' && (
         <div
           key={returnCount}
           ref={scrollEdges}

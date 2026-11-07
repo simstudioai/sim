@@ -11,7 +11,6 @@ import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import styles from '@/platform/app/(shell)/home/_components/connected-widget/connected-widget.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
-import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
 import type { HomeAccountView, HomeWidgetActions, HomeWidgetState } from '@/platform/shared/home'
 
 const DISCONNECT_NOTICE =
@@ -113,7 +112,6 @@ export function ConnectedWidget<T>({
       icon={icon}
       actions={<ActionMenu label={`${title} options`} icon='I108' align='end' actions={menu} />}
     >
-      {state.status === 'loading' && <WidgetSkeleton label={`Loading your ${noun}`} />}
       {state.status === 'not_offered' && (
         <EmptyState
           title={`Your organization has not turned on ${noun}`}

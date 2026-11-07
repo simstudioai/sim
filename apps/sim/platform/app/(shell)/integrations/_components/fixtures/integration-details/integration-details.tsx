@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { type ComponentProps, useState, useTransition } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { DirectoryBack } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { CredentialConnect } from '@/platform/app/(shell)/integrations/_components/credential-connect/credential-connect'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
@@ -41,6 +42,11 @@ import {
 
 interface IntegrationDetailsProps {
   integration: OrganizationIntegration
+  /**
+   * Where Back leads from each view. This component decides which credential is open, so it also
+   * names the way back, and the label can never describe a view the page is no longer showing.
+   */
+  backHrefs: { integrations: string; credentials: string; app: string }
   onChange: (next: OrganizationIntegration) => void
   knownCredentials: readonly IntegrationCredential[]
   organization: { id: string; name: string }
@@ -60,6 +66,7 @@ interface IntegrationDetailsProps {
 
 export function IntegrationDetails({
   integration,
+  backHrefs,
   onChange,
   knownCredentials,
   organization,
@@ -89,6 +96,21 @@ export function IntegrationDetails({
   const selected = isOpening
     ? undefined
     : integration.credentials.find((credential) => credential.id === view.credential)
+  const back: ComponentProps<typeof DirectoryBack> = !(selectedSecret || selected)
+    ? { href: backHrefs.integrations, label: 'Integrations' }
+    : view.credentialFrom === 'credentials'
+      ? { href: backHrefs.credentials, label: 'Back to Credentials' }
+      : {
+          href: backHrefs.app,
+          label: `Back to ${integration.name}`,
+          onNavigate: (event) => {
+            event.preventDefault()
+            void setView(
+              { ...clearCredentialView, credential: null },
+              { history: 'push', scroll: false }
+            )
+          },
+        }
   const connections = catalog?.connections ?? []
   const hasOAuth = connections.some(
     (connection) => connection.setup === 'oauth' || connection.setup === 'mcp-oauth'
@@ -242,6 +264,7 @@ export function IntegrationDetails({
   }
   return (
     <>
+      <DirectoryBack href={back.href} label={back.label} onNavigate={back.onNavigate} />
       {selectedSecret ? (
         <ManualCredentialDetail
           key={selectedSecret.id}
@@ -347,6 +370,7 @@ export function IntegrationDetails({
             )}
           </IntegrationControls>
           <CredentialList
+            providerId={integration.providerId}
             credentials={[
               ...integration.credentials,
               ...manualCredentials.map((resource) =>
