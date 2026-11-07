@@ -18,6 +18,13 @@ export function buildSlackCustomBotRequestUrl(credentialId: string): string {
   return `${getBaseUrl()}/api/webhooks/slack/custom/${credentialId}`
 }
 
+/** Slack's Agent View rejects a longer description. */
+export function getSlackAgentDescriptionError(description: string): string | null {
+  return description.trim().length > 300
+    ? 'Slack Agent View descriptions must be 300 characters or fewer.'
+    : null
+}
+
 /** Validates a name used for both the Slack app and its bot user. */
 export function getSlackAppNameError(name: string): string | null {
   const trimmedName = name.trim()

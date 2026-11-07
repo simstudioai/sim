@@ -75,34 +75,27 @@ type InventoryAccount = MemberIntegration['accounts'][number]
 
 function credentialType(account: InventoryAccount): IntegrationCredential['type'] {
   if ('mcpServerId' in account) return 'mcp'
-  if (account.providerId.endsWith('-service-account')) return 'service_account'
-  return 'oauth'
-}
-
-/** A managed MCP account belongs to its server, so it takes the integration's provider. */
-function providerOf(entry: MemberIntegration, account: InventoryAccount) {
-  return 'providerId' in account ? account.providerId : entry.provider
+  return 'optionId' in account ? 'oauth' : 'service_account'
 }
 
 function connectableMethod(target: MemberIntegration['connectionTarget']) {
-  if (!target) return null
-  if ('mcpServerId' in target) return 'mcp'
-  return 'optionId' in target ? 'oauth' : null
+  if (!target || 'savedProviderId' in target) return null
+  return 'mcpServerId' in target ? 'mcp' : 'oauth'
 }
 
 /**
- * The live inventory in the integration center's shape. Every account is the viewer's own
- * connection, so each is a personal credential the viewer administers alone; sharing is not
- * offered until an authorized operation supplies members. Tool permissions load per account.
+ * The live inventory in the integration center's shape. Each account is the viewer's own
+ * connection, a personal credential the viewer administers alone.
  */
 export function toCenterIntegrations(
   accounts: OrganizationAccountsSettings,
   policies: SearchIntegrationStatus[] | undefined,
-  viewer: IntegrationPerson & { email?: string }
+  viewer: IntegrationPerson
 ): CenterIntegration[] {
   return memberIntegrationEntries(accounts, policies).map((entry) => {
     const live = toOrganizationIntegration(entry)
     const availability = entry.managed ? 'managed' : entry.ready ? 'ready' : 'unavailable'
+    const credentials = entry.managed ? [] : entry.accounts
     return {
       providerId: entry.provider,
       name: live.name,
@@ -117,35 +110,36 @@ export function toCenterIntegrations(
       connectableMethod: entry.managed ? null : connectableMethod(entry.connectionTarget),
       canAddCredential: availability === 'ready' && Boolean(entry.connectionTarget),
       credentialProviders: [
-        ...new Set(entry.accounts.map((account) => providerOf(entry, account))),
+        ...new Set(
+          credentials.map((account) =>
+            'providerId' in account ? account.providerId : entry.provider
+          )
+        ),
       ],
-      credentials: live.accounts.map((account) => {
-        const source = entry.accounts.find(({ credentialId }) => credentialId === account.id)
-        return {
-          id: account.id,
-          appId: entry.provider,
-          providerId: source ? providerOf(entry, source) : entry.provider,
-          type: source ? credentialType(source) : 'oauth',
-          displayName: account.label,
-          description: '',
-          accountLabel: account.label,
-          sites: account.sites,
-          role: 'admin',
-          status: account.status,
-          canReconnect: account.canReconnect,
-          scope: { kind: 'personal', ownerId: viewer.id },
-          members: [
-            {
-              ...viewer,
-              userId: viewer.id,
-              role: 'admin',
-              roleSource: 'explicit',
-              explicitAdmin: true,
-              status: 'active',
-            },
-          ],
-        }
-      }),
+      credentials: credentials.map((account) => ({
+        id: account.credentialId,
+        appId: entry.provider,
+        providerId: 'providerId' in account ? account.providerId : entry.provider,
+        type: credentialType(account),
+        displayName: account.displayName,
+        description: '',
+        accountLabel: account.displayName,
+        sites: 'sites' in account ? account.sites : [],
+        role: 'admin',
+        status: account.status,
+        canReconnect: entry.reconnectAccountIds.includes(account.credentialId),
+        scope: { kind: 'personal', ownerId: viewer.id },
+        members: [
+          {
+            ...viewer,
+            userId: viewer.id,
+            role: 'admin',
+            roleSource: 'explicit',
+            explicitAdmin: true,
+            status: 'active',
+          },
+        ],
+      })),
     }
   })
 }

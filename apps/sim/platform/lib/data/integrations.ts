@@ -72,7 +72,7 @@ export function useIntegrationCenterApps(organizationId: string) {
       inventory.data && viewer
         ? toCenterIntegrations(inventory.data, policies.isSuccess ? policies.data : undefined, {
             id: viewer.id,
-            name: viewer.name ?? viewer.email,
+            name: viewer.name || viewer.email,
             email: viewer.email,
             src: viewer.image ?? undefined,
           })

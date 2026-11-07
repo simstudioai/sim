@@ -134,7 +134,12 @@ describe('the live inventory in the integration center', () => {
   it('tells a saved service account and a managed MCP account from an OAuth grant', () => {
     const integration = centerOf({
       accounts: [
-        { ...oauthAccount, credentialId: 'saved', providerId: 'jama-service-account' },
+        {
+          credentialId: 'saved',
+          displayName: 'Jama',
+          providerId: 'jama-service-account',
+          status: 'active',
+        },
         { credentialId: 'mcp', displayName: 'Workspace', mcpServerId: 'server', status: 'active' },
       ] as MemberIntegration['accounts'],
     })

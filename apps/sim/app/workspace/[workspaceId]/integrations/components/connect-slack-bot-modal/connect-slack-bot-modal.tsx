@@ -21,6 +21,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildSlackAppCreationUrl,
   buildSlackCustomBotRequestUrl,
+  getSlackAgentDescriptionError,
   getSlackAppNameError,
   SLACK_APP_CREATION_URL_MAX_LENGTH,
 } from '@/lib/integrations/slack-manifest'
@@ -82,12 +83,6 @@ function getSlashCommandsError(commands: readonly SlackSlashCommandDraft[]): str
     return 'Each slash command must be unique.'
   }
   return null
-}
-
-function getAgentDescriptionError(description: string): string | null {
-  return description.trim().length > 300
-    ? 'Slack Agent View descriptions must be 300 characters or fewer.'
-    : null
 }
 
 interface ConnectSlackBotModalProps {
@@ -172,7 +167,7 @@ export function ConnectSlackBotModal({
   const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
   const nameError = isReconnect ? null : getSlackAppNameError(appName)
-  const descriptionError = getAgentDescriptionError(appDescription)
+  const descriptionError = getSlackAgentDescriptionError(appDescription)
   const slashCommandsError = searchOnly || isReconnect ? null : getSlashCommandsError(slashCommands)
   const manifestConfigurationError = descriptionError ?? slashCommandsError
 
