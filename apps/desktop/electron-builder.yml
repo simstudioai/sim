@@ -72,6 +72,9 @@ mac:
     NSScreenCaptureUsageDescription: Mothership captures approved app windows to understand and verify computer-use actions.
     NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat and for meetings you join in the built-in browser.
     NSCameraUsageDescription: Sim uses your camera for meetings you join in the built-in browser, such as Google Meet.
+    # macOS 15 blocks connections to private addresses (self-hosted servers on a
+    # LAN or VPN) until the user allows Sim; this string explains that prompt.
+    NSLocalNetworkUsageDescription: Sim connects to your self-hosted Sim server and to local addresses you open in the built-in browser.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true

@@ -7,6 +7,12 @@ describe('classifyLoadError', () => {
     expect(classifyLoadError(-2)).toBe('unreachable')
     expect(classifyLoadError(-1)).toBe('unreachable')
   })
+
+  it('reports ERR_ADDRESS_UNREACHABLE as a local-network block only on macOS', () => {
+    expect(classifyLoadError(-109, 'darwin')).toBe('local_network')
+    expect(classifyLoadError(-109, 'linux')).toBe('unreachable')
+    expect(classifyLoadError(-109, 'win32')).toBe('unreachable')
+  })
 })
 
 vi.mock('electron', () => import('@/test/electron-mock'))
