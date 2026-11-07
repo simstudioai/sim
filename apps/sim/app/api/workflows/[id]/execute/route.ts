@@ -987,11 +987,9 @@ async function handleExecutePost(
     }
 
     /**
-     * Sessions and personal keys preserve the authenticated human as actor.
-     * Preprocessing resolves the workspace payer independently. This follows
-     * the auth type, never the body's `isClientSession`: a session runs the
-     * draft it can edit, so letting it opt out would run that draft with the
-     * billing account's credentials.
+     * Sessions and personal keys act as the authenticated human. Keyed on auth
+     * type, not the body's `isClientSession`, so a session cannot opt out and
+     * run its editable draft on the billing account's credentials.
      */
     const useAuthenticatedUserAsActor =
       auth.authType === AuthType.SESSION ||
