@@ -508,6 +508,108 @@ async function run() {
     assert.equal(next.result, 'still alive', next.error?.message)
   })
 
+  /** A server that never answers, so a fetch to it stays in flight until the app drops it. */
+  const stalledServer = async () => {
+    let markReached = () => {}
+    let markDropped = () => {}
+    const reached = new Promise<void>((resolve) => {
+      markReached = resolve
+    })
+    const dropped = new Promise<void>((resolve) => {
+      markDropped = resolve
+    })
+    const server = createHttpServer((req) => {
+      req.socket.once('close', markDropped)
+      markReached()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    assert(address && typeof address === 'object')
+    return {
+      url: `http://127.0.0.1:${address.port}/`,
+      reached,
+      /** Whether the app closed the request within `withinMs`. */
+      droppedSoon: (withinMs = 2000) =>
+        Promise.race([dropped.then(() => true), sleep(withinMs).then(() => false)]),
+      close: () => {
+        server.closeAllConnections()
+        server.close()
+      },
+    }
+  }
+  type StalledServer = Awaited<ReturnType<typeof stalledServer>>
+
+  const checkFetchDropped = (
+    name: string,
+    endExecution: (server: StalledServer) => Promise<void>,
+    withinMs?: number
+  ) =>
+    check(name, async () => {
+      const server = await stalledServer()
+      try {
+        await endExecution(server)
+        assert(await server.droppedSoon(withinMs), 'The app kept the fetch open')
+      } finally {
+        server.close()
+      }
+    })
+
+  await checkFetchDropped(
+    'drops the in-flight fetch of an execution the app timed out',
+    async (server) => {
+      // Started late in the run, so only dropping it at the timeout, not at its own time
+      // budget, closes it within the grace period.
+      const result = await execute(
+        `await fetch('http://127.0.0.1:${slowAddress.port}/?ms=800'); fetch('${server.url}'); await new Promise(() => {})`,
+        { timeoutMs: 1000 }
+      )
+      assert.equal(result.termination, 'timeout', result.error?.message)
+    },
+    400
+  )
+
+  await checkFetchDropped(
+    'drops the in-flight fetch of an execution the isolate timed out',
+    async (server) => {
+      // The isolate's own timeout ends a synchronous spin a second before the pool would.
+      const result = await execute(`fetch('${server.url}'); for (;;) {}`, { timeoutMs: 1000 })
+      assert.equal(result.termination, 'timeout', result.error?.message)
+    },
+    400
+  )
+
+  await checkFetchDropped('drops the in-flight fetch of a cancelled execution', async (server) => {
+    const controller = new AbortController()
+    const pending = execute(`await fetch('${server.url}')`, { signal: controller.signal })
+    await server.reached
+    controller.abort()
+    assert.equal((await pending).termination, 'cancelled')
+  })
+
+  await checkFetchDropped('drops the in-flight fetch when its worker dies', async (server) => {
+    const pending = execute(`await fetch('${server.url}')`)
+    await server.reached
+    for (const pid of workerPidsOf(host.process.pid ?? -1)) process.kill(pid, 'SIGKILL')
+    assert.equal((await pending).error?.isSystemError, true)
+  })
+
+  await checkFetchDropped(
+    'sends a fetch the script left running, then drops it after the time budget',
+    async (server) => {
+      const result = await execute(
+        `fetch('${server.url}', { method: 'POST', body: 'ping' }); return 1`,
+        { timeoutMs: 500 }
+      )
+      assert.equal(result.result, 1, result.error?.message)
+      await server.reached
+      assert.equal(
+        await server.droppedSoon(300),
+        false,
+        'The app dropped the fetch as soon as the script returned'
+      )
+    }
+  )
+
   const runTask = (code: string) =>
     execute(code, {
       task: {
