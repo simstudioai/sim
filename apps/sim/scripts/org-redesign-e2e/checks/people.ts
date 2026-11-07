@@ -98,7 +98,8 @@ export async function peoplePhaseChecks() {
           const cell = node.closest('td')
           const table = node.closest('table')
           const name = node.previousElementSibling
-          const field = document.querySelector('input')?.parentElement
+          // The field's frame, not the query wrapper inside its padding.
+          const field = document.querySelector('input')?.closest('[data-variant]')
           return {
             nameShare:
               (cell?.getBoundingClientRect().width ?? 0) /

@@ -64,6 +64,7 @@ function toOrganizationIntegration(entry: MemberIntegration): OrganizationIntegr
           status: account.status,
           canReconnect: entry.reconnectAccountIds.includes(account.credentialId),
           hasToolPermissions: entry.permissionAccountIds.includes(account.credentialId),
+          sites: 'sites' in account ? account.sites : [],
         })),
   }
 }

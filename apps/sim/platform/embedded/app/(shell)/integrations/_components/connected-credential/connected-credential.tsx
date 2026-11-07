@@ -51,6 +51,16 @@ export function ConnectedCredential({
             <p className={styles.muted} data-type='T050'>
               {account.statusLabel}
             </p>
+            {accounts.length === 1 && account.sites.length > 0 && (
+              <ul aria-label={`Sites ${account.label} reaches`} className={styles.sites}>
+                {account.sites.map((site) => (
+                  <li key={site.url} data-type='T050'>
+                    {site.name}{' '}
+                    <span className={styles.muted}>{site.url.replace(/^https:\/\//, '')}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className={styles.actions}>
             {account.status === 'needs_reauth' && account.canReconnect && (

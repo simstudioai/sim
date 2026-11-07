@@ -75,7 +75,10 @@ export function IntegrationDetails({
           integrationName={name}
           accounts={shown.map((account) => ({
             ...account,
-            statusLabel: accountStatus(integration, account),
+            statusLabel:
+              shown.length > 1 && account.sites.length > 0
+                ? `${accountStatus(integration, account)} · ${account.sites.length} ${account.sites.length === 1 ? 'site' : 'sites'}`
+                : accountStatus(integration, account),
             href: !selected && account.hasToolPermissions ? accountHref(account.id) : undefined,
           }))}
           pending={pending}

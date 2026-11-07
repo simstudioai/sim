@@ -15,6 +15,8 @@ export interface IntegrationAccount {
   status: 'active' | 'needs_reauth'
   canReconnect: boolean
   hasToolPermissions: boolean
+  /** Sites one grant reaches, such as Confluence or Jira; empty for most providers. */
+  sites: readonly { name: string; url: string }[]
 }
 
 /** The member inventory is projected before the page receives it. */

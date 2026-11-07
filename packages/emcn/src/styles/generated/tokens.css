@@ -409,11 +409,11 @@
   --size-button-icon: var(--container-16);
   --size-button-icon-large: var(--container-20);
   --width-nav-logo: var(--container-40);
-  --font-mono: "EMCN Geist Mono";
+  --font-mono: "EMCN Geist Mono", ui-monospace, monospace;
   --font-mono-mobile: var(--font-mono);
   --font-mono-tablet: var(--font-mono);
   --font-native: system-ui, sans-serif;
-  --font-sans: "EMCN Geist";
+  --font-sans: "EMCN Geist", Arial, sans-serif;
   --font-sans-mobile: var(--font-sans);
   --font-sans-tablet: var(--font-sans);
   --text-10: 0.625rem;

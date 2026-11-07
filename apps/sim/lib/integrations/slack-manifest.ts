@@ -1,9 +1,21 @@
+import { getBaseUrl } from '@/lib/core/utils/urls'
+
 const SLACK_APP_NAME_MAX_LENGTH = 35
 export const SLACK_APP_CREATION_URL_MAX_LENGTH = 30_000
 
 /** Opens Slack's app creation flow with the generated manifest already filled in. */
 export function buildSlackAppCreationUrl(manifest: string): string {
   return `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(manifest)}`
+}
+
+/**
+ * The Request URL a Slack custom-bot app posts events to. One URL per
+ * credential (not per workflow): the endpoint verifies with the credential's
+ * signing secret and fans out to every workflow whose trigger routes by this
+ * credential id. Uses the app's public base so Slack's servers can reach it.
+ */
+export function buildSlackCustomBotRequestUrl(credentialId: string): string {
+  return `${getBaseUrl()}/api/webhooks/slack/custom/${credentialId}`
 }
 
 /** Validates a name used for both the Slack app and its bot user. */

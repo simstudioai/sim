@@ -14,7 +14,7 @@ import type { ContentCatalog, DocsPage, NavigationMeta } from '@/lib/content/typ
 import { writeFullMarkdown } from '@/lib/llms-build'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 import { DOCS_REDIRECTS } from '@/lib/redirects'
-import { buildSearchIndex } from '@/lib/search/build'
+import { buildSearchCatalog, buildSearchIndex } from '@/lib/search/build'
 
 const logger = createLogger('DocsContent')
 const DOCS_ROOT = path.resolve(import.meta.dirname, '..')
@@ -399,6 +399,7 @@ async function generate() {
     ['routes.json', JSON.stringify(pages.map((page) => page.url))],
     ['cache.json', JSON.stringify(cache)],
     ['search.json', searchIndex],
+    ['search-catalog.json', JSON.stringify(buildSearchCatalog(catalog))],
     ['catalog.json', serialized],
   ]) {
     await writeFile(path.join(OUTPUT_ROOT, `${name}.tmp`), data)

@@ -20,6 +20,7 @@ import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildSlackAppCreationUrl,
+  buildSlackCustomBotRequestUrl,
   getSlackAppNameError,
   SLACK_APP_CREATION_URL_MAX_LENGTH,
 } from '@/lib/integrations/slack-manifest'
@@ -35,7 +36,6 @@ import {
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
   type SlackSlashCommand,
 } from '@/triggers/slack/capabilities'
-import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBotModal')
 

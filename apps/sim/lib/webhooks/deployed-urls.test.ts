@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/webhooks/trigger-url', () => ({
   buildWebhookTriggerUrl: (path: string) => `https://sim.test/api/webhooks/trigger/${path}`,
 }))
-vi.mock('@/triggers/webhook-url', () => ({
+vi.mock('@/lib/integrations/slack-manifest', () => ({
   buildSlackCustomBotRequestUrl: (credentialId: string) =>
     `https://sim.test/api/webhooks/slack/custom/${credentialId}`,
 }))

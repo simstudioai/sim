@@ -118,42 +118,50 @@ export async function storeOTP(
 
 /**
  * Lua script that reserves one verification attempt in Redis. Returns the
- * code with the reserved attempt number, or nil when no code exists. Rewrites
- * keep the remaining lifetime to the millisecond; a code without one is
- * treated as expired so it can never become permanent.
+ * code with the reserved attempt number, or nil when no code exists or its
+ * attempts are spent. Rewrites keep the remaining lifetime to the
+ * millisecond; a code without one is treated as expired so it can never
+ * become permanent.
  */
 const RESERVE_ATTEMPT_SCRIPT = `
 local val = redis.call('GET', KEYS[1])
 if not val then return nil end
-local colon = val:find(':([^:]*)$')
-local otp, attempts
-if colon then
-  otp = val:sub(1, colon - 1)
-  attempts = tonumber(val:sub(colon + 1)) or 0
-else
-  otp = val
-  attempts = 0
-end
-attempts = attempts + 1
-local newVal = otp .. ':' .. attempts
-if attempts >= tonumber(ARGV[1]) then
-  redis.call('DEL', KEYS[1])
-  return newVal
-end
+local otp, attempts = val:match('^(.*):(%d+)$')
+if not otp then return nil end
 local ttl = redis.call('PTTL', KEYS[1])
 if ttl <= 0 then
   redis.call('DEL', KEYS[1])
   return nil
 end
+attempts = tonumber(attempts)
+if attempts >= tonumber(ARGV[1]) then return nil end
+local newVal = otp .. ':' .. (attempts + 1)
 redis.call('SET', KEYS[1], newVal, 'PX', ttl)
 return newVal
 `
 
 /**
+ * Lua script that deletes the key only while it still holds the code in
+ * ARGV[1], returning 1 when this call removed it.
+ */
+const CONSUME_SCRIPT = `
+local val = redis.call('GET', KEYS[1])
+if not val or val:match('^(.*):%d+$') ~= ARGV[1] then return 0 end
+return redis.call('DEL', KEYS[1])
+`
+
+/**
+ * The code and attempt count of a stored `code:attempts` value. Pattern
+ * matching rather than split + cast: other `verification` rows sharing the
+ * table must never fail a cast.
+ */
+const STORED_CODE = sql`substring(${verification.value} from '^(.*):[0-9]+$')`
+const STORED_ATTEMPTS = sql`substring(${verification.value} from ':([0-9]+)$')::int`
+
+/**
  * Atomically spends one of the code's {@link MAX_OTP_ATTEMPTS} attempts and
  * returns the stored code with its reserved attempt count, or `null` when no
- * live code is left. The reservation that spends the last attempt also
- * deletes the code.
+ * live code is left or all its attempts are spent.
  */
 async function reserveOTPAttempt(
   kind: DeploymentKind,
@@ -171,32 +179,22 @@ async function reserveOTPAttempt(
     return typeof result === 'string' ? decodeOTPValue(result) : null
   }
 
-  const identifier = keys.dbIdentifier(email, deploymentId)
-  // Pattern match, not split + cast: other `verification` rows must never fail a cast.
-  const attemptsSql = sql`substring(${verification.value} from ':([0-9]+)$')::int`
   const [reserved] = await db
     .update(verification)
     .set({
-      value: sql`substring(${verification.value} from '^(.*):[0-9]+$') || ':' || (${attemptsSql} + 1)`,
+      value: sql`${STORED_CODE} || ':' || (${STORED_ATTEMPTS} + 1)`,
       updatedAt: new Date(),
     })
     .where(
       and(
-        eq(verification.identifier, identifier),
+        eq(verification.identifier, keys.dbIdentifier(email, deploymentId)),
         gt(verification.expiresAt, new Date()),
-        lt(attemptsSql, MAX_OTP_ATTEMPTS)
+        lt(STORED_ATTEMPTS, MAX_OTP_ATTEMPTS)
       )
     )
     .returning({ value: verification.value })
 
-  if (!reserved) return null
-  const decoded = decodeOTPValue(reserved.value)
-  if (decoded.attempts >= MAX_OTP_ATTEMPTS) {
-    await db
-      .delete(verification)
-      .where(and(eq(verification.identifier, identifier), eq(verification.value, reserved.value)))
-  }
-  return decoded
+  return reserved ? decodeOTPValue(reserved.value) : null
 }
 
 export type OTPVerification = 'valid' | 'invalid' | 'locked' | 'missing'
@@ -204,8 +202,10 @@ export type OTPVerification = 'valid' | 'invalid' | 'locked' | 'missing'
 /**
  * Checks a submitted code and consumes it on a match. An attempt is reserved
  * before the comparison, so at most {@link MAX_OTP_ATTEMPTS} guesses are ever
- * compared against one code however many requests run concurrently.
- * `'locked'` means this guess spent the last attempt and the code is gone.
+ * compared against one code however many requests run concurrently, and only
+ * one correct submission succeeds. `'locked'` means this guess spent the last
+ * attempt and the code is gone; `'missing'` covers a code that is gone or was
+ * consumed by a concurrent request.
  */
 export async function verifyOTP(
   kind: DeploymentKind,
@@ -216,24 +216,39 @@ export async function verifyOTP(
   const reserved = await reserveOTPAttempt(kind, deploymentId, email)
   if (!reserved) return 'missing'
   if (safeCompare(reserved.otp, code)) {
-    await deleteOTP(kind, deploymentId, email)
-    return 'valid'
+    return (await consumeOTP(kind, deploymentId, email, reserved.otp)) ? 'valid' : 'missing'
   }
-  return reserved.attempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'invalid'
+  if (reserved.attempts < MAX_OTP_ATTEMPTS) return 'invalid'
+  await consumeOTP(kind, deploymentId, email, reserved.otp)
+  return 'locked'
 }
 
-async function deleteOTP(kind: DeploymentKind, deploymentId: string, email: string): Promise<void> {
+/**
+ * Deletes the stored code only if it is still `otp`, so concurrent correct
+ * submissions get one success between them and a newer code issued meanwhile
+ * survives. Returns whether this call removed it.
+ */
+async function consumeOTP(
+  kind: DeploymentKind,
+  deploymentId: string,
+  email: string,
+  otp: string
+): Promise<boolean> {
   const keys = OTP_KEYS[kind]
   const storageMethod = getStorageMethod()
 
   if (storageMethod === 'redis') {
     const redis = getRedisClient()
     if (!redis) throw new Error('Redis configured but client unavailable')
-    await redis.del(keys.redisKey(email, deploymentId))
-    return
+    const key = keys.redisKey(email, deploymentId)
+    return (await redis.eval(CONSUME_SCRIPT, 1, key, otp)) === 1
   }
 
-  await db
+  const consumed = await db
     .delete(verification)
-    .where(eq(verification.identifier, keys.dbIdentifier(email, deploymentId)))
+    .where(
+      and(eq(verification.identifier, keys.dbIdentifier(email, deploymentId)), eq(STORED_CODE, otp))
+    )
+    .returning({ id: verification.id })
+  return consumed.length > 0
 }

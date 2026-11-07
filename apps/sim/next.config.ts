@@ -501,6 +501,16 @@ const nextConfig: NextConfig = {
         source: '/team',
         destination: 'https://cal.com/team/sim/demo',
         permanent: false,
+      },
+      {
+        source: '/security',
+        destination: 'https://trust.sim.ai/',
+        permanent: false,
+      },
+      {
+        source: '/trust',
+        destination: 'https://trust.sim.ai/',
+        permanent: false,
       }
     )
 

@@ -9,6 +9,7 @@ import {
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { withCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -164,15 +165,16 @@ export const Dropdown = memo(function Dropdown({
   }, [multiSelect, value])
 
   // Derived option lists read the block's own values (a model's valid reasoning efforts);
-  // `dependsOn` already re-renders this control when one of those siblings changes.
+  // `dependsOn` already re-renders this control when one of those siblings changes. They also get
+  // `__canonicalModes`, as conditions do, so both read the same active member of a canonical pair.
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const blockValues = useSubBlockStore((state) =>
     activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
   )
   const evaluatedOptions = useMemo(() => {
-    if (typeof options === 'function') return options({ values: blockValues ?? {} })
-    return options ?? EMPTY_OPTIONS
-  }, [options, blockValues])
+    if (typeof options !== 'function') return options ?? EMPTY_OPTIONS
+    return options({ values: withCanonicalModes(blockValues ?? {}, canonicalModes) })
+  }, [options, blockValues, canonicalModes])
 
   const reactiveOptions = useMemo(
     () =>

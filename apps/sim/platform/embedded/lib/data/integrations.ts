@@ -51,6 +51,11 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
+/** Runs once a popup or desktop connection finishes, not when it merely opens. */
+interface ConnectionOptions {
+  onSuccess?: () => void
+}
+
 export function useIntegrationActions(organizationId: string) {
   const [savedConnection, setSavedConnection] = useState<{
     providerId: SaveSearchPersonalCredentialBody['providerId']
@@ -71,11 +76,14 @@ export function useIntegrationActions(organizationId: string) {
     pending: connecting || disconnect.isPending || removeSaved.isPending,
     savedConnection,
     closeSavedConnection,
-    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
+    connect: (
+      target: NonNullable<OrganizationIntegration['connectionTarget']>,
+      options?: ConnectionOptions
+    ) => {
       if ('savedProviderId' in target) setSavedConnection({ providerId: target.savedProviderId })
-      else connect.mutate({ organizationId, ...target }, { onError })
+      else connect.mutate({ organizationId, ...target }, { onError, onSuccess: options?.onSuccess })
     },
-    reconnect: (credentialId: string) => {
+    reconnect: (credentialId: string, options?: ConnectionOptions) => {
       const saved = savedAccounts.find((account) => account.credentialId === credentialId)
       if (saved)
         setSavedConnection({
@@ -83,7 +91,7 @@ export function useIntegrationActions(organizationId: string) {
           credentialId,
           displayName: saved.displayName,
         })
-      else reconnect.mutate(credentialId, { onError })
+      else reconnect.mutate(credentialId, { onError, onSuccess: options?.onSuccess })
     },
     disconnect: async (credentialId: string) => {
       if (savedAccounts.some((account) => account.credentialId === credentialId))

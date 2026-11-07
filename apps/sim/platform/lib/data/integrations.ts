@@ -60,6 +60,11 @@ export function useMemberIntegrations(organizationId: string) {
 /** A saved provider's id is its integration's URL segment plus this. */
 const SAVED_PROVIDER_SUFFIX = /-service-account$/
 
+/** Runs once a popup or desktop connection finishes, not when it merely opens. */
+interface ConnectionOptions {
+  onSuccess?: () => void
+}
+
 /**
  * The zone has no dialog for an account the member saves by hand, so connecting one happens on the
  * legacy provider page, a route the legacy layout does not map back here.
@@ -80,14 +85,17 @@ export function useIntegrationActions(organizationId: string) {
   return {
     connecting,
     pending: connecting || disconnect.isPending || removeSaved.isPending,
-    connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
+    connect: (
+      target: NonNullable<OrganizationIntegration['connectionTarget']>,
+      options?: ConnectionOptions
+    ) => {
       if ('savedProviderId' in target) openSavedConnection(target.savedProviderId)
-      else connect.mutate({ organizationId, ...target }, { onError })
+      else connect.mutate({ organizationId, ...target }, { onError, onSuccess: options?.onSuccess })
     },
-    reconnect: (credentialId: string) => {
+    reconnect: (credentialId: string, options?: ConnectionOptions) => {
       const saved = savedAccounts.find((account) => account.credentialId === credentialId)
       if (saved) openSavedConnection(saved.providerId)
-      else reconnect.mutate(credentialId, { onError })
+      else reconnect.mutate(credentialId, { onError, onSuccess: options?.onSuccess })
     },
     disconnect: async (credentialId: string) => {
       if (savedAccounts.some((account) => account.credentialId === credentialId))

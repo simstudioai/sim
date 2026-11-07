@@ -3,9 +3,9 @@ import { webhook } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { buildSlackCustomBotRequestUrl } from '@/lib/integrations/slack-manifest'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
-import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 /** The public URL one live webhook registration receives events on, and the block it feeds. */
 export interface DeployedWebhookUrl {
