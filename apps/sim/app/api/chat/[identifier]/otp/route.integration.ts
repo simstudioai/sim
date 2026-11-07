@@ -7,7 +7,7 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, like } from 'drizzle-orm'
 import Redis from 'ioredis'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { storage, redisClient } = vi.hoisted(() => ({
   storage: { backend: 'database' as 'database' | 'redis' },
@@ -107,6 +107,35 @@ describe.each(['database', 'redis'] as const)('%s chat OTP verification', (backe
     beforeEach(async () => {
       storage.backend = backend
       await storeOTP('chat', chatId, email, CODE)
+    })
+    afterEach(async () => {
+      await db
+        .update(chat)
+        .set({ authType: 'email', allowedEmails: [email] })
+        .where(eq(chat.id, chatId))
+    })
+
+    it.each([
+      {
+        rejection: 'the chat no longer uses email auth',
+        change: { authType: 'public' },
+        response: { status: 400, error: 'This chat does not use email authentication' },
+      },
+      {
+        rejection: 'the email is no longer allowed',
+        change: { allowedEmails: ['someone-else@otp.invalid'] },
+        response: { status: 403, error: 'Email not authorized' },
+      },
+    ])('rejects without spending the code when $rejection', async ({ change, response }) => {
+      await db.update(chat).set(change).where(eq(chat.id, chatId))
+      for (let attempt = 0; attempt < MAX_OTP_ATTEMPTS; attempt++) {
+        expect(await verify(CODE)).toMatchObject({ ...response, cookie: null })
+      }
+      await db
+        .update(chat)
+        .set({ authType: 'email', allowedEmails: [email] })
+        .where(eq(chat.id, chatId))
+      expect(await verify(CODE)).toMatchObject({ status: 200 })
     })
 
     it('compares at most the attempt limit of guesses however many arrive concurrently', async () => {

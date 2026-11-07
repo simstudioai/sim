@@ -24,7 +24,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockRedisSet,
-  mockRedisEval,
   mockRedisClient,
   mockSetChatAuthCookie,
   mockIsEmailAllowed,
@@ -33,10 +32,8 @@ const {
   mockAfterResponse,
 } = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
-  const mockRedisEval = vi.fn()
   const mockRedisClient = {
     set: mockRedisSet,
-    eval: mockRedisEval,
   }
   const mockSetChatAuthCookie = vi.fn()
   const mockIsEmailAllowed = vi.fn((email: string, allowedEmails: string[]) => {
@@ -50,7 +47,6 @@ const {
 
   return {
     mockRedisSet,
-    mockRedisEval,
     mockRedisClient,
     mockSetChatAuthCookie,
     mockIsEmailAllowed,
@@ -127,7 +123,7 @@ vi.mock('zod', () => {
   }
 })
 
-import { PUT, POST as routePost } from './route'
+import { POST as routePost } from './route'
 
 const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
 const { mockSendEmail } = emailMailerMockFns
@@ -144,7 +140,6 @@ describe('Chat OTP API Route', () => {
   const mockEmail = 'test@example.com'
   const mockChatId = 'chat-123'
   const mockIdentifier = 'test-chat'
-  const mockOTP = '123456'
 
   /** Queues the chat-deployment row the route reads before touching OTP storage. */
   const queueDeployment = (row: Record<string, unknown>) => {
@@ -295,53 +290,6 @@ describe('Chat OTP API Route', () => {
         expect.any(Object),
         { failClosed: true }
       )
-    })
-  })
-
-  describe('PUT - Verify OTP (authType re-check)', () => {
-    beforeEach(() => {
-      mockGetStorageMethod.mockReturnValue('redis')
-      mockRedisEval.mockResolvedValue(`${mockOTP}:1`)
-    })
-
-    it('rejects verification when the chat has switched away from email auth', async () => {
-      queueDeployment({
-        id: mockChatId,
-        authType: 'password',
-        password: 'encrypted-password',
-      })
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/chat/test/otp',
-        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
-
-      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith(
-        'This chat does not use email authentication',
-        400
-      )
-      expect(mockRedisEval).not.toHaveBeenCalled()
-      expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
-    })
-
-    it('rejects verification when the email is no longer allowed', async () => {
-      mockIsEmailAllowed.mockReturnValueOnce(false)
-      queueDeployment({ id: mockChatId, authType: 'email' })
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/chat/test/otp',
-        rawBody: JSON.stringify({ email: mockEmail, otp: mockOTP }),
-      })
-
-      await PUT(request, createRouteContext({ identifier: mockIdentifier }))
-
-      expect(mockCreateCodedErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
-      expect(mockRedisEval).not.toHaveBeenCalled()
-      expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
     })
   })
 })
