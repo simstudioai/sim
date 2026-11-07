@@ -42,6 +42,7 @@ import {
   GreenhouseIcon,
   HarmonicIcon,
   HelpScoutIcon,
+  HiggsfieldIcon,
   HubspotIcon,
   InstagramIcon,
   IntuneIcon,
@@ -1658,6 +1659,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gauge',
+  },
+  higgsfield: {
+    name: 'Higgsfield',
+    icon: HiggsfieldIcon,
+    services: {
+      higgsfield: {
+        name: 'Higgsfield',
+        description: 'Generate images and videos and manage Soul ID characters with Higgsfield.',
+        providerId: 'higgsfield',
+        serviceAccountProviderId: 'higgsfield-service-account',
+        icon: HiggsfieldIcon,
+        baseProviderIcon: HiggsfieldIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'higgsfield',
   },
   harmonic: {
     name: 'Harmonic',

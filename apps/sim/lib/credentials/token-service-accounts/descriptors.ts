@@ -84,6 +84,7 @@ export const SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID = 'snowflake-service-account'
 export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
+export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -114,6 +115,7 @@ export type TokenServiceAccountProviderId =
   | typeof SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -474,6 +476,27 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Create a key in Gauge under Settings → Integrations → API Keys. Read only supports reports and reads; choose Read & write to manage prompts, topics, and tags. Reconnect with a new key after expiry or revocation.',
     invalidCredentialsHelp:
       'Use a Gauge organization API key, not a CLI login token. Check that the key has not expired or been revoked.',
+  },
+  [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Higgsfield',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'KEY_ID:KEY_SECRET',
+        secret: true,
+        hintPattern: /^[^:\s]+:[^:\s]+$/,
+        hintMessage: 'Enter the key ID and secret joined by a colon: KEY_ID:KEY_SECRET.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/higgsfield',
+    helpText:
+      'Create an API key in the Higgsfield Console (console.higgsfield.ai). Paste its key ID and secret joined by a colon.',
+    invalidCredentialsHelp:
+      'Higgsfield rejected this key. Paste both parts as KEY_ID:KEY_SECRET and check that the key has not been disabled or deleted.',
   },
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,

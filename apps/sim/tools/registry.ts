@@ -2592,6 +2592,17 @@ import {
   hexUpdateGroupTool,
   hexUpdateProjectTool,
 } from '@/tools/hex'
+import {
+  higgsfieldCancelRequestTool,
+  higgsfieldCreateCharacterTool,
+  higgsfieldDeleteCharacterTool,
+  higgsfieldDeleteRequestTool,
+  higgsfieldGenerateSoulImageTool,
+  higgsfieldGenerateTool,
+  higgsfieldGetCharacterTool,
+  higgsfieldGetRequestStatusTool,
+  higgsfieldListCharactersTool,
+} from '@/tools/higgsfield'
 import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import {
   hubspotAddListMembershipsTool,
@@ -7457,6 +7468,15 @@ export const tools: Record<string, ExecutableToolConfig> = {
   hex_update_collection: hexUpdateCollectionTool,
   hex_update_group: hexUpdateGroupTool,
   hex_update_project: hexUpdateProjectTool,
+  higgsfield_cancel_request: higgsfieldCancelRequestTool,
+  higgsfield_create_character: higgsfieldCreateCharacterTool,
+  higgsfield_delete_character: higgsfieldDeleteCharacterTool,
+  higgsfield_delete_request: higgsfieldDeleteRequestTool,
+  higgsfield_generate: higgsfieldGenerateTool,
+  higgsfield_generate_soul_image: higgsfieldGenerateSoulImageTool,
+  higgsfield_get_character: higgsfieldGetCharacterTool,
+  higgsfield_get_request_status: higgsfieldGetRequestStatusTool,
+  higgsfield_list_characters: higgsfieldListCharactersTool,
   instagram_delete_comment: instagramDeleteCommentTool,
   instagram_download_media: instagramDownloadMediaTool,
   instagram_get_account_insights: instagramGetAccountInsightsTool,
