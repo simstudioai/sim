@@ -8,25 +8,28 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
  *
  * They are not an authorization boundary: every read re-resolves the account among the reader's
  * own accounts in the request's scope, then re-verifies the document with the provider and the
- * admin's source policy. So the ID carries only what locates the document, and nothing the
- * request already knows (the reader, the scope).
+ * admin's source policy. An ID names its reader and scope only by a short {@link liveReferenceOwner}
+ * fingerprint, so a read in another scope or by another member is refused as not found in this
+ * scope rather than reaching account resolution.
  *
  * The current form is `live2:` followed by `~`-separated fields, trailing empty fields dropped,
- * then a checksum: `live2:slack~<account>~<ts>~<channel>~~<thread ts>~<checksum>`. Clients copy
- * IDs verbatim into later calls, so the form stays readable (provider IDs and UUIDs tokenize far
- * better than base64 of them) and uses only characters a model reproduces reliably. Earlier IDs
- * (`live:` + base64url JSON naming the reader and scope) still read, with their reader and scope
- * checked as before.
+ * then a checksum: `live2:slack~<owner>~<account>~<ts>~<channel>~~<thread ts>~<checksum>`.
+ * Clients copy IDs verbatim into later calls, so the form stays readable (provider IDs and UUIDs
+ * tokenize far better than base64 of them) and uses only characters a model reproduces reliably.
+ * Earlier IDs (`live:` + base64url JSON naming the reader and scope) still read, checked against
+ * the same fingerprint.
  */
 const LIVE_V1_PREFIX = 'live:'
 const LIVE_V2_PREFIX = 'live2:'
 const MAX_REFERENCE_LENGTH = 4000
 const FIELD_SEPARATOR = '~'
 const CHECKSUM_LENGTH = 6
+const OWNER_LENGTH = 8
 
 const fieldsSchema = z
   .object({
     provider: liveSearchProviderSchema,
+    owner: z.string().regex(new RegExp(`^[0-9a-f]{${OWNER_LENGTH}}$`)),
     account: z.string().min(1).max(500),
     id: z.string().min(1).max(1000),
     container: z.string().min(1).max(500).optional(),
@@ -43,6 +46,7 @@ const fieldsSchema = z
 /** Field order of the v2 form; optional fields last so absent ones cost nothing. */
 const FIELD_ORDER = [
   'provider',
+  'owner',
   'account',
   'id',
   'container',
@@ -73,9 +77,9 @@ const legacySchema = z
 
 export type LiveReference = z.output<typeof fieldsSchema>
 
-/** A decoded ID; `legacy` holds the reader and scope a v1 ID was minted for. */
-export type DecodedLiveReference = LiveReference & {
-  legacy?: { user: string; scope: string }
+/** The reader and scope an ID was minted for, as the short fingerprint the ID carries. */
+export function liveReferenceOwner(userId: string, scope: string): string {
+  return sha256Hex(`${userId}\u0000${scope}`).slice(0, OWNER_LENGTH)
 }
 
 /**
@@ -131,7 +135,7 @@ function decodeV2(value: string): LiveReference {
   if (separator < 0 || value.slice(separator + 1) !== checksum(body))
     throw new Error('Checksum mismatch')
   const parts = body.split(FIELD_SEPARATOR)
-  if (parts.length < 3 || parts.length > FIELD_ORDER.length) throw new Error('Invalid field count')
+  if (parts.length < 4 || parts.length > FIELD_ORDER.length) throw new Error('Invalid field count')
   const fields: Record<string, string> = {}
   FIELD_ORDER.forEach((name, index) => {
     const part = parts[index]
@@ -140,20 +144,20 @@ function decodeV2(value: string): LiveReference {
   return fieldsSchema.parse(fields)
 }
 
-function decodeV1(body: string): DecodedLiveReference {
+function decodeV1(body: string): LiveReference {
   const { v, user, scope, ...rest } = legacySchema.parse(
     JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   )
   const fields = Object.fromEntries(
     Object.entries(rest).filter(([, value]) => value !== undefined && value !== '')
   )
-  return { ...fieldsSchema.parse(fields), legacy: { user, scope } }
+  return fieldsSchema.parse({ ...fields, owner: liveReferenceOwner(user, scope) })
 }
 
 const SEARCH_AGAIN = 'Invalid live document reference. Search again to select a live document'
 
 /** Decodes a current or earlier live document ID; anything else asks the caller to search again. */
-export function decodeLiveReference(value: string): DecodedLiveReference {
+export function decodeLiveReference(value: string): LiveReference {
   if (value.length > MAX_REFERENCE_LENGTH) throw new OrchestrationError('not_found', SEARCH_AGAIN)
   try {
     if (value.startsWith(LIVE_V2_PREFIX)) return decodeV2(value.slice(LIVE_V2_PREFIX.length))
@@ -172,8 +176,7 @@ export function liveDocumentKey(documentId: string): string {
   if (!documentId.startsWith(LIVE_V1_PREFIX) && !documentId.startsWith(LIVE_V2_PREFIX))
     return documentId
   try {
-    const { legacy, ...reference } = decodeLiveReference(documentId)
-    return encodeLiveReference(reference)
+    return encodeLiveReference(decodeLiveReference(documentId))
   } catch {
     return documentId
   }

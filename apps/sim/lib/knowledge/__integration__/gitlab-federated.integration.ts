@@ -25,6 +25,7 @@ import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
   createKnowledgeConnector,
@@ -32,7 +33,11 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-group-sync'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
-import { decodeLiveReference } from '@/lib/sim-search/live/reference'
+import {
+  decodeLiveReference,
+  encodeLiveReference,
+  liveReferenceOwner,
+} from '@/lib/sim-search/live/reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface FixturePerson {
@@ -125,6 +130,14 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
         limit: 3,
         resultSecretRegistry: new ResolvedSecretTraceRegistry(),
       },
+    })
+  }
+
+  function documentForReader(documentId: string, person: FixturePerson) {
+    const scope = resourceScopeKey(resourceScopeFromOwner({ organizationId: ids.organizationId }))
+    return encodeLiveReference({
+      ...decodeLiveReference(documentId),
+      owner: liveReferenceOwner(person.simId, scope),
     })
   }
 
@@ -310,11 +323,13 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
     120_000
   )
 
-  it('checks a shared source reference against its reader and rechecks confidentiality', async () => {
+  it('keeps references reader-bound and rechecks confidentiality before reads', async () => {
     const reporter = await search(people.reporter!, 'code')
     const file = reporter.results[0]!
-    /** The ID names no reader: the guest's own GitLab access refuses the reporter's code result. */
     await expect(read(people.guest!, file.documentId)).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      read(people.guest!, documentForReader(file.documentId, people.guest!))
+    ).rejects.toBeDefined()
     const guest = await search(people.guest!, 'issues')
     const normal = guest.results.find(
       (row) => decodeLiveReference(row.documentId).id === String(issueIid)

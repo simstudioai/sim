@@ -1511,7 +1511,6 @@
     "apps/sim/lib/knowledge/read-access.test.ts": 1,
     "apps/sim/lib/knowledge/read-access.ts": 1,
     "apps/sim/lib/knowledge/search/budget.test.ts": 1,
-    "apps/sim/lib/knowledge/search/filters.ts": 1,
     "apps/sim/lib/knowledge/search/queries.test.ts": 10,
     "apps/sim/lib/knowledge/search/queries.ts": 3,
     "apps/sim/lib/knowledge/tags/filter-resolution.ts": 1,

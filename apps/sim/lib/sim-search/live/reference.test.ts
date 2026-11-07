@@ -5,15 +5,18 @@ import {
   type LiveReference,
 } from '@/lib/sim-search/live/reference'
 
+const owner = 'a1b2c3d4'
+
 const thread: LiveReference = {
   provider: 'slack',
+  owner,
   account: 'account',
   id: '1730912345.123456',
   container: 'C1',
   threadId: '1730900000.000100',
 }
 
-const earlierForm = (reference: LiveReference) =>
+const earlierForm = ({ owner: _owner, ...reference }: LiveReference) =>
   `live:${Buffer.from(
     JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...reference })
   ).toString('base64url')}`
@@ -33,13 +36,14 @@ describe('live document IDs', () => {
     ['Unicode text', 'docs/設計/仕様書.md'],
     ['an unpaired surrogate', 'name\ud800end'],
   ])('reads back an ID holding %s', (_case, id) => {
-    const reference = { provider: 'gitlab', account: 'account', id } as const
+    const reference = { provider: 'gitlab', owner, account: 'account', id } as const
     expect(decodeLiveReference(encodeLiveReference(reference))).toEqual(reference)
   })
 
   it('is never longer than the earlier form for the same document', () => {
     const reference = {
       provider: 'gitlab',
+      owner,
       account: 'account',
       id: `src/${'設計書'.repeat(150)}.md`,
     } as const

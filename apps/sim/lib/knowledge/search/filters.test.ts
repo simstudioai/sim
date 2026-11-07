@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import { encodeLiveReference } from '@/lib/sim-search/live/reference'
+import { encodeLiveReference, liveReferenceOwner } from '@/lib/sim-search/live/reference'
 
 const fields = {
+  owner: liveReferenceOwner('reader', 'workspace:w'),
   account: 'account',
   provider: 'slack' as const,
   id: '1730912345.123456',
@@ -11,8 +12,9 @@ const fields = {
 }
 /** One Slack message in the current ID form and in the earlier form older conversations hold. */
 const currentId = encodeLiveReference(fields)
+const { owner: _owner, ...located } = fields
 const earlierId = `live:${Buffer.from(
-  JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...fields })
+  JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...located })
 ).toString('base64url')}`
 
 describe('Assistant search scope', () => {

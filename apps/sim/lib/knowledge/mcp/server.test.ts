@@ -55,7 +55,7 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
-import { encodeLiveReference } from '@/lib/sim-search/live/reference'
+import { encodeLiveReference, liveReferenceOwner } from '@/lib/sim-search/live/reference'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = hoisted
@@ -311,7 +311,11 @@ describe('batched document reads', () => {
     const earlier = `live:${Buffer.from(
       JSON.stringify({ v: 1, user: 'person-1', scope: 'organization:org-1', ...reference })
     ).toString('base64url')}`
-    await call('read_document', { documentIds: [earlier, encodeLiveReference(reference)] })
+    const current = encodeLiveReference({
+      ...reference,
+      owner: liveReferenceOwner('person-1', 'organization:org-1'),
+    })
+    await call('read_document', { documentIds: [earlier, current] })
     expect(mocks.rateLimit).toHaveBeenCalledWith(request, auth, expect.anything(), 1)
     expect(mocks.liveRead).toHaveBeenCalledTimes(1)
   })

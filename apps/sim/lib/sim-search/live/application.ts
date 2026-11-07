@@ -80,6 +80,7 @@ import {
   encodeLiveReference,
   includesLiveDocument,
   liveDocumentKey,
+  liveReferenceOwner,
 } from '@/lib/sim-search/live/reference'
 import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
@@ -196,10 +197,15 @@ interface LiveCandidate {
   documentId: string
 }
 
-function candidateFor(document: NativeDocument, account: LiveAccount): LiveCandidate {
+function candidateFor(
+  document: NativeDocument,
+  account: LiveAccount,
+  owner: string
+): LiveCandidate {
   return {
     document,
     documentId: encodeLiveReference({
+      owner,
       account: account.id,
       provider: account.provider,
       id: document.id,
@@ -431,6 +437,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
+    const owner = liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
@@ -569,7 +576,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       )
       const candidates = page.documents
         .filter((document) => document.id)
-        .map((document) => candidateFor(document, account))
+        .map((document) => candidateFor(document, account, owner))
       const matchingOf = (verified: LiveCandidate[]) =>
         firstOfEachDocument(
           verified.filter(({ document, documentId }) =>
@@ -1032,11 +1039,10 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
       throw new OrchestrationError('validation', 'Invalid document read limit')
-    const { legacy, ...reference } = decodeLiveReference(input.documentId)
-    // A v2 ID names no reader or scope: the account resolution below decides both.
+    const reference = decodeLiveReference(input.documentId)
     if (
-      legacy &&
-      (legacy.user !== userId || legacy.scope !== resourceScopeKey(resourceScopeFromOwner(input)))
+      reference.owner !==
+      liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     )
       throw new OrchestrationError('not_found', 'Document not found in this search scope')
     if (
