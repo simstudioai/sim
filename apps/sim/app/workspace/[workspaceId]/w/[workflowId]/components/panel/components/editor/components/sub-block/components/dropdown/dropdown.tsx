@@ -9,6 +9,7 @@ import {
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { withCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -172,10 +173,7 @@ export const Dropdown = memo(function Dropdown({
   )
   const evaluatedOptions = useMemo(() => {
     if (typeof options !== 'function') return options ?? EMPTY_OPTIONS
-    const values = blockValues ?? {}
-    return options({
-      values: canonicalModes ? { ...values, __canonicalModes: canonicalModes } : values,
-    })
+    return options({ values: withCanonicalModes(blockValues ?? {}, canonicalModes) })
   }, [options, blockValues, canonicalModes])
 
   const reactiveOptions = useMemo(
